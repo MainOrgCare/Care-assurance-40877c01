@@ -1,0 +1,510 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Medical / Clinical Palette - Liquid Dark Theme */
+  /* Primary: Trustworthy Blue */
+  --color-primary: hsl(210 100% 50%);
+  --color-primary-foreground: hsl(0 0% 100%);
+
+  /* Secondary: Soft Teal/Green for positive/health */
+  --color-secondary: hsl(170 60% 45%);
+  --color-secondary-foreground: hsl(0 0% 100%);
+
+  /* Backgrounds */
+  --color-background: hsl(215 28% 13%); /* Darker slate/blue background */
+  --color-foreground: hsl(210 20% 98%);
+  
+  --color-card: hsl(215 28% 17% / 0.6); /* Glass effect base */
+  --color-card-foreground: hsl(210 20% 98%);
+  
+  --color-popover: hsl(215 28% 17% / 0.9);
+  --color-popover-foreground: hsl(210 20% 98%);
+
+  /* Muted */
+  --color-muted: hsl(215 28% 25% / 0.5);
+  --color-muted-foreground: hsl(215 20% 70%);
+
+  /* Accent: Active states */
+  --color-accent: hsl(210 100% 50% / 0.15);
+  --color-accent-foreground: hsl(210 100% 60%);
+
+  /* Destructive: Compliance Errors */
+  --color-destructive: hsl(0 84% 60%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+
+  /* Borders */
+  --color-border: hsl(215 28% 30% / 0.5);
+  --color-input: hsl(215 28% 30% / 0.5);
+  --color-ring: hsl(210 100% 50%);
+
+  /* Chart Colors */
+  --color-chart-1: hsl(210 100% 50%); /* Blue */
+  --color-chart-2: hsl(172 66% 50%); /* Teal */
+  --color-chart-3: hsl(0 84% 60%);   /* Red */
+  --color-chart-4: hsl(43 96% 64%);  /* Warning Orange */
+  --color-chart-5: hsl(280 65% 60%); /* Purple */
+
+  --color-sidebar: hsl(215 28% 10% / 0.8); /* Darker, glass-like sidebar */
+  --color-sidebar-foreground: hsl(210 20% 90%);
+  --color-sidebar-primary: hsl(210 100% 50%);
+  --color-sidebar-primary-foreground: hsl(0 0% 100%);
+  --color-sidebar-accent: hsl(215 28% 20%);
+  --color-sidebar-accent-foreground: hsl(210 20% 98%);
+  --color-sidebar-border: hsl(215 28% 20% / 0.5);
+  --color-sidebar-ring: hsl(210 100% 50%);
+
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-heading: 'DM Sans', sans-serif;
+  
+  --radius: 0.75rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased text-foreground;
+    background-color: var(--color-background);
+    background-attachment: fixed;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading font-bold tracking-tight;
+  }
+}
+
+/* Theme-specific body backgrounds */
+.theme-dark body,
+body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
+  background-image: radial-gradient(at 0% 0%, hsla(215, 60%, 18%, 1) 0px, transparent 50%),
+                    radial-gradient(at 100% 0%, hsla(172, 60%, 12%, 1) 0px, transparent 50%),
+                    radial-gradient(at 100% 100%, hsla(215, 60%, 15%, 1) 0px, transparent 50%),
+                    radial-gradient(at 0% 100%, hsla(172, 60%, 10%, 1) 0px, transparent 50%);
+}
+
+.theme-midnight body {
+  background-image: radial-gradient(at 0% 0%, hsla(280, 50%, 15%, 1) 0px, transparent 50%),
+                    radial-gradient(at 100% 0%, hsla(262, 60%, 12%, 1) 0px, transparent 50%),
+                    radial-gradient(at 100% 100%, hsla(270, 50%, 10%, 1) 0px, transparent 50%),
+                    radial-gradient(at 0% 100%, hsla(262, 50%, 8%, 1) 0px, transparent 50%);
+}
+
+.theme-ocean body {
+  background-image: radial-gradient(at 0% 0%, hsla(200, 60%, 15%, 1) 0px, transparent 50%),
+                    radial-gradient(at 100% 0%, hsla(168, 60%, 12%, 1) 0px, transparent 50%),
+                    radial-gradient(at 100% 100%, hsla(190, 50%, 10%, 1) 0px, transparent 50%),
+                    radial-gradient(at 0% 100%, hsla(168, 50%, 8%, 1) 0px, transparent 50%);
+}
+
+.theme-light body {
+  background-image: none;
+  background-color: hsl(220 20% 97%);
+}
+
+@layer utilities {
+  .glass-card {
+    background-color: var(--color-card);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+  }
+  .glass-panel {
+    background-color: var(--color-muted);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border-subtle);
+  }
+}
+
+/* Glass effect variables per theme */
+:root {
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border-subtle: rgba(255, 255, 255, 0.05);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.theme-light {
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-border-subtle: rgba(0, 0, 0, 0.05);
+  --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.theme-midnight {
+  --glass-border: rgba(180, 140, 255, 0.15);
+  --glass-border-subtle: rgba(180, 140, 255, 0.08);
+  --glass-shadow: 0 8px 32px rgba(80, 40, 120, 0.3);
+}
+
+.theme-ocean {
+  --glass-border: rgba(100, 220, 200, 0.15);
+  --glass-border-subtle: rgba(100, 220, 200, 0.08);
+  --glass-shadow: 0 8px 32px rgba(20, 80, 100, 0.3);
+}
+
+/* Theme: Midnight - Deep purple tones */
+.theme-midnight {
+  --color-primary: hsl(262 83% 58%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-secondary: hsl(280 65% 60%);
+  --color-secondary-foreground: hsl(0 0% 100%);
+  --color-background: hsl(260 30% 8%);
+  --color-foreground: hsl(260 20% 98%);
+  --color-card: hsl(260 30% 12% / 0.6);
+  --color-card-foreground: hsl(260 20% 98%);
+  --color-popover: hsl(260 30% 12% / 0.9);
+  --color-popover-foreground: hsl(260 20% 98%);
+  --color-muted: hsl(260 30% 20% / 0.5);
+  --color-muted-foreground: hsl(260 20% 70%);
+  --color-accent: hsl(262 83% 58% / 0.15);
+  --color-accent-foreground: hsl(262 83% 70%);
+  --color-border: hsl(260 30% 25% / 0.5);
+  --color-input: hsl(260 30% 25% / 0.5);
+  --color-ring: hsl(262 83% 58%);
+  --color-sidebar: hsl(260 30% 6% / 0.8);
+  --color-sidebar-foreground: hsl(260 20% 90%);
+  --color-sidebar-primary: hsl(262 83% 58%);
+  --color-sidebar-primary-foreground: hsl(0 0% 100%);
+  --color-sidebar-accent: hsl(260 30% 15%);
+  --color-sidebar-accent-foreground: hsl(260 20% 98%);
+  --color-sidebar-border: hsl(260 30% 15% / 0.5);
+  --color-sidebar-ring: hsl(262 83% 58%);
+}
+
+/* Theme: Ocean - Blue-green palette */
+.theme-ocean {
+  --color-primary: hsl(168 76% 42%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-secondary: hsl(199 89% 48%);
+  --color-secondary-foreground: hsl(0 0% 100%);
+  --color-background: hsl(200 35% 10%);
+  --color-foreground: hsl(200 20% 98%);
+  --color-card: hsl(200 35% 14% / 0.6);
+  --color-card-foreground: hsl(200 20% 98%);
+  --color-popover: hsl(200 35% 14% / 0.9);
+  --color-popover-foreground: hsl(200 20% 98%);
+  --color-muted: hsl(200 35% 22% / 0.5);
+  --color-muted-foreground: hsl(200 20% 70%);
+  --color-accent: hsl(168 76% 42% / 0.15);
+  --color-accent-foreground: hsl(168 76% 55%);
+  --color-border: hsl(200 35% 28% / 0.5);
+  --color-input: hsl(200 35% 28% / 0.5);
+  --color-ring: hsl(168 76% 42%);
+  --color-sidebar: hsl(200 35% 8% / 0.8);
+  --color-sidebar-foreground: hsl(200 20% 90%);
+  --color-sidebar-primary: hsl(168 76% 42%);
+  --color-sidebar-primary-foreground: hsl(0 0% 100%);
+  --color-sidebar-accent: hsl(200 35% 18%);
+  --color-sidebar-accent-foreground: hsl(200 20% 98%);
+  --color-sidebar-border: hsl(200 35% 18% / 0.5);
+  --color-sidebar-ring: hsl(168 76% 42%);
+}
+
+/* Theme: Light - Clean professional light mode */
+.theme-light {
+  --color-primary: hsl(220 85% 50%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-secondary: hsl(160 60% 38%);
+  --color-secondary-foreground: hsl(0 0% 100%);
+  --color-background: hsl(220 20% 97%);
+  --color-foreground: hsl(220 25% 18%);
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(220 25% 18%);
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(220 25% 18%);
+  --color-muted: hsl(220 15% 93%);
+  --color-muted-foreground: hsl(220 10% 45%);
+  --color-accent: hsl(220 85% 50% / 0.08);
+  --color-accent-foreground: hsl(220 85% 45%);
+  --color-destructive: hsl(0 72% 50%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-border: hsl(220 15% 85%);
+  --color-input: hsl(220 15% 85%);
+  --color-ring: hsl(220 85% 50%);
+  --color-sidebar: hsl(220 20% 98%);
+  --color-sidebar-foreground: hsl(220 25% 25%);
+  --color-sidebar-primary: hsl(220 85% 50%);
+  --color-sidebar-primary-foreground: hsl(0 0% 100%);
+  --color-sidebar-accent: hsl(220 15% 92%);
+  --color-sidebar-accent-foreground: hsl(220 25% 18%);
+  --color-sidebar-border: hsl(220 15% 88%);
+  --color-sidebar-ring: hsl(220 85% 50%);
+  --color-chart-1: hsl(220 85% 50%);
+  --color-chart-2: hsl(160 60% 38%);
+  --color-chart-3: hsl(0 72% 50%);
+  --color-chart-4: hsl(35 90% 50%);
+  --color-chart-5: hsl(280 60% 55%);
+}
+
+/* Font size adjustments */
+.font-small {
+  font-size: 14px;
+}
+
+.font-medium {
+  font-size: 16px;
+}
+
+.font-large {
+  font-size: 18px;
+}
+
+/* Compact mode - reduce spacing */
+.compact-mode {
+  --spacing-multiplier: 0.75;
+}
+
+.compact-mode .p-4 {
+  padding: 0.75rem;
+}
+
+.compact-mode .p-6 {
+  padding: 1rem;
+}
+
+.compact-mode .p-8 {
+  padding: 1.5rem;
+}
+
+.compact-mode .py-3 {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.compact-mode .py-4 {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.compact-mode .gap-3 {
+  gap: 0.5rem;
+}
+
+.compact-mode .gap-4 {
+  gap: 0.75rem;
+}
+
+.compact-mode .gap-6 {
+  gap: 1rem;
+}
+
+.compact-mode .space-y-4 > * + * {
+  margin-top: 0.75rem;
+}
+
+.compact-mode .space-y-6 > * + * {
+  margin-top: 1rem;
+}
+
+.compact-mode .mb-6 {
+  margin-bottom: 1rem;
+}
+
+.compact-mode .text-2xl {
+  font-size: 1.25rem;
+}
+
+.compact-mode .text-3xl {
+  font-size: 1.5rem;
+}
+
+/* Custom scrollbar styling - theme aware */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(200 35% 30%);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(200 35% 40%);
+}
+
+/* Dark theme scrollbar */
+.theme-dark ::-webkit-scrollbar-thumb {
+  background: hsl(200 35% 30%);
+}
+
+.theme-dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(200 35% 40%);
+}
+
+/* Midnight theme scrollbar */
+.theme-midnight ::-webkit-scrollbar-thumb {
+  background: hsl(270 30% 25%);
+}
+
+.theme-midnight ::-webkit-scrollbar-thumb:hover {
+  background: hsl(270 30% 35%);
+}
+
+/* Ocean theme scrollbar */
+.theme-ocean ::-webkit-scrollbar-thumb {
+  background: hsl(168 76% 25%);
+}
+
+.theme-ocean ::-webkit-scrollbar-thumb:hover {
+  background: hsl(168 76% 35%);
+}
+
+/* Light theme scrollbar */
+.theme-light ::-webkit-scrollbar-thumb {
+  background: hsl(215 20% 70%);
+}
+
+.theme-light ::-webkit-scrollbar-thumb:hover {
+  background: hsl(215 20% 60%);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-color: var(--scrollbar-thumb, hsl(200 35% 30%)) transparent;
+  scrollbar-width: thin;
+}
+
+.theme-light {
+  scrollbar-color: hsl(215 20% 70%) transparent;
+}
+
+.theme-midnight {
+  scrollbar-color: hsl(270 30% 25%) transparent;
+}
+
+.theme-ocean {
+  scrollbar-color: hsl(168 76% 25%) transparent;
+}
+
+/* ========================================
+   THEME-AWARE COLOR OVERRIDES
+   These handle hardcoded colors throughout the app
+   ======================================== */
+
+/* Hardcoded slate backgrounds → theme-aware */
+.theme-light .bg-slate-900,
+.theme-light .bg-slate-900\/50,
+.theme-light .bg-slate-900\/40,
+.theme-light .bg-slate-800,
+.theme-light .bg-slate-800\/50 {
+  background-color: var(--color-card) !important;
+}
+
+.theme-light .bg-black\/20,
+.theme-light .bg-black\/10 {
+  background-color: var(--color-muted) !important;
+}
+
+/* Hardcoded slate text → theme-aware */
+.theme-light .text-white {
+  color: var(--color-foreground) !important;
+}
+
+.theme-light .text-slate-100,
+.theme-light .text-slate-200 {
+  color: var(--color-foreground) !important;
+}
+
+.theme-light .text-slate-300,
+.theme-light .text-slate-400 {
+  color: var(--color-muted-foreground) !important;
+}
+
+/* Hardcoded borders → theme-aware */
+.theme-light .border-slate-700,
+.theme-light .border-slate-700\/50,
+.theme-light .border-slate-600,
+.theme-light .border-white\/10,
+.theme-light .border-white\/5 {
+  border-color: var(--color-border) !important;
+}
+
+/* Button text should stay white on colored buttons */
+.theme-light button.bg-gradient-to-r .text-white,
+.theme-light .bg-gradient-to-r.text-white,
+.theme-light [class*="bg-blue-"] .text-white,
+.theme-light [class*="bg-teal-"] .text-white,
+.theme-light [class*="bg-green-"] .text-white,
+.theme-light [class*="bg-red-"] .text-white,
+.theme-light [class*="bg-amber-"] .text-white,
+.theme-light [class*="bg-indigo-"] .text-white,
+.theme-light [class*="bg-purple-"] .text-white {
+  color: white !important;
+}
+
+/* Gradient button backgrounds - keep them vibrant */
+.theme-light .from-blue-600,
+.theme-light .from-blue-500 {
+  --tw-gradient-from: hsl(220 85% 50%);
+}
+
+.theme-light .to-teal-500,
+.theme-light .to-teal-400 {
+  --tw-gradient-to: hsl(168 76% 42%);
+}
+
+/* Accent blur circles in login - make them subtle for light mode */
+.theme-light .bg-blue-600\/10 {
+  background-color: hsl(220 85% 50% / 0.05) !important;
+}
+
+.theme-light .bg-violet-500\/10 {
+  background-color: hsl(280 60% 55% / 0.05) !important;
+}
+
+/* Midnight theme hardcoded color overrides */
+.theme-midnight .bg-slate-900,
+.theme-midnight .bg-slate-900\/50,
+.theme-midnight .bg-slate-900\/40,
+.theme-midnight .bg-slate-800,
+.theme-midnight .bg-slate-800\/50 {
+  background-color: var(--color-card) !important;
+}
+
+.theme-midnight .border-white\/10,
+.theme-midnight .border-white\/5 {
+  border-color: var(--glass-border) !important;
+}
+
+/* Ocean theme hardcoded color overrides */
+.theme-ocean .bg-slate-900,
+.theme-ocean .bg-slate-900\/50,
+.theme-ocean .bg-slate-900\/40,
+.theme-ocean .bg-slate-800,
+.theme-ocean .bg-slate-800\/50 {
+  background-color: var(--color-card) !important;
+}
+
+.theme-ocean .border-white\/10,
+.theme-ocean .border-white\/5 {
+  border-color: var(--glass-border) !important;
+}
+
+/* Theme-specific accent blurs for login page */
+.theme-midnight .bg-blue-600\/10 {
+  background-color: hsl(262 83% 58% / 0.15) !important;
+}
+
+.theme-midnight .bg-violet-500\/10 {
+  background-color: hsl(280 65% 60% / 0.15) !important;
+}
+
+.theme-ocean .bg-blue-600\/10 {
+  background-color: hsl(168 76% 42% / 0.15) !important;
+}
+
+.theme-ocean .bg-violet-500\/10 {
+  background-color: hsl(199 89% 48% / 0.15) !important;
+}

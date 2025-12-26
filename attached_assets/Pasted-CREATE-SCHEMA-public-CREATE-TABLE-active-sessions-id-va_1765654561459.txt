@@ -1,0 +1,180 @@
+CREATE SCHEMA "public";
+CREATE TABLE "active_sessions" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+	"user_id" varchar NOT NULL,
+	"username" text NOT NULL,
+	"role" text NOT NULL,
+	"session_id" text NOT NULL,
+	"last_activity" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"ip_address" text,
+	"city" text,
+	"region" text,
+	"country" text,
+	"latitude" text,
+	"longitude" text
+);
+CREATE TABLE "admin_alerts" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+	"care_worker_id" varchar NOT NULL,
+	"care_worker_name" text NOT NULL,
+	"message" text NOT NULL,
+	"discrepancy_type" text NOT NULL,
+	"discrepancy_count" integer NOT NULL,
+	"is_read" boolean DEFAULT false NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE TABLE "audits" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+	"service_user_name" text NOT NULL,
+	"auditor" text NOT NULL,
+	"audit_type" text NOT NULL,
+	"period_start" text NOT NULL,
+	"period_end" text NOT NULL,
+	"results" jsonb NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE TABLE "blocked_ips" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+	"ip_address" text NOT NULL CONSTRAINT "blocked_ips_ip_address_key" UNIQUE,
+	"blocked_by" text NOT NULL,
+	"reason" text,
+	"username" text,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE TABLE "care_workers" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+	"name" text NOT NULL,
+	"role" text NOT NULL,
+	"status" text DEFAULT 'active' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE TABLE "discrepancies" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+	"care_worker_id" varchar NOT NULL,
+	"type" text NOT NULL,
+	"date" text NOT NULL,
+	"description" text NOT NULL,
+	"action" text NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"severity" text,
+	"action_medium" text,
+	"manager" text,
+	"notes" text
+);
+CREATE TABLE "emar_refusal_reviews" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+	"audit_id" varchar,
+	"care_worker_name" text NOT NULL,
+	"medication" text NOT NULL,
+	"refusal_date" text NOT NULL,
+	"time_slot" text,
+	"reason_acceptable" boolean DEFAULT false NOT NULL,
+	"reviewer_notes" text,
+	"reviewed_by" text NOT NULL,
+	"reviewed_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE TABLE "policy_documents" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+	"name" text NOT NULL,
+	"category" text NOT NULL,
+	"content" text NOT NULL,
+	"keywords" text[],
+	"version" text,
+	"last_updated" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE TABLE "risk_assessment_logs" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+	"service_user_name" text NOT NULL,
+	"service_user_dob" text,
+	"performed_by" text NOT NULL,
+	"performed_by_job_title" text,
+	"offered_assessments" jsonb NOT NULL,
+	"selected_assessments" jsonb NOT NULL,
+	"skipped_mandatory" jsonb NOT NULL,
+	"document_summary" text,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE TABLE "session" (
+	"sid" varchar PRIMARY KEY,
+	"sess" json NOT NULL,
+	"expire" timestamp NOT NULL
+);
+CREATE TABLE "session_history" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+	"user_id" varchar NOT NULL,
+	"username" text NOT NULL,
+	"session_id" text NOT NULL,
+	"logged_in_at" timestamp DEFAULT now() NOT NULL,
+	"logged_out_at" timestamp,
+	"duration_seconds" integer,
+	"terminated_by_admin" boolean DEFAULT false,
+	"ip_address" text,
+	"city" text,
+	"country" text
+);
+CREATE TABLE "suspension_logs" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+	"user_id" varchar NOT NULL,
+	"username" text NOT NULL,
+	"admin_id" varchar NOT NULL,
+	"admin_username" text NOT NULL,
+	"duration_minutes" integer NOT NULL,
+	"reason" text,
+	"starts_at" timestamp DEFAULT now() NOT NULL,
+	"ends_at" timestamp NOT NULL,
+	"reinstated_early" boolean DEFAULT false,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE TABLE "system_logs" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+	"event_type" text NOT NULL,
+	"user_id" varchar,
+	"username" text,
+	"details" jsonb,
+	"service_user_initials" text,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE TABLE "users" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+	"username" text NOT NULL CONSTRAINT "users_username_unique" UNIQUE,
+	"password" text NOT NULL,
+	"role" text DEFAULT 'staff' NOT NULL,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"job_title" text,
+	"suspended_until" timestamp,
+	"last_online_at" timestamp,
+	"first_name" text,
+	"last_name" text,
+	"dashboard_widgets" jsonb
+);
+ALTER TABLE "active_sessions" ADD CONSTRAINT "active_sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "users"("id");
+ALTER TABLE "admin_alerts" ADD CONSTRAINT "admin_alerts_care_worker_id_care_workers_id_fk" FOREIGN KEY ("care_worker_id") REFERENCES "care_workers"("id");
+ALTER TABLE "discrepancies" ADD CONSTRAINT "discrepancies_care_worker_id_care_workers_id_fk" FOREIGN KEY ("care_worker_id") REFERENCES "care_workers"("id");
+ALTER TABLE "session_history" ADD CONSTRAINT "session_history_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id");
+ALTER TABLE "suspension_logs" ADD CONSTRAINT "suspension_logs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id");
+CREATE UNIQUE INDEX "active_sessions_pkey" ON "active_sessions" ("id");
+CREATE INDEX "idx_active_sessions_user_id" ON "active_sessions" ("user_id");
+CREATE UNIQUE INDEX "admin_alerts_pkey" ON "admin_alerts" ("id");
+CREATE UNIQUE INDEX "audits_pkey" ON "audits" ("id");
+CREATE INDEX "idx_audits_audit_type" ON "audits" ("audit_type");
+CREATE INDEX "idx_audits_created_at" ON "audits" ("created_at");
+CREATE INDEX "idx_audits_type_created" ON "audits" ("audit_type","created_at");
+CREATE UNIQUE INDEX "blocked_ips_ip_address_key" ON "blocked_ips" ("ip_address");
+CREATE UNIQUE INDEX "blocked_ips_pkey" ON "blocked_ips" ("id");
+CREATE UNIQUE INDEX "care_workers_pkey" ON "care_workers" ("id");
+CREATE UNIQUE INDEX "discrepancies_pkey" ON "discrepancies" ("id");
+CREATE UNIQUE INDEX "emar_refusal_reviews_pkey" ON "emar_refusal_reviews" ("id");
+CREATE UNIQUE INDEX "policy_documents_pkey" ON "policy_documents" ("id");
+CREATE UNIQUE INDEX "risk_assessment_logs_pkey" ON "risk_assessment_logs" ("id");
+CREATE INDEX "IDX_session_expire" ON "session" ("expire");
+CREATE UNIQUE INDEX "session_pkey" ON "session" ("sid");
+CREATE INDEX "idx_session_history_user_id" ON "session_history" ("user_id");
+CREATE UNIQUE INDEX "session_history_pkey" ON "session_history" ("id");
+CREATE UNIQUE INDEX "suspension_logs_pkey" ON "suspension_logs" ("id");
+CREATE UNIQUE INDEX "system_logs_pkey" ON "system_logs" ("id");
+CREATE UNIQUE INDEX "users_pkey" ON "users" ("id");
+CREATE UNIQUE INDEX "users_username_unique" ON "users" ("username");
