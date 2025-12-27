@@ -34,9 +34,10 @@ Preferred communication style: Simple, everyday language.
 - **Protected Routes**: Client-side route protection.
 - **Glass Morphism UI**: Dark theme with translucent effects and gradient backgrounds.
 - **AI-Powered Features**: EMAR analysis, care plan generation, risk assessment, and plan enhancement utilize AI (GPT-5.1) for content generation and data extraction. These features use Server-Sent Events (SSE) for real-time progress updates.
+- **AI Failover**: Server-side AI wrapper (server/services/aiClient.ts) with automatic failover from Replit AI to direct OpenAI key on billing/rate limit/connection errors.
 - **EMAR Analysis**: Employs a simplified 3-pass consensus with domain validation for accurate medication record extraction. Includes PRN code support, time gap fixes, and a refusal grouping system with an admin review process. Features include:
-  - **Main Refusal Note Check**: Groups R, MU, NH, FA, SA refusal codes for review
-  - **PRN Refusal Note Check**: Separate section for PRN-R refusal codes
+  - **Unified Refusal Review**: Single "Reasons Not Administered" accordion with nested sections for each refusal code type (R, MU, NH, FA, SA, PRN-R, etc.)
+  - **Batch Refusal Review Workflow**: Mark each refusal as acceptable or escalate, then submit to persist all decisions to the database via `/api/refusal-reviews/bulk`. Escalated items are added to main discrepancies.
   - **Escalation Feature**: Users can select refusals with inadequate reasoning and escalate them to Main Discrepancies
   - **Medication Equivalence Detection**: AI-powered detection of duplicate medications under different names (e.g., Oxycodone = Oxypro MR)
   - **PRN Protocol Generation**: AI-powered generation of PRN medication protocols when existing protocols are incomplete or not up to standard. Generates: medication name, dose, route, frequency, max dose in 24 hours, minimum time between doses, special instructions, reasons for administration, predictable side effects, and additional comments. Available via the "Generate" button in the PRN medications table.
