@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Slider } from "@/components/ui/slider";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { 
@@ -31,7 +32,9 @@ import {
   Building2,
   Timer,
   Target,
-  HeartHandshake
+  HeartHandshake,
+  Calculator,
+  PoundSterling
 } from "lucide-react";
 
 export default function Homepage() {
@@ -41,6 +44,36 @@ export default function Homepage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [serviceUsers, setServiceUsers] = useState(20);
+
+  // ROI Calculator constants
+  const HOURLY_RATE = 14.50;
+  const TASKS = {
+    carePlan: { name: "Care Plans", manualMins: 90, aiSecs: 60, perYear: 12 },
+    initialAssessment: { name: "Initial Assessments", manualMins: 150, aiSecs: 90, perYear: 1 },
+    riskAssessment: { name: "Risk Assessments", manualMins: 180, aiSecs: 120, perYear: 2 },
+    emar: { name: "EMAR Audits", manualMins: 45, aiSecs: 30, perYear: 48 },
+    visitAudit: { name: "Visit Audits", manualMins: 30, aiSecs: 30, perYear: 48 },
+  };
+
+  const calculateROI = (users: number) => {
+    let totalManualMins = 0;
+    let totalAiMins = 0;
+    
+    Object.values(TASKS).forEach(task => {
+      totalManualMins += task.manualMins * task.perYear * users;
+      totalAiMins += (task.aiSecs / 60) * task.perYear * users;
+    });
+    
+    const manualHours = totalManualMins / 60;
+    const aiHours = totalAiMins / 60;
+    const hoursSaved = manualHours - aiHours;
+    const moneySaved = hoursSaved * HOURLY_RATE;
+    
+    return { manualHours, aiHours, hoursSaved, moneySaved };
+  };
+
+  const roi = calculateROI(serviceUsers);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -603,6 +636,136 @@ export default function Homepage() {
         </div>
       </section>
 
+
+      {/* ROI Calculator Section */}
+      <section className="relative z-10 py-20 sm:py-28 px-4">
+        <div className="max-w-5xl mx-auto">
+          <motion.div
+            className="text-center mb-12"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs bg-green-500/10 text-green-400 border-green-500/20">
+              <Calculator className="h-3 w-3 mr-1" />
+              ROI Calculator
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
+              See Your Annual Savings
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Calculate how much time and money CareAssurance saves your care facility each year
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            <Card className="border border-border/50 bg-card/30 backdrop-blur-xl">
+              <CardContent className="p-8">
+                {/* Slider Section */}
+                <div className="mb-10">
+                  <div className="flex items-center justify-between mb-4">
+                    <Label className="text-lg font-medium text-foreground">Number of Service Users</Label>
+                    <div className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-teal-400" />
+                      <span className="text-2xl font-bold text-teal-400" data-testid="text-service-users-count">{serviceUsers}</span>
+                    </div>
+                  </div>
+                  <Slider
+                    value={[serviceUsers]}
+                    onValueChange={(value) => setServiceUsers(value[0])}
+                    min={1}
+                    max={200}
+                    step={1}
+                    className="w-full"
+                    data-testid="slider-service-users"
+                  />
+                  <div className="flex justify-between text-sm text-muted-foreground mt-2">
+                    <span>1</span>
+                    <span>50</span>
+                    <span>100</span>
+                    <span>150</span>
+                    <span>200</span>
+                  </div>
+                </div>
+
+                {/* Results Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                  <div className="p-5 rounded-lg bg-red-500/10 border border-red-500/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="h-4 w-4 text-red-400" />
+                      <span className="text-sm text-red-400">Manual Time</span>
+                    </div>
+                    <div className="text-2xl font-bold text-foreground" data-testid="text-manual-hours">
+                      {roi.manualHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
+                    </div>
+                    <div className="text-xs text-muted-foreground">per year</div>
+                  </div>
+
+                  <div className="p-5 rounded-lg bg-teal-500/10 border border-teal-500/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Zap className="h-4 w-4 text-teal-400" />
+                      <span className="text-sm text-teal-400">With CareAssurance</span>
+                    </div>
+                    <div className="text-2xl font-bold text-foreground" data-testid="text-ai-hours">
+                      {roi.aiHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
+                    </div>
+                    <div className="text-xs text-muted-foreground">per year</div>
+                  </div>
+
+                  <div className="p-5 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Timer className="h-4 w-4 text-blue-400" />
+                      <span className="text-sm text-blue-400">Time Saved</span>
+                    </div>
+                    <div className="text-2xl font-bold text-foreground" data-testid="text-hours-saved">
+                      {roi.hoursSaved.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
+                    </div>
+                    <div className="text-xs text-muted-foreground">per year</div>
+                  </div>
+
+                  <div className="p-5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/10 border border-green-500/30">
+                    <div className="flex items-center gap-2 mb-2">
+                      <PoundSterling className="h-4 w-4 text-green-400" />
+                      <span className="text-sm text-green-400">Money Saved</span>
+                    </div>
+                    <div className="text-2xl font-bold text-green-400" data-testid="text-money-saved">
+                      £{roi.moneySaved.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </div>
+                    <div className="text-xs text-muted-foreground">per year at £14.50/hr</div>
+                  </div>
+                </div>
+
+                {/* Task Breakdown */}
+                <div className="border-t border-border/50 pt-6">
+                  <h4 className="text-sm font-medium text-muted-foreground mb-4">Annual Task Breakdown (per service user)</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    {Object.entries(TASKS).map(([key, task]) => (
+                      <div key={key} className="p-3 rounded-lg bg-background/50 border border-border/30">
+                        <div className="text-xs text-muted-foreground mb-1">{task.name}</div>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-sm font-medium text-foreground">{task.perYear}x</span>
+                          <span className="text-xs text-muted-foreground">/year</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-xs">
+                          <span className="text-red-400">{task.manualMins}m</span>
+                          <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-teal-400">{task.aiSecs}s</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      </section>
 
       {/* Final CTA Section */}
       <section className="relative z-10 py-20 sm:py-28 px-4">
