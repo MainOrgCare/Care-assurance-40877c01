@@ -1472,7 +1472,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       const DETERMINISTIC_SEED = 42;
       
       const metadataResponse = await createChatCompletion({
-        model: "gpt-5.2",
+        model: "gpt-5.1",
         messages: [
           { role: "system", content: metadataPrompt },
           { role: "user", content: `Analyze this EMAR document and extract the metadata:\n\n${analysisText}` }
@@ -1567,7 +1567,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       const countMedications = async (): Promise<number> => {
         try {
           const response = await createChatCompletion({
-            model: "gpt-5.2",
+            model: "gpt-5.1",
             messages: [
               { role: "system", content: medicationCountPrompt },
               { role: "user", content: `Count medications in this document:\n\n${analysisText}` }
@@ -1775,7 +1775,7 @@ OTHER CRITICAL RULES:
           
           try {
             const response = await createChatCompletion({
-              model: "gpt-5.2",
+              model: "gpt-5.1",
               messages: [
                 { role: "system", content: batchPrompt },
                 { role: "user", content: `Extract medication entries from this document:\n\n${analysisText}` }
@@ -2382,7 +2382,7 @@ OTHER CRITICAL RULES:
         
         try {
           const equivalenceResponse = await createChatCompletion({
-            model: "gpt-5.2",
+            model: "gpt-5.1",
             messages: [
               {
                 role: "system",
@@ -2786,7 +2786,7 @@ Return JSON with indices that are VALID (keep these). Include ALL indices unless
         try {
           // Use GPT-5.1 with JSON mode for reliable parsing
           const pass2Response = await createChatCompletion({
-            model: "gpt-5.2",
+            model: "gpt-5.1",
             messages: [
               { role: "system", content: pass2SystemPrompt },
               { role: "user", content: hasTextContext 
@@ -2854,7 +2854,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
           try {
             // Use GPT-5.1 with JSON mode for reliable parsing
             const pass3Response = await createChatCompletion({
-              model: "gpt-5.2",
+              model: "gpt-5.1",
               messages: [
                 { role: "system", content: pass3SystemPrompt },
                 { role: "user", content: hasTextContext
@@ -3257,7 +3257,7 @@ Respond ONLY with valid JSON in this exact format:
       sendProgress(30, "Running AI analysis...", "ai_analysis");
       
       const response = await createChatCompletion({
-        model: "gpt-5.2",
+        model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Analyze these visit logs:\n\n${documentContent}` }
@@ -3325,7 +3325,7 @@ Return JSON with indices that are VALID. Include ALL unless you're CERTAIN one i
             sendProgress(65, "Running validation pass 2...", "validation_pass2");
             // Use GPT-5.1 for deterministic validation
             const pass2Response = await createChatCompletion({
-              model: "gpt-5.2",
+              model: "gpt-5.1",
               messages: [
                 { role: "system", content: pass2Prompt },
                 { role: "user", content: "Review discrepancies. Be conservative - when in doubt, keep." }
@@ -3377,7 +3377,7 @@ Return JSON - include ALL by default:
               sendProgress(80, "Running validation pass 3...", "validation_pass3");
               // Use GPT-5.1 for deterministic validation
               const pass3Response = await createChatCompletion({
-                model: "gpt-5.2",
+                model: "gpt-5.1",
                 messages: [
                   { role: "system", content: pass3Prompt },
                   { role: "user", content: "Confirm and provide evidence. Keep discrepancies even without explicit text." }
@@ -3619,7 +3619,7 @@ Respond ONLY with valid JSON in this exact format:
       }, 3000);
 
       const response = await createChatCompletion({
-        model: "gpt-5.2",
+        model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Analyze these documents for risk assessment needs:\n\n${documentContent}` }
@@ -3759,7 +3759,7 @@ Respond ONLY with valid JSON in this exact format:
       sendProgress(30, "Generating risk assessment...", "ai_generation");
 
       const response = await createChatCompletion({
-        model: "gpt-5.2",
+        model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Generate a ${assessmentCategory} risk assessment based on these documents:\n\n${documentContent}` }
@@ -3979,7 +3979,7 @@ OUTPUT FORMAT - Return ONLY valid JSON:
 }`;
 
       const response = await createChatCompletion({
-        model: "gpt-5.2",
+        model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Generate my comprehensive first-person care plan. Remember: I am the service user - write everything as if I am speaking about my own care needs.\n\nMy documents:\n${documentContent}` }
@@ -4397,7 +4397,7 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
       }, 3000);
 
       const response = await createChatCompletion({
-        model: "gpt-5.2",
+        model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Analyze this document and generate a complete care plan template. Extract all relevant information and write detailed first-person content for each section:\n\n${contentToEnhance}` }
@@ -4736,7 +4736,7 @@ RULES:
 Return ONLY the email text, nothing else.`;
 
       const response = await createChatCompletion({
-        model: "gpt-5.2",
+        model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: inputText }
@@ -4791,7 +4791,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         : `Generate a complete PRN protocol for: ${medicationName}`;
 
       const response = await createChatCompletion({
-        model: "gpt-5.2",
+        model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
