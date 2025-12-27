@@ -1440,6 +1440,7 @@ export async function registerRoutes(
         timeSlots: [] as string[],
         medicationLines: 0,
         rawDateMatches: [] as string[],
+        tableHeaderLines: [] as string[],
       };
       
       // Pattern 1: Day abbreviation with comma, day number, month (e.g., "Sun, 30 Nov", "Mon, 01 Dec")
@@ -1449,23 +1450,128 @@ export async function registerRoutes(
       // Pattern 3: Full date format (e.g., "30/11/2024", "01-12-2024")
       const datePattern3 = /\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/g;
       
+      // =====================================================================
+      // NEW APPROACH: Only extract dates from TABLE HEADER lines
+      // An EMAR table header has MULTIPLE dates on the same line (e.g., 7 days)
+      // Isolated dates like "Printed on 15 Dec 2024" should be ignored
+      // =====================================================================
+      
+      const lines = analysisText.split(/\r?\n/);
       const foundDates = new Set<string>();
       let match;
       
-      // Extract using Pattern 1 (most reliable for EMAR column headers)
-      while ((match = datePattern1.exec(analysisText)) !== null) {
-        const normalizedDate = `${match[1]}, ${match[2].padStart(2, '0')} ${match[3]}`;
-        foundDates.add(normalizedDate);
-        preAnalysis.rawDateMatches.push(match[0]);
+      // Function to count dates in a single line
+      const countDatesInLine = (line: string): { count: number; dates: string[] } => {
+        const dates: string[] = [];
+        
+        // Reset regex lastIndex for each line
+        const p1 = new RegExp(datePattern1.source, 'gi');
+        const p2 = new RegExp(datePattern2.source, 'gi');
+        
+        // Count Pattern 1 matches (e.g., "Sun, 30 Nov")
+        let m;
+        while ((m = p1.exec(line)) !== null) {
+          const normalizedDate = `${m[1]}, ${m[2].padStart(2, '0')} ${m[3]}`;
+          dates.push(normalizedDate);
+        }
+        
+        // Count Pattern 2 matches that aren't already captured by Pattern 1
+        while ((m = p2.exec(line)) !== null) {
+          const normalizedDate = `${m[1].padStart(2, '0')} ${m[2]}`;
+          const existsInPattern1 = dates.some(d => d.includes(normalizedDate));
+          if (!existsInPattern1) {
+            dates.push(normalizedDate);
+          }
+        }
+        
+        return { count: dates.length, dates };
+      };
+      
+      // Strategy 1: Find lines with MULTIPLE dates (2+ dates = likely table header)
+      const tableHeaderLineIndices: number[] = [];
+      
+      for (let i = 0; i < lines.length; i++) {
+        const { count, dates } = countDatesInLine(lines[i]);
+        if (count >= 2) {
+          // This line has 2+ dates - likely a table header row
+          tableHeaderLineIndices.push(i);
+          preAnalysis.tableHeaderLines.push(lines[i].substring(0, 150) + (lines[i].length > 150 ? '...' : ''));
+          dates.forEach(d => {
+            foundDates.add(d);
+            preAnalysis.rawDateMatches.push(d);
+          });
+        }
       }
       
-      // Extract using Pattern 2 (backup)
-      while ((match = datePattern2.exec(analysisText)) !== null) {
-        const normalizedDate = `${match[1].padStart(2, '0')} ${match[2]}`;
-        // Only add if we don't already have this date from Pattern 1
-        const existsInPattern1 = Array.from(foundDates).some(d => d.includes(normalizedDate));
-        if (!existsInPattern1) {
+      // Strategy 2: If no multi-date lines found, look for consecutive single-date lines
+      // (Some EMARs may have each date on its own line in a vertical header)
+      if (tableHeaderLineIndices.length === 0) {
+        console.log("DEBUG: No multi-date lines found, checking for consecutive date clusters...");
+        
+        // Find clusters of consecutive lines that each contain at least one date
+        let clusterStart = -1;
+        let clusterDates: string[] = [];
+        let tempClusterLines: string[] = [];
+        
+        for (let i = 0; i < lines.length; i++) {
+          const { count, dates } = countDatesInLine(lines[i]);
+          
+          if (count >= 1) {
+            if (clusterStart === -1) {
+              clusterStart = i;
+              clusterDates = [...dates];
+              tempClusterLines = [lines[i].substring(0, 150)];
+            } else {
+              clusterDates.push(...dates);
+              tempClusterLines.push(lines[i].substring(0, 150));
+            }
+          } else {
+            // End of cluster - check if it's significant (3+ consecutive lines with dates)
+            if (clusterStart !== -1 && clusterDates.length >= 3) {
+              console.log(`DEBUG: Found date cluster from lines ${clusterStart} to ${i - 1} with ${clusterDates.length} dates`);
+              clusterDates.forEach(d => {
+                foundDates.add(d);
+                preAnalysis.rawDateMatches.push(d);
+              });
+              preAnalysis.tableHeaderLines.push(...tempClusterLines);
+            }
+            clusterStart = -1;
+            clusterDates = [];
+            tempClusterLines = [];
+          }
+        }
+        
+        // Check final cluster if document ends with dates
+        if (clusterStart !== -1 && clusterDates.length >= 3) {
+          console.log(`DEBUG: Found date cluster at end with ${clusterDates.length} dates`);
+          clusterDates.forEach(d => {
+            foundDates.add(d);
+            preAnalysis.rawDateMatches.push(d);
+          });
+          preAnalysis.tableHeaderLines.push(...tempClusterLines);
+        }
+      }
+      
+      // FALLBACK: If still no dates found via table header detection, 
+      // fall back to original behavior but log a warning
+      if (foundDates.size === 0) {
+        console.log("WARNING: No table header dates detected. Falling back to scanning entire document.");
+        
+        // Original scanning logic as fallback
+        while ((match = datePattern1.exec(analysisText)) !== null) {
+          const normalizedDate = `${match[1]}, ${match[2].padStart(2, '0')} ${match[3]}`;
           foundDates.add(normalizedDate);
+          preAnalysis.rawDateMatches.push(match[0]);
+        }
+        
+        // Reset and extract using Pattern 2 (backup)
+        datePattern2.lastIndex = 0;
+        while ((match = datePattern2.exec(analysisText)) !== null) {
+          const normalizedDate = `${match[1].padStart(2, '0')} ${match[2]}`;
+          const existsInPattern1 = Array.from(foundDates).some(d => d.includes(normalizedDate));
+          if (!existsInPattern1) {
+            foundDates.add(normalizedDate);
+          }
         }
       }
       
@@ -1494,6 +1600,13 @@ export async function registerRoutes(
       console.log("=== EMAR PRE-ANALYSIS SUMMARY ===");
       console.log(`Dates found (regex): ${preAnalysis.dateCount}`);
       console.log(`Date values: ${preAnalysis.dates.join(', ')}`);
+      console.log(`Table header lines identified: ${preAnalysis.tableHeaderLines.length}`);
+      if (preAnalysis.tableHeaderLines.length > 0) {
+        console.log("Table header samples:");
+        preAnalysis.tableHeaderLines.slice(0, 3).forEach((line, i) => {
+          console.log(`  ${i + 1}: ${line}`);
+        });
+      }
       console.log(`Time slots found: ${preAnalysis.timeSlots.length}`);
       console.log(`Medication-like lines: ${preAnalysis.medicationLines}`);
       console.log(`Raw date matches: ${preAnalysis.rawDateMatches.slice(0, 15).join(', ')}`);
@@ -2347,10 +2460,78 @@ OTHER CRITICAL RULES:
       
       const allDates = extractedData.dates || [];
       const timeSlots = extractedData.timeSlots || [];
-      const medications = extractedData.medications || [];
+      let medications = extractedData.medications || [];
       const allergies = extractedData.allergies || "";
       
-      console.log("DEBUG: Extracted", allEntries.length, "entries,", allDates.length, "dates,", timeSlots.length, "time slots");
+      // =====================================================================
+      // MEDICATION DEDUPLICATION
+      // The 3-pass extraction system can extract the same medication multiple
+      // times (once per pass), each with a different medicationId. This step
+      // deduplicates medications by normalized name to prevent inflated counts.
+      // =====================================================================
+      
+      // Helper to normalize medication names for comparison
+      const normalizeMedName = (name: string): string => {
+        return (name || "")
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, " "); // collapse multiple spaces
+      };
+      
+      // Group medications by normalized name, keeping first occurrence as canonical
+      const medByNormalizedName = new Map<string, any>();
+      const oldIdToCanonicalId = new Map<number, number>();
+      
+      medications.forEach((med: any) => {
+        const normalizedName = normalizeMedName(med.name);
+        
+        if (!medByNormalizedName.has(normalizedName)) {
+          // First occurrence - this becomes the canonical entry
+          medByNormalizedName.set(normalizedName, med);
+          oldIdToCanonicalId.set(med.medicationId, med.medicationId);
+        } else {
+          // Duplicate - map old ID to canonical ID
+          const canonicalMed = medByNormalizedName.get(normalizedName);
+          oldIdToCanonicalId.set(med.medicationId, canonicalMed.medicationId);
+        }
+      });
+      
+      // Get deduplicated medications array
+      const originalMedCount = medications.length;
+      medications = Array.from(medByNormalizedName.values());
+      const deduplicatedMedCount = medications.length;
+      
+      // Log deduplication results
+      if (originalMedCount !== deduplicatedMedCount) {
+        console.log(`DEBUG: Medication deduplication - reduced from ${originalMedCount} to ${deduplicatedMedCount} unique medications`);
+        console.log("DEBUG: ID remapping:", Object.fromEntries(oldIdToCanonicalId));
+      }
+      
+      // Update allEntries to use canonical medication IDs
+      allEntries.forEach((entry: any) => {
+        const canonicalId = oldIdToCanonicalId.get(entry.medicationId);
+        if (canonicalId !== undefined && canonicalId !== entry.medicationId) {
+          entry.medicationId = canonicalId;
+          // Also update medication name from canonical entry
+          const canonicalMed = Array.from(medByNormalizedName.values()).find((m: any) => m.medicationId === canonicalId);
+          if (canonicalMed) {
+            entry.medication = canonicalMed.name;
+          }
+        }
+      });
+      
+      // Update the medIdToDetails map with deduplicated medications
+      medIdToDetails.clear();
+      medications.forEach((med: any) => {
+        medIdToDetails.set(med.medicationId, {
+          name: med.name,
+          strength: med.strength || "",
+          form: med.form || "",
+          isPRN: med.isPRN || false,
+        });
+      });
+      
+      console.log("DEBUG: Extracted", allEntries.length, "entries,", allDates.length, "dates,", timeSlots.length, "time slots,", medications.length, "unique medications");
       sendProgress(75, "Detecting discrepancies...", "discrepancy_detection");
 
       // =====================================================================
