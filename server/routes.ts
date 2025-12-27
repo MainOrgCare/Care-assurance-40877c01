@@ -4136,9 +4136,9 @@ Respond ONLY with valid JSON in this exact format:
     }
   });
 
-  // Generate detailed first-person care plan from uploaded documents
+  // Generate detailed first-person care plan from uploaded documents - CHUNKED APPROACH
+  // Generates each section individually for faster feedback and better reliability
   app.post("/api/ai/generate-care-plan", requireAuth, async (req, res) => {
-    // Declare heartbeat at function level for proper cleanup
     let heartbeatInterval: NodeJS.Timeout | null = null;
     
     try {
@@ -4148,7 +4148,7 @@ Respond ONLY with valid JSON in this exact format:
         return res.status(400).json({ message: "Document content required" });
       }
 
-      // Set up SSE for progress streaming with production-safe settings
+      // Set up SSE for progress streaming
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Connection', 'keep-alive');
@@ -4156,7 +4156,7 @@ Respond ONLY with valid JSON in this exact format:
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.flushHeaders();
 
-      // Heartbeat to keep connection alive during long AI processing
+      // Heartbeat every 5 seconds to keep connection alive
       heartbeatInterval = setInterval(() => {
         try {
           res.write(`: heartbeat\n\n`);
@@ -4164,29 +4164,24 @@ Respond ONLY with valid JSON in this exact format:
         } catch (e) {
           if (heartbeatInterval) clearInterval(heartbeatInterval);
         }
-      }, 10000); // Send heartbeat every 10 seconds
+      }, 5000);
 
       const sendEvent = (eventType: string, data: any) => {
         try {
-          // Add 4KB padding comment to push through proxy buffers (nginx default buffer is 4KB)
           const padding = `: ${'x'.repeat(4096)}\n\n`;
           const payload = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
           res.write(padding + payload);
-          // Force flush if available (works when compression middleware is applied)
-          if (typeof (res as any).flush === 'function') {
-            (res as any).flush();
-          }
+          if (typeof (res as any).flush === 'function') (res as any).flush();
         } catch (e) {
           console.error('[CarePlan SSE] Write error:', e);
-          if (heartbeatInterval) clearInterval(heartbeatInterval);
         }
       };
+      
       const sendProgress = (percent: number, status: string, stage: string) => {
         console.log(`[CarePlan SSE] Progress: ${percent}% - ${status}`);
         sendEvent('progress', { percent, status, stage });
       };
 
-      // Send initial progress immediately
       sendProgress(5, "Loading policy documents...", "loading_policies");
 
       const today = new Date().toLocaleDateString("en-GB");
@@ -4198,217 +4193,204 @@ Respond ONLY with valid JSON in this exact format:
       const scopeOfPracticePolicies = await storage.getPolicyDocumentsByCategory("scope_of_practice");
       const initialAssessmentPolicies = await storage.getPolicyDocumentsByCategory("initial_assessment");
       
-      // Build policy context from uploaded documents
+      // Build policy context
       let policyContext = "";
       const allPolicies = [...carePlanPolicies, ...taskListPolicies, ...socialWorkerPolicies, ...scopeOfPracticePolicies, ...initialAssessmentPolicies];
       if (allPolicies.length > 0) {
         policyContext = `
-=== POLICY DOCUMENTS - YOU MUST FOLLOW THESE EXACTLY ===
-${initialAssessmentPolicies.map(p => `
---- INITIAL ASSESSMENT TEMPLATE: ${p.name} (${p.version || 'v1.0'}) ---
-${p.content}
-`).join('\n')}
-${carePlanPolicies.map(p => `
---- CARE PLAN TEMPLATE: ${p.name} (${p.version || 'v1.0'}) ---
-${p.content}
-`).join('\n')}
-${taskListPolicies.map(p => `
---- APPROVED TASKS LIST: ${p.name} (${p.version || 'v1.0'}) ---
-${p.content}
-`).join('\n')}
-${socialWorkerPolicies.map(p => `
---- SOCIAL WORKER SUPPORT TASKS: ${p.name} (${p.version || 'v1.0'}) ---
-${p.content}
-`).join('\n')}
-${scopeOfPracticePolicies.map(p => `
---- SCOPE OF PRACTICE (What we CAN and CANNOT do): ${p.name} (${p.version || 'v1.0'}) ---
-${p.content}
-`).join('\n')}
-=== END POLICY DOCUMENTS ===
+=== POLICY DOCUMENTS - FOLLOW THESE EXACTLY ===
+${initialAssessmentPolicies.map(p => `--- INITIAL ASSESSMENT: ${p.name} ---\n${p.content}`).join('\n')}
+${carePlanPolicies.map(p => `--- CARE PLAN TEMPLATE: ${p.name} ---\n${p.content}`).join('\n')}
+${taskListPolicies.map(p => `--- APPROVED TASKS: ${p.name} ---\n${p.content}`).join('\n')}
+${socialWorkerPolicies.map(p => `--- SOCIAL WORKER TASKS: ${p.name} ---\n${p.content}`).join('\n')}
+${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} ---\n${p.content}`).join('\n')}
+=== END POLICIES ===
 
-CRITICAL REQUIREMENTS:
-1. You MUST ONLY use activities/tasks from the approved tasks list and social worker document above. Do NOT invent or create new tasks.
-2. The social worker document states the EXACT support the service user will receive - ALL these tasks MUST be included in the care plan.
-3. The care plan MUST be comprehensive and LONG - cover every relevant point from the templates.
-4. Match the exact structure and sections from the care plan template.
-5. Each section must be detailed with multiple paragraphs.
-6. MEDICAL CONDITIONS: Include ONE section that lists ALL medical conditions together.
-7. HEALTH DETERIORATION FOLLOW-UP: Include ONE section formatted as:
-   - Medical condition name
-   - Signs to look out for (general warning signs)
-   - Person-centred signs (specific signs this service user may exhibit)
-   - Follow-up actions (ONLY actions within our scope of practice as listed in the documents)
-
+REQUIREMENTS:
+1. ONLY use tasks from approved lists above - do NOT invent new tasks.
+2. Social worker document states EXACT support - include ALL those tasks.
+3. Follow CQC (Care Quality Commission) standards.
 `;
       }
 
-      sendProgress(15, "Generating care plan...", "ai_generation");
+      // Define all 12 mandatory sections
+      const mandatorySections = [
+        { title: "WARNING - Safety Concerns & Risks", priority: "high", focus: "Safety warnings, fall risks, medical alerts, emergency procedures, things carers MUST know immediately" },
+        { title: "Introduction & My Life Story", priority: "medium", focus: "Personal history, family, interests, what makes me who I am, my background and preferences" },
+        { title: "My Well-being & Emotional Needs", priority: "medium", focus: "Mental health, emotional support needs, what makes me happy/sad, how I cope with change" },
+        { title: "Tasks Required by Social Workers", priority: "high", focus: "EXACT tasks from social worker document - all commissioned support activities" },
+        { title: "Personal Care", priority: "medium", focus: "Washing, bathing, dressing, grooming, oral care - my specific preferences and routines" },
+        { title: "Mobility & Transfers", priority: "medium", focus: "How I move, equipment needed (hoist, frame, wheelchair), transfer techniques, positioning" },
+        { title: "Nutrition & Hydration", priority: "medium", focus: "Diet requirements, food preferences, swallowing difficulties, meal preparation, fluid intake" },
+        { title: "Medication", priority: "high", focus: "Medication routine, reminders needed, storage, administration support, side effects to watch" },
+        { title: "Continence Care", priority: "medium", focus: "Continence needs, products used, toilet assistance, dignity considerations" },
+        { title: "Communication", priority: "medium", focus: "How I communicate, hearing/vision needs, language, how to engage with me effectively" },
+        { title: "Household Tasks", priority: "low", focus: "Cleaning, laundry, shopping, household maintenance support I need" },
+        { title: "Secure Property Before Leaving", priority: "high", focus: "Door locks, windows, appliances off, keys, alarm system - safety checklist before carers leave" },
+      ];
 
-      const systemPrompt = `You are an expert care plan writer for a UK care facility following CQC (Care Quality Commission) standards.
+      const baseSystemPrompt = `You are an expert care plan writer for a UK care facility following CQC standards.
 ${policyContext}
-FORMATTING RULES - MUST FOLLOW:
-- Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas instead.
-- Never use Oxford commas (the comma before "and" or "or" in a list). Write "apples, oranges and bananas" not "apples, oranges, and bananas".
+RULES:
+- Write EVERYTHING in FIRST PERSON from the service user's perspective using "I", "my", "me".
+- CORRECT: "I need two carers to help me transfer." WRONG: "The client needs..."
+- Never use m-dashes or en-dashes. Use hyphens or commas.
+- Never use Oxford commas.
+- Be detailed and specific with times, preferences, routines.
+- Only include information found in the documents. If no info, say "Please ask me about my preferences."
 
-ABSOLUTE REQUIREMENTS - YOU MUST FOLLOW THESE EXACTLY:
-
-1. FIRST PERSON ONLY: Every single sentence MUST be written from the service user's perspective using "I", "my", "me". 
-   CORRECT: "I need two carers to help me transfer using the hoist. I feel safest when..."
-   WRONG: "The client needs...", "Staff should...", "The service user requires..."
-   
-2. MANDATORY SECTION ORDER - You MUST include ALL these sections in EXACTLY this order:
-   Section 1: "WARNING - Safety Concerns & Risks" (priority: high)
-   Section 2: "Introduction & My Life Story" (priority: medium)  
-   Section 3: "My Well-being & Emotional Needs" (priority: medium)
-   Section 4: "Tasks Required by Social Workers" (priority: high)
-   Section 5: "Personal Care" (priority: medium)
-   Section 6: "Mobility & Transfers" (priority: medium)
-   Section 7: "Nutrition & Hydration" (priority: medium)
-   Section 8: "Medication" (priority: high)
-   Section 9: "Continence Care" (priority: medium)
-   Section 10: "Communication" (priority: medium)
-   Section 11: "Household Tasks" (priority: low)
-   Section 12: "Secure Property Before Leaving" (priority: high) - MUST BE LAST
-
-3. EXTREME DETAIL: Each section's "content" field MUST be at least 200 words with multiple paragraphs. Include:
-   - Specific times, preferences, and routines
-   - Step-by-step instructions for carers
-   - My feelings and what makes me comfortable
-   - What I like and don't like
-   
-4. STEPS: Each section MUST have at least 5 numbered steps that carers can follow.
-
-5. ONLY USE DOCUMENT INFO: Only include information found in the provided documents. If a section has no relevant info, write "Based on my documents, I do not have specific requirements in this area. Please ask me about my preferences."
-
-OUTPUT FORMAT - Return ONLY valid JSON:
+OUTPUT: Return ONLY valid JSON matching this structure:
 {
-  "serviceUserInitials": "${serviceUserInitials || 'N.N.'}",
-  "generatedDate": "${today}",
-  "sections": [
-    {
-      "title": "Section title exactly as listed above",
-      "priority": "high" or "medium" or "low",
-      "content": "MINIMUM 200 words, first person, multiple paragraphs with extreme detail about my needs, preferences, routines, feelings, and specific instructions for my carers...",
-      "steps": ["Step 1: ...", "Step 2: ...", "Step 3: ...", "Step 4: ...", "Step 5: ..."],
-      "risks": ["Risk 1", "Risk 2"],
-      "equipment": ["Equipment 1", "Equipment 2"]
-    }
-  ],
-  "emergencyContacts": "Contact info or 'Not found in documents'",
-  "gpDetails": "GP info or 'Not found in documents'",
-  "additionalNotes": "Other important info or 'No additional notes'"
+  "title": "Section title",
+  "priority": "high/medium/low",
+  "content": "Detailed first-person content (minimum 150 words)",
+  "steps": ["Step 1", "Step 2", "Step 3", "Step 4", "Step 5"],
+  "risks": ["Risk if applicable"],
+  "equipment": ["Equipment if applicable"]
 }`;
 
-      const response = await createChatCompletion({
-        model: "gpt-5.1",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate my comprehensive first-person care plan. Remember: I am the service user - write everything as if I am speaking about my own care needs.\n\nMy documents:\n${documentContent}` }
-        ],
-        temperature: 0,
-        seed: 42,
-        max_completion_tokens: 10000,
-      });
+      sendProgress(10, "Starting section generation...", "generating");
 
-      sendProgress(70, "Processing care plan...", "processing");
+      const completedSections: any[] = [];
+      let emergencyContacts = "Not found in documents";
+      let gpDetails = "Not found in documents";
+      let additionalNotes = "No additional notes";
 
-      const content = response.choices[0]?.message?.content || "";
-      
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const result = JSON.parse(jsonMatch[0]);
+      // Generate each section individually
+      for (let i = 0; i < mandatorySections.length; i++) {
+        const section = mandatorySections[i];
+        const progressPercent = 10 + Math.round((i / mandatorySections.length) * 80);
         
-        if (!result.sections || !Array.isArray(result.sections) || result.sections.length === 0) {
-          sendEvent('error', { message: "AI response missing required sections" });
-          if (heartbeatInterval) clearInterval(heartbeatInterval);
-          return res.end();
-        }
-        
-        const mandatorySections = [
-          { keyword: "warning", title: "WARNING - Safety Concerns & Risks", priority: "high" },
-          { keyword: "life story", title: "Introduction & My Life Story", priority: "medium" },
-          { keyword: "well-being", title: "My Well-being & Emotional Needs", priority: "medium" },
-          { keyword: "social worker", title: "Tasks Required by Social Workers", priority: "high" },
-          { keyword: "personal care", title: "Personal Care", priority: "medium" },
-          { keyword: "mobility", title: "Mobility & Transfers", priority: "medium" },
-          { keyword: "nutrition", title: "Nutrition & Hydration", priority: "medium" },
-          { keyword: "medication", title: "Medication", priority: "high" },
-          { keyword: "continence", title: "Continence Care", priority: "medium" },
-          { keyword: "communication", title: "Communication", priority: "medium" },
-          { keyword: "household", title: "Household Tasks", priority: "low" },
-          { keyword: "secure property", title: "Secure Property Before Leaving", priority: "high" },
-        ];
-        
-        const orderedSections: any[] = [];
-        
-        for (const mandatory of mandatorySections) {
-          const found = result.sections.find((s: any) => 
-            s.title?.toLowerCase().includes(mandatory.keyword.toLowerCase())
-          );
+        sendProgress(progressPercent, `Generating: ${section.title}...`, "generating");
+        console.log(`[CarePlan] Generating section ${i + 1}/${mandatorySections.length}: ${section.title}`);
+
+        try {
+          const sectionResponse = await createChatCompletion({
+            model: "gpt-4o-mini",
+            messages: [
+              { role: "system", content: baseSystemPrompt },
+              { role: "user", content: `Generate the "${section.title}" section (priority: ${section.priority}).
+
+FOCUS ON: ${section.focus}
+
+Service user documents:
+${documentContent}
+
+Remember: Write as if I am the service user speaking about my own needs. Return ONLY valid JSON.` }
+            ],
+            temperature: 0.3,
+            max_completion_tokens: 1500,
+          });
+
+          const sectionContent = sectionResponse.choices[0]?.message?.content || "";
+          const jsonMatch = sectionContent.match(/\{[\s\S]*\}/);
           
-          if (found) {
-            let enhancedContent = found.content || "";
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            let enhancedContent = parsed.content || "";
             
-            if (!enhancedContent.includes("I ") && !enhancedContent.includes("I'm") && !enhancedContent.includes("my ")) {
+            // Ensure first-person perspective
+            if (!enhancedContent.includes("I ") && !enhancedContent.includes("my ")) {
               enhancedContent = enhancedContent.replace(/The (client|service user|patient)/gi, "I");
               enhancedContent = enhancedContent.replace(/Staff should/gi, "I need my carers to");
-              enhancedContent = enhancedContent.replace(/(he|she) (needs|requires)/gi, "I need");
             }
             
-            orderedSections.push({
-              title: mandatory.title,
-              priority: mandatory.priority,
-              content: enhancedContent,
-              steps: Array.isArray(found.steps) && found.steps.length > 0 
-                ? found.steps 
-                : ["Please refer to my preferences above", "Check my care notes for updates", "Ask me if unsure about anything"],
-              risks: Array.isArray(found.risks) ? found.risks : [],
-              equipment: Array.isArray(found.equipment) ? found.equipment : [],
-            });
+            const completedSection = {
+              title: section.title,
+              priority: section.priority,
+              content: scrubPII(enhancedContent),
+              steps: scrubPII(Array.isArray(parsed.steps) && parsed.steps.length > 0 
+                ? parsed.steps 
+                : ["Please refer to my preferences above", "Check my care notes", "Ask me if unsure"]),
+              risks: scrubPII(Array.isArray(parsed.risks) ? parsed.risks : []),
+              equipment: scrubPII(Array.isArray(parsed.equipment) ? parsed.equipment : []),
+            };
+            
+            completedSections.push(completedSection);
+            
+            // Send this section immediately to the frontend
+            sendEvent('section', { index: i, section: completedSection });
+            
           } else {
-            orderedSections.push({
-              title: mandatory.title,
-              priority: mandatory.priority,
+            // Section generation failed - use placeholder
+            const fallbackSection = {
+              title: section.title,
+              priority: section.priority,
               content: "Based on my documents, I do not have specific requirements in this area. Please ask me about my preferences.",
               steps: ["Ask me about my preferences for this area"],
               risks: [],
               equipment: [],
-            });
+            };
+            completedSections.push(fallbackSection);
+            sendEvent('section', { index: i, section: fallbackSection });
           }
+        } catch (sectionError: any) {
+          console.error(`[CarePlan] Error generating section "${section.title}":`, sectionError.message);
+          // Continue with fallback section
+          const fallbackSection = {
+            title: section.title,
+            priority: section.priority,
+            content: "Unable to generate this section. Please add information manually.",
+            steps: ["Add information for this section manually"],
+            risks: [],
+            equipment: [],
+          };
+          completedSections.push(fallbackSection);
+          sendEvent('section', { index: i, section: fallbackSection });
         }
-        
-        result.sections = orderedSections;
-        
-        // Apply PII scrubbing - normalize initials and remove any DOBs
-        // Scrub content fields but preserve section titles (they're predefined)
-        result.serviceUserInitials = normalizeInitials(result.serviceUserInitials);
-        
-        // Scrub each section's content, steps, risks, equipment - but NOT the title
-        for (const section of result.sections) {
-          section.content = scrubPII(section.content);
-          section.steps = scrubPII(section.steps);
-          section.risks = scrubPII(section.risks);
-          section.equipment = scrubPII(section.equipment);
-        }
-        
-        // Scrub other fields
-        result.emergencyContacts = scrubPII(result.emergencyContacts);
-        result.gpDetails = scrubPII(result.gpDetails);
-        result.additionalNotes = scrubPII(result.additionalNotes);
-        
-        sendProgress(100, "Complete!", "complete");
-        sendEvent('result', result);
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        return res.end();
-      } else {
-        sendEvent('error', { message: "Failed to parse AI response" });
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        return res.end();
       }
+
+      // Extract emergency contacts and GP details from first successful section response
+      try {
+        const metaResponse = await createChatCompletion({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "Extract contact information from the documents. Return JSON only." },
+            { role: "user", content: `From these documents, extract:
+1. Emergency contacts (names, relationships, phone numbers)
+2. GP details (name, surgery, phone)
+3. Any additional important notes
+
+Documents:
+${documentContent.substring(0, 3000)}
+
+Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes": "..."}` }
+          ],
+          temperature: 0,
+          max_completion_tokens: 500,
+        });
+        
+        const metaContent = metaResponse.choices[0]?.message?.content || "";
+        const metaMatch = metaContent.match(/\{[\s\S]*\}/);
+        if (metaMatch) {
+          const meta = JSON.parse(metaMatch[0]);
+          emergencyContacts = scrubPII(meta.emergencyContacts || emergencyContacts);
+          gpDetails = scrubPII(meta.gpDetails || gpDetails);
+          additionalNotes = scrubPII(meta.additionalNotes || additionalNotes);
+        }
+      } catch (e) {
+        console.log("[CarePlan] Could not extract meta info, using defaults");
+      }
+
+      // Build final result
+      const result = {
+        serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
+        generatedDate: today,
+        sections: completedSections,
+        emergencyContacts,
+        gpDetails,
+        additionalNotes,
+      };
+
+      sendProgress(100, "Complete!", "complete");
+      sendEvent('result', result);
+      
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      return res.end();
+      
     } catch (error: any) {
       console.error("Care Plan Generation Error:", error);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
-      // Check if headers were already sent (SSE mode)
       if (res.headersSent) {
         res.write(`event: error\ndata: ${JSON.stringify({ message: error.message || "AI generation failed" })}\n\n`);
         return res.end();

@@ -47,6 +47,10 @@ export default function CarePlanning() {
 
       setProgress(0);
       setProgressStatus("Preparing documents...");
+      
+      // Clear any existing care plan and prepare for incremental updates
+      setCarePlan(null);
+      const sectionsInProgress: CarePlanSection[] = [];
 
       const response = await fetch("/api/ai/generate-care-plan", {
         method: "POST",
@@ -103,14 +107,33 @@ export default function CarePlanning() {
                 console.log("[CarePlan] Progress update:", data.percent, data.status);
                 setProgress(data.percent);
                 setProgressStatus(data.status);
+              } else if (eventType === "section") {
+                // New section arrived - add it to the list immediately
+                console.log("[CarePlan] Section received:", data.section?.title);
+                sectionsInProgress[data.index] = data.section;
+                // Update care plan in real-time so user sees progress
+                setCarePlan(prev => ({
+                  serviceUserInitials: prev?.serviceUserInitials || "N.N.",
+                  generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
+                  sections: [...sectionsInProgress],
+                  emergencyContacts: prev?.emergencyContacts || "Loading...",
+                  gpDetails: prev?.gpDetails || "Loading...",
+                  additionalNotes: prev?.additionalNotes || "Loading...",
+                }));
+                // Auto-expand the new section
+                setExpandedSections(prev => {
+                  const newSet = new Set(prev);
+                  newSet.add(data.index);
+                  return newSet;
+                });
               } else if (eventType === "result") {
-                console.log("[CarePlan] Result received");
+                console.log("[CarePlan] Final result received");
                 result = data;
               } else if (eventType === "error") {
                 throw new Error(data.message);
               }
             } catch (parseErr) {
-              console.error("SSE parse error:", parseErr, "data:", dataStr);
+              console.error("SSE parse error:", parseErr, "data:", dataStr.substring(0, 100));
             }
           }
         }
