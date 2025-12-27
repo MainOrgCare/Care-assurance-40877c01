@@ -33,7 +33,8 @@ Preferred communication style: Simple, everyday language.
 - **Shared Schema**: Database schema and Zod validators defined once and used by both client and server.
 - **Protected Routes**: Client-side route protection.
 - **Glass Morphism UI**: Dark theme with translucent effects and gradient backgrounds.
-- **AI-Powered Features**: EMAR analysis, care plan generation, risk assessment, and plan enhancement utilize AI (GPT-5.1) for content generation and data extraction. These features use Server-Sent Events (SSE) for real-time progress updates.
+- **AI-Powered Features**: EMAR analysis, risk assessment, and plan enhancement utilize AI (GPT-5.1) for content generation and data extraction. Care plan generation uses GPT-4o-mini for faster response times. These features use Server-Sent Events (SSE) for real-time progress updates.
+- **Chunked Care Plan Generation**: Care plans are generated section-by-section (12 sections total), with each section streamed to the frontend immediately upon completion. This provides real-time visual feedback as sections appear incrementally.
 - **AI Failover**: Server-side AI wrapper (server/services/aiClient.ts) with automatic failover from Replit AI to direct OpenAI key on billing/rate limit/connection errors.
 - **EMAR Analysis**: Employs a simplified 3-pass consensus with domain validation for accurate medication record extraction. Includes PRN code support and a refusal grouping system with an admin review process. Features include:
   - **Time Gap Detection**: Only applies to PRN medications - scheduled medications are excluded since each time slot row is a discrete scheduled dose, not cumulative dosing. Includes date validation and duplicate tolerance to prevent false positives.
