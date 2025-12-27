@@ -1423,9 +1423,26 @@ export async function registerRoutes(
       }
       const analysisText = isDocumentTruncated ? documentText.substring(0, MAX_DOC_TEXT_LENGTH) : documentText;
       
-      // Note: Vision API image conversion disabled (pdf-poppler not available on this platform)
+      // Convert PDF to images for Vision API extraction
+      const imageConversion = await convertPdfToImages(req.file.buffer);
+      const useTextMode = imageConversion.images.length === 0;
+      
+      // Build image content for Vision API
       const imageContent: any[] = [];
-      const useTextMode = true;
+      if (!useTextMode) {
+        console.log(`DEBUG: Using Vision API with ${imageConversion.images.length} page images`);
+        for (const base64Image of imageConversion.images) {
+          imageContent.push({
+            type: "image_url",
+            image_url: {
+              url: `data:image/png;base64,${base64Image}`,
+              detail: "high"
+            }
+          });
+        }
+      } else {
+        console.log(`DEBUG: Vision conversion failed, using text mode: ${imageConversion.error}`);
+      }
       
       sendProgress(10, "Analyzing EMAR document...", "metadata_extraction");
 
@@ -1720,16 +1737,58 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         });
       };
       
-      // Function to run one complete extraction pass using text extraction
+      // Function to run one complete extraction pass (vision or text mode)
       const runExtractionPass = async (passNumber: number): Promise<any[]> => {
-        console.log(`DEBUG: Starting text extraction pass ${passNumber}`);
+        const mode = useTextMode ? 'text' : 'vision';
+        console.log(`DEBUG: Starting ${mode} extraction pass ${passNumber}`);
         
         const batchPromises = medicationBatches.map(async (batch, batchIndex) => {
           const batchMedList = batch.map((m: any) => 
             `[ID:${m.medicationId}] ${m.name}${m.isPRN ? ' (PRN)' : ''}`
           ).join("\n");
           
-          const batchPrompt = `You are an EMAR data extractor analyzing EMAR document text. Extract administration records ONLY for these specific medications:
+          // Vision-optimized prompt that describes visual grid structure
+          const visionPrompt = `You are an EMAR (Electronic Medication Administration Record) data extractor analyzing EMAR IMAGES.
+
+IMPORTANT: This is a VISUAL GRID document. Look at EACH CELL in the medication administration grid.
+
+MEDICATIONS TO FIND (use exact medicationId in output):
+${batchMedList}
+
+DATES FROM DOCUMENT: ${metadata.dates?.join(", ")}
+TIME SLOTS: ${metadata.timeSlots?.join(", ")}
+
+VISUAL GRID STRUCTURE:
+- The EMAR is a grid with medications as rows and date/time combinations as columns
+- Each cell may contain:
+  * Care worker INITIALS (2 letters like RK, HB, GM) - usually on the LEFT side of the cell
+  * A blue circle with "AD" = Administered
+  * Other codes: AS (assisted), P (prompted), R (refused), MU (unavailable), NH (not home)
+  * A TIME value (like 08:30) if recorded
+  * Some cells may have initials WITHOUT a visible code - these are ADMINISTERED (AD)
+
+EXTRACTION RULES - BE THOROUGH:
+1. For EACH medication listed above, scan EVERY date column and EVERY time slot row
+2. If a cell has INITIALS but no visible code, use "AD" as the code (administered)
+3. If a cell has a blue circle or "AD" text, use code "AD"
+4. Look for "R" or refused markings - these are critical
+5. EVERY cell with ANY content must be extracted - don't skip any!
+6. Care worker initials are typically 2 capital letters
+
+Return JSON:
+{
+  "entries": [
+    {"medicationId": ${batch[0].medicationId}, "date": "Sat, 06 Dec", "timeSlot": "08:00-09:00", "code": "AD", "careWorkerInitials": "RK", "time": "08:30", "hasTime": true}
+  ]
+}
+
+hasTime RULES:
+- hasTime: true = a specific time is visible in the cell (e.g., "08:30")
+- hasTime: false = only initials/code visible, no specific time
+
+CRITICAL: Extract EVERY SINGLE CELL that has any content. For a medication with 7 dates and 4 time slots, you should have up to 28 entries per medication.`;
+
+          const textPrompt = `You are an EMAR data extractor analyzing EMAR document text. Extract administration records ONLY for these specific medications:
 
 MEDICATIONS TO FIND (use exact medicationId in output):
 ${batchMedList}
@@ -1771,16 +1830,36 @@ OTHER CRITICAL RULES:
 1. ALWAYS extract R codes - refusals are critical for compliance. Look for "R", "Ref", "Refused", "Declined"
 2. Look for ALL entries including those with codes R, MU, NH - these are just as important as AD/AS/P
 3. Care worker initials are typically 2 letters (e.g., RK, HB, BB, GM, SB)
-4. Skip only truly blank/empty cells - but capture ALL cells with any code or initials`;
+4. If a cell has INITIALS but no explicit code, treat it as "AD" (administered)
+5. Skip only truly blank/empty cells - but capture ALL cells with any initials or codes`;
           
           try {
-            const response = await createChatCompletion({
-              model: "gpt-5.2",
-              messages: [
-                { role: "system", content: batchPrompt },
+            let messages: any[];
+            
+            if (!useTextMode && imageContent.length > 0) {
+              // Vision mode - include page images
+              messages = [
+                { role: "system", content: visionPrompt },
+                { 
+                  role: "user", 
+                  content: [
+                    { type: "text", text: `Extract ALL medication entries for the specified medications from these EMAR page images. Be thorough - scan every cell in the grid.` },
+                    ...imageContent
+                  ]
+                }
+              ];
+            } else {
+              // Text mode fallback
+              messages = [
+                { role: "system", content: textPrompt },
                 { role: "user", content: `Extract medication entries from this document:\n\n${analysisText}` }
-              ],
-              max_completion_tokens: 8000,
+              ];
+            }
+            
+            const response = await createChatCompletion({
+              model: "gpt-4o", // Use gpt-4o for vision support
+              messages,
+              max_completion_tokens: 16000, // Increased for more entries
               temperature: 0,
               seed: DETERMINISTIC_SEED,
               response_format: { type: "json_object" },
@@ -1789,7 +1868,7 @@ OTHER CRITICAL RULES:
             const content = response.choices[0]?.message?.content || '{"entries":[]}';
             const data = JSON.parse(content);
             const batchEntries = data.entries || [];
-            console.log(`DEBUG: Pass ${passNumber} Batch ${batchIndex + 1} extracted ${batchEntries.length} entries`);
+            console.log(`DEBUG: Pass ${passNumber} Batch ${batchIndex + 1} extracted ${batchEntries.length} entries (${mode} mode)`);
             return batchEntries;
           } catch (e) {
             console.error(`Pass ${passNumber} Batch ${batchIndex + 1} error:`, e);
