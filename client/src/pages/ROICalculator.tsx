@@ -34,7 +34,7 @@ const CORE_FEATURES = [
     title: "Care Planner",
     subtitle: "Person-Centred Plan Generation",
     description: "Generate comprehensive care plans written in first-person perspective. Creates personalised content based on individual needs, preferences, and risk factors.",
-    highlights: ["First-person perspective", "Personalised content", "Risk-aware planning", "CQC-aligned format"],
+    highlights: ["First-person perspective", "Personalised content", "Risk-aware planning", "Structured format"],
     timeSaving: "90 min → 45 sec",
     costPence: 5,
     color: "text-green-500",
@@ -78,21 +78,21 @@ const CORE_FEATURES = [
 const IMPACT_METRICS = [
   {
     icon: Clock,
-    value: "95%",
-    label: "Time Saved",
-    description: "On average across all features",
+    value: "Faster",
+    label: "Record Reviews",
+    description: "Minutes instead of hours",
   },
   {
     icon: Eye,
-    value: "100%",
-    label: "Audit Coverage",
-    description: "Every entry reviewed, nothing missed",
+    value: "Thorough",
+    label: "Analysis",
+    description: "AI reviews every entry systematically",
   },
   {
     icon: Scale,
-    value: "CQC",
-    label: "Compliant",
-    description: "Documentation meets regulatory standards",
+    value: "UK",
+    label: "Care-Focused",
+    description: "Designed for UK care workflows",
   },
   {
     icon: Heart,
@@ -109,15 +109,15 @@ const COMPARISON_DATA = {
     { text: "Inconsistent care plan quality between staff", icon: Users },
     { text: "Delayed identification of care concerns", icon: AlertTriangle },
     { text: "Administrative burden reduces care time", icon: Heart },
-    { text: "Stress during CQC inspections", icon: Scale },
+    { text: "Uncertainty before inspections", icon: Scale },
   ],
   careassurance: [
     { text: "Complete analysis in under a minute", icon: Zap },
-    { text: "Every entry reviewed with consistent accuracy", icon: CheckCircle },
+    { text: "Every entry reviewed systematically", icon: CheckCircle },
     { text: "Standardised, high-quality documentation", icon: FileCheck },
     { text: "Immediate flagging of potential issues", icon: Brain },
     { text: "More time for meaningful patient interaction", icon: Heart },
-    { text: "Always inspection-ready documentation", icon: Shield },
+    { text: "Better-organised documentation", icon: Shield },
   ],
 };
 

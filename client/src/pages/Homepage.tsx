@@ -596,10 +596,10 @@ export default function Homepage() {
               Complete Platform
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Everything You Need for CQC Excellence
+              Tools to Support Your Compliance Workflow
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Comprehensive tools that work together to eliminate compliance stress and free your team to focus on what matters: caring for residents.
+              A suite of features designed to help reduce administrative burden and give your team more time to focus on what matters: caring for residents.
             </p>
           </motion.div>
 
@@ -846,7 +846,7 @@ export default function Homepage() {
               </Badge>
               <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-400">
                 <ShieldCheck className="h-2.5 w-2.5 mr-1" />
-                GDPR Compliant
+                Privacy-Focused
               </Badge>
             </div>
           </div>

@@ -552,9 +552,9 @@ export default function Dashboard() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
-            <CardTitle>Why Care Facilities Choose CareAssurance</CardTitle>
+            <CardTitle>Platform Features</CardTitle>
           </div>
-          <CardDescription>Real results that matter to your bottom line and care quality</CardDescription>
+          <CardDescription>Tools designed to support your care facility workflows</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -563,20 +563,20 @@ export default function Dashboard() {
                 <div className="h-8 w-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
                   <Clock className="h-4 w-4 text-blue-400" />
                 </div>
-                <span className="text-2xl font-bold text-foreground">80%</span>
+                <span className="text-2xl font-bold text-foreground">Minutes</span>
               </div>
-              <p className="text-sm font-medium">Time Saved on Audits</p>
-              <p className="text-xs text-muted-foreground">What took hours now takes minutes with AI-powered analysis</p>
+              <p className="text-sm font-medium">Faster Reviews</p>
+              <p className="text-xs text-muted-foreground">AI-assisted analysis helps speed up record reviews</p>
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
                   <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                 </div>
-                <span className="text-2xl font-bold text-foreground">99.9%</span>
+                <span className="text-2xl font-bold text-foreground">Multi-Pass</span>
               </div>
-              <p className="text-sm font-medium">Accuracy Rate</p>
-              <p className="text-xs text-muted-foreground">3-pass AI consensus catches what humans miss</p>
+              <p className="text-sm font-medium">AI Analysis</p>
+              <p className="text-xs text-muted-foreground">Multiple review passes help surface potential issues</p>
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
@@ -585,28 +585,28 @@ export default function Dashboard() {
                 </div>
                 <span className="text-2xl font-bold text-foreground">24/7</span>
               </div>
-              <p className="text-sm font-medium">CQC Ready</p>
-              <p className="text-xs text-muted-foreground">Always inspection-ready with automated compliance tracking</p>
+              <p className="text-sm font-medium">Access Anytime</p>
+              <p className="text-xs text-muted-foreground">Available when you need it for compliance tracking</p>
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
                   <Brain className="h-4 w-4 text-amber-400" />
                 </div>
-                <span className="text-2xl font-bold text-foreground">12</span>
+                <span className="text-2xl font-bold text-foreground">11</span>
               </div>
               <p className="text-sm font-medium">Care Plan Sections</p>
-              <p className="text-xs text-muted-foreground">Comprehensive AI-generated care plans in first-person perspective</p>
+              <p className="text-xs text-muted-foreground">AI-generated draft care plans for your review</p>
             </div>
           </div>
           <div className="mt-6 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              Discover how much you could save with CareAssurance
+              Estimate potential time savings for your facility
             </p>
             <Link href="/roi-calculator">
               <Button variant="outline" className="gap-2" data-testid="button-roi-calculator">
                 <TrendingUp className="h-4 w-4" />
-                Calculate Your ROI
+                Savings Estimator
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
