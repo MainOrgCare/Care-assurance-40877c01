@@ -492,7 +492,6 @@ export async function registerRoutes(
   app.post("/api/auth/accept-terms", requireAuth, async (req: any, res) => {
     try {
       const { version, signatureName, signatureDate } = req.body;
-      console.log("[accept-terms] Request received:", { userId: req.user.id, version, signatureName, signatureDate });
       
       if (!version) {
         return res.status(400).json({ message: "Terms version is required" });
@@ -511,19 +510,8 @@ export async function registerRoutes(
         signatureDate
       );
       
-      console.log("[accept-terms] Database update result:", updatedUser ? { 
-        id: updatedUser.id, 
-        termsVersion: updatedUser.termsVersion,
-        termsAcceptedAt: updatedUser.termsAcceptedAt 
-      } : "null");
-      
       if (!updatedUser) {
-        console.error("[accept-terms] Failed to update user - no result returned");
         return res.status(500).json({ message: "Failed to update user" });
-      }
-      
-      if (!updatedUser.termsVersion) {
-        console.error("[accept-terms] Database update returned user without termsVersion!");
       }
 
       // Update session user
@@ -531,8 +519,6 @@ export async function registerRoutes(
       req.user.termsVersion = updatedUser.termsVersion || version;
       req.user.termsSignatureName = signatureName.trim();
       req.user.termsSignatureDate = signatureDate;
-
-      console.log("[accept-terms] Success - termsVersion saved:", updatedUser.termsVersion);
 
       return res.json({ 
         success: true, 
@@ -543,7 +529,7 @@ export async function registerRoutes(
         termsSignatureDate: signatureDate,
       });
     } catch (error) {
-      console.error("[accept-terms] Error:", error);
+      console.error("Error accepting terms:", error);
       return res.status(500).json({ message: "Failed to accept terms" });
     }
   });
