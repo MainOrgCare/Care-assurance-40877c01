@@ -10,11 +10,11 @@ import {
 import { useAuth } from "@/context/AuthContext";
 
 const TASK_DATA = [
-  { name: "EMAR Audit", manualMinutes: 45, appSeconds: 60 },
-  { name: "Visit Audit", manualMinutes: 30, appSeconds: 20 },
-  { name: "Risk Assessment", manualMinutes: 180, appSeconds: 45 },
-  { name: "Plan Enhancer", manualMinutes: 120, appSeconds: 90 },
-  { name: "Care Planner", manualMinutes: 90, appSeconds: 45 },
+  { name: "EMAR Audit", manualMinutes: 45, appSeconds: 60, costPence: 2 },
+  { name: "Visit Audit", manualMinutes: 30, appSeconds: 20, costPence: 1 },
+  { name: "Risk Assessment", manualMinutes: 180, appSeconds: 45, costPence: 2 },
+  { name: "Plan Enhancer", manualMinutes: 120, appSeconds: 90, costPence: 6 },
+  { name: "Care Planner", manualMinutes: 90, appSeconds: 45, costPence: 3 },
 ];
 
 const CORE_FEATURES = [
@@ -25,6 +25,7 @@ const CORE_FEATURES = [
     description: "Upload medication records and instantly detect discrepancies, missed doses, and refusals. AI identifies patterns, generates PRN protocols, and flags issues for review.",
     highlights: ["Discrepancy detection", "PRN protocol generation", "Refusal tracking", "Dose verification"],
     timeSaving: "45 min → 60 sec",
+    costPence: 2,
     color: "text-blue-500",
     bgColor: "bg-blue-500/10",
   },
@@ -35,6 +36,7 @@ const CORE_FEATURES = [
     description: "Generate comprehensive care plans written in first-person perspective. Creates personalised content based on individual needs, preferences, and risk factors.",
     highlights: ["First-person perspective", "Personalised content", "Risk-aware planning", "CQC-aligned format"],
     timeSaving: "90 min → 45 sec",
+    costPence: 3,
     color: "text-green-500",
     bgColor: "bg-green-500/10",
   },
@@ -45,6 +47,7 @@ const CORE_FEATURES = [
     description: "Transform basic care plans into comprehensive documents covering all aspects of care. Generates content across personal care, nutrition, mobility, communication, and more.",
     highlights: ["11 care sections", "Detailed guidance", "Staff instructions", "Outcome tracking"],
     timeSaving: "2 hr → 90 sec",
+    costPence: 6,
     color: "text-purple-500",
     bgColor: "bg-purple-500/10",
   },
@@ -55,6 +58,7 @@ const CORE_FEATURES = [
     description: "Analyse service user information to identify potential risks before they become incidents. Generates mitigation strategies and monitoring recommendations.",
     highlights: ["Early warning detection", "Mitigation strategies", "Monitoring plans", "Evidence-based"],
     timeSaving: "3 hr → 45 sec",
+    costPence: 2,
     color: "text-amber-500",
     bgColor: "bg-amber-500/10",
   },
@@ -65,6 +69,7 @@ const CORE_FEATURES = [
     description: "Verify visit times, durations, and care delivery for domiciliary services. Cross-reference scheduled vs actual visits and identify discrepancies.",
     highlights: ["Time verification", "Duration tracking", "Schedule comparison", "Gap detection"],
     timeSaving: "30 min → 20 sec",
+    costPence: 1,
     color: "text-rose-500",
     bgColor: "bg-rose-500/10",
   },
@@ -222,6 +227,9 @@ export default function ROICalculator() {
                         <Clock className="h-3 w-3" />
                         {feature.timeSaving}
                       </Badge>
+                      <Badge variant="secondary" className="w-fit text-xs gap-1 bg-green-500/10 text-green-600">
+                        {feature.costPence}p per use
+                      </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mb-1">{feature.subtitle}</p>
                     <p className="text-muted-foreground mb-4">{feature.description}</p>
@@ -254,7 +262,7 @@ export default function ROICalculator() {
             {TASK_DATA.map((task) => (
               <div key={task.name} className="text-center p-5 rounded-xl bg-muted/50 border border-border/50">
                 <div className="text-sm font-medium text-muted-foreground mb-3">{task.name}</div>
-                <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center justify-center gap-2 mb-3">
                   <div>
                     <div className="text-xl font-bold text-foreground">
                       {task.manualMinutes >= 60 
@@ -270,6 +278,7 @@ export default function ROICalculator() {
                     <div className="text-xs text-muted-foreground">automated</div>
                   </div>
                 </div>
+                <div className="text-sm font-semibold text-green-600">{task.costPence}p per use</div>
               </div>
             ))}
           </div>

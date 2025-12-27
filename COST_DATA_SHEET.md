@@ -32,10 +32,10 @@ This document outlines all operational costs for running CareAssurance in produc
 
 | Task | Manual Time | App Time | Time Saved |
 |------|-------------|----------|------------|
-| EMAR Audit | 45 min | ~30 sec | 44.5 min |
-| Visit Audit | 30 min | ~15 sec | 29.75 min |
+| EMAR Audit | 45 min | ~60 sec | 44 min |
+| Visit Audit | 30 min | ~20 sec | 29.67 min |
 | Risk Assessment | 3 hours | ~45 sec | 2 hr 59 min |
-| Plan Enhancer | 2 hours | ~60 sec | 1 hr 59 min |
+| Plan Enhancer | 2 hours | ~90 sec | 1 hr 58.5 min |
 | Care Planner | 1.5 hours | ~45 sec | 1 hr 29 min |
 
 ---
