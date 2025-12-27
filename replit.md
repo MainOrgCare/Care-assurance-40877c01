@@ -35,7 +35,8 @@ Preferred communication style: Simple, everyday language.
 - **Glass Morphism UI**: Dark theme with translucent effects and gradient backgrounds.
 - **AI-Powered Features**: EMAR analysis, care plan generation, risk assessment, and plan enhancement utilize AI (GPT-5.1) for content generation and data extraction. These features use Server-Sent Events (SSE) for real-time progress updates.
 - **AI Failover**: Server-side AI wrapper (server/services/aiClient.ts) with automatic failover from Replit AI to direct OpenAI key on billing/rate limit/connection errors.
-- **EMAR Analysis**: Employs a simplified 3-pass consensus with domain validation for accurate medication record extraction. Includes PRN code support, time gap fixes, and a refusal grouping system with an admin review process. Features include:
+- **EMAR Analysis**: Employs a simplified 3-pass consensus with domain validation for accurate medication record extraction. Includes PRN code support and a refusal grouping system with an admin review process. Features include:
+  - **Time Gap Detection**: Only applies to PRN medications - scheduled medications are excluded since each time slot row is a discrete scheduled dose, not cumulative dosing. Includes date validation and duplicate tolerance to prevent false positives.
   - **Pre-Analysis Validation**: Regex-based pre-parsing extracts dates and time slots from document text BEFORE AI extraction. If AI date count differs significantly from pre-parsed count, the system uses pre-parsed dates. Logs a summary of days, medications, and time slots per medication.
   - **Blank Entry Handling**: Blank cells in the EMAR grid are completely ignored - they do not create discrepancies and are not tracked. Only cells with actual codes (AD, AS, R, MU, etc.) are analyzed.
   - **Unified Refusal Review**: Single "Reasons Not Administered" accordion with nested sections for each refusal code type (R, MU, NH, FA, SA, PRN-R, etc.)
