@@ -10,11 +10,11 @@ import {
 import { useAuth } from "@/context/AuthContext";
 
 const TASK_DATA = [
-  { name: "EMAR Audit", manualMinutes: 45, appSeconds: 60, costPence: 2 },
+  { name: "EMAR Audit", manualMinutes: 45, appSeconds: 60, costPence: 4 },
   { name: "Visit Audit", manualMinutes: 30, appSeconds: 20, costPence: 1 },
-  { name: "Risk Assessment", manualMinutes: 180, appSeconds: 45, costPence: 2 },
-  { name: "Plan Enhancer", manualMinutes: 120, appSeconds: 90, costPence: 6 },
-  { name: "Care Planner", manualMinutes: 90, appSeconds: 45, costPence: 3 },
+  { name: "Risk Assessment", manualMinutes: 180, appSeconds: 45, costPence: 4 },
+  { name: "Plan Enhancer", manualMinutes: 120, appSeconds: 90, costPence: 9 },
+  { name: "Care Planner", manualMinutes: 90, appSeconds: 45, costPence: 5 },
 ];
 
 const CORE_FEATURES = [
@@ -25,7 +25,7 @@ const CORE_FEATURES = [
     description: "Upload medication records and instantly detect discrepancies, missed doses, and refusals. AI identifies patterns, generates PRN protocols, and flags issues for review.",
     highlights: ["Discrepancy detection", "PRN protocol generation", "Refusal tracking", "Dose verification"],
     timeSaving: "45 min → 60 sec",
-    costPence: 2,
+    costPence: 4,
     color: "text-blue-500",
     bgColor: "bg-blue-500/10",
   },
@@ -36,7 +36,7 @@ const CORE_FEATURES = [
     description: "Generate comprehensive care plans written in first-person perspective. Creates personalised content based on individual needs, preferences, and risk factors.",
     highlights: ["First-person perspective", "Personalised content", "Risk-aware planning", "CQC-aligned format"],
     timeSaving: "90 min → 45 sec",
-    costPence: 3,
+    costPence: 5,
     color: "text-green-500",
     bgColor: "bg-green-500/10",
   },
@@ -47,7 +47,7 @@ const CORE_FEATURES = [
     description: "Transform basic care plans into comprehensive documents covering all aspects of care. Generates content across personal care, nutrition, mobility, communication, and more.",
     highlights: ["11 care sections", "Detailed guidance", "Staff instructions", "Outcome tracking"],
     timeSaving: "2 hr → 90 sec",
-    costPence: 6,
+    costPence: 9,
     color: "text-purple-500",
     bgColor: "bg-purple-500/10",
   },
@@ -58,7 +58,7 @@ const CORE_FEATURES = [
     description: "Analyse service user information to identify potential risks before they become incidents. Generates mitigation strategies and monitoring recommendations.",
     highlights: ["Early warning detection", "Mitigation strategies", "Monitoring plans", "Evidence-based"],
     timeSaving: "3 hr → 45 sec",
-    costPence: 2,
+    costPence: 4,
     color: "text-amber-500",
     bgColor: "bg-amber-500/10",
   },

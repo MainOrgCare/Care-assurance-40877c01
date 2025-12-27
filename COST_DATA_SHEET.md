@@ -14,11 +14,11 @@ This document outlines all operational costs for running CareAssurance in produc
 
 | Task | Manual Time | Labor Cost | App Cost | Savings | Saving % |
 |------|-------------|------------|----------|---------|----------|
-| EMAR Audit | 45 min | £11.25 | £0.02 | £11.23 | 99.8% |
+| EMAR Audit | 45 min | £11.25 | £0.04 | £11.21 | 99.6% |
 | Visit Audit | 30 min | £7.50 | £0.01 | £7.49 | 99.9% |
-| Risk Assessment | 3 hours | £45.00 | £0.02 | £44.98 | 99.9% |
-| Plan Enhancer | 2 hours | £30.00 | £0.06 | £29.94 | 99.8% |
-| Care Planner | 1.5 hours | £22.50 | £0.03 | £22.47 | 99.9% |
+| Risk Assessment | 3 hours | £45.00 | £0.04 | £44.96 | 99.9% |
+| Plan Enhancer | 2 hours | £30.00 | £0.09 | £29.91 | 99.7% |
+| Care Planner | 1.5 hours | £22.50 | £0.05 | £22.45 | 99.8% |
 
 ### Annual Savings Projections
 
@@ -66,27 +66,26 @@ Protects all file uploads from malware threats.
 
 | Model | Where Used | Input Cost | Output Cost |
 |-------|-----------|------------|-------------|
-| **GPT-5.1** | EMAR analysis, Care plans, Plan enhancement | £0.98/1M tokens | £7.87/1M tokens |
-| **o3** | Risk analysis, Email assistant | £1.57/1M tokens | £6.30/1M tokens |
+| **GPT-5.2** | All features (EMAR, Care plans, Risk assessment, Email) | £1.38/1M tokens | £11.02/1M tokens |
 
 ### Feature Cost Breakdown
 
 | Feature | Model | Avg Tokens (In/Out) | Est. Cost per Use |
 |---------|-------|---------------------|-------------------|
-| EMAR Analysis (per page, 5-pass) | GPT-5.1 | ~5,000 / ~3,400 | ~£0.03 |
-| Care Plan Generation | GPT-5.1 | ~2,000 / ~4,000 | ~£0.03 |
-| Plan Enhancement (11 sections) | GPT-5.1 | ~3,000 / ~8,000 | ~£0.06 |
-| Risk Analysis | o3 | ~2,000 / ~3,000 | ~£0.02 |
-| Email Rewrite | o3 | ~500 / ~800 | ~£0.01 |
+| EMAR Analysis (per page, 3-pass) | GPT-5.2 | ~5,000 / ~3,400 | ~£0.04 |
+| Care Plan Generation | GPT-5.2 | ~2,000 / ~4,000 | ~£0.05 |
+| Plan Enhancement (11 sections) | GPT-5.2 | ~3,000 / ~8,000 | ~£0.09 |
+| Risk Analysis | GPT-5.2 | ~2,000 / ~3,000 | ~£0.04 |
+| Email Rewrite | GPT-5.2 | ~500 / ~800 | ~£0.01 |
 
 ### Monthly AI Cost Estimates
 
 | Usage Level | Description | Est. Monthly Cost |
 |-------------|-------------|-------------------|
-| Low | 10 EMARs + 5 care plans + 5 risk assessments | ~£0.50 |
-| Medium | 50 EMARs + 20 care plans + 20 risk assessments | ~£2.20 |
-| High | 200 EMARs + 100 care plans + 100 risk assessments | ~£9.50 |
-| Very High | 500+ EMARs + 250 care plans + 200 risk assessments | ~£25.00 |
+| Low | 10 EMARs + 5 care plans + 5 risk assessments | ~£0.85 |
+| Medium | 50 EMARs + 20 care plans + 20 risk assessments | ~£3.70 |
+| High | 200 EMARs + 100 care plans + 100 risk assessments | ~£16.00 |
+| Very High | 500+ EMARs + 250 care plans + 200 risk assessments | ~£42.00 |
 
 ---
 
@@ -211,18 +210,16 @@ Assuming average 10 service users per facility:
 ## 9. AI Model Summary
 
 ### EMAR Extraction Strategy
-- Uses **5-pass GPT-5.1 extraction** with consensus voting (upgraded from 3-pass)
-- When passes disagree: uses **highest valid count** (no o3 escalation)
+- Uses **3-pass GPT-5.2 extraction** with consensus voting
+- When passes disagree: uses **highest valid count**
 - Domain validation ensures only valid entries are accepted
-- Higher accuracy with more data points for consensus (3+ passes agreeing = strong consensus)
-- Note: ~67% more API calls per medication compared to previous 3-pass approach
+- GPT-5.2's improved document understanding provides better extraction accuracy
 
 ### Models by Feature
 
 | Model | Features |
 |-------|----------|
-| **GPT-5.1** | EMAR analysis, Care plans, Plan enhancement |
-| **o3** | Risk analysis, Email assistant |
+| **GPT-5.2** | All features (EMAR, Care plans, Plan enhancement, Risk analysis, Email) |
 
 ---
 
@@ -238,7 +235,7 @@ Assuming average 10 service users per facility:
 ## 11. Cost Optimization Built-In
 
 1. **Virus Scanning:** Hash caching prevents duplicate scans
-2. **AI Processing:** GPT-5.1 used where possible (cheaper than o3)
+2. **AI Processing:** GPT-5.2 unified model for all features
 3. **Caching:** 90% discount on cached AI inputs
 4. **Database:** Scale-to-zero during inactive periods
 5. **Hosting:** Autoscale only charges when in use
