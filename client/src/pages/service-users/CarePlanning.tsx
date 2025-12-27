@@ -150,14 +150,27 @@ export default function CarePlanning() {
       return result;
     },
     onSuccess: (data) => {
+      console.log("[CarePlan] onSuccess called with data:", JSON.stringify(data).substring(0, 500));
       setProgress(100);
       setProgressStatus("Complete!");
       setTimeout(() => {
         setProgress(0);
         setProgressStatus("");
       }, 500);
-      setCarePlan(data);
-      setExpandedSections(new Set(data.sections.map((_: CarePlanSection, i: number) => i)));
+      
+      // Ensure sections is always an array
+      const safeSections = Array.isArray(data?.sections) ? data.sections : [];
+      const safeData: CarePlanResult = {
+        serviceUserInitials: data?.serviceUserInitials || "N.N.",
+        generatedDate: data?.generatedDate || new Date().toLocaleDateString("en-GB"),
+        sections: safeSections,
+        emergencyContacts: data?.emergencyContacts || "",
+        gpDetails: data?.gpDetails || "",
+        additionalNotes: data?.additionalNotes || "",
+      };
+      
+      setCarePlan(safeData);
+      setExpandedSections(new Set(safeSections.map((_: CarePlanSection, i: number) => i)));
       toast({
         title: "Care Plan Generated",
         description: "Your detailed first-person care plan is ready.",
