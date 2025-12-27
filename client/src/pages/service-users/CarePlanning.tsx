@@ -110,22 +110,26 @@ export default function CarePlanning() {
               } else if (eventType === "section") {
                 // New section arrived - add it to the list immediately
                 console.log("[CarePlan] Section received:", data.section?.title);
-                sectionsInProgress[data.index] = data.section;
-                // Update care plan in real-time so user sees progress
-                setCarePlan(prev => ({
-                  serviceUserInitials: prev?.serviceUserInitials || "N.N.",
-                  generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
-                  sections: [...sectionsInProgress],
-                  emergencyContacts: prev?.emergencyContacts || "Loading...",
-                  gpDetails: prev?.gpDetails || "Loading...",
-                  additionalNotes: prev?.additionalNotes || "Loading...",
-                }));
-                // Auto-expand the new section
-                setExpandedSections(prev => {
-                  const newSet = new Set(prev);
-                  newSet.add(data.index);
-                  return newSet;
-                });
+                if (data.section && typeof data.index === 'number') {
+                  sectionsInProgress[data.index] = data.section;
+                  // Filter out undefined entries (sparse array)
+                  const validSections = sectionsInProgress.filter((s): s is CarePlanSection => s !== undefined);
+                  // Update care plan in real-time so user sees progress
+                  setCarePlan(prev => ({
+                    serviceUserInitials: prev?.serviceUserInitials || "N.N.",
+                    generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
+                    sections: validSections,
+                    emergencyContacts: prev?.emergencyContacts || "Loading...",
+                    gpDetails: prev?.gpDetails || "Loading...",
+                    additionalNotes: prev?.additionalNotes || "Loading...",
+                  }));
+                  // Auto-expand the new section
+                  setExpandedSections(prev => {
+                    const newSet = new Set(prev);
+                    newSet.add(data.index);
+                    return newSet;
+                  });
+                }
               } else if (eventType === "result") {
                 console.log("[CarePlan] Final result received");
                 result = data;
