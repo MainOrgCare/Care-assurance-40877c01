@@ -341,7 +341,7 @@ export default function CarePlanning() {
             <span className="text-sm text-muted-foreground">Generated: {carePlan.generatedDate}</span>
           </div>
 
-          {carePlan.sections.map((section, index) => (
+          {Array.isArray(carePlan.sections) && carePlan.sections.filter(s => s != null).map((section, index) => (
             <Card 
               key={index} 
               className={`bg-card border-border overflow-hidden ${section.priority === 'high' ? 'ring-1 ring-red-900/50' : ''}`}
@@ -383,11 +383,11 @@ export default function CarePlanning() {
                 <CardContent className="pt-0 space-y-4">
                   <div className="prose prose-invert max-w-none">
                     <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap" data-testid={`text-section-content-${index}`}>
-                      {section.content}
+                      {section.content || "No content available for this section."}
                     </p>
                   </div>
 
-                  {section.steps.length > 0 && (
+                  {Array.isArray(section.steps) && section.steps.length > 0 && (
                     <div className="mt-4">
                       <h4 className="text-sm font-semibold text-foreground mb-2">Step-by-Step Instructions:</h4>
                       <ol className="list-decimal list-inside space-y-2">
@@ -401,7 +401,7 @@ export default function CarePlanning() {
                   )}
 
                   <div className="flex flex-wrap gap-4 mt-4">
-                    {section.risks.length > 0 && (
+                    {Array.isArray(section.risks) && section.risks.length > 0 && (
                       <div className="flex-1 min-w-[200px]">
                         <h4 className="text-sm font-semibold text-red-400 mb-2">Risks:</h4>
                         <ul className="text-xs text-muted-foreground space-y-1">
@@ -414,7 +414,7 @@ export default function CarePlanning() {
                         </ul>
                       </div>
                     )}
-                    {section.equipment.length > 0 && (
+                    {Array.isArray(section.equipment) && section.equipment.length > 0 && (
                       <div className="flex-1 min-w-[200px]">
                         <h4 className="text-sm font-semibold text-blue-400 mb-2">Equipment Needed:</h4>
                         <ul className="text-xs text-muted-foreground space-y-1">
