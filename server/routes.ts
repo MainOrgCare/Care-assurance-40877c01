@@ -4299,11 +4299,14 @@ Remember: Write as if I am the service user speaking about my own needs. Return 
               title: section.title,
               priority: section.priority,
               content: scrubPII(enhancedContent),
-              steps: scrubPII(Array.isArray(parsed.steps) && parsed.steps.length > 0 
+              steps: (Array.isArray(parsed.steps) && parsed.steps.length > 0 
                 ? parsed.steps 
-                : ["Please refer to my preferences above", "Check my care notes", "Ask me if unsure"]),
-              risks: scrubPII(Array.isArray(parsed.risks) ? parsed.risks : []),
-              equipment: scrubPII(Array.isArray(parsed.equipment) ? parsed.equipment : []),
+                : ["Please refer to my preferences above", "Check my care notes", "Ask me if unsure"])
+                .map((s: any) => typeof s === 'string' ? scrubPII(s) : String(s)),
+              risks: (Array.isArray(parsed.risks) ? parsed.risks : [])
+                .map((r: any) => typeof r === 'string' ? scrubPII(r) : String(r)),
+              equipment: (Array.isArray(parsed.equipment) ? parsed.equipment : [])
+                .map((e: any) => typeof e === 'string' ? scrubPII(e) : String(e)),
             };
             
             completedSections.push(completedSection);
@@ -4364,22 +4367,35 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
         const metaMatch = metaContent.match(/\{[\s\S]*\}/);
         if (metaMatch) {
           const meta = JSON.parse(metaMatch[0]);
-          emergencyContacts = scrubPII(meta.emergencyContacts || emergencyContacts);
-          gpDetails = scrubPII(meta.gpDetails || gpDetails);
-          additionalNotes = scrubPII(meta.additionalNotes || additionalNotes);
+          // Ensure all fields are strings, not objects
+          const extractedEmergency = meta.emergencyContacts || emergencyContacts;
+          const extractedGp = meta.gpDetails || gpDetails;
+          const extractedNotes = meta.additionalNotes || additionalNotes;
+          
+          // Convert objects to strings if needed
+          const emergencyStr = typeof extractedEmergency === 'string' ? extractedEmergency : 
+                               extractedEmergency ? JSON.stringify(extractedEmergency) : emergencyContacts;
+          const gpStr = typeof extractedGp === 'string' ? extractedGp : 
+                        extractedGp ? JSON.stringify(extractedGp) : gpDetails;
+          const notesStr = typeof extractedNotes === 'string' ? extractedNotes : 
+                           extractedNotes ? JSON.stringify(extractedNotes) : additionalNotes;
+          
+          emergencyContacts = scrubPII(emergencyStr);
+          gpDetails = scrubPII(gpStr);
+          additionalNotes = scrubPII(notesStr);
         }
       } catch (e) {
         console.log("[CarePlan] Could not extract meta info, using defaults");
       }
 
-      // Build final result
+      // Build final result - ensure all fields are correct types
       const result = {
         serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
         generatedDate: today,
-        sections: completedSections,
-        emergencyContacts,
-        gpDetails,
-        additionalNotes,
+        sections: Array.isArray(completedSections) ? completedSections.filter((s): s is any => s != null && typeof s === 'object') : [],
+        emergencyContacts: String(emergencyContacts || ""),
+        gpDetails: String(gpDetails || ""),
+        additionalNotes: String(additionalNotes || ""),
       };
 
       sendProgress(100, "Complete!", "complete");

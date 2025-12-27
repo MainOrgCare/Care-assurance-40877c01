@@ -11,6 +11,7 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (December 27, 2025)
 
+- **Fixed Care Plan React Error**: Resolved "Objects are not valid as React child" error by ensuring all care plan fields are properly typed as strings or string arrays before rendering. Added type guards to convert objects to JSON strings.
 - **Removed Light Theme**: Removed light colour option from theme selector. Now offers Dark, Midnight, and Ocean themes only.
 - **Cleaned Up Homepage**: 
   - Removed all "free trial" messaging and call-to-action buttons
