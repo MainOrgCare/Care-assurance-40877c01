@@ -3212,10 +3212,6 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         totalMainRefusalCount: totalMainRefusalCount,
         totalPrnRefusalCount: totalPrnRefusalCount,
         totalOtherDiscrepancyCount: totalOtherDiscrepancyCount,
-        callCancelledCount: callCancelledCount,
-        callCancelledNote: callCancelledCount > 0 
-          ? "Blank cells indicate the care call was cancelled - no medication administration was required. These are not discrepancies and require no further action."
-          : null,
         userVerificationItems: verificationItems,
         prnMedications: {
           hasPRN: prnMeds.size > 0,
