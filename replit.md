@@ -11,6 +11,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (December 27, 2025)
 
+- **Demo Mode**: Complete demo mode implementation allowing visitors to explore the application without registration:
+  - "Try Demo" button on homepage with purple/pink gradient styling
+  - Virtual demo user session (role: 'staff', isDemo: true) - no database persistence
+  - Sample demo data: care plan document and social work assessment pre-loaded
+  - Read-only restrictions via blockDemoWrites middleware on all mutating endpoints
+  - Demo banner on Dashboard with sample data badge and read-only indicator
+  - Demo data persists across navigation and timer expiry during session
+- **Plan Enhancer Comparison View**: Added side-by-side comparison showing original vs enhanced care plan text with tab navigation
 - **Added ROI Calculator**: Interactive calculator on homepage with slider for number of service users (1-200). Shows annual time/money savings comparing manual vs AI-powered task completion at £14.50/hr office staff rate. Displays task breakdown for Care Plans (12/yr), Initial Assessments (1/yr), Risk Assessments (2/yr), EMAR Audits (48/yr), and Visit Audits (48/yr).
 - **Fixed Care Plan React Error**: Resolved "Objects are not valid as React child" error by ensuring all care plan fields are properly typed as strings or string arrays before rendering. Added type guards to convert objects to JSON strings.
 - **Removed Light Theme**: Removed light colour option from theme selector. Now offers Dark, Midnight, and Ocean themes only.
