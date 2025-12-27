@@ -667,36 +667,6 @@ export default function EMARAudit() {
     }
   };
 
-  const handleVerificationCheck = (idx: number, checked: boolean) => {
-    setVerificationChecks(prev => ({ ...prev, [idx]: checked }));
-    
-    if (checked && result?.userVerificationItems?.[idx]) {
-      const item = result.userVerificationItems[idx];
-      const newDiscrepancy: Discrepancy = {
-        careWorkerName: item.careWorkerName,
-        date: item.date,
-        medication: item.medication,
-        issue: `${item.code} code used - ${item.note}`,
-        actions: {
-          performanceNote: true,
-          meeting: "none",
-          referToManager: false,
-        },
-      };
-      setAddedDiscrepancies(prev => [...prev, newDiscrepancy]);
-    }
-  };
-
-  const handleVerificationSubmit = () => {
-    setVerificationSubmitted(true);
-    const confirmedCount = Object.values(verificationChecks).filter(v => v).length;
-    
-    toast({
-      title: "Verification Submitted",
-      description: `${confirmedCount} discrepancies confirmed and added to the audit.`,
-    });
-  };
-
   const handlePRNProtocolSubmit = () => {
     setPrnProtocolsSubmitted(true);
     const incomplete = prnProtocolChecks.filter(p => !p.isCompleted || !p.isGoodStandard);
@@ -833,11 +803,6 @@ ${generatedProtocol.additionalComments}`;
   const hasAnyDiscrepancies = () => {
     const allDiscrepancies = getAllDiscrepancies();
     return allDiscrepancies.length > 0;
-  };
-
-  const getRemainingVerificationItems = () => {
-    if (!result?.userVerificationItems) return [];
-    return result.userVerificationItems.filter((_, idx) => !verificationChecks[idx]);
   };
 
   // State for expanded care worker cards
@@ -1751,64 +1716,6 @@ ${generatedProtocol.additionalComments}`;
                     </div>
                   </>
                 )}
-              </CardContent>
-            </Card>
-          )}
-
-          {result.userVerificationItems && result.userVerificationItems.length > 0 && !verificationSubmitted && getRemainingVerificationItems().length > 0 && (
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-blue-400" />
-                  User Verification Required
-                </CardTitle>
-                <CardDescription>
-                  These items require manual verification. Is there a discrepancy? Check the box if yes - this will add it to the discrepancies list.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Carer Name</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Medication</TableHead>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Verification Note</TableHead>
-                      <TableHead className="text-center">Is there a discrepancy?</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {result.userVerificationItems.map((item, idx) => {
-                      if (verificationChecks[idx]) return null;
-                      return (
-                        <TableRow key={idx} data-testid={`row-verification-${idx}`}>
-                          <TableCell className="text-foreground font-medium">{item.careWorkerName}</TableCell>
-                          <TableCell className="text-muted-foreground">{item.date}</TableCell>
-                          <TableCell className="text-foreground">{item.medication}</TableCell>
-                          <TableCell>
-                            <span className="px-2 py-1 bg-amber-500/20 text-amber-400 rounded text-xs font-medium">
-                              {item.code}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{item.note}</TableCell>
-                          <TableCell className="text-center">
-                            <Checkbox
-                              checked={verificationChecks[idx] || false}
-                              onCheckedChange={(checked) => handleVerificationCheck(idx, !!checked)}
-                              data-testid={`checkbox-verification-${idx}`}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-                <div className="mt-4 flex justify-end">
-                  <Button onClick={handleVerificationSubmit} data-testid="button-submit-verification">
-                    Submit Verification (All remaining items are not discrepancies)
-                  </Button>
-                </div>
               </CardContent>
             </Card>
           )}

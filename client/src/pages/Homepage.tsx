@@ -535,7 +535,7 @@ export default function Homepage() {
           </div>
           
           <div className="mt-8 pt-6 border-t border-border/30 flex items-center justify-center gap-4 text-xs text-muted-foreground">
-            <span>2024 CareAssurance Software. All rights reserved.</span>
+            <span>2025 CareAssurance Software. All rights reserved.</span>
           </div>
         </div>
       </footer>
