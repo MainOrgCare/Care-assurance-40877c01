@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -221,6 +222,9 @@ export default function EMARAudit() {
   const [refusalReviews, setRefusalReviews] = useState<RefusalReviewState>({});
   const [expandedRefusals, setExpandedRefusals] = useState<Set<string>>(new Set());
   const [selectedForEscalation, setSelectedForEscalation] = useState<Set<string>>(new Set());
+  const [refusalDecisions, setRefusalDecisions] = useState<{ [key: string]: 'acceptable' | 'escalate' | null }>({});
+  const [refusalReviewSubmitted, setRefusalReviewSubmitted] = useState(false);
+  const [reasonsNotAdministeredOpen, setReasonsNotAdministeredOpen] = useState<string[]>([]);
   const [generatingProtocol, setGeneratingProtocol] = useState<string | null>(null);
   const [generatedProtocol, setGeneratedProtocol] = useState<GeneratedPRNProtocol | null>(null);
   const [protocolDialogOpen, setProtocolDialogOpen] = useState(false);
@@ -465,6 +469,9 @@ export default function EMARAudit() {
     setDetectedInitials([]);
     setCarerMappings([]);
     setMappingsConfirmed(false);
+    setRefusalDecisions({});
+    setRefusalReviewSubmitted(false);
+    setReasonsNotAdministeredOpen([]);
     
     try {
       if (!isPdf || !file) {
@@ -625,6 +632,9 @@ export default function EMARAudit() {
           verificationResults: verificationChecks,
           prnProtocolResults: prnProtocolChecks,
           medicationLevelOverride,
+          addedDiscrepancies,
+          refusalReviewDecisions: refusalDecisions,
+          refusalReviewSubmitted,
         },
       };
 
@@ -917,6 +927,172 @@ ${generatedProtocol.additionalComments}`;
       }
       return newSet;
     });
+  };
+
+  interface UnifiedRefusalItem {
+    careWorkerName: string;
+    medication: string;
+    date: string;
+    timeSlot: string;
+    code: string;
+    key: string;
+    source: 'main' | 'prn';
+  }
+
+  interface RefusalsByCode {
+    code: string;
+    displayName: string;
+    items: UnifiedRefusalItem[];
+    count: number;
+  }
+
+  const unifiedRefusals = useMemo((): RefusalsByCode[] => {
+    const codeGroups = new Map<string, UnifiedRefusalItem[]>();
+
+    const codeDisplayNames: { [key: string]: string } = {
+      'R': 'Refused (R)',
+      'NH': 'Not at Home (NH)',
+      'MU': 'Medication Unavailable (MU)',
+      'FA': 'Failed Attempt (FA)',
+      'SA': 'Self-Administered (SA)',
+      'PRN-R': 'PRN Refused (PRN-R)',
+      'PRN-NA': 'PRN Not Administered (PRN-NA)',
+    };
+
+    result?.groupedMainRefusals?.forEach(refusal => {
+      refusal.dates.forEach(dateItem => {
+        const code = dateItem.code || refusal.code || 'R';
+        const key = `main|${refusal.careWorkerName}|${refusal.medication}|${dateItem.date}|${dateItem.timeSlot || ''}`;
+        const item: UnifiedRefusalItem = {
+          careWorkerName: getMappedCarerName(refusal.careWorkerName),
+          medication: refusal.medication,
+          date: dateItem.date,
+          timeSlot: dateItem.timeSlot || '',
+          code: code,
+          key: key,
+          source: 'main',
+        };
+        
+        if (!codeGroups.has(code)) {
+          codeGroups.set(code, []);
+        }
+        codeGroups.get(code)!.push(item);
+      });
+    });
+
+    result?.groupedPrnRefusals?.forEach(refusal => {
+      refusal.dates.forEach(dateItem => {
+        const code = dateItem.code || refusal.code || 'PRN-R';
+        const key = `prn|${refusal.careWorkerName}|${refusal.medication}|${dateItem.date}|${dateItem.timeSlot || ''}`;
+        const item: UnifiedRefusalItem = {
+          careWorkerName: getMappedCarerName(refusal.careWorkerName),
+          medication: refusal.medication,
+          date: dateItem.date,
+          timeSlot: dateItem.timeSlot || '',
+          code: code,
+          key: key,
+          source: 'prn',
+        };
+        
+        if (!codeGroups.has(code)) {
+          codeGroups.set(code, []);
+        }
+        codeGroups.get(code)!.push(item);
+      });
+    });
+
+    return Array.from(codeGroups.entries()).map(([code, items]) => ({
+      code,
+      displayName: codeDisplayNames[code] || code,
+      items,
+      count: items.length,
+    })).sort((a, b) => b.count - a.count);
+  }, [result?.groupedMainRefusals, result?.groupedPrnRefusals, mappingsConfirmed, carerMappings]);
+
+  const totalRefusalCount = useMemo(() => {
+    return unifiedRefusals.reduce((sum, group) => sum + group.count, 0);
+  }, [unifiedRefusals]);
+
+  const getRefusalReviewStats = useMemo(() => {
+    const total = unifiedRefusals.reduce((sum, group) => sum + group.count, 0);
+    const reviewed = Object.values(refusalDecisions).filter(d => d !== null).length;
+    const acceptable = Object.values(refusalDecisions).filter(d => d === 'acceptable').length;
+    const toEscalate = Object.values(refusalDecisions).filter(d => d === 'escalate').length;
+    const pending = total - reviewed;
+    return { total, reviewed, acceptable, toEscalate, pending };
+  }, [unifiedRefusals, refusalDecisions]);
+
+  const handleRefusalDecision = (key: string, decision: 'acceptable' | 'escalate') => {
+    setRefusalDecisions(prev => {
+      if (prev[key] === decision) {
+        const newDecisions = { ...prev };
+        delete newDecisions[key];
+        return newDecisions;
+      }
+      return { ...prev, [key]: decision };
+    });
+  };
+
+  const handleSubmitRefusalReview = async () => {
+    const allItems = unifiedRefusals.flatMap(group => group.items);
+    const reviewedItems = Object.entries(refusalDecisions)
+      .filter(([_, decision]) => decision !== null)
+      .map(([key, decision]) => {
+        const item = allItems.find(i => i.key === key);
+        return item ? { ...item, decision } : null;
+      })
+      .filter((item): item is UnifiedRefusalItem & { decision: 'acceptable' | 'escalate' } => item !== null);
+
+    const escalatedItems = reviewedItems.filter(i => i.decision === 'escalate');
+
+    if (escalatedItems.length > 0) {
+      const newDiscrepancies: Discrepancy[] = escalatedItems.map(item => ({
+        careWorkerName: item.careWorkerName,
+        date: item.date,
+        medication: item.medication,
+        issue: `Inadequate refusal documentation - ${item.code} code used without acceptable reason`,
+        actions: { performanceNote: true, meeting: "none", referToManager: false },
+      }));
+
+      setAddedDiscrepancies(prev => [...prev, ...newDiscrepancies]);
+    }
+
+    try {
+      const reviews = reviewedItems.map(item => ({
+        careWorkerName: item.careWorkerName,
+        medication: item.medication,
+        refusalDate: item.date,
+        timeSlot: item.timeSlot || null,
+        reasonAcceptable: item.decision === 'acceptable',
+        reviewerNotes: item.decision === 'escalate' ? `Escalated: ${item.code} code - inadequate documentation` : null,
+      }));
+
+      if (reviews.length > 0) {
+        const response = await fetch("/api/refusal-reviews/bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ reviews }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to save refusal reviews");
+        }
+      }
+
+      setRefusalReviewSubmitted(true);
+      
+      toast({
+        title: "Refusal Review Submitted",
+        description: `${getRefusalReviewStats.acceptable} marked acceptable, ${escalatedItems.length} escalated to discrepancies.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save refusal reviews",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -1407,353 +1583,173 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          {/* Main Refusal Note Check Section */}
-          {result.groupedMainRefusals && result.groupedMainRefusals.length > 0 && (
+          {/* Reasons Not Administered - Unified Refusal Section */}
+          {unifiedRefusals.length > 0 && (
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-amber-400" />
-                  Main Refusal Note Check ({result.totalMainRefusalCount ?? result.groupedMainRefusals.reduce((sum, r) => sum + r.count, 0)} total)
+                  Reasons Not Administered ({totalRefusalCount} total)
                 </CardTitle>
                 <CardDescription>
-                  Review refusals (R, MU, NH, FA, SA codes) and confirm if an acceptable reason was documented. Select items to escalate to Main Discrepancies if reasoning is inadequate.
+                  Review all refusals grouped by code type. Mark each item as acceptable or escalate to discrepancies.
+                  {!refusalReviewSubmitted && (
+                    <span className="block mt-1 text-muted-foreground">
+                      Progress: {getRefusalReviewStats.reviewed}/{getRefusalReviewStats.total} reviewed
+                      {getRefusalReviewStats.toEscalate > 0 && (
+                        <span className="text-red-400 ml-2">({getRefusalReviewStats.toEscalate} to escalate)</span>
+                      )}
+                    </span>
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {result.groupedMainRefusals.map((refusal, idx) => {
-                  const refusalKey = `main|${refusal.careWorkerName}|${refusal.medication}`;
-                  const isExpanded = expandedRefusals.has(refusalKey);
-                  
-                  const toggleRefusalExpand = () => {
-                    setExpandedRefusals(prev => {
-                      const newSet = new Set(prev);
-                      if (newSet.has(refusalKey)) {
-                        newSet.delete(refusalKey);
-                      } else {
-                        newSet.add(refusalKey);
-                      }
-                      return newSet;
-                    });
-                  };
-                  
-                  return (
-                    <Collapsible key={idx} open={isExpanded} onOpenChange={toggleRefusalExpand}>
-                      <div 
-                        className="border border-amber-500/30 rounded-lg overflow-hidden bg-amber-500/10"
-                        data-testid={`grouped-main-refusal-${idx}`}
-                      >
-                        <CollapsibleTrigger asChild>
-                          <div 
-                            className="p-4 cursor-pointer hover:bg-amber-500/15 transition-colors"
-                            data-testid={`toggle-main-refusal-${idx}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              {isExpanded ? (
-                                <ChevronDown className="h-5 w-5 text-amber-400 flex-shrink-0" />
-                              ) : (
-                                <ChevronRight className="h-5 w-5 text-amber-400 flex-shrink-0" />
-                              )}
-                              <div className="flex-1">
-                                <h4 className="text-foreground font-medium">
-                                  {refusal.careWorkerName} - {refusal.medication}
-                                </h4>
-                                <p className="text-sm text-amber-400">
-                                  {refusal.count} refusal{refusal.count !== 1 ? 's' : ''}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </CollapsibleTrigger>
-                        
-                        <CollapsibleContent>
-                          <div className="border-t border-amber-500/20 p-4 space-y-3 bg-card/50">
-                            {refusal.dates.map((dateItem, dateIdx) => {
-                              const checkboxKey = `main|${refusal.careWorkerName}|${refusal.medication}|${dateItem.date}|${dateItem.timeSlot || ''}`;
-                              const escalationKey = `main|${refusal.careWorkerName}|${refusal.medication}|${dateItem.date}|${dateItem.timeSlot || ''}`;
-                              const isEscalated = selectedForEscalation.has(escalationKey);
-                              return (
-                                <div 
-                                  key={dateIdx} 
-                                  className={`flex items-center justify-between p-3 rounded-lg ${isEscalated ? 'bg-red-500/10 border border-red-500/30' : 'bg-muted'}`}
-                                  data-testid={`main-refusal-date-${idx}-${dateIdx}`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-muted-foreground">{dateItem.date}</span>
-                                    {dateItem.timeSlot && (
-                                      <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded text-xs">
-                                        {dateItem.timeSlot}
-                                      </span>
-                                    )}
-                                    {dateItem.code && (
-                                      <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs font-medium">
-                                        {dateItem.code}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-2">
-                                      <Checkbox
-                                        id={checkboxKey}
-                                        checked={refusalReviews[checkboxKey] || false}
-                                        onCheckedChange={(checked) => {
-                                          setRefusalReviews(prev => ({
-                                            ...prev,
-                                            [checkboxKey]: !!checked
-                                          }));
-                                        }}
-                                        data-testid={`checkbox-main-refusal-${idx}-${dateIdx}`}
-                                      />
-                                      <Label 
-                                        htmlFor={checkboxKey} 
-                                        className="text-sm text-muted-foreground cursor-pointer"
-                                      >
-                                        Acceptable reason documented
-                                      </Label>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <Checkbox
-                                        id={`escalate-${escalationKey}`}
-                                        checked={isEscalated}
-                                        onCheckedChange={(checked) => {
-                                          setSelectedForEscalation(prev => {
-                                            const newSet = new Set(prev);
-                                            if (checked) {
-                                              newSet.add(escalationKey);
-                                            } else {
-                                              newSet.delete(escalationKey);
-                                            }
-                                            return newSet;
-                                          });
-                                        }}
-                                        className="border-red-500/50 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
-                                        data-testid={`checkbox-escalate-main-${idx}-${dateIdx}`}
-                                      />
-                                      <Label 
-                                        htmlFor={`escalate-${escalationKey}`} 
-                                        className="text-sm text-red-400 cursor-pointer"
-                                      >
-                                        Escalate to Main Discrepancies
-                                      </Label>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </CollapsibleContent>
-                      </div>
-                    </Collapsible>
-                  );
-                })}
-                
-                {selectedForEscalation.size > 0 && Array.from(selectedForEscalation).some(k => k.startsWith('main|')) && (
-                  <div className="flex justify-end pt-2">
-                    <Button
-                      variant="destructive"
-                      onClick={() => {
-                        const mainEscalations = Array.from(selectedForEscalation).filter(k => k.startsWith('main|'));
-                        const newDiscrepancies: Discrepancy[] = mainEscalations.map(key => {
-                          const parts = key.split('|');
-                          return {
-                            careWorkerName: parts[1],
-                            date: parts[3],
-                            medication: parts[2],
-                            issue: `Inadequate refusal documentation (Code: ${parts[4] || 'Unknown'})`,
-                            actions: { performanceNote: true, meeting: "none", referToManager: false }
-                          };
-                        });
-                        setAddedDiscrepancies(prev => [...prev, ...newDiscrepancies]);
-                        setSelectedForEscalation(prev => {
-                          const newSet = new Set(prev);
-                          mainEscalations.forEach(k => newSet.delete(k));
-                          return newSet;
-                        });
-                        toast({
-                          title: "Escalated to Main Discrepancies",
-                          description: `${newDiscrepancies.length} item(s) added to Main Discrepancies.`
-                        });
-                      }}
-                      data-testid="button-escalate-main-refusals"
-                    >
-                      <AlertTriangle className="h-4 w-4 mr-2" />
-                      Add Selected to Main Discrepancies ({Array.from(selectedForEscalation).filter(k => k.startsWith('main|')).length})
-                    </Button>
+                {refusalReviewSubmitted ? (
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 flex items-center gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-green-400" />
+                    <div>
+                      <p className="text-green-400 font-medium">Refusal Review Complete</p>
+                      <p className="text-sm text-muted-foreground">
+                        {getRefusalReviewStats.acceptable} marked acceptable, {getRefusalReviewStats.toEscalate} escalated to discrepancies
+                      </p>
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* PRN Refusal Note Check Section */}
-          {result.groupedPrnRefusals && result.groupedPrnRefusals.length > 0 && (
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-amber-400" />
-                  PRN Refusal Note Check ({result.totalPrnRefusalCount ?? result.groupedPrnRefusals.reduce((sum, r) => sum + r.count, 0)} total)
-                </CardTitle>
-                <CardDescription>
-                  Review PRN refusals (PRN-R code) and confirm if an acceptable reason was documented. Select items to escalate to Main Discrepancies if reasoning is inadequate.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {result.groupedPrnRefusals.map((refusal, idx) => {
-                  const refusalKey = `prn|${refusal.careWorkerName}|${refusal.medication}`;
-                  const isExpanded = expandedRefusals.has(refusalKey);
-                  
-                  const toggleRefusalExpand = () => {
-                    setExpandedRefusals(prev => {
-                      const newSet = new Set(prev);
-                      if (newSet.has(refusalKey)) {
-                        newSet.delete(refusalKey);
-                      } else {
-                        newSet.add(refusalKey);
-                      }
-                      return newSet;
-                    });
-                  };
-                  
-                  return (
-                    <Collapsible key={idx} open={isExpanded} onOpenChange={toggleRefusalExpand}>
-                      <div 
-                        className="border border-amber-500/30 rounded-lg overflow-hidden bg-amber-500/10"
-                        data-testid={`grouped-prn-refusal-${idx}`}
-                      >
-                        <CollapsibleTrigger asChild>
-                          <div 
-                            className="p-4 cursor-pointer hover:bg-amber-500/15 transition-colors"
-                            data-testid={`toggle-prn-refusal-${idx}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              {isExpanded ? (
-                                <ChevronDown className="h-5 w-5 text-amber-400 flex-shrink-0" />
-                              ) : (
-                                <ChevronRight className="h-5 w-5 text-amber-400 flex-shrink-0" />
-                              )}
-                              <div className="flex-1">
-                                <h4 className="text-foreground font-medium">
-                                  {refusal.careWorkerName} - {refusal.medication}
-                                </h4>
-                                <p className="text-sm text-amber-400">
-                                  {refusal.count} PRN refusal{refusal.count !== 1 ? 's' : ''}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </CollapsibleTrigger>
+                ) : (
+                  <>
+                    <Accordion type="multiple" value={reasonsNotAdministeredOpen} onValueChange={setReasonsNotAdministeredOpen}>
+                      {unifiedRefusals.map((codeGroup) => {
+                        const codeReviewedCount = codeGroup.items.filter(item => refusalDecisions[item.key] !== undefined && refusalDecisions[item.key] !== null).length;
+                        const codeEscalateCount = codeGroup.items.filter(item => refusalDecisions[item.key] === 'escalate').length;
+                        const codeAcceptableCount = codeGroup.items.filter(item => refusalDecisions[item.key] === 'acceptable').length;
+                        const allCodeReviewed = codeReviewedCount === codeGroup.count;
                         
-                        <CollapsibleContent>
-                          <div className="border-t border-amber-500/20 p-4 space-y-3 bg-card/50">
-                            {refusal.dates.map((dateItem, dateIdx) => {
-                              const checkboxKey = `prn|${refusal.careWorkerName}|${refusal.medication}|${dateItem.date}|${dateItem.timeSlot || ''}`;
-                              const escalationKey = `prn|${refusal.careWorkerName}|${refusal.medication}|${dateItem.date}|${dateItem.timeSlot || ''}`;
-                              const isEscalated = selectedForEscalation.has(escalationKey);
-                              return (
-                                <div 
-                                  key={dateIdx} 
-                                  className={`flex items-center justify-between p-3 rounded-lg ${isEscalated ? 'bg-red-500/10 border border-red-500/30' : 'bg-muted'}`}
-                                  data-testid={`prn-refusal-date-${idx}-${dateIdx}`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-muted-foreground">{dateItem.date}</span>
-                                    {dateItem.timeSlot && (
-                                      <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded text-xs">
-                                        {dateItem.timeSlot}
-                                      </span>
-                                    )}
-                                    <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-xs font-medium">
-                                      PRN-R
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-2">
-                                      <Checkbox
-                                        id={checkboxKey}
-                                        checked={refusalReviews[checkboxKey] || false}
-                                        onCheckedChange={(checked) => {
-                                          setRefusalReviews(prev => ({
-                                            ...prev,
-                                            [checkboxKey]: !!checked
-                                          }));
-                                        }}
-                                        data-testid={`checkbox-prn-refusal-${idx}-${dateIdx}`}
-                                      />
-                                      <Label 
-                                        htmlFor={checkboxKey} 
-                                        className="text-sm text-muted-foreground cursor-pointer"
-                                      >
-                                        Acceptable reason documented
-                                      </Label>
+                        return (
+                          <AccordionItem 
+                            key={codeGroup.code} 
+                            value={codeGroup.code}
+                            className="border border-amber-500/30 rounded-lg mb-3 overflow-hidden bg-amber-500/10"
+                            data-testid={`refusal-code-group-${codeGroup.code}`}
+                          >
+                            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-amber-500/15">
+                              <div className="flex items-center gap-3 flex-1">
+                                <span className="px-2 py-1 bg-amber-500/20 text-amber-400 rounded text-sm font-medium">
+                                  {codeGroup.code}
+                                </span>
+                                <span className="text-foreground font-medium">{codeGroup.displayName}</span>
+                                <span className="px-2 py-0.5 bg-muted rounded-full text-xs text-muted-foreground">
+                                  {codeGroup.count} item{codeGroup.count !== 1 ? 's' : ''}
+                                </span>
+                                {allCodeReviewed ? (
+                                  <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full text-xs flex items-center gap-1">
+                                    <Check size={10} /> Reviewed
+                                  </span>
+                                ) : codeReviewedCount > 0 && (
+                                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full text-xs">
+                                    {codeReviewedCount}/{codeGroup.count} reviewed
+                                  </span>
+                                )}
+                                {codeEscalateCount > 0 && (
+                                  <span className="px-2 py-0.5 bg-red-500/20 text-red-400 rounded-full text-xs">
+                                    {codeEscalateCount} to escalate
+                                  </span>
+                                )}
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="px-4 pb-4">
+                              <div className="space-y-2 mt-2">
+                                {codeGroup.items.map((item, itemIdx) => {
+                                  const decision = refusalDecisions[item.key];
+                                  const isAcceptable = decision === 'acceptable';
+                                  const isEscalate = decision === 'escalate';
+                                  const isReviewed = decision !== undefined && decision !== null;
+                                  
+                                  return (
+                                    <div 
+                                      key={item.key}
+                                      className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                                        isEscalate 
+                                          ? 'bg-red-500/10 border border-red-500/30' 
+                                          : isAcceptable 
+                                            ? 'bg-green-500/10 border border-green-500/30'
+                                            : 'bg-muted border border-transparent'
+                                      }`}
+                                      data-testid={`refusal-item-${codeGroup.code}-${itemIdx}`}
+                                    >
+                                      <div className="flex items-center gap-3 flex-wrap">
+                                        <span className="text-foreground font-medium">{item.careWorkerName}</span>
+                                        <span className="text-muted-foreground">{item.date}</span>
+                                        {item.timeSlot && (
+                                          <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">
+                                            {item.timeSlot}
+                                          </span>
+                                        )}
+                                        <span className="text-sm text-muted-foreground">{item.medication}</span>
+                                        {isReviewed && (
+                                          <span className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 ${
+                                            isAcceptable 
+                                              ? 'bg-green-500/20 text-green-400' 
+                                              : 'bg-red-500/20 text-red-400'
+                                          }`}>
+                                            {isAcceptable ? <Check size={10} /> : <X size={10} />}
+                                            {isAcceptable ? 'Acceptable' : 'To Escalate'}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          size="sm"
+                                          variant={isAcceptable ? "default" : "outline"}
+                                          className={`h-8 ${isAcceptable ? 'bg-green-600 hover:bg-green-700' : 'border-green-500/50 text-green-400 hover:bg-green-500/10'}`}
+                                          onClick={() => handleRefusalDecision(item.key, 'acceptable')}
+                                          data-testid={`button-acceptable-${codeGroup.code}-${itemIdx}`}
+                                        >
+                                          <Check size={14} className="mr-1" />
+                                          Acceptable
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant={isEscalate ? "destructive" : "outline"}
+                                          className={`h-8 ${!isEscalate ? 'border-red-500/50 text-red-400 hover:bg-red-500/10' : ''}`}
+                                          onClick={() => handleRefusalDecision(item.key, 'escalate')}
+                                          data-testid={`button-escalate-${codeGroup.code}-${itemIdx}`}
+                                        >
+                                          <X size={14} className="mr-1" />
+                                          Escalate
+                                        </Button>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                      <Checkbox
-                                        id={`escalate-${escalationKey}`}
-                                        checked={isEscalated}
-                                        onCheckedChange={(checked) => {
-                                          setSelectedForEscalation(prev => {
-                                            const newSet = new Set(prev);
-                                            if (checked) {
-                                              newSet.add(escalationKey);
-                                            } else {
-                                              newSet.delete(escalationKey);
-                                            }
-                                            return newSet;
-                                          });
-                                        }}
-                                        className="border-red-500/50 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
-                                        data-testid={`checkbox-escalate-prn-${idx}-${dateIdx}`}
-                                      />
-                                      <Label 
-                                        htmlFor={`escalate-${escalationKey}`} 
-                                        className="text-sm text-red-400 cursor-pointer"
-                                      >
-                                        Escalate to Main Discrepancies
-                                      </Label>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </CollapsibleContent>
+                                  );
+                                })}
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        );
+                      })}
+                    </Accordion>
+                    
+                    <div className="flex items-center justify-between pt-4 border-t border-border">
+                      <div className="text-sm text-muted-foreground">
+                        {getRefusalReviewStats.pending > 0 ? (
+                          <span className="text-amber-400">{getRefusalReviewStats.pending} items pending review</span>
+                        ) : (
+                          <span className="text-green-400 flex items-center gap-1">
+                            <Check size={14} /> All items reviewed
+                          </span>
+                        )}
                       </div>
-                    </Collapsible>
-                  );
-                })}
-                
-                {selectedForEscalation.size > 0 && Array.from(selectedForEscalation).some(k => k.startsWith('prn|')) && (
-                  <div className="flex justify-end pt-2">
-                    <Button
-                      variant="destructive"
-                      onClick={() => {
-                        const prnEscalations = Array.from(selectedForEscalation).filter(k => k.startsWith('prn|'));
-                        const newDiscrepancies: Discrepancy[] = prnEscalations.map(key => {
-                          const parts = key.split('|');
-                          return {
-                            careWorkerName: parts[1],
-                            date: parts[3],
-                            medication: parts[2],
-                            issue: `Inadequate PRN refusal documentation (Code: PRN-R)`,
-                            actions: { performanceNote: true, meeting: "none", referToManager: false }
-                          };
-                        });
-                        setAddedDiscrepancies(prev => [...prev, ...newDiscrepancies]);
-                        setSelectedForEscalation(prev => {
-                          const newSet = new Set(prev);
-                          prnEscalations.forEach(k => newSet.delete(k));
-                          return newSet;
-                        });
-                        toast({
-                          title: "Escalated to Main Discrepancies",
-                          description: `${newDiscrepancies.length} PRN item(s) added to Main Discrepancies.`
-                        });
-                      }}
-                      data-testid="button-escalate-prn-refusals"
-                    >
-                      <AlertTriangle className="h-4 w-4 mr-2" />
-                      Add Selected to Main Discrepancies ({Array.from(selectedForEscalation).filter(k => k.startsWith('prn|')).length})
-                    </Button>
-                  </div>
+                      <Button
+                        onClick={handleSubmitRefusalReview}
+                        disabled={getRefusalReviewStats.reviewed === 0}
+                        data-testid="button-submit-refusal-review"
+                      >
+                        {getRefusalReviewStats.toEscalate > 0 && (
+                          <AlertTriangle className="h-4 w-4 mr-2" />
+                        )}
+                        Submit Review
+                        {getRefusalReviewStats.toEscalate > 0 && ` (${getRefusalReviewStats.toEscalate} escalations)`}
+                      </Button>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>

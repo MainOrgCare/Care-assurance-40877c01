@@ -8,7 +8,7 @@ import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema } from "@shared/schema";
-import OpenAI from "openai";
+import { createChatCompletion, openai } from "./services/aiClient";
 import multer from "multer";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
@@ -83,10 +83,7 @@ const connectedClients: Map<string, WebSocket> = new Map();
 let sessionStore: any = null;
 
 // the newest OpenAI model is "gpt-5.1" - do not change this unless explicitly requested by the user
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+// Using AI client wrapper with automatic failover to direct OpenAI if Replit AI fails
 
 
 // Clinical/medical whitelist to prevent false positive name detection
@@ -1474,7 +1471,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
 
       const DETERMINISTIC_SEED = 42;
       
-      const metadataResponse = await openai.chat.completions.create({
+      const metadataResponse = await createChatCompletion({
         model: "gpt-5.1",
         messages: [
           { role: "system", content: metadataPrompt },
@@ -1569,7 +1566,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       
       const countMedications = async (): Promise<number> => {
         try {
-          const response = await openai.chat.completions.create({
+          const response = await createChatCompletion({
             model: "gpt-5.1",
             messages: [
               { role: "system", content: medicationCountPrompt },
@@ -1777,7 +1774,7 @@ OTHER CRITICAL RULES:
 4. Skip only truly blank/empty cells - but capture ALL cells with any code or initials`;
           
           try {
-            const response = await openai.chat.completions.create({
+            const response = await createChatCompletion({
               model: "gpt-5.1",
               messages: [
                 { role: "system", content: batchPrompt },
@@ -2381,7 +2378,7 @@ OTHER CRITICAL RULES:
         const medNames = medications.map((m: any) => m.name).join(", ");
         
         try {
-          const equivalenceResponse = await openai.chat.completions.create({
+          const equivalenceResponse = await createChatCompletion({
             model: "gpt-5.1",
             messages: [
               {
@@ -2785,7 +2782,7 @@ Return JSON with indices that are VALID (keep these). Include ALL indices unless
         let pass2Success = false;
         try {
           // Use GPT-5.1 with JSON mode for reliable parsing
-          const pass2Response = await openai.chat.completions.create({
+          const pass2Response = await createChatCompletion({
             model: "gpt-5.1",
             messages: [
               { role: "system", content: pass2SystemPrompt },
@@ -2853,7 +2850,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
 
           try {
             // Use GPT-5.1 with JSON mode for reliable parsing
-            const pass3Response = await openai.chat.completions.create({
+            const pass3Response = await createChatCompletion({
               model: "gpt-5.1",
               messages: [
                 { role: "system", content: pass3SystemPrompt },
@@ -3256,7 +3253,7 @@ Respond ONLY with valid JSON in this exact format:
       
       sendProgress(30, "Running AI analysis...", "ai_analysis");
       
-      const response = await openai.chat.completions.create({
+      const response = await createChatCompletion({
         model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
@@ -3324,7 +3321,7 @@ Return JSON with indices that are VALID. Include ALL unless you're CERTAIN one i
           try {
             sendProgress(65, "Running validation pass 2...", "validation_pass2");
             // Use GPT-5.1 for deterministic validation
-            const pass2Response = await openai.chat.completions.create({
+            const pass2Response = await createChatCompletion({
               model: "gpt-5.1",
               messages: [
                 { role: "system", content: pass2Prompt },
@@ -3376,7 +3373,7 @@ Return JSON - include ALL by default:
             try {
               sendProgress(80, "Running validation pass 3...", "validation_pass3");
               // Use GPT-5.1 for deterministic validation
-              const pass3Response = await openai.chat.completions.create({
+              const pass3Response = await createChatCompletion({
                 model: "gpt-5.1",
                 messages: [
                   { role: "system", content: pass3Prompt },
@@ -3618,7 +3615,7 @@ Respond ONLY with valid JSON in this exact format:
         }
       }, 3000);
 
-      const response = await openai.chat.completions.create({
+      const response = await createChatCompletion({
         model: "o3",
         messages: [
           { role: "system", content: systemPrompt },
@@ -3758,7 +3755,7 @@ Respond ONLY with valid JSON in this exact format:
 
       sendProgress(30, "Generating risk assessment...", "ai_generation");
 
-      const response = await openai.chat.completions.create({
+      const response = await createChatCompletion({
         model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
@@ -3978,7 +3975,7 @@ OUTPUT FORMAT - Return ONLY valid JSON:
   "additionalNotes": "Other important info or 'No additional notes'"
 }`;
 
-      const response = await openai.chat.completions.create({
+      const response = await createChatCompletion({
         model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
@@ -4396,7 +4393,7 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
         }
       }, 3000);
 
-      const response = await openai.chat.completions.create({
+      const response = await createChatCompletion({
         model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
@@ -4735,7 +4732,7 @@ RULES:
 
 Return ONLY the email text, nothing else.`;
 
-      const response = await openai.chat.completions.create({
+      const response = await createChatCompletion({
         model: "o3",
         messages: [
           { role: "system", content: systemPrompt },
@@ -4790,7 +4787,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         ? `Generate a complete PRN protocol for: ${medicationName}\n\nExisting information available:\n${JSON.stringify(existingData, null, 2)}\n\nPlease enhance and complete this protocol with all required fields.`
         : `Generate a complete PRN protocol for: ${medicationName}`;
 
-      const response = await openai.chat.completions.create({
+      const response = await createChatCompletion({
         model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
