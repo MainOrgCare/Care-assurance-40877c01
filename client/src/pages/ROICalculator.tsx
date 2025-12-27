@@ -10,10 +10,10 @@ import {
 import { useAuth } from "@/context/AuthContext";
 
 const TASK_DATA = [
-  { name: "EMAR Audit", manualMinutes: 45, appSeconds: 30 },
-  { name: "Visit Audit", manualMinutes: 30, appSeconds: 15 },
+  { name: "EMAR Audit", manualMinutes: 45, appSeconds: 60 },
+  { name: "Visit Audit", manualMinutes: 30, appSeconds: 20 },
   { name: "Risk Assessment", manualMinutes: 180, appSeconds: 45 },
-  { name: "Plan Enhancer", manualMinutes: 120, appSeconds: 60 },
+  { name: "Plan Enhancer", manualMinutes: 120, appSeconds: 90 },
   { name: "Care Planner", manualMinutes: 90, appSeconds: 45 },
 ];
 
@@ -24,7 +24,7 @@ const CORE_FEATURES = [
     subtitle: "Medication Record Auditing",
     description: "Upload medication records and instantly detect discrepancies, missed doses, and refusals. AI identifies patterns, generates PRN protocols, and flags issues for review.",
     highlights: ["Discrepancy detection", "PRN protocol generation", "Refusal tracking", "Dose verification"],
-    timeSaving: "45 min → 30 sec",
+    timeSaving: "45 min → 60 sec",
     color: "text-blue-500",
     bgColor: "bg-blue-500/10",
   },
@@ -44,7 +44,7 @@ const CORE_FEATURES = [
     subtitle: "11-Section Enhancement",
     description: "Transform basic care plans into comprehensive documents covering all aspects of care. Generates content across personal care, nutrition, mobility, communication, and more.",
     highlights: ["11 care sections", "Detailed guidance", "Staff instructions", "Outcome tracking"],
-    timeSaving: "2 hr → 60 sec",
+    timeSaving: "2 hr → 90 sec",
     color: "text-purple-500",
     bgColor: "bg-purple-500/10",
   },
@@ -64,7 +64,7 @@ const CORE_FEATURES = [
     subtitle: "Domiciliary Care Verification",
     description: "Verify visit times, durations, and care delivery for domiciliary services. Cross-reference scheduled vs actual visits and identify discrepancies.",
     highlights: ["Time verification", "Duration tracking", "Schedule comparison", "Gap detection"],
-    timeSaving: "30 min → 15 sec",
+    timeSaving: "30 min → 20 sec",
     color: "text-rose-500",
     bgColor: "bg-rose-500/10",
   },
