@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { AlertCircle, CheckCircle2, FileText, Activity, RefreshCw, Loader2, Settings, GripVertical, Pill, ClipboardList, Shield, Users } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileText, Activity, RefreshCw, Loader2, Settings, GripVertical, Pill, ClipboardList, Shield, Users, Palette, Moon, Sun, Waves, Sparkles, ArrowRight, Upload, Brain, TrendingUp, Clock, Zap } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useSettings, Theme } from "@/context/SettingsContext";
+import { Link } from "wouter";
 
 interface DashboardStats {
   auditsCompleted: number;
@@ -80,9 +82,24 @@ function SortableWidgetItem({ widget, isActive, onToggle }: { widget: WidgetConf
   );
 }
 
+const THEMES: { id: Theme; label: string; icon: any; description: string; colors: string }[] = [
+  { id: "dark", label: "Dark", icon: Moon, description: "Classic dark mode", colors: "from-slate-800 to-slate-900" },
+  { id: "light", label: "Light", icon: Sun, description: "Clean light mode", colors: "from-slate-100 to-white" },
+  { id: "midnight", label: "Midnight", icon: Sparkles, description: "Deep blue theme", colors: "from-indigo-900 to-slate-900" },
+  { id: "ocean", label: "Ocean", icon: Waves, description: "Teal sea theme", colors: "from-teal-900 to-slate-900" },
+];
+
+const QUICK_ACTIONS = [
+  { icon: Upload, label: "EMAR Audit", description: "Upload and analyze medication records", href: "/care-workers/emar-audit", color: "from-blue-500 to-cyan-500" },
+  { icon: FileText, label: "Care Plan", description: "Generate AI-powered care plans", href: "/service-users/upload", color: "from-violet-500 to-purple-500" },
+  { icon: Shield, label: "Risk Assessment", description: "Create comprehensive risk assessments", href: "/service-users/risk-assessment", color: "from-amber-500 to-orange-500" },
+  { icon: Brain, label: "Plan Enhancer", description: "Enhance existing care plans with AI", href: "/care-plan-enhancer", color: "from-emerald-500 to-teal-500" },
+];
+
 export default function Dashboard() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { theme, setTheme } = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeWidgets, setActiveWidgets] = useState<string[]>(DEFAULT_WIDGETS);
   const [widgetOrder, setWidgetOrder] = useState<string[]>(ALL_WIDGETS.map(w => w.id));
@@ -374,6 +391,71 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Theme Selector */}
+      <Card className="glass-card" data-testid="card-theme-selector">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Palette className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-base">Choose Your Theme</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {THEMES.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTheme(t.id)}
+                className={`relative p-4 rounded-lg border-2 transition-all duration-200 text-left ${
+                  theme === t.id 
+                    ? "border-primary bg-primary/10" 
+                    : "border-border hover:border-primary/50 hover:bg-muted/50"
+                }`}
+                data-testid={`button-theme-${t.id}`}
+              >
+                <div className={`h-8 w-full rounded-md bg-gradient-to-r ${t.colors} mb-3`} />
+                <div className="flex items-center gap-2 mb-1">
+                  <t.icon className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium text-sm">{t.label}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">{t.description}</p>
+                {theme === t.id && (
+                  <div className="absolute top-2 right-2">
+                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Actions */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Zap className="h-5 w-5 text-amber-400" />
+          <h3 className="text-lg font-semibold">Quick Actions</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {QUICK_ACTIONS.map((action, index) => (
+            <Link key={index} href={action.href}>
+              <Card className="glass-card hover:bg-card/80 transition-all duration-200 cursor-pointer group h-full" data-testid={`card-quick-action-${index}`}>
+                <CardContent className="p-4">
+                  <div className={`h-10 w-10 rounded-lg bg-gradient-to-r ${action.color} flex items-center justify-center mb-3 group-hover:scale-105 transition-transform`}>
+                    <action.icon className="h-5 w-5 text-white" />
+                  </div>
+                  <h4 className="font-medium mb-1 group-hover:text-primary transition-colors">{action.label}</h4>
+                  <p className="text-xs text-muted-foreground">{action.description}</p>
+                  <div className="flex items-center gap-1 mt-2 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span>Get started</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </div>
+
       {smallWidgets.length > 0 && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {smallWidgets.map(widgetId => renderSmallWidget(widgetId))}
@@ -465,6 +547,73 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Platform Benefits */}
+      <Card className="glass-card border-primary/20" data-testid="card-platform-benefits">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            <CardTitle>Why Care Facilities Choose CareAssurance</CardTitle>
+          </div>
+          <CardDescription>Real results that matter to your bottom line and care quality</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Clock className="h-4 w-4 text-blue-400" />
+                </div>
+                <span className="text-2xl font-bold text-foreground">80%</span>
+              </div>
+              <p className="text-sm font-medium">Time Saved on Audits</p>
+              <p className="text-xs text-muted-foreground">What took hours now takes minutes with AI-powered analysis</p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                </div>
+                <span className="text-2xl font-bold text-foreground">99.9%</span>
+              </div>
+              <p className="text-sm font-medium">Accuracy Rate</p>
+              <p className="text-xs text-muted-foreground">3-pass AI consensus catches what humans miss</p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                  <Shield className="h-4 w-4 text-violet-400" />
+                </div>
+                <span className="text-2xl font-bold text-foreground">24/7</span>
+              </div>
+              <p className="text-sm font-medium">CQC Ready</p>
+              <p className="text-xs text-muted-foreground">Always inspection-ready with automated compliance tracking</p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                  <Brain className="h-4 w-4 text-amber-400" />
+                </div>
+                <span className="text-2xl font-bold text-foreground">12</span>
+              </div>
+              <p className="text-sm font-medium">Care Plan Sections</p>
+              <p className="text-xs text-muted-foreground">Comprehensive AI-generated care plans in first-person perspective</p>
+            </div>
+          </div>
+          <div className="mt-6 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              Discover how much you could save with CareAssurance
+            </p>
+            <Link href="/roi-calculator">
+              <Button variant="outline" className="gap-2" data-testid="button-roi-calculator">
+                <TrendingUp className="h-4 w-4" />
+                Calculate Your ROI
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
