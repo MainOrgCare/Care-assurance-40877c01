@@ -90,74 +90,74 @@ export default function Homepage() {
     {
       icon: FileSearch,
       title: "EMAR Auditing",
-      description: "Eliminate medication errors before CQC finds them. Our AI analyses every EMAR record with 99.9% accuracy, flagging discrepancies and refusals instantly.",
-      highlight: "99.9% Accuracy",
-      benefit: "Reduce audit time by 80%"
+      description: "Surface medication discrepancies you might not spot manually. Our AI helps analyse EMAR records, flagging potential issues and refusals for your review.",
+      highlight: "AI-Assisted",
+      benefit: "Faster record reviews"
     },
     {
       icon: Brain,
       title: "AI Care Plan Generator",
-      description: "Create comprehensive, CQC-compliant care plans in minutes, not hours. Our AI generates person-centred documentation across 11 essential sections.",
+      description: "Generate draft care plans in minutes rather than hours. Our AI creates person-centred documentation across 11 sections for your review and approval.",
       highlight: "AI-Powered",
-      benefit: "Save 4+ hours per plan"
+      benefit: "Streamlined documentation"
     },
     {
       icon: ClipboardCheck,
-      title: "CQC Compliance Dashboard",
-      description: "Stay inspection-ready 365 days a year. Real-time compliance tracking ensures you're never caught off-guard by regulatory requirements.",
-      highlight: "Always Ready",
-      benefit: "Zero compliance surprises"
+      title: "Compliance Dashboard",
+      description: "Keep track of your compliance status in one place. Monitor key metrics and identify areas that may need attention before your next inspection.",
+      highlight: "Centralised View",
+      benefit: "Better visibility"
     },
     {
       icon: Users,
       title: "Staff Performance Analytics",
-      description: "Identify training needs before they become incidents. Track care worker performance metrics and reward excellence proactively.",
+      description: "Track care worker metrics and identify potential training opportunities. Review performance patterns to support your team more effectively.",
       highlight: "Real-Time Insights",
-      benefit: "Reduce incidents by 60%"
+      benefit: "Data-driven decisions"
     },
     {
       icon: TrendingUp,
-      title: "ROI Calculator",
-      description: "See exactly how much time and money you're saving. Our analytics dashboard demonstrates clear value to stakeholders and commissioners.",
-      highlight: "Proven Results",
-      benefit: "Average 300% ROI"
+      title: "Time Savings Calculator",
+      description: "Estimate potential time savings based on your facility size. See how AI-assisted workflows may reduce administrative burden.",
+      highlight: "Estimated Savings",
+      benefit: "Plan your efficiency"
     },
     {
       icon: Lock,
-      title: "Enterprise Security",
-      description: "Your residents' data is protected with bank-grade encryption. Automatic PII redaction and comprehensive audit trails for complete peace of mind.",
-      highlight: "GDPR Compliant",
-      benefit: "Full data protection"
+      title: "Security Features",
+      description: "Built with data protection in mind. Features include encryption, automatic PII handling, and audit trails to support your data governance.",
+      highlight: "Privacy-Focused",
+      benefit: "Data protection support"
     }
   ];
 
   const stats = [
-    { value: "80%", label: "Reduction in Audit Time", icon: Clock },
-    { value: "99.9%", label: "AI Accuracy Rate", icon: CheckCircle2 },
-    { value: "50+", label: "UK Care Facilities", icon: Building2 },
-    { value: "24/7", label: "Compliance Monitoring", icon: ShieldCheck }
+    { value: "Minutes", label: "Not Hours Per Audit", icon: Clock },
+    { value: "11", label: "Care Plan Sections", icon: FileText },
+    { value: "UK", label: "Care-Focused Design", icon: Building2 },
+    { value: "24/7", label: "Access Anytime", icon: ShieldCheck }
   ];
 
   const whyChoose = [
     {
       icon: Target,
-      title: "Purpose-Built for UK Care",
-      description: "Unlike generic software, CareAssurance is designed specifically for CQC requirements and UK care facility workflows. Every feature addresses real challenges you face daily."
+      title: "Designed for UK Care",
+      description: "Built with UK care facility workflows in mind. Features are shaped around the practical challenges care teams face with documentation and record-keeping."
     },
     {
       icon: Brain,
-      title: "AI That Actually Works",
-      description: "Our 3-pass consensus AI system catches discrepancies that humans miss. With 99.9% accuracy, you can trust the results without double-checking."
+      title: "AI-Assisted Analysis",
+      description: "Our multi-pass AI system helps surface potential discrepancies that may be difficult to spot when reviewing records manually."
     },
     {
       icon: Timer,
-      title: "See Results in Days, Not Months",
-      description: "No lengthy implementations or training programmes. Upload your first EMAR and get insights within minutes. Full ROI typically achieved within 30 days."
+      title: "Quick to Get Started",
+      description: "No lengthy setup required. Upload your first document and start exploring insights. Most users are up and running within a single session."
     },
     {
       icon: HeartHandshake,
-      title: "Dedicated UK Support",
-      description: "Real people who understand care compliance. Our UK-based team provides hands-on support whenever you need it, not chatbots or overseas call centres."
+      title: "UK-Based Support",
+      description: "Our team understands the UK care sector. We provide hands-on support from people who know the challenges you face."
     }
   ];
 
@@ -166,19 +166,19 @@ export default function Homepage() {
     {
       step: "01",
       title: "Upload Your Records",
-      description: "Simply drag and drop your EMAR sheets, care plans, or any documentation. We handle PDFs, images, and spreadsheets automatically.",
+      description: "Simply drag and drop your EMAR sheets, care plans, or documentation. We support PDFs, images, and spreadsheets.",
       icon: FileSearch
     },
     {
       step: "02", 
-      title: "AI Analysis in Seconds",
-      description: "Our proprietary 3-pass AI analyses every record, cross-referencing data and identifying discrepancies with 99.9% accuracy.",
+      title: "AI-Assisted Analysis",
+      description: "Our multi-pass AI reviews records and flags potential discrepancies for your attention, helping you focus on what matters.",
       icon: Brain
     },
     {
       step: "03",
-      title: "Actionable Insights",
-      description: "Receive clear, prioritised findings with severity ratings. Export CQC-ready reports instantly and take action with confidence.",
+      title: "Review and Act",
+      description: "Review prioritised findings with severity ratings. Export reports and address issues with greater confidence.",
       icon: ClipboardCheck
     }
   ];
@@ -344,7 +344,7 @@ export default function Homepage() {
           >
             <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-sm bg-teal-500/10 text-teal-400 border-teal-500/20">
               <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-              Trusted by 50+ UK Care Facilities
+              AI-Powered Care Compliance Tools
             </Badge>
           </motion.div>
 
@@ -354,9 +354,9 @@ export default function Homepage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
           >
-            Pass Every CQC Inspection with{" "}
+            Discover Issues Before{" "}
             <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
-              Complete Confidence
+              Your Next Inspection
             </span>
           </motion.h1>
 
@@ -366,8 +366,8 @@ export default function Homepage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            Stop losing sleep over compliance. CareAssurance uses advanced AI to audit your EMARs with 99.9% accuracy, 
-            generate CQC-ready care plans, and reduce your admin burden by 80%.
+            CareAssurance uses AI to help surface compliance issues you might not spot manually. 
+            Review your EMARs, generate draft care plans, and approach inspections with greater confidence.
           </motion.p>
 
           <motion.div 
@@ -378,11 +378,11 @@ export default function Homepage() {
           >
             <Badge variant="outline" className="text-xs px-3 py-1 border-green-500/30 text-green-400 bg-green-500/10">
               <CheckCircle2 className="h-3 w-3 mr-1" />
-              CQC Compliant
+              Built for UK Care
             </Badge>
             <Badge variant="outline" className="text-xs px-3 py-1 border-blue-500/30 text-blue-400 bg-blue-500/10">
               <Lock className="h-3 w-3 mr-1" />
-              GDPR Certified
+              Privacy-Focused
             </Badge>
           </motion.div>
 
@@ -425,16 +425,16 @@ export default function Homepage() {
             viewport={{ once: true }}
           >
             <p className="text-sm text-muted-foreground mb-6">
-              Trusted by leading care facilities across the United Kingdom
+              Key features designed for UK care facilities
             </p>
             <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12">
-              {["Sunrise Care Group", "Oakwood Health", "Meadowbrook Homes", "Sterling Care", "Harmony Living"].map((name, i) => (
+              {["EMAR Analysis", "Care Plan Drafting", "Risk Assessments", "Visit Audits", "Staff Analytics"].map((feature, i) => (
                 <div 
                   key={i}
                   className="flex items-center gap-2 text-muted-foreground/60 hover:text-muted-foreground transition-colors"
                 >
-                  <Building2 className="h-5 w-5" />
-                  <span className="font-medium text-sm">{name}</span>
+                  <CheckCircle2 className="h-5 w-5" />
+                  <span className="font-medium text-sm">{feature}</span>
                 </div>
               ))}
             </div>
@@ -649,13 +649,13 @@ export default function Homepage() {
           >
             <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs bg-green-500/10 text-green-400 border-green-500/20">
               <Calculator className="h-3 w-3 mr-1" />
-              ROI Calculator
+              Savings Estimator
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              See Your Annual Savings
+              Estimate Your Potential Savings
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Calculate how much time and money CareAssurance saves your care facility each year
+              See estimated time savings based on typical task durations. Actual results may vary.
             </p>
           </motion.div>
 
@@ -737,13 +737,13 @@ export default function Homepage() {
                     <div className="text-2xl font-bold text-green-400" data-testid="text-money-saved">
                       £{roi.moneySaved.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </div>
-                    <div className="text-xs text-muted-foreground">per year at £14.50/hr</div>
+                    <div className="text-xs text-muted-foreground">per year at £14.50/hr*</div>
                   </div>
                 </div>
 
                 {/* Task Breakdown */}
                 <div className="border-t border-border/50 pt-6">
-                  <h4 className="text-sm font-medium text-muted-foreground mb-4">Annual Task Breakdown (per service user)</h4>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-4">Estimated Annual Task Breakdown (per service user)</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     {Object.entries(TASKS).map(([key, task]) => (
                       <div key={key} className="p-3 rounded-lg bg-background/50 border border-border/30">
@@ -760,6 +760,14 @@ export default function Homepage() {
                       </div>
                     ))}
                   </div>
+                </div>
+                
+                {/* Disclaimer */}
+                <div className="border-t border-border/50 pt-4 mt-6">
+                  <p className="text-xs text-muted-foreground/70">
+                    *Estimates are based on typical task durations and may vary depending on facility size, complexity of records, and other factors. 
+                    The figures shown are for illustrative purposes only and do not constitute a guarantee of savings.
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -781,15 +789,11 @@ export default function Homepage() {
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500" />
                 
                 <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-4">
-                  Your Next CQC Inspection is Coming.
-                  <br />
-                  <span className="bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent">
-                    Will You Be Ready?
-                  </span>
+                  Ready to See What You Might Be Missing?
                 </h2>
                 <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-                  Join care facilities who've eliminated compliance anxiety with CareAssurance. 
-                  Sign in to access the platform and see why leading care providers trust our solution.
+                  CareAssurance helps surface potential compliance issues in your records. 
+                  Sign in to explore the platform and see how it can support your team.
                 </p>
                 
                 <Button 
