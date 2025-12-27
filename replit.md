@@ -7,6 +7,18 @@ CareAssurance is a healthcare compliance management application designed for car
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+**Homepage/Marketing Changes**: Remove all free trial messaging, fake reviews/testimonials, and NHS Approved Supplier claims. Keep only authentic content (CQC Compliant, GDPR Certified badges).
+
+## Recent Changes (December 27, 2025)
+
+- **Removed Light Theme**: Removed light colour option from theme selector. Now offers Dark, Midnight, and Ocean themes only.
+- **Cleaned Up Homepage**: 
+  - Removed all "free trial" messaging and call-to-action buttons
+  - Removed fake testimonials/reviews section entirely
+  - Removed "NHS Approved Supplier" badge (kept only CQC Compliant and GDPR Certified)
+  - Removed "Limited time" offers and free setup/training promises
+  - Simplified final CTA to just "Sign In" button with authentic copy
+- **Enhanced Dashboard**: Added theme selector visual with all available options and quick action cards for key features
 
 ## System Architecture
 
@@ -15,8 +27,9 @@ Preferred communication style: Simple, everyday language.
 - **Routing**: Wouter
 - **State Management**: TanStack React Query for server state, React Context for local state
 - **UI Components**: shadcn/ui built on Radix UI
-- **Styling**: Tailwind CSS v4 with custom "liquid glass" dark theme and multiple color palettes (Dark, Midnight, Ocean, Light)
+- **Styling**: Tailwind CSS v4 with custom "liquid glass" dark theme and three color palettes (Dark, Midnight, Ocean)
 - **Build Tool**: Vite
+- **Available Themes**: Dark, Midnight, Ocean (Light theme removed)
 
 ### Backend
 - **Runtime**: Node.js with Express

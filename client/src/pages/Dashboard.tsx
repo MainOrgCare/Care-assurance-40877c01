@@ -84,7 +84,6 @@ function SortableWidgetItem({ widget, isActive, onToggle }: { widget: WidgetConf
 
 const THEMES: { id: Theme; label: string; icon: any; description: string; colors: string }[] = [
   { id: "dark", label: "Dark", icon: Moon, description: "Classic dark mode", colors: "from-slate-800 to-slate-900" },
-  { id: "light", label: "Light", icon: Sun, description: "Clean light mode", colors: "from-slate-100 to-white" },
   { id: "midnight", label: "Midnight", icon: Sparkles, description: "Deep blue theme", colors: "from-indigo-900 to-slate-900" },
   { id: "ocean", label: "Ocean", icon: Waves, description: "Teal sea theme", colors: "from-teal-900 to-slate-900" },
 ];

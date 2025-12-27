@@ -25,12 +25,9 @@ import {
   ChevronRight,
   BarChart3,
   FileText,
-  AlertTriangle,
   User,
   KeyRound,
   Loader2,
-  Star,
-  Quote,
   Building2,
   Timer,
   Target,
@@ -131,29 +128,6 @@ export default function Homepage() {
     }
   ];
 
-  const testimonials = [
-    {
-      quote: "CareAssurance transformed our compliance workflow. What used to take our team 3 days now takes 3 hours. We passed our last CQC inspection with flying colours.",
-      author: "Sarah Mitchell",
-      role: "Registered Manager",
-      company: "Sunrise Care Home",
-      rating: 5
-    },
-    {
-      quote: "The AI-generated care plans are incredibly thorough. Our care workers love how easy it is to document, and inspectors have commented on the quality of our records.",
-      author: "James Thompson",
-      role: "Operations Director",
-      company: "Oakwood Manor",
-      rating: 5
-    },
-    {
-      quote: "We were sceptical about AI, but the accuracy is remarkable. It caught medication discrepancies we'd missed for months. An absolute game-changer for our facility.",
-      author: "Emma Richards",
-      role: "Clinical Lead",
-      company: "Meadowbrook Care",
-      rating: 5
-    }
-  ];
 
   const howItWorks = [
     {
@@ -377,10 +351,6 @@ export default function Homepage() {
               <Lock className="h-3 w-3 mr-1" />
               GDPR Certified
             </Badge>
-            <Badge variant="outline" className="text-xs px-3 py-1 border-purple-500/30 text-purple-400 bg-purple-500/10">
-              <Award className="h-3 w-3 mr-1" />
-              NHS Approved Supplier
-            </Badge>
           </motion.div>
 
           <motion.div 
@@ -395,7 +365,7 @@ export default function Homepage() {
               data-testid="button-hero-login"
               onClick={() => setLoginOpen(true)}
             >
-              Start Free Trial
+              Login
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
             <Link href="/roi-calculator">
@@ -409,16 +379,6 @@ export default function Homepage() {
               </Button>
             </Link>
           </motion.div>
-
-          <motion.p
-            className="text-sm text-muted-foreground"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-          >
-            <AlertTriangle className="h-3.5 w-3.5 inline mr-1 text-amber-500" />
-            <span className="text-amber-400/80">Limited time:</span> Free setup and training for new facilities
-          </motion.p>
         </div>
       </section>
 
@@ -643,60 +603,6 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section className="relative z-10 py-20 sm:py-28 px-4 bg-muted/10">
-        <div className="max-w-6xl mx-auto">
-          <motion.div 
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs bg-amber-500/10 text-amber-400 border-amber-500/20">
-              <Star className="h-3 w-3 mr-1 fill-current" />
-              Success Stories
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Hear From Care Leaders Like You
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Don't just take our word for it. See what registered managers and care directors across the UK are saying.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-              >
-                <Card className="h-full border border-border/50 bg-card/30 backdrop-blur-xl">
-                  <CardContent className="p-6">
-                    <div className="flex gap-1 mb-4">
-                      {[...Array(testimonial.rating)].map((_, i) => (
-                        <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
-                      ))}
-                    </div>
-                    <Quote className="h-8 w-8 text-teal-500/20 mb-2" />
-                    <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-                      "{testimonial.quote}"
-                    </p>
-                    <div className="border-t border-border/30 pt-4">
-                      <p className="font-semibold text-foreground text-sm">{testimonial.author}</p>
-                      <p className="text-xs text-muted-foreground">{testimonial.role}</p>
-                      <p className="text-xs text-teal-400 mt-1">{testimonial.company}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* Final CTA Section */}
       <section className="relative z-10 py-20 sm:py-28 px-4">
@@ -711,11 +617,6 @@ export default function Homepage() {
               <CardContent className="p-8 sm:p-12 text-center relative">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500" />
                 
-                <Badge variant="secondary" className="mb-6 px-3 py-1 text-xs bg-amber-500/10 text-amber-400 border-amber-500/20">
-                  <AlertTriangle className="h-3 w-3 mr-1" />
-                  Limited Availability
-                </Badge>
-                
                 <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-4">
                   Your Next CQC Inspection is Coming.
                   <br />
@@ -723,46 +624,20 @@ export default function Homepage() {
                     Will You Be Ready?
                   </span>
                 </h2>
-                <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
-                  Join 50+ care facilities who've eliminated compliance anxiety. Start your free trial today 
-                  and see why leading care providers trust CareAssurance.
+                <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
+                  Join care facilities who've eliminated compliance anxiety with CareAssurance. 
+                  Sign in to access the platform and see why leading care providers trust our solution.
                 </p>
                 
-                <div className="flex flex-wrap items-center justify-center gap-4 mb-6">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <CheckCircle2 className="h-4 w-4 text-green-400" />
-                    <span>No credit card required</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <CheckCircle2 className="h-4 w-4 text-green-400" />
-                    <span>Free setup assistance</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <CheckCircle2 className="h-4 w-4 text-green-400" />
-                    <span>Cancel anytime</span>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                  <Button 
-                    size="lg"
-                    className="bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-semibold shadow-xl shadow-blue-900/40 px-8 h-12"
-                    data-testid="button-cta-login"
-                    onClick={() => setLoginOpen(true)}
-                  >
-                    Start Your Free Trial
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                  <Link href="/terms">
-                    <Button 
-                      variant="outline" 
-                      size="lg"
-                      className="h-12 px-6 border-border/50 bg-background/50 backdrop-blur-sm"
-                    >
-                      View Terms
-                    </Button>
-                  </Link>
-                </div>
+                <Button 
+                  size="lg"
+                  className="bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-semibold shadow-xl shadow-blue-900/40 px-8 h-12"
+                  data-testid="button-cta-login"
+                  onClick={() => setLoginOpen(true)}
+                >
+                  Sign In
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
               </CardContent>
             </Card>
           </motion.div>
