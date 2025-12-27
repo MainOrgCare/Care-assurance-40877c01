@@ -401,16 +401,16 @@ export default function Homepage() {
               Login
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
-            <Link href="/roi-calculator">
-              <Button 
-                variant="outline" 
-                size="lg"
-                className="h-12 px-6 text-base border-border/50 bg-background/50 backdrop-blur-sm"
-              >
-                <TrendingUp className="mr-2 h-5 w-5" />
-                Calculate Your ROI
-              </Button>
-            </Link>
+            <Button 
+              variant="outline" 
+              size="lg"
+              className="h-12 px-6 text-base border-border/50 bg-background/50 backdrop-blur-sm"
+              onClick={() => document.getElementById('roi-calculator')?.scrollIntoView({ behavior: 'smooth' })}
+              data-testid="button-hero-roi"
+            >
+              <TrendingUp className="mr-2 h-5 w-5" />
+              Calculate Your ROI
+            </Button>
           </motion.div>
         </div>
       </section>
@@ -638,7 +638,7 @@ export default function Homepage() {
 
 
       {/* ROI Calculator Section */}
-      <section className="relative z-10 py-20 sm:py-28 px-4">
+      <section id="roi-calculator" className="relative z-10 py-20 sm:py-28 px-4">
         <div className="max-w-5xl mx-auto">
           <motion.div
             className="text-center mb-12"
