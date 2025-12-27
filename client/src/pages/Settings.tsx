@@ -14,7 +14,6 @@ const themeOptions: { value: Theme; label: string; description: string; colors: 
   { value: "dark", label: "Dark", description: "Default dark theme", colors: ["#0f172a", "#1e293b", "#0ea5e9"] },
   { value: "midnight", label: "Midnight", description: "Deep purple tones", colors: ["#0c0a1d", "#1a1730", "#8b5cf6"] },
   { value: "ocean", label: "Ocean", description: "Blue-green palette", colors: ["#0a1929", "#132f4c", "#14b8a6"] },
-  { value: "light", label: "Light", description: "Clean professional light mode", colors: ["#f8fafc", "#e2e8f0", "#0ea5e9"] },
 ];
 
 const fontSizeOptions: { value: FontSize; label: string }[] = [
