@@ -2940,26 +2940,50 @@ If no equivalences found, return: {"equivalences": []}`
       });
 
       // =====================================================================
-      // CHECK 6: TIME GAP VIOLATIONS
+      // CHECK 6: TIME GAP VIOLATIONS (PRN MEDICATIONS ONLY)
       // =====================================================================
-      // Group entries by medication and date to check timing
-      const medDateEntries = new Map<string, any[]>();
+      // Time gap detection ONLY applies to PRN medications where multiple doses
+      // might be given on the same day. For scheduled medications, each timeSlot
+      // row is a discrete scheduled dose, not cumulative dosing.
+      //
+      // Safeguards to prevent false positives:
+      // 1. Only check PRN medications (skip scheduled meds)
+      // 2. Skip entries without valid dates
+      // 3. Require at least 2 valid entries on the same day to compare
+      // =====================================================================
+      const medDateEntriesForTimeGap = new Map<string, any[]>();
       
       allEntries.forEach((entry: any) => {
         const code = (entry.code || "").toUpperCase();
-        // Skip non-administration codes for time gap checking
+        // Skip non-administration codes
         if (["BLANK", "EMPTY", "", "MU", "NH", "R", "FA", "MISSED"].includes(code)) return;
         
-        const key = `${entry.medication}|${entry.date}`;
-        if (!medDateEntries.has(key)) medDateEntries.set(key, []);
-        medDateEntries.get(key)!.push(entry);
+        // Skip entries without valid dates (prevents cross-day false positives)
+        const entryDate = (entry.date || "").trim();
+        if (!entryDate || entryDate.length < 3) {
+          console.log(`DEBUG: Skipping time gap check for entry with missing date: ${entry.medication}`);
+          return;
+        }
+        
+        // Only check PRN medications for time gaps
+        const isPRN = prnMeds.has(entry.medication);
+        if (!isPRN) return; // Skip scheduled medications - each slot is a discrete dose
+        
+        // Normalize date for grouping (lowercase, trim)
+        const normalizedDate = entryDate.toLowerCase().trim();
+        const key = `${entry.medication}|${normalizedDate}`;
+        if (!medDateEntriesForTimeGap.has(key)) medDateEntriesForTimeGap.set(key, []);
+        medDateEntriesForTimeGap.get(key)!.push(entry);
       });
 
-      medDateEntries.forEach((dayEntries, key) => {
+      medDateEntriesForTimeGap.forEach((dayEntries, key) => {
+        // Need at least 2 entries to compare
+        if (dayEntries.length < 2) return;
+        
         const [medication] = key.split("|");
         const requiredGap = medGapHours.get(medication) || 4; // Default 4 hours
         
-        // Sort by time
+        // Filter entries with valid times and sort
         const sortedEntries = dayEntries
           .filter((e: any) => e.time && e.time.includes(":"))
           .sort((a: any, b: any) => {
@@ -2967,6 +2991,9 @@ If no equivalences found, return: {"equivalences": []}`
             const [bH, bM] = b.time.split(":").map(Number);
             return (aH * 60 + aM) - (bH * 60 + bM);
           });
+
+        // Need at least 2 entries with valid times
+        if (sortedEntries.length < 2) return;
 
         for (let i = 1; i < sortedEntries.length; i++) {
           const prev = sortedEntries[i - 1];
@@ -2980,10 +3007,9 @@ If no equivalences found, return: {"equivalences": []}`
           const gapMinutes = currMinutes - prevMinutes;
           const gapHours = gapMinutes / 60;
 
-          // Skip 0-hour gaps - these are duplicate extractions, not real violations
-          // Also skip if entries have the same timeSlot (duplicate extraction)
-          if (gapHours <= 0 || prev.timeSlot === curr.timeSlot) {
-            console.log(`DEBUG: Skipping duplicate entry for ${medication} - same time/slot detected`);
+          // Skip if times are very close or identical (likely duplicate extraction)
+          if (gapHours <= 0.25) { // 15 min tolerance for duplicates
+            console.log(`DEBUG: Skipping near-duplicate entry for ${medication} (${gapHours.toFixed(2)}h gap)`);
             continue;
           }
 
@@ -2993,13 +3019,15 @@ If no equivalences found, return: {"equivalences": []}`
               date: curr.date,
               timeSlot: curr.timeSlot,
               medication: medication,
-              issue: `Time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap} hours). Previous dose at ${prev.time}, this dose at ${curr.time}`,
+              issue: `PRN time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap} hours). Previous dose at ${prev.time}, this dose at ${curr.time}`,
               severity: "high",
               actions: { performanceNote: true, meeting: "in_person", referToManager: true }
             });
           }
         }
       });
+      
+      console.log(`DEBUG: Time gap check completed for ${medDateEntriesForTimeGap.size} PRN medication-day combinations`);
 
       // =====================================================================
       // CHECK 7: MU FREQUENCY WARNING
