@@ -109,7 +109,7 @@ export default function CarePlanning() {
                 setProgressStatus(data.status);
               } else if (eventType === "section") {
                 // New section arrived - add it to the list immediately
-                console.log("[CarePlan] Section received:", data.section?.title);
+                console.log("[CarePlan] Section received:", data.index, data.section?.title, "keys:", Object.keys(data.section || {}));
                 if (data.section && typeof data.index === 'number') {
                   sectionsInProgress[data.index] = data.section;
                   // Filter out undefined entries (sparse array)
@@ -131,7 +131,7 @@ export default function CarePlanning() {
                   });
                 }
               } else if (eventType === "result") {
-                console.log("[CarePlan] Final result received");
+                console.log("[CarePlan] Final result received, sections count:", data?.sections?.length, "keys:", Object.keys(data || {}));
                 result = data;
               } else if (eventType === "error") {
                 throw new Error(data.message);
