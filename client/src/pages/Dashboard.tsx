@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { AlertCircle, CheckCircle2, FileText, Activity, RefreshCw, Loader2, Settings, GripVertical, Pill, ClipboardList, Shield, Users, Palette, Moon, Sun, Waves, Sparkles, ArrowRight, Upload, Brain, TrendingUp, Clock, Zap } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileText, Activity, RefreshCw, Loader2, Settings, GripVertical, Pill, ClipboardList, Shield, Users, Palette, Moon, Sun, Waves, Sparkles, ArrowRight, Upload, Brain, TrendingUp, Clock, Zap, Play, Info } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
@@ -97,6 +99,7 @@ const QUICK_ACTIONS = [
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { loadDemoData } = useTemporaryData();
   const queryClient = useQueryClient();
   const { theme, setTheme } = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -107,6 +110,12 @@ export default function Dashboard() {
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  useEffect(() => {
+    if (user?.isDemo) {
+      loadDemoData();
+    }
+  }, [user?.isDemo, loadDemoData]);
 
   const { data, isLoading, refetch, isRefetching } = useQuery<DashboardResponse>({
     queryKey: ["/api/dashboard/stats"],
@@ -331,6 +340,33 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {user?.isDemo && (
+        <Card className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 border-purple-500/30" data-testid="demo-mode-banner">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                  <Play className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-foreground">Demo Mode Active</h3>
+                    <Badge variant="outline" className="border-purple-500/50 text-purple-300">Sample Data</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Explore CareAssurance with pre-loaded sample data. Changes won't be saved.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-purple-300">
+                <Info className="h-4 w-4" />
+                Read-only mode
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <p className="text-sm text-muted-foreground mb-1">

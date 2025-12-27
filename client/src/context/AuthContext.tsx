@@ -14,11 +14,13 @@ interface User {
   termsVersion?: string;
   termsSignatureName?: string;
   termsSignatureDate?: string;
+  isDemo?: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   login: (username: string, password: string) => Promise<boolean>;
+  loginDemo: () => Promise<boolean>;
   signup: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   users: User[];
@@ -143,6 +145,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast({
         title: "Login Failed",
         description: "An error occurred during login. Please try again.",
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
+  const loginDemo = async (): Promise<boolean> => {
+    try {
+      const response = await fetch("/api/auth/demo", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast({
+          title: "Demo Unavailable",
+          description: data.message || "Could not start demo session.",
+          variant: "destructive"
+        });
+        return false;
+      }
+
+      setUser({ ...data, isDemo: true });
+      logAction("Demo Login", "System", "Authorized");
+
+      return true;
+    } catch (error) {
+      toast({
+        title: "Demo Failed",
+        description: "An error occurred. Please try again.",
         variant: "destructive"
       });
       return false;
@@ -297,7 +331,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{ 
       user, 
-      login, 
+      login,
+      loginDemo,
       signup, 
       logout, 
       users: allUsers, 

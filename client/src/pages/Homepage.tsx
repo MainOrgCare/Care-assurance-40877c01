@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Slider } from "@/components/ui/slider";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
+import { Play } from "lucide-react";
 import { 
   ShieldCheck, 
   FileSearch, 
@@ -39,12 +40,22 @@ import {
 
 export default function Homepage() {
   const [, setLocation] = useLocation();
-  const { login } = useAuth();
+  const { login, loginDemo } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [serviceUsers, setServiceUsers] = useState(20);
+
+  const handleDemoLogin = async () => {
+    setDemoLoading(true);
+    const success = await loginDemo();
+    setDemoLoading(false);
+    if (success) {
+      setLocation("/dashboard");
+    }
+  };
 
   // ROI Calculator constants
   const HOURLY_RATE = 14.50;
@@ -392,6 +403,25 @@ export default function Homepage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3 }}
           >
+            <Button 
+              size="lg"
+              className="bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white font-semibold shadow-xl shadow-purple-900/40 px-8 h-12 text-base"
+              data-testid="button-hero-demo"
+              onClick={handleDemoLogin}
+              disabled={demoLoading}
+            >
+              {demoLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Loading Demo...
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-5 w-5" />
+                  Try Demo
+                </>
+              )}
+            </Button>
             <Button 
               size="lg"
               className="bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-semibold shadow-xl shadow-blue-900/40 px-8 h-12 text-base"

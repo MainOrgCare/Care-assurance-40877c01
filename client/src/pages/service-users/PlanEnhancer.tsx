@@ -2,12 +2,13 @@ import { useState, useRef } from "react";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface CarePlanTemplate {
   thisIsMe: {
@@ -123,6 +124,8 @@ export default function PlanEnhancer() {
   const { serviceUserData, getAllDocumentContent, isAnyParsing } = useTemporaryData();
   const { toast } = useToast();
   const [result, setResult] = useState<CarePlanTemplate | null>(null);
+  const [originalContent, setOriginalContent] = useState<string>("");
+  const [viewMode, setViewMode] = useState<"enhanced" | "comparison">("enhanced");
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -137,6 +140,13 @@ export default function PlanEnhancer() {
       if (!documentContent.trim() && !carePlanContent) {
         throw new Error("No document content available");
       }
+
+      // Store the original content for comparison view
+      const combinedOriginal = [
+        carePlanContent ? `=== Original Care Plan ===\n${carePlanContent}` : "",
+        documentContent ? `=== Supporting Documents ===\n${documentContent}` : ""
+      ].filter(Boolean).join("\n\n");
+      setOriginalContent(combinedOriginal);
 
       setProgress(0);
       setProgressStatus("Preparing documents...");
@@ -344,10 +354,85 @@ export default function PlanEnhancer() {
 
       {result && (
         <div className="space-y-4">
-          <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            <Check className="text-green-400" size={20} />
-            Generated Care Plan Template
-          </h3>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
+              <Check className="text-green-400" size={20} />
+              Generated Care Plan Template
+            </h3>
+            
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "enhanced" | "comparison")}>
+              <TabsList>
+                <TabsTrigger value="enhanced" className="gap-2" data-testid="tab-enhanced-view">
+                  <FileText size={14} />
+                  Enhanced Only
+                </TabsTrigger>
+                <TabsTrigger value="comparison" className="gap-2" data-testid="tab-comparison-view">
+                  <Columns size={14} />
+                  Compare Before/After
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
+          {viewMode === "comparison" && originalContent && (
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Columns size={18} />
+                  Side-by-Side Comparison
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b border-border">
+                      <div className="w-3 h-3 rounded-full bg-amber-500" />
+                      <h4 className="font-semibold text-foreground">Original Documents</h4>
+                    </div>
+                    <div className="bg-muted/50 rounded-lg p-4 max-h-[500px] overflow-y-auto">
+                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed">
+                        {originalContent.slice(0, 5000)}
+                        {originalContent.length > 5000 && "\n\n... (truncated for display)"}
+                      </pre>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b border-border">
+                      <div className="w-3 h-3 rounded-full bg-green-500" />
+                      <h4 className="font-semibold text-foreground">Enhanced Output</h4>
+                    </div>
+                    <div className="bg-muted/50 rounded-lg p-4 max-h-[500px] overflow-y-auto">
+                      <div className="text-xs text-muted-foreground space-y-3">
+                        {result.thisIsMe && (
+                          <div>
+                            <strong className="text-foreground">This Is Me:</strong>
+                            <p className="mt-1">{result.thisIsMe.whoAmI}</p>
+                          </div>
+                        )}
+                        {result.myCarePlan && (
+                          <div>
+                            <strong className="text-foreground">My Care Plan:</strong>
+                            <p className="mt-1">{result.myCarePlan.healthAndWellbeing}</p>
+                          </div>
+                        )}
+                        {result.goalSetting?.goals?.length > 0 && (
+                          <div>
+                            <strong className="text-foreground">Goals:</strong>
+                            {result.goalSetting.goals.map((g, i) => (
+                              <p key={i} className="mt-1">• {g.goal}</p>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-xs text-blue-400 italic mt-4">
+                          See full enhanced content in the sections below
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* This Is Me */}
           <Section title="This Is Me" defaultOpen={true}>

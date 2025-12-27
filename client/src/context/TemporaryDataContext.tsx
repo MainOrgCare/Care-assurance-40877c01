@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
+import { SAMPLE_CARE_PLAN_CONTENT, SAMPLE_SOCIAL_WORK_CONTENT } from "@/lib/sampleDemoData";
 
 interface FileData {
   name: string;
@@ -24,6 +25,7 @@ interface TemporaryDataContextType {
   resetTimer: () => void;
   getAllDocumentContent: () => string; // Combined content from all uploaded documents
   isAnyParsing: () => boolean;
+  loadDemoData: () => void; // Load sample data for demo mode
 }
 
 const TemporaryDataContext = createContext<TemporaryDataContextType | undefined>(undefined);
@@ -37,12 +39,18 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
   
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [location] = useLocation();
+  const demoDataLoadedRef = useRef(false);
 
   // Handle timer countdown
+  // Demo mode: timer does not clear data - session persists for demo duration
   useEffect(() => {
     if (timeLeft === null) return;
 
     if (timeLeft <= 0) {
+      if (demoDataLoadedRef.current) {
+        setTimeLeft(null);
+        return;
+      }
       clearServiceUserData();
       return;
     }
@@ -55,13 +63,12 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
   }, [timeLeft]);
 
   // Handle auto-wipe on navigation away from Service Users section
+  // Exception: Demo mode keeps data across navigation
   useEffect(() => {
+    if (demoDataLoadedRef.current) {
+      return;
+    }
     if (!location.startsWith('/service-users') && Object.keys(serviceUserData).length > 0) {
-        // If we leave the service users section, wipe data immediately
-        // Exception: We might want to keep it if navigating WITHIN the section
-        // But the requirement says "Once you leave that drop down all that information deletes"
-        // We'll implement a stricter check: if the new path doesn't start with /service-users
-        // AND we have data, wipe it.
         clearServiceUserData();
     }
   }, [location]);
@@ -122,6 +129,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
   const clearServiceUserData = () => {
     setServiceUserData({});
     setTimeLeft(null);
+    demoDataLoadedRef.current = false;
     console.log("Secure Wipe: Service User Data Cleared from Memory.");
   };
 
@@ -157,6 +165,34 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const loadDemoData = useCallback(() => {
+    if (demoDataLoadedRef.current) {
+      return;
+    }
+    demoDataLoadedRef.current = true;
+    
+    setServiceUserData({
+      socialWork: {
+        name: "Demo_Social_Work_Assessment.pdf",
+        type: "application/pdf",
+        size: 45678,
+        content: SAMPLE_SOCIAL_WORK_CONTENT,
+        timestamp: Date.now(),
+        isParsing: false,
+      },
+      carePlan: {
+        name: "Demo_Care_Plan.pdf",
+        type: "application/pdf",
+        size: 62345,
+        content: SAMPLE_CARE_PLAN_CONTENT,
+        timestamp: Date.now(),
+        isParsing: false,
+      },
+    });
+    startTimer();
+    console.log("Demo Mode: Sample data loaded.");
+  }, []);
+
   return (
     <TemporaryDataContext.Provider value={{ 
       serviceUserData, 
@@ -167,6 +203,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
       resetTimer,
       getAllDocumentContent,
       isAnyParsing,
+      loadDemoData,
     }}>
       {children}
     </TemporaryDataContext.Provider>

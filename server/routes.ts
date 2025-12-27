@@ -194,6 +194,7 @@ function normalizeInitials(name: string | undefined | null): string {
 declare module "express-session" {
   interface SessionData {
     userId?: string;
+    isDemo?: boolean;
   }
 }
 
@@ -296,6 +297,24 @@ export async function registerRoutes(
     if (!req.session.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
+    
+    // Handle demo sessions with virtual user
+    if (req.session.isDemo) {
+      req.user = {
+        id: req.session.userId,
+        username: "demo_user",
+        firstName: "Demo",
+        lastName: "User",
+        email: "demo@careassurance.co.uk",
+        role: "staff",
+        status: "active",
+        isDemo: true,
+        createdAt: new Date(),
+        dashboardWidgets: null,
+      };
+      return next();
+    }
+    
     const user = await storage.getUser(req.session.userId);
     if (!user || user.status !== "active") {
       return res.status(401).json({ message: "Unauthorized" });
@@ -318,6 +337,15 @@ export async function registerRoutes(
   const requireAdmin = async (req: any, res: any, next: any) => {
     if (!req.user || req.user.role !== "admin") {
       return res.status(403).json({ message: "Forbidden: Admin access required" });
+    }
+    next();
+  };
+
+  const blockDemoWrites = async (req: any, res: any, next: any) => {
+    if (req.user?.isDemo) {
+      return res.status(403).json({ 
+        message: "Demo mode: Changes are not saved. Sign up to access all features." 
+      });
     }
     next();
   };
@@ -441,6 +469,53 @@ export async function registerRoutes(
     }
   });
 
+  // Demo Login - creates a temporary demo session with sample data
+  app.post("/api/auth/demo", async (req, res) => {
+    try {
+      const clientIp = getClientIp(req);
+      
+      // Check if IP is blocked
+      if (clientIp && clientIp !== 'unknown') {
+        const isBlocked = await storage.isIpBlocked(clientIp);
+        if (isBlocked) {
+          return res.status(403).json({ message: "Access denied. Your IP address has been blocked." });
+        }
+      }
+
+      // Create a virtual demo user (not stored in database)
+      const demoUser = {
+        id: 'demo-user-' + Date.now(),
+        username: 'demo',
+        firstName: 'Demo',
+        lastName: 'User',
+        role: 'staff' as const,
+        status: 'active' as const,
+        jobTitle: 'Demo Account',
+        isDemo: true,
+        termsVersion: '1.0',
+        termsAcceptedAt: new Date().toISOString(),
+        termsSignatureName: 'Demo User',
+        termsSignatureDate: new Date().toLocaleDateString('en-GB'),
+      };
+
+      // Store demo session info
+      req.session.userId = demoUser.id;
+      req.session.isDemo = true;
+      
+      // Explicitly save session
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      
+      return res.json(demoUser);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
   // Register (creates pending user)
   app.post("/api/auth/register", async (req, res) => {
     try {
@@ -482,6 +557,7 @@ export async function registerRoutes(
       jobTitle: req.user.jobTitle,
       termsAcceptedAt: req.user.termsAcceptedAt,
       termsVersion: req.user.termsVersion,
+      isDemo: req.user.isDemo || false,
     });
   });
 
@@ -887,7 +963,7 @@ export async function registerRoutes(
   });
 
   // Save user's dashboard widget preferences
-  app.put("/api/dashboard/widgets", requireAuth, async (req: any, res) => {
+  app.put("/api/dashboard/widgets", requireAuth, blockDemoWrites, async (req: any, res) => {
     try {
       const { widgets } = req.body;
       if (!Array.isArray(widgets)) {
@@ -913,7 +989,7 @@ export async function registerRoutes(
   });
 
   // Create care worker
-  app.post("/api/care-workers", requireAuth, async (req, res) => {
+  app.post("/api/care-workers", requireAuth, blockDemoWrites, async (req, res) => {
     try {
       const validatedData = insertCareWorkerSchema.parse(req.body);
       const worker = await storage.createCareWorker(validatedData);
@@ -955,7 +1031,7 @@ export async function registerRoutes(
   });
 
   // Create discrepancy (and check for alert threshold)
-  app.post("/api/discrepancies", requireAuth, async (req, res) => {
+  app.post("/api/discrepancies", requireAuth, blockDemoWrites, async (req, res) => {
     try {
       const validatedData = insertDiscrepancySchema.parse(req.body);
       const discrepancy = await storage.createDiscrepancy(validatedData);
@@ -1003,7 +1079,7 @@ export async function registerRoutes(
   });
 
   // Create audit
-  app.post("/api/audits", requireAuth, async (req, res) => {
+  app.post("/api/audits", requireAuth, blockDemoWrites, async (req, res) => {
     try {
       const validatedData = insertAuditSchema.parse(req.body);
       const audit = await storage.createAudit(validatedData);
@@ -4762,7 +4838,7 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
   // ===== RISK ASSESSMENT LOG ROUTES =====
 
   // Create a risk assessment log
-  app.post("/api/risk-assessment-logs", requireAuth, async (req, res) => {
+  app.post("/api/risk-assessment-logs", requireAuth, blockDemoWrites, async (req, res) => {
     try {
       const log = await storage.createRiskAssessmentLog(req.body);
       return res.status(201).json(log);
@@ -5143,7 +5219,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   // =====================================================================
 
   // Create a refusal review
-  app.post("/api/refusal-reviews", requireAuth, async (req, res) => {
+  app.post("/api/refusal-reviews", requireAuth, blockDemoWrites, async (req, res) => {
     try {
       const { auditId, careWorkerName, medication, refusalDate, timeSlot, reasonAcceptable, reviewerNotes } = req.body;
       
@@ -5215,7 +5291,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   });
 
   // Bulk create refusal reviews
-  app.post("/api/refusal-reviews/bulk", requireAuth, async (req, res) => {
+  app.post("/api/refusal-reviews/bulk", requireAuth, blockDemoWrites, async (req, res) => {
     try {
       const { reviews } = req.body;
       
