@@ -1427,6 +1427,78 @@ export async function registerRoutes(
       const imageContent: any[] = [];
       const useTextMode = true;
       
+      // =====================================================================
+      // PRE-ANALYSIS: Regex-based extraction BEFORE AI to validate AI results
+      // =====================================================================
+      sendProgress(5, "Pre-analyzing document structure...", "pre_analysis");
+      
+      // Extract dates from column headers using regex
+      // Common EMAR date formats: "Sun, 30 Nov", "Mon, 01 Dec", "Tue 02 Dec", "30/11", "01/12"
+      const preAnalysis = {
+        dates: [] as string[],
+        dateCount: 0,
+        timeSlots: [] as string[],
+        medicationLines: 0,
+        rawDateMatches: [] as string[],
+      };
+      
+      // Pattern 1: Day abbreviation with comma, day number, month (e.g., "Sun, 30 Nov", "Mon, 01 Dec")
+      const datePattern1 = /\b(Sun|Mon|Tue|Wed|Thu|Fri|Sat)[,.]?\s*(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/gi;
+      // Pattern 2: Day number with month name (e.g., "30 Nov", "01 Dec", "1 December")
+      const datePattern2 = /\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/gi;
+      // Pattern 3: Full date format (e.g., "30/11/2024", "01-12-2024")
+      const datePattern3 = /\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/g;
+      
+      const foundDates = new Set<string>();
+      let match;
+      
+      // Extract using Pattern 1 (most reliable for EMAR column headers)
+      while ((match = datePattern1.exec(analysisText)) !== null) {
+        const normalizedDate = `${match[1]}, ${match[2].padStart(2, '0')} ${match[3]}`;
+        foundDates.add(normalizedDate);
+        preAnalysis.rawDateMatches.push(match[0]);
+      }
+      
+      // Extract using Pattern 2 (backup)
+      while ((match = datePattern2.exec(analysisText)) !== null) {
+        const normalizedDate = `${match[1].padStart(2, '0')} ${match[2]}`;
+        // Only add if we don't already have this date from Pattern 1
+        const existsInPattern1 = Array.from(foundDates).some(d => d.includes(normalizedDate));
+        if (!existsInPattern1) {
+          foundDates.add(normalizedDate);
+        }
+      }
+      
+      preAnalysis.dates = Array.from(foundDates);
+      preAnalysis.dateCount = preAnalysis.dates.length;
+      
+      // Extract time slots (e.g., "08:00-09:00", "20:30-21:00", or just "08:00")
+      const timePattern = /\b(\d{1,2}:\d{2})(?:\s*-\s*(\d{1,2}:\d{2}))?\b/g;
+      const foundTimeSlots = new Set<string>();
+      while ((match = timePattern.exec(analysisText)) !== null) {
+        if (match[2]) {
+          foundTimeSlots.add(`${match[1]}-${match[2]}`);
+        } else {
+          // Single time - likely a slot marker
+          foundTimeSlots.add(match[1]);
+        }
+      }
+      preAnalysis.timeSlots = Array.from(foundTimeSlots).slice(0, 10); // Limit to reasonable number
+      
+      // Count lines that look like medication entries (contain mg, mcg, ml, tablet, capsule, etc.)
+      const medicationLinePattern = /^.*\b(\d+\s*(mg|mcg|ml|g|tablet|capsule|patch|spray|drop|unit|iu)s?)\b.*$/gim;
+      const medMatches = analysisText.match(medicationLinePattern);
+      preAnalysis.medicationLines = medMatches ? medMatches.length : 0;
+      
+      // Log pre-analysis summary
+      console.log("=== EMAR PRE-ANALYSIS SUMMARY ===");
+      console.log(`Dates found (regex): ${preAnalysis.dateCount}`);
+      console.log(`Date values: ${preAnalysis.dates.join(', ')}`);
+      console.log(`Time slots found: ${preAnalysis.timeSlots.length}`);
+      console.log(`Medication-like lines: ${preAnalysis.medicationLines}`);
+      console.log(`Raw date matches: ${preAnalysis.rawDateMatches.slice(0, 15).join(', ')}`);
+      console.log("=================================");
+      
       sendProgress(10, "Analyzing EMAR document...", "metadata_extraction");
 
       // STEP 2: Two-phase AI extraction to handle large grids
@@ -1512,6 +1584,44 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       }
+      
+      // =====================================================================
+      // DATE COUNT VALIDATION: Compare AI dates vs pre-parsed dates
+      // =====================================================================
+      const aiDateCount = metadata.dates?.length || 0;
+      const preParseCount = preAnalysis.dateCount;
+      const dateMismatch = Math.abs(aiDateCount - preParseCount);
+      
+      console.log("=== DATE VALIDATION ===");
+      console.log(`AI detected dates: ${aiDateCount}`);
+      console.log(`Pre-parse detected dates: ${preParseCount}`);
+      console.log(`Mismatch: ${dateMismatch} dates`);
+      
+      // If mismatch is significant (>2 dates difference), prefer pre-parsed dates
+      if (preParseCount > 0 && dateMismatch > 2) {
+        console.warn(`WARNING: AI date count (${aiDateCount}) differs significantly from pre-parsed count (${preParseCount}). Using pre-parsed dates.`);
+        metadata.dates = preAnalysis.dates;
+        console.log(`Corrected dates to: ${metadata.dates.join(', ')}`);
+        sendEvent('warning', { 
+          message: `Date count corrected: AI detected ${aiDateCount} dates, but document structure shows ${preParseCount} dates. Using validated count.`
+        });
+      } else if (preParseCount > 0 && aiDateCount !== preParseCount) {
+        // Minor mismatch - log but don't override
+        console.log(`INFO: Minor date count difference (AI: ${aiDateCount}, Pre-parse: ${preParseCount}). Keeping AI dates.`);
+      }
+      
+      // Log final pre-analysis summary for debugging
+      console.log("=== FINAL PRE-ANALYSIS SUMMARY ===");
+      console.log(`Document: ${req.file?.originalname || 'unknown'}`);
+      console.log(`Days in EMAR: ${metadata.dates?.length || 0}`);
+      console.log(`Dates: ${(metadata.dates || []).join(', ')}`);
+      console.log(`Medications: ${metadata.medications?.length || 0}`);
+      for (const med of (metadata.medications || [])) {
+        const slots = med.scheduledTimeSlots?.join(', ') || 'all slots';
+        console.log(`  - ${med.name}: ${slots}${med.isPRN ? ' (PRN)' : ''}`);
+      }
+      console.log(`Time slots: ${(metadata.timeSlots || []).join(', ')}`);
+      console.log("==================================");
       
       sendProgress(18, "Validating medication count...", "count_validation");
 
@@ -2526,8 +2636,10 @@ If no equivalences found, return: {"equivalences": []}`
       console.log("DEBUG: Extracted keys count:", extractedKeys.size);
       
       // Count how many cells are filled vs blank (for statistics only - not creating discrepancies)
+      // Blank cells = "call cancelled" - meaning the care visit was cancelled and no medication was needed
+      // These are NOT discrepancies and require no further action
       let filledCells = 0;
-      let blankCells = 0;
+      let callCancelledCount = 0; // Blank cells indicate call was cancelled
       
       medications.forEach((med: any) => {
         if (med.isPRN) return; // Skip PRN meds - blanks are expected
@@ -2543,13 +2655,13 @@ If no equivalences found, return: {"equivalences": []}`
             if (extractedKeys.has(key)) {
               filledCells++;
             } else {
-              blankCells++; // White blank - NOT a discrepancy
+              callCancelledCount++; // Blank cell = call cancelled, NOT a discrepancy
             }
           });
         });
       });
       
-      console.log(`DEBUG: Grid statistics - ${filledCells} filled cells, ${blankCells} blank cells (blank cells are NOT discrepancies)`);
+      console.log(`DEBUG: Grid statistics - ${filledCells} filled cells, ${callCancelledCount} call cancelled (blank cells are NOT discrepancies)`);
 
       // =====================================================================
       // CHECK 6: VALIDATE EXTRACTED ENTRIES (for codes like R, MU, NH, SA)
@@ -2706,6 +2818,72 @@ If no equivalences found, return: {"equivalences": []}`
             });
           }
         }
+      });
+
+      // =====================================================================
+      // CHECK 6b: MISSING SCHEDULED DOSE DETECTION
+      // For medications with multiple scheduled time slots per day, check if
+      // ALL scheduled slots have entries. Only flag if some slots have entries
+      // but others don't (indicating missed doses, not cancelled calls).
+      // =====================================================================
+      medications.forEach((med: any) => {
+        if (med.isPRN) return; // Skip PRN meds - not scheduled
+        
+        const medScheduledSlots = med.scheduledTimeSlots && med.scheduledTimeSlots.length > 0 
+          ? med.scheduledTimeSlots 
+          : [];
+        
+        // Only check medications with 2+ scheduled time slots
+        if (medScheduledSlots.length < 2) return;
+        
+        const medId = med.medicationId;
+        const medName = med.name;
+        
+        allDates.forEach((date: string) => {
+          // Get all entries for this medication on this date
+          const entriesForDay = allEntries.filter((e: any) => 
+            e.medicationId === medId && e.date === date
+          );
+          
+          // Check which slots have entries (with valid administration codes)
+          const slotsWithEntries = new Set<string>();
+          const slotCareWorkers = new Map<string, string>(); // Track care worker for context
+          
+          entriesForDay.forEach((entry: any) => {
+            const code = (entry.code || "").toUpperCase();
+            // Count as administered if it has a valid code (not blank/empty)
+            if (code && !["BLANK", "EMPTY", "", "MISSED"].includes(code)) {
+              slotsWithEntries.add(entry.timeSlot);
+              slotCareWorkers.set(entry.timeSlot, entry.careWorker || "Unknown");
+            }
+          });
+          
+          // If no slots have entries, this is likely a cancelled call day - don't flag
+          if (slotsWithEntries.size === 0) return;
+          
+          // If all slots have entries, no issue
+          if (slotsWithEntries.size === medScheduledSlots.length) return;
+          
+          // Some slots have entries but not all - flag the missing ones
+          medScheduledSlots.forEach((slot: string) => {
+            if (!slotsWithEntries.has(slot)) {
+              // Get a sample care worker from the entries that do exist
+              const sampleCareWorker = Array.from(slotCareWorkers.values())[0] || "Unknown";
+              const administeredSlots = Array.from(slotsWithEntries).join(", ");
+              
+              discrepancies.push({
+                careWorkerName: sampleCareWorker,
+                date: date,
+                timeSlot: slot,
+                medication: medName,
+                code: "MISSED_SLOT",
+                issue: `Missing scheduled dose - ${slot} slot has no entry while other slots (${administeredSlots}) were administered`,
+                severity: "high",
+                actions: { performanceNote: true, meeting: "phone", referToManager: true }
+              });
+            }
+          });
+        });
       });
 
       // =====================================================================
@@ -3034,6 +3212,10 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         totalMainRefusalCount: totalMainRefusalCount,
         totalPrnRefusalCount: totalPrnRefusalCount,
         totalOtherDiscrepancyCount: totalOtherDiscrepancyCount,
+        callCancelledCount: callCancelledCount,
+        callCancelledNote: callCancelledCount > 0 
+          ? "Blank cells indicate the care call was cancelled - no medication administration was required. These are not discrepancies and require no further action."
+          : null,
         userVerificationItems: verificationItems,
         prnMedications: {
           hasPRN: prnMeds.size > 0,

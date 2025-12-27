@@ -59,8 +59,7 @@ export default function Performance() {
 
   const getTopPerformers = (): CareWorkerFromAudits[] => {
     return careWorkers
-      .filter(w => w.discrepancyCount === 0 && w.auditCount > 0)
-      .slice(0, 5);
+      .filter(w => w.discrepancyCount === 0 && w.auditCount > 0);
   };
 
   const getCompliancePercentage = (worker: CareWorkerFromAudits): number => {
@@ -90,7 +89,7 @@ export default function Performance() {
       if (names.size > 0) {
         recommendations.push({
           topic,
-          assignedTo: Array.from(names).slice(0, 3),
+          assignedTo: Array.from(names),
           reason: `Based on ${names.size} staff member(s) with related discrepancies`
         });
       }
