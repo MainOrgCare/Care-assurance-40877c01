@@ -1806,16 +1806,17 @@ OTHER CRITICAL RULES:
       };
       
       // =====================================================================
-      // COST-OPTIMIZED 2-PASS EXTRACTION with per-entry consensus
-      // Reduced from 3 passes to 2 (saves ~33% API cost)
+      // 3-PASS PARALLEL EXTRACTION with per-entry consensus
+      // All passes run in parallel - highest entry count wins if no agreement
       // =====================================================================
-      console.log("DEBUG: Running 2-pass text extraction");
+      console.log("DEBUG: Running 3-pass parallel text extraction");
       sendProgress(35, "Extracting medication records...", "extraction_running");
       
-      // Run 2 extraction passes in parallel
-      const [pass1Entries, pass2Entries] = await Promise.all([
+      // Run 3 extraction passes in parallel
+      const [pass1Entries, pass2Entries, pass3Entries] = await Promise.all([
         runExtractionPass(1),
-        runExtractionPass(2)
+        runExtractionPass(2),
+        runExtractionPass(3)
       ]);
       
       let extractedEntries: any[] = pass1Entries;
@@ -1830,11 +1831,11 @@ OTHER CRITICAL RULES:
       } = { 
         pass1Count: pass1Entries.length,
         pass2Count: pass2Entries.length,
-        pass3Count: 0,
-        matchingPasses: [1, 2] 
+        pass3Count: pass3Entries.length,
+        matchingPasses: [] // Will be populated based on actual consensus
       };
       
-      console.log(`DEBUG: Pass counts - P1: ${pass1Entries.length}, P2: ${pass2Entries.length}`);
+      console.log(`DEBUG: Pass counts - P1: ${pass1Entries.length}, P2: ${pass2Entries.length}, P3: ${pass3Entries.length}`);
       
       // =====================================================================
       // VALIDATED 3-PASS APPROACH: Use per-entry consensus
@@ -1889,22 +1890,24 @@ OTHER CRITICAL RULES:
         return hasEntries && countOK;
       };
       
-      // Validate both passes
+      // Validate all 3 passes
       const p1Validation = validatePassEntries(pass1Entries);
       const p2Validation = validatePassEntries(pass2Entries);
+      const p3Validation = validatePassEntries(pass3Entries);
       
-      console.log(`DEBUG: Valid entries - P1: ${p1Validation.validEntries.length}, P2: ${p2Validation.validEntries.length}`);
+      console.log(`DEBUG: Valid entries - P1: ${p1Validation.validEntries.length}, P2: ${p2Validation.validEntries.length}, P3: ${p3Validation.validEntries.length}`);
       
       // =====================================================================
       // PER-ENTRY CONSENSUS: Track which passes found each entry
-      // With 2 passes: both agree = consensus
+      // With 3 passes: entries in 2+ passes = consensus, otherwise highest count wins
       // =====================================================================
       
       const entryPassVotes = new Map<string, { passIds: Set<number>, entry: any }>();
       
       const allPassValidations = [
         { passNum: 1, entries: p1Validation.validEntries },
-        { passNum: 2, entries: p2Validation.validEntries }
+        { passNum: 2, entries: p2Validation.validEntries },
+        { passNum: 3, entries: p3Validation.validEntries }
       ];
       
       for (const passData of allPassValidations) {
@@ -1921,50 +1924,54 @@ OTHER CRITICAL RULES:
       const singlePassEntries: any[] = [];
       
       entryPassVotes.forEach(({ passIds, entry }, hash) => {
-        if (passIds.size === 2) {
+        if (passIds.size >= 2) {
+          // Entry found in 2+ passes = consensus
           consensusEntries.push(entry);
         } else {
           singlePassEntries.push(entry);
         }
       });
       
-      console.log(`DEBUG: Per-entry consensus - Both passes (2): ${consensusEntries.length}, Single pass: ${singlePassEntries.length}`);
+      console.log(`DEBUG: Per-entry consensus - 2+ passes: ${consensusEntries.length}, Single pass: ${singlePassEntries.length}`);
       
-      // IMPORTANT: Always include single-pass refusal entries to avoid missing refusals
+      // IMPORTANT: Include ALL single-pass entries (not just refusals) to avoid missing data
+      // Highest count pass wins strategy means we include everything
       const refusalCodes = new Set(["R", "MU", "NH", "FA", "SA", "PRN-R", "MISSED"]);
-      const singlePassRefusals = singlePassEntries.filter((entry: any) => {
-        const code = (entry.code || "").toUpperCase();
-        return refusalCodes.has(code);
-      });
       
-      if (singlePassRefusals.length > 0) {
-        console.log(`DEBUG: Including ${singlePassRefusals.length} single-pass refusal entries to avoid missing refusals`);
+      if (singlePassEntries.length > 0) {
+        console.log(`DEBUG: Including ALL ${singlePassEntries.length} single-pass entries to maximize data capture`);
       }
       
       // Calculate max pass count for logging
-      const maxPassCount = Math.max(p1Validation.validEntries.length, p2Validation.validEntries.length);
+      const maxPassCount = Math.max(p1Validation.validEntries.length, p2Validation.validEntries.length, p3Validation.validEntries.length);
       const consensusRatio = maxPassCount > 0 ? consensusEntries.length / maxPassCount : 0;
       
       console.log(`DEBUG: Consensus ratio: ${consensusEntries.length}/${maxPassCount} = ${(consensusRatio * 100).toFixed(1)}%`);
       
-      // CHAMPION-PASS MERGE with quality gates and refusal priority
-      // 1. Select champion from passes that meet quality gates (or highest count if none meet gates)
-      // 2. Add unique entries from other pass (by slot key)
-      // 3. For refusals: prefer refusal over non-refusal when same slot conflicts
-      if (p1Validation.validEntries.length > 0 || p2Validation.validEntries.length > 0) {
-        const passResults = [
-          { pass: 1, entries: p1Validation.validEntries, meetsGates: passQualityGates(p1Validation.validEntries) },
-          { pass: 2, entries: p2Validation.validEntries, meetsGates: passQualityGates(p2Validation.validEntries) }
-        ];
-        
-        // Prefer passes that meet quality gates, then by count
+      // 3-PASS MERGE with quality gates, then highest count wins
+      // 1. Prefer passes that meet quality gates, sorted by count
+      // 2. Fall back to highest count if none meet gates
+      // 3. Add unique entries from other passes
+      // 4. For conflicts: prefer refusal codes over non-refusals
+      // 5. Include single-pass entries NOT already in champion to maximize data capture
+      const passResults = [
+        { pass: 1, entries: p1Validation.validEntries, meetsGates: passQualityGates(p1Validation.validEntries) },
+        { pass: 2, entries: p2Validation.validEntries, meetsGates: passQualityGates(p2Validation.validEntries) },
+        { pass: 3, entries: p3Validation.validEntries, meetsGates: passQualityGates(p3Validation.validEntries) }
+      ];
+      
+      console.log(`DEBUG: Quality gates - P1: ${passResults[0].meetsGates}, P2: ${passResults[1].meetsGates}, P3: ${passResults[2].meetsGates}`);
+      
+      if (p1Validation.validEntries.length > 0 || p2Validation.validEntries.length > 0 || p3Validation.validEntries.length > 0) {
+        // Prefer passes that meet quality gates, then sort by count
         const gatedPasses = passResults.filter(p => p.meetsGates).sort((a, b) => b.entries.length - a.entries.length);
-        const championPass = gatedPasses.length > 0 
-          ? gatedPasses[0]
-          : passResults.sort((a, b) => b.entries.length - a.entries.length)[0];
-        const otherPass = passResults.find(p => p.pass !== championPass.pass)!;
+        const sortedByCount = [...passResults].sort((a, b) => b.entries.length - a.entries.length);
         
-        console.log(`DEBUG: Champion pass ${championPass.pass} (gates: ${championPass.meetsGates}): ${championPass.entries.length} entries`);
+        // Champion: highest count among gated passes, or highest count overall if none meet gates
+        const championPass = gatedPasses.length > 0 ? gatedPasses[0] : sortedByCount[0];
+        const otherPasses = passResults.filter(p => p.pass !== championPass.pass);
+        
+        console.log(`DEBUG: Champion pass ${championPass.pass} (gates: ${championPass.meetsGates}, count: ${championPass.entries.length})`);
         
         // Create slot-key lookup (medicationId + date + timeSlot)
         const getSlotKey = (e: any) => `${e.medicationId}|${(e.date || '').toLowerCase().trim()}|${(e.timeSlot || '').toLowerCase().trim()}`;
@@ -1972,92 +1979,88 @@ OTHER CRITICAL RULES:
         
         // Build champion entries map by slot key
         const championBySlot = new Map<string, any>();
+        const championSlotKeys = new Set<string>();
         for (const entry of championPass.entries) {
-          championBySlot.set(getSlotKey(entry), entry);
-        }
-        
-        // Process other pass: add unique entries, and for conflicts prefer refusals
-        let addedFromOther = 0;
-        let refusalOverrides = 0;
-        for (const entry of otherPass.entries) {
           const key = getSlotKey(entry);
-          const existing = championBySlot.get(key);
-          
-          if (!existing) {
-            // Unique entry - add it
-            championBySlot.set(key, entry);
-            addedFromOther++;
-          } else if (isRefusalCode(entry.code) && !isRefusalCode(existing.code)) {
-            // Conflict: other pass has refusal, champion doesn't - prefer refusal
-            championBySlot.set(key, entry);
-            refusalOverrides++;
-            console.log(`DEBUG: Refusal override at slot ${key}: ${existing.code} -> ${entry.code}`);
-          }
-          // Otherwise: keep champion entry (either both agree, or champion has refusal, or neither is refusal)
+          championBySlot.set(key, entry);
+          championSlotKeys.add(key);
         }
         
-        // Also add any single-pass refusals that don't have a slot yet
-        for (const refusal of singlePassRefusals) {
-          const key = getSlotKey(refusal);
-          if (!championBySlot.has(key)) {
-            championBySlot.set(key, refusal);
-          } else if (!isRefusalCode(championBySlot.get(key).code)) {
-            // Champion has non-refusal, single-pass has refusal - prefer refusal
-            championBySlot.set(key, refusal);
+        // Process all other passes: add unique entries, and for conflicts prefer refusals
+        let addedFromOthers = 0;
+        let refusalOverrides = 0;
+        for (const otherPass of otherPasses) {
+          for (const entry of otherPass.entries) {
+            const key = getSlotKey(entry);
+            const existing = championBySlot.get(key);
+            
+            if (!existing) {
+              // Unique entry - add it
+              championBySlot.set(key, entry);
+              addedFromOthers++;
+            } else if (isRefusalCode(entry.code) && !isRefusalCode(existing.code)) {
+              // Conflict: other pass has refusal, champion doesn't - prefer refusal
+              championBySlot.set(key, entry);
+              refusalOverrides++;
+              console.log(`DEBUG: Refusal override at slot ${key}: ${existing.code} -> ${entry.code}`);
+            }
+            // Otherwise: keep champion entry
+          }
+        }
+        
+        // Add single-pass entries that are NOT already in champion (unique contributions only)
+        let addedFromSinglePass = 0;
+        for (const singleEntry of singlePassEntries) {
+          const key = getSlotKey(singleEntry);
+          // Skip if this entry was already in the champion pass
+          if (championSlotKeys.has(key)) continue;
+          
+          const existing = championBySlot.get(key);
+          if (!existing) {
+            championBySlot.set(key, singleEntry);
+            addedFromSinglePass++;
+          } else if (isRefusalCode(singleEntry.code) && !isRefusalCode(existing.code)) {
+            // Single-pass has refusal, existing doesn't - prefer refusal
+            championBySlot.set(key, singleEntry);
             refusalOverrides++;
           }
         }
         
         extractedEntries = Array.from(championBySlot.values());
         
-        const hasConflicts = addedFromOther > 0 || refusalOverrides > 0;
-        console.log(`DEBUG: Champion pass ${championPass.pass}: ${championPass.entries.length} base + ${addedFromOther} unique + ${refusalOverrides} refusal overrides = ${extractedEntries.length} total`);
+        // Determine which passes actually contributed to consensus
+        const actualMatchingPasses: number[] = [];
+        entryPassVotes.forEach(({ passIds }) => {
+          if (passIds.size >= 2) {
+            passIds.forEach(pid => {
+              if (!actualMatchingPasses.includes(pid)) actualMatchingPasses.push(pid);
+            });
+          }
+        });
+        actualMatchingPasses.sort((a, b) => a - b);
+        
+        const hasConflicts = addedFromOthers > 0 || refusalOverrides > 0 || addedFromSinglePass > 0;
+        console.log(`DEBUG: Champion pass ${championPass.pass}: ${championPass.entries.length} base + ${addedFromOthers} from other passes + ${addedFromSinglePass} single-pass + ${refusalOverrides} refusal overrides = ${extractedEntries.length} total`);
         
         // Set status: verified only if high consensus AND no conflicts
         if (consensusRatio >= 0.9 && !hasConflicts) {
           consensusStatus = "verified";
-          consensusDetails.matchingPasses = [1, 2];
+          consensusDetails.matchingPasses = actualMatchingPasses;
           consensusDetails.fallbackPassUsed = championPass.pass;
         } else {
           consensusStatus = "no_consensus";
-          consensusDetails.matchingPasses = [];
+          consensusDetails.matchingPasses = actualMatchingPasses;
           consensusDetails.fallbackPassUsed = championPass.pass;
-          consensusDetails.escalationReason = `Merged pass ${championPass.pass} (${championPass.entries.length}) + ${addedFromOther} unique + ${refusalOverrides} refusal overrides = ${extractedEntries.length} total (consensus: ${(consensusRatio * 100).toFixed(0)}%)`;
+          consensusDetails.escalationReason = `Merged pass ${championPass.pass} (${championPass.entries.length}) + ${addedFromOthers} other + ${addedFromSinglePass} single + ${refusalOverrides} refusal overrides = ${extractedEntries.length} total (consensus: ${(consensusRatio * 100).toFixed(0)}%)`;
         }
       } else {
-        // No consensus - use pass with more valid entries
+        // All passes returned 0 valid entries
         consensusStatus = "no_consensus";
         consensusDetails.matchingPasses = [];
-        
-        const passResults = [
-          { pass: 1, entries: p1Validation.validEntries, meetsGates: passQualityGates(p1Validation.validEntries), invalidCount: p1Validation.invalidCount },
-          { pass: 2, entries: p2Validation.validEntries, meetsGates: passQualityGates(p2Validation.validEntries), invalidCount: p2Validation.invalidCount }
-        ];
-        
-        console.log(`DEBUG: Quality gates - P1: ${passResults[0].meetsGates}, P2: ${passResults[1].meetsGates}`);
-        
-        const gatePassers = passResults.filter(p => p.meetsGates).sort((a, b) => b.entries.length - a.entries.length);
-        
-        if (gatePassers.length > 0) {
-          extractedEntries = gatePassers[0].entries;
-          consensusDetails.fallbackPassUsed = gatePassers[0].pass;
-          consensusDetails.escalationReason = `No per-entry consensus, used pass ${gatePassers[0].pass} (meets quality gates)`;
-          console.log(`DEBUG: No per-entry consensus - using pass ${gatePassers[0].pass} (${gatePassers[0].entries.length} entries)`);
-        } else {
-          const sortedByCount = [...passResults].sort((a, b) => b.entries.length - a.entries.length);
-          
-          if (sortedByCount[0].entries.length === 0) {
-            extractedEntries = [];
-            consensusDetails.fallbackPassUsed = 0;
-            consensusDetails.escalationReason = "CRITICAL: All extraction passes failed validation - manual document review required";
-            console.log(`DEBUG: CRITICAL - all passes failed validation`);
-          } else {
-            extractedEntries = sortedByCount[0].entries;
-            consensusDetails.fallbackPassUsed = sortedByCount[0].pass;
-            consensusDetails.escalationReason = `WARNING: Using pass ${sortedByCount[0].pass} with ${sortedByCount[0].entries.length} entries, manual review recommended`;
-            console.log(`DEBUG: Using pass ${sortedByCount[0].pass} with ${sortedByCount[0].entries.length} valid entries`);
-          }
-        }
+        extractedEntries = [];
+        consensusDetails.fallbackPassUsed = 0;
+        consensusDetails.escalationReason = "CRITICAL: All extraction passes failed validation - manual document review required";
+        console.log(`DEBUG: CRITICAL - all passes failed validation`);
       }
       sendProgress(65, "Extraction complete...", "extraction_complete");
       
