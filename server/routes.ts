@@ -3030,7 +3030,39 @@ If no equivalences found, return: {"equivalences": []}`
       // 2. Skip entries without valid dates
       // 3. Require at least 2 valid entries on the same day to compare
       // =====================================================================
+      
+      // Helper to extract time from entry - check both time field and timeSlot
+      const extractTimeFromEntry = (entry: any): string | null => {
+        // First check explicit time field
+        let timeStr = (entry.time || "").trim();
+        if (timeStr && timeStr.includes(":")) {
+          return timeStr;
+        }
+        
+        // Also check if timeSlot contains a time (e.g., "08:00", "14:30")
+        const slotStr = (entry.timeSlot || "").trim();
+        const timeMatch = slotStr.match(/(\d{1,2}:\d{2})/);
+        if (timeMatch) {
+          return timeMatch[1];
+        }
+        
+        // Check for common time slot names and convert to approximate times
+        const slotLower = slotStr.toLowerCase();
+        if (slotLower.includes("morning") || slotLower === "am") return "08:00";
+        if (slotLower.includes("lunch") || slotLower.includes("noon")) return "12:00";
+        if (slotLower.includes("afternoon")) return "14:00";
+        if (slotLower.includes("evening") || slotLower.includes("tea")) return "18:00";
+        if (slotLower.includes("night") || slotLower.includes("bed")) return "22:00";
+        
+        return null;
+      };
+      
+      console.log(`DEBUG: PRN medications detected: ${Array.from(prnMeds).join(", ") || "NONE"}`);
+      console.log(`DEBUG: Total entries to check for time gaps: ${allEntries.length}`);
+      
       const medDateEntriesForTimeGap = new Map<string, any[]>();
+      let prnEntriesFound = 0;
+      let entriesWithTimes = 0;
       
       allEntries.forEach((entry: any) => {
         const code = (entry.code || "").toUpperCase();
@@ -3040,7 +3072,6 @@ If no equivalences found, return: {"equivalences": []}`
         // Skip entries without valid dates (prevents cross-day false positives)
         const entryDate = (entry.date || "").trim();
         if (!entryDate || entryDate.length < 3) {
-          console.log(`DEBUG: Skipping time gap check for entry with missing date: ${entry.medication}`);
           return;
         }
         
@@ -3048,12 +3079,21 @@ If no equivalences found, return: {"equivalences": []}`
         const isPRN = prnMeds.has(entry.medication);
         if (!isPRN) return; // Skip scheduled medications - each slot is a discrete dose
         
-        // Normalize date for grouping (lowercase, trim)
-        const normalizedDate = entryDate.toLowerCase().trim();
-        const key = `${entry.medication}|${normalizedDate}`;
-        if (!medDateEntriesForTimeGap.has(key)) medDateEntriesForTimeGap.set(key, []);
-        medDateEntriesForTimeGap.get(key)!.push(entry);
+        prnEntriesFound++;
+        
+        // Extract time from entry
+        const timeValue = extractTimeFromEntry(entry);
+        if (timeValue) {
+          entriesWithTimes++;
+          // Store entry with normalized time
+          const normalizedDate = entryDate.toLowerCase().trim();
+          const key = `${entry.medication}|${normalizedDate}`;
+          if (!medDateEntriesForTimeGap.has(key)) medDateEntriesForTimeGap.set(key, []);
+          medDateEntriesForTimeGap.get(key)!.push({ ...entry, extractedTime: timeValue });
+        }
       });
+      
+      console.log(`DEBUG: PRN entries found: ${prnEntriesFound}, with valid times: ${entriesWithTimes}`);
 
       medDateEntriesForTimeGap.forEach((dayEntries, key) => {
         // Need at least 2 entries to compare
@@ -3062,29 +3102,28 @@ If no equivalences found, return: {"equivalences": []}`
         const [medication] = key.split("|");
         const requiredGap = medGapHours.get(medication) || 4; // Default 4 hours
         
-        // Filter entries with valid times and sort
-        const sortedEntries = dayEntries
-          .filter((e: any) => e.time && e.time.includes(":"))
-          .sort((a: any, b: any) => {
-            const [aH, aM] = a.time.split(":").map(Number);
-            const [bH, bM] = b.time.split(":").map(Number);
-            return (aH * 60 + aM) - (bH * 60 + bM);
-          });
-
-        // Need at least 2 entries with valid times
-        if (sortedEntries.length < 2) return;
+        console.log(`DEBUG: Checking time gaps for ${medication} on ${key.split("|")[1]}: ${dayEntries.length} entries, required gap: ${requiredGap}h`);
+        
+        // Sort entries by extracted time
+        const sortedEntries = dayEntries.sort((a: any, b: any) => {
+          const [aH, aM] = a.extractedTime.split(":").map(Number);
+          const [bH, bM] = b.extractedTime.split(":").map(Number);
+          return (aH * 60 + aM) - (bH * 60 + bM);
+        });
 
         for (let i = 1; i < sortedEntries.length; i++) {
           const prev = sortedEntries[i - 1];
           const curr = sortedEntries[i];
           
-          const [prevH, prevM] = prev.time.split(":").map(Number);
-          const [currH, currM] = curr.time.split(":").map(Number);
+          const [prevH, prevM] = prev.extractedTime.split(":").map(Number);
+          const [currH, currM] = curr.extractedTime.split(":").map(Number);
           
           const prevMinutes = prevH * 60 + prevM;
           const currMinutes = currH * 60 + currM;
           const gapMinutes = currMinutes - prevMinutes;
           const gapHours = gapMinutes / 60;
+          
+          console.log(`DEBUG: Gap between ${prev.extractedTime} and ${curr.extractedTime} = ${gapHours.toFixed(2)}h (required: ${requiredGap}h)`);
 
           // Skip if times are very close or identical (likely duplicate extraction)
           if (gapHours <= 0.25) { // 15 min tolerance for duplicates
@@ -3093,12 +3132,13 @@ If no equivalences found, return: {"equivalences": []}`
           }
 
           if (gapHours < requiredGap - 0.17) { // 10 min tolerance
+            console.log(`DEBUG: TIME GAP VIOLATION DETECTED: ${medication} - ${gapHours.toFixed(1)}h < ${requiredGap}h`);
             discrepancies.push({
               careWorkerName: curr.careWorker,
               date: curr.date,
               timeSlot: curr.timeSlot,
               medication: medication,
-              issue: `PRN time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap} hours). Previous dose at ${prev.time}, this dose at ${curr.time}`,
+              issue: `PRN time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap} hours). Previous dose at ${prev.extractedTime}, this dose at ${curr.extractedTime}`,
               severity: "high",
               actions: { performanceNote: true, meeting: "in_person", referToManager: true }
             });
