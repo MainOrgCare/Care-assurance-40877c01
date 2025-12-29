@@ -3125,6 +3125,46 @@ If no equivalences found, return: {"equivalences": []}`
       
       console.log(`DEBUG: Administered entries found: ${administeredEntriesFound}, with valid times: ${entriesWithTimes}`);
 
+      // DEDUPLICATION: Multiple time slot rows may record the same administration
+      // If entries are within 1 hour of each other on the same day, they're likely duplicates
+      // Keep only the earliest one
+      medDateEntriesForTimeGap.forEach((dayEntries, key) => {
+        if (dayEntries.length <= 1) return;
+        
+        // Sort by time
+        dayEntries.sort((a: any, b: any) => {
+          const [aH, aM] = a.extractedTime.split(":").map(Number);
+          const [bH, bM] = b.extractedTime.split(":").map(Number);
+          return (aH * 60 + aM) - (bH * 60 + bM);
+        });
+        
+        // Filter out entries that are within 1 hour of a previous entry (likely duplicates from different time slots)
+        const deduped: any[] = [];
+        for (const entry of dayEntries) {
+          const [h, m] = entry.extractedTime.split(":").map(Number);
+          const entryMinutes = h * 60 + m;
+          
+          // Check if this is too close to any existing entry
+          const isDuplicate = deduped.some((existing: any) => {
+            const [eH, eM] = existing.extractedTime.split(":").map(Number);
+            const existingMinutes = eH * 60 + eM;
+            const diff = Math.abs(entryMinutes - existingMinutes);
+            return diff < 60; // Within 1 hour = likely same administration
+          });
+          
+          if (!isDuplicate) {
+            deduped.push(entry);
+          } else {
+            console.log(`DEBUG: Deduped entry for ${entry.medication} at ${entry.extractedTime} (too close to existing entry)`);
+          }
+        }
+        
+        // Replace with deduplicated entries
+        medDateEntriesForTimeGap.set(key, deduped);
+      });
+      
+      console.log(`DEBUG: After deduplication, checking gaps for ${medDateEntriesForTimeGap.size} medication-day combinations`);
+
       medDateEntriesForTimeGap.forEach((dayEntries, key) => {
         // Need at least 2 entries to compare
         if (dayEntries.length < 2) return;
