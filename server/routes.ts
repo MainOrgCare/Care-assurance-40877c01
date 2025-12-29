@@ -469,7 +469,9 @@ export async function registerRoutes(
     }
   });
 
-  // Demo Login - creates a temporary demo session with sample data
+  // Demo Login - TEMPORARILY DISABLED
+  // To re-enable, uncomment this endpoint
+  /*
   app.post("/api/auth/demo", async (req, res) => {
     try {
       const clientIp = getClientIp(req);
@@ -515,6 +517,7 @@ export async function registerRoutes(
       return res.status(500).json({ message: error.message });
     }
   });
+  */
 
   // Register (creates pending user)
   app.post("/api/auth/register", async (req, res) => {

@@ -405,25 +405,6 @@ export default function Homepage() {
           >
             <Button 
               size="lg"
-              className="bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white font-semibold shadow-xl shadow-purple-900/40 px-8 h-12 text-base"
-              data-testid="button-hero-demo"
-              onClick={handleDemoLogin}
-              disabled={demoLoading}
-            >
-              {demoLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Loading Demo...
-                </>
-              ) : (
-                <>
-                  <Play className="mr-2 h-5 w-5" />
-                  Try Demo
-                </>
-              )}
-            </Button>
-            <Button 
-              size="lg"
               className="bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-semibold shadow-xl shadow-blue-900/40 px-8 h-12 text-base"
               data-testid="button-hero-login"
               onClick={() => setLoginOpen(true)}
