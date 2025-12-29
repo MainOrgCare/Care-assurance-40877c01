@@ -2069,6 +2069,14 @@ PRN MEDICATION TIME DETECTION (CRITICAL FOR REFUSALS):
 - If there is NO time, just initials or blank -> hasTime: false
 - This is used to detect PRN refusals so BE ACCURATE about hasTime
 
+DATE ASSIGNMENT RULES (CRITICAL - prevents cross-day errors):
+1. The EMAR is a grid with DATE COLUMNS. Each date appears in the header row.
+2. Each medication row intersects with each date column. An entry belongs to whichever date column it appears under.
+3. ONLY assign a date to an entry if you can clearly determine which column it belongs to.
+4. The dates available are: ${metadata.dates?.join(", ")}
+5. If you cannot determine which date column an entry belongs to, DO NOT include that entry.
+6. NEVER assign the same date to entries that appear in different columns of the EMAR grid.
+
 OTHER CRITICAL RULES:
 1. ALWAYS extract R codes - refusals are critical for compliance. Look for "R", "Ref", "Refused", "Declined"
 2. Look for ALL entries including those with codes R, MU, NH - these are just as important as AD/AS/P
@@ -3066,6 +3074,21 @@ If no equivalences found, return: {"equivalences": []}`
       
       console.log(`DEBUG: Total entries to check for time gaps: ${allEntries.length}`);
       
+      // Debug: Log all unique dates found in entries to diagnose date extraction issues
+      const allUniqueDates = new Set<string>();
+      allEntries.forEach((entry: any) => {
+        const entryDate = (entry.date || "").trim();
+        if (entryDate) allUniqueDates.add(entryDate);
+      });
+      console.log(`DEBUG: Unique dates found in entries: ${Array.from(allUniqueDates).join(", ")}`);
+      
+      // Log sample of entries with dates for diagnosis
+      const sampleEntries = allEntries.slice(0, 10);
+      console.log(`DEBUG: Sample entries for date diagnosis:`);
+      sampleEntries.forEach((e: any, i: number) => {
+        console.log(`  [${i}] ${e.medication} | date="${e.date}" | timeSlot="${e.timeSlot}" | time="${e.time}" | code="${e.code}"`);
+      });
+      
       const medDateEntriesForTimeGap = new Map<string, any[]>();
       let administeredEntriesFound = 0;
       let entriesWithTimes = 0;
@@ -3111,13 +3134,23 @@ If no equivalences found, return: {"equivalences": []}`
         administeredEntriesFound++;
         entriesWithTimes++;
         
-        // Normalize date more carefully - include original for logging
-        // Create a unique date key that includes any distinguishing info
-        const normalizedDate = entryDate.toLowerCase().trim().replace(/\s+/g, ' ');
-        const isPRN = prnMeds.has(entry.medication) || code.includes("PRN");
-        const key = `${entry.medication}|${normalizedDate}`;
+        // Extract a canonical date key: day number + month abbreviation
+        // This ensures "Sun, 21 Dec" and "21 Dec" both map to "21-dec"
+        // But "21 Dec" and "23 Dec" stay separate
+        let canonicalDateKey = entryDate.toLowerCase().trim();
         
-        console.log(`DEBUG: Valid administration for gap check: ${entry.medication} on "${normalizedDate}" at ${timeValue} by ${careWorkerInitials}`);
+        // Try to extract day number and month for a cleaner key
+        const dayMonthMatch = entryDate.match(/(\d{1,2})\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
+        if (dayMonthMatch) {
+          const dayNum = dayMonthMatch[1].padStart(2, '0');
+          const month = dayMonthMatch[2].toLowerCase();
+          canonicalDateKey = `${dayNum}-${month}`;
+        }
+        
+        const isPRN = prnMeds.has(entry.medication) || code.includes("PRN");
+        const key = `${entry.medication}|${canonicalDateKey}`;
+        
+        console.log(`DEBUG: Valid administration for gap check: ${entry.medication} on "${entryDate}" (key: ${canonicalDateKey}) at ${timeValue} by ${careWorkerInitials}`);
         
         if (!medDateEntriesForTimeGap.has(key)) medDateEntriesForTimeGap.set(key, []);
         medDateEntriesForTimeGap.get(key)!.push({ ...entry, extractedTime: timeValue, isPRN, originalDate: entryDate });
@@ -3223,6 +3256,24 @@ If no equivalences found, return: {"equivalences": []}`
           }
 
           if (gapHours < requiredGap - 0.17) { // 10 min tolerance
+            // SANITY CHECK: If the gap is extremely short (less than 25% of required)
+            // AND the required gap is large (8+ hours for once-daily meds), 
+            // this is likely a data extraction error (entries from different days wrongly grouped)
+            const gapRatio = gapHours / requiredGap;
+            const isLikelyDataError = gapRatio < 0.25 && requiredGap >= 8;
+            
+            if (isLikelyDataError) {
+              console.log(`DEBUG: Skipping likely false positive - gap ${gapHours.toFixed(1)}h is <25% of required ${requiredGap}h, probably cross-day extraction error`);
+              warnings.push({
+                type: "possible_extraction_error",
+                severity: "low",
+                medication: medication,
+                description: `Detected suspiciously short gap (${gapHours.toFixed(1)}h) between ${prev.extractedTime} and ${curr.extractedTime} - likely entries from different days were grouped together due to OCR/extraction issues`,
+                recommendedAction: "Review original EMAR document to verify dates"
+              });
+              continue;
+            }
+            
             const isPRNEntry = prev.isPRN || curr.isPRN;
             const issueType = isPRNEntry ? "PRN medication" : "Medication";
             console.log(`DEBUG: TIME GAP VIOLATION DETECTED: ${medication} on ${curr.originalDate} - ${gapHours.toFixed(1)}h < ${requiredGap}h`);
