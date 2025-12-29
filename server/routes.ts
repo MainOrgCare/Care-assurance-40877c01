@@ -3079,6 +3079,14 @@ If no equivalences found, return: {"equivalences": []}`
         // Only include entries where medication was actually administered
         if (!isAdministeredCode(code)) return;
         
+        // CRITICAL: Must have care worker initials to be a valid administration
+        // Empty time slots (crossed out boxes) won't have initials
+        const careWorkerInitials = (entry.careWorkerInitials || entry.careWorker || "").trim();
+        if (!careWorkerInitials || careWorkerInitials.length < 1) {
+          console.log(`DEBUG: Skipping entry without care worker initials: ${entry.medication} on ${entry.date}`);
+          return;
+        }
+        
         // Skip entries without valid dates (prevents cross-day false positives)
         const entryDate = (entry.date || "").trim();
         if (!entryDate || entryDate.length < 3) {
@@ -3093,23 +3101,26 @@ If no equivalences found, return: {"equivalences": []}`
           return;
         }
         
-        administeredEntriesFound++;
-        
-        // Extract time from entry
+        // Extract time from entry - must have a valid time to compare gaps
         const timeValue = extractTimeFromEntry(entry);
-        if (timeValue) {
-          entriesWithTimes++;
-          // Normalize date more carefully - include original for logging
-          // Create a unique date key that includes any distinguishing info
-          const normalizedDate = entryDate.toLowerCase().trim().replace(/\s+/g, ' ');
-          const isPRN = prnMeds.has(entry.medication) || code.includes("PRN");
-          const key = `${entry.medication}|${normalizedDate}`;
-          
-          console.log(`DEBUG: Adding entry to gap check: ${entry.medication} on "${normalizedDate}" at ${timeValue}`);
-          
-          if (!medDateEntriesForTimeGap.has(key)) medDateEntriesForTimeGap.set(key, []);
-          medDateEntriesForTimeGap.get(key)!.push({ ...entry, extractedTime: timeValue, isPRN, originalDate: entryDate });
+        if (!timeValue) {
+          console.log(`DEBUG: Skipping entry without valid time: ${entry.medication} on ${entryDate}`);
+          return;
         }
+        
+        administeredEntriesFound++;
+        entriesWithTimes++;
+        
+        // Normalize date more carefully - include original for logging
+        // Create a unique date key that includes any distinguishing info
+        const normalizedDate = entryDate.toLowerCase().trim().replace(/\s+/g, ' ');
+        const isPRN = prnMeds.has(entry.medication) || code.includes("PRN");
+        const key = `${entry.medication}|${normalizedDate}`;
+        
+        console.log(`DEBUG: Valid administration for gap check: ${entry.medication} on "${normalizedDate}" at ${timeValue} by ${careWorkerInitials}`);
+        
+        if (!medDateEntriesForTimeGap.has(key)) medDateEntriesForTimeGap.set(key, []);
+        medDateEntriesForTimeGap.get(key)!.push({ ...entry, extractedTime: timeValue, isPRN, originalDate: entryDate });
       });
       
       console.log(`DEBUG: Administered entries found: ${administeredEntriesFound}, with valid times: ${entriesWithTimes}`);
