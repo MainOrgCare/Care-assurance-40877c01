@@ -3019,16 +3019,13 @@ If no equivalences found, return: {"equivalences": []}`
       });
 
       // =====================================================================
-      // CHECK 6: TIME GAP VIOLATIONS (PRN MEDICATIONS ONLY)
+      // CHECK 6: TIME GAP VIOLATIONS (ALL ADMINISTERED MEDICATIONS)
       // =====================================================================
-      // Time gap detection ONLY applies to PRN medications where multiple doses
-      // might be given on the same day. For scheduled medications, each timeSlot
-      // row is a discrete scheduled dose, not cumulative dosing.
+      // Time gap detection applies to ALL medications where doses were administered
+      // on the same day. Checks for minimum required gap between doses.
       //
-      // Safeguards to prevent false positives:
-      // 1. Only check PRN medications (skip scheduled meds)
-      // 2. Skip entries without valid dates
-      // 3. Require at least 2 valid entries on the same day to compare
+      // Included administration codes: AD, AS, PRN-AD, PRN-AS, ADMINISTERED, GIVEN
+      // Excluded codes: BLANK, EMPTY, MU, NH, R, FA, MISSED, SA (self-admin)
       // =====================================================================
       
       // Helper to extract time from entry - check both time field and timeSlot
@@ -3057,17 +3054,29 @@ If no equivalences found, return: {"equivalences": []}`
         return null;
       };
       
-      console.log(`DEBUG: PRN medications detected: ${Array.from(prnMeds).join(", ") || "NONE"}`);
+      // Check if code indicates medication was administered
+      const isAdministeredCode = (code: string): boolean => {
+        const upperCode = code.toUpperCase();
+        // Include all administration codes
+        return ["AD", "AS", "PRN-AD", "PRN-AS", "ADMINISTERED", "GIVEN", "PRN", "G"].includes(upperCode) ||
+               upperCode.startsWith("PRN-A") || // PRN-AD, PRN-AS variations
+               upperCode === "A"; // Single letter A for administered
+      };
+      
       console.log(`DEBUG: Total entries to check for time gaps: ${allEntries.length}`);
       
       const medDateEntriesForTimeGap = new Map<string, any[]>();
-      let prnEntriesFound = 0;
+      let administeredEntriesFound = 0;
       let entriesWithTimes = 0;
       
       allEntries.forEach((entry: any) => {
         const code = (entry.code || "").toUpperCase();
-        // Skip non-administration codes
-        if (["BLANK", "EMPTY", "", "MU", "NH", "R", "FA", "MISSED"].includes(code)) return;
+        
+        // Skip non-administration codes (blanks, refusals, unavailable, etc.)
+        if (["BLANK", "EMPTY", "", "MU", "NH", "R", "FA", "MISSED", "SA"].includes(code)) return;
+        
+        // Only include entries where medication was actually administered
+        if (!isAdministeredCode(code)) return;
         
         // Skip entries without valid dates (prevents cross-day false positives)
         const entryDate = (entry.date || "").trim();
@@ -3075,32 +3084,30 @@ If no equivalences found, return: {"equivalences": []}`
           return;
         }
         
-        // Only check PRN medications for time gaps
-        const isPRN = prnMeds.has(entry.medication);
-        if (!isPRN) return; // Skip scheduled medications - each slot is a discrete dose
-        
-        prnEntriesFound++;
+        administeredEntriesFound++;
         
         // Extract time from entry
         const timeValue = extractTimeFromEntry(entry);
         if (timeValue) {
           entriesWithTimes++;
-          // Store entry with normalized time
+          // Store entry with normalized time and whether it's PRN
           const normalizedDate = entryDate.toLowerCase().trim();
+          const isPRN = prnMeds.has(entry.medication) || code.includes("PRN");
           const key = `${entry.medication}|${normalizedDate}`;
           if (!medDateEntriesForTimeGap.has(key)) medDateEntriesForTimeGap.set(key, []);
-          medDateEntriesForTimeGap.get(key)!.push({ ...entry, extractedTime: timeValue });
+          medDateEntriesForTimeGap.get(key)!.push({ ...entry, extractedTime: timeValue, isPRN });
         }
       });
       
-      console.log(`DEBUG: PRN entries found: ${prnEntriesFound}, with valid times: ${entriesWithTimes}`);
+      console.log(`DEBUG: Administered entries found: ${administeredEntriesFound}, with valid times: ${entriesWithTimes}`);
 
       medDateEntriesForTimeGap.forEach((dayEntries, key) => {
         // Need at least 2 entries to compare
         if (dayEntries.length < 2) return;
         
         const [medication] = key.split("|");
-        const requiredGap = medGapHours.get(medication) || 4; // Default 4 hours
+        // Use configured gap if available, otherwise 4 hours for PRN, 4 hours for regular meds
+        const requiredGap = medGapHours.get(medication) || 4; // Default 4 hours minimum between doses
         
         console.log(`DEBUG: Checking time gaps for ${medication} on ${key.split("|")[1]}: ${dayEntries.length} entries, required gap: ${requiredGap}h`);
         
@@ -3132,13 +3139,15 @@ If no equivalences found, return: {"equivalences": []}`
           }
 
           if (gapHours < requiredGap - 0.17) { // 10 min tolerance
+            const isPRNEntry = prev.isPRN || curr.isPRN;
+            const issueType = isPRNEntry ? "PRN medication" : "Medication";
             console.log(`DEBUG: TIME GAP VIOLATION DETECTED: ${medication} - ${gapHours.toFixed(1)}h < ${requiredGap}h`);
             discrepancies.push({
               careWorkerName: curr.careWorker,
               date: curr.date,
               timeSlot: curr.timeSlot,
               medication: medication,
-              issue: `PRN time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap} hours). Previous dose at ${prev.extractedTime}, this dose at ${curr.extractedTime}`,
+              issue: `${issueType} time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap} hours minimum). Previous dose at ${prev.extractedTime}, this dose at ${curr.extractedTime}`,
               severity: "high",
               actions: { performanceNote: true, meeting: "in_person", referToManager: true }
             });
@@ -3146,7 +3155,7 @@ If no equivalences found, return: {"equivalences": []}`
         }
       });
       
-      console.log(`DEBUG: Time gap check completed for ${medDateEntriesForTimeGap.size} PRN medication-day combinations`);
+      console.log(`DEBUG: Time gap check completed for ${medDateEntriesForTimeGap.size} medication-day combinations`);
 
       // =====================================================================
       // CHECK 7: MU FREQUENCY WARNING
