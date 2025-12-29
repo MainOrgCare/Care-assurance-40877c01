@@ -3054,12 +3054,13 @@ If no equivalences found, return: {"equivalences": []}`
         return null;
       };
       
-      // Check if code indicates medication was administered
+      // Check if code indicates medication was administered (not assisted)
+      // AS = Assisted (carer helped but didn't administer) - excluded from time checks
       const isAdministeredCode = (code: string): boolean => {
         const upperCode = code.toUpperCase();
-        // Include all administration codes
-        return ["AD", "AS", "PRN-AD", "PRN-AS", "ADMINISTERED", "GIVEN", "PRN", "G"].includes(upperCode) ||
-               upperCode.startsWith("PRN-A") || // PRN-AD, PRN-AS variations
+        // Include administration codes, but NOT AS (Assisted)
+        return ["AD", "PRN-AD", "ADMINISTERED", "GIVEN", "PRN", "G"].includes(upperCode) ||
+               upperCode.startsWith("PRN-AD") || // PRN-AD variations only
                upperCode === "A"; // Single letter A for administered
       };
       
