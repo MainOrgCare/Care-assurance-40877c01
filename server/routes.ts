@@ -3085,18 +3085,30 @@ If no equivalences found, return: {"equivalences": []}`
           return;
         }
         
+        // Validate date has enough specificity to distinguish days
+        // Must contain a day number (1-31) to be valid for comparison
+        const dayNumberMatch = entryDate.match(/\b(\d{1,2})\b/);
+        if (!dayNumberMatch) {
+          console.log(`DEBUG: Skipping entry with non-specific date: "${entryDate}" for ${entry.medication}`);
+          return;
+        }
+        
         administeredEntriesFound++;
         
         // Extract time from entry
         const timeValue = extractTimeFromEntry(entry);
         if (timeValue) {
           entriesWithTimes++;
-          // Store entry with normalized time and whether it's PRN
-          const normalizedDate = entryDate.toLowerCase().trim();
+          // Normalize date more carefully - include original for logging
+          // Create a unique date key that includes any distinguishing info
+          const normalizedDate = entryDate.toLowerCase().trim().replace(/\s+/g, ' ');
           const isPRN = prnMeds.has(entry.medication) || code.includes("PRN");
           const key = `${entry.medication}|${normalizedDate}`;
+          
+          console.log(`DEBUG: Adding entry to gap check: ${entry.medication} on "${normalizedDate}" at ${timeValue}`);
+          
           if (!medDateEntriesForTimeGap.has(key)) medDateEntriesForTimeGap.set(key, []);
-          medDateEntriesForTimeGap.get(key)!.push({ ...entry, extractedTime: timeValue, isPRN });
+          medDateEntriesForTimeGap.get(key)!.push({ ...entry, extractedTime: timeValue, isPRN, originalDate: entryDate });
         }
       });
       
@@ -3106,11 +3118,19 @@ If no equivalences found, return: {"equivalences": []}`
         // Need at least 2 entries to compare
         if (dayEntries.length < 2) return;
         
-        const [medication] = key.split("|");
+        const [medication, dateKey] = key.split("|");
         // Use configured gap if available, otherwise 4 hours for PRN, 4 hours for regular meds
         const requiredGap = medGapHours.get(medication) || 4; // Default 4 hours minimum between doses
         
-        console.log(`DEBUG: Checking time gaps for ${medication} on ${key.split("|")[1]}: ${dayEntries.length} entries, required gap: ${requiredGap}h`);
+        // Verify all entries have the same original date (prevent cross-day false positives)
+        const uniqueDates = new Set(dayEntries.map((e: any) => e.originalDate));
+        if (uniqueDates.size > 1) {
+          console.log(`DEBUG: WARNING - Multiple dates found in same group for ${medication}: ${Array.from(uniqueDates).join(", ")}`);
+          // Don't compare entries from different days
+          return;
+        }
+        
+        console.log(`DEBUG: Checking time gaps for ${medication} on "${dateKey}": ${dayEntries.length} entries, required gap: ${requiredGap}h`);
         
         // Sort entries by extracted time
         const sortedEntries = dayEntries.sort((a: any, b: any) => {
@@ -3123,6 +3143,12 @@ If no equivalences found, return: {"equivalences": []}`
           const prev = sortedEntries[i - 1];
           const curr = sortedEntries[i];
           
+          // Double-check dates match before comparing times
+          if (prev.originalDate !== curr.originalDate) {
+            console.log(`DEBUG: Skipping cross-day comparison: ${prev.originalDate} vs ${curr.originalDate}`);
+            continue;
+          }
+          
           const [prevH, prevM] = prev.extractedTime.split(":").map(Number);
           const [currH, currM] = curr.extractedTime.split(":").map(Number);
           
@@ -3131,18 +3157,24 @@ If no equivalences found, return: {"equivalences": []}`
           const gapMinutes = currMinutes - prevMinutes;
           const gapHours = gapMinutes / 60;
           
-          console.log(`DEBUG: Gap between ${prev.extractedTime} and ${curr.extractedTime} = ${gapHours.toFixed(2)}h (required: ${requiredGap}h)`);
+          console.log(`DEBUG: Gap between ${prev.extractedTime} and ${curr.extractedTime} on ${curr.originalDate} = ${gapHours.toFixed(2)}h (required: ${requiredGap}h)`);
 
           // Skip if times are very close or identical (likely duplicate extraction)
           if (gapHours <= 0.25) { // 15 min tolerance for duplicates
             console.log(`DEBUG: Skipping near-duplicate entry for ${medication} (${gapHours.toFixed(2)}h gap)`);
             continue;
           }
+          
+          // Skip negative gaps (would indicate time went backwards - data issue)
+          if (gapHours < 0) {
+            console.log(`DEBUG: Skipping negative gap for ${medication} - possible data issue`);
+            continue;
+          }
 
           if (gapHours < requiredGap - 0.17) { // 10 min tolerance
             const isPRNEntry = prev.isPRN || curr.isPRN;
             const issueType = isPRNEntry ? "PRN medication" : "Medication";
-            console.log(`DEBUG: TIME GAP VIOLATION DETECTED: ${medication} - ${gapHours.toFixed(1)}h < ${requiredGap}h`);
+            console.log(`DEBUG: TIME GAP VIOLATION DETECTED: ${medication} on ${curr.originalDate} - ${gapHours.toFixed(1)}h < ${requiredGap}h`);
             discrepancies.push({
               careWorkerName: curr.careWorker,
               date: curr.date,
