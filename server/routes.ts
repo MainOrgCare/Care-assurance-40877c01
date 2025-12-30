@@ -2341,7 +2341,6 @@ Return a JSON object with this EXACT structure:
       "name": "Paracetamol 500mg Tablets",
       "genericName": "paracetamol",
       "isPRN": true,
-      "isSelfAdminister": false,
       "instructions": "Take 1-2 tablets every 4-6 hours as needed",
       "requiredGapHours": 4,
       "scheduledTimeSlots": ["08:00-09:00", "20:30-21:00"]
@@ -2358,7 +2357,6 @@ EXTRACTION RULES:
    - name: The full medication name including strength/form exactly as shown
    - genericName: The active ingredient (e.g., paracetamol, ibuprofen, omeprazole)
    - isPRN: true ONLY if the prescription/instructions text contains: "PRN", "as required", "as needed", "when required", "take up to", "if needed". Do NOT set isPRN based on document sections - only the prescription text itself.
-   - isSelfAdminister: true if the medication is marked for self-administration (look for "self-administer", "self administer", "self-admin", "SA only", "patient self-administers", or similar indicators)
    - instructions: The dosage/administration instructions (CRITICAL: Extract exactly as written - this determines PRN status)
    - requiredGapHours: Minimum hours between doses (default 4 for most meds, 6-8 for controlled drugs)
    - scheduledTimeSlots: The time slots that apply to this medication
@@ -3324,25 +3322,9 @@ OTHER CRITICAL RULES:
         return PRN_KEYWORDS.some(keyword => lower.includes(keyword));
       };
       
-      // =====================================================================
-      // SELF-ADMINISTER VALIDATION HELPER
-      // =====================================================================
-      const SELF_ADMIN_KEYWORDS = [
-        'self-administer', 'self administer', 'self-admin', 'sa only',
-        'patient self-administers', 'service user self-administers',
-        'self administered', 'self-administered'
-      ];
-      
-      const isSelfAdminFromInstructions = (instructions: string | undefined): boolean => {
-        if (!instructions) return false;
-        const lower = instructions.toLowerCase();
-        return SELF_ADMIN_KEYWORDS.some(keyword => lower.includes(keyword));
-      };
-      
       // Build lookup maps
       const prnMeds = new Set<string>();
       const prnMedIds = new Set<number>(); // Track PRN medication IDs
-      const selfAdminMeds = new Set<string>(); // Track self-administer medications
       const medGenericNames = new Map<string, string>();
       const medGapHours = new Map<string, number>();
       const medTimeSlots = new Map<string, string[]>();
@@ -3358,17 +3340,9 @@ OTHER CRITICAL RULES:
           med.isPRN = validatedIsPRN;
         }
         
-        // VALIDATE SELF-ADMINISTER: Check instructions for self-admin keywords
-        const validatedIsSelfAdmin = isSelfAdminFromInstructions(med.instructions) || med.isSelfAdminister === true;
-        med.isSelfAdminister = validatedIsSelfAdmin;
-        
         if (med.isPRN) {
           prnMeds.add(med.name);
           prnMedIds.add(med.medicationId);
-        }
-        if (validatedIsSelfAdmin) {
-          selfAdminMeds.add(med.name);
-          console.log(`DEBUG: Self-administer medication detected: "${med.name}"`);
         }
         if (med.genericName) medGenericNames.set(med.name, med.genericName.toLowerCase());
         if (med.requiredGapHours) medGapHours.set(med.name, med.requiredGapHours);
@@ -3647,7 +3621,6 @@ If no equivalences found, return: {"equivalences": []}`
         const timeSlot = entry.timeSlot || "";
         const medication = entry.medication || "";
         const isPRN = prnMeds.has(medication);
-        const isSelfAdmin = selfAdminMeds.has(medication);
 
         // CHECK 5a: R (Refused) or PRN-R (PRN Refused) - ALWAYS flag as discrepancy
         if (code === "R" || code === "PRN-R") {
@@ -3736,7 +3709,6 @@ If no equivalences found, return: {"equivalences": []}`
         // CHECK 5d: PRN CODE MISUSE - Wrong codes for medication type
         // =====================================================================
         const PRN_CODES = ['PRN', 'PRN-AD', 'PRN-AS', 'PRN-R'];
-        const REGULAR_ADMIN_CODES = ['AD', 'AS', 'P'];
         
         // Check 1: PRN codes used on non-PRN medications
         if (PRN_CODES.includes(code) && !isPRN) {
@@ -3752,52 +3724,47 @@ If no equivalences found, return: {"equivalences": []}`
           });
         }
         
-        // Check 2: Regular administration codes (AD/AS/P) used on PRN medications
-        if (REGULAR_ADMIN_CODES.includes(code) && isPRN) {
+        // Check 2: Invalid codes (AS/P) used on PRN medications
+        // Note: AD is allowed on PRN meds, but AS and P are not valid anywhere
+        const INVALID_PRN_CODES = ['AS', 'P'];
+        if (INVALID_PRN_CODES.includes(code) && isPRN) {
           discrepancies.push({
             careWorkerName: careWorker,
             date: date,
             timeSlot: timeSlot,
             medication: medication,
             code: code,
-            issue: `Regular code "${code}" used on PRN medication - "${medication}" should use PRN codes (PRN, PRN-AD, etc.)`,
+            issue: `Invalid code "${code}" used on PRN medication - should use PRN codes (PRN, PRN-AD, etc.) or AD`,
             severity: "high",
             actions: { performanceNote: true, meeting: "phone", referToManager: false }
           });
         }
         
         // =====================================================================
-        // CHECK 5e: SELF-ADMINISTER CODE MISUSE
+        // CHECK 5e: INVALID CODES FOR ADMINISTERED MEDICATIONS
         // =====================================================================
-        // If medication is marked as self-administer, AS (Assisted) and P (Prompted) codes
-        // are discrepancies - the service user should be administering independently (SA)
+        // For Administered medications (non-PRN), only these codes are valid:
+        // AD (Administered), SA (Self Administered), NH (Not Home), R (Refused), 
+        // FA (Family Administered), MU (Medication Unavailable)
+        // Any other codes like AS (Assisted) or P (Prompted) are discrepancies
         
-        // Check: AS (Assisted) code used on self-administer medication
-        if (code === 'AS' && isSelfAdmin) {
-          discrepancies.push({
-            careWorkerName: careWorker,
-            date: date,
-            timeSlot: timeSlot,
-            medication: medication,
-            code: code,
-            issue: `Assisted (AS) code used on self-administer medication - "${medication}" is prescribed for self-administration, should use SA code`,
-            severity: "high",
-            actions: { performanceNote: true, meeting: "phone", referToManager: true }
-          });
-        }
+        const VALID_ADMIN_CODES = ['AD', 'SA', 'NH', 'R', 'FA', 'MU'];
         
-        // Check: P (Prompted) code used on self-administer medication
-        if (code === 'P' && isSelfAdmin) {
-          discrepancies.push({
-            careWorkerName: careWorker,
-            date: date,
-            timeSlot: timeSlot,
-            medication: medication,
-            code: code,
-            issue: `Prompted (P) code used on self-administer medication - "${medication}" is prescribed for self-administration, should use SA code`,
-            severity: "high",
-            actions: { performanceNote: true, meeting: "phone", referToManager: true }
-          });
+        // Only check non-PRN medications - PRN meds have their own valid codes
+        if (!isPRN && code && !VALID_ADMIN_CODES.includes(code)) {
+          // Skip blank/empty codes
+          if (code !== '' && code !== 'BLANK' && code !== 'EMPTY') {
+            discrepancies.push({
+              careWorkerName: careWorker,
+              date: date,
+              timeSlot: timeSlot,
+              medication: medication,
+              code: code,
+              issue: `Invalid code "${code}" used on administered medication - valid codes are: AD, SA, NH, R, FA, MU`,
+              severity: "high",
+              actions: { performanceNote: true, meeting: "phone", referToManager: true }
+            });
+          }
         }
       });
 
