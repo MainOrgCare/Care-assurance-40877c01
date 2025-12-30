@@ -2341,6 +2341,7 @@ Return a JSON object with this EXACT structure:
       "name": "Paracetamol 500mg Tablets",
       "genericName": "paracetamol",
       "isPRN": true,
+      "isSelfAdminister": false,
       "instructions": "Take 1-2 tablets every 4-6 hours as needed",
       "requiredGapHours": 4,
       "scheduledTimeSlots": ["08:00-09:00", "20:30-21:00"]
@@ -2357,6 +2358,7 @@ EXTRACTION RULES:
    - name: The full medication name including strength/form exactly as shown
    - genericName: The active ingredient (e.g., paracetamol, ibuprofen, omeprazole)
    - isPRN: true ONLY if the prescription/instructions text contains: "PRN", "as required", "as needed", "when required", "take up to", "if needed". Do NOT set isPRN based on document sections - only the prescription text itself.
+   - isSelfAdminister: true if the medication is marked for self-administration (look for "self-administer", "self administer", "self-admin", "SA only", "patient self-administers", or similar indicators)
    - instructions: The dosage/administration instructions (CRITICAL: Extract exactly as written - this determines PRN status)
    - requiredGapHours: Minimum hours between doses (default 4 for most meds, 6-8 for controlled drugs)
    - scheduledTimeSlots: The time slots that apply to this medication
@@ -3322,9 +3324,25 @@ OTHER CRITICAL RULES:
         return PRN_KEYWORDS.some(keyword => lower.includes(keyword));
       };
       
+      // =====================================================================
+      // SELF-ADMINISTER VALIDATION HELPER
+      // =====================================================================
+      const SELF_ADMIN_KEYWORDS = [
+        'self-administer', 'self administer', 'self-admin', 'sa only',
+        'patient self-administers', 'service user self-administers',
+        'self administered', 'self-administered'
+      ];
+      
+      const isSelfAdminFromInstructions = (instructions: string | undefined): boolean => {
+        if (!instructions) return false;
+        const lower = instructions.toLowerCase();
+        return SELF_ADMIN_KEYWORDS.some(keyword => lower.includes(keyword));
+      };
+      
       // Build lookup maps
       const prnMeds = new Set<string>();
       const prnMedIds = new Set<number>(); // Track PRN medication IDs
+      const selfAdminMeds = new Set<string>(); // Track self-administer medications
       const medGenericNames = new Map<string, string>();
       const medGapHours = new Map<string, number>();
       const medTimeSlots = new Map<string, string[]>();
@@ -3340,9 +3358,17 @@ OTHER CRITICAL RULES:
           med.isPRN = validatedIsPRN;
         }
         
+        // VALIDATE SELF-ADMINISTER: Check instructions for self-admin keywords
+        const validatedIsSelfAdmin = isSelfAdminFromInstructions(med.instructions) || med.isSelfAdminister === true;
+        med.isSelfAdminister = validatedIsSelfAdmin;
+        
         if (med.isPRN) {
           prnMeds.add(med.name);
           prnMedIds.add(med.medicationId);
+        }
+        if (validatedIsSelfAdmin) {
+          selfAdminMeds.add(med.name);
+          console.log(`DEBUG: Self-administer medication detected: "${med.name}"`);
         }
         if (med.genericName) medGenericNames.set(med.name, med.genericName.toLowerCase());
         if (med.requiredGapHours) medGapHours.set(med.name, med.requiredGapHours);
@@ -3621,6 +3647,7 @@ If no equivalences found, return: {"equivalences": []}`
         const timeSlot = entry.timeSlot || "";
         const medication = entry.medication || "";
         const isPRN = prnMeds.has(medication);
+        const isSelfAdmin = selfAdminMeds.has(medication);
 
         // CHECK 5a: R (Refused) or PRN-R (PRN Refused) - ALWAYS flag as discrepancy
         if (code === "R" || code === "PRN-R") {
@@ -3736,6 +3763,40 @@ If no equivalences found, return: {"equivalences": []}`
             issue: `Regular code "${code}" used on PRN medication - "${medication}" should use PRN codes (PRN, PRN-AD, etc.)`,
             severity: "high",
             actions: { performanceNote: true, meeting: "phone", referToManager: false }
+          });
+        }
+        
+        // =====================================================================
+        // CHECK 5e: SELF-ADMINISTER CODE MISUSE
+        // =====================================================================
+        // If medication is marked as self-administer, AS (Assisted) and P (Prompted) codes
+        // are discrepancies - the service user should be administering independently (SA)
+        
+        // Check: AS (Assisted) code used on self-administer medication
+        if (code === 'AS' && isSelfAdmin) {
+          discrepancies.push({
+            careWorkerName: careWorker,
+            date: date,
+            timeSlot: timeSlot,
+            medication: medication,
+            code: code,
+            issue: `Assisted (AS) code used on self-administer medication - "${medication}" is prescribed for self-administration, should use SA code`,
+            severity: "high",
+            actions: { performanceNote: true, meeting: "phone", referToManager: true }
+          });
+        }
+        
+        // Check: P (Prompted) code used on self-administer medication
+        if (code === 'P' && isSelfAdmin) {
+          discrepancies.push({
+            careWorkerName: careWorker,
+            date: date,
+            timeSlot: timeSlot,
+            medication: medication,
+            code: code,
+            issue: `Prompted (P) code used on self-administer medication - "${medication}" is prescribed for self-administration, should use SA code`,
+            severity: "high",
+            actions: { performanceNote: true, meeting: "phone", referToManager: true }
           });
         }
       });

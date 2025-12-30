@@ -18,6 +18,12 @@ Preferred communication style: Simple, everyday language.
   - New discrepancy: Regular codes (AD, AS, P) used on PRN medications = high severity
   - Prevents false positives from phrases like "increase up to 50 mg" (bare "up to" removed from keywords)
 
+- **Self-Administer Code Validation**: Detects incorrect codes for self-administering service users:
+  - Self-administer status determined from prescription text keywords: "self-administer", "self administer", "self-admin", "SA only", etc.
+  - New discrepancy: AS (Assisted) code used on self-administer medication = high severity
+  - New discrepancy: P (Prompted) code used on self-administer medication = high severity
+  - Self-administer medications should use SA (Self-Administered) codes only
+
 - **Optimized EMAR Agent (GPT-5.1)**: Token-efficient EMAR extraction agent:
   - New service: `server/services/emarAgent.ts`
   - Uses GPT-5.1 for accuracy with optimized token usage
