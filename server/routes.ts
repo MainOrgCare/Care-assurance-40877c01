@@ -8,7 +8,7 @@ import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema } from "@shared/schema";
-import { createChatCompletion, openai } from "./services/aiClient";
+import { createChatCompletion, createChatCompletionWithLogging, openai } from "./services/aiClient";
 import multer from "multer";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
@@ -188,6 +188,193 @@ function normalizeInitials(name: string | undefined | null): string {
   }
   
   return 'N.N.';
+}
+
+// Drug interaction type definition
+interface DrugInteraction {
+  drug1: string;
+  drug2: string;
+  severity: 'high' | 'moderate' | 'low';
+  description: string;
+}
+
+// Check for potentially dangerous drug-drug interactions
+async function checkDrugInteractions(
+  medications: Array<{ name: string; genericName?: string; [key: string]: any }>
+): Promise<DrugInteraction[]> {
+  if (!medications || medications.length < 2) {
+    return [];
+  }
+
+  const medList = medications.map(m => 
+    m.genericName ? `${m.name} (${m.genericName})` : m.name
+  ).join(', ');
+
+  try {
+    const response = await createChatCompletionWithLogging({
+      model: "gpt-5.1",
+      messages: [
+        {
+          role: "system",
+          content: `You are a UK pharmacist. Check for dangerous drug interactions in this medication list. Focus on:
+- Blood thinners (warfarin, apixaban, rivaroxaban) + NSAIDs/aspirin
+- Opioids + benzodiazepines/sedatives
+- ACE inhibitors + potassium-sparing diuretics
+- Methotrexate + NSAIDs
+- SSRIs + MAOIs or tramadol
+- Digoxin + amiodarone/verapamil
+
+Return JSON: {"interactions": [{"drug1": "Name1", "drug2": "Name2", "severity": "high|moderate|low", "description": "Brief clinical concern"}]}
+If none found: {"interactions": []}`
+        },
+        {
+          role: "user",
+          content: `Check for interactions: ${medList}`
+        }
+      ],
+      max_completion_tokens: 800,
+      temperature: 0,
+      response_format: { type: "json_object" }
+    }, "drug_interactions");
+
+    const content = response.choices[0]?.message?.content || "{}";
+    const parsed = JSON.parse(content);
+    
+    if (parsed.interactions && Array.isArray(parsed.interactions)) {
+      return parsed.interactions.map((i: any) => ({
+        drug1: i.drug1 || "",
+        drug2: i.drug2 || "",
+        severity: ["high", "moderate", "low"].includes(i.severity) ? i.severity : "moderate",
+        description: i.description || ""
+      }));
+    }
+    
+    return [];
+  } catch (error: any) {
+    console.error("[Drug Interactions] Check failed:", error.message);
+    return [];
+  }
+}
+
+// Table structure detection for EMAR grid layouts
+interface TableStructureInfo {
+  hasTable: boolean;
+  columns: string[];
+  rowCount: number;
+  tableType: 'grid' | 'list' | 'unknown';
+  columnBoundaries: number[];
+  detectedTimeSlots: string[];
+  detectedDatesOnSameLine: number;
+}
+
+function detectTableStructure(text: string): TableStructureInfo {
+  const result: TableStructureInfo = {
+    hasTable: false,
+    columns: [],
+    rowCount: 0,
+    tableType: 'unknown',
+    columnBoundaries: [],
+    detectedTimeSlots: [],
+    detectedDatesOnSameLine: 0,
+  };
+  
+  const lines = text.split('\n').filter(line => line.trim().length > 0);
+  if (lines.length === 0) return result;
+  
+  // Pattern 1: Detect repeated date patterns on the same line (indicates grid columns)
+  const datePattern = /\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*[,\s]+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/gi;
+  const shortDatePattern = /\b\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?\b/g;
+  
+  let maxDatesOnLine = 0;
+  let dateHeaderLine = '';
+  
+  for (const line of lines) {
+    const longDates = line.match(datePattern) || [];
+    const shortDates = line.match(shortDatePattern) || [];
+    const totalDates = longDates.length + shortDates.length;
+    
+    if (totalDates > maxDatesOnLine) {
+      maxDatesOnLine = totalDates;
+      dateHeaderLine = line;
+    }
+  }
+  
+  result.detectedDatesOnSameLine = maxDatesOnLine;
+  
+  // Pattern 2: Detect time slot headers (e.g., "08:00", "12:00", "20:00")
+  const timeSlotPattern = /\b(\d{1,2}:\d{2})(?:\s*-\s*\d{1,2}:\d{2})?\b/g;
+  const allTimeSlots = new Set<string>();
+  
+  for (const line of lines) {
+    let match;
+    const lineTimeSlots: string[] = [];
+    const tempPattern = new RegExp(timeSlotPattern.source, 'g');
+    
+    while ((match = tempPattern.exec(line)) !== null) {
+      lineTimeSlots.push(match[1]);
+      allTimeSlots.add(match[1]);
+    }
+    
+    // If multiple time slots on same line, likely a header row
+    if (lineTimeSlots.length >= 3) {
+      result.columns = lineTimeSlots;
+    }
+  }
+  
+  result.detectedTimeSlots = Array.from(allTimeSlots).sort();
+  
+  // Pattern 3: Detect column boundaries based on consistent spacing
+  const spacingPattern = /\s{3,}/g;
+  const columnPositions: Map<number, number> = new Map();
+  
+  for (const line of lines.slice(0, 50)) { // Check first 50 lines for structure
+    let match;
+    while ((match = spacingPattern.exec(line)) !== null) {
+      const pos = Math.round(match.index / 10) * 10; // Bucket positions
+      columnPositions.set(pos, (columnPositions.get(pos) || 0) + 1);
+    }
+  }
+  
+  // Find consistent column positions (appearing in >30% of lines)
+  const threshold = Math.max(3, lines.length * 0.3);
+  const consistentPositions = Array.from(columnPositions.entries())
+    .filter(([_, count]) => count >= threshold)
+    .map(([pos, _]) => pos)
+    .sort((a, b) => a - b);
+  
+  result.columnBoundaries = consistentPositions;
+  
+  // Determine table type
+  if (maxDatesOnLine >= 3 && result.detectedTimeSlots.length >= 2) {
+    result.hasTable = true;
+    result.tableType = 'grid';
+    // Grid: dates as columns, medications as rows, time slots as sub-rows
+  } else if (maxDatesOnLine >= 2 || consistentPositions.length >= 2) {
+    result.hasTable = true;
+    result.tableType = 'grid';
+  } else if (result.detectedTimeSlots.length >= 2) {
+    result.hasTable = true;
+    result.tableType = 'list';
+    // List: each entry on its own line with date/time/status
+  }
+  
+  // Count potential data rows (lines with medication-like content)
+  const medicationPattern = /\b\d+\s*(mg|mcg|ml|g|tablet|capsule|patch|spray|unit|iu)s?\b/i;
+  let rowCount = 0;
+  for (const line of lines) {
+    if (medicationPattern.test(line)) {
+      rowCount++;
+    }
+  }
+  result.rowCount = rowCount;
+  
+  // Extract column headers if we have date columns
+  if (dateHeaderLine && maxDatesOnLine >= 2) {
+    const dates = dateHeaderLine.match(datePattern) || dateHeaderLine.match(shortDatePattern) || [];
+    result.columns = dates.slice(0, 31); // Max 31 days in a month
+  }
+  
+  return result;
 }
 
 // Session type extension
@@ -1691,13 +1878,44 @@ export async function registerRoutes(
       console.log(`Raw date matches: ${preAnalysis.rawDateMatches.slice(0, 15).join(', ')}`);
       console.log("=================================");
       
+      // TABLE STRUCTURE DETECTION - Run before AI extraction to identify EMAR grid layout
+      const tableStructure = detectTableStructure(analysisText);
+      
+      console.log("=== TABLE STRUCTURE DETECTION ===");
+      console.log(`Has table: ${tableStructure.hasTable}`);
+      console.log(`Table type: ${tableStructure.tableType}`);
+      console.log(`Dates on same line: ${tableStructure.detectedDatesOnSameLine}`);
+      console.log(`Column count: ${tableStructure.columns.length}`);
+      if (tableStructure.columns.length > 0) {
+        console.log(`Columns: ${tableStructure.columns.slice(0, 10).join(', ')}${tableStructure.columns.length > 10 ? '...' : ''}`);
+      }
+      console.log(`Detected time slots: ${tableStructure.detectedTimeSlots.join(', ')}`);
+      console.log(`Medication row count: ${tableStructure.rowCount}`);
+      console.log(`Column boundaries: ${tableStructure.columnBoundaries.join(', ')}`);
+      console.log("=================================");
+      
       sendProgress(10, "Analyzing EMAR document...", "metadata_extraction");
 
       // STEP 2: Two-phase AI extraction to handle large grids
       // Phase 1: Extract metadata only (medications, dates, timeSlots) from document text
+      
+      // Build table structure context for AI
+      const tableStructureContext = tableStructure.hasTable 
+        ? `\nDOCUMENT LAYOUT ANALYSIS:
+This document appears to be a ${tableStructure.tableType.toUpperCase()} format EMAR.
+- Table detected: YES
+- Layout type: ${tableStructure.tableType === 'grid' ? 'Grid with dates as columns and medications as rows' : 'List format with entries on separate lines'}
+- ${tableStructure.detectedDatesOnSameLine} dates detected on header line (indicates column structure)
+- Time slots found: ${tableStructure.detectedTimeSlots.join(', ')}
+- Estimated medication rows: ${tableStructure.rowCount}
+
+Use this layout information to correctly parse the grid structure.
+`
+        : '';
+      
       const metadataPrompt = `You are an EMAR (Electronic Medication Administration Record) data extractor analyzing EMAR document text.
 This tool works with ANY EMAR system from ANY provider (e.g., CMM, CarePlanner, MedPass, PCS, etc.).
-
+${tableStructureContext}
 Analyze the document text and extract ONLY the metadata (do NOT extract individual administration entries yet).
 
 Return a JSON object with this EXACT structure:
@@ -1775,6 +1993,21 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         sendEvent('error', { message: "No medications found in the document. Please check the PDF contains medication records." });
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
+      }
+      
+      // =====================================================================
+      // DRUG INTERACTION CHECK
+      // =====================================================================
+      sendProgress(16, "Checking for drug interactions...", "drug_interaction_check");
+      const drugInteractions = await checkDrugInteractions(metadata.medications);
+      if (drugInteractions.length > 0) {
+        console.log(`DEBUG: Found ${drugInteractions.length} potential drug interactions`);
+        const highSeverity = drugInteractions.filter(d => d.severity === 'high').length;
+        if (highSeverity > 0) {
+          sendEvent('warning', { 
+            message: `ALERT: ${highSeverity} high-severity drug interaction(s) detected. Review medications carefully.`
+          });
+        }
       }
       
       // =====================================================================
@@ -3609,6 +3842,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         auditPeriodStart: allDates[0] || "",
         auditPeriodEnd: allDates[allDates.length - 1] || "",
         warnings: warnings,
+        drugInteractions: drugInteractions,
         hasDiscrepancies: validatedDiscrepancies.length > 0,
         discrepancies: prioritizedDiscrepancies,
         groupedRefusals: groupedRefusals,

@@ -63,4 +63,24 @@ export async function createChatCompletion(
   }
 }
 
+export async function createChatCompletionWithLogging(
+  params: OpenAI.ChatCompletionCreateParamsNonStreaming,
+  featureName: string
+): Promise<OpenAI.ChatCompletion> {
+  const startTime = Date.now();
+  console.log(`[AI:${featureName}] Starting request...`);
+  
+  try {
+    const result = await createChatCompletion(params);
+    const duration = Date.now() - startTime;
+    const tokens = result.usage?.total_tokens || 0;
+    console.log(`[AI:${featureName}] Completed in ${duration}ms, ${tokens} tokens used`);
+    return result;
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    console.error(`[AI:${featureName}] Failed after ${duration}ms:`, error.message);
+    throw error;
+  }
+}
+
 export { primaryClient as openai };

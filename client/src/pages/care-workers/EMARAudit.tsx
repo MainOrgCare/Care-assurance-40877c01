@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Copy, FileText, Check, X, AlertTriangle, Loader2, TableIcon, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, UserPlus, Users, Sparkles, RefreshCw } from "lucide-react";
+import { Upload, Copy, FileText, Check, X, AlertTriangle, Loader2, TableIcon, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, UserPlus, Users, Sparkles, RefreshCw, Pencil, Undo2, Save } from "lucide-react";
 import UploadDisclaimer from "@/components/UploadDisclaimer";
 import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
@@ -97,6 +97,26 @@ interface GroupedRefusal {
 
 interface RefusalReviewState {
   [key: string]: boolean;
+}
+
+interface CorrectedEntry {
+  originalKey: string;
+  careWorkerName: string;
+  date: string;
+  timeSlot: string;
+  medication: string;
+  code: string;
+  issue: string;
+}
+
+interface EditingEntry {
+  key: string;
+  careWorkerName: string;
+  date: string;
+  timeSlot: string;
+  medication: string;
+  code: string;
+  issue: string;
 }
 
 interface EmarAnalysisResult {
@@ -228,6 +248,12 @@ export default function EMARAudit() {
   const [generatingProtocol, setGeneratingProtocol] = useState<string | null>(null);
   const [generatedProtocol, setGeneratedProtocol] = useState<GeneratedPRNProtocol | null>(null);
   const [protocolDialogOpen, setProtocolDialogOpen] = useState(false);
+  
+  const [editMode, setEditMode] = useState(false);
+  const [corrections, setCorrections] = useState<Map<string, CorrectedEntry>>(new Map());
+  const [editingEntry, setEditingEntry] = useState<EditingEntry | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [correctionsApplied, setCorrectionsApplied] = useState(false);
 
   useEffect(() => {
     if (documentContent && !prevContentRef.current) {
@@ -998,6 +1024,98 @@ ${generatedProtocol.additionalComments}`;
     });
   };
 
+  const EMAR_CODES = ['AD', 'AS', 'R', 'MU', 'NH', 'FA', 'SA', 'PRN', 'PRN-R'];
+
+  const generateEntryKey = (careWorkerName: string, date: string, medication: string, timeSlot?: string): string => {
+    return `${careWorkerName}|${date}|${medication}|${timeSlot || ''}`;
+  };
+
+  const startEditing = (entry: { careWorkerName: string; date: string; medication: string; issue: string; timeSlot?: string; code?: string }) => {
+    const key = generateEntryKey(entry.careWorkerName, entry.date, entry.medication, entry.timeSlot);
+    const existingCorrection = corrections.get(key);
+    
+    setEditingEntry({
+      key,
+      careWorkerName: existingCorrection?.careWorkerName || entry.careWorkerName,
+      date: existingCorrection?.date || entry.date,
+      timeSlot: existingCorrection?.timeSlot || entry.timeSlot || '',
+      medication: existingCorrection?.medication || entry.medication,
+      code: existingCorrection?.code || entry.code || '',
+      issue: existingCorrection?.issue || entry.issue,
+    });
+    setEditDialogOpen(true);
+  };
+
+  const saveCorrection = () => {
+    if (!editingEntry) return;
+    
+    const correctedEntry: CorrectedEntry = {
+      originalKey: editingEntry.key,
+      careWorkerName: editingEntry.careWorkerName,
+      date: editingEntry.date,
+      timeSlot: editingEntry.timeSlot,
+      medication: editingEntry.medication,
+      code: editingEntry.code,
+      issue: editingEntry.issue,
+    };
+    
+    setCorrections(prev => {
+      const newCorrections = new Map(prev);
+      newCorrections.set(editingEntry.key, correctedEntry);
+      return newCorrections;
+    });
+    
+    setEditDialogOpen(false);
+    setEditingEntry(null);
+    setCorrectionsApplied(false);
+    
+    toast({
+      title: "Correction Saved",
+      description: "The entry has been corrected. Click 'Apply Corrections' to update the audit.",
+    });
+  };
+
+  const undoCorrection = (key: string) => {
+    setCorrections(prev => {
+      const newCorrections = new Map(prev);
+      newCorrections.delete(key);
+      return newCorrections;
+    });
+    setCorrectionsApplied(false);
+    
+    toast({
+      title: "Correction Removed",
+      description: "The entry has been reverted to its original value.",
+    });
+  };
+
+  const applyAllCorrections = () => {
+    if (corrections.size === 0) {
+      toast({
+        title: "No Corrections",
+        description: "There are no corrections to apply.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setCorrectionsApplied(true);
+    
+    toast({
+      title: "Corrections Applied",
+      description: `${corrections.size} correction(s) have been applied to the audit data.`,
+    });
+  };
+
+  const getCorrectedValue = (key: string): CorrectedEntry | null => {
+    return corrections.get(key) || null;
+  };
+
+  const isEntryCorrected = (careWorkerName: string, date: string, medication: string, timeSlot?: string): boolean => {
+    const key = generateEntryKey(careWorkerName, date, medication, timeSlot);
+    return corrections.has(key);
+  };
+
   const handleSubmitRefusalReview = async () => {
     const allItems = unifiedRefusals.flatMap(group => group.items);
     const reviewedItems = Object.entries(refusalDecisions)
@@ -1380,12 +1498,36 @@ ${generatedProtocol.additionalComments}`;
 
           {hasAnyDiscrepancies() && (
             <Card className="bg-card border-border">
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
                 <CardTitle className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-red-400" />
                   Main Discrepancies ({getAllDiscrepancies().length} total across {getGroupedDiscrepancies.length} staff)
                 </CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {user?.role === 'admin' && (
+                    <Button
+                      size="sm"
+                      variant={editMode ? "default" : "outline"}
+                      onClick={() => setEditMode(!editMode)}
+                      className={`gap-1.5 ${editMode ? 'bg-yellow-600 hover:bg-yellow-700' : ''}`}
+                      data-testid="button-toggle-edit-mode"
+                    >
+                      <Pencil size={14} />
+                      {editMode ? "Exit Edit Mode" : "Edit Mode"}
+                    </Button>
+                  )}
+                  {user?.role === 'admin' && corrections.size > 0 && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={applyAllCorrections}
+                      className="gap-1.5 bg-teal-600 hover:bg-teal-700"
+                      data-testid="button-apply-corrections"
+                    >
+                      <Save size={14} />
+                      Apply {corrections.size} Correction{corrections.size !== 1 ? 's' : ''}
+                    </Button>
+                  )}
                   <TableCopyButton text={getDiscrepanciesTableFormat()} label="discrepancies-table" />
                   <CopyButton text={getAllDiscrepanciesText()} label="all-discrepancies" />
                 </div>
@@ -1511,32 +1653,89 @@ ${generatedProtocol.additionalComments}`;
                                 <TableHead>Medication</TableHead>
                                 <TableHead>Issue</TableHead>
                                 <TableHead>Actions</TableHead>
+                                {editMode && <TableHead className="w-20">Edit</TableHead>}
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {group.discrepancies.map((disc, discIdx) => (
-                                <TableRow key={discIdx} data-testid={`row-discrepancy-${idx}-${discIdx}`}>
-                                  <TableCell className="text-muted-foreground">{disc.date}</TableCell>
-                                  <TableCell className="text-foreground">{disc.medication}</TableCell>
-                                  <TableCell className="text-red-300">{disc.issue}</TableCell>
-                                  <TableCell>
-                                    <div className="flex flex-wrap gap-1">
-                                      {disc.actions.performanceNote && (
-                                        <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs">Performance Note</span>
+                              {group.discrepancies.map((disc, discIdx) => {
+                                const entryKey = generateEntryKey(disc.careWorkerName, disc.date, disc.medication);
+                                const isCorrected = isEntryCorrected(disc.careWorkerName, disc.date, disc.medication);
+                                const correctedData = isCorrected ? getCorrectedValue(entryKey) : null;
+                                
+                                return (
+                                  <TableRow 
+                                    key={discIdx} 
+                                    data-testid={`row-discrepancy-${idx}-${discIdx}`}
+                                    className={isCorrected ? 'bg-yellow-500/10 border-l-2 border-l-yellow-500' : ''}
+                                  >
+                                    <TableCell className="text-muted-foreground">
+                                      {correctedData?.date || disc.date}
+                                      {isCorrected && correctedData?.date !== disc.date && (
+                                        <span className="block text-xs text-yellow-400/70 line-through">{disc.date}</span>
                                       )}
-                                      {disc.actions.meeting === "phone" && (
-                                        <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs">Phone Meeting</span>
+                                    </TableCell>
+                                    <TableCell className="text-foreground">
+                                      {correctedData?.medication || disc.medication}
+                                      {isCorrected && correctedData?.medication !== disc.medication && (
+                                        <span className="block text-xs text-yellow-400/70 line-through">{disc.medication}</span>
                                       )}
-                                      {disc.actions.meeting === "in_person" && (
-                                        <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded text-xs">In-Person Meeting</span>
+                                    </TableCell>
+                                    <TableCell className="text-red-300">
+                                      {correctedData?.issue || disc.issue}
+                                      {isCorrected && correctedData?.issue !== disc.issue && (
+                                        <span className="block text-xs text-yellow-400/70 line-through">{disc.issue}</span>
                                       )}
-                                      {disc.actions.referToManager && (
-                                        <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs">Refer to Manager</span>
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex flex-wrap gap-1">
+                                        {disc.actions.performanceNote && (
+                                          <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs">Performance Note</span>
+                                        )}
+                                        {disc.actions.meeting === "phone" && (
+                                          <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs">Phone Meeting</span>
+                                        )}
+                                        {disc.actions.meeting === "in_person" && (
+                                          <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded text-xs">In-Person Meeting</span>
+                                        )}
+                                        {disc.actions.referToManager && (
+                                          <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs">Refer to Manager</span>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    {editMode && (
+                                      <TableCell>
+                                        <div className="flex items-center gap-1">
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-7 w-7"
+                                            onClick={() => startEditing({
+                                              careWorkerName: disc.careWorkerName,
+                                              date: disc.date,
+                                              medication: disc.medication,
+                                              issue: disc.issue,
+                                            })}
+                                            data-testid={`button-edit-discrepancy-${idx}-${discIdx}`}
+                                          >
+                                            <Pencil size={14} />
+                                          </Button>
+                                          {isCorrected && (
+                                            <Button
+                                              size="icon"
+                                              variant="ghost"
+                                              className="h-7 w-7 text-yellow-400"
+                                              onClick={() => undoCorrection(entryKey)}
+                                              data-testid={`button-undo-discrepancy-${idx}-${discIdx}`}
+                                            >
+                                              <Undo2 size={14} />
+                                            </Button>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                    )}
+                                  </TableRow>
+                                );
+                              })}
                             </TableBody>
                           </Table>
                         </div>
@@ -1917,6 +2116,105 @@ ${generatedProtocol.additionalComments}`;
           </div>
         </div>
       )}
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-primary" />
+              Edit Entry
+            </DialogTitle>
+            <DialogDescription>
+              Fix AI extraction mistakes. Changes are saved locally until you apply corrections.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingEntry && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-careworker">Care Worker Initials</Label>
+                  <Input
+                    id="edit-careworker"
+                    value={editingEntry.careWorkerName}
+                    onChange={(e) => setEditingEntry(prev => prev ? { ...prev, careWorkerName: e.target.value } : null)}
+                    data-testid="input-edit-careworker"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-date">Date</Label>
+                  <Input
+                    id="edit-date"
+                    value={editingEntry.date}
+                    onChange={(e) => setEditingEntry(prev => prev ? { ...prev, date: e.target.value } : null)}
+                    data-testid="input-edit-date"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-timeslot">Time Slot</Label>
+                  <Input
+                    id="edit-timeslot"
+                    value={editingEntry.timeSlot}
+                    onChange={(e) => setEditingEntry(prev => prev ? { ...prev, timeSlot: e.target.value } : null)}
+                    placeholder="e.g., Morning, Lunch, Evening"
+                    data-testid="input-edit-timeslot"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-code">Code</Label>
+                  <Select
+                    value={editingEntry.code}
+                    onValueChange={(value) => setEditingEntry(prev => prev ? { ...prev, code: value } : null)}
+                  >
+                    <SelectTrigger id="edit-code" data-testid="select-edit-code">
+                      <SelectValue placeholder="Select code..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EMAR_CODES.map(code => (
+                        <SelectItem key={code} value={code}>{code}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-medication">Medication Name</Label>
+                <Input
+                  id="edit-medication"
+                  value={editingEntry.medication}
+                  onChange={(e) => setEditingEntry(prev => prev ? { ...prev, medication: e.target.value } : null)}
+                  data-testid="input-edit-medication"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-issue">Issue/Note</Label>
+                <Textarea
+                  id="edit-issue"
+                  value={editingEntry.issue}
+                  onChange={(e) => setEditingEntry(prev => prev ? { ...prev, issue: e.target.value } : null)}
+                  className="min-h-[80px]"
+                  data-testid="input-edit-issue"
+                />
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => { setEditDialogOpen(false); setEditingEntry(null); }} data-testid="button-cancel-edit">
+              Cancel
+            </Button>
+            <Button onClick={saveCorrection} data-testid="button-save-correction">
+              <Save className="h-4 w-4 mr-2" />
+              Save Correction
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={protocolDialogOpen} onOpenChange={setProtocolDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh]">
