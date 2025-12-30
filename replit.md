@@ -37,6 +37,16 @@ Preferred communication style: Simple, everyday language.
   - Fuzzy name matching for deduplication
   - Coverage logging for debugging
 
+- **AI Cost Calculator (Admin Only)**: Real-time AI spending dashboard in admin controls:
+  - New "AI Costs" tab in SecretAdminPortal
+  - Total spend, API calls count, features used stats cards
+  - Cost breakdown by feature (EMAR, drug interactions, care plans, etc.) with color-coded badges
+  - Recent AI calls table showing: time, user, feature, model, tokens, cost, duration
+  - Per-request cost calculation using micro-dollars with model-specific pricing
+  - aiUsageLogs database table tracks all AI API calls with user attribution
+  - Admin-only GET /api/ai-usage endpoint
+  - Concurrent request safety via parameter-based user context (not global state)
+
 ## Previous Changes (December 27, 2025)
 
 - **Demo Mode**: Complete demo mode implementation allowing visitors to explore the application without registration:
@@ -78,7 +88,7 @@ Preferred communication style: Simple, everyday language.
 ### Data Storage
 - **Database**: PostgreSQL
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation. Schema is shared between frontend and backend.
-- **Key Tables**: users, careWorkers, discrepancies, audits, adminAlerts, activeSessions, blockedIps, emarRefusalReviews, emarCorrections, fileScanLogs.
+- **Key Tables**: users, careWorkers, discrepancies, audits, adminAlerts, activeSessions, blockedIps, emarRefusalReviews, emarCorrections, aiUsageLogs, fileScanLogs.
 
 ### Key Design Patterns & Features
 - **Shared Schema**: Database schema and Zod validators defined once and used by both client and server.

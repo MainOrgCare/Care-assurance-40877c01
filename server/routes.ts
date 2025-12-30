@@ -8,7 +8,7 @@ import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema } from "@shared/schema";
-import { createChatCompletion, createChatCompletionWithLogging, openai } from "./services/aiClient";
+import { createChatCompletion, createChatCompletionWithLogging, openai, type AiUserContext } from "./services/aiClient";
 import multer from "multer";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
@@ -200,7 +200,8 @@ interface DrugInteraction {
 
 // Check for potentially dangerous drug-drug interactions
 async function checkDrugInteractions(
-  medications: Array<{ name: string; genericName?: string; [key: string]: any }>
+  medications: Array<{ name: string; genericName?: string; [key: string]: any }>,
+  userContext?: AiUserContext
 ): Promise<DrugInteraction[]> {
   if (!medications || medications.length < 2) {
     return [];
@@ -235,7 +236,7 @@ If none found: {"interactions": []}`
       max_completion_tokens: 800,
       temperature: 0,
       response_format: { type: "json_object" }
-    }, "drug_interactions");
+    }, "drug_interactions", userContext);
 
     const content = response.choices[0]?.message?.content || "{}";
     const parsed = JSON.parse(content);
@@ -1594,6 +1595,9 @@ export async function registerRoutes(
       return res.status(400).json({ message: scanCheck.error });
     }
     
+    // User context for AI cost tracking
+    const aiUserContext: AiUserContext = { userId: user?.id || null, username: user?.username || null };
+    
     // Set up SSE streaming response headers (after file is validated)
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -2017,7 +2021,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       // DRUG INTERACTION CHECK
       // =====================================================================
       sendProgress(16, "Checking for drug interactions...", "drug_interaction_check");
-      const drugInteractions = await checkDrugInteractions(metadata.medications);
+      const drugInteractions = await checkDrugInteractions(metadata.medications, aiUserContext);
       if (drugInteractions.length > 0) {
         console.log(`DEBUG: Found ${drugInteractions.length} potential drug interactions`);
         const highSeverity = drugInteractions.filter(d => d.severity === 'high').length;
@@ -5810,6 +5814,19 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
 
   // NOTE: EMAR corrections are accessed internally via storage.getRecentEmarCorrections()
   // No public GET endpoint to protect sensitive correction data (admin-only access)
+
+  // Get AI usage logs and stats (admin-only)
+  app.get("/api/ai-usage", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const logs = await storage.getAiUsageLogs({ limit: 100 });
+      const stats = await storage.getAiUsageStats();
+      
+      return res.json({ logs, stats });
+    } catch (error: any) {
+      console.error("AI usage fetch error:", error);
+      return res.status(500).json({ message: error.message || "Failed to fetch AI usage" });
+    }
+  });
 
   return httpServer;
 }

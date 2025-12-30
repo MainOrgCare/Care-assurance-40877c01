@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Eye, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, UserMinus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX } from "lucide-react";
+import { Shield, Eye, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, UserMinus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp } from "lucide-react";
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
@@ -37,6 +37,236 @@ interface RiskAssessmentLog {
   skippedMandatory: string[];
   documentSummary: string | null;
   createdAt: string;
+}
+
+interface AiUsageLog {
+  id: string;
+  userId: string | null;
+  username: string | null;
+  featureName: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costMicroDollars: number;
+  durationMs: number | null;
+  success: boolean;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+interface AiUsageStats {
+  totalCost: number;
+  totalCalls: number;
+  byFeature: Record<string, { calls: number; cost: number; tokens: number }>;
+}
+
+function formatCost(microDollars: number): string {
+  const dollars = microDollars / 1000000;
+  if (dollars < 0.01) {
+    return `$${dollars.toFixed(4)}`;
+  } else if (dollars < 1) {
+    return `$${dollars.toFixed(3)}`;
+  } else {
+    return `$${dollars.toFixed(2)}`;
+  }
+}
+
+function AICostSection() {
+  const [logs, setLogs] = useState<AiUsageLog[]>([]);
+  const [stats, setStats] = useState<AiUsageStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchAiUsage();
+  }, []);
+
+  const fetchAiUsage = async () => {
+    try {
+      const response = await fetch("/api/ai-usage", {
+        credentials: "include",
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setLogs(data.logs || []);
+        setStats(data.stats || null);
+      }
+    } catch (error) {
+      console.error("Failed to fetch AI usage:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card className="bg-card border-white/5 backdrop-blur-sm">
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const featureColors: Record<string, string> = {
+    "emar_metadata": "bg-blue-500/20 text-blue-400",
+    "emar_entries": "bg-indigo-500/20 text-indigo-400",
+    "emar_pass": "bg-purple-500/20 text-purple-400",
+    "drug_interactions": "bg-red-500/20 text-red-400",
+    "care_plan": "bg-green-500/20 text-green-400",
+    "risk_assessment": "bg-amber-500/20 text-amber-400",
+    "plan_enhancer": "bg-cyan-500/20 text-cyan-400",
+  };
+
+  const getFeatureColor = (feature: string): string => {
+    for (const [key, color] of Object.entries(featureColors)) {
+      if (feature.toLowerCase().includes(key.toLowerCase())) {
+        return color;
+      }
+    }
+    return "bg-gray-500/20 text-gray-400";
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid md:grid-cols-3 gap-4">
+        <Card className="bg-card border-white/5 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <DollarSign size={14} className="text-green-500" /> Total Spend
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-400">{stats ? formatCost(stats.totalCost) : "$0.00"}</div>
+            <p className="text-xs text-muted-foreground">All time AI costs</p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-card border-white/5 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <Cpu size={14} className="text-blue-500" /> API Calls
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-400">{stats?.totalCalls || 0}</div>
+            <p className="text-xs text-muted-foreground">Total AI requests</p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-card border-white/5 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <TrendingUp size={14} className="text-purple-500" /> Features Used
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-400">{stats ? Object.keys(stats.byFeature).length : 0}</div>
+            <p className="text-xs text-muted-foreground">Unique AI features</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {stats && Object.keys(stats.byFeature).length > 0 && (
+        <Card className="bg-card border-white/5 backdrop-blur-sm">
+          <CardHeader className="border-b border-white/5 bg-black/20">
+            <CardTitle className="flex items-center gap-2 text-foreground text-base">
+              <DollarSign size={18} className="text-green-400" />
+              Cost Breakdown by Feature
+            </CardTitle>
+            <CardDescription className="text-muted-foreground text-sm">
+              See how much each AI feature costs
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="space-y-3">
+              {Object.entries(stats.byFeature)
+                .sort((a, b) => b[1].cost - a[1].cost)
+                .map(([feature, data]) => (
+                  <div key={feature} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5">
+                    <div className="flex items-center gap-3">
+                      <Badge variant="secondary" className={getFeatureColor(feature)}>
+                        {feature.replace(/_/g, " ")}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">{data.calls} calls</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-foreground">{formatCost(data.cost)}</div>
+                      <div className="text-xs text-muted-foreground">{data.tokens.toLocaleString()} tokens</div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
+        <CardHeader className="border-b border-white/5 bg-black/20">
+          <CardTitle className="flex items-center gap-2 text-foreground text-base">
+            <Activity size={18} className="text-blue-400" />
+            Recent AI Calls
+          </CardTitle>
+          <CardDescription className="text-muted-foreground text-sm">
+            Last 100 AI API requests with user and cost info
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-white/5 hover:bg-transparent">
+                  <TableHead className="text-muted-foreground">Time</TableHead>
+                  <TableHead className="text-muted-foreground">User</TableHead>
+                  <TableHead className="text-muted-foreground">Feature</TableHead>
+                  <TableHead className="text-muted-foreground">Model</TableHead>
+                  <TableHead className="text-muted-foreground text-right">Tokens</TableHead>
+                  <TableHead className="text-muted-foreground text-right">Cost</TableHead>
+                  <TableHead className="text-muted-foreground text-right">Duration</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {logs.map((log) => (
+                  <TableRow key={log.id} className="border-white/5" data-testid={`ai-log-${log.id}`}>
+                    <TableCell className="text-muted-foreground text-xs">
+                      {new Date(log.createdAt).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-foreground">
+                      {log.username || <span className="text-muted-foreground italic">System</span>}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className={getFeatureColor(log.featureName)}>
+                        {log.featureName.replace(/_/g, " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground font-mono text-xs">
+                      {log.model}
+                    </TableCell>
+                    <TableCell className="text-right text-foreground">
+                      {log.totalTokens.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-green-400">
+                      {formatCost(log.costMicroDollars)}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {log.durationMs ? `${(log.durationMs / 1000).toFixed(1)}s` : "-"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {logs.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      No AI usage recorded yet. Run an EMAR analysis or generate a care plan to see data here.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 function RiskAssessmentLogsSection() {
@@ -1926,6 +2156,10 @@ export default function SecretAdminPortal() {
                 <FileText size={14} className="mr-1.5 inline-block" />
                 Policy Documents
               </TabsTrigger>
+              <TabsTrigger value="ai-costs" className="rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                <DollarSign size={14} className="mr-1.5 inline-block" />
+                AI Costs
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
@@ -2336,6 +2570,10 @@ export default function SecretAdminPortal() {
 
             <TabsContent value="policies" className="space-y-6">
               <PolicyDocumentsSection />
+            </TabsContent>
+
+            <TabsContent value="ai-costs" className="space-y-6">
+              <AICostSection />
             </TabsContent>
           </Tabs>
         </div>

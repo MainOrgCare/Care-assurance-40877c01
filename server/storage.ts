@@ -249,7 +249,7 @@ export class DatabaseStorage implements IStorage {
     await this.db.delete(sessionHistory).where(eq(sessionHistory.userId, id));
     await this.db.delete(activeSessions).where(eq(activeSessions.userId, id));
     await this.db.delete(suspensionLogs).where(eq(suspensionLogs.userId, id));
-    await this.db.delete(riskAssessmentLogs).where(eq(riskAssessmentLogs.userId, id));
+    // Note: riskAssessmentLogs does not have userId field, so we don't need to delete those
     // Now delete the user
     await this.db.delete(users).where(eq(users.id, id));
   }
