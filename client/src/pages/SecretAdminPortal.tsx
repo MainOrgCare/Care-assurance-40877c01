@@ -45,6 +45,7 @@ interface AiUsageLog {
   username: string | null;
   featureName: string;
   model: string;
+  provider: "replit" | "openai";
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
@@ -219,6 +220,7 @@ function AICostSection() {
                   <TableHead className="text-muted-foreground">Time</TableHead>
                   <TableHead className="text-muted-foreground">User</TableHead>
                   <TableHead className="text-muted-foreground">Feature</TableHead>
+                  <TableHead className="text-muted-foreground">Billed To</TableHead>
                   <TableHead className="text-muted-foreground">Model</TableHead>
                   <TableHead className="text-muted-foreground text-right">Tokens</TableHead>
                   <TableHead className="text-muted-foreground text-right">Cost</TableHead>
@@ -239,6 +241,17 @@ function AICostSection() {
                         {log.featureName.replace(/_/g, " ")}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant="outline" 
+                        className={log.provider === "replit" 
+                          ? "border-indigo-500/50 text-indigo-300 bg-indigo-500/10" 
+                          : "border-emerald-500/50 text-emerald-300 bg-emerald-500/10"
+                        }
+                      >
+                        {log.provider === "replit" ? "Replit AI" : "OpenAI"}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-muted-foreground font-mono text-xs">
                       {log.model}
                     </TableCell>
@@ -255,7 +268,7 @@ function AICostSection() {
                 ))}
                 {logs.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No AI usage recorded yet. Run an EMAR analysis or generate a care plan to see data here.
                     </TableCell>
                   </TableRow>
