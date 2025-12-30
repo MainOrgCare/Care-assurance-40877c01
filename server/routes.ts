@@ -2918,6 +2918,7 @@ OTHER CRITICAL RULES:
       const medGenericNames = new Map<string, string>();
       const medGapHours = new Map<string, number>();
       const medTimeSlots = new Map<string, string[]>();
+      const medScheduledSlotCount = new Map<string, number>(); // Track how many scheduled slots per medication
       
       medications.forEach((med: any) => {
         if (med.isPRN) {
@@ -2927,6 +2928,10 @@ OTHER CRITICAL RULES:
         if (med.genericName) medGenericNames.set(med.name, med.genericName.toLowerCase());
         if (med.requiredGapHours) medGapHours.set(med.name, med.requiredGapHours);
         if (med.timeSlots) medTimeSlots.set(med.name, med.timeSlots);
+        // Track scheduled time slot count for time gap validation
+        // Prefer per-medication slots, only default to 1 if not specified (assume once-daily)
+        const slotCount = med.scheduledTimeSlots?.length || med.timeSlots?.length || 1;
+        medScheduledSlotCount.set(med.name, slotCount);
       });
 
       // =====================================================================
@@ -3459,6 +3464,16 @@ If no equivalences found, return: {"equivalences": []}`
         if (dayEntries.length < 2) return;
         
         const [medication, dateKey] = key.split("|");
+        
+        // SKIP: Once-daily medications should not trigger time gap checks
+        // If a medication has only 1 scheduled time slot, it's once-daily and 
+        // any multiple entries are likely duplicate extractions from different time slot rows
+        const scheduledSlots = medScheduledSlotCount.get(medication) || 1;
+        if (scheduledSlots <= 1) {
+          console.log(`DEBUG: Skipping time gap check for once-daily medication "${medication}" (${scheduledSlots} scheduled slot)`);
+          return;
+        }
+        
         // Use configured gap if available, otherwise 4 hours for PRN, 4 hours for regular meds
         const requiredGap = medGapHours.get(medication) || 4; // Default 4 hours minimum between doses
         
@@ -3470,7 +3485,7 @@ If no equivalences found, return: {"equivalences": []}`
           return;
         }
         
-        console.log(`DEBUG: Checking time gaps for ${medication} on "${dateKey}": ${dayEntries.length} entries, required gap: ${requiredGap}h`);
+        console.log(`DEBUG: Checking time gaps for ${medication} on "${dateKey}": ${dayEntries.length} entries, required gap: ${requiredGap}h, scheduled slots: ${scheduledSlots}`);
         
         // Sort entries by extracted time
         const sortedEntries = dayEntries.sort((a: any, b: any) => {
