@@ -11,15 +11,20 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (December 30, 2025)
 
-- **EMAR Agent (GPT-4o-mini)**: Created dedicated cost-efficient EMAR extraction agent:
+- **Optimized EMAR Agent (GPT-5.1)**: Token-efficient EMAR extraction agent:
   - New service: `server/services/emarAgent.ts`
-  - Uses GPT-4o-mini (96% cheaper than GPT-5.1)
-  - Enhanced UK EMAR conventions and few-shot examples built into prompts
-  - 3-pass parallel extraction with consensus validation
-  - Domain validation (valid codes, dates, time slots, medication IDs)
-  - Self-checking validation pass
+  - Uses GPT-5.1 for accuracy with optimized token usage
+  - Compact bullet-list prompts instead of verbose paragraphs
+  - Indexed references: medId, dateIdx, slotIdx instead of repeating full names
+  - Abbreviated JSON keys: m, d, s, c, i, n instead of full field names
+  - Single-letter severity codes for drug interactions (H/M/L)
+  - Token usage logging per stage (metadata, extraction, validation, interactions)
+  - max_completion_tokens limits on all API calls
+  - Parallel drug interaction checking during extraction
+  - 3-pass consensus validation with domain checks
+  - Full discrepancy analysis pipeline integration (refusals, time gaps, MU warnings)
   - Toggle via environment variable: `USE_EMAR_AGENT=true/false` (default: false)
-  - Currently disabled pending full integration with discrepancy analysis pipeline
+  - Set USE_EMAR_AGENT=true to test optimized agent vs standard extraction
 
 - **Time Gap Detection Fix**: Fixed false positives for once-daily medications:
   - Added `medScheduledSlotCount` map to track scheduled slots per medication
