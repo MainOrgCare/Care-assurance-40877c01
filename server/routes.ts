@@ -1975,7 +1975,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
 
       const DETERMINISTIC_SEED = 42;
       
-      const metadataResponse = await createChatCompletion({
+      const metadataResponse = await createChatCompletionWithLogging({
         model: "gpt-5.1",
         messages: [
           { role: "system", content: metadataPrompt },
@@ -1985,7 +1985,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         temperature: 0,
         seed: DETERMINISTIC_SEED,
         response_format: { type: "json_object" },
-      });
+      }, "emar_metadata", aiUserContext);
       
       const metadataContent = metadataResponse.choices[0]?.message?.content || "{}";
       
@@ -2123,7 +2123,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       
       const countMedications = async (): Promise<number> => {
         try {
-          const response = await createChatCompletion({
+          const response = await createChatCompletionWithLogging({
             model: "gpt-5.1",
             messages: [
               { role: "system", content: medicationCountPrompt },
@@ -2133,7 +2133,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
             temperature: 0,
             seed: DETERMINISTIC_SEED,
             response_format: { type: "json_object" },
-          });
+          }, "emar_count_validation", aiUserContext);
           const content = response.choices[0]?.message?.content || '{"count":0}';
           const parsed = JSON.parse(content);
           return parsed.count || 0;
@@ -2339,7 +2339,7 @@ OTHER CRITICAL RULES:
 4. Skip only truly blank/empty cells - but capture ALL cells with any code or initials`;
           
           try {
-            const response = await createChatCompletion({
+            const response = await createChatCompletionWithLogging({
               model: "gpt-5.1",
               messages: [
                 { role: "system", content: batchPrompt },
@@ -2349,7 +2349,7 @@ OTHER CRITICAL RULES:
               temperature: 0,
               seed: DETERMINISTIC_SEED,
               response_format: { type: "json_object" },
-            });
+            }, "emar_extraction", aiUserContext);
             
             const content = response.choices[0]?.message?.content || '{"entries":[]}';
             const data = JSON.parse(content);
@@ -3014,7 +3014,7 @@ OTHER CRITICAL RULES:
         const medNames = medications.map((m: any) => m.name).join(", ");
         
         try {
-          const equivalenceResponse = await createChatCompletion({
+          const equivalenceResponse = await createChatCompletionWithLogging({
             model: "gpt-5.1",
             messages: [
               {
@@ -3051,7 +3051,7 @@ If no equivalences found, return: {"equivalences": []}`
             max_completion_tokens: 1000,
             temperature: 0,
             response_format: { type: "json_object" }
-          });
+          }, "emar_equivalence", aiUserContext);
 
           const equivalenceContent = equivalenceResponse.choices[0]?.message?.content || "{}";
           const equivalenceData = JSON.parse(equivalenceContent);
@@ -3624,7 +3624,7 @@ Return JSON with indices that are VALID (keep these). Include ALL indices unless
         let pass2Success = false;
         try {
           // Use GPT-5.1 with JSON mode for reliable parsing
-          const pass2Response = await createChatCompletion({
+          const pass2Response = await createChatCompletionWithLogging({
             model: "gpt-5.1",
             messages: [
               { role: "system", content: pass2SystemPrompt },
@@ -3636,7 +3636,7 @@ Return JSON with indices that are VALID (keep these). Include ALL indices unless
             max_completion_tokens: 2000,
             temperature: 0,
             response_format: { type: "json_object" },
-          });
+          }, "emar_validation_pass2", aiUserContext);
           
           const pass2Content = pass2Response.choices[0]?.message?.content || "{}";
           
@@ -3692,7 +3692,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
 
           try {
             // Use GPT-5.1 with JSON mode for reliable parsing
-            const pass3Response = await createChatCompletion({
+            const pass3Response = await createChatCompletionWithLogging({
               model: "gpt-5.1",
               messages: [
                 { role: "system", content: pass3SystemPrompt },
@@ -3704,7 +3704,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
               max_completion_tokens: 2000,
               temperature: 0,
               response_format: { type: "json_object" },
-            });
+            }, "emar_validation_pass3", aiUserContext);
             
             const pass3Content = pass3Response.choices[0]?.message?.content || "{}";
             
@@ -4000,6 +4000,10 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
     };
     
     try {
+      // User context for AI cost tracking
+      const user = await storage.getUser(req.session.userId!);
+      const aiUserContext: AiUserContext = { userId: user?.id || null, username: user?.username || null };
+      
       sendProgress(5, "Loading policies...", "init");
       
       // Fetch ALL relevant policy documents for visit audits
@@ -4096,7 +4100,7 @@ Respond ONLY with valid JSON in this exact format:
       
       sendProgress(30, "Running AI analysis...", "ai_analysis");
       
-      const response = await createChatCompletion({
+      const response = await createChatCompletionWithLogging({
         model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
@@ -4105,7 +4109,7 @@ Respond ONLY with valid JSON in this exact format:
         max_completion_tokens: 4000,
         temperature: 0,
         seed: DETERMINISTIC_SEED,
-      });
+      }, "visit_audit", aiUserContext);
 
       sendProgress(50, "Processing initial results...", "parsing_results");
 
@@ -4164,7 +4168,7 @@ Return JSON with indices that are VALID. Include ALL unless you're CERTAIN one i
           try {
             sendProgress(65, "Running validation pass 2...", "validation_pass2");
             // Use GPT-5.1 for deterministic validation
-            const pass2Response = await createChatCompletion({
+            const pass2Response = await createChatCompletionWithLogging({
               model: "gpt-5.1",
               messages: [
                 { role: "system", content: pass2Prompt },
@@ -4173,7 +4177,7 @@ Return JSON with indices that are VALID. Include ALL unless you're CERTAIN one i
               max_completion_tokens: 2000,
               temperature: 0,
               seed: DETERMINISTIC_SEED,
-            });
+            }, "visit_audit_validation_pass2", aiUserContext);
             
             const pass2Content = pass2Response.choices[0]?.message?.content || "";
             const pass2Match = pass2Content.match(/\{[\s\S]*\}/);
@@ -4216,7 +4220,7 @@ Return JSON - include ALL by default:
             try {
               sendProgress(80, "Running validation pass 3...", "validation_pass3");
               // Use GPT-5.1 for deterministic validation
-              const pass3Response = await createChatCompletion({
+              const pass3Response = await createChatCompletionWithLogging({
                 model: "gpt-5.1",
                 messages: [
                   { role: "system", content: pass3Prompt },
@@ -4225,7 +4229,7 @@ Return JSON - include ALL by default:
                 max_completion_tokens: 2000,
                 temperature: 0,
                 seed: DETERMINISTIC_SEED,
-              });
+              }, "visit_audit_validation_pass3", aiUserContext);
               
               const pass3Content = pass3Response.choices[0]?.message?.content || "";
               const pass3Match = pass3Content.match(/\{[\s\S]*\}/);
@@ -4284,9 +4288,12 @@ Return JSON - include ALL by default:
   });
 
   // Analyze documents for risk assessment
-  app.post("/api/ai/analyze-risks", requireAuth, async (req, res) => {
+  app.post("/api/ai/analyze-risks", requireAuth, async (req: any, res) => {
     let heartbeatInterval: NodeJS.Timeout | null = null;
     let progressInterval: NodeJS.Timeout | null = null;
+    
+    // User context for AI cost tracking
+    const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
     
     try {
       const { documentContent } = req.body;
@@ -4458,14 +4465,14 @@ Respond ONLY with valid JSON in this exact format:
         }
       }, 3000);
 
-      const response = await createChatCompletion({
+      const response = await createChatCompletionWithLogging({
         model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Analyze these documents for risk assessment needs:\n\n${documentContent}` }
         ],
         max_completion_tokens: 4000,
-      });
+      }, "risk_analysis", aiUserContext);
 
       clearInterval(progressInterval);
       sendProgress(80, "Processing results...", "processing");
@@ -4502,8 +4509,11 @@ Respond ONLY with valid JSON in this exact format:
   });
 
   // Generate detailed risk assessment content
-  app.post("/api/ai/generate-risk-assessment", requireAuth, async (req, res) => {
+  app.post("/api/ai/generate-risk-assessment", requireAuth, async (req: any, res) => {
     let heartbeatInterval: NodeJS.Timeout | null = null;
+    
+    // User context for AI cost tracking
+    const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
     
     try {
       const { documentContent, assessmentCategory, serviceUserInitials, performedBy, performedByJobTitle } = req.body;
@@ -4598,7 +4608,7 @@ Respond ONLY with valid JSON in this exact format:
 
       sendProgress(30, "Generating risk assessment...", "ai_generation");
 
-      const response = await createChatCompletion({
+      const response = await createChatCompletionWithLogging({
         model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
@@ -4607,7 +4617,7 @@ Respond ONLY with valid JSON in this exact format:
         temperature: 0,
         seed: 42,
         max_completion_tokens: 4000,
-      });
+      }, "risk_assessment", aiUserContext);
 
       sendProgress(70, "Processing results...", "processing");
 
@@ -4657,8 +4667,11 @@ Respond ONLY with valid JSON in this exact format:
 
   // Generate detailed first-person care plan from uploaded documents - CHUNKED APPROACH
   // Generates each section individually for faster feedback and better reliability
-  app.post("/api/ai/generate-care-plan", requireAuth, async (req, res) => {
+  app.post("/api/ai/generate-care-plan", requireAuth, async (req: any, res) => {
     let heartbeatInterval: NodeJS.Timeout | null = null;
+    
+    // User context for AI cost tracking
+    const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
     
     try {
       const { documentContent, serviceUserInitials } = req.body;
@@ -4784,7 +4797,7 @@ OUTPUT: Return ONLY valid JSON matching this structure:
         console.log(`[CarePlan] Generating section ${i + 1}/${mandatorySections.length}: ${section.title}`);
 
         try {
-          const sectionResponse = await createChatCompletion({
+          const sectionResponse = await createChatCompletionWithLogging({
             model: "gpt-4o-mini",
             messages: [
               { role: "system", content: baseSystemPrompt },
@@ -4799,7 +4812,7 @@ Remember: Write as if I am the service user speaking about my own needs. Return 
             ],
             temperature: 0.3,
             max_completion_tokens: 1500,
-          });
+          }, "care_plan_section", aiUserContext);
 
           const sectionContent = sectionResponse.choices[0]?.message?.content || "";
           const jsonMatch = sectionContent.match(/\{[\s\S]*\}/);
@@ -4864,7 +4877,7 @@ Remember: Write as if I am the service user speaking about my own needs. Return 
 
       // Extract emergency contacts and GP details from first successful section response
       try {
-        const metaResponse = await createChatCompletion({
+        const metaResponse = await createChatCompletionWithLogging({
           model: "gpt-4o-mini",
           messages: [
             { role: "system", content: "Extract contact information from the documents. Return JSON only." },
@@ -4880,7 +4893,7 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
           ],
           temperature: 0,
           max_completion_tokens: 500,
-        });
+        }, "care_plan_meta", aiUserContext);
         
         const metaContent = metaResponse.choices[0]?.message?.content || "";
         const metaMatch = metaContent.match(/\{[\s\S]*\}/);
@@ -4935,9 +4948,12 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
   });
 
   // Enhance existing care plan - generates complete care plan template matching exact form structure
-  app.post("/api/ai/enhance-plan", requireAuth, async (req, res) => {
+  app.post("/api/ai/enhance-plan", requireAuth, async (req: any, res) => {
     let heartbeatInterval: NodeJS.Timeout | null = null;
     let progressInterval: NodeJS.Timeout | null = null;
+    
+    // User context for AI cost tracking
+    const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
     
     try {
       const { documentContent, existingPlanContent } = req.body;
@@ -5234,7 +5250,7 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
         }
       }, 3000);
 
-      const response = await createChatCompletion({
+      const response = await createChatCompletionWithLogging({
         model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
@@ -5243,7 +5259,7 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
         temperature: 0,
         seed: 42,
         max_completion_tokens: 12000,
-      });
+      }, "plan_enhancer", aiUserContext);
 
       clearInterval(progressInterval);
       sendProgress(75, "Processing results...", "processing");
@@ -5542,7 +5558,10 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
   });
 
   // ===== EMAIL ASSISTANT ROUTE =====
-  app.post("/api/ai/rewrite-email", requireAuth, async (req, res) => {
+  app.post("/api/ai/rewrite-email", requireAuth, async (req: any, res) => {
+    // User context for AI cost tracking
+    const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
+    
     try {
       const { inputText, tone } = req.body;
       
@@ -5573,14 +5592,14 @@ RULES:
 
 Return ONLY the email text, nothing else.`;
 
-      const response = await createChatCompletion({
+      const response = await createChatCompletionWithLogging({
         model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: inputText }
         ],
         max_completion_tokens: 1000,
-      });
+      }, "email_assistant", aiUserContext);
 
       const rewrittenEmail = response.choices[0]?.message?.content;
       
@@ -5596,7 +5615,10 @@ Return ONLY the email text, nothing else.`;
   });
 
   // ===== PRN PROTOCOL GENERATION =====
-  app.post("/api/ai/generate-prn-protocol", requireAuth, async (req, res) => {
+  app.post("/api/ai/generate-prn-protocol", requireAuth, async (req: any, res) => {
+    // User context for AI cost tracking
+    const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
+    
     try {
       const { medicationName, existingData } = req.body;
       
@@ -5628,7 +5650,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         ? `Generate a complete PRN protocol for: ${medicationName}\n\nExisting information available:\n${JSON.stringify(existingData, null, 2)}\n\nPlease enhance and complete this protocol with all required fields.`
         : `Generate a complete PRN protocol for: ${medicationName}`;
 
-      const response = await createChatCompletion({
+      const response = await createChatCompletionWithLogging({
         model: "gpt-5.1",
         messages: [
           { role: "system", content: systemPrompt },
@@ -5636,7 +5658,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         ],
         max_completion_tokens: 1500,
         response_format: { type: "json_object" },
-      });
+      }, "prn_protocol", aiUserContext);
 
       const content = response.choices[0]?.message?.content;
       
