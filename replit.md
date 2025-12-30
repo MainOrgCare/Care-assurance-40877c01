@@ -11,6 +11,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (December 30, 2025)
 
+- **PRN Code Validation**: Strict PRN medication detection and code validation:
+  - PRN status determined ONLY from prescription text keywords: "as required", "as needed", "when required", "PRN", "take up to"
+  - Server-side override of AI classification using `isPRNFromInstructions()` helper with word boundary regex for "PRN"
+  - New discrepancy: PRN codes (PRN, PRN-AD, PRN-AS, PRN-R) used on non-PRN medications = high severity
+  - New discrepancy: Regular codes (AD, AS, P) used on PRN medications = high severity
+  - Prevents false positives from phrases like "increase up to 50 mg" (bare "up to" removed from keywords)
+
 - **Optimized EMAR Agent (GPT-5.1)**: Token-efficient EMAR extraction agent:
   - New service: `server/services/emarAgent.ts`
   - Uses GPT-5.1 for accuracy with optimized token usage
