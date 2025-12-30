@@ -22,13 +22,15 @@ Preferred communication style: Simple, everyday language.
   - Sends SSE warnings for high-severity interactions during analysis
   - Tracked via AI usage logging with feature name "drug_interactions"
 
-- **Manual Correction UI (Admin Only)**: Lets admins fix AI extraction mistakes:
+- **Manual Correction UI with AI Training (Admin Only)**: Lets admins fix AI extraction mistakes:
   - Edit Mode toggle button in discrepancy results (admin-only)
   - Click-to-edit buttons on each discrepancy row
   - Edit dialog with dropdown for codes (AD, AS, R, MU, etc.)
   - Visual highlighting for corrected entries with undo capability
-  - Apply Corrections button to finalize all changes
-  - Session-only storage (not persisted to backend)
+  - Apply Corrections button persists to database via POST /api/emar-corrections (admin-protected)
+  - Corrections stored in emarCorrections table with admin ID, username, and audit trail
+  - Last 20 corrections fed into AI prompts as "LEARN FROM PAST CORRECTIONS" context
+  - No public GET endpoint - corrections accessed only internally via storage calls
 
 - **EMAR Extraction UNION Approach**: Fixed medication discovery:
   - Dynamic discovery of medications not in metadata (IDs >= 1000)
@@ -76,7 +78,7 @@ Preferred communication style: Simple, everyday language.
 ### Data Storage
 - **Database**: PostgreSQL
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation. Schema is shared between frontend and backend.
-- **Key Tables**: users, careWorkers, discrepancies, audits, adminAlerts, activeSessions, blockedIps, emarRefusalReviews, fileScanLogs.
+- **Key Tables**: users, careWorkers, discrepancies, audits, adminAlerts, activeSessions, blockedIps, emarRefusalReviews, emarCorrections, fileScanLogs.
 
 ### Key Design Patterns & Features
 - **Shared Schema**: Database schema and Zod validators defined once and used by both client and server.
