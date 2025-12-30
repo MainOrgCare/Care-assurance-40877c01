@@ -27,6 +27,17 @@ export interface EmarEntry {
   careWorkerInitials: string;
   time?: string;
   hasTime: boolean;
+  isOfficeClosed?: boolean;
+  closedByStaff?: string;
+  closedTime?: string;
+}
+
+export interface MissedMedicationEntry {
+  medication: string;
+  scheduledTime: string;
+  status: string;
+  closedBy: string;
+  closedTime: string;
 }
 
 export interface DrugInteraction {
@@ -130,7 +141,7 @@ Keys: su=initials, alg=allergies, n=name, g=generic, prn=isPRN, slots=scheduledS
     metadata: EmarMetadata,
     correctionsContext: string,
     aiUserContext: AiUserContext
-  ): Promise<{ entries: EmarEntry[]; consensusStatus: 'verified' | 'single_pass' | 'no_consensus'; tokens: number }> {
+  ): Promise<{ entries: EmarEntry[]; missedMedications: MissedMedicationEntry[]; consensusStatus: 'verified' | 'single_pass' | 'no_consensus'; tokens: number }> {
     const medMap = metadata.medications.map(m => `${m.medicationId}:${m.name.substring(0, 30)}`).join('|');
     const dateMap = metadata.dates.map((d, i) => `${i}:${d}`).join('|');
     const slotMap = metadata.timeSlots.map((s, i) => `${i}:${s}`).join('|');
@@ -150,24 +161,33 @@ Step 2: Go down ALL medications for that date, extract codes
 Step 3: Move to Date[1], repeat down all meds
 Step 4: Continue for each date column
 
-Example grid:
-        | 01 Dec | 02 Dec | 03 Dec
-Med A   | AD RK  |   X    | R HB
-Med B   | AS JT  | AD RK  |   -
+OFFICE-CLOSED ENTRIES:
+- If a code has NO INITIALS (just code in red box), set "oc":true
+- These are manually closed by office staff, NOT care worker administered
+- Still extract the code, but mark it as office-closed
 
-Correct output (column-by-column):
+MISSED MEDICATION SECTION:
+- Look for "Missed Medication" table at bottom of document
+- Extract entries with: medication, scheduledTime, closedBy (staff name), closedTime
+- Include in "mm" array
+
+Example output:
 {"e":[
   {"m":1,"d":0,"s":0,"c":"AD","i":"RK"},
-  {"m":2,"d":0,"s":0,"c":"AS","i":"JT"},
-  {"m":2,"d":1,"s":0,"c":"AD","i":"RK"},
+  {"m":2,"d":0,"s":0,"c":"AD","i":"","oc":true},
   {"m":1,"d":2,"s":0,"c":"R","i":"HB"}
+],
+"mm":[
+  {"med":"Paracetamol","st":"06/Dec/25 04:00 AM","cb":"Kerri McLaughlin","ct":"08/Dec/25 01:31 PM"}
 ]}
-Note: X and - cells are SKIPPED, not output.
 
-Keys: m=medId, d=dateIdx, s=slotIdx, c=code, i=initials, t=time(if recorded)
+Keys: m=medId, d=dateIdx, s=slotIdx, c=code, i=initials, t=time, oc=officeClosed
+mm keys: med=medication, st=scheduledTime, cb=closedBy, ct=closedTime
 CRITICAL: Include ALL R codes. Never output blank/X cells.`;
 
     let totalTokens = 0;
+
+    let missedMedications: MissedMedicationEntry[] = [];
 
     const runPass = async (): Promise<EmarEntry[]> => {
       const response = await createChatCompletionWithLogging({
@@ -186,6 +206,17 @@ CRITICAL: Include ALL R codes. Never output blank/X cells.`;
       const content = response.choices[0]?.message?.content || '{"e":[]}';
       const parsed = JSON.parse(content);
       const rawEntries = parsed.e || parsed.entries || [];
+      
+      // Extract missed medication entries (only once from first pass)
+      if (missedMedications.length === 0 && parsed.mm) {
+        missedMedications = (parsed.mm || []).map((m: any) => ({
+          medication: m.med || m.medication || '',
+          scheduledTime: m.st || m.scheduledTime || '',
+          status: m.status || 'Completed',
+          closedBy: m.cb || m.closedBy || '',
+          closedTime: m.ct || m.closedTime || ''
+        }));
+      }
 
       return rawEntries.map((e: any) => ({
         medicationId: e.m ?? e.medicationId,
@@ -194,7 +225,8 @@ CRITICAL: Include ALL R codes. Never output blank/X cells.`;
         code: (e.c || e.code || '').toUpperCase(),
         careWorkerInitials: (e.i || e.careWorkerInitials || '').toUpperCase(),
         time: e.t || e.time,
-        hasTime: Boolean(e.t || e.time)
+        hasTime: Boolean(e.t || e.time),
+        isOfficeClosed: Boolean(e.oc || e.officeClosed || (!e.i && !e.careWorkerInitials))
       }));
     };
 
@@ -239,16 +271,16 @@ CRITICAL: Include ALL R codes. Never output blank/X cells.`;
       a.size === b.size && Array.from(a).every(k => b.has(k));
 
     if (eq(s1, s2) && eq(s2, s3)) {
-      return { entries: d1, consensusStatus: 'verified', tokens: totalTokens };
+      return { entries: d1, missedMedications, consensusStatus: 'verified', tokens: totalTokens };
     }
     if (eq(s1, s2) || eq(s1, s3) || eq(s2, s3)) {
       const best = eq(s1, s2) ? d1 : eq(s1, s3) ? d1 : d2;
-      return { entries: best, consensusStatus: 'verified', tokens: totalTokens };
+      return { entries: best, missedMedications, consensusStatus: 'verified', tokens: totalTokens };
     }
 
     const counts = [d1.length, d2.length, d3.length];
     const maxIdx = counts.indexOf(Math.max(...counts));
-    return { entries: [d1, d2, d3][maxIdx], consensusStatus: 'no_consensus', tokens: totalTokens };
+    return { entries: [d1, d2, d3][maxIdx], missedMedications, consensusStatus: 'no_consensus', tokens: totalTokens };
   }
 
   async checkDrugInteractions(

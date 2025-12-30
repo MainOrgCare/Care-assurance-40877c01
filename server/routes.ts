@@ -2049,6 +2049,12 @@ ${correctionExamples}
             const code = (entry.code || '').toUpperCase();
             if (!administrationCodes.some(c => code === c || code.startsWith(c))) return;
             
+            // Skip office-closed entries from time gap checks (manually closed by office staff)
+            if (entry.isOfficeClosed) {
+              console.log(`DEBUG: Skipping office-closed entry from time gap check: ${entry.medication} on ${entry.date}`);
+              return;
+            }
+            
             // Extract time from entry
             let timeValue = entry.time;
             if (!timeValue && entry.timeSlot) {
@@ -2214,6 +2220,17 @@ ${correctionExamples}
             else if (asRatio > 0.4) agentServiceUserType = 'assisted';
           }
           
+          // Extract office-closed entries (codes without initials, manually closed by office staff)
+          const officeClosedEntries = agentEntries.filter((e: any) => e.isOfficeClosed).map((e: any) => ({
+            medication: e.medication,
+            date: e.date,
+            timeSlot: e.timeSlot,
+            code: e.code,
+            closedByStaff: e.closedByStaff || 'Office Staff',
+            closedTime: e.closedTime || ''
+          }));
+          console.log(`Agent: Found ${officeClosedEntries.length} office-closed entries`);
+          
           const agentAnalysisResult = {
             serviceUserName: agentExtractedData.serviceUserInitials || 'Unknown',
             serviceUserType: agentServiceUserType,
@@ -2242,6 +2259,7 @@ ${correctionExamples}
                 protocol: 'PRN protocol should be in place'
               }))
             },
+            officeClosedEntries: officeClosedEntries,
             totalEntriesProcessed: agentEntries.length,
             totalMedications: agentMedications.length,
             datesAudited: agentDates,
@@ -3847,6 +3865,12 @@ If no equivalences found, return: {"equivalences": []}`
         
         // Only include entries where medication was actually administered
         if (!isAdministeredCode(code)) return;
+        
+        // Skip office-closed entries from time gap checks (manually closed by office staff)
+        if (entry.isOfficeClosed) {
+          console.log(`DEBUG: Skipping office-closed entry from time gap check: ${entry.medication} on ${entry.date}`);
+          return;
+        }
         
         // CRITICAL: Must have care worker initials to be a valid administration
         // Empty time slots (crossed out boxes) won't have initials
