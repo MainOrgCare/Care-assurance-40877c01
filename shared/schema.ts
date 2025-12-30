@@ -309,3 +309,35 @@ export const insertFileScanLogSchema = createInsertSchema(fileScanLogs).omit({
 
 export type InsertFileScanLog = z.infer<typeof insertFileScanLogSchema>;
 export type FileScanLog = typeof fileScanLogs.$inferSelect;
+
+// EMAR Corrections table - stores admin corrections for AI training
+export const emarCorrections = pgTable("emar_corrections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  auditId: varchar("audit_id"),
+  adminId: varchar("admin_id").notNull().references(() => users.id),
+  adminUsername: text("admin_username").notNull(),
+  serviceUserInitials: text("service_user_initials"),
+  
+  originalMedication: text("original_medication").notNull(),
+  originalDate: text("original_date").notNull(),
+  originalTimeSlot: text("original_time_slot"),
+  originalCode: text("original_code"),
+  originalCareWorker: text("original_care_worker"),
+  
+  correctedMedication: text("corrected_medication"),
+  correctedDate: text("corrected_date"),
+  correctedTimeSlot: text("corrected_time_slot"),
+  correctedCode: text("corrected_code"),
+  correctedCareWorker: text("corrected_care_worker"),
+  
+  correctionNote: text("correction_note"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertEmarCorrectionSchema = createInsertSchema(emarCorrections).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertEmarCorrection = z.infer<typeof insertEmarCorrectionSchema>;
+export type EmarCorrection = typeof emarCorrections.$inferSelect;

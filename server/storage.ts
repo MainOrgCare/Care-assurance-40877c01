@@ -30,6 +30,8 @@ import {
   type InsertEmarRefusalReview,
   type FileScanLog,
   type InsertFileScanLog,
+  type EmarCorrection,
+  type InsertEmarCorrection,
   users,
   careWorkers,
   discrepancies,
@@ -43,6 +45,7 @@ import {
   blockedIps,
   emarRefusalReviews,
   fileScanLogs,
+  emarCorrections,
 } from "@shared/schema";
 
 const SALT_ROUNDS = 10;
@@ -151,6 +154,10 @@ export interface IStorage {
   createFileScanLog(log: InsertFileScanLog): Promise<FileScanLog>;
   getFileScanLogByHash(fileHash: string): Promise<FileScanLog | undefined>;
   getAllFileScanLogs(): Promise<FileScanLog[]>;
+
+  // EMAR Correction operations
+  createEmarCorrection(correction: InsertEmarCorrection): Promise<EmarCorrection>;
+  getRecentEmarCorrections(limit?: number): Promise<EmarCorrection[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -785,6 +792,20 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(fileScanLogs)
       .orderBy(desc(fileScanLogs.scannedAt));
+  }
+
+  // EMAR Correction operations
+  async createEmarCorrection(correction: InsertEmarCorrection): Promise<EmarCorrection> {
+    const result = await this.db.insert(emarCorrections).values(correction).returning();
+    return result[0];
+  }
+
+  async getRecentEmarCorrections(limit: number = 50): Promise<EmarCorrection[]> {
+    return await this.db
+      .select()
+      .from(emarCorrections)
+      .orderBy(desc(emarCorrections.createdAt))
+      .limit(limit);
   }
 }
 

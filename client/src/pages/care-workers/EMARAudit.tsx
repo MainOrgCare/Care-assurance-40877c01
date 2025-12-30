@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -119,8 +120,16 @@ interface EditingEntry {
   issue: string;
 }
 
+interface DrugInteraction {
+  drug1: string;
+  drug2: string;
+  severity: "high" | "moderate" | "low";
+  description: string;
+}
+
 interface EmarAnalysisResult {
   serviceUserName: string;
+  serviceUserInitials?: string;
   serviceUserType: "prompt" | "administer" | "assist";
   medicationLevelEvidence?: string;
   codeConflictDetected?: boolean;
@@ -130,6 +139,7 @@ interface EmarAnalysisResult {
   warnings?: Warning[];
   hasDiscrepancies: boolean;
   discrepancies: Discrepancy[];
+  drugInteractions?: DrugInteraction[];
   groupedRefusals?: GroupedRefusal[];
   groupedMainRefusals?: GroupedRefusal[];
   groupedPrnRefusals?: GroupedRefusal[];
@@ -1089,7 +1099,7 @@ ${generatedProtocol.additionalComments}`;
     });
   };
 
-  const applyAllCorrections = () => {
+  const applyAllCorrections = async () => {
     if (corrections.size === 0) {
       toast({
         title: "No Corrections",
@@ -1105,6 +1115,27 @@ ${generatedProtocol.additionalComments}`;
       title: "Corrections Applied",
       description: `${corrections.size} correction(s) have been applied to the audit data.`,
     });
+
+    if (user?.role === 'admin') {
+      try {
+        await apiRequest("POST", "/api/emar-corrections", {
+          corrections: Array.from(corrections.values()),
+          serviceUserInitials: result?.serviceUserInitials,
+          auditId: null,
+        });
+        
+        toast({
+          title: "Corrections Saved",
+          description: "Corrections have been persisted to the database.",
+        });
+      } catch (error: any) {
+        toast({
+          title: "Save Failed",
+          description: error.message || "Failed to save corrections to database.",
+          variant: "destructive",
+        });
+      }
+    }
   };
 
   const getCorrectedValue = (key: string): CorrectedEntry | null => {
@@ -1740,6 +1771,57 @@ ${generatedProtocol.additionalComments}`;
                           </Table>
                         </div>
                       )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Drug Interactions Section */}
+          {result?.drugInteractions && result.drugInteractions.length > 0 && (
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-orange-400" />
+                  Drug Interactions ({result.drugInteractions.length})
+                </CardTitle>
+                <CardDescription>
+                  Potential drug interactions detected between medications in this EMAR.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {result.drugInteractions.map((interaction, idx) => {
+                  const severityColors = {
+                    high: 'border-red-500/50 bg-red-500/10 text-red-400',
+                    moderate: 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400',
+                    low: 'border-blue-500/50 bg-blue-500/10 text-blue-400',
+                  };
+                  const severityBadgeColors = {
+                    high: 'bg-red-500/20 text-red-400',
+                    moderate: 'bg-yellow-500/20 text-yellow-400',
+                    low: 'bg-blue-500/20 text-blue-400',
+                  };
+                  
+                  return (
+                    <div
+                      key={idx}
+                      className={`border rounded-lg p-4 ${severityColors[interaction.severity]}`}
+                      data-testid={`drug-interaction-${idx}`}
+                    >
+                      <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <span className="font-medium text-foreground">{interaction.drug1}</span>
+                            <span className="text-muted-foreground">+</span>
+                            <span className="font-medium text-foreground">{interaction.drug2}</span>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${severityBadgeColors[interaction.severity]}`}>
+                              {interaction.severity.charAt(0).toUpperCase() + interaction.severity.slice(1)} Severity
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{interaction.description}</p>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}

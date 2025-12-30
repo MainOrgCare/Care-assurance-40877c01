@@ -1894,6 +1894,24 @@ export async function registerRoutes(
       console.log(`Column boundaries: ${tableStructure.columnBoundaries.join(', ')}`);
       console.log("=================================");
       
+      // Fetch recent EMAR corrections to improve AI extraction accuracy
+      const recentCorrections = await storage.getRecentEmarCorrections(20);
+      let correctionsContext = '';
+      if (recentCorrections.length > 0) {
+        const correctionExamples = recentCorrections.map(c => {
+          const codeChange = c.correctedCode 
+            ? `${c.originalCode || 'blank'} → ${c.correctedCode}`
+            : 'no code change';
+          return `- "${c.originalMedication}" on ${c.originalDate}: ${codeChange}`;
+        }).join('\n');
+        correctionsContext = `
+LEARN FROM PAST CORRECTIONS:
+The following are corrections made to previous extractions. Use these to improve accuracy:
+${correctionExamples}
+`;
+        console.log(`DEBUG: Loaded ${recentCorrections.length} past corrections for AI context`);
+      }
+      
       sendProgress(10, "Analyzing EMAR document...", "metadata_extraction");
 
       // STEP 2: Two-phase AI extraction to handle large grids
@@ -1915,7 +1933,7 @@ Use this layout information to correctly parse the grid structure.
       
       const metadataPrompt = `You are an EMAR (Electronic Medication Administration Record) data extractor analyzing EMAR document text.
 This tool works with ANY EMAR system from ANY provider (e.g., CMM, CarePlanner, MedPass, PCS, etc.).
-${tableStructureContext}
+${tableStructureContext}${correctionsContext}
 Analyze the document text and extract ONLY the metadata (do NOT extract individual administration entries yet).
 
 Return a JSON object with this EXACT structure:
@@ -2271,7 +2289,7 @@ ${batchMedList}
 
 DATES FROM DOCUMENT: ${metadata.dates?.join(", ")}
 TIME SLOTS: ${metadata.timeSlots?.join(", ")}
-
+${correctionsContext}
 ANALYZE THE DOCUMENT TEXT:
 1. Find all entries for the medication(s) listed above
 2. Extract the care worker initials (typically 2 letters)
@@ -5746,6 +5764,52 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.status(500).json({ message: error.message || "Failed to create refusal reviews" });
     }
   });
+
+  // Save EMAR corrections (admin-only)
+  app.post("/api/emar-corrections", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const { corrections, serviceUserInitials, auditId } = req.body;
+      
+      if (!Array.isArray(corrections) || corrections.length === 0) {
+        return res.status(400).json({ message: "Corrections array is required" });
+      }
+
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      let count = 0;
+      for (const c of corrections) {
+        await storage.createEmarCorrection({
+          adminId: user.id,
+          adminUsername: user.username,
+          auditId: auditId || null,
+          serviceUserInitials: serviceUserInitials || null,
+          originalMedication: c.originalMedication,
+          originalDate: c.originalDate,
+          originalTimeSlot: c.originalTimeSlot || null,
+          originalCode: c.originalCode || null,
+          originalCareWorker: c.originalCareWorker || null,
+          correctedMedication: c.correctedMedication || null,
+          correctedDate: c.correctedDate || null,
+          correctedTimeSlot: c.correctedTimeSlot || null,
+          correctedCode: c.correctedCode || null,
+          correctedCareWorker: c.correctedCareWorker || null,
+          correctionNote: c.correctionNote || null,
+        });
+        count++;
+      }
+
+      return res.status(201).json({ success: true, count });
+    } catch (error: any) {
+      console.error("EMAR corrections save error:", error);
+      return res.status(500).json({ message: error.message || "Failed to save EMAR corrections" });
+    }
+  });
+
+  // NOTE: EMAR corrections are accessed internally via storage.getRecentEmarCorrections()
+  // No public GET endpoint to protect sensitive correction data (admin-only access)
 
   return httpServer;
 }
