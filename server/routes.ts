@@ -2356,7 +2356,7 @@ EXTRACTION RULES:
 3. medications: Each medication should include:
    - name: The full medication name including strength/form exactly as shown
    - genericName: The active ingredient (e.g., paracetamol, ibuprofen, omeprazole)
-   - isPRN: true ONLY if the prescription/instructions text contains: "PRN", "as required", "as needed", "when required", "take up to", "if needed". Do NOT set isPRN based on document sections - only the prescription text itself.
+   - isPRN: true ONLY if the prescription/instructions text contains: "PRN", "as required", "as needed", "when required", "up to X times/tablets/daily", "if needed". Do NOT set isPRN based on document sections - only the prescription text itself.
    - instructions: The dosage/administration instructions (CRITICAL: Extract exactly as written - this determines PRN status)
    - requiredGapHours: Minimum hours between doses (default 4 for most meds, 6-8 for controlled drugs)
    - scheduledTimeSlots: The time slots that apply to this medication
@@ -3319,7 +3319,11 @@ OTHER CRITICAL RULES:
         // Check for exact PRN keyword (word boundary to avoid matching in other words)
         if (/\bprn\b/i.test(instructions)) return true;
         // Check for phrase keywords
-        return PRN_KEYWORDS.some(keyword => lower.includes(keyword));
+        if (PRN_KEYWORDS.some(keyword => lower.includes(keyword))) return true;
+        // Check for "up to X times" or "up to X tablets" pattern (PRN indicator)
+        // But NOT "up to Xmg" or "up to X mg" (dosage adjustment, not PRN)
+        if (/up to \d+\s*(times|tablets?|capsules?|doses?|daily|a day)/i.test(instructions)) return true;
+        return false;
       };
       
       // Build lookup maps

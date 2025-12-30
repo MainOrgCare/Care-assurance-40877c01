@@ -12,7 +12,7 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes (December 30, 2025)
 
 - **PRN Code Validation**: Strict PRN medication detection and code validation:
-  - PRN status determined ONLY from prescription text keywords: "as required", "as needed", "when required", "PRN", "take up to"
+  - PRN status determined ONLY from prescription text keywords: "as required", "as needed", "when required", "PRN", "up to X times/tablets/daily"
   - Server-side override of AI classification using `isPRNFromInstructions()` helper with word boundary regex for "PRN"
   - New discrepancy: PRN codes (PRN, PRN-AD, PRN-AS, PRN-R) used on non-PRN medications = high severity
   - New discrepancy: Invalid codes (AD, AS, P) used on PRN medications = high severity (should use PRN codes only)
