@@ -2343,12 +2343,12 @@ ${generatedProtocol.additionalComments}`;
           </Card>
 
           {result.officeClosedEntries && result.officeClosedEntries.length > 0 && (
-            <Card className="bg-card border-border">
+            <Card className="bg-card border-border" data-testid="card-office-closed-entries">
               <CardHeader className="flex flex-row items-center justify-between gap-2">
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2" data-testid="title-office-closed">
                   <Users className="h-5 w-5 text-blue-400" />
                   Office Staff Manual Entries
-                  <Badge variant="outline" className="ml-2 text-blue-400 border-blue-400/30">
+                  <Badge variant="outline" className="ml-2 text-blue-400 border-blue-400/30" data-testid="badge-office-closed-count">
                     {result.officeClosedEntries.length}
                   </Badge>
                 </CardTitle>
@@ -2358,35 +2358,35 @@ ${generatedProtocol.additionalComments}`;
                 />
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground" data-testid="text-office-closed-description">
                   These entries were manually closed by office staff (codes without initials in red boxes). 
                   They are excluded from time gap violations but still validated for correct codes and required notes.
                 </p>
                 <div className="rounded-lg border border-border overflow-hidden">
-                  <Table>
+                  <Table data-testid="table-office-closed">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Medication</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Time Slot</TableHead>
-                        <TableHead>Code</TableHead>
-                        <TableHead>Closed By</TableHead>
-                        <TableHead>Time Closed</TableHead>
+                        <TableHead data-testid="header-medication">Medication</TableHead>
+                        <TableHead data-testid="header-date">Date</TableHead>
+                        <TableHead data-testid="header-timeslot">Time Slot</TableHead>
+                        <TableHead data-testid="header-code">Code</TableHead>
+                        <TableHead data-testid="header-closedby">Closed By</TableHead>
+                        <TableHead data-testid="header-closedtime">Time Closed</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {result.officeClosedEntries.map((entry, idx) => (
                         <TableRow key={idx} data-testid={`row-office-closed-${idx}`}>
-                          <TableCell className="font-medium">{entry.medication}</TableCell>
-                          <TableCell>{entry.date}</TableCell>
-                          <TableCell>{entry.timeSlot}</TableCell>
-                          <TableCell>
+                          <TableCell className="font-medium" data-testid={`cell-medication-${idx}`}>{entry.medication}</TableCell>
+                          <TableCell data-testid={`cell-date-${idx}`}>{entry.date}</TableCell>
+                          <TableCell data-testid={`cell-timeslot-${idx}`}>{entry.timeSlot}</TableCell>
+                          <TableCell data-testid={`cell-code-${idx}`}>
                             <Badge variant="outline" className="text-blue-400 border-blue-400/30">
                               {entry.code}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-blue-400">{entry.closedByStaff || 'Office Staff'}</TableCell>
-                          <TableCell className="text-muted-foreground">{entry.closedTime || '-'}</TableCell>
+                          <TableCell className="text-blue-400" data-testid={`cell-closedby-${idx}`}>{entry.closedByStaff || 'Office Staff'}</TableCell>
+                          <TableCell className="text-muted-foreground" data-testid={`cell-closedtime-${idx}`}>{entry.closedTime || '-'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
