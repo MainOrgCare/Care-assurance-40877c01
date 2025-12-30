@@ -9,6 +9,7 @@ const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema } from "@shared/schema";
 import { createChatCompletion, createChatCompletionWithLogging, openai, type AiUserContext } from "./services/aiClient";
+import { emarAgent } from "./services/emarAgent";
 import multer from "multer";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
@@ -1918,6 +1919,74 @@ ${correctionExamples}
       
       sendProgress(10, "Analyzing EMAR document...", "metadata_extraction");
 
+      // =====================================================================
+      // USE EMAR AGENT (if enabled via environment variable)
+      // Toggle: USE_EMAR_AGENT=true/false
+      // =====================================================================
+      const useEmarAgent = process.env.USE_EMAR_AGENT === 'true';
+      let agentExtractionSucceeded = false;
+      let agentExtractedData: any = null;
+      let agentDrugInteractions: any[] = [];
+      
+      if (useEmarAgent) {
+        console.log("=== USING EMAR AGENT (GPT-4o-mini) ===");
+        sendProgress(15, "Using cost-efficient EMAR agent...", "emar_agent");
+        
+        try {
+          const agentResult = await emarAgent.extract(
+            analysisText,
+            tableStructure,
+            correctionsContext,
+            aiUserContext
+          );
+          
+          console.log(`EMAR Agent completed: ${agentResult.entries.length} entries, ${agentResult.consensusStatus}, validation: ${agentResult.validationPassed}`);
+          sendProgress(60, `Extracted ${agentResult.entries.length} entries via agent...`, "agent_complete");
+          
+          // Convert agent result to the format expected by the rest of the code
+          const metadata = agentResult.metadata;
+          const allEntries = agentResult.entries.map(e => ({
+            ...e,
+            medication: metadata.medications.find(m => m.medicationId === e.medicationId)?.name || `Medication ${e.medicationId}`
+          }));
+          
+          // Check for drug interactions
+          sendProgress(62, "Checking for drug interactions...", "drug_interaction_check");
+          agentDrugInteractions = await checkDrugInteractions(metadata.medications, aiUserContext);
+          if (agentDrugInteractions.length > 0) {
+            const highSeverity = agentDrugInteractions.filter(d => d.severity === 'high').length;
+            if (highSeverity > 0) {
+              sendEvent('warning', { 
+                message: `ALERT: ${highSeverity} high-severity drug interaction(s) detected. Review medications carefully.`
+              });
+            }
+          }
+          
+          // Store extracted data for discrepancy analysis
+          agentExtractedData = {
+            serviceUserInitials: metadata.serviceUserInitials,
+            allergies: metadata.allergies,
+            medications: metadata.medications,
+            dates: metadata.dates,
+            timeSlots: metadata.timeSlots,
+            entries: allEntries,
+            drugInteractions: agentDrugInteractions,
+            consensusStatus: agentResult.consensusStatus,
+            model: agentResult.model
+          };
+          
+          agentExtractionSucceeded = true;
+          console.log("EMAR Agent extraction succeeded - skipping standard extraction");
+          
+        } catch (agentError: any) {
+          console.error("EMAR Agent failed, falling back to standard extraction:", agentError.message);
+          sendEvent('warning', { message: "Agent extraction failed, using standard method..." });
+          agentExtractionSucceeded = false;
+        }
+      }
+      
+      // STANDARD EXTRACTION (when agent is disabled or fails)
+      if (!agentExtractionSucceeded) {
       // STEP 2: Two-phase AI extraction to handle large grids
       // Phase 1: Extract metadata only (medications, dates, timeSlots) from document text
       
@@ -3959,6 +4028,9 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       sendEvent('result', result);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       return res.end();
+      
+      } // End of if (!agentExtractionSucceeded) block
+      
     } catch (error: any) {
       console.error("EMAR AI Error:", error);
       sendEvent('error', { message: error.message || "AI analysis failed" });
