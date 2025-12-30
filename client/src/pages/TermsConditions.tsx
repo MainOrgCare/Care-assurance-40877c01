@@ -62,6 +62,40 @@ export default function TermsConditions() {
             </section>
 
             <section>
+              <h3 className="text-lg font-semibold text-foreground">1A. Absolute Ownership and Independence</h3>
+              <div className="bg-blue-950/30 border border-blue-900/50 rounded-lg p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <Shield className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-blue-200 font-medium mb-2">SOLE OWNERSHIP REGARDLESS OF CIRCUMSTANCES</p>
+                    <p className="text-blue-100/80 text-sm">
+                      CareAssurance is the <strong>sole and exclusive property of Lewis Barron</strong>, an individual person, and has <strong>no affiliation whatsoever with any company, corporation, employer, educational institution, or other organization</strong>. Lewis Barron is the sole developer, owner, and rights holder of this software.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <p className="text-muted-foreground mb-4">
+                <strong>Ownership remains absolute under all circumstances, including but not limited to:</strong>
+              </p>
+              <ul className="list-disc pl-6 text-muted-foreground space-y-2">
+                <li><strong>Domain Network Development:</strong> If this code was developed on a computer connected to a corporate, educational, or government domain network, Lewis Barron remains the sole owner. No organization acquires any rights to this software by virtue of the development environment.</li>
+                <li><strong>Employer-Provided Equipment:</strong> If this code was developed on equipment owned by, leased by, or provided by an employer or any third party, Lewis Barron remains the sole owner. No equipment provider acquires any rights to this software.</li>
+                <li><strong>Work Hours or Premises:</strong> If any development occurred during work hours, on employer premises, or using employer resources, Lewis Barron remains the sole owner. This software was developed as a personal project and not within the scope of any employment.</li>
+                <li><strong>Acquisition by Improper Means:</strong> If this code is obtained, accessed, copied, or acquired by any party through immoral, unethical, illegal, or improper means (including but not limited to unauthorized access, hacking, social engineering, theft, breach of confidentiality, or any form of misconduct), Lewis Barron remains the sole and absolute owner. No ownership, license, or rights of any kind transfer through such acquisition.</li>
+                <li><strong>Training, Education, or Collaboration:</strong> If any knowledge, skills, or tools used in development were acquired through employment, training, or education, Lewis Barron remains the sole owner. Skills and knowledge do not transfer ownership of original works.</li>
+              </ul>
+              <div className="bg-red-950/40 border border-red-800/50 rounded-lg p-4 mt-4 mb-4">
+                <p className="text-red-300 font-medium mb-2">NO CORPORATE OR INSTITUTIONAL AFFILIATION</p>
+                <p className="text-red-200/90 text-sm">
+                  CareAssurance is an independent personal project. It is not affiliated with, sponsored by, endorsed by, or connected to any employer, company, institution, government body, or organization. No entity has contributed to, invested in, or acquired any stake in this software. Lewis Barron developed CareAssurance entirely in his personal capacity, and all intellectual property rights vest exclusively in Lewis Barron as an individual.
+                </p>
+              </div>
+              <p className="text-muted-foreground">
+                Any claims by any party asserting ownership, joint ownership, work-for-hire rights, or any other proprietary interest in CareAssurance based on the circumstances of its development are hereby explicitly rejected and void. Lewis Barron's sole ownership is absolute, unconditional, and not subject to dispute.
+              </p>
+            </section>
+
+            <section>
               <h3 className="text-lg font-semibold text-foreground">2. Authorization and Access</h3>
               <p className="text-muted-foreground">
                 Access to CareAssurance is granted solely at the discretion of Lewis Barron. By using this software, you acknowledge and agree that:
