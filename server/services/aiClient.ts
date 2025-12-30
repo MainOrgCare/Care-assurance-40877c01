@@ -13,6 +13,15 @@ export interface AiUserContext {
   username: string | null;
 }
 
+// Provider type for billing attribution
+export type AiProvider = "replit" | "openai";
+
+// Result type that includes provider information
+export interface AiCompletionResult {
+  completion: OpenAI.ChatCompletion;
+  provider: AiProvider;
+}
+
 let fallbackClient: OpenAI | null = null;
 
 function getFallbackClient(): OpenAI | null {
@@ -47,18 +56,21 @@ function shouldFallback(error: any): boolean {
   return false;
 }
 
-export async function createChatCompletion(
+// Internal function that tracks which provider was used
+async function createChatCompletionWithProvider(
   params: OpenAI.ChatCompletionCreateParamsNonStreaming
-): Promise<OpenAI.ChatCompletion> {
+): Promise<AiCompletionResult> {
   try {
-    return await primaryClient.chat.completions.create(params);
+    const completion = await primaryClient.chat.completions.create(params);
+    return { completion, provider: "replit" };
   } catch (primaryError: any) {
     if (shouldFallback(primaryError)) {
       const fallback = getFallbackClient();
       if (fallback) {
         console.log("[AI Failover] Primary AI failed, using fallback OpenAI");
         try {
-          return await fallback.chat.completions.create(params);
+          const completion = await fallback.chat.completions.create(params);
+          return { completion, provider: "openai" };
         } catch (fallbackError) {
           console.error("[AI Failover] Fallback also failed:", fallbackError);
           throw fallbackError;
@@ -69,6 +81,14 @@ export async function createChatCompletion(
     }
     throw primaryError;
   }
+}
+
+// Legacy function for backwards compatibility (returns just the completion)
+export async function createChatCompletion(
+  params: OpenAI.ChatCompletionCreateParamsNonStreaming
+): Promise<OpenAI.ChatCompletion> {
+  const result = await createChatCompletionWithProvider(params);
+  return result.completion;
 }
 
 export async function createChatCompletionWithLogging(
@@ -88,15 +108,18 @@ export async function createChatCompletionWithLogging(
   
   console.log(`[AI:${featureName}] Starting request with ${model}${username ? ` for ${username}` : ""}...`);
   
+  let provider: AiProvider = "replit";
+  
   try {
-    const result = await createChatCompletion(params);
+    const result = await createChatCompletionWithProvider(params);
+    provider = result.provider;
     const duration = Date.now() - startTime;
-    const inputTokens = result.usage?.prompt_tokens || 0;
-    const outputTokens = result.usage?.completion_tokens || 0;
-    const totalTokens = result.usage?.total_tokens || 0;
+    const inputTokens = result.completion.usage?.prompt_tokens || 0;
+    const outputTokens = result.completion.usage?.completion_tokens || 0;
+    const totalTokens = result.completion.usage?.total_tokens || 0;
     const costMicroDollars = calculateCostMicroDollars(model, inputTokens, outputTokens);
     
-    console.log(`[AI:${featureName}] Completed in ${duration}ms, ${totalTokens} tokens, $${(costMicroDollars / 1000000).toFixed(4)}`);
+    console.log(`[AI:${featureName}] Completed in ${duration}ms, ${totalTokens} tokens, $${(costMicroDollars / 1000000).toFixed(4)} via ${provider}`);
     
     // Log to database asynchronously (don't block the response)
     storage.createAiUsageLog({
@@ -104,6 +127,7 @@ export async function createChatCompletionWithLogging(
       username,
       featureName,
       model,
+      provider,
       inputTokens,
       outputTokens,
       totalTokens,
@@ -112,7 +136,7 @@ export async function createChatCompletionWithLogging(
       success: true,
     }).catch(err => console.error("[AI] Failed to log usage:", err.message));
     
-    return result;
+    return result.completion;
   } catch (error: any) {
     const duration = Date.now() - startTime;
     console.error(`[AI:${featureName}] Failed after ${duration}ms:`, error.message);
@@ -123,6 +147,7 @@ export async function createChatCompletionWithLogging(
       username,
       featureName,
       model,
+      provider,
       inputTokens: 0,
       outputTokens: 0,
       totalTokens: 0,
