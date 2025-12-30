@@ -349,6 +349,7 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
   username: text("username"),
   featureName: text("feature").notNull(),
   model: text("model").notNull(),
+  billingSource: text("billing_source").notNull().default("replit"), // 'replit' or 'openai' - which API was billed
   provider: text("provider").notNull().default("replit"), // 'replit' or 'openai' - which API was billed
   inputTokens: integer("input_tokens").notNull().default(0),
   outputTokens: integer("output_tokens").notNull().default(0),

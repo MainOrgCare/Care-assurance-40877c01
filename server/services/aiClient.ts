@@ -127,13 +127,13 @@ export async function createChatCompletionWithLogging(
       username,
       featureName,
       model,
+      billingSource: provider,
       provider,
       inputTokens,
       outputTokens,
       totalTokens,
       costMicroDollars,
       durationMs: duration,
-      success: true,
     }).catch(err => console.error("[AI] Failed to log usage:", err.message));
     
     return result.completion;
@@ -147,14 +147,13 @@ export async function createChatCompletionWithLogging(
       username,
       featureName,
       model,
+      billingSource: provider,
       provider,
       inputTokens: 0,
       outputTokens: 0,
       totalTokens: 0,
       costMicroDollars: 0,
       durationMs: duration,
-      success: false,
-      errorMessage: error.message,
     }).catch(err => console.error("[AI] Failed to log error:", err.message));
     
     throw error;

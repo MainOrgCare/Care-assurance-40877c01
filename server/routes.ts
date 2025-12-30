@@ -2336,7 +2336,8 @@ OTHER CRITICAL RULES:
 1. ALWAYS extract R codes - refusals are critical for compliance. Look for "R", "Ref", "Refused", "Declined"
 2. Look for ALL entries including those with codes R, MU, NH - these are just as important as AD/AS/P
 3. Care worker initials are typically 2 letters (e.g., RK, HB, BB, GM, SB)
-4. Skip only truly blank/empty cells - but capture ALL cells with any code or initials`;
+4. Skip only truly blank/empty cells - but capture ALL cells with any code or initials
+5. IGNORE RED COLORING when a code is present - if a time slot shows red but contains a valid code (AD, AS, R, etc.), follow the code not the color. Red color is often used just for visual emphasis.`;
           
           try {
             const response = await createChatCompletionWithLogging({
