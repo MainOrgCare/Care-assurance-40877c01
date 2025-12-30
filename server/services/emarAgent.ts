@@ -51,13 +51,19 @@ const VALID_CODES = new Set([
   'R', 'MU', 'NH', 'SA', 'FA', 'MISSED', 'G', 'A'
 ]);
 
-const COMPACT_SYSTEM = `UK EMAR extractor. Rules:
-- Grid: dates=cols, meds=rows
-- Cell: CODE + INITIALS (2-3 caps)
-- Codes: AD=given, AS=assisted, P=prompted, R=REFUSED, MU=unavail, NH=away, SA=self, FA=family, G/A=given
-- CRITICAL: Never skip R codes
-- Blank cells: IGNORE completely
-- Once-daily: only 1 slot/day`;
+const COMPACT_SYSTEM = `UK EMAR extractor. CRITICAL SCANNING ORDER:
+1. Scan COLUMN-BY-COLUMN (date by date), NOT row-by-row
+2. For each DATE column, go TOP-TO-BOTTOM through all medications
+3. Within each cell: extract CODE + INITIALS (2-3 caps)
+
+Codes: AD=given, AS=assisted, P=prompted, R=REFUSED, MU=unavail, NH=away, SA=self, FA=family, G/A=given, PRN=as needed
+
+BLANK HANDLING:
+- Empty cells, "X", "-", or no entry = SKIP completely, do NOT output
+- Only output cells with actual codes (AD, R, AS, etc.)
+- NEVER create entries for blank/X cells
+
+CRITICAL: Never skip R codes - they are important refusals`;
 
 export class EmarAgent {
   private seed = 42;
@@ -138,11 +144,28 @@ Meds:${medMap}
 Dates:${dateMap}
 Slots:${slotMap}
 
-Extract ALL entries. JSON:
-{"e":[{"m":1,"d":0,"s":0,"c":"AD","i":"RK"},{"m":2,"d":1,"s":2,"c":"R","i":"HB","t":"14:30"}]}
+EXTRACTION ORDER (CRITICAL):
+Step 1: Take Date[0] (${metadata.dates[0] || 'first date'})
+Step 2: Go down ALL medications for that date, extract codes
+Step 3: Move to Date[1], repeat down all meds
+Step 4: Continue for each date column
+
+Example grid:
+        | 01 Dec | 02 Dec | 03 Dec
+Med A   | AD RK  |   X    | R HB
+Med B   | AS JT  | AD RK  |   -
+
+Correct output (column-by-column):
+{"e":[
+  {"m":1,"d":0,"s":0,"c":"AD","i":"RK"},
+  {"m":2,"d":0,"s":0,"c":"AS","i":"JT"},
+  {"m":2,"d":1,"s":0,"c":"AD","i":"RK"},
+  {"m":1,"d":2,"s":0,"c":"R","i":"HB"}
+]}
+Note: X and - cells are SKIPPED, not output.
 
 Keys: m=medId, d=dateIdx, s=slotIdx, c=code, i=initials, t=time(if recorded)
-CRITICAL: Include ALL R codes. Skip blanks.`;
+CRITICAL: Include ALL R codes. Never output blank/X cells.`;
 
     let totalTokens = 0;
 
