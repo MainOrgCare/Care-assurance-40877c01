@@ -28,6 +28,7 @@ interface AuthContextType {
   rejectUser: (id: string) => Promise<void>;
   createUser: (username: string, password: string, role: string) => Promise<void>;
   fetchUsers: () => Promise<void>;
+  refetchUser: () => Promise<void>;
   logAction: (action: string, target: string, status?: "Authorized" | "Flagged" | "Blocked" | "System", alert?: string) => void;
   auditLogs: any[];
   loading: boolean;
@@ -70,6 +71,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Session check failed:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const refetchUser = async () => {
+    try {
+      const response = await fetch("/api/auth/me", {
+        credentials: "include",
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+      }
+    } catch (error) {
+      console.error("Refetch user failed:", error);
     }
   };
 
@@ -340,6 +356,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       rejectUser, 
       createUser,
       fetchUsers,
+      refetchUser,
       logAction, 
       auditLogs,
       loading 

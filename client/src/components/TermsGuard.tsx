@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { TermsAcceptanceModal } from "./TermsAcceptanceModal";
@@ -8,8 +7,7 @@ interface TermsGuardProps {
 }
 
 export function TermsGuard({ children }: TermsGuardProps) {
-  const { user, logout, loading } = useAuth();
-  const [justAccepted, setJustAccepted] = useState(false);
+  const { user, logout, loading, refetchUser } = useAuth();
   
   if (loading) {
     return null;
@@ -19,13 +17,12 @@ export function TermsGuard({ children }: TermsGuardProps) {
     return <>{children}</>;
   }
 
-  const needsTermsAcceptance = !justAccepted && (
+  const needsTermsAcceptance = 
     !user.termsVersion || 
-    user.termsVersion !== CURRENT_TERMS_VERSION
-  );
+    user.termsVersion !== CURRENT_TERMS_VERSION;
 
-  const handleAccept = () => {
-    setJustAccepted(true);
+  const handleAccept = async () => {
+    await refetchUser();
   };
 
   const handleDecline = () => {
