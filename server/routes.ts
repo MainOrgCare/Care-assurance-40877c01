@@ -4375,6 +4375,17 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       const totalPrnRefusalCount = prnRefusalDiscrepancies.length;
       const totalRefusalCount = mainRefusalDiscrepancies.length + prnRefusalDiscrepancies.length;
       const totalOtherDiscrepancyCount = otherDiscrepancies.length;
+      
+      // Extract office-closed entries (codes without initials, manually closed by office staff)
+      const officeClosedEntries = allEntries.filter((e: any) => e.isOfficeClosed).map((e: any) => ({
+        medication: e.medication,
+        date: e.date,
+        timeSlot: e.timeSlot,
+        code: e.code,
+        closedByStaff: e.closedByStaff || 'Office Staff',
+        closedTime: e.closedTime || ''
+      }));
+      console.log(`Standard path: Found ${officeClosedEntries.length} office-closed entries`);
 
       // =====================================================================
       // BUILD RESPONSE
@@ -4407,6 +4418,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
             protocol: "PRN protocol should be in place"
           }))
         },
+        officeClosedEntries: officeClosedEntries,
         totalEntriesProcessed: allEntries.length,
         totalMedications: medications.length,
         datesAudited: allDates,

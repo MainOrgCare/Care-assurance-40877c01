@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 
 interface CareWorker {
   id: string;
@@ -129,6 +130,15 @@ interface DrugInteraction {
   description: string;
 }
 
+interface OfficeClosedEntry {
+  medication: string;
+  date: string;
+  timeSlot: string;
+  code: string;
+  closedByStaff: string;
+  closedTime: string;
+}
+
 interface EmarAnalysisResult {
   serviceUserName: string;
   serviceUserInitials?: string;
@@ -156,6 +166,7 @@ interface EmarAnalysisResult {
     protocolsCompleted?: boolean;
     requiredProtocols?: { medication: string; protocol: string }[];
   };
+  officeClosedEntries?: OfficeClosedEntry[];
   themesAndTrends: string;
   gapsInKnowledge: string;
 }
@@ -967,6 +978,31 @@ ${generatedProtocol.additionalComments}`;
       doc.setTextColor(33, 33, 33);
       doc.text(prnList, 14, yPos, { maxWidth: pageWidth - 28 });
       yPos += 10;
+    }
+    
+    if (result.officeClosedEntries && result.officeClosedEntries.length > 0) {
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(12);
+      doc.setTextColor(50, 100, 200);
+      doc.text(`Office Staff Manual Entries (${result.officeClosedEntries.length})`, 14, yPos);
+      yPos += 8;
+      
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Medication', 'Date', 'Time Slot', 'Code', 'Closed By', 'Time Closed']],
+        body: result.officeClosedEntries.map(e => [
+          e.medication,
+          e.date,
+          e.timeSlot,
+          e.code,
+          e.closedByStaff || 'Office Staff',
+          e.closedTime || '-'
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [50, 100, 200] },
+        styles: { fontSize: 8, cellPadding: 2 }
+      });
+      yPos = (doc as any).lastAutoTable.finalY + 10;
     }
     
     const fileName = `EMAR_Audit_${result.serviceUserName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -2305,6 +2341,60 @@ ${generatedProtocol.additionalComments}`;
               )}
             </CardContent>
           </Card>
+
+          {result.officeClosedEntries && result.officeClosedEntries.length > 0 && (
+            <Card className="bg-card border-border">
+              <CardHeader className="flex flex-row items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-blue-400" />
+                  Office Staff Manual Entries
+                  <Badge variant="outline" className="ml-2 text-blue-400 border-blue-400/30">
+                    {result.officeClosedEntries.length}
+                  </Badge>
+                </CardTitle>
+                <CopyButton 
+                  text={result.officeClosedEntries.map(e => `${e.medication} - ${e.date} ${e.timeSlot} (${e.code}) closed by ${e.closedByStaff}`).join('\n')} 
+                  label="office-closed" 
+                />
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  These entries were manually closed by office staff (codes without initials in red boxes). 
+                  They are excluded from time gap violations but still validated for correct codes and required notes.
+                </p>
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Medication</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Time Slot</TableHead>
+                        <TableHead>Code</TableHead>
+                        <TableHead>Closed By</TableHead>
+                        <TableHead>Time Closed</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {result.officeClosedEntries.map((entry, idx) => (
+                        <TableRow key={idx} data-testid={`row-office-closed-${idx}`}>
+                          <TableCell className="font-medium">{entry.medication}</TableCell>
+                          <TableCell>{entry.date}</TableCell>
+                          <TableCell>{entry.timeSlot}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-blue-400 border-blue-400/30">
+                              {entry.code}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-blue-400">{entry.closedByStaff || 'Office Staff'}</TableCell>
+                          <TableCell className="text-muted-foreground">{entry.closedTime || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid md:grid-cols-2 gap-6">
             <Card className="bg-card border-border">
