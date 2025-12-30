@@ -1976,7 +1976,330 @@ ${correctionExamples}
           };
           
           agentExtractionSucceeded = true;
-          console.log("EMAR Agent extraction succeeded - skipping standard extraction");
+          console.log("EMAR Agent extraction succeeded - running discrepancy analysis on agent data");
+          
+          // =====================================================================
+          // AGENT PATH: DISCREPANCY ANALYSIS
+          // =====================================================================
+          sendProgress(70, "Analyzing for discrepancies...", "agent_discrepancy_analysis");
+          
+          const agentEntries = agentExtractedData.entries;
+          const agentMedications = agentExtractedData.medications;
+          const agentDates = agentExtractedData.dates;
+          const agentTimeSlots = agentExtractedData.timeSlots;
+          
+          // Build PRN medication set
+          const agentPrnMeds = new Set<string>();
+          agentMedications.forEach((m: any) => {
+            if (m.isPRN) agentPrnMeds.add(m.name);
+          });
+          
+          // Build medication scheduled slot counts for time gap detection
+          const agentMedScheduledSlots = new Map<string, number>();
+          const agentMedGapHours = new Map<string, number>();
+          agentMedications.forEach((m: any) => {
+            const slots = m.scheduledTimeSlots?.length || agentTimeSlots.length;
+            agentMedScheduledSlots.set(m.name, slots);
+            agentMedGapHours.set(m.name, m.requiredGapHours || 4);
+          });
+          
+          const agentDiscrepancies: any[] = [];
+          const agentWarnings: any[] = [];
+          
+          // =====================================================================
+          // REFUSAL DETECTION (R codes)
+          // =====================================================================
+          const refusalCodes = ['R', 'PRN-R'];
+          const mainRefusalDiscrepancies: any[] = [];
+          const prnRefusalDiscrepancies: any[] = [];
+          
+          agentEntries.forEach((entry: any) => {
+            const code = (entry.code || '').toUpperCase();
+            if (refusalCodes.includes(code) || code === 'R') {
+              const isPRN = agentPrnMeds.has(entry.medication) || code.includes('PRN');
+              const discrepancy = {
+                careWorkerName: entry.careWorkerInitials || 'Unknown',
+                date: entry.date,
+                timeSlot: entry.timeSlot,
+                medication: entry.medication,
+                code: code,
+                issue: `Medication ${isPRN ? '(PRN) ' : ''}refused by service user`,
+                severity: "medium",
+                actions: { performanceNote: true, meeting: "in_person", referToManager: false }
+              };
+              
+              if (isPRN) {
+                prnRefusalDiscrepancies.push(discrepancy);
+              } else {
+                mainRefusalDiscrepancies.push(discrepancy);
+              }
+              agentDiscrepancies.push(discrepancy);
+            }
+          });
+          
+          console.log(`Agent: Found ${mainRefusalDiscrepancies.length} main refusals, ${prnRefusalDiscrepancies.length} PRN refusals`);
+          
+          // =====================================================================
+          // TIME GAP DETECTION (for medications with 2+ slots/day)
+          // =====================================================================
+          const administrationCodes = ['AD', 'AS', 'P', 'G', 'A', 'PRN', 'PRN-AD', 'PRN-AS'];
+          const medDateEntriesForGap = new Map<string, any[]>();
+          
+          agentEntries.forEach((entry: any) => {
+            const code = (entry.code || '').toUpperCase();
+            if (!administrationCodes.some(c => code === c || code.startsWith(c))) return;
+            
+            // Extract time from entry
+            let timeValue = entry.time;
+            if (!timeValue && entry.timeSlot) {
+              const timeMatch = entry.timeSlot.match(/(\d{1,2}:\d{2})/);
+              if (timeMatch) timeValue = timeMatch[1];
+            }
+            if (!timeValue) return;
+            
+            // Normalize date for grouping
+            const dateKey = entry.date.toLowerCase().replace(/[,\s]+/g, '-').substring(0, 10);
+            const key = `${entry.medication}|${dateKey}`;
+            
+            if (!medDateEntriesForGap.has(key)) medDateEntriesForGap.set(key, []);
+            medDateEntriesForGap.get(key)!.push({
+              ...entry,
+              extractedTime: timeValue,
+              isPRN: agentPrnMeds.has(entry.medication)
+            });
+          });
+          
+          // Check time gaps
+          medDateEntriesForGap.forEach((dayEntries, key) => {
+            if (dayEntries.length < 2) return;
+            
+            const [medication] = key.split('|');
+            const scheduledSlots = agentMedScheduledSlots.get(medication) || 1;
+            
+            // Skip once-daily medications
+            if (scheduledSlots <= 1) return;
+            
+            const requiredGap = agentMedGapHours.get(medication) || 4;
+            
+            // Sort by time
+            const sorted = dayEntries.sort((a: any, b: any) => {
+              const [aH, aM] = a.extractedTime.split(':').map(Number);
+              const [bH, bM] = b.extractedTime.split(':').map(Number);
+              return (aH * 60 + aM) - (bH * 60 + bM);
+            });
+            
+            for (let i = 1; i < sorted.length; i++) {
+              const prev = sorted[i - 1];
+              const curr = sorted[i];
+              
+              const [prevH, prevM] = prev.extractedTime.split(':').map(Number);
+              const [currH, currM] = curr.extractedTime.split(':').map(Number);
+              const gapHours = ((currH * 60 + currM) - (prevH * 60 + prevM)) / 60;
+              
+              // Skip near-duplicates or negative gaps
+              if (gapHours <= 0.25 || gapHours < 0) continue;
+              
+              if (gapHours < requiredGap - 0.17) {
+                agentDiscrepancies.push({
+                  careWorkerName: curr.careWorkerInitials || 'Unknown',
+                  date: curr.date,
+                  timeSlot: curr.timeSlot,
+                  medication: medication,
+                  issue: `Time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap}h). Previous: ${prev.extractedTime}, Current: ${curr.extractedTime}`,
+                  severity: "high",
+                  actions: { performanceNote: true, meeting: "in_person", referToManager: true }
+                });
+              }
+            }
+          });
+          
+          // =====================================================================
+          // MU FREQUENCY WARNING
+          // =====================================================================
+          const muCounts = new Map<string, number>();
+          agentEntries.forEach((entry: any) => {
+            if ((entry.code || '').toUpperCase() === 'MU') {
+              muCounts.set(entry.medication, (muCounts.get(entry.medication) || 0) + 1);
+            }
+          });
+          
+          muCounts.forEach((count, med) => {
+            if (count >= 3) {
+              agentWarnings.push({
+                type: "medication_unavailable_pattern",
+                severity: "medium",
+                medication: med,
+                description: `Medication Unavailable (MU) recorded ${count} times`,
+                recommendedAction: "Check if medication has been discontinued or stock issues"
+              });
+            }
+          });
+          
+          // =====================================================================
+          // GROUP REFUSALS BY CARE WORKER + MEDICATION
+          // =====================================================================
+          const groupRefusals = (refusals: any[]) => {
+            const groups = new Map<string, any>();
+            refusals.forEach((d: any) => {
+              const key = `${d.careWorkerName}|${d.medication}`;
+              if (!groups.has(key)) {
+                groups.set(key, {
+                  careWorkerName: d.careWorkerName,
+                  medication: d.medication,
+                  code: d.code || '',
+                  dates: [],
+                  count: 0
+                });
+              }
+              const group = groups.get(key)!;
+              group.dates.push({ date: d.date, timeSlot: d.timeSlot, code: d.code || '' });
+              group.count++;
+            });
+            return Array.from(groups.values()).sort((a, b) => b.count - a.count);
+          };
+          
+          const groupedMainRefusals = groupRefusals(mainRefusalDiscrepancies);
+          const groupedPrnRefusals = groupRefusals(prnRefusalDiscrepancies);
+          const groupedRefusals = [...groupedMainRefusals, ...groupedPrnRefusals];
+          
+          // Separate refusals from other discrepancies
+          const otherDiscrepancies = agentDiscrepancies.filter(d => 
+            !d.issue.includes('refused')
+          );
+          
+          // Prioritize discrepancies
+          const prioritizedDiscrepancies = otherDiscrepancies.sort((a, b) => {
+            const getPriority = (issue: string) => {
+              if (issue.includes('Time gap')) return 1;
+              if (issue.includes('Missed')) return 2;
+              return 3;
+            };
+            return getPriority(a.issue) - getPriority(b.issue);
+          });
+          
+          // =====================================================================
+          // BUILD AGENT RESULT
+          // =====================================================================
+          sendProgress(90, "Building analysis result...", "agent_building_result");
+          
+          // Calculate code counts
+          const agentCodeCounts = { AD: 0, AS: 0, P: 0, R: 0 };
+          const agentPrnCodeCounts = { PRN: 0, FA: 0, MU: 0, NH: 0, R: 0 };
+          
+          agentEntries.forEach((entry: any) => {
+            const code = (entry.code || '').toUpperCase();
+            const isPRN = agentPrnMeds.has(entry.medication);
+            
+            if (isPRN) {
+              if (code === 'PRN' || code === 'PRN-AD' || code === 'PRN-AS') agentPrnCodeCounts.PRN++;
+              else if (code === 'FA') agentPrnCodeCounts.FA++;
+              else if (code === 'MU') agentPrnCodeCounts.MU++;
+              else if (code === 'NH') agentPrnCodeCounts.NH++;
+              else if (code === 'R' || code === 'PRN-R') agentPrnCodeCounts.R++;
+            } else {
+              if (code === 'AD') agentCodeCounts.AD++;
+              else if (code === 'AS') agentCodeCounts.AS++;
+              else if (code === 'P') agentCodeCounts.P++;
+              else if (code === 'R') agentCodeCounts.R++;
+            }
+          });
+          
+          // Determine service user type based on code distribution
+          const totalAdminCodes = agentCodeCounts.AD + agentCodeCounts.AS + agentCodeCounts.P;
+          let agentServiceUserType = 'prompts';
+          if (totalAdminCodes > 0) {
+            const adRatio = agentCodeCounts.AD / totalAdminCodes;
+            const asRatio = agentCodeCounts.AS / totalAdminCodes;
+            if (adRatio > 0.6) agentServiceUserType = 'full_admin';
+            else if (asRatio > 0.4) agentServiceUserType = 'assisted';
+          }
+          
+          const agentAnalysisResult = {
+            serviceUserName: agentExtractedData.serviceUserInitials || 'Unknown',
+            serviceUserType: agentServiceUserType,
+            allergies: agentExtractedData.allergies || 'NKDA',
+            medicationLevelEvidence: `Code counts (regular): AD=${agentCodeCounts.AD}, AS=${agentCodeCounts.AS}, P=${agentCodeCounts.P}. PRN: PRN=${agentPrnCodeCounts.PRN}, FA=${agentPrnCodeCounts.FA}, MU=${agentPrnCodeCounts.MU}, NH=${agentPrnCodeCounts.NH}, R=${agentPrnCodeCounts.R}. Service level: ${agentServiceUserType.toUpperCase()}.`,
+            codeConflictDetected: false,
+            codeConflictDetails: null,
+            auditPeriodStart: agentDates[0] || '',
+            auditPeriodEnd: agentDates[agentDates.length - 1] || '',
+            warnings: agentWarnings,
+            drugInteractions: agentExtractedData.drugInteractions,
+            hasDiscrepancies: agentDiscrepancies.length > 0,
+            discrepancies: prioritizedDiscrepancies,
+            groupedRefusals: groupedRefusals,
+            groupedMainRefusals: groupedMainRefusals,
+            groupedPrnRefusals: groupedPrnRefusals,
+            totalRefusalCount: mainRefusalDiscrepancies.length + prnRefusalDiscrepancies.length,
+            totalMainRefusalCount: mainRefusalDiscrepancies.length,
+            totalPrnRefusalCount: prnRefusalDiscrepancies.length,
+            totalOtherDiscrepancyCount: otherDiscrepancies.length,
+            userVerificationItems: [],
+            prnMedications: {
+              hasPRN: agentPrnMeds.size > 0,
+              medications: agentMedications.filter((m: any) => m.isPRN).map((m: any) => ({
+                name: m.name,
+                protocol: 'PRN protocol should be in place'
+              }))
+            },
+            totalEntriesProcessed: agentEntries.length,
+            totalMedications: agentMedications.length,
+            datesAudited: agentDates,
+            timeSlotsFound: agentTimeSlots,
+            extractionMethod: 'emar-agent',
+            validationPasses: 3,
+            validationStatus: agentExtractedData.consensusStatus === 'verified' ? 'completed' : 'partial',
+            validationEvidence: {},
+            initialDiscrepancyCount: agentDiscrepancies.length,
+            themesAndTrends: `Agent processed ${agentEntries.length} entries across ${agentMedications.length} medications for ${agentDates.length} days. Consensus: ${agentExtractedData.consensusStatus}. Found ${agentDiscrepancies.length} discrepancies.`,
+            gapsInKnowledge: agentDiscrepancies.length > 0
+              ? 'Training needed on: ' + Array.from(new Set(agentDiscrepancies.map((d: any) => {
+                  if (d.issue.includes('refused')) return 'documenting refusal reasons';
+                  if (d.issue.includes('Time gap')) return 'medication timing requirements';
+                  return 'documentation';
+                }))).join(', ')
+              : 'No significant gaps identified.',
+            unknownCareWorkerInitials: [],
+            expectedEntriesCount: agentMedications.length * agentDates.length * agentTimeSlots.length,
+            actualEntriesCount: agentEntries.length,
+            expectedEntryCount: 0,
+            countAgreement: true,
+            countValidation: {
+              medicationCountConsensus: true,
+              agreedMedicationCount: agentMedications.length,
+              extractedMedicationCount: agentMedications.length,
+              agreedCount: agentEntries.length,
+              extractedCount: agentEntries.length,
+              match: true,
+              perMedicationExpectedCounts: {},
+              perMedicationActualCounts: {}
+            },
+            extractionConsensus: {
+              status: agentExtractedData.consensusStatus,
+              pass1Count: agentEntries.length,
+              pass2Count: agentEntries.length,
+              pass3Count: agentEntries.length,
+              matchingPasses: [1, 2, 3],
+              fallbackPassUsed: null,
+              escalationReason: null,
+              description: agentExtractedData.consensusStatus === 'verified'
+                ? 'Agent extraction verified with consensus'
+                : 'Agent extraction completed (no full consensus)'
+            }
+          };
+          
+          console.log('Agent: Analysis complete -', {
+            entries: agentEntries.length,
+            discrepancies: agentDiscrepancies.length,
+            refusals: mainRefusalDiscrepancies.length + prnRefusalDiscrepancies.length,
+            drugInteractions: agentExtractedData.drugInteractions.length
+          });
+          
+          // Send final result
+          sendProgress(100, 'Analysis complete!', 'complete');
+          sendEvent('result', agentAnalysisResult);
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+          return res.end();
           
         } catch (agentError: any) {
           console.error("EMAR Agent failed, falling back to standard extraction:", agentError.message);

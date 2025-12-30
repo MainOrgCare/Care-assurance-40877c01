@@ -29,12 +29,21 @@ export interface EmarEntry {
   hasTime: boolean;
 }
 
+export interface DrugInteraction {
+  drug1: string;
+  drug2: string;
+  severity: 'high' | 'moderate' | 'low';
+  description: string;
+}
+
 export interface EmarExtractionResult {
   metadata: EmarMetadata;
   entries: EmarEntry[];
+  drugInteractions: DrugInteraction[];
   consensusStatus: 'verified' | 'single_pass' | 'no_consensus';
   validationPassed: boolean;
   model: string;
+  tokenStats?: { metadata: number; extraction: number; validation: number; interactions: number };
 }
 
 const VALID_CODES = new Set([
@@ -42,145 +51,72 @@ const VALID_CODES = new Set([
   'R', 'MU', 'NH', 'SA', 'FA', 'MISSED', 'G', 'A'
 ]);
 
-const UK_EMAR_SYSTEM_PROMPT = `You are an expert UK EMAR (Electronic Medication Administration Record) data extractor.
-You have extensive experience with UK care home medication systems including CMM, CarePlanner, MedPass, PCS, and others.
-
-UK EMAR CONVENTIONS:
-- EMAR charts are typically grids with DATES as columns (left to right) and MEDICATIONS as rows (top to bottom)
-- Each cell contains: administration CODE + care worker INITIALS (2-3 letters like RK, HB, GM)
-- Time slots appear as row headers (e.g., "08:00-09:00", "Morning", "Breakfast", "Night")
-- Some EMAGs have PRN (as needed) medications in a separate section
-
-ADMINISTRATION CODES (UK Standard):
-- AD = Administered (carer gave the medication)
-- AS = Assisted (carer helped but didn't directly administer)
-- P = Prompted (carer reminded, service user self-administered)
-- PRN = Given as PRN when needed
-- R = Refused (CRITICAL - service user declined medication)
-- MU = Medication Unavailable
-- NH = Not Home (service user was away)
-- SA = Self-Administered (documented but witnessed)
-- FA = Family Administered
-- MISSED = Dose was missed
-- G or A = Given/Administered (alternative codes)
-
-CRITICAL EXTRACTION RULES:
-1. NEVER skip R (refused) codes - these are essential for compliance audits
-2. Care worker initials are ALWAYS 2-3 uppercase letters
-3. Each entry must have: date, timeSlot, code, and ideally initials
-4. Blank/empty cells should be IGNORED completely
-5. IGNORE red coloring - if a cell has a valid code, extract it regardless of color
-6. Each medication row may have different scheduled time slots
-7. Once-daily medications will only have entries in ONE time slot per day
-
-DATE HANDLING:
-- Dates appear in column headers (e.g., "Sun, 01 Dec", "01/12/2024")
-- Keep dates in the EXACT format shown in the document
-- Each entry belongs to the date column it appears under - be precise
-
-OUTPUT FORMAT:
-Always return valid JSON. Be thorough but accurate - extract what you see, don't guess.`;
-
-const FEW_SHOT_EXAMPLES = `
-EXAMPLE 1 - Grid format EMAR:
-Document shows: "Paracetamol 500mg" row with "AD RK" under "Mon, 02 Dec" at "08:00-09:00"
-Output: {"medicationId": 1, "date": "Mon, 02 Dec", "timeSlot": "08:00-09:00", "code": "AD", "careWorkerInitials": "RK", "hasTime": false}
-
-EXAMPLE 2 - Refusal:
-Document shows: "Omeprazole 20mg" row with "R HB" under "Tue, 03 Dec" at "08:00-09:00"
-Output: {"medicationId": 2, "date": "Tue, 03 Dec", "timeSlot": "08:00-09:00", "code": "R", "careWorkerInitials": "HB", "hasTime": false}
-
-EXAMPLE 3 - PRN with time:
-Document shows: PRN section "Paracetamol PRN" with "PRN GM 14:30" under "Wed, 04 Dec"
-Output: {"medicationId": 3, "date": "Wed, 04 Dec", "timeSlot": "PRN", "code": "PRN", "careWorkerInitials": "GM", "time": "14:30", "hasTime": true}
-
-EXAMPLE 4 - Once-daily medication (only one slot):
-Document shows: "Atorvastatin 20mg" (once daily at night) with "AD SB" under "Thu, 05 Dec" at "22:00"
-Output: {"medicationId": 4, "date": "Thu, 05 Dec", "timeSlot": "22:00", "code": "AD", "careWorkerInitials": "SB", "hasTime": false}
-Note: This medication appears ONLY in the night column - other time slots are blank and should be IGNORED.
-`;
+const COMPACT_SYSTEM = `UK EMAR extractor. Rules:
+- Grid: dates=cols, meds=rows
+- Cell: CODE + INITIALS (2-3 caps)
+- Codes: AD=given, AS=assisted, P=prompted, R=REFUSED, MU=unavail, NH=away, SA=self, FA=family, G/A=given
+- CRITICAL: Never skip R codes
+- Blank cells: IGNORE completely
+- Once-daily: only 1 slot/day`;
 
 export class EmarAgent {
-  private determinisiticSeed = 42;
-  private model = 'gpt-4o-mini';
+  private seed = 42;
+  private model = 'gpt-5.1';
 
   async extractMetadata(
     documentText: string,
     tableStructure: { hasTable: boolean; tableType: string; detectedTimeSlots: string[]; rowCount: number },
     correctionsContext: string,
     aiUserContext: AiUserContext
-  ): Promise<EmarMetadata> {
-    const tableContext = tableStructure.hasTable
-      ? `\nDOCUMENT LAYOUT: ${tableStructure.tableType.toUpperCase()} format
-- Time slots detected: ${tableStructure.detectedTimeSlots.join(', ')}
-- Estimated medication rows: ${tableStructure.rowCount}`
+  ): Promise<{ metadata: EmarMetadata; tokens: number }> {
+    const docChunk = documentText.substring(0, 4000);
+    
+    const tbl = tableStructure.hasTable 
+      ? `Layout:${tableStructure.tableType},slots:${tableStructure.detectedTimeSlots.slice(0,4).join(',')},rows:${tableStructure.rowCount}`
       : '';
 
-    const prompt = `${UK_EMAR_SYSTEM_PROMPT}
-${tableContext}
-${correctionsContext}
+    const corrections = correctionsContext ? `\nFixes:${correctionsContext.substring(0, 200)}` : '';
 
-TASK: Extract ONLY metadata from this EMAR document. Do NOT extract individual entries yet.
+    const prompt = `${COMPACT_SYSTEM}${tbl}${corrections}
 
-Return JSON:
-{
-  "serviceUserInitials": "F.O.",
-  "allergies": "No known allergies",
-  "medications": [
-    {
-      "name": "Paracetamol 500mg Tablets",
-      "genericName": "paracetamol",
-      "isPRN": false,
-      "instructions": "Take 2 tablets four times daily",
-      "requiredGapHours": 4,
-      "scheduledTimeSlots": ["08:00-09:00", "12:00-12:30", "17:00-17:30", "22:00"]
-    }
-  ],
-  "dates": ["Sun, 01 Dec", "Mon, 02 Dec", "Tue, 03 Dec"],
-  "timeSlots": ["08:00-09:00", "12:00-12:30", "17:00-17:30", "22:00"]
-}
+Extract metadata only. JSON:
+{"su":"F.O.","alg":"NKDA","meds":[{"n":"Paracetamol 500mg","g":"paracetamol","prn":false,"slots":["08:00","22:00"]}],"dates":["01 Dec","02 Dec"],"slots":["08:00","12:00","17:00","22:00"]}
 
-RULES:
-1. serviceUserInitials: Convert name to initials with dots (e.g., "John Smith" -> "J.S.")
-2. allergies: Extract or "No known allergies" if not visible
-3. medications: List ALL medications with:
-   - name: Full name with strength/form exactly as shown
-   - genericName: Active ingredient (paracetamol, omeprazole, etc.)
-   - isPRN: true if marked PRN/as needed/when required
-   - scheduledTimeSlots: Which time slots apply to THIS specific medication
-4. dates: ALL dates in EXACT format shown
-5. timeSlots: ALL time windows found`;
+Keys: su=initials, alg=allergies, n=name, g=generic, prn=isPRN, slots=scheduledSlots`;
 
     const response = await createChatCompletionWithLogging({
       model: this.model,
       messages: [
         { role: 'system', content: prompt },
-        { role: 'user', content: `Extract metadata from this EMAR:\n\n${documentText}` }
+        { role: 'user', content: docChunk }
       ],
-      max_completion_tokens: 4000,
+      max_completion_tokens: 2000,
       temperature: 0,
-      seed: this.determinisiticSeed,
+      seed: this.seed,
       response_format: { type: 'json_object' }
     }, 'emar_agent_metadata', aiUserContext);
 
     const content = response.choices[0]?.message?.content || '{}';
-    const parsed = JSON.parse(content);
+    const tokens = response.usage?.total_tokens || 0;
+    const p = JSON.parse(content);
 
-    return {
-      serviceUserInitials: parsed.serviceUserInitials || '',
-      allergies: parsed.allergies || 'No known allergies',
-      medications: (parsed.medications || []).map((m: any, idx: number) => ({
+    const metadata: EmarMetadata = {
+      serviceUserInitials: p.su || p.serviceUserInitials || '',
+      allergies: p.alg || p.allergies || 'NKDA',
+      medications: (p.meds || p.medications || []).map((m: any, idx: number) => ({
         medicationId: idx + 1,
-        name: m.name || '',
-        genericName: m.genericName,
-        isPRN: Boolean(m.isPRN),
-        instructions: m.instructions,
-        requiredGapHours: m.requiredGapHours,
-        scheduledTimeSlots: m.scheduledTimeSlots
+        name: m.n || m.name || '',
+        genericName: m.g || m.genericName,
+        isPRN: Boolean(m.prn ?? m.isPRN),
+        instructions: m.ins || m.instructions,
+        requiredGapHours: m.gap || m.requiredGapHours,
+        scheduledTimeSlots: m.slots || m.scheduledTimeSlots
       })),
-      dates: parsed.dates || [],
-      timeSlots: parsed.timeSlots || []
+      dates: p.dates || [],
+      timeSlots: p.slots || p.timeSlots || []
     };
+
+    return { metadata, tokens };
   }
 
   async extractEntries(
@@ -188,87 +124,74 @@ RULES:
     metadata: EmarMetadata,
     correctionsContext: string,
     aiUserContext: AiUserContext
-  ): Promise<{ entries: EmarEntry[]; consensusStatus: 'verified' | 'single_pass' | 'no_consensus' }> {
-    const medList = metadata.medications.map(m =>
-      `[ID:${m.medicationId}] ${m.name}${m.isPRN ? ' (PRN)' : ''} - slots: ${m.scheduledTimeSlots?.join(', ') || 'all'}`
-    ).join('\n');
+  ): Promise<{ entries: EmarEntry[]; consensusStatus: 'verified' | 'single_pass' | 'no_consensus'; tokens: number }> {
+    const medMap = metadata.medications.map(m => `${m.medicationId}:${m.name.substring(0, 30)}`).join('|');
+    const dateMap = metadata.dates.map((d, i) => `${i}:${d}`).join('|');
+    const slotMap = metadata.timeSlots.map((s, i) => `${i}:${s}`).join('|');
 
-    const extractionPrompt = `${UK_EMAR_SYSTEM_PROMPT}
+    const docChunk = documentText.substring(0, 6000);
+    const corrections = correctionsContext ? `\nFixes:${correctionsContext.substring(0, 150)}` : '';
 
-${FEW_SHOT_EXAMPLES}
-${correctionsContext}
+    const prompt = `${COMPACT_SYSTEM}${corrections}
 
-MEDICATIONS TO EXTRACT (use exact medicationId):
-${medList}
+Meds:${medMap}
+Dates:${dateMap}
+Slots:${slotMap}
 
-DATES: ${metadata.dates.join(', ')}
-TIME SLOTS: ${metadata.timeSlots.join(', ')}
+Extract ALL entries. JSON:
+{"e":[{"m":1,"d":0,"s":0,"c":"AD","i":"RK"},{"m":2,"d":1,"s":2,"c":"R","i":"HB","t":"14:30"}]}
 
-TASK: Extract ALL administration entries for the medications listed.
+Keys: m=medId, d=dateIdx, s=slotIdx, c=code, i=initials, t=time(if recorded)
+CRITICAL: Include ALL R codes. Skip blanks.`;
 
-Return JSON:
-{
-  "entries": [
-    {"medicationId": 1, "date": "Mon, 02 Dec", "timeSlot": "08:00-09:00", "code": "AD", "careWorkerInitials": "RK", "hasTime": false}
-  ]
-}
-
-CRITICAL RULES:
-1. Extract EVERY cell with a code - especially R (refused) codes
-2. careWorkerInitials: 2-3 uppercase letters (RK, HB, GM, etc.)
-3. hasTime: true ONLY if a specific time is recorded (e.g., "14:30")
-4. Skip completely blank cells - but capture ALL cells with any mark
-5. Each entry must match one of the dates and timeSlots listed above
-6. IGNORE red coloring - extract the code regardless of color`;
+    let totalTokens = 0;
 
     const runPass = async (): Promise<EmarEntry[]> => {
       const response = await createChatCompletionWithLogging({
         model: this.model,
         messages: [
-          { role: 'system', content: extractionPrompt },
-          { role: 'user', content: `Extract entries from this EMAR:\n\n${documentText}` }
+          { role: 'system', content: prompt },
+          { role: 'user', content: docChunk }
         ],
-        max_completion_tokens: 8000,
+        max_completion_tokens: 4000,
         temperature: 0,
-        seed: this.determinisiticSeed,
+        seed: this.seed,
         response_format: { type: 'json_object' }
       }, 'emar_agent_extraction', aiUserContext);
 
-      const content = response.choices[0]?.message?.content || '{"entries":[]}';
+      totalTokens += response.usage?.total_tokens || 0;
+      const content = response.choices[0]?.message?.content || '{"e":[]}';
       const parsed = JSON.parse(content);
-      return parsed.entries || [];
+      const rawEntries = parsed.e || parsed.entries || [];
+
+      return rawEntries.map((e: any) => ({
+        medicationId: e.m ?? e.medicationId,
+        date: typeof e.d === 'number' ? metadata.dates[e.d] : e.d || e.date,
+        timeSlot: typeof e.s === 'number' ? metadata.timeSlots[e.s] : e.s || e.timeSlot,
+        code: (e.c || e.code || '').toUpperCase(),
+        careWorkerInitials: (e.i || e.careWorkerInitials || '').toUpperCase(),
+        time: e.t || e.time,
+        hasTime: Boolean(e.t || e.time)
+      }));
     };
 
     const [pass1, pass2, pass3] = await Promise.all([runPass(), runPass(), runPass()]);
-
-    console.log(`EMAR Agent: Pass counts - P1: ${pass1.length}, P2: ${pass2.length}, P3: ${pass3.length}`);
+    console.log(`EMAR Agent: Pass counts - P1:${pass1.length}, P2:${pass2.length}, P3:${pass3.length}`);
 
     const validMedIds = new Set(metadata.medications.map(m => m.medicationId));
     const validDates = new Set(metadata.dates.map(d => d.toLowerCase().trim()));
-    const validTimeSlots = new Set(metadata.timeSlots.map(t => t.toLowerCase().trim()));
+    const validSlots = new Set(metadata.timeSlots.map(t => t.toLowerCase().trim()));
 
-    const validateEntry = (e: EmarEntry): boolean => {
+    const validate = (e: EmarEntry): boolean => {
       if (!e.medicationId || !e.date || !e.timeSlot || !e.code) return false;
       if (!validMedIds.has(e.medicationId)) return false;
-      if (!VALID_CODES.has(e.code.toUpperCase())) return false;
+      if (!VALID_CODES.has(e.code)) return false;
       const normDate = e.date.toLowerCase().trim();
       const normSlot = e.timeSlot.toLowerCase().trim();
       if (!validDates.has(normDate)) return false;
-      if (!validTimeSlots.has(normSlot) && normSlot !== 'prn') return false;
+      if (!validSlots.has(normSlot) && normSlot !== 'prn') return false;
       return true;
     };
-
-    const validatePass = (entries: EmarEntry[]): EmarEntry[] =>
-      entries.filter(validateEntry).map(e => ({
-        ...e,
-        code: e.code.toUpperCase().trim(),
-        careWorkerInitials: (e.careWorkerInitials || '').toUpperCase().trim(),
-        hasTime: Boolean(e.hasTime)
-      }));
-
-    const v1 = validatePass(pass1);
-    const v2 = validatePass(pass2);
-    const v3 = validatePass(pass3);
 
     const dedupe = (entries: EmarEntry[]): EmarEntry[] => {
       const seen = new Set<string>();
@@ -280,93 +203,130 @@ CRITICAL RULES:
       });
     };
 
-    const d1 = dedupe(v1);
-    const d2 = dedupe(v2);
-    const d3 = dedupe(v3);
+    const d1 = dedupe(pass1.filter(validate));
+    const d2 = dedupe(pass2.filter(validate));
+    const d3 = dedupe(pass3.filter(validate));
 
-    const entryKey = (e: EmarEntry) => `${e.medicationId}|${e.date}|${e.timeSlot}|${e.code}`;
-    const s1 = new Set(d1.map(entryKey));
-    const s2 = new Set(d2.map(entryKey));
-    const s3 = new Set(d3.map(entryKey));
+    const key = (e: EmarEntry) => `${e.medicationId}|${e.date}|${e.timeSlot}|${e.code}`;
+    const s1 = new Set(d1.map(key));
+    const s2 = new Set(d2.map(key));
+    const s3 = new Set(d3.map(key));
 
-    const match12 = Array.from(s1).every(k => s2.has(k)) && Array.from(s2).every(k => s1.has(k));
-    const match23 = Array.from(s2).every(k => s3.has(k)) && Array.from(s3).every(k => s2.has(k));
-    const match13 = Array.from(s1).every(k => s3.has(k)) && Array.from(s3).every(k => s1.has(k));
+    const eq = (a: Set<string>, b: Set<string>) => 
+      a.size === b.size && Array.from(a).every(k => b.has(k));
 
-    if (match12 && match23) {
-      console.log('EMAR Agent: Full consensus across all 3 passes');
-      return { entries: d1, consensusStatus: 'verified' };
+    if (eq(s1, s2) && eq(s2, s3)) {
+      return { entries: d1, consensusStatus: 'verified', tokens: totalTokens };
     }
-    if (match12 || match13 || match23) {
-      console.log('EMAR Agent: 2/3 consensus');
-      const best = match12 ? d1 : match13 ? d1 : d2;
-      return { entries: best, consensusStatus: 'verified' };
+    if (eq(s1, s2) || eq(s1, s3) || eq(s2, s3)) {
+      const best = eq(s1, s2) ? d1 : eq(s1, s3) ? d1 : d2;
+      return { entries: best, consensusStatus: 'verified', tokens: totalTokens };
     }
 
-    console.log('EMAR Agent: No consensus - using highest count pass');
     const counts = [d1.length, d2.length, d3.length];
     const maxIdx = counts.indexOf(Math.max(...counts));
-    const fallback = [d1, d2, d3][maxIdx];
-    return { entries: fallback, consensusStatus: 'no_consensus' };
+    return { entries: [d1, d2, d3][maxIdx], consensusStatus: 'no_consensus', tokens: totalTokens };
+  }
+
+  async checkDrugInteractions(
+    medications: EmarMedication[],
+    aiUserContext: AiUserContext
+  ): Promise<{ interactions: DrugInteraction[]; tokens: number }> {
+    if (medications.length < 2) {
+      return { interactions: [], tokens: 0 };
+    }
+
+    const meds = medications.map(m => m.genericName || m.name.split(' ')[0].toLowerCase());
+    const uniqueMeds = Array.from(new Set(meds));
+    
+    if (uniqueMeds.length < 2) {
+      return { interactions: [], tokens: 0 };
+    }
+
+    const pairs: number[][] = [];
+    for (let i = 0; i < uniqueMeds.length; i++) {
+      for (let j = i + 1; j < uniqueMeds.length; j++) {
+        pairs.push([i, j]);
+      }
+    }
+
+    const prompt = `UK pharmacist. Check drug interactions.
+Meds:${uniqueMeds.map((m, i) => `${i}:${m}`).join(',')}
+Pairs:${pairs.map(p => `[${p[0]},${p[1]}]`).join(',')}
+
+JSON:{"i":[{"p":[0,1],"s":"H","n":"bleed risk"}]}
+s:H=high,M=mod,L=low. Empty if none:{"i":[]}`;
+
+    const response = await createChatCompletionWithLogging({
+      model: this.model,
+      messages: [
+        { role: 'system', content: prompt },
+        { role: 'user', content: 'Check interactions' }
+      ],
+      max_completion_tokens: 200,
+      temperature: 0,
+      seed: this.seed,
+      response_format: { type: 'json_object' }
+    }, 'emar_agent_interactions', aiUserContext);
+
+    const tokens = response.usage?.total_tokens || 0;
+    const content = response.choices[0]?.message?.content || '{"i":[]}';
+    const parsed = JSON.parse(content);
+
+    const sevMap: Record<string, 'high' | 'moderate' | 'low'> = { H: 'high', M: 'moderate', L: 'low' };
+
+    const interactions: DrugInteraction[] = (parsed.i || parsed.interactions || []).map((int: any) => {
+      const p = int.p || int.pair || [0, 1];
+      return {
+        drug1: uniqueMeds[p[0]] || '',
+        drug2: uniqueMeds[p[1]] || '',
+        severity: sevMap[int.s] || int.severity || 'moderate',
+        description: int.n || int.note || int.description || ''
+      };
+    });
+
+    return { interactions, tokens };
   }
 
   async selfCheck(
     entries: EmarEntry[],
     metadata: EmarMetadata,
-    documentText: string,
     aiUserContext: AiUserContext
-  ): Promise<{ passed: boolean; issues: string[]; correctedEntries?: EmarEntry[] }> {
-    const checkPrompt = `You are a quality assurance checker for EMAR data extraction.
+  ): Promise<{ passed: boolean; issues: string[]; tokens: number }> {
+    const refusals = entries.filter(e => e.code === 'R' || e.code.startsWith('PRN-R')).length;
+    const summary = `Meds:${metadata.medications.length},Dates:${metadata.dates.length},Slots:${metadata.timeSlots.length},Entries:${entries.length},R:${refusals}`;
 
-EXTRACTED DATA:
-- Medications: ${metadata.medications.length}
-- Dates: ${metadata.dates.length} (${metadata.dates.join(', ')})
-- Time slots: ${metadata.timeSlots.length}
-- Entries extracted: ${entries.length}
+    const prompt = `QA check. ${summary}
+Sample:${entries.slice(0, 10).map(e => `${e.medicationId}:${e.code}`).join(',')}
 
-ENTRY SUMMARY:
-${entries.slice(0, 20).map(e => `Med ${e.medicationId}: ${e.date} @ ${e.timeSlot} = ${e.code} by ${e.careWorkerInitials}`).join('\n')}
-${entries.length > 20 ? `... and ${entries.length - 20} more` : ''}
+Validate:
+1. R codes captured?
+2. Counts reasonable?
+3. Initials 2-3 caps?
 
-VALIDATION CHECKLIST:
-1. Are there any R (refused) codes that might have been missed?
-2. Do the entry counts seem reasonable for the number of meds x dates x slots?
-3. Are care worker initials properly formatted (2-3 letters)?
-4. Are all codes valid UK EMAR codes?
-
-Return JSON:
-{
-  "passed": true,
-  "issues": [],
-  "missedRefusals": 0,
-  "confidence": 95
-}
-
-If issues found:
-{
-  "passed": false,
-  "issues": ["Missing refusal codes for Medication X", "Initials 'ABC123' invalid"],
-  "missedRefusals": 2,
-  "confidence": 60
-}`;
+JSON:{"ok":true,"issues":[],"conf":95}
+If problems:{"ok":false,"issues":["Missing R codes"],"conf":60}`;
 
     const response = await createChatCompletionWithLogging({
       model: this.model,
       messages: [
-        { role: 'system', content: checkPrompt },
-        { role: 'user', content: `Validate extraction against document:\n\n${documentText.substring(0, 3000)}` }
+        { role: 'system', content: prompt },
+        { role: 'user', content: 'Validate' }
       ],
-      max_completion_tokens: 1000,
+      max_completion_tokens: 150,
       temperature: 0,
+      seed: this.seed,
       response_format: { type: 'json_object' }
     }, 'emar_agent_validation', aiUserContext);
 
-    const content = response.choices[0]?.message?.content || '{"passed":true,"issues":[]}';
-    const result = JSON.parse(content);
+    const tokens = response.usage?.total_tokens || 0;
+    const content = response.choices[0]?.message?.content || '{"ok":true}';
+    const r = JSON.parse(content);
 
     return {
-      passed: result.passed !== false && (result.confidence || 100) >= 70,
-      issues: result.issues || []
+      passed: (r.ok ?? r.passed) !== false && (r.conf ?? r.confidence ?? 100) >= 70,
+      issues: r.issues || [],
+      tokens
     };
   }
 
@@ -376,27 +336,43 @@ If issues found:
     correctionsContext: string,
     aiUserContext: AiUserContext
   ): Promise<EmarExtractionResult> {
-    console.log('EMAR Agent: Starting extraction with GPT-4o-mini');
+    console.log('EMAR Agent: Starting optimized extraction with GPT-5.1');
 
-    const metadata = await this.extractMetadata(documentText, tableStructure, correctionsContext, aiUserContext);
-    console.log(`EMAR Agent: Metadata - ${metadata.medications.length} meds, ${metadata.dates.length} dates`);
+    const { metadata, tokens: metaTokens } = await this.extractMetadata(
+      documentText, tableStructure, correctionsContext, aiUserContext
+    );
+    console.log(`EMAR Agent: Metadata - ${metadata.medications.length} meds, ${metadata.dates.length} dates (${metaTokens} tokens)`);
 
     if (!metadata.medications.length) {
       throw new Error('No medications found in document');
     }
 
-    const { entries, consensusStatus } = await this.extractEntries(documentText, metadata, correctionsContext, aiUserContext);
-    console.log(`EMAR Agent: Extracted ${entries.length} entries (${consensusStatus})`);
+    const [entriesResult, interactionsResult] = await Promise.all([
+      this.extractEntries(documentText, metadata, correctionsContext, aiUserContext),
+      this.checkDrugInteractions(metadata.medications, aiUserContext)
+    ]);
 
-    const validation = await this.selfCheck(entries, metadata, documentText, aiUserContext);
-    console.log(`EMAR Agent: Validation ${validation.passed ? 'PASSED' : 'FAILED'} - ${validation.issues.length} issues`);
+    console.log(`EMAR Agent: ${entriesResult.entries.length} entries (${entriesResult.tokens} tokens), ${interactionsResult.interactions.length} interactions (${interactionsResult.tokens} tokens)`);
+
+    const validation = await this.selfCheck(entriesResult.entries, metadata, aiUserContext);
+    console.log(`EMAR Agent: Validation ${validation.passed ? 'PASSED' : 'FAILED'} (${validation.tokens} tokens)`);
+
+    const totalTokens = metaTokens + entriesResult.tokens + interactionsResult.tokens + validation.tokens;
+    console.log(`EMAR Agent: Total tokens used: ${totalTokens}`);
 
     return {
       metadata,
-      entries,
-      consensusStatus,
+      entries: entriesResult.entries,
+      drugInteractions: interactionsResult.interactions,
+      consensusStatus: entriesResult.consensusStatus,
       validationPassed: validation.passed,
-      model: this.model
+      model: this.model,
+      tokenStats: {
+        metadata: metaTokens,
+        extraction: entriesResult.tokens,
+        validation: validation.tokens,
+        interactions: interactionsResult.tokens
+      }
     };
   }
 }
