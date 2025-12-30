@@ -2356,8 +2356,8 @@ EXTRACTION RULES:
 3. medications: Each medication should include:
    - name: The full medication name including strength/form exactly as shown
    - genericName: The active ingredient (e.g., paracetamol, ibuprofen, omeprazole)
-   - isPRN: true if labeled "PRN", "as needed", "when required", or in a separate PRN section
-   - instructions: The dosage/administration instructions
+   - isPRN: true ONLY if the prescription/instructions text contains: "PRN", "as required", "as needed", "when required", "take up to", "if needed". Do NOT set isPRN based on document sections - only the prescription text itself.
+   - instructions: The dosage/administration instructions (CRITICAL: Extract exactly as written - this determines PRN status)
    - requiredGapHours: Minimum hours between doses (default 4 for most meds, 6-8 for controlled drugs)
    - scheduledTimeSlots: The time slots that apply to this medication
 4. dates: Extract ALL dates visible in the EXACT format shown
@@ -3304,6 +3304,24 @@ OTHER CRITICAL RULES:
       const verificationItems: VerificationItem[] = [];
       const warnings: Warning[] = [];
       
+      // =====================================================================
+      // PRN VALIDATION HELPER - Only prescription text determines PRN status
+      // =====================================================================
+      // User-specified keywords: "as required", "as needed", "when required", "PRN", "take up to"
+      const PRN_KEYWORDS = [
+        'as required', 'as needed', 'when required', 'when needed',
+        'take up to', 'if needed', 'if required', 'when necessary'
+      ];
+      
+      const isPRNFromInstructions = (instructions: string | undefined): boolean => {
+        if (!instructions) return false;
+        const lower = instructions.toLowerCase();
+        // Check for exact PRN keyword (word boundary to avoid matching in other words)
+        if (/\bprn\b/i.test(instructions)) return true;
+        // Check for phrase keywords
+        return PRN_KEYWORDS.some(keyword => lower.includes(keyword));
+      };
+      
       // Build lookup maps
       const prnMeds = new Set<string>();
       const prnMedIds = new Set<number>(); // Track PRN medication IDs
@@ -3313,6 +3331,15 @@ OTHER CRITICAL RULES:
       const medScheduledSlotCount = new Map<string, number>(); // Track how many scheduled slots per medication
       
       medications.forEach((med: any) => {
+        // VALIDATE PRN: Only mark as PRN if instructions contain PRN keywords
+        const validatedIsPRN = isPRNFromInstructions(med.instructions);
+        
+        // Override AI's isPRN with validated value from prescription text
+        if (med.isPRN !== validatedIsPRN) {
+          console.log(`DEBUG: PRN validation override for "${med.name}": AI said isPRN=${med.isPRN}, instructions say isPRN=${validatedIsPRN}`);
+          med.isPRN = validatedIsPRN;
+        }
+        
         if (med.isPRN) {
           prnMeds.add(med.name);
           prnMedIds.add(med.medicationId);
@@ -3675,6 +3702,40 @@ If no equivalences found, return: {"equivalences": []}`
             medication: medication,
             code: "FA",
             note: "Check if family administration is documented and appropriate"
+          });
+        }
+
+        // =====================================================================
+        // CHECK 5d: PRN CODE MISUSE - Wrong codes for medication type
+        // =====================================================================
+        const PRN_CODES = ['PRN', 'PRN-AD', 'PRN-AS', 'PRN-R'];
+        const REGULAR_ADMIN_CODES = ['AD', 'AS', 'P'];
+        
+        // Check 1: PRN codes used on non-PRN medications
+        if (PRN_CODES.includes(code) && !isPRN) {
+          discrepancies.push({
+            careWorkerName: careWorker,
+            date: date,
+            timeSlot: timeSlot,
+            medication: medication,
+            code: code,
+            issue: `PRN code "${code}" used on regular medication - "${medication}" is not prescribed as PRN`,
+            severity: "high",
+            actions: { performanceNote: true, meeting: "phone", referToManager: true }
+          });
+        }
+        
+        // Check 2: Regular administration codes (AD/AS/P) used on PRN medications
+        if (REGULAR_ADMIN_CODES.includes(code) && isPRN) {
+          discrepancies.push({
+            careWorkerName: careWorker,
+            date: date,
+            timeSlot: timeSlot,
+            medication: medication,
+            code: code,
+            issue: `Regular code "${code}" used on PRN medication - "${medication}" should use PRN codes (PRN, PRN-AD, etc.)`,
+            severity: "high",
+            actions: { performanceNote: true, meeting: "phone", referToManager: false }
           });
         }
       });
