@@ -9,7 +9,33 @@ CareAssurance is a healthcare compliance management application designed for car
 Preferred communication style: Simple, everyday language.
 **Homepage/Marketing Changes**: Remove all free trial messaging, fake reviews/testimonials, and NHS Approved Supplier claims. Keep only authentic content (CQC Compliant, GDPR Certified badges).
 
-## Recent Changes (December 27, 2025)
+## Recent Changes (December 30, 2025)
+
+- **EMAR Table Structure Detection**: Added pre-AI analysis to detect document layout:
+  - `detectTableStructure()` identifies EMAR grid vs list layouts before extraction
+  - Detects column boundaries, time slot headers, and row counts
+  - Passes layout context to AI prompts for better accuracy
+
+- **Drug Interaction Alerts**: AI-powered detection of dangerous medication combinations:
+  - Checks for high-risk interactions (opioids+benzos, blood thinners+NSAIDs, etc.)
+  - Returns severity-rated warnings (high/moderate/low) with descriptions
+  - Sends SSE warnings for high-severity interactions during analysis
+  - Tracked via AI usage logging with feature name "drug_interactions"
+
+- **Manual Correction UI (Admin Only)**: Lets admins fix AI extraction mistakes:
+  - Edit Mode toggle button in discrepancy results (admin-only)
+  - Click-to-edit buttons on each discrepancy row
+  - Edit dialog with dropdown for codes (AD, AS, R, MU, etc.)
+  - Visual highlighting for corrected entries with undo capability
+  - Apply Corrections button to finalize all changes
+  - Session-only storage (not persisted to backend)
+
+- **EMAR Extraction UNION Approach**: Fixed medication discovery:
+  - Dynamic discovery of medications not in metadata (IDs >= 1000)
+  - Fuzzy name matching for deduplication
+  - Coverage logging for debugging
+
+## Previous Changes (December 27, 2025)
 
 - **Demo Mode**: Complete demo mode implementation allowing visitors to explore the application without registration:
   - "Try Demo" button on homepage with purple/pink gradient styling
