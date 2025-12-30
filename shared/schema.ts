@@ -341,3 +341,29 @@ export const insertEmarCorrectionSchema = createInsertSchema(emarCorrections).om
 
 export type InsertEmarCorrection = z.infer<typeof insertEmarCorrectionSchema>;
 export type EmarCorrection = typeof emarCorrections.$inferSelect;
+
+// AI Usage Logs table - tracks AI API calls for cost monitoring
+export const aiUsageLogs = pgTable("ai_usage_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  username: text("username"),
+  featureName: text("feature_name").notNull(),
+  model: text("model").notNull(),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  costMicroDollars: integer("cost_micro_dollars").notNull().default(0),
+  durationMs: integer("duration_ms"),
+  success: boolean("success").notNull().default(true),
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertAiUsageLogSchema = createInsertSchema(aiUsageLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertAiUsageLog = z.infer<typeof insertAiUsageLogSchema>;
+export type AiUsageLog = typeof aiUsageLogs.$inferSelect;

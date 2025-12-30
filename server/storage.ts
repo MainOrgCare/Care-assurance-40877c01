@@ -32,6 +32,8 @@ import {
   type InsertFileScanLog,
   type EmarCorrection,
   type InsertEmarCorrection,
+  type AiUsageLog,
+  type InsertAiUsageLog,
   users,
   careWorkers,
   discrepancies,
@@ -46,6 +48,7 @@ import {
   emarRefusalReviews,
   fileScanLogs,
   emarCorrections,
+  aiUsageLogs,
 } from "@shared/schema";
 
 const SALT_ROUNDS = 10;
@@ -158,6 +161,11 @@ export interface IStorage {
   // EMAR Correction operations
   createEmarCorrection(correction: InsertEmarCorrection): Promise<EmarCorrection>;
   getRecentEmarCorrections(limit?: number): Promise<EmarCorrection[]>;
+  
+  // AI Usage Log operations
+  createAiUsageLog(log: InsertAiUsageLog): Promise<AiUsageLog>;
+  getAiUsageLogs(options?: { limit?: number; startDate?: Date; endDate?: Date }): Promise<AiUsageLog[]>;
+  getAiUsageStats(): Promise<{ totalCost: number; totalCalls: number; byFeature: Record<string, { calls: number; cost: number; tokens: number }> }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -806,6 +814,50 @@ export class DatabaseStorage implements IStorage {
       .from(emarCorrections)
       .orderBy(desc(emarCorrections.createdAt))
       .limit(limit);
+  }
+  
+  // AI Usage Log operations
+  async createAiUsageLog(log: InsertAiUsageLog): Promise<AiUsageLog> {
+    const result = await this.db.insert(aiUsageLogs).values(log).returning();
+    return result[0];
+  }
+  
+  async getAiUsageLogs(options?: { limit?: number; startDate?: Date; endDate?: Date }): Promise<AiUsageLog[]> {
+    const limit = options?.limit || 100;
+    let query = this.db.select().from(aiUsageLogs);
+    
+    if (options?.startDate && options?.endDate) {
+      query = query.where(
+        and(
+          sql`${aiUsageLogs.createdAt} >= ${options.startDate}`,
+          sql`${aiUsageLogs.createdAt} <= ${options.endDate}`
+        )
+      ) as any;
+    }
+    
+    return await query.orderBy(desc(aiUsageLogs.createdAt)).limit(limit);
+  }
+  
+  async getAiUsageStats(): Promise<{ totalCost: number; totalCalls: number; byFeature: Record<string, { calls: number; cost: number; tokens: number }> }> {
+    const logs = await this.db.select().from(aiUsageLogs);
+    
+    let totalCost = 0;
+    let totalCalls = 0;
+    const byFeature: Record<string, { calls: number; cost: number; tokens: number }> = {};
+    
+    for (const log of logs) {
+      totalCost += log.costMicroDollars;
+      totalCalls++;
+      
+      if (!byFeature[log.featureName]) {
+        byFeature[log.featureName] = { calls: 0, cost: 0, tokens: 0 };
+      }
+      byFeature[log.featureName].calls++;
+      byFeature[log.featureName].cost += log.costMicroDollars;
+      byFeature[log.featureName].tokens += log.totalTokens;
+    }
+    
+    return { totalCost, totalCalls, byFeature };
   }
 }
 
