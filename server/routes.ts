@@ -3724,9 +3724,9 @@ If no equivalences found, return: {"equivalences": []}`
           });
         }
         
-        // Check 2: Invalid codes (AS/P) used on PRN medications
-        // Note: AD is allowed on PRN meds, but AS and P are not valid anywhere
-        const INVALID_PRN_CODES = ['AS', 'P'];
+        // Check 2: Invalid codes (AD/AS/P) used on PRN medications
+        // PRN meds should use PRN codes only (shows as "PRN" in blue on EMAR)
+        const INVALID_PRN_CODES = ['AD', 'AS', 'P'];
         if (INVALID_PRN_CODES.includes(code) && isPRN) {
           discrepancies.push({
             careWorkerName: careWorker,
@@ -3734,7 +3734,7 @@ If no equivalences found, return: {"equivalences": []}`
             timeSlot: timeSlot,
             medication: medication,
             code: code,
-            issue: `Invalid code "${code}" used on PRN medication - should use PRN codes (PRN, PRN-AD, etc.) or AD`,
+            issue: `Invalid code "${code}" used on PRN medication - should use PRN codes (PRN, PRN-AD, PRN-AS, PRN-R)`,
             severity: "high",
             actions: { performanceNote: true, meeting: "phone", referToManager: false }
           });
