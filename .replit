@@ -49,4 +49,3 @@ expertMode = true
 [userenv]
 
 [userenv.shared]
-USE_EMAR_AGENT = "true"
