@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useMemo, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Copy, FileText, Check, X, AlertTriangle, Loader2, TableIcon, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, UserPlus, Users, Sparkles, RefreshCw, Pencil, Undo2, Save } from "lucide-react";
+import { Upload, Copy, FileText, Check, X, AlertTriangle, Loader2, TableIcon, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, UserPlus, Users, Sparkles, RefreshCw, Pencil, Undo2, Save, Download } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import UploadDisclaimer from "@/components/UploadDisclaimer";
 import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
@@ -841,6 +843,141 @@ ${generatedProtocol.additionalComments}`;
     return allDiscrepancies.length > 0;
   };
 
+  const downloadPDF = () => {
+    if (!result) return;
+    
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let yPos = 20;
+    
+    doc.setFontSize(18);
+    doc.setTextColor(33, 33, 33);
+    doc.text("EMAR Audit Report", pageWidth / 2, yPos, { align: "center" });
+    yPos += 15;
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, yPos, { align: "center" });
+    yPos += 15;
+    
+    doc.setFontSize(12);
+    doc.setTextColor(33, 33, 33);
+    doc.text("Service User Information", 14, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(10);
+    doc.text(`Service User: ${result.serviceUserName}`, 14, yPos);
+    yPos += 6;
+    doc.text(`Medication Level: ${getServiceUserTypeDisplay()}`, 14, yPos);
+    yPos += 6;
+    doc.text(`Auditor: ${auditorDisplay}`, 14, yPos);
+    yPos += 6;
+    doc.text(`Audit Period: ${result.auditPeriodStart} - ${result.auditPeriodEnd}`, 14, yPos);
+    yPos += 6;
+    doc.text(`Allergies: ${(result as any).allergies || 'None recorded'}`, 14, yPos);
+    yPos += 12;
+    
+    doc.setFontSize(12);
+    doc.text(`Discrepancies Found: ${hasAnyDiscrepancies() ? 'Yes' : 'No'}`, 14, yPos);
+    yPos += 10;
+    
+    if (result.warnings && result.warnings.length > 0) {
+      doc.setFontSize(12);
+      doc.setTextColor(200, 0, 0);
+      doc.text(`Warnings (${result.warnings.length})`, 14, yPos);
+      yPos += 8;
+      
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Type', 'Medication', 'Description', 'Recommended Action']],
+        body: result.warnings.map((w: Warning) => [
+          w.type.replace(/_/g, ' '),
+          w.medication || '-',
+          w.description,
+          w.recommendedAction
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [200, 50, 50] },
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: { 2: { cellWidth: 50 }, 3: { cellWidth: 50 } }
+      });
+      yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
+    
+    if (result.drugInteractions && result.drugInteractions.length > 0) {
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(12);
+      doc.setTextColor(255, 140, 0);
+      doc.text(`Drug Interactions (${result.drugInteractions.length})`, 14, yPos);
+      yPos += 8;
+      
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Drug 1', 'Drug 2', 'Severity', 'Description']],
+        body: result.drugInteractions.map((i: DrugInteraction) => [
+          i.drug1,
+          i.drug2,
+          i.severity,
+          i.description
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [255, 140, 0] },
+        styles: { fontSize: 8, cellPadding: 2 }
+      });
+      yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
+    
+    const allDiscrepancies = getAllDiscrepancies();
+    if (allDiscrepancies.length > 0) {
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(12);
+      doc.setTextColor(200, 0, 0);
+      doc.text(`Discrepancies (${allDiscrepancies.length})`, 14, yPos);
+      yPos += 8;
+      
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Care Worker', 'Date', 'Medication', 'Issue', 'Actions Required']],
+        body: allDiscrepancies.map(d => [
+          d.careWorkerName,
+          d.date,
+          d.medication,
+          d.issue,
+          getActionsText(d.actions)
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [200, 50, 50] },
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: { 3: { cellWidth: 50 }, 4: { cellWidth: 35 } }
+      });
+      yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
+    
+    if (result.prnMedications?.hasPRN && result.prnMedications.medications.length > 0) {
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(12);
+      doc.setTextColor(200, 150, 0);
+      doc.text(`PRN Medications (${result.prnMedications.medications.length})`, 14, yPos);
+      yPos += 8;
+      
+      const prnList = result.prnMedications.medications.map((m: any) => 
+        typeof m === 'string' ? m : m.name
+      ).join(', ');
+      doc.setFontSize(10);
+      doc.setTextColor(33, 33, 33);
+      doc.text(prnList, 14, yPos, { maxWidth: pageWidth - 28 });
+      yPos += 10;
+    }
+    
+    const fileName = `EMAR_Audit_${result.serviceUserName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+    
+    toast({
+      title: "PDF Downloaded",
+      description: `Report saved as ${fileName}`,
+    });
+  };
+
   // State for expanded care worker cards
   const [expandedCareWorkers, setExpandedCareWorkers] = useState<Set<string>>(new Set());
 
@@ -1489,6 +1626,19 @@ ${generatedProtocol.additionalComments}`;
 
           <Card className="bg-card border-border">
             <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <h3 className="text-lg font-semibold">Audit Summary</h3>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={downloadPDF}
+                  className="gap-1.5"
+                  data-testid="button-download-pdf"
+                >
+                  <Download size={14} />
+                  Download PDF
+                </Button>
+              </div>
               <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <CopyableBox label="Service User" value={result.serviceUserName} />
                 <CopyableBox label="Type" value={getServiceUserTypeDisplay()} />
