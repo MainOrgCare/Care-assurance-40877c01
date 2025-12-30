@@ -45,14 +45,12 @@ interface AiUsageLog {
   username: string | null;
   featureName: string;
   model: string;
-  provider: "replit" | "openai";
+  provider: string;
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
   costMicroDollars: number;
   durationMs: number | null;
-  success: boolean;
-  errorMessage: string | null;
   createdAt: string;
 }
 

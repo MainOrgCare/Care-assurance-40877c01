@@ -347,17 +347,14 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id),
   username: text("username"),
-  featureName: text("feature_name").notNull(),
+  featureName: text("feature").notNull(),
   model: text("model").notNull(),
   provider: text("provider").notNull().default("replit"), // 'replit' or 'openai' - which API was billed
   inputTokens: integer("input_tokens").notNull().default(0),
   outputTokens: integer("output_tokens").notNull().default(0),
   totalTokens: integer("total_tokens").notNull().default(0),
-  costMicroDollars: integer("cost_micro_dollars").notNull().default(0),
+  costMicroDollars: integer("cost_micros").notNull().default(0),
   durationMs: integer("duration_ms"),
-  success: boolean("success").notNull().default(true),
-  errorMessage: text("error_message"),
-  metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
