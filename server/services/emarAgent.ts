@@ -62,19 +62,13 @@ const VALID_CODES = new Set([
   'R', 'MU', 'NH', 'SA', 'FA', 'MISSED', 'G', 'A'
 ]);
 
-const COMPACT_SYSTEM = `UK EMAR extractor. CRITICAL SCANNING ORDER:
-1. Scan COLUMN-BY-COLUMN (date by date), NOT row-by-row
-2. For each DATE column, go TOP-TO-BOTTOM through all medications
-3. Within each cell: extract CODE + INITIALS (2-3 caps)
-
-Codes: AD=given, AS=assisted, P=prompted, R=REFUSED, MU=unavail, NH=away, SA=self, FA=family, G/A=given, PRN=as needed
-
-BLANK HANDLING:
-- Empty cells, "X", "-", or no entry = SKIP completely, do NOT output
-- Only output cells with actual codes (AD, R, AS, etc.)
-- NEVER create entries for blank/X cells
-
-CRITICAL: Never skip R codes - they are important refusals`;
+// CACHED SYSTEM PREFIX - identical across all calls for OpenAI prompt caching
+// This static portion enables 50% cost reduction on cached prompts
+const CACHED_SYSTEM_PREFIX = `UK EMAR extractor.
+SCAN: Column-by-column (date cols), top-to-bottom (meds).
+CODES: AD=given AS=assist P=prompt R=REFUSE MU=unavail NH=away SA=self FA=family G/A=given PRN=asNeeded
+SKIP: Empty/X/- cells. OUTPUT: Only actual codes.
+R codes=critical refusals, never skip.`;
 
 export class EmarAgent {
   private seed = 42;
@@ -94,12 +88,9 @@ export class EmarAgent {
 
     const corrections = correctionsContext ? `\nFixes:${correctionsContext.substring(0, 200)}` : '';
 
-    const prompt = `${COMPACT_SYSTEM}${tbl}${corrections}
-
-Extract metadata only. JSON:
-{"su":"F.O.","alg":"NKDA","meds":[{"n":"Paracetamol 500mg","g":"paracetamol","prn":false,"slots":["08:00","22:00"]}],"dates":["01 Dec","02 Dec"],"slots":["08:00","12:00","17:00","22:00"]}
-
-Keys: su=initials, alg=allergies, n=name, g=generic, prn=isPRN, slots=scheduledSlots`;
+    const prompt = `${CACHED_SYSTEM_PREFIX}${tbl}${corrections}
+TASK:Metadata. JSON:{"su":"F.O.","alg":"NKDA","meds":[{"n":"Paracetamol 500mg","g":"paracetamol","prn":false,"slots":["08:00","22:00"]}],"dates":["01 Dec","02 Dec"],"slots":["08:00","12:00","17:00","22:00"]}
+Keys:su=initials,alg=allergies,n=name,g=generic,prn=isPRN,slots=scheduledSlots`;
 
     const response = await createChatCompletionWithLogging({
       model: this.model,
@@ -149,41 +140,14 @@ Keys: su=initials, alg=allergies, n=name, g=generic, prn=isPRN, slots=scheduledS
     const docChunk = documentText.substring(0, 6000);
     const corrections = correctionsContext ? `\nFixes:${correctionsContext.substring(0, 150)}` : '';
 
-    const prompt = `${COMPACT_SYSTEM}${corrections}
-
-Meds:${medMap}
-Dates:${dateMap}
-Slots:${slotMap}
-
-EXTRACTION ORDER (CRITICAL):
-Step 1: Take Date[0] (${metadata.dates[0] || 'first date'})
-Step 2: Go down ALL medications for that date, extract codes
-Step 3: Move to Date[1], repeat down all meds
-Step 4: Continue for each date column
-
-OFFICE-CLOSED ENTRIES:
-- If a code has NO INITIALS (just code in red box), set "oc":true
-- These are manually closed by office staff, NOT care worker administered
-- Still extract the code, but mark it as office-closed
-
-MISSED MEDICATION SECTION:
-- Look for "Missed Medication" table at bottom of document
-- Extract entries with: medication, scheduledTime, closedBy (staff name), closedTime
-- Include in "mm" array
-
-Example output:
-{"e":[
-  {"m":1,"d":0,"s":0,"c":"AD","i":"RK"},
-  {"m":2,"d":0,"s":0,"c":"AD","i":"","oc":true},
-  {"m":1,"d":2,"s":0,"c":"R","i":"HB"}
-],
-"mm":[
-  {"med":"Paracetamol","st":"06/Dec/25 04:00 AM","cb":"Kerri McLaughlin","ct":"08/Dec/25 01:31 PM"}
-]}
-
-Keys: m=medId, d=dateIdx, s=slotIdx, c=code, i=initials, t=time, oc=officeClosed
-mm keys: med=medication, st=scheduledTime, cb=closedBy, ct=closedTime
-CRITICAL: Include ALL R codes. Never output blank/X cells.`;
+    // Compact extraction prompt - uses cached prefix for token efficiency
+    const prompt = `${CACHED_SYSTEM_PREFIX}${corrections}
+MEDS:${medMap}|DATES:${dateMap}|SLOTS:${slotMap}
+ORDER:Date[0]->down all meds->Date[1]->repeat.
+OFFICE-CLOSED:No initials(red box)->oc:true.
+MISSED MED TABLE:Extract med,scheduledTime,closedBy,closedTime into mm[].
+JSON:{"e":[{"m":1,"d":0,"s":0,"c":"AD","i":"RK"},{"m":2,"d":0,"s":0,"c":"AD","i":"","oc":true}],"mm":[{"med":"Name","st":"date time","cb":"Staff","ct":"date time"}]}
+Keys:m=medId,d=dateIdx,s=slotIdx,c=code,i=initials,t=time,oc=officeClosed`;
 
     let totalTokens = 0;
     let missedMedications: MissedMedicationEntry[] = [];
@@ -255,35 +219,82 @@ CRITICAL: Include ALL R codes. Never output blank/X cells.`;
       }));
     };
 
-    // SINGLE PASS EXTRACTION (reduced from 3 parallel passes - saves ~66% tokens)
-    console.log('EMAR Agent: Running single-pass extraction (optimized)');
+    // OPTIMIZED: 2-pass validation (reduced from 3 parallel passes - saves ~33% tokens)
+    // Uses deterministic extraction with verification pass for accuracy
+    console.log('EMAR Agent: Running optimized 2-pass extraction');
+    
     const pass1 = await runPass();
     const validated1 = dedupe(pass1.filter(validateEntry));
     console.log(`EMAR Agent: Pass 1 - ${pass1.length} raw, ${validated1.length} validated`);
 
-    // Quick validation check: reasonable entry count?
-    const expectedMinEntries = Math.floor(metadata.medications.length * metadata.dates.length * 0.3);
+    // Domain validation checks
+    const scheduledMeds = metadata.medications.filter(m => !m.isPRN);
+    const expectedSlots = scheduledMeds.length * metadata.dates.length;
     const hasRefusals = validated1.some(e => e.code === 'R' || e.code.startsWith('PRN-R'));
-    const entryCountOk = validated1.length >= expectedMinEntries;
+    const entryCountOk = validated1.length >= Math.floor(expectedSlots * 0.4); // At least 40% coverage
     
-    // Only retry if validation fails (low count or missing refusals when document likely has them)
-    if (!entryCountOk || (!hasRefusals && validated1.length > 10)) {
-      console.log(`EMAR Agent: Validation concerns - retrying with focus prompt`);
-      const retryPrompt = !hasRefusals 
-        ? 'IMPORTANT: Check carefully for R (refused) codes - they are critical. Re-scan each date column.'
-        : 'IMPORTANT: Entry count seems low. Check each date column thoroughly. Do not skip valid entries.';
-      
-      const pass2 = await runPass(retryPrompt);
-      const validated2 = dedupe(pass2.filter(validateEntry));
-      console.log(`EMAR Agent: Retry pass - ${pass2.length} raw, ${validated2.length} validated`);
-      
-      // Use whichever pass found more valid entries
-      if (validated2.length > validated1.length) {
-        return { entries: validated2, missedMedications, consensusStatus: 'single_pass', tokens: totalTokens };
-      }
-    }
+    // Check medication coverage - each scheduled med should have some entries
+    const medCoverage = new Set(validated1.map(e => e.medicationId));
+    const fullMedCoverage = scheduledMeds.every(m => medCoverage.has(m.medicationId));
+    
+    // Check date coverage - each date should have some entries
+    const dateCoverage = new Set(validated1.map(e => e.date.toLowerCase().trim()));
+    const fullDateCoverage = metadata.dates.every(d => dateCoverage.has(d.toLowerCase().trim()));
+    
+    // Code distribution check - shouldn't be all one code (suspicious)
+    const codeDistribution = new Map<string, number>();
+    validated1.forEach(e => codeDistribution.set(e.code, (codeDistribution.get(e.code) || 0) + 1));
+    const hasVariedCodes = codeDistribution.size > 1 || validated1.length < 5;
 
-    return { entries: validated1, missedMedications, consensusStatus: 'verified', tokens: totalTokens };
+    // Calculate validation score
+    const validationScore = [
+      entryCountOk,
+      fullMedCoverage,
+      fullDateCoverage,
+      hasVariedCodes,
+      hasRefusals || validated1.length < 10 // Refusals expected only in larger charts
+    ].filter(Boolean).length;
+
+    // Always run verification pass for accuracy (deterministic with same seed = same result)
+    // If validation score is low, run with focused retry prompt
+    const needsFocusedRetry = validationScore < 3;
+    console.log(`EMAR Agent: Validation score ${validationScore}/5 - ${needsFocusedRetry ? 'focused' : 'verification'} pass`);
+    
+    const retryPrompt = needsFocusedRetry
+      ? 'CRITICAL RECHECK: Ensure every medication has entries for each date. Check for R codes. Scan column-by-column carefully.'
+      : undefined;
+    
+    const pass2 = await runPass(retryPrompt);
+    const validated2 = dedupe(pass2.filter(validateEntry));
+    console.log(`EMAR Agent: Pass 2 - ${pass2.length} raw, ${validated2.length} validated`);
+
+    // Compare passes - use set comparison for consensus
+    const key = (e: EmarEntry) => `${e.medicationId}|${e.date}|${e.timeSlot}|${e.code}`;
+    const set1 = new Set(validated1.map(key));
+    const set2 = new Set(validated2.map(key));
+    const matches = [...set1].filter(k => set2.has(k)).length;
+    const consensusRatio = matches / Math.max(set1.size, set2.size, 1);
+    
+    console.log(`EMAR Agent: Consensus ${(consensusRatio * 100).toFixed(1)}% (${matches}/${Math.max(set1.size, set2.size)} entries)`);
+
+    // Determine final result
+    if (consensusRatio >= 0.85) {
+      // High agreement - use pass with more entries (merged results)
+      const merged = [...validated1];
+      validated2.forEach(e => {
+        if (!set1.has(key(e))) merged.push(e);
+      });
+      return { entries: dedupe(merged), missedMedications, consensusStatus: 'verified', tokens: totalTokens };
+    } else if (validated2.length > validated1.length * 1.2) {
+      // Pass 2 found significantly more - use it
+      return { entries: validated2, missedMedications, consensusStatus: 'single_pass', tokens: totalTokens };
+    } else {
+      // Low agreement, use pass with better coverage
+      const med1Coverage = new Set(validated1.map(e => e.medicationId)).size;
+      const med2Coverage = new Set(validated2.map(e => e.medicationId)).size;
+      const best = med2Coverage > med1Coverage ? validated2 : validated1;
+      return { entries: best, missedMedications, consensusStatus: 'no_consensus', tokens: totalTokens };
+    }
   }
 
   async checkDrugInteractions(
