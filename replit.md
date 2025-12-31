@@ -35,7 +35,7 @@ Preferred communication style: Simple, everyday language.
 - **Glass Morphism UI**: Dark theme with translucent effects and gradient backgrounds.
 - **AI-Powered Features**: EMAR analysis, risk assessment, and plan enhancement use AI (GPT-5.1, GPT-4o-mini). Features utilize Server-Sent Events (SSE) for real-time updates and include AI failover logic.
   - **EMAR Analysis**: Employs a 3-pass consensus with domain validation for medication record extraction, including PRN code support and a refusal grouping system with admin review. Features time gap detection (excluding once-daily meds), pre-analysis validation of document layout, and handling of blank entries. Office staff manual entries are tracked and reported. Strict PRN code validation and administered medication code validation are enforced.
-  - **Optimized EMAR Agent**: Uses GPT-5.1 with token-efficient prompts and abbreviated JSON keys for cost and speed.
+  - **Optimized EMAR Agent**: Uses GPT-5.1 with single-pass extraction (reduced from 3 parallel passes - saves ~66% tokens). Retry only triggers if validation detects low entry count or missing refusals. Compact prompts with abbreviated JSON keys for cost and speed.
   - **Drug Interaction Alerts**: AI-powered detection of high-risk medication interactions with severity ratings.
   - **Manual Correction UI**: Admin-only feature to correct AI extraction mistakes, storing corrections for audit and feeding them back into AI prompts for training.
   - **PRN Protocol Generation**: AI generates detailed PRN medication protocols.

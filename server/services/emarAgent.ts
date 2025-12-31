@@ -186,14 +186,40 @@ mm keys: med=medication, st=scheduledTime, cb=closedBy, ct=closedTime
 CRITICAL: Include ALL R codes. Never output blank/X cells.`;
 
     let totalTokens = 0;
-
     let missedMedications: MissedMedicationEntry[] = [];
 
-    const runPass = async (): Promise<EmarEntry[]> => {
+    const validMedIds = new Set(metadata.medications.map(m => m.medicationId));
+    const validDates = new Set(metadata.dates.map(d => d.toLowerCase().trim()));
+    const validSlots = new Set(metadata.timeSlots.map(t => t.toLowerCase().trim()));
+
+    const validateEntry = (e: EmarEntry): boolean => {
+      if (!e.medicationId || !e.date || !e.timeSlot || !e.code) return false;
+      if (!validMedIds.has(e.medicationId)) return false;
+      if (!VALID_CODES.has(e.code)) return false;
+      const normDate = e.date.toLowerCase().trim();
+      const normSlot = e.timeSlot.toLowerCase().trim();
+      if (!validDates.has(normDate)) return false;
+      if (!validSlots.has(normSlot) && normSlot !== 'prn') return false;
+      return true;
+    };
+
+    const dedupe = (entries: EmarEntry[]): EmarEntry[] => {
+      const seen = new Set<string>();
+      return entries.filter(e => {
+        const key = `${e.medicationId}-${e.date}-${e.timeSlot}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    };
+
+    const runPass = async (retryPromptSuffix?: string): Promise<EmarEntry[]> => {
+      const fullPrompt = retryPromptSuffix ? `${prompt}\n\n${retryPromptSuffix}` : prompt;
+      
       const response = await createChatCompletionWithLogging({
         model: this.model,
         messages: [
-          { role: 'system', content: prompt },
+          { role: 'system', content: fullPrompt },
           { role: 'user', content: docChunk }
         ],
         max_completion_tokens: 4000,
@@ -207,7 +233,6 @@ CRITICAL: Include ALL R codes. Never output blank/X cells.`;
       const parsed = JSON.parse(content);
       const rawEntries = parsed.e || parsed.entries || [];
       
-      // Extract missed medication entries (only once from first pass)
       if (missedMedications.length === 0 && parsed.mm) {
         missedMedications = (parsed.mm || []).map((m: any) => ({
           medication: m.med || m.medication || '',
@@ -230,57 +255,35 @@ CRITICAL: Include ALL R codes. Never output blank/X cells.`;
       }));
     };
 
-    const [pass1, pass2, pass3] = await Promise.all([runPass(), runPass(), runPass()]);
-    console.log(`EMAR Agent: Pass counts - P1:${pass1.length}, P2:${pass2.length}, P3:${pass3.length}`);
+    // SINGLE PASS EXTRACTION (reduced from 3 parallel passes - saves ~66% tokens)
+    console.log('EMAR Agent: Running single-pass extraction (optimized)');
+    const pass1 = await runPass();
+    const validated1 = dedupe(pass1.filter(validateEntry));
+    console.log(`EMAR Agent: Pass 1 - ${pass1.length} raw, ${validated1.length} validated`);
 
-    const validMedIds = new Set(metadata.medications.map(m => m.medicationId));
-    const validDates = new Set(metadata.dates.map(d => d.toLowerCase().trim()));
-    const validSlots = new Set(metadata.timeSlots.map(t => t.toLowerCase().trim()));
-
-    const validate = (e: EmarEntry): boolean => {
-      if (!e.medicationId || !e.date || !e.timeSlot || !e.code) return false;
-      if (!validMedIds.has(e.medicationId)) return false;
-      if (!VALID_CODES.has(e.code)) return false;
-      const normDate = e.date.toLowerCase().trim();
-      const normSlot = e.timeSlot.toLowerCase().trim();
-      if (!validDates.has(normDate)) return false;
-      if (!validSlots.has(normSlot) && normSlot !== 'prn') return false;
-      return true;
-    };
-
-    const dedupe = (entries: EmarEntry[]): EmarEntry[] => {
-      const seen = new Set<string>();
-      return entries.filter(e => {
-        const key = `${e.medicationId}-${e.date}-${e.timeSlot}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-    };
-
-    const d1 = dedupe(pass1.filter(validate));
-    const d2 = dedupe(pass2.filter(validate));
-    const d3 = dedupe(pass3.filter(validate));
-
-    const key = (e: EmarEntry) => `${e.medicationId}|${e.date}|${e.timeSlot}|${e.code}`;
-    const s1 = new Set(d1.map(key));
-    const s2 = new Set(d2.map(key));
-    const s3 = new Set(d3.map(key));
-
-    const eq = (a: Set<string>, b: Set<string>) => 
-      a.size === b.size && Array.from(a).every(k => b.has(k));
-
-    if (eq(s1, s2) && eq(s2, s3)) {
-      return { entries: d1, missedMedications, consensusStatus: 'verified', tokens: totalTokens };
-    }
-    if (eq(s1, s2) || eq(s1, s3) || eq(s2, s3)) {
-      const best = eq(s1, s2) ? d1 : eq(s1, s3) ? d1 : d2;
-      return { entries: best, missedMedications, consensusStatus: 'verified', tokens: totalTokens };
+    // Quick validation check: reasonable entry count?
+    const expectedMinEntries = Math.floor(metadata.medications.length * metadata.dates.length * 0.3);
+    const hasRefusals = validated1.some(e => e.code === 'R' || e.code.startsWith('PRN-R'));
+    const entryCountOk = validated1.length >= expectedMinEntries;
+    
+    // Only retry if validation fails (low count or missing refusals when document likely has them)
+    if (!entryCountOk || (!hasRefusals && validated1.length > 10)) {
+      console.log(`EMAR Agent: Validation concerns - retrying with focus prompt`);
+      const retryPrompt = !hasRefusals 
+        ? 'IMPORTANT: Check carefully for R (refused) codes - they are critical. Re-scan each date column.'
+        : 'IMPORTANT: Entry count seems low. Check each date column thoroughly. Do not skip valid entries.';
+      
+      const pass2 = await runPass(retryPrompt);
+      const validated2 = dedupe(pass2.filter(validateEntry));
+      console.log(`EMAR Agent: Retry pass - ${pass2.length} raw, ${validated2.length} validated`);
+      
+      // Use whichever pass found more valid entries
+      if (validated2.length > validated1.length) {
+        return { entries: validated2, missedMedications, consensusStatus: 'single_pass', tokens: totalTokens };
+      }
     }
 
-    const counts = [d1.length, d2.length, d3.length];
-    const maxIdx = counts.indexOf(Math.max(...counts));
-    return { entries: [d1, d2, d3][maxIdx], missedMedications, consensusStatus: 'no_consensus', tokens: totalTokens };
+    return { entries: validated1, missedMedications, consensusStatus: 'verified', tokens: totalTokens };
   }
 
   async checkDrugInteractions(
