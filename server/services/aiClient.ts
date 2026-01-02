@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { storage } from "../storage";
-import { calculateCostMicroDollars } from "../config/aiPricing";
+import { calculateCostMicroDollars, AVAILABLE_MODELS, type AvailableModel } from "../config/aiPricing";
 
 const replitClient = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -19,6 +19,9 @@ export type AiProvider = "replit" | "openai";
 // Admin-configurable preferred AI provider (defaults to Replit)
 let preferredProvider: AiProvider = "replit";
 
+// Admin-configurable preferred AI model (defaults to gpt-5.1)
+let preferredModel: AvailableModel = "gpt-5.1";
+
 export function getPreferredProvider(): AiProvider {
   return preferredProvider;
 }
@@ -29,6 +32,23 @@ export function setPreferredProvider(provider: AiProvider): void {
   }
   preferredProvider = provider;
   console.log(`[AI Config] Preferred provider set to: ${provider}`);
+}
+
+export function getPreferredModel(): AvailableModel {
+  return preferredModel;
+}
+
+export function setPreferredModel(model: string): void {
+  const validModels = AVAILABLE_MODELS.map(m => m.id);
+  if (!validModels.includes(model as AvailableModel)) {
+    throw new Error(`Invalid model. Must be one of: ${validModels.join(", ")}`);
+  }
+  preferredModel = model as AvailableModel;
+  console.log(`[AI Config] Preferred model set to: ${model}`);
+}
+
+export function getAvailableModels() {
+  return AVAILABLE_MODELS;
 }
 
 // Result type that includes provider information

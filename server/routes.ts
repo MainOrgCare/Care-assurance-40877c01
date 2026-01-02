@@ -8,7 +8,7 @@ import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema } from "@shared/schema";
-import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, setPreferredModel, getAvailableModels, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { emarAgent } from "./services/emarAgent";
 import multer from "multer";
 import { PDFParse } from "pdf-parse";
@@ -6410,6 +6410,34 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     } catch (error: any) {
       console.error("AI provider update error:", error);
       return res.status(500).json({ message: error.message || "Failed to update AI provider" });
+    }
+  });
+
+  // Get current AI model preference (admin-only)
+  app.get("/api/admin/ai-model", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const model = getPreferredModel();
+      const availableModels = getAvailableModels();
+      return res.json({ model, availableModels });
+    } catch (error: any) {
+      console.error("AI model fetch error:", error);
+      return res.status(500).json({ message: error.message || "Failed to fetch AI model" });
+    }
+  });
+
+  // Set AI model preference (admin-only)
+  app.post("/api/admin/ai-model", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { model } = req.body;
+      
+      setPreferredModel(model);
+      
+      console.log(`[Admin] AI model changed to ${model} by ${req.user?.username || 'unknown'}`);
+      
+      return res.json({ success: true, model });
+    } catch (error: any) {
+      console.error("AI model update error:", error);
+      return res.status(400).json({ message: error.message || "Failed to update AI model" });
     }
   });
 
