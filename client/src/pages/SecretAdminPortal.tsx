@@ -280,6 +280,170 @@ function AICostSection() {
   );
 }
 
+function AIProviderSection() {
+  const [provider, setProvider] = useState<"replit" | "openai">("replit");
+  const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [switching, setSwitching] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchProvider();
+  }, []);
+
+  const fetchProvider = async () => {
+    try {
+      const response = await fetch("/api/admin/ai-provider", {
+        credentials: "include",
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setProvider(data.provider);
+        setHasOpenAIKey(data.hasOpenAIKey);
+      }
+    } catch (error) {
+      console.error("Failed to fetch AI provider:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSwitch = async (newProvider: "replit" | "openai") => {
+    if (newProvider === provider) return;
+    
+    setSwitching(true);
+    try {
+      const response = await fetch("/api/admin/ai-provider", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: newProvider }),
+      });
+      
+      if (response.ok) {
+        setProvider(newProvider);
+        toast({
+          title: "AI Provider Updated",
+          description: `Now using ${newProvider === "replit" ? "Replit AI" : "OpenAI"} as the primary provider.`,
+        });
+      } else {
+        const data = await response.json();
+        toast({
+          title: "Failed to switch provider",
+          description: data.message || "Unknown error occurred",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to switch AI provider:", error);
+      toast({
+        title: "Error",
+        description: "Failed to switch AI provider. Check console for details.",
+        variant: "destructive",
+      });
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card className="bg-card border-white/5 backdrop-blur-sm">
+        <CardContent className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="bg-card border-white/5 backdrop-blur-sm">
+      <CardHeader className="border-b border-white/5 bg-black/20">
+        <CardTitle className="flex items-center gap-2 text-foreground text-base">
+          <Cpu size={18} className="text-purple-400" />
+          AI Provider Configuration
+        </CardTitle>
+        <CardDescription className="text-muted-foreground text-sm">
+          Select which AI provider to use as the primary service. Failover to the other provider is automatic.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          <button
+            onClick={() => handleSwitch("replit")}
+            disabled={switching || provider === "replit"}
+            className={`flex-1 p-4 rounded-lg border-2 transition-all ${
+              provider === "replit"
+                ? "border-indigo-500 bg-indigo-500/10"
+                : "border-white/10 hover:border-white/20 bg-white/5"
+            } ${switching ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+            data-testid="button-provider-replit"
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                provider === "replit" ? "bg-indigo-500/20" : "bg-white/10"
+              }`}>
+                <Cpu size={20} className={provider === "replit" ? "text-indigo-400" : "text-muted-foreground"} />
+              </div>
+              <div className="text-left">
+                <div className="font-medium text-foreground">Replit AI</div>
+                <div className="text-xs text-muted-foreground">Uses your Replit AI credits</div>
+              </div>
+              {provider === "replit" && (
+                <Badge variant="secondary" className="ml-auto bg-indigo-500/20 text-indigo-300 border-indigo-500/30">
+                  Active
+                </Badge>
+              )}
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleSwitch("openai")}
+            disabled={switching || provider === "openai" || !hasOpenAIKey}
+            className={`flex-1 p-4 rounded-lg border-2 transition-all ${
+              provider === "openai"
+                ? "border-emerald-500 bg-emerald-500/10"
+                : hasOpenAIKey
+                  ? "border-white/10 hover:border-white/20 bg-white/5"
+                  : "border-white/5 bg-white/5 opacity-50"
+            } ${switching || !hasOpenAIKey ? "cursor-not-allowed" : "cursor-pointer"}`}
+            data-testid="button-provider-openai"
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                provider === "openai" ? "bg-emerald-500/20" : "bg-white/10"
+              }`}>
+                <TrendingUp size={20} className={provider === "openai" ? "text-emerald-400" : "text-muted-foreground"} />
+              </div>
+              <div className="text-left">
+                <div className="font-medium text-foreground">OpenAI</div>
+                <div className="text-xs text-muted-foreground">
+                  {hasOpenAIKey ? "Uses your OpenAI API key" : "OPENAI_FALLBACK_API_KEY not set"}
+                </div>
+              </div>
+              {provider === "openai" && (
+                <Badge variant="secondary" className="ml-auto bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                  Active
+                </Badge>
+              )}
+              {!hasOpenAIKey && (
+                <Badge variant="outline" className="ml-auto border-yellow-500/50 text-yellow-400">
+                  Key Missing
+                </Badge>
+              )}
+            </div>
+          </button>
+        </div>
+
+        <div className="mt-4 p-3 bg-black/20 rounded-lg border border-white/5 text-xs text-muted-foreground">
+          <strong className="text-foreground">Note:</strong> If the primary provider fails, the system will automatically try the other provider. 
+          Provider setting resets to Replit when the server restarts.
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function RiskAssessmentLogsSection() {
   const [logs, setLogs] = useState<RiskAssessmentLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2584,6 +2748,7 @@ export default function SecretAdminPortal() {
             </TabsContent>
 
             <TabsContent value="ai-costs" className="space-y-6">
+              <AIProviderSection />
               <AICostSection />
             </TabsContent>
           </Tabs>
