@@ -33,9 +33,10 @@ Preferred communication style: Simple, everyday language.
 - **Shared Schema**: Database schema and Zod validators are shared between client and server.
 - **Protected Routes**: Client-side route protection.
 - **Glass Morphism UI**: Dark theme with translucent effects and gradient backgrounds.
-- **AI-Powered Features**: EMAR analysis, risk assessment, and plan enhancement use AI (GPT-5.1, GPT-4o-mini). Features utilize Server-Sent Events (SSE) for real-time updates and include AI failover logic.
+- **AI-Powered Features**: EMAR analysis, risk assessment, and plan enhancement use AI. Features utilize Server-Sent Events (SSE) for real-time updates and include AI failover logic.
+  - **Admin AI Configuration**: Independent controls for AI provider (Replit/OpenAI) and AI model (GPT-5.1, GPT-5-mini, GPT-4o, GPT-4o-mini). Settings are in-memory and reset on server restart. GPT-5-mini is 20x cheaper than GPT-5.1 with 272K context window.
   - **EMAR Analysis**: Employs a 3-pass consensus with domain validation for medication record extraction, including PRN code support and a refusal grouping system with admin review. Features time gap detection (excluding once-daily meds), pre-analysis validation of document layout, and handling of blank entries. Office staff manual entries are tracked and reported. Strict PRN code validation and administered medication code validation are enforced.
-  - **Optimized EMAR Agent**: Uses GPT-5.1 with 2-pass validation (reduced from 3 parallel passes - saves ~33% tokens). Domain validation includes medication coverage, date coverage, code distribution, and refusal detection. Consensus merging for 85%+ agreement. Compact prompts with abbreviated JSON keys for cost and speed.
+  - **Optimized EMAR Agent**: Uses admin-selected model with 2-pass validation (reduced from 3 parallel passes - saves ~33% tokens). Domain validation includes medication coverage, date coverage, code distribution, and refusal detection. Consensus merging for 85%+ agreement. Compact prompts with abbreviated JSON keys for cost and speed.
   - **Drug Interaction Alerts**: AI-powered detection of high-risk medication interactions with severity ratings.
   - **Manual Correction UI**: Admin-only feature to correct AI extraction mistakes, storing corrections for audit and feeding them back into AI prompts for training.
   - **PRN Protocol Generation**: AI generates detailed PRN medication protocols.
