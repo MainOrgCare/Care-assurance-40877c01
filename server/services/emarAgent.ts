@@ -1,4 +1,4 @@
-import { createChatCompletionWithLogging, AiUserContext } from './aiClient';
+import { createChatCompletionWithLogging, AiUserContext, getPreferredModel } from './aiClient';
 
 export interface EmarMetadata {
   serviceUserInitials: string;
@@ -72,7 +72,10 @@ R codes=critical refusals, never skip.`;
 
 export class EmarAgent {
   private seed = 42;
-  private model = 'gpt-5.1';
+
+  private get model(): string {
+    return getPreferredModel();
+  }
 
   async extractMetadata(
     documentText: string,
