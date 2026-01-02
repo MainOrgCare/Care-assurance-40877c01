@@ -280,35 +280,54 @@ function AICostSection() {
   );
 }
 
+interface AvailableModel {
+  id: string;
+  name: string;
+  description: string;
+  inputCost: string;
+  outputCost: string;
+}
+
 function AIProviderSection() {
   const [provider, setProvider] = useState<"replit" | "openai">("replit");
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
+  const [model, setModel] = useState<string>("gpt-5.1");
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
+  const [switchingModel, setSwitchingModel] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchProvider();
+    fetchSettings();
   }, []);
 
-  const fetchProvider = async () => {
+  const fetchSettings = async () => {
     try {
-      const response = await fetch("/api/admin/ai-provider", {
-        credentials: "include",
-      });
-      if (response.ok) {
-        const data = await response.json();
+      const [providerRes, modelRes] = await Promise.all([
+        fetch("/api/admin/ai-provider", { credentials: "include" }),
+        fetch("/api/admin/ai-model", { credentials: "include" }),
+      ]);
+      
+      if (providerRes.ok) {
+        const data = await providerRes.json();
         setProvider(data.provider);
         setHasOpenAIKey(data.hasOpenAIKey);
       }
+      
+      if (modelRes.ok) {
+        const data = await modelRes.json();
+        setModel(data.model);
+        setAvailableModels(data.availableModels || []);
+      }
     } catch (error) {
-      console.error("Failed to fetch AI provider:", error);
+      console.error("Failed to fetch AI settings:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSwitch = async (newProvider: "replit" | "openai") => {
+  const handleSwitchProvider = async (newProvider: "replit" | "openai") => {
     if (newProvider === provider) return;
     
     setSwitching(true);
@@ -346,6 +365,45 @@ function AIProviderSection() {
     }
   };
 
+  const handleSwitchModel = async (newModel: string) => {
+    if (newModel === model) return;
+    
+    setSwitchingModel(true);
+    try {
+      const response = await fetch("/api/admin/ai-model", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: newModel }),
+      });
+      
+      if (response.ok) {
+        setModel(newModel);
+        const modelInfo = availableModels.find(m => m.id === newModel);
+        toast({
+          title: "AI Model Updated",
+          description: `Now using ${modelInfo?.name || newModel} for AI operations.`,
+        });
+      } else {
+        const data = await response.json();
+        toast({
+          title: "Failed to switch model",
+          description: data.message || "Unknown error occurred",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to switch AI model:", error);
+      toast({
+        title: "Error",
+        description: "Failed to switch AI model. Check console for details.",
+        variant: "destructive",
+      });
+    } finally {
+      setSwitchingModel(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card className="bg-card border-white/5 backdrop-blur-sm">
@@ -361,83 +419,121 @@ function AIProviderSection() {
       <CardHeader className="border-b border-white/5 bg-black/20">
         <CardTitle className="flex items-center gap-2 text-foreground text-base">
           <Cpu size={18} className="text-purple-400" />
-          AI Provider Configuration
+          AI Configuration
         </CardTitle>
         <CardDescription className="text-muted-foreground text-sm">
-          Select which AI provider to use as the primary service. Failover to the other provider is automatic.
+          Configure which AI provider and model to use. These settings are independent.
         </CardDescription>
       </CardHeader>
-      <CardContent className="p-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <button
-            onClick={() => handleSwitch("replit")}
-            disabled={switching || provider === "replit"}
-            className={`flex-1 p-4 rounded-lg border-2 transition-all ${
-              provider === "replit"
-                ? "border-indigo-500 bg-indigo-500/10"
-                : "border-white/10 hover:border-white/20 bg-white/5"
-            } ${switching ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-            data-testid="button-provider-replit"
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                provider === "replit" ? "bg-indigo-500/20" : "bg-white/10"
-              }`}>
-                <Cpu size={20} className={provider === "replit" ? "text-indigo-400" : "text-muted-foreground"} />
-              </div>
-              <div className="text-left">
-                <div className="font-medium text-foreground">Replit AI</div>
-                <div className="text-xs text-muted-foreground">Uses your Replit AI credits</div>
-              </div>
-              {provider === "replit" && (
-                <Badge variant="secondary" className="ml-auto bg-indigo-500/20 text-indigo-300 border-indigo-500/30">
-                  Active
-                </Badge>
-              )}
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleSwitch("openai")}
-            disabled={switching || provider === "openai" || !hasOpenAIKey}
-            className={`flex-1 p-4 rounded-lg border-2 transition-all ${
-              provider === "openai"
-                ? "border-emerald-500 bg-emerald-500/10"
-                : hasOpenAIKey
-                  ? "border-white/10 hover:border-white/20 bg-white/5"
-                  : "border-white/5 bg-white/5 opacity-50"
-            } ${switching || !hasOpenAIKey ? "cursor-not-allowed" : "cursor-pointer"}`}
-            data-testid="button-provider-openai"
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                provider === "openai" ? "bg-emerald-500/20" : "bg-white/10"
-              }`}>
-                <TrendingUp size={20} className={provider === "openai" ? "text-emerald-400" : "text-muted-foreground"} />
-              </div>
-              <div className="text-left">
-                <div className="font-medium text-foreground">OpenAI</div>
-                <div className="text-xs text-muted-foreground">
-                  {hasOpenAIKey ? "Uses your OpenAI API key" : "OPENAI_FALLBACK_API_KEY not set"}
+      <CardContent className="p-6 space-y-6">
+        <div>
+          <h4 className="text-sm font-medium text-foreground mb-3">Billing Provider</h4>
+          <div className="flex flex-col md:flex-row gap-4">
+            <button
+              onClick={() => handleSwitchProvider("replit")}
+              disabled={switching || provider === "replit"}
+              className={`flex-1 p-4 rounded-lg border-2 transition-all ${
+                provider === "replit"
+                  ? "border-indigo-500 bg-indigo-500/10"
+                  : "border-white/10 hover:border-white/20 bg-white/5"
+              } ${switching ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+              data-testid="button-provider-replit"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  provider === "replit" ? "bg-indigo-500/20" : "bg-white/10"
+                }`}>
+                  <Cpu size={20} className={provider === "replit" ? "text-indigo-400" : "text-muted-foreground"} />
                 </div>
+                <div className="text-left">
+                  <div className="font-medium text-foreground">Replit AI</div>
+                  <div className="text-xs text-muted-foreground">Uses your Replit AI credits</div>
+                </div>
+                {provider === "replit" && (
+                  <Badge variant="secondary" className="ml-auto bg-indigo-500/20 text-indigo-300 border-indigo-500/30">
+                    Active
+                  </Badge>
+                )}
               </div>
-              {provider === "openai" && (
-                <Badge variant="secondary" className="ml-auto bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-                  Active
-                </Badge>
-              )}
-              {!hasOpenAIKey && (
-                <Badge variant="outline" className="ml-auto border-yellow-500/50 text-yellow-400">
-                  Key Missing
-                </Badge>
-              )}
-            </div>
-          </button>
+            </button>
+
+            <button
+              onClick={() => handleSwitchProvider("openai")}
+              disabled={switching || provider === "openai" || !hasOpenAIKey}
+              className={`flex-1 p-4 rounded-lg border-2 transition-all ${
+                provider === "openai"
+                  ? "border-emerald-500 bg-emerald-500/10"
+                  : hasOpenAIKey
+                    ? "border-white/10 hover:border-white/20 bg-white/5"
+                    : "border-white/5 bg-white/5 opacity-50"
+              } ${switching || !hasOpenAIKey ? "cursor-not-allowed" : "cursor-pointer"}`}
+              data-testid="button-provider-openai"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  provider === "openai" ? "bg-emerald-500/20" : "bg-white/10"
+                }`}>
+                  <TrendingUp size={20} className={provider === "openai" ? "text-emerald-400" : "text-muted-foreground"} />
+                </div>
+                <div className="text-left">
+                  <div className="font-medium text-foreground">OpenAI</div>
+                  <div className="text-xs text-muted-foreground">
+                    {hasOpenAIKey ? "Uses your OpenAI API key" : "OPENAI_FALLBACK_API_KEY not set"}
+                  </div>
+                </div>
+                {provider === "openai" && (
+                  <Badge variant="secondary" className="ml-auto bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                    Active
+                  </Badge>
+                )}
+                {!hasOpenAIKey && (
+                  <Badge variant="outline" className="ml-auto border-yellow-500/50 text-yellow-400">
+                    Key Missing
+                  </Badge>
+                )}
+              </div>
+            </button>
+          </div>
         </div>
 
-        <div className="mt-4 p-3 bg-black/20 rounded-lg border border-white/5 text-xs text-muted-foreground">
-          <strong className="text-foreground">Note:</strong> If the primary provider fails, the system will automatically try the other provider. 
-          Provider setting resets to Replit when the server restarts.
+        <div className="border-t border-white/5 pt-6">
+          <h4 className="text-sm font-medium text-foreground mb-3">AI Model</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {availableModels.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => handleSwitchModel(m.id)}
+                disabled={switchingModel || model === m.id}
+                className={`p-4 rounded-lg border-2 transition-all text-left ${
+                  model === m.id
+                    ? "border-purple-500 bg-purple-500/10"
+                    : "border-white/10 hover:border-white/20 bg-white/5"
+                } ${switchingModel ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                data-testid={`button-model-${m.id}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-medium text-foreground">{m.name}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{m.description}</div>
+                    <div className="text-xs text-muted-foreground mt-2 font-mono">
+                      In: {m.inputCost} / Out: {m.outputCost}
+                    </div>
+                  </div>
+                  {model === m.id && (
+                    <Badge variant="secondary" className="bg-purple-500/20 text-purple-300 border-purple-500/30 shrink-0">
+                      Active
+                    </Badge>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-3 bg-black/20 rounded-lg border border-white/5 text-xs text-muted-foreground">
+          <strong className="text-foreground">Note:</strong> Provider and model are independent settings. 
+          If the primary provider fails, the system will automatically try the other provider. 
+          Settings reset when the server restarts.
         </div>
       </CardContent>
     </Card>
