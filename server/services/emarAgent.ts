@@ -73,10 +73,6 @@ R codes=critical refusals, never skip.`;
 export class EmarAgent {
   private seed = 42;
 
-  private get model(): string {
-    return getPreferredModel();
-  }
-
   async extractMetadata(
     documentText: string,
     tableStructure: { hasTable: boolean; tableType: string; detectedTimeSlots: string[]; rowCount: number },
@@ -96,7 +92,7 @@ TASK:Metadata. JSON:{"su":"F.O.","alg":"NKDA","meds":[{"n":"Paracetamol 500mg","
 Keys:su=initials,alg=allergies,n=name,g=generic,prn=isPRN,slots=scheduledSlots`;
 
     const response = await createChatCompletionWithLogging({
-      model: this.model,
+      model: getPreferredModel(),
       messages: [
         { role: 'system', content: prompt },
         { role: 'user', content: docChunk }
@@ -184,7 +180,7 @@ Keys:m=medId,d=dateIdx,s=slotIdx,c=code,i=initials,t=time,oc=officeClosed`;
       const fullPrompt = retryPromptSuffix ? `${prompt}\n\n${retryPromptSuffix}` : prompt;
       
       const response = await createChatCompletionWithLogging({
-        model: this.model,
+        model: getPreferredModel(),
         messages: [
           { role: 'system', content: fullPrompt },
           { role: 'user', content: docChunk }
@@ -330,7 +326,7 @@ JSON:{"i":[{"p":[0,1],"s":"H","n":"bleed risk"}]}
 s:H=high,M=mod,L=low. Empty if none:{"i":[]}`;
 
     const response = await createChatCompletionWithLogging({
-      model: this.model,
+      model: getPreferredModel(),
       messages: [
         { role: 'system', content: prompt },
         { role: 'user', content: 'Check interactions' }
@@ -380,7 +376,7 @@ JSON:{"ok":true,"issues":[],"conf":95}
 If problems:{"ok":false,"issues":["Missing R codes"],"conf":60}`;
 
     const response = await createChatCompletionWithLogging({
-      model: this.model,
+      model: getPreferredModel(),
       messages: [
         { role: 'system', content: prompt },
         { role: 'user', content: 'Validate' }
@@ -438,7 +434,7 @@ If problems:{"ok":false,"issues":["Missing R codes"],"conf":60}`;
       drugInteractions: interactionsResult.interactions,
       consensusStatus: entriesResult.consensusStatus,
       validationPassed: validation.passed,
-      model: this.model,
+      model: getPreferredModel(),
       tokenStats: {
         metadata: metaTokens,
         extraction: entriesResult.tokens,
