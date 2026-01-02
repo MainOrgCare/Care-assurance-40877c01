@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { storage } from "../storage";
 import { calculateCostMicroDollars } from "../config/aiPricing";
 
-const primaryClient = new OpenAI({
+const replitClient = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
@@ -16,28 +16,43 @@ export interface AiUserContext {
 // Provider type for billing attribution
 export type AiProvider = "replit" | "openai";
 
+// Admin-configurable preferred AI provider (defaults to Replit)
+let preferredProvider: AiProvider = "replit";
+
+export function getPreferredProvider(): AiProvider {
+  return preferredProvider;
+}
+
+export function setPreferredProvider(provider: AiProvider): void {
+  if (provider !== "replit" && provider !== "openai") {
+    throw new Error("Invalid provider. Must be 'replit' or 'openai'");
+  }
+  preferredProvider = provider;
+  console.log(`[AI Config] Preferred provider set to: ${provider}`);
+}
+
 // Result type that includes provider information
 export interface AiCompletionResult {
   completion: OpenAI.ChatCompletion;
   provider: AiProvider;
 }
 
-let fallbackClient: OpenAI | null = null;
+let openaiClient: OpenAI | null = null;
 
-function getFallbackClient(): OpenAI | null {
-  if (fallbackClient) return fallbackClient;
+function getOpenAIClient(): OpenAI | null {
+  if (openaiClient) return openaiClient;
   
   const fallbackKey = process.env.OPENAI_FALLBACK_API_KEY;
   if (!fallbackKey) {
     return null;
   }
   
-  fallbackClient = new OpenAI({
+  openaiClient = new OpenAI({
     apiKey: fallbackKey,
     baseURL: process.env.OPENAI_FALLBACK_BASE_URL || "https://api.openai.com/v1",
   });
   
-  return fallbackClient;
+  return openaiClient;
 }
 
 function shouldFallback(error: any): boolean {
@@ -57,29 +72,51 @@ function shouldFallback(error: any): boolean {
 }
 
 // Internal function that tracks which provider was used
+// Respects admin-configured preferred provider with automatic failover
 async function createChatCompletionWithProvider(
   params: OpenAI.ChatCompletionCreateParamsNonStreaming
 ): Promise<AiCompletionResult> {
-  try {
-    const completion = await primaryClient.chat.completions.create(params);
-    return { completion, provider: "replit" };
-  } catch (primaryError: any) {
-    if (shouldFallback(primaryError)) {
-      const fallback = getFallbackClient();
-      if (fallback) {
-        console.log("[AI Failover] Primary AI failed, using fallback OpenAI");
+  const preferred = preferredProvider;
+  const openai = getOpenAIClient();
+  
+  // If OpenAI is preferred and available, use it first
+  if (preferred === "openai" && openai) {
+    try {
+      const completion = await openai.chat.completions.create(params);
+      return { completion, provider: "openai" };
+    } catch (openaiError: any) {
+      console.log("[AI] OpenAI failed, falling back to Replit");
+      if (shouldFallback(openaiError)) {
         try {
-          const completion = await fallback.chat.completions.create(params);
-          return { completion, provider: "openai" };
-        } catch (fallbackError) {
-          console.error("[AI Failover] Fallback also failed:", fallbackError);
-          throw fallbackError;
+          const completion = await replitClient.chat.completions.create(params);
+          return { completion, provider: "replit" };
+        } catch (replitError) {
+          console.error("[AI] Replit fallback also failed:", replitError);
+          throw replitError;
         }
-      } else {
-        console.warn("[AI Failover] Primary AI failed and no fallback key configured");
       }
+      throw openaiError;
     }
-    throw primaryError;
+  }
+  
+  // Default: Use Replit first with OpenAI fallback
+  try {
+    const completion = await replitClient.chat.completions.create(params);
+    return { completion, provider: "replit" };
+  } catch (replitError: any) {
+    if (shouldFallback(replitError) && openai) {
+      console.log("[AI Failover] Replit failed, using OpenAI fallback");
+      try {
+        const completion = await openai.chat.completions.create(params);
+        return { completion, provider: "openai" };
+      } catch (openaiError) {
+        console.error("[AI Failover] OpenAI fallback also failed:", openaiError);
+        throw openaiError;
+      }
+    } else if (!openai) {
+      console.warn("[AI Failover] Replit failed and no OpenAI fallback key configured");
+    }
+    throw replitError;
   }
 }
 
@@ -160,4 +197,4 @@ export async function createChatCompletionWithLogging(
   }
 }
 
-export { primaryClient as openai };
+export { replitClient as openai };

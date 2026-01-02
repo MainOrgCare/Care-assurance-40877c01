@@ -8,7 +8,7 @@ import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema } from "@shared/schema";
-import { createChatCompletion, createChatCompletionWithLogging, openai, type AiUserContext } from "./services/aiClient";
+import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { emarAgent } from "./services/emarAgent";
 import multer from "multer";
 import { PDFParse } from "pdf-parse";
@@ -6376,6 +6376,42 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
 
   // NOTE: EMAR corrections are accessed internally via storage.getRecentEmarCorrections()
   // No public GET endpoint to protect sensitive correction data (admin-only access)
+
+  // Get current AI provider preference (admin-only)
+  app.get("/api/admin/ai-provider", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const provider = getPreferredProvider();
+      const hasOpenAIKey = !!process.env.OPENAI_FALLBACK_API_KEY;
+      return res.json({ provider, hasOpenAIKey });
+    } catch (error: any) {
+      console.error("AI provider fetch error:", error);
+      return res.status(500).json({ message: error.message || "Failed to fetch AI provider" });
+    }
+  });
+
+  // Set AI provider preference (admin-only)
+  app.post("/api/admin/ai-provider", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { provider } = req.body;
+      if (provider !== "replit" && provider !== "openai") {
+        return res.status(400).json({ message: "Invalid provider. Must be 'replit' or 'openai'" });
+      }
+      
+      // Check if OpenAI key is configured before allowing switch
+      if (provider === "openai" && !process.env.OPENAI_FALLBACK_API_KEY) {
+        return res.status(400).json({ message: "OpenAI API key not configured. Set OPENAI_FALLBACK_API_KEY secret." });
+      }
+      
+      setPreferredProvider(provider as AiProvider);
+      
+      console.log(`[Admin] AI provider changed to ${provider} by ${req.user?.username || 'unknown'}`);
+      
+      return res.json({ success: true, provider });
+    } catch (error: any) {
+      console.error("AI provider update error:", error);
+      return res.status(500).json({ message: error.message || "Failed to update AI provider" });
+    }
+  });
 
   // Get AI usage logs and stats (admin-only)
   app.get("/api/ai-usage", requireAuth, requireAdmin, async (req, res) => {
