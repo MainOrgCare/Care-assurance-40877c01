@@ -35,6 +35,7 @@ export function setPreferredProvider(provider: AiProvider): void {
 }
 
 export function getPreferredModel(): AvailableModel {
+  console.log(`[AI DEBUG] getPreferredModel called, returning: ${preferredModel}`);
   return preferredModel;
 }
 
@@ -154,7 +155,8 @@ export async function createChatCompletionWithLogging(
   userContext?: AiUserContext
 ): Promise<OpenAI.ChatCompletion> {
   const startTime = Date.now();
-  const model = params.model || "gpt-4o";
+  // Ensure we use the model passed in params, which should be from getPreferredModel()
+  const model = params.model as string || "gpt-4o";
   const userId = userContext?.userId || null;
   const username = userContext?.username || null;
   
