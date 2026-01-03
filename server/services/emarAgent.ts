@@ -66,6 +66,7 @@ const VALID_CODES = new Set([
 // This static portion enables 50% cost reduction on cached prompts
 const CACHED_SYSTEM_PREFIX = `UK EMAR extractor.
 SCAN: Column-by-column (date cols), top-to-bottom (meds).
+CRITICAL: Each column=one date. NEVER shift entries across columns. Blank cell=no entry for that date, skip it.
 CODES: AD=given AS=assist P=prompt R=REFUSE MU=unavail NH=away SA=self FA=family G/A=given PRN=asNeeded
 SKIP: Empty/X/- cells. OUTPUT: Only actual codes.
 R codes=critical refusals, never skip.`;
@@ -272,7 +273,7 @@ Keys:m=medId,d=dateIdx,s=slotIdx,c=code,i=initials,t=time,oc=officeClosed`;
     const key = (e: EmarEntry) => `${e.medicationId}|${e.date}|${e.timeSlot}|${e.code}`;
     const set1 = new Set(validated1.map(key));
     const set2 = new Set(validated2.map(key));
-    const matches = [...set1].filter(k => set2.has(k)).length;
+    const matches = Array.from(set1).filter(k => set2.has(k)).length;
     const consensusRatio = matches / Math.max(set1.size, set2.size, 1);
     
     console.log(`EMAR Agent: Consensus ${(consensusRatio * 100).toFixed(1)}% (${matches}/${Math.max(set1.size, set2.size)} entries)`);
