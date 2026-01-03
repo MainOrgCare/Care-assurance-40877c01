@@ -143,6 +143,7 @@ Keys:su=initials,alg=allergies,n=name,g=generic,prn=isPRN,slots=scheduledSlots`;
     const prompt = `${CACHED_SYSTEM_PREFIX}${corrections}
 MEDS:${medMap}|DATES:${dateMap}|SLOTS:${slotMap}
 ORDER:Date[0]->down all meds->Date[1]->repeat.
+STRICT:Each date column is isolated. Never associate a time from one column with another date. Read top-to-bottom for each date.
 OFFICE-CLOSED:No initials(red box)->oc:true.
 MISSED MED TABLE:Extract med,scheduledTime,closedBy,closedTime into mm[].
 JSON:{"e":[{"m":1,"d":0,"s":0,"c":"AD","i":"RK"},{"m":2,"d":0,"s":0,"c":"AD","i":"","oc":true}],"mm":[{"med":"Name","st":"date time","cb":"Staff","ct":"date time"}]}

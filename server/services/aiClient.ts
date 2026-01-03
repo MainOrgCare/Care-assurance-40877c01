@@ -102,17 +102,18 @@ async function createChatCompletionWithProvider(
   
   // If OpenAI is preferred and available, use it first
   if (preferred === "openai" && openai) {
+    console.log("[AI] Admin preferred provider: OpenAI - initiating direct request...");
     try {
       const completion = await openai.chat.completions.create(params);
       return { completion, provider: "openai" };
     } catch (openaiError: any) {
-      console.log("[AI] OpenAI failed, falling back to Replit");
+      console.error("[AI] OpenAI preferred request failed, falling back to Replit:", openaiError.message);
       if (shouldFallback(openaiError)) {
         try {
           const completion = await replitClient.chat.completions.create(params);
           return { completion, provider: "replit" };
-        } catch (replitError) {
-          console.error("[AI] Replit fallback also failed:", replitError);
+        } catch (replitError: any) {
+          console.error("[AI] Replit fallback also failed:", replitError.message);
           throw replitError;
         }
       }
@@ -130,8 +131,8 @@ async function createChatCompletionWithProvider(
       try {
         const completion = await openai.chat.completions.create(params);
         return { completion, provider: "openai" };
-      } catch (openaiError) {
-        console.error("[AI Failover] OpenAI fallback also failed:", openaiError);
+      } catch (openaiError: any) {
+        console.error("[AI Failover] OpenAI fallback also failed:", openaiError.message);
         throw openaiError;
       }
     } else if (!openai) {
