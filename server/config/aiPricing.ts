@@ -39,9 +39,10 @@ export const AI_PRICING: Record<string, { input: number; output: number }> = {
 };
 
 // Available models for admin selection
+// Note: Only includes models that support temperature parameter (required for deterministic EMAR analysis)
+// Reasoning models like gpt-5-mini/o1-series are excluded as they don't support temperature
 export const AVAILABLE_MODELS = [
   { id: "gpt-5.1", name: "GPT-5.1", description: "Flagship model - best quality", inputCost: "$5.00/1M", outputCost: "$15.00/1M" },
-  { id: "gpt-5-mini", name: "GPT-5 Mini", description: "Cost-efficient - 20x cheaper", inputCost: "$0.25/1M", outputCost: "$2.00/1M" },
   { id: "gpt-4o", name: "GPT-4o", description: "Balanced performance", inputCost: "$2.50/1M", outputCost: "$10.00/1M" },
   { id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Budget option", inputCost: "$0.15/1M", outputCost: "$0.60/1M" },
 ] as const;
