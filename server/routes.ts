@@ -2392,7 +2392,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
           { role: "user", content: `Analyze this EMAR document and extract the metadata:\n\n${analysisText}` }
         ],
         max_completion_tokens: 4000,
-        // Temperature removed for compatibility with reasoning models
+        temperature: 0,
         seed: DETERMINISTIC_SEED,
         response_format: { type: "json_object" },
       }, "emar_metadata", aiUserContext);
@@ -2539,8 +2539,8 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
               { role: "system", content: medicationCountPrompt },
               { role: "user", content: `Count medications in this document:\n\n${analysisText}` }
             ],
-            // Temperature removed for compatibility with reasoning models
-            max_completion_tokens: 100,
+            temperature: 0,
+        max_completion_tokens: 100,
             seed: DETERMINISTIC_SEED,
             response_format: { type: "json_object" },
           }, "emar_count_validation", aiUserContext);
@@ -2756,8 +2756,8 @@ OTHER CRITICAL RULES:
                 { role: "system", content: batchPrompt },
                 { role: "user", content: `Extract medication entries from this document:\n\n${analysisText}` }
               ],
-            // Temperature removed for compatibility with reasoning models
-            max_completion_tokens: 8000,
+        temperature: 0,
+        max_completion_tokens: 8000,
               seed: DETERMINISTIC_SEED,
               response_format: { type: "json_object" },
             }, "emar_extraction", aiUserContext);
@@ -3495,8 +3495,8 @@ If no equivalences found, return: {"equivalences": []}`
                 content: "Identify any medication equivalences from the list provided."
               }
             ],
-            // Temperature removed for compatibility with reasoning models
-            max_completion_tokens: 1000,
+        temperature: 0,
+        max_completion_tokens: 1000,
             response_format: { type: "json_object" }
           }, "emar_equivalence", aiUserContext);
 
@@ -4158,8 +4158,8 @@ Return JSON with indices that are VALID (keep these). Include ALL indices unless
                 : [...imageContent, { type: "text", text: "Review the discrepancies based on these EMAR images. Be conservative - when in doubt, keep the discrepancy." }]
               }
             ],
-            // Temperature removed for compatibility with reasoning models
-            max_completion_tokens: 2000,
+        temperature: 0,
+        max_completion_tokens: 2000,
             response_format: { type: "json_object" },
           }, "emar_validation_pass2", aiUserContext);
           
@@ -4647,7 +4647,7 @@ Respond ONLY with valid JSON in this exact format:
           { role: "user", content: `Analyze these visit logs:\n\n${documentContent}` }
         ],
         max_completion_tokens: 4000,
-        // Temperature removed for compatibility with reasoning models
+        temperature: 0,
         seed: DETERMINISTIC_SEED,
       }, "visit_audit", aiUserContext);
 
@@ -5154,7 +5154,7 @@ Respond ONLY with valid JSON in this exact format:
           { role: "system", content: systemPrompt },
           { role: "user", content: `Generate a ${assessmentCategory} risk assessment based on these documents:\n\n${documentContent}` }
         ],
-        // Temperature removed for compatibility with reasoning models
+        temperature: 0,
         seed: 42,
         max_completion_tokens: 4000,
       }, "risk_assessment", aiUserContext);
@@ -5796,7 +5796,7 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
           { role: "system", content: systemPrompt },
           { role: "user", content: `Analyze this document and generate a complete care plan template. Extract all relevant information and write detailed first-person content for each section:\n\n${contentToEnhance}` }
         ],
-        // Temperature removed for compatibility with reasoning models
+        temperature: 0,
         seed: 42,
         max_completion_tokens: 12000,
       }, "plan_enhancer", aiUserContext);
