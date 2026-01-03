@@ -141,14 +141,16 @@ Keys:su=initials,alg=allergies,n=name,g=generic,prn=isPRN,slots=scheduledSlots`;
     const corrections = correctionsContext ? `\nFixes:${correctionsContext.substring(0, 150)}` : '';
 
     // Compact extraction prompt - uses cached prefix for token efficiency
+    // STRUCTURAL FIX: Require both date index AND date string for cross-validation
     const prompt = `${CACHED_SYSTEM_PREFIX}${corrections}
 MEDS:${medMap}|DATES:${dateMap}|SLOTS:${slotMap}
 ORDER:Date[0]->down all meds->Date[1]->repeat.
 STRICT:Each date column is isolated. Never associate a time from one column with another date. Read top-to-bottom for each date.
+VALIDATE:Output BOTH d(dateIdx) AND dn(actual date string from column header). They must match.
 OFFICE-CLOSED:No initials(red box)->oc:true.
 MISSED MED TABLE:Extract med,scheduledTime,closedBy,closedTime into mm[].
-JSON:{"e":[{"m":1,"d":0,"s":0,"c":"AD","i":"RK"},{"m":2,"d":0,"s":0,"c":"AD","i":"","oc":true}],"mm":[{"med":"Name","st":"date time","cb":"Staff","ct":"date time"}]}
-Keys:m=medId,d=dateIdx,s=slotIdx,c=code,i=initials,t=time,oc=officeClosed`;
+JSON:{"e":[{"m":1,"d":0,"dn":"Sun, 14 Dec","s":0,"c":"AD","i":"RK"},{"m":2,"d":0,"dn":"Sun, 14 Dec","c":"AD","oc":true}],"mm":[{"med":"Name","st":"date time","cb":"Staff","ct":"date time"}]}
+Keys:m=medId,d=dateIdx,dn=dateName(from header),s=slotIdx,c=code,i=initials,t=time,oc=officeClosed`;
 
     let totalTokens = 0;
     let missedMedications: MissedMedicationEntry[] = [];
@@ -208,16 +210,48 @@ Keys:m=medId,d=dateIdx,s=slotIdx,c=code,i=initials,t=time,oc=officeClosed`;
         }));
       }
 
-      return rawEntries.map((e: any) => ({
-        medicationId: e.m ?? e.medicationId,
-        date: typeof e.d === 'number' ? metadata.dates[e.d] : e.d || e.date,
-        timeSlot: typeof e.s === 'number' ? metadata.timeSlots[e.s] : e.s || e.timeSlot,
-        code: (e.c || e.code || '').toUpperCase(),
-        careWorkerInitials: (e.i || e.careWorkerInitials || '').toUpperCase(),
-        time: e.t || e.time,
-        hasTime: Boolean(e.t || e.time),
-        isOfficeClosed: Boolean(e.oc || e.officeClosed || (!e.i && !e.careWorkerInitials))
-      }));
+      return rawEntries.map((e: any) => {
+        // STRUCTURAL VALIDATION: Cross-check date index vs date name
+        let resolvedDate: string;
+        const dateIdx = e.d;
+        const dateName = e.dn || e.dateName;
+        
+        if (typeof dateIdx === 'number' && metadata.dates[dateIdx]) {
+          resolvedDate = metadata.dates[dateIdx];
+          
+          // If AI also provided date name, validate they match
+          if (dateName) {
+            const idxDate = resolvedDate.toLowerCase().trim();
+            const nameDate = dateName.toLowerCase().trim();
+            // Extract just the day-month for comparison (handles "Sun, 14 Dec" vs "14 Dec")
+            const idxMatch = idxDate.match(/(\d{1,2})\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
+            const nameMatch = nameDate.match(/(\d{1,2})\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
+            
+            if (idxMatch && nameMatch) {
+              const idxKey = `${idxMatch[1]}-${idxMatch[2]}`;
+              const nameKey = `${nameMatch[1]}-${nameMatch[2]}`;
+              if (idxKey !== nameKey) {
+                console.log(`EMAR Agent: Date mismatch detected - index ${dateIdx} gives "${resolvedDate}" but AI said "${dateName}". Skipping entry.`);
+                return null; // Mark for filtering
+              }
+            }
+          }
+        } else {
+          // Fall back to date name or date string
+          resolvedDate = dateName || e.d || e.date || '';
+        }
+        
+        return {
+          medicationId: e.m ?? e.medicationId,
+          date: resolvedDate,
+          timeSlot: typeof e.s === 'number' ? metadata.timeSlots[e.s] : e.s || e.timeSlot,
+          code: (e.c || e.code || '').toUpperCase(),
+          careWorkerInitials: (e.i || e.careWorkerInitials || '').toUpperCase(),
+          time: e.t || e.time,
+          hasTime: Boolean(e.t || e.time),
+          isOfficeClosed: Boolean(e.oc || e.officeClosed || (!e.i && !e.careWorkerInitials))
+        };
+      }).filter((e: any) => e !== null); // Remove entries that failed validation
     };
 
     // OPTIMIZED: 2-pass validation (reduced from 3 parallel passes - saves ~33% tokens)
