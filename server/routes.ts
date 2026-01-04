@@ -9,7 +9,6 @@ const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema } from "@shared/schema";
 import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, setPreferredModel, getAvailableModels, type AiUserContext, type AiProvider } from "./services/aiClient";
-import { emarAgent } from "./services/emarAgent";
 import multer from "multer";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
@@ -1920,17 +1919,8 @@ ${correctionExamples}
       sendProgress(10, "Analyzing EMAR document...", "metadata_extraction");
 
       // =====================================================================
-      // USE EMAR AGENT (if enabled via environment variable)
-      // Toggle: USE_EMAR_AGENT=true/false
+      // STANDARD EXTRACTION PATH
       // =====================================================================
-      const useEmarAgent = process.env.USE_EMAR_AGENT === 'true';
-      let agentExtractionSucceeded = false;
-      let agentExtractedData: any = null;
-      let agentDrugInteractions: any[] = [];
-      
-      if (useEmarAgent) {
-        console.log("=== USING EMAR AGENT (GPT-4o-mini) ===");
-        sendProgress(15, "Using cost-efficient EMAR agent...", "emar_agent");
         
         try {
           const agentResult = await emarAgent.extract(
