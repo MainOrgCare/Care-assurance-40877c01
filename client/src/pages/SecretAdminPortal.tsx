@@ -280,22 +280,11 @@ function AICostSection() {
   );
 }
 
-interface AvailableModel {
-  id: string;
-  name: string;
-  description: string;
-  inputCost: string;
-  outputCost: string;
-}
-
 function AIProviderSection() {
   const [provider, setProvider] = useState<"replit" | "openai">("replit");
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
-  const [model, setModel] = useState<string>("gpt-5.1");
-  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
-  const [switchingModel, setSwitchingModel] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -304,21 +293,12 @@ function AIProviderSection() {
 
   const fetchSettings = async () => {
     try {
-      const [providerRes, modelRes] = await Promise.all([
-        fetch("/api/admin/ai-provider", { credentials: "include" }),
-        fetch("/api/admin/ai-model", { credentials: "include" }),
-      ]);
+      const providerRes = await fetch("/api/admin/ai-provider", { credentials: "include" });
       
       if (providerRes.ok) {
         const data = await providerRes.json();
         setProvider(data.provider);
         setHasOpenAIKey(data.hasOpenAIKey);
-      }
-      
-      if (modelRes.ok) {
-        const data = await modelRes.json();
-        setModel(data.model);
-        setAvailableModels(data.availableModels || []);
       }
     } catch (error) {
       console.error("Failed to fetch AI settings:", error);
@@ -365,45 +345,6 @@ function AIProviderSection() {
     }
   };
 
-  const handleSwitchModel = async (newModel: string) => {
-    if (newModel === model) return;
-    
-    setSwitchingModel(true);
-    try {
-      const response = await fetch("/api/admin/ai-model", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: newModel }),
-      });
-      
-      if (response.ok) {
-        setModel(newModel);
-        const modelInfo = availableModels.find(m => m.id === newModel);
-        toast({
-          title: "AI Model Updated",
-          description: `Now using ${modelInfo?.name || newModel} for AI operations.`,
-        });
-      } else {
-        const data = await response.json();
-        toast({
-          title: "Failed to switch model",
-          description: data.message || "Unknown error occurred",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("Failed to switch AI model:", error);
-      toast({
-        title: "Error",
-        description: "Failed to switch AI model. Check console for details.",
-        variant: "destructive",
-      });
-    } finally {
-      setSwitchingModel(false);
-    }
-  };
-
   if (loading) {
     return (
       <Card className="bg-card border-white/5 backdrop-blur-sm">
@@ -422,7 +363,7 @@ function AIProviderSection() {
           AI Configuration
         </CardTitle>
         <CardDescription className="text-muted-foreground text-sm">
-          Configure which AI provider and model to use. These settings are independent.
+          Configure billing provider. Model selection uses optimized tiered approach automatically.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-6 space-y-6">
@@ -497,43 +438,26 @@ function AIProviderSection() {
         </div>
 
         <div className="border-t border-white/5 pt-6">
-          <h4 className="text-sm font-medium text-foreground mb-3">AI Model</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {availableModels.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => handleSwitchModel(m.id)}
-                disabled={switchingModel || model === m.id}
-                className={`p-4 rounded-lg border-2 transition-all text-left ${
-                  model === m.id
-                    ? "border-purple-500 bg-purple-500/10"
-                    : "border-white/10 hover:border-white/20 bg-white/5"
-                } ${switchingModel ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                data-testid={`button-model-${m.id}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-medium text-foreground">{m.name}</div>
-                    <div className="text-xs text-muted-foreground mt-1">{m.description}</div>
-                    <div className="text-xs text-muted-foreground mt-2 font-mono">
-                      In: {m.inputCost} / Out: {m.outputCost}
-                    </div>
-                  </div>
-                  {model === m.id && (
-                    <Badge variant="secondary" className="bg-purple-500/20 text-purple-300 border-purple-500/30 shrink-0">
-                      Active
-                    </Badge>
-                  )}
-                </div>
-              </button>
-            ))}
+          <h4 className="text-sm font-medium text-foreground mb-3">AI Model Strategy</h4>
+          <div className="p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
+            <div className="font-medium text-foreground mb-2">Optimized Tiered Approach</div>
+            <div className="text-xs text-muted-foreground space-y-2">
+              <div className="flex items-start gap-2">
+                <Badge variant="secondary" className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 shrink-0">GPT-5.1</Badge>
+                <span>Core EMAR extraction (accuracy critical)</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shrink-0">GPT-4o-mini</Badge>
+                <span>Count validation, equivalence checks, drug interactions, validation passes (33x cost savings)</span>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="p-3 bg-black/20 rounded-lg border border-white/5 text-xs text-muted-foreground">
-          <strong className="text-foreground">Note:</strong> Provider and model are independent settings. 
-          If the primary provider fails, the system will automatically try the other provider. 
-          Settings reset when the server restarts.
+          <strong className="text-foreground">Note:</strong> AI models are automatically selected based on task complexity. 
+          Drug interaction results are cached for 24 hours to reduce costs.
+          If the primary provider fails, the system will automatically try the other provider.
         </div>
       </CardContent>
     </Card>

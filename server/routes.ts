@@ -8,7 +8,7 @@ import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema } from "@shared/schema";
-import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, setPreferredModel, getAvailableModels, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { emarAgent } from "./services/emarAgent";
 import multer from "multer";
 import { PDFParse } from "pdf-parse";
@@ -199,6 +199,19 @@ interface DrugInteraction {
   description: string;
 }
 
+// Cache for drug interaction checks - keyed by sorted medication list hash
+const drugInteractionCache = new Map<string, { result: DrugInteraction[]; timestamp: number }>();
+const DRUG_INTERACTION_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+function getDrugInteractionCacheKey(medications: Array<{ name: string; genericName?: string }>): string {
+  // Create deterministic key from sorted medication names
+  const medNames = medications
+    .map(m => (m.genericName ? `${m.name.toLowerCase()}|${m.genericName.toLowerCase()}` : m.name.toLowerCase()))
+    .sort()
+    .join('::');
+  return medNames;
+}
+
 // Check for potentially dangerous drug-drug interactions
 async function checkDrugInteractions(
   medications: Array<{ name: string; genericName?: string; [key: string]: any }>,
@@ -208,13 +221,22 @@ async function checkDrugInteractions(
     return [];
   }
 
+  // Check cache first
+  const cacheKey = getDrugInteractionCacheKey(medications);
+  const cached = drugInteractionCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < DRUG_INTERACTION_CACHE_TTL) {
+    console.log(`[Drug Interactions] Cache hit for ${medications.length} medications`);
+    return cached.result;
+  }
+
   const medList = medications.map(m => 
     m.genericName ? `${m.name} (${m.genericName})` : m.name
   ).join(', ');
 
   try {
+    // Use GPT-4o-mini for drug interactions - 33x cheaper than GPT-5.1
     const response = await createChatCompletionWithLogging({
-      model: getPreferredModel(),
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -243,14 +265,22 @@ If none found: {"interactions": []}`
     const parsed = JSON.parse(content);
     
     if (parsed.interactions && Array.isArray(parsed.interactions)) {
-      return parsed.interactions.map((i: any) => ({
+      const result = parsed.interactions.map((i: any) => ({
         drug1: i.drug1 || "",
         drug2: i.drug2 || "",
         severity: ["high", "moderate", "low"].includes(i.severity) ? i.severity : "moderate",
         description: i.description || ""
       }));
+      
+      // Cache the result
+      drugInteractionCache.set(cacheKey, { result, timestamp: Date.now() });
+      console.log(`[Drug Interactions] Cached result for ${medications.length} medications`);
+      
+      return result;
     }
     
+    // Cache empty result too
+    drugInteractionCache.set(cacheKey, { result: [], timestamp: Date.now() });
     return [];
   } catch (error: any) {
     console.error("[Drug Interactions] Check failed:", error.message);
@@ -1945,9 +1975,9 @@ ${correctionExamples}
           
           // Convert agent result to the format expected by the rest of the code
           const metadata = agentResult.metadata;
-          const allEntries = agentResult.entries.map(e => ({
+          const allEntries = agentResult.entries.map((e: any) => ({
             ...e,
-            medication: metadata.medications.find(m => m.medicationId === e.medicationId)?.name || `Medication ${e.medicationId}`
+            medication: metadata.medications.find((m: any) => m.medicationId === e.medicationId)?.name || `Medication ${e.medicationId}`
           }));
           
           // Check for drug interactions
@@ -2533,8 +2563,9 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       
       const countMedications = async (): Promise<number> => {
         try {
+          // Use GPT-4o-mini for count validation - simple task, 33x cheaper
           const response = await createChatCompletionWithLogging({
-            model: getPreferredModel(),
+            model: "gpt-4o-mini",
             messages: [
               { role: "system", content: medicationCountPrompt },
               { role: "user", content: `Count medications in this document:\n\n${analysisText}` }
@@ -3461,8 +3492,9 @@ OTHER CRITICAL RULES:
         const medNames = medications.map((m: any) => m.name).join(", ");
         
         try {
+          // Use GPT-4o-mini for equivalence detection - 33x cheaper
           const equivalenceResponse = await createChatCompletionWithLogging({
-            model: getPreferredModel(),
+            model: "gpt-4o-mini",
             messages: [
               {
                 role: "system",
@@ -4148,9 +4180,9 @@ Return JSON with indices that are VALID (keep these). Include ALL indices unless
 
         let pass2Success = false;
         try {
-          // Use GPT-5.1 with JSON mode for reliable parsing
+          // Use GPT-4o-mini for validation passes - 33x cheaper than GPT-5.1
           const pass2Response = await createChatCompletionWithLogging({
-            model: getPreferredModel(),
+            model: "gpt-4o-mini",
             messages: [
               { role: "system", content: pass2SystemPrompt },
               { role: "user", content: hasTextContext 
@@ -4216,9 +4248,9 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
 {"confirmedIndices": [1, 2, 3], "evidence": {"1": "Code 'R' visible in image", "2": "Detection appears valid"}}`;
 
           try {
-            // Use GPT-5.1 with JSON mode for reliable parsing
+            // Use GPT-4o-mini for validation passes - 33x cheaper than GPT-5.1
             const pass3Response = await createChatCompletionWithLogging({
-              model: getPreferredModel(),
+              model: "gpt-4o-mini",
               messages: [
                 { role: "system", content: pass3SystemPrompt },
                 { role: "user", content: hasTextContext
@@ -6413,33 +6445,9 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     }
   });
 
-  // Get current AI model preference (admin-only)
-  app.get("/api/admin/ai-model", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const model = getPreferredModel();
-      const availableModels = getAvailableModels();
-      return res.json({ model, availableModels });
-    } catch (error: any) {
-      console.error("AI model fetch error:", error);
-      return res.status(500).json({ message: error.message || "Failed to fetch AI model" });
-    }
-  });
-
-  // Set AI model preference (admin-only)
-  app.post("/api/admin/ai-model", requireAuth, requireAdmin, async (req: any, res) => {
-    try {
-      const { model } = req.body;
-      
-      setPreferredModel(model);
-      
-      console.log(`[Admin] AI model changed to ${model} by ${req.user?.username || 'unknown'}`);
-      
-      return res.json({ success: true, model });
-    } catch (error: any) {
-      console.error("AI model update error:", error);
-      return res.status(400).json({ message: error.message || "Failed to update AI model" });
-    }
-  });
+  // NOTE: AI model selection removed - now uses tiered approach automatically:
+  // - GPT-5.1 for core EMAR extraction (accuracy critical)
+  // - GPT-4o-mini for auxiliary tasks (count validation, equivalence, drug interactions, validation passes)
 
   // Get AI usage logs and stats (admin-only)
   app.get("/api/ai-usage", requireAuth, requireAdmin, async (req, res) => {
