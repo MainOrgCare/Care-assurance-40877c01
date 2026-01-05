@@ -4479,7 +4479,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       const supportCodeEntries = allEntries
         .filter((e: any) => e.code && supportLevelCodes.includes(e.code.toUpperCase()))
         .map((e: any) => ({
-          careWorkerName: e.careWorkerInitials || 'Unknown',
+          careWorkerName: e.careWorker || 'Unknown',
           medication: e.medication,
           date: e.date,
           timeSlot: e.timeSlot,
