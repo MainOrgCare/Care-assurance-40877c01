@@ -1207,7 +1207,7 @@ ${generatedProtocol.additionalComments}`;
     });
 
     return Array.from(grouped.values()).sort((a, b) => b.totalCount - a.totalCount);
-  }, [result, addedDiscrepancies, mappingsConfirmed, carerMappings]);
+  }, [result, addedDiscrepancies, mappingsConfirmed, carerMappings, medicationLevelOverride]);
 
   const formatShortDate = (dateStr: string): string => {
     // Convert from formats like "01/12/2024" or "1 Dec 2024" to "1/12"
