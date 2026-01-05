@@ -234,9 +234,9 @@ async function checkDrugInteractions(
   ).join(', ');
 
   try {
-    // Use GPT-4o-mini for drug interactions - 33x cheaper than GPT-5.1
+    // Use GPT-4.1-mini for drug interactions - cost-efficient with temperature support
     const response = await createChatCompletionWithLogging({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-mini",
       messages: [
         {
           role: "system",
@@ -2588,7 +2588,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         try {
           // Use GPT-4o-mini for count validation - simple task, 33x cheaper
           const response = await createChatCompletionWithLogging({
-            model: "gpt-4o-mini",
+            model: "gpt-4.1-mini",
             messages: [
               { role: "system", content: medicationCountPrompt },
               { role: "user", content: `Count medications in this document:\n\n${analysisText}` }
@@ -3517,7 +3517,7 @@ OTHER CRITICAL RULES:
         try {
           // Use GPT-4o-mini for equivalence detection - 33x cheaper
           const equivalenceResponse = await createChatCompletionWithLogging({
-            model: "gpt-4o-mini",
+            model: "gpt-4.1-mini",
             messages: [
               {
                 role: "system",
@@ -4205,7 +4205,7 @@ Return JSON with indices that are VALID (keep these). Include ALL indices unless
         try {
           // Use GPT-4o-mini for validation passes - 33x cheaper than GPT-5.1
           const pass2Response = await createChatCompletionWithLogging({
-            model: "gpt-4o-mini",
+            model: "gpt-4.1-mini",
             messages: [
               { role: "system", content: pass2SystemPrompt },
               { role: "user", content: hasTextContext 
@@ -4273,7 +4273,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
           try {
             // Use GPT-4o-mini for validation passes - 33x cheaper than GPT-5.1
             const pass3Response = await createChatCompletionWithLogging({
-              model: "gpt-4o-mini",
+              model: "gpt-4.1-mini",
               messages: [
                 { role: "system", content: pass3SystemPrompt },
                 { role: "user", content: hasTextContext
@@ -5393,7 +5393,7 @@ OUTPUT: Return ONLY valid JSON matching this structure:
 
         try {
           const sectionResponse = await createChatCompletionWithLogging({
-            model: "gpt-4o-mini",
+            model: "gpt-4.1-mini",
             messages: [
               { role: "system", content: baseSystemPrompt },
               { role: "user", content: `Generate the "${section.title}" section (priority: ${section.priority}).
@@ -5473,7 +5473,7 @@ Remember: Write as if I am the service user speaking about my own needs. Return 
       // Extract emergency contacts and GP details from first successful section response
       try {
         const metaResponse = await createChatCompletionWithLogging({
-          model: "gpt-4o-mini",
+          model: "gpt-4.1-mini",
           messages: [
             { role: "system", content: "Extract contact information from the documents. Return JSON only." },
             { role: "user", content: `From these documents, extract:
