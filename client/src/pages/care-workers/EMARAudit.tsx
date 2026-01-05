@@ -815,7 +815,7 @@ ${generatedProtocol.additionalComments}`;
   const deriveCodeDiscrepancies = (
     analysisResult: EmarAnalysisResult,
     level: string
-  ): { discrepancies: Discrepancy[]; conflictingKeys: Set<string> } => {
+  ): { discrepancies: Discrepancy[]; allCodeEntryKeys: Set<string> } => {
     const supportCodes = ['AS', 'AD', 'P'];
     
     const codeMapping: Record<string, { validCodes: string[]; invalidCodes: string[] }> = {
@@ -826,10 +826,10 @@ ${generatedProtocol.additionalComments}`;
     
     const mapping = codeMapping[level];
     const derivedDiscrepancies: Discrepancy[] = [];
-    const conflictingKeys = new Set<string>(); // Only track conflicting entries, not all code entries
-    const processedKeys = new Set<string>(); // For deduplication within derived discrepancies
+    const allCodeEntryKeys = new Set<string>(); // Track ALL code-related entries (both valid and invalid)
+    const processedDiscrepancyKeys = new Set<string>(); // For deduplication within derived discrepancies
     
-    if (!mapping) return { discrepancies: [], conflictingKeys };
+    if (!mapping) return { discrepancies: [], allCodeEntryKeys };
     
     const addCodeDiscrepancy = (
       careWorkerName: string,
@@ -837,11 +837,9 @@ ${generatedProtocol.additionalComments}`;
       medication: string,
       code: string
     ) => {
-      // Use key without timeSlot to match AI discrepancies (which don't have timeSlot)
       const key = getDiscrepancyKey(careWorkerName, date, medication);
-      if (processedKeys.has(key)) return;
-      processedKeys.add(key);
-      conflictingKeys.add(key); // Track ONLY conflicting entries for exclusion
+      if (processedDiscrepancyKeys.has(key)) return;
+      processedDiscrepancyKeys.add(key);
       
       const codeDisplayName = code === 'AS' ? 'Assist' : 
                               code === 'AD' ? 'Administer' : 
@@ -861,8 +859,7 @@ ${generatedProtocol.additionalComments}`;
       });
     };
     
-    // Process entries and only create discrepancies for INVALID codes
-    // Do NOT track valid code entries - those are fine
+    // Process entries - track ALL code entries for filtering, but only create discrepancies for INVALID codes
     const processEntry = (
       careWorkerName: string,
       date: string,
@@ -870,9 +867,15 @@ ${generatedProtocol.additionalComments}`;
       code?: string
     ) => {
       const entryCode = (code || '').toUpperCase();
-      // Only process if it's a support code AND it's an invalid (conflicting) code
-      if (supportCodes.includes(entryCode) && mapping.invalidCodes.includes(entryCode)) {
-        addCodeDiscrepancy(careWorkerName, date, medication, entryCode);
+      if (supportCodes.includes(entryCode)) {
+        // Track ALL code entries (valid or invalid) so we can filter out AI discrepancies about them
+        const key = getDiscrepancyKey(careWorkerName, date, medication);
+        allCodeEntryKeys.add(key);
+        
+        // Only create discrepancies for INVALID codes
+        if (mapping.invalidCodes.includes(entryCode)) {
+          addCodeDiscrepancy(careWorkerName, date, medication, entryCode);
+        }
       }
     };
     
@@ -900,7 +903,7 @@ ${generatedProtocol.additionalComments}`;
       processEntry(item.careWorkerName, item.date, item.medication, item.code);
     });
     
-    return { discrepancies: derivedDiscrepancies, conflictingKeys };
+    return { discrepancies: derivedDiscrepancies, allCodeEntryKeys };
   };
 
   const getAllDiscrepancies = (): Discrepancy[] => {
@@ -909,16 +912,24 @@ ${generatedProtocol.additionalComments}`;
     
     // When medication level override is set, use derived code discrepancies
     if (medicationLevelOverride && result) {
-      const { discrepancies: codeDiscrepancies, conflictingKeys } = deriveCodeDiscrepancies(result, medicationLevelOverride);
+      const { discrepancies: codeDiscrepancies, allCodeEntryKeys } = deriveCodeDiscrepancies(result, medicationLevelOverride);
       
-      // Only exclude AI discrepancies that match CONFLICTING entry keys
-      // This removes AI-generated code conflict discrepancies that we're replacing with derived ones
+      // Filter out AI discrepancies that are about code-related entries
+      // This removes both:
+      // 1. Discrepancies about codes that are now VALID (e.g., AS when Assist selected)
+      // 2. Discrepancies about codes that are now INVALID (we'll replace with derived ones)
+      // Also filter out discrepancies that mention specific code conflicts in their issue text
+      const codePatterns = /\b(AS|AD|P)\b.*\b(code|level|administer|assist|prompt)\b/i;
+      
       allDisc = allDisc.filter(d => {
         const key = getDiscrepancyKey(d.careWorkerName, d.date, d.medication);
-        return !conflictingKeys.has(key);
+        // Remove if it matches a code entry OR if the issue mentions code conflicts
+        if (allCodeEntryKeys.has(key)) return false;
+        if (codePatterns.test(d.issue)) return false;
+        return true;
       });
       
-      // Add our derived code discrepancies for conflicting codes
+      // Add our derived code discrepancies for conflicting codes only
       allDisc = [...allDisc, ...codeDiscrepancies];
     }
     
