@@ -22,7 +22,7 @@ export default function PrivacyPolicy() {
               <Shield className="h-5 w-5 text-primary" />
               Privacy Policy
             </CardTitle>
-            <p className="text-sm text-muted-foreground">Last updated: December 2025</p>
+            <p className="text-sm text-muted-foreground">Last updated: January 2026</p>
           </CardHeader>
           <CardContent className="prose prose-sm max-w-none space-y-6 text-foreground">
             

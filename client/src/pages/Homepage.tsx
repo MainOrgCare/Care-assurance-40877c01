@@ -849,7 +849,7 @@ export default function Homepage() {
           </div>
           
           <div className="mt-8 pt-6 border-t border-border/30 flex flex-col sm:flex-row items-center justify-center gap-4 text-xs text-muted-foreground">
-            <span>2025 CareAssurance Software. All rights reserved.</span>
+            <span>2026 CareAssurance Software. All rights reserved.</span>
             <div className="flex items-center gap-4">
               <Badge variant="outline" className="text-[10px] border-green-500/30 text-green-400">
                 <Lock className="h-2.5 w-2.5 mr-1" />
