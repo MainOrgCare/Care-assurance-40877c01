@@ -914,18 +914,28 @@ ${generatedProtocol.additionalComments}`;
     if (medicationLevelOverride && result) {
       const { discrepancies: codeDiscrepancies, allCodeEntryKeys } = deriveCodeDiscrepancies(result, medicationLevelOverride);
       
-      // Filter out AI discrepancies that are about code-related entries
-      // This removes both:
-      // 1. Discrepancies about codes that are now VALID (e.g., AS when Assist selected)
-      // 2. Discrepancies about codes that are now INVALID (we'll replace with derived ones)
-      // Also filter out discrepancies that mention specific code conflicts in their issue text
-      const codePatterns = /\b(AS|AD|P)\b.*\b(code|level|administer|assist|prompt)\b/i;
+      // Filter out ALL AI discrepancies that mention AS/AD/P code conflicts
+      // These patterns match discrepancies like:
+      // - "Invalid code 'AS' used on administered medication"
+      // - "AS code used but service user is Administer level"
+      // - "Assist code (AS) used but service user is..."
+      const codeConflictPatterns = [
+        /invalid\s+code\s+['"]?(AS|AD|P)['"]?/i,  // "Invalid code 'AS'"
+        /\b(AS|AD|P)\b\s+(code\s+)?used/i,         // "AS used" or "AS code used"
+        /\b(assist|administer|prompt)\s+code/i,   // "Assist code", "Administer code"
+        /code\s+['"]?(AS|AD|P)['"]?\s+used/i,     // "code 'AS' used"
+        /\b(AS|AD|P)\b.*\b(level|medication)\b/i, // "AS...level" or "AS...medication"
+        /administered\s+medication.*valid\s+codes/i, // "administered medication - valid codes"
+      ];
       
       allDisc = allDisc.filter(d => {
         const key = getDiscrepancyKey(d.careWorkerName, d.date, d.medication);
-        // Remove if it matches a code entry OR if the issue mentions code conflicts
+        // Remove if it matches a code entry
         if (allCodeEntryKeys.has(key)) return false;
-        if (codePatterns.test(d.issue)) return false;
+        // Remove if the issue text matches any code conflict pattern
+        for (const pattern of codeConflictPatterns) {
+          if (pattern.test(d.issue)) return false;
+        }
         return true;
       });
       
