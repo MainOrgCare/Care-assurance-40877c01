@@ -40,10 +40,13 @@ const uploadExcel = multer({
                     file.mimetype === "application/vnd.ms-excel" ||
                     file.originalname.toLowerCase().endsWith(".xlsx") ||
                     file.originalname.toLowerCase().endsWith(".xls");
-    if (isExcel) {
+    const isCSV = file.mimetype === "text/csv" ||
+                  file.mimetype === "application/csv" ||
+                  file.originalname.toLowerCase().endsWith(".csv");
+    if (isExcel || isCSV) {
       cb(null, true);
     } else {
-      cb(new Error("Only Excel files (.xlsx, .xls) are allowed"));
+      cb(new Error("Only Excel files (.xlsx, .xls) or CSV files are allowed"));
     }
   }
 });
@@ -6577,8 +6580,21 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
 
       console.log(`[Reconciliation] Processing file: ${req.file.originalname}`);
 
-      // Read the Excel file with date parsing enabled
-      const workbook = XLSX.read(req.file.buffer, { type: "buffer", cellDates: true });
+      // Detect file type and parse accordingly
+      const fileName = req.file.originalname.toLowerCase();
+      const isCSV = fileName.endsWith('.csv');
+      
+      let workbook;
+      if (isCSV) {
+        // Parse CSV file - convert buffer to string and parse
+        const csvString = req.file.buffer.toString('utf-8');
+        workbook = XLSX.read(csvString, { type: "string", cellDates: true });
+        console.log(`[Reconciliation] Parsed CSV file, converting to Excel format`);
+      } else {
+        // Read the Excel file with date parsing enabled
+        workbook = XLSX.read(req.file.buffer, { type: "buffer", cellDates: true });
+      }
+      
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
 

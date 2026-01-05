@@ -116,7 +116,7 @@ export default function CallReconciliation() {
                    {file ? "File Ready" : "Upload ECM Data File"}
                  </h3>
                  <p className="text-sm text-muted-foreground">
-                   {file ? file.name : "Excel file with all ECM call data"}
+                   {file ? file.name : "Excel or CSV file with all ECM call data"}
                  </p>
                  {file && (
                    <p className="text-xs text-muted-foreground">
@@ -127,11 +127,11 @@ export default function CallReconciliation() {
                <div className="relative">
                  <Button variant={file ? "outline" : "default"} className={file ? "border-border" : ""}>
                    <Upload className="mr-2 h-4 w-4" />
-                   {file ? "Change File" : "Select Excel File"}
+                   {file ? "Change File" : "Select File"}
                  </Button>
                  <input 
                    type="file" 
-                   accept=".xlsx,.xls"
+                   accept=".xlsx,.xls,.csv"
                    className="absolute inset-0 opacity-0 cursor-pointer"
                    onChange={(e) => handleFileChange(e.target.files?.[0])}
                    data-testid="input-file-upload"
