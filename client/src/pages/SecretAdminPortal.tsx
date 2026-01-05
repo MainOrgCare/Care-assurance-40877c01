@@ -447,8 +447,8 @@ function AIProviderSection() {
                 <span>Core EMAR extraction (accuracy critical)</span>
               </div>
               <div className="flex items-start gap-2">
-                <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shrink-0">GPT-4o-mini</Badge>
-                <span>Count validation, equivalence checks, drug interactions, validation passes (33x cost savings)</span>
+                <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shrink-0">GPT-4.1-mini</Badge>
+                <span>Count validation, equivalence checks, drug interactions, validation passes (cost-efficient with temperature support)</span>
               </div>
             </div>
           </div>
