@@ -6561,8 +6561,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       }
 
       // Columns to DELETE (0-indexed):
-      // A-E (0-4), G-I (6-8), K-T (10-19), V-W (21-22), Z-AD (25-29), AE (30), 
-      // AH-AM (33-38), AP-BO (41-66), BR-DY (69-128), EA-FW (130-178)
+      // A-E (0-4), G-I (6-8), K-T (10-19), U (20), V-W (21-22), Z-AD (25-29), AE (30), 
+      // AH-AM (33-38), AP-BO (41-66), BR-DY (69-128), DZ (129), EA-FW (130-178)
       const columnsToDelete = new Set<number>();
       
       // A-E (0-4)
@@ -6571,6 +6571,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       for (let i = 6; i <= 8; i++) columnsToDelete.add(i);
       // K-T (10-19)
       for (let i = 10; i <= 19; i++) columnsToDelete.add(i);
+      // U (20) - Service Requirement (removed after extracting value for Variation Reason)
+      columnsToDelete.add(20);
       // V-W (21-22)
       for (let i = 21; i <= 22; i++) columnsToDelete.add(i);
       // Z-AD (25-29)
@@ -6583,6 +6585,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       for (let i = 41; i <= 66; i++) columnsToDelete.add(i);
       // BR-DY (69-128)
       for (let i = 69; i <= 128; i++) columnsToDelete.add(i);
+      // DZ (129) - Cancellation Reason (removed after extracting value for Variation Reason)
+      columnsToDelete.add(129);
       // EA-FW (130-178)
       for (let i = 130; i <= 178; i++) columnsToDelete.add(i);
 
