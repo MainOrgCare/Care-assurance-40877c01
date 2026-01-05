@@ -251,6 +251,8 @@ export default function EMARAudit() {
   const [verificationChecks, setVerificationChecks] = useState<{ [key: number]: boolean }>({});
   const [prnProtocolChecks, setPrnProtocolChecks] = useState<PRNProtocolCheck[]>([]);
   const [medicationLevelOverride, setMedicationLevelOverride] = useState<string | null>(null);
+  const [pendingLevelOverride, setPendingLevelOverride] = useState<string | null>(null);
+  const [discrepanciesUpdated, setDiscrepanciesUpdated] = useState(false);
   const [verificationSubmitted, setVerificationSubmitted] = useState(false);
   const [warningsOpen, setWarningsOpen] = useState(false);
   const [prnProtocolsSubmitted, setPrnProtocolsSubmitted] = useState(false);
@@ -1755,18 +1757,46 @@ ${generatedProtocol.additionalComments}`;
                 <p className="text-amber-200 mb-4">{result.codeConflictDetails}</p>
                 <div className="bg-card p-4 rounded-lg">
                   <p className="text-sm text-muted-foreground mb-3">What is the service user's medication level?</p>
-                  <div className="flex gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     {['administer', 'assist', 'prompt'].map((level) => (
                       <Button
                         key={level}
-                        variant={medicationLevelOverride === level ? "default" : "outline"}
+                        variant={(pendingLevelOverride || medicationLevelOverride) === level ? "default" : "outline"}
                         size="sm"
-                        onClick={() => setMedicationLevelOverride(level)}
+                        onClick={() => {
+                          setPendingLevelOverride(level);
+                          setDiscrepanciesUpdated(false);
+                        }}
                         data-testid={`button-level-${level}`}
                       >
                         {level.charAt(0).toUpperCase() + level.slice(1)}
                       </Button>
                     ))}
+                    {pendingLevelOverride && !discrepanciesUpdated && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="ml-2 gap-1.5"
+                        onClick={() => {
+                          setMedicationLevelOverride(pendingLevelOverride);
+                          setDiscrepanciesUpdated(true);
+                          toast({
+                            title: "Discrepancies Updated",
+                            description: `Discrepancies have been recalculated for ${pendingLevelOverride.charAt(0).toUpperCase() + pendingLevelOverride.slice(1)} level.`,
+                          });
+                        }}
+                        data-testid="button-update-discrepancies"
+                      >
+                        <RefreshCw size={14} />
+                        Update Discrepancies
+                      </Button>
+                    )}
+                    {discrepanciesUpdated && (
+                      <Badge variant="outline" className="text-green-400 border-green-400/50">
+                        <CheckCircle2 size={14} className="mr-1" />
+                        Updated
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </CardContent>
