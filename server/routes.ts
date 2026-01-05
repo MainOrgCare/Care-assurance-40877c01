@@ -6548,8 +6548,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
 
       console.log(`[Reconciliation] Processing file: ${req.file.originalname}`);
 
-      // Read the Excel file
-      const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+      // Read the Excel file with date parsing enabled
+      const workbook = XLSX.read(req.file.buffer, { type: "buffer", cellDates: true });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
 
@@ -6638,7 +6638,21 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
 
       // Create new workbook with processed data
       const newWorkbook = XLSX.utils.book_new();
-      const newWorksheet = XLSX.utils.aoa_to_sheet(processedData);
+      const newWorksheet = XLSX.utils.aoa_to_sheet(processedData, { cellDates: true });
+      
+      // Apply date format to cells that contain Date objects
+      const range = XLSX.utils.decode_range(newWorksheet['!ref'] || 'A1');
+      for (let R = range.s.r; R <= range.e.r; R++) {
+        for (let C = range.s.c; C <= range.e.c; C++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          const cell = newWorksheet[cellAddress];
+          if (cell && cell.t === 'd') {
+            // Format as date with time: DD/MM/YYYY HH:MM:SS
+            cell.z = 'DD/MM/YYYY HH:MM:SS';
+          }
+        }
+      }
+      
       XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, "Reconciled");
 
       // Generate Excel buffer
