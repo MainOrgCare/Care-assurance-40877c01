@@ -805,9 +805,121 @@ ${generatedProtocol.additionalComments}`;
     return parts.join(", ") || "None";
   };
 
+  // Helper to generate stable key for discrepancy deduplication
+  const getDiscrepancyKey = (careWorker: string, date: string, medication: string, timeSlot?: string) => 
+    `${careWorker}|${date}|${medication}|${timeSlot || ''}`.toLowerCase();
+
+  // Derive code discrepancies from structured data based on current medication level
+  const deriveCodeDiscrepancies = (
+    analysisResult: EmarAnalysisResult,
+    level: string
+  ): { discrepancies: Discrepancy[]; conflictingKeys: Set<string> } => {
+    const supportCodes = ['AS', 'AD', 'P'];
+    
+    const codeMapping: Record<string, { validCodes: string[]; invalidCodes: string[] }> = {
+      'assist': { validCodes: ['AS'], invalidCodes: ['AD', 'P'] },
+      'prompt': { validCodes: ['P'], invalidCodes: ['AS', 'AD'] },
+      'administer': { validCodes: ['AD'], invalidCodes: ['AS', 'P'] },
+    };
+    
+    const mapping = codeMapping[level];
+    const derivedDiscrepancies: Discrepancy[] = [];
+    const conflictingKeys = new Set<string>(); // Only track conflicting entries, not all code entries
+    const processedKeys = new Set<string>(); // For deduplication within derived discrepancies
+    
+    if (!mapping) return { discrepancies: [], conflictingKeys };
+    
+    const addCodeDiscrepancy = (
+      careWorkerName: string,
+      date: string,
+      medication: string,
+      code: string
+    ) => {
+      // Use key without timeSlot to match AI discrepancies (which don't have timeSlot)
+      const key = getDiscrepancyKey(careWorkerName, date, medication);
+      if (processedKeys.has(key)) return;
+      processedKeys.add(key);
+      conflictingKeys.add(key); // Track ONLY conflicting entries for exclusion
+      
+      const codeDisplayName = code === 'AS' ? 'Assist' : 
+                              code === 'AD' ? 'Administer' : 
+                              code === 'P' ? 'Prompt' : code;
+      const levelDisplayName = level.charAt(0).toUpperCase() + level.slice(1);
+      
+      derivedDiscrepancies.push({
+        careWorkerName,
+        date,
+        medication,
+        issue: `${codeDisplayName} code (${code}) used but service user is ${levelDisplayName} level`,
+        actions: {
+          performanceNote: true,
+          meeting: "none",
+          referToManager: false,
+        },
+      });
+    };
+    
+    // Process entries and only create discrepancies for INVALID codes
+    // Do NOT track valid code entries - those are fine
+    const processEntry = (
+      careWorkerName: string,
+      date: string,
+      medication: string,
+      code?: string
+    ) => {
+      const entryCode = (code || '').toUpperCase();
+      // Only process if it's a support code AND it's an invalid (conflicting) code
+      if (supportCodes.includes(entryCode) && mapping.invalidCodes.includes(entryCode)) {
+        addCodeDiscrepancy(careWorkerName, date, medication, entryCode);
+      }
+    };
+    
+    // Process groupedMainRefusals
+    analysisResult.groupedMainRefusals?.forEach(refusal => {
+      refusal.dates.forEach(dateItem => {
+        processEntry(refusal.careWorkerName, dateItem.date, refusal.medication, dateItem.code || refusal.code);
+      });
+    });
+    
+    // Process groupedPrnRefusals
+    analysisResult.groupedPrnRefusals?.forEach(refusal => {
+      refusal.dates.forEach(dateItem => {
+        processEntry(refusal.careWorkerName, dateItem.date, refusal.medication, dateItem.code || refusal.code);
+      });
+    });
+    
+    // Process officeClosedEntries
+    analysisResult.officeClosedEntries?.forEach(entry => {
+      processEntry(entry.closedByStaff, entry.date, entry.medication, entry.code);
+    });
+    
+    // Process userVerificationItems
+    analysisResult.userVerificationItems?.forEach(item => {
+      processEntry(item.careWorkerName, item.date, item.medication, item.code);
+    });
+    
+    return { discrepancies: derivedDiscrepancies, conflictingKeys };
+  };
+
   const getAllDiscrepancies = (): Discrepancy[] => {
     const baseDiscrepancies = result?.discrepancies || [];
-    const allDisc = [...baseDiscrepancies, ...addedDiscrepancies];
+    let allDisc = [...baseDiscrepancies, ...addedDiscrepancies];
+    
+    // When medication level override is set, use derived code discrepancies
+    if (medicationLevelOverride && result) {
+      const { discrepancies: codeDiscrepancies, conflictingKeys } = deriveCodeDiscrepancies(result, medicationLevelOverride);
+      
+      // Only exclude AI discrepancies that match CONFLICTING entry keys
+      // This removes AI-generated code conflict discrepancies that we're replacing with derived ones
+      allDisc = allDisc.filter(d => {
+        const key = getDiscrepancyKey(d.careWorkerName, d.date, d.medication);
+        return !conflictingKeys.has(key);
+      });
+      
+      // Add our derived code discrepancies for conflicting codes
+      allDisc = [...allDisc, ...codeDiscrepancies];
+    }
+    
     return allDisc.map(d => ({
       ...d,
       careWorkerName: getMappedCarerName(d.careWorkerName),
