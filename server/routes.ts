@@ -681,6 +681,8 @@ export async function registerRoutes(
         role: user.role,
         status: user.status,
         jobTitle: user.jobTitle,
+        termsAcceptedAt: user.termsAcceptedAt,
+        termsVersion: user.termsVersion,
         forcingLogout,
       });
     } catch (error: any) {
