@@ -4473,6 +4473,20 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       }));
       console.log(`Standard path: Found ${officeClosedEntries.length} office-closed entries`);
 
+      // Extract ALL entries with support level codes (AS/AD/P) for frontend recalculation
+      // This allows discrepancies to be regenerated when the user overrides the medication level
+      const supportLevelCodes = ['AS', 'AD', 'P'];
+      const supportCodeEntries = allEntries
+        .filter((e: any) => e.code && supportLevelCodes.includes(e.code.toUpperCase()))
+        .map((e: any) => ({
+          careWorkerName: e.careWorkerInitials || 'Unknown',
+          medication: e.medication,
+          date: e.date,
+          timeSlot: e.timeSlot,
+          code: e.code.toUpperCase()
+        }));
+      console.log(`Standard path: Found ${supportCodeEntries.length} entries with support level codes (AS/AD/P)`);
+
       // =====================================================================
       // BUILD RESPONSE
       // =====================================================================
@@ -4505,6 +4519,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
           }))
         },
         officeClosedEntries: officeClosedEntries,
+        supportCodeEntries: supportCodeEntries,
         totalEntriesProcessed: allEntries.length,
         totalMedications: medications.length,
         datesAudited: allDates,

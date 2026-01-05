@@ -139,6 +139,14 @@ interface OfficeClosedEntry {
   closedTime: string;
 }
 
+interface SupportCodeEntry {
+  careWorkerName: string;
+  medication: string;
+  date: string;
+  timeSlot: string;
+  code: string;
+}
+
 interface EmarAnalysisResult {
   serviceUserName: string;
   serviceUserInitials?: string;
@@ -167,6 +175,7 @@ interface EmarAnalysisResult {
     requiredProtocols?: { medication: string; protocol: string }[];
   };
   officeClosedEntries?: OfficeClosedEntry[];
+  supportCodeEntries?: SupportCodeEntry[];
   themesAndTrends: string;
   gapsInKnowledge: string;
 }
@@ -901,6 +910,12 @@ ${generatedProtocol.additionalComments}`;
     // Process userVerificationItems
     analysisResult.userVerificationItems?.forEach(item => {
       processEntry(item.careWorkerName, item.date, item.medication, item.code);
+    });
+    
+    // Process supportCodeEntries - this is the primary source for AS/AD/P code entries
+    // This data comes from the backend and contains ALL entries with support level codes
+    analysisResult.supportCodeEntries?.forEach(entry => {
+      processEntry(entry.careWorkerName, entry.date, entry.medication, entry.code);
     });
     
     return { discrepancies: derivedDiscrepancies, allCodeEntryKeys };
