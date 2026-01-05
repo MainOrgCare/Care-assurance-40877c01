@@ -46,6 +46,7 @@ Preferred communication style: Simple, everyday language.
 - **File Scanning**: All file uploads are scanned for malware using Cloudmersive Virus Scan API.
 - **AI Cost Calculator**: Admin-only dashboard to monitor AI spending, API calls, and cost breakdown by feature.
 - **Demo Mode**: Allows exploration with sample data without registration, with read-only restrictions.
+- **Call Reconciliation**: Admin-only Excel processing tool for ECM call data. Removes unnecessary columns (A-E, G-I, K-T, V-W, Z-AD, AE, AH-AM, AP-BO, BR-DY, EA-FW), maps cancellation reasons to variation codes (Hospital→L1, More than 24hrs→L4, Less than 24hrs/Capacity→L5), marks empty Service Requirements as X, and outputs a processed Excel file with a new "Variation Reason" column.
 
 ## External Dependencies
 
