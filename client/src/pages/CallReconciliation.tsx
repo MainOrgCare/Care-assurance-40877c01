@@ -169,7 +169,7 @@ export default function CallReconciliation() {
                          <li><span className="font-mono text-foreground">L5</span> = Less than 24 hours / Capacity</li>
                        </ul>
                      </li>
-                     <li>Marks rows with no service requirement as <span className="font-mono text-foreground">X</span></li>
+                     <li>Marks rows with no service requirement as <span className="font-mono text-foreground">A1</span></li>
                      <li>Creates a new "Variation Reason" column with the codes</li>
                    </ul>
                  </div>

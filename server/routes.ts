@@ -6625,9 +6625,9 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
             variationReason = mapCancellationToCode(String(cancellationValue));
           }
           
-          // If no service requirement, mark with X
+          // If no service requirement, mark with A1
           if (!serviceReqValue || !String(serviceReqValue).trim()) {
-            variationReason = "X";
+            variationReason = "A1";
           }
           
           newRow.push(variationReason);
