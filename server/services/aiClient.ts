@@ -2,10 +2,23 @@ import OpenAI from "openai";
 import { storage } from "../storage";
 import { calculateCostMicroDollars, AVAILABLE_MODELS, type AvailableModel } from "../config/aiPricing";
 
-const replitClient = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+let replitClient: OpenAI | null = null;
+
+function getReplitClient(): OpenAI | null {
+  if (replitClient) return replitClient;
+  
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  if (!apiKey) {
+    return null;
+  }
+  
+  replitClient = new OpenAI({
+    apiKey: apiKey,
+    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  });
+  
+  return replitClient;
+}
 
 // User context type for logging
 export interface AiUserContext {
@@ -99,6 +112,7 @@ async function createChatCompletionWithProvider(
 ): Promise<AiCompletionResult> {
   const preferred = preferredProvider;
   const openai = getOpenAIClient();
+  const replit = getReplitClient();
   
   // If OpenAI is preferred and available, use it first
   if (preferred === "openai" && openai) {
@@ -108,9 +122,9 @@ async function createChatCompletionWithProvider(
       return { completion, provider: "openai" };
     } catch (openaiError: any) {
       console.error("[AI] OpenAI preferred request failed, falling back to Replit:", openaiError.message);
-      if (shouldFallback(openaiError)) {
+      if (shouldFallback(openaiError) && replit) {
         try {
-          const completion = await replitClient.chat.completions.create(params);
+          const completion = await replit.chat.completions.create(params);
           return { completion, provider: "replit" };
         } catch (replitError: any) {
           console.error("[AI] Replit fallback also failed:", replitError.message);
@@ -122,24 +136,42 @@ async function createChatCompletionWithProvider(
   }
   
   // Default: Use Replit first with OpenAI fallback
-  try {
-    const completion = await replitClient.chat.completions.create(params);
-    return { completion, provider: "replit" };
-  } catch (replitError: any) {
-    if (shouldFallback(replitError) && openai) {
-      console.log("[AI Failover] Replit failed, using OpenAI fallback");
-      try {
-        const completion = await openai.chat.completions.create(params);
-        return { completion, provider: "openai" };
-      } catch (openaiError: any) {
-        console.error("[AI Failover] OpenAI fallback also failed:", openaiError.message);
-        throw openaiError;
-      }
-    } else if (!openai) {
-      console.warn("[AI Failover] Replit failed and no OpenAI fallback key configured");
-    }
-    throw replitError;
+  if (!replit && !openai) {
+    throw new Error("No AI provider is configured. Please set either AI_INTEGRATIONS_OPENAI_API_KEY or OPENAI_FALLBACK_API_KEY");
   }
+  
+  if (replit) {
+    try {
+      const completion = await replit.chat.completions.create(params);
+      return { completion, provider: "replit" };
+    } catch (replitError: any) {
+      if (shouldFallback(replitError) && openai) {
+        console.log("[AI Failover] Replit failed, using OpenAI fallback");
+        try {
+          const completion = await openai.chat.completions.create(params);
+          return { completion, provider: "openai" };
+        } catch (openaiError: any) {
+          console.error("[AI Failover] OpenAI fallback also failed:", openaiError.message);
+          throw openaiError;
+        }
+      } else if (!openai) {
+        console.warn("[AI Failover] Replit failed and no OpenAI fallback key configured");
+      }
+      throw replitError;
+    }
+  }
+  
+  // If only OpenAI is available (no Replit client)
+  if (openai) {
+    try {
+      const completion = await openai.chat.completions.create(params);
+      return { completion, provider: "openai" };
+    } catch (openaiError: any) {
+      throw openaiError;
+    }
+  }
+  
+  throw new Error("No AI provider is available");
 }
 
 // Legacy function for backwards compatibility (returns just the completion)
@@ -220,4 +252,4 @@ export async function createChatCompletionWithLogging(
   }
 }
 
-export { replitClient as openai };
+export const openai = getReplitClient();
