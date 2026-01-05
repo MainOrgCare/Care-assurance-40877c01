@@ -2783,7 +2783,8 @@ ANALYZE THE DOCUMENT TEXT:
 Return JSON with entries ONLY for the medications listed above:
 {
   "entries": [
-    {"medicationId": ${batch[0].medicationId}, "date": "Sat, 06 Dec", "timeSlot": "08:00-09:00", "code": "AD", "careWorkerInitials": "RK", "time": "08:30", "hasTime": true}
+    {"medicationId": ${batch[0].medicationId}, "date": "Sat, 06 Dec", "timeSlot": "08:00-09:00", "code": "AD", "careWorkerInitials": "RK", "time": "08:30", "hasTime": true, "isOfficeClosed": false},
+    {"medicationId": ${batch[0].medicationId}, "date": "Sun, 07 Dec", "timeSlot": "08:00-09:00", "code": "AS", "careWorkerInitials": "MANUAL", "time": "", "hasTime": false, "isOfficeClosed": true}
   ]
 }
 
@@ -2818,7 +2819,16 @@ OTHER CRITICAL RULES:
 2. Look for ALL entries including those with codes R, MU, NH - these are just as important as AD/AS/P
 3. Care worker initials are typically 2 letters (e.g., RK, HB, BB, GM, SB)
 4. Skip only truly blank/empty cells - but capture ALL cells with any code or initials
-5. IGNORE RED COLORING when a code is present - if a time slot shows red but contains a valid code (AD, AS, R, etc.), follow the code not the color. Red color is often used just for visual emphasis.`;
+5. IGNORE RED COLORING when a code is present - if a time slot shows red but contains a valid code (AD, AS, R, etc.), follow the code not the color. Red color is often used just for visual emphasis.
+
+MANUAL CODE ENTRY DETECTION (CRITICAL):
+- If a cell contains ONLY a code (AS, AD, P, R, etc.) with NO time and NO other initials, this is a MANUALLY ENTERED CODE by office staff
+- In this case:
+  1. Set careWorkerInitials to "MANUAL" (not the code itself!)
+  2. Set isOfficeClosed to true
+- Example: Cell shows just "AS" → code: "AS", careWorkerInitials: "MANUAL", hasTime: false, isOfficeClosed: true
+- Example: Cell shows "JH 08:41 AS" → code: "AS", careWorkerInitials: "JH", time: "08:41", hasTime: true, isOfficeClosed: false
+- DO NOT confuse medication codes (AS, AD, P, R, MU, NH, SA, FA, PRN) for care worker initials - MEDICATION CODES ARE NEVER INITIALS!`;
           
           try {
             const response = await createChatCompletionWithLogging({
@@ -3251,7 +3261,11 @@ OTHER CRITICAL RULES:
         const initials = (entry.careWorkerInitials || "").toUpperCase();
         let careWorkerValue = initials;
         
-        if (initials && initials.length > 0) {
+        // Handle "MANUAL" entries - these are manually entered codes without a care worker
+        // They should be marked as such, not tracked as unknown initials
+        if (initials === "MANUAL") {
+          careWorkerValue = "Manual Entry";
+        } else if (initials && initials.length > 0) {
           const fullName = initialsToName.get(initials);
           if (fullName) {
             careWorkerValue = fullName;
