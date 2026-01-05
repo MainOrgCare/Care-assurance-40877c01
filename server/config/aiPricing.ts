@@ -26,15 +26,15 @@ export const AI_PRICING: Record<string, { input: number; output: number }> = {
   
   // GPT-4.1 - $2.00/1M input, $8.00/1M output
   "gpt-4.1": { input: 2000, output: 8000 },
-  "gpt-4.1-2025-04-14": { input: 2000, output: 8000 },
+  "gpt-4.1-2026-04-14": { input: 2000, output: 8000 },
   
   // GPT-4.1-mini - $0.40/1M input, $1.60/1M output
   "gpt-4.1-mini": { input: 400, output: 1600 },
-  "gpt-4.1-mini-2025-04-14": { input: 400, output: 1600 },
+  "gpt-4.1-mini-2026-04-14": { input: 400, output: 1600 },
   
   // GPT-4.1-nano - $0.10/1M input, $0.40/1M output
   "gpt-4.1-nano": { input: 100, output: 400 },
-  "gpt-4.1-nano-2025-04-14": { input: 100, output: 400 },
+  "gpt-4.1-nano-2026-04-14": { input: 100, output: 400 },
   
   // GPT-4o models - $2.50/1M input, $10.00/1M output
   "gpt-4o": { input: 2500, output: 10000 },
