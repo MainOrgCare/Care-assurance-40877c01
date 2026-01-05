@@ -1127,7 +1127,8 @@ ${generatedProtocol.additionalComments}`;
       'R': 'Refused (R)',
       'NH': 'Not at Home (NH)',
       'MU': 'Medication Unavailable (MU)',
-      'FA': 'Failed Attempt (FA)',
+      'F': 'Family Administered (F)',
+      'FA': 'Family Administered (FA)',
       'SA': 'Self-Administered (SA)',
       'PRN-R': 'PRN Refused (PRN-R)',
       'PRN-NA': 'PRN Not Administered (PRN-NA)',
@@ -2024,7 +2025,7 @@ ${generatedProtocol.additionalComments}`;
                   Reasons Not Administered ({totalRefusalCount} total)
                 </CardTitle>
                 <CardDescription>
-                  Review all refusals grouped by code type. Mark each item as acceptable or escalate to discrepancies.
+                  Review medications not administered (refused, not home, self/family administered, unavailable). Mark each item as acceptable or escalate.
                   {!refusalReviewSubmitted && (
                     <span className="block mt-1 text-muted-foreground">
                       Progress: {getRefusalReviewStats.reviewed}/{getRefusalReviewStats.total} reviewed
@@ -2040,7 +2041,7 @@ ${generatedProtocol.additionalComments}`;
                   <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 flex items-center gap-3">
                     <CheckCircle2 className="h-5 w-5 text-green-400" />
                     <div>
-                      <p className="text-green-400 font-medium">Refusal Review Complete</p>
+                      <p className="text-green-400 font-medium">Reason Review Complete</p>
                       <p className="text-sm text-muted-foreground">
                         {getRefusalReviewStats.acceptable} marked acceptable, {getRefusalReviewStats.toEscalate} escalated to discrepancies
                       </p>

@@ -2037,15 +2037,36 @@ ${correctionExamples}
           const agentWarnings: any[] = [];
           
           // =====================================================================
-          // REFUSAL DETECTION (R codes)
+          // NON-ADMINISTRATION DETECTION (codes requiring reason review)
+          // R=Refused, NH=Not Home, SA=Self Administered, F/FA=Family Administered, MU=Medication Unavailable
           // =====================================================================
-          const refusalCodes = ['R', 'PRN-R'];
+          const reviewCodes = ['R', 'PRN-R', 'NH', 'SA', 'F', 'FA', 'MU'];
           const mainRefusalDiscrepancies: any[] = [];
           const prnRefusalDiscrepancies: any[] = [];
           
+          const getIssueDescription = (code: string, isPRN: boolean): string => {
+            const prnPrefix = isPRN ? '(PRN) ' : '';
+            switch (code) {
+              case 'R':
+              case 'PRN-R':
+                return `Medication ${prnPrefix}refused by service user`;
+              case 'NH':
+                return `Medication ${prnPrefix}not given - service user not home`;
+              case 'SA':
+                return `Medication ${prnPrefix}self-administered by service user`;
+              case 'F':
+              case 'FA':
+                return `Medication ${prnPrefix}administered by family member`;
+              case 'MU':
+                return `Medication ${prnPrefix}unavailable`;
+              default:
+                return `Medication ${prnPrefix}not administered - ${code}`;
+            }
+          };
+          
           agentEntries.forEach((entry: any) => {
             const code = (entry.code || '').toUpperCase();
-            if (refusalCodes.includes(code) || code === 'R') {
+            if (reviewCodes.includes(code)) {
               const isPRN = agentPrnMeds.has(entry.medication) || code.includes('PRN');
               const discrepancy = {
                 careWorkerName: entry.careWorkerInitials || 'Unknown',
@@ -2053,7 +2074,7 @@ ${correctionExamples}
                 timeSlot: entry.timeSlot,
                 medication: entry.medication,
                 code: code,
-                issue: `Medication ${isPRN ? '(PRN) ' : ''}refused by service user`,
+                issue: getIssueDescription(code, isPRN),
                 severity: "medium",
                 actions: { performanceNote: true, meeting: "in_person", referToManager: false }
               };
@@ -2067,7 +2088,7 @@ ${correctionExamples}
             }
           });
           
-          console.log(`Agent: Found ${mainRefusalDiscrepancies.length} main refusals, ${prnRefusalDiscrepancies.length} PRN refusals`);
+          console.log(`Agent: Found ${mainRefusalDiscrepancies.length} main non-admin codes, ${prnRefusalDiscrepancies.length} PRN non-admin codes`);
           
           // =====================================================================
           // TIME GAP DETECTION (for medications with 2+ slots/day)
