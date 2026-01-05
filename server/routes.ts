@@ -14,6 +14,7 @@ import multer from "multer";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import { scanFile, computeFileHash, getCachedScan } from "./services/fileScan";
+import * as XLSX from "xlsx";
 import { convertPdfToImages } from "./services/pdfToImages";
 // Vision-based extraction for improved EMAR accuracy
 
@@ -27,6 +28,22 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error("Only PDF and Word (.docx) files are allowed"));
+    }
+  }
+});
+
+const uploadExcel = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const isExcel = file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" || 
+                    file.mimetype === "application/vnd.ms-excel" ||
+                    file.originalname.toLowerCase().endsWith(".xlsx") ||
+                    file.originalname.toLowerCase().endsWith(".xls");
+    if (isExcel) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only Excel files (.xlsx, .xls) are allowed"));
     }
   }
 });
@@ -6482,6 +6499,157 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     } catch (error: any) {
       console.error("AI usage fetch error:", error);
       return res.status(500).json({ message: error.message || "Failed to fetch AI usage" });
+    }
+  });
+
+  // =====================================================================
+  // CALL RECONCILIATION - Excel Processing
+  // =====================================================================
+  
+  // Helper to convert column letter to index (A=0, B=1, etc.)
+  function colLetterToIndex(letter: string): number {
+    let result = 0;
+    for (let i = 0; i < letter.length; i++) {
+      result = result * 26 + (letter.charCodeAt(i) - 64);
+    }
+    return result - 1;
+  }
+
+  // Helper to convert index to column letter
+  function indexToColLetter(index: number): string {
+    let result = "";
+    while (index >= 0) {
+      result = String.fromCharCode((index % 26) + 65) + result;
+      index = Math.floor(index / 26) - 1;
+    }
+    return result;
+  }
+
+  // Map cancellation reasons to variation codes
+  function mapCancellationToCode(reason: string | null | undefined): string {
+    if (!reason || typeof reason !== 'string') return "";
+    const lowerReason = reason.toLowerCase().trim();
+    
+    if (lowerReason.includes("hospital")) return "L1";
+    if (lowerReason.includes("capacity")) return "L5";
+    if (lowerReason.includes("less than 24") || lowerReason.includes("<24") || lowerReason.includes("under 24")) return "L5";
+    if (lowerReason.includes("more than 24") || lowerReason.includes(">24") || lowerReason.includes("over 24")) return "L4";
+    if (lowerReason.includes("24 hour") && lowerReason.includes("less")) return "L5";
+    if (lowerReason.includes("24 hour") && lowerReason.includes("more")) return "L4";
+    
+    return "";
+  }
+
+  app.post("/api/reconciliation/analyze", requireAuth, requireAdmin, uploadExcel.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      console.log(`[Reconciliation] Processing file: ${req.file.originalname}`);
+
+      // Read the Excel file
+      const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+
+      // Convert to array of arrays for easier manipulation
+      const data: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      if (data.length === 0) {
+        return res.status(400).json({ message: "Excel file is empty" });
+      }
+
+      // Columns to DELETE (0-indexed):
+      // A-E (0-4), G-I (6-8), K-T (10-19), V-W (21-22), Z-AD (25-29), AE (30), 
+      // AH-AM (33-38), AP-BO (41-66), BR-DY (69-128), EA-FW (130-178)
+      const columnsToDelete = new Set<number>();
+      
+      // A-E (0-4)
+      for (let i = 0; i <= 4; i++) columnsToDelete.add(i);
+      // G-I (6-8)
+      for (let i = 6; i <= 8; i++) columnsToDelete.add(i);
+      // K-T (10-19)
+      for (let i = 10; i <= 19; i++) columnsToDelete.add(i);
+      // V-W (21-22)
+      for (let i = 21; i <= 22; i++) columnsToDelete.add(i);
+      // Z-AD (25-29)
+      for (let i = 25; i <= 29; i++) columnsToDelete.add(i);
+      // AE (30)
+      columnsToDelete.add(30);
+      // AH-AM (33-38)
+      for (let i = 33; i <= 38; i++) columnsToDelete.add(i);
+      // AP-BO (41-66)
+      for (let i = 41; i <= 66; i++) columnsToDelete.add(i);
+      // BR-DY (69-128)
+      for (let i = 69; i <= 128; i++) columnsToDelete.add(i);
+      // EA-FW (130-178)
+      for (let i = 130; i <= 178; i++) columnsToDelete.add(i);
+
+      // Track original column positions for Service Requirement (U=20) and Cancellation Reason (DZ=129)
+      const SERVICE_REQ_COL = 20; // U
+      const CANCELLATION_COL = 129; // DZ
+
+      // Process each row
+      const processedData: any[][] = [];
+      
+      for (let rowIdx = 0; rowIdx < data.length; rowIdx++) {
+        const row = data[rowIdx];
+        const newRow: any[] = [];
+        
+        // Get original values before filtering
+        const serviceReqValue = row[SERVICE_REQ_COL];
+        const cancellationValue = row[CANCELLATION_COL];
+        
+        // Filter out deleted columns
+        for (let colIdx = 0; colIdx < row.length; colIdx++) {
+          if (!columnsToDelete.has(colIdx)) {
+            newRow.push(row[colIdx]);
+          }
+        }
+        
+        // Add Variation Reason column
+        if (rowIdx === 0) {
+          // Header row
+          newRow.push("Variation Reason");
+        } else {
+          // Data row - determine variation reason
+          let variationReason = "";
+          
+          // Check if cancellation reason exists
+          if (cancellationValue && String(cancellationValue).trim()) {
+            variationReason = mapCancellationToCode(String(cancellationValue));
+          }
+          
+          // If no service requirement, mark with X
+          if (!serviceReqValue || !String(serviceReqValue).trim()) {
+            variationReason = "X";
+          }
+          
+          newRow.push(variationReason);
+        }
+        
+        processedData.push(newRow);
+      }
+
+      // Create new workbook with processed data
+      const newWorkbook = XLSX.utils.book_new();
+      const newWorksheet = XLSX.utils.aoa_to_sheet(processedData);
+      XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, "Reconciled");
+
+      // Generate Excel buffer
+      const excelBuffer = XLSX.write(newWorkbook, { type: "buffer", bookType: "xlsx" });
+
+      // Set response headers for file download
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="reconciled_${Date.now()}.xlsx"`);
+      
+      console.log(`[Reconciliation] Processed ${processedData.length} rows, sending Excel file`);
+      
+      return res.send(excelBuffer);
+    } catch (error: any) {
+      console.error("Reconciliation error:", error);
+      return res.status(500).json({ message: error.message || "Failed to process Excel file" });
     }
   });
 

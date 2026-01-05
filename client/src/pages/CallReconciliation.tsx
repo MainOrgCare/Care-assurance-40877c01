@@ -1,23 +1,16 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, FileSpreadsheet, ArrowRightLeft, CheckCircle2, Download, RefreshCw, Lock, Info } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Upload, FileSpreadsheet, ArrowRightLeft, CheckCircle2, Download, Lock, Info, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-
-const mockReconciliationResults = [
-  { id: "C-1001", user: "Alice Johnson", scheduled: "09:00", actual: "09:05", type: "ECM Match", code: "OK", variance: "None" },
-  { id: "C-1002", user: "Bob Smith", scheduled: "10:30", actual: "--:--", type: "Cancelled", code: "VAR-C01", variance: "Hospital Admission" },
-  { id: "C-1003", user: "Charlie Brown", scheduled: "--:--", actual: "11:15", type: "Added", code: "VAR-A02", variance: "Emergency Cover" },
-  { id: "C-1004", user: "Diana Prince", scheduled: "12:00", actual: "12:45", type: "ECM Match", code: "VAR-L01", variance: "Late Arrival (>30m)" },
-  { id: "C-1005", user: "Evan Wright", scheduled: "14:00", actual: "13:55", type: "ECM Match", code: "OK", variance: "None" },
-];
+import { useToast } from "@/hooks/use-toast";
 
 export default function CallReconciliation() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
-  const [step, setStep] = useState<"upload" | "processing" | "results">("upload");
+  const [step, setStep] = useState<"upload" | "processing" | "complete">("upload");
+  const [error, setError] = useState<string | null>(null);
 
   if (user?.role !== 'admin') {
     return (
@@ -37,30 +30,82 @@ export default function CallReconciliation() {
   const handleFileChange = (selectedFile: File | undefined) => {
     if (selectedFile) {
       setFile(selectedFile);
+      setError(null);
     }
   };
 
-  const handleProcess = () => {
+  const handleProcess = async () => {
+    if (!file) return;
+    
     setStep("processing");
-    setTimeout(() => {
-      setStep("results");
-    }, 3000);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/reconciliation/analyze", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to process file");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `reconciled_${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      setStep("complete");
+      toast({
+        title: "Reconciliation Complete",
+        description: "Your processed Excel file has been downloaded.",
+      });
+    } catch (err: any) {
+      console.error("Reconciliation error:", err);
+      setError(err.message || "An error occurred while processing the file");
+      setStep("upload");
+      toast({
+        title: "Processing Failed",
+        description: err.message || "An error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleReset = () => {
     setStep("upload");
     setFile(null);
+    setError(null);
   };
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-500">
       <div className="flex flex-col gap-2">
         <h2 className="text-3xl font-heading font-bold text-foreground">Call Monitoring Reconciliation</h2>
-        <p className="text-muted-foreground">Upload your ECM data file to match against scheduled calls and identify variances.</p>
+        <p className="text-muted-foreground">Upload your ECM data file to process cancellation reasons and generate variation codes.</p>
       </div>
 
       {step === "upload" && (
         <div className="space-y-8">
+           {error && (
+             <Card className="glass-card border-red-500/30 bg-red-500/10 max-w-2xl mx-auto">
+               <CardContent className="p-4 flex gap-3">
+                 <AlertCircle className="text-red-400 shrink-0 mt-0.5" size={18} />
+                 <p className="text-sm text-red-300">{error}</p>
+               </CardContent>
+             </Card>
+           )}
+
            <Card className={`glass-card border-2 border-dashed transition-all max-w-2xl mx-auto ${file ? "border-primary/50 bg-primary/10" : "border-border bg-muted hover:border-primary/30"}`}>
              <CardContent className="flex flex-col items-center justify-center p-12 text-center space-y-6">
                <div className={`h-20 w-20 rounded-full flex items-center justify-center ${file ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"}`}>
@@ -71,7 +116,7 @@ export default function CallReconciliation() {
                    {file ? "File Ready" : "Upload ECM Data File"}
                  </h3>
                  <p className="text-sm text-muted-foreground">
-                   {file ? file.name : "Excel file with ECM data, cancelled calls, and added calls"}
+                   {file ? file.name : "Excel file with all ECM call data"}
                  </p>
                  {file && (
                    <p className="text-xs text-muted-foreground">
@@ -103,7 +148,7 @@ export default function CallReconciliation() {
                onClick={handleProcess}
                data-testid="button-run-reconciliation"
              >
-               <RefreshCw className="mr-2 h-4 w-4" /> Run Reconciliation
+               <ArrowRightLeft className="mr-2 h-4 w-4" /> Process and Download
              </Button>
            </div>
            
@@ -113,17 +158,20 @@ export default function CallReconciliation() {
                  <div className="mt-0.5 text-blue-400"><Info size={18} /></div>
                  <div className="space-y-3 text-sm">
                    <div>
-                     <strong className="text-foreground">Expected File Format:</strong>
-                     <p className="text-muted-foreground mt-1">Your Excel file should contain the following sheets:</p>
+                     <strong className="text-foreground">What this tool does:</strong>
                    </div>
                    <ul className="text-muted-foreground space-y-1 list-disc list-inside">
-                     <li><span className="text-foreground font-medium">ECM Data</span> - Master list of all scheduled calls</li>
-                     <li><span className="text-foreground font-medium">Cancelled</span> - Calls that were cancelled with reasons</li>
-                     <li><span className="text-foreground font-medium">Added</span> - Unscheduled calls that were added</li>
+                     <li>Removes unnecessary columns from your ECM data</li>
+                     <li>Converts cancellation reasons to variation codes:
+                       <ul className="ml-4 mt-1 space-y-0.5">
+                         <li><span className="font-mono text-foreground">L1</span> = Hospital</li>
+                         <li><span className="font-mono text-foreground">L4</span> = More than 24 hours notice</li>
+                         <li><span className="font-mono text-foreground">L5</span> = Less than 24 hours / Capacity</li>
+                       </ul>
+                     </li>
+                     <li>Marks rows with no service requirement as <span className="font-mono text-foreground">X</span></li>
+                     <li>Creates a new "Variation Reason" column with the codes</li>
                    </ul>
-                   <p className="text-xs text-muted-foreground">
-                     Each sheet should include: Call ID, Service User, Scheduled Time, Actual Time, and Reason (where applicable).
-                   </p>
                  </div>
                </div>
              </CardContent>
@@ -140,97 +188,53 @@ export default function CallReconciliation() {
              </div>
           </div>
           <div className="space-y-3 max-w-lg">
-            <h3 className="text-2xl font-semibold text-foreground">Reconciling Data...</h3>
+            <h3 className="text-2xl font-semibold text-foreground">Processing Data...</h3>
             <p className="text-muted-foreground">
-              Reading Excel sheets... <br/>
-              Matching ECM records... <br/>
-              Cross-referencing cancellations... <br/>
-              Assigning variance codes...
+              Reading Excel file... <br/>
+              Removing unnecessary columns... <br/>
+              Mapping cancellation reasons to codes... <br/>
+              Generating output file...
             </p>
           </div>
         </Card>
       )}
 
-      {step === "results" && (
+      {step === "complete" && (
         <div className="space-y-6 animate-in slide-in-from-bottom-8 duration-500">
-          <div className="grid md:grid-cols-4 gap-4">
-             <Card className="glass-card border-emerald-500/30 bg-emerald-950/20">
-                <CardContent className="p-6">
-                   <div className="text-2xl font-bold text-emerald-400" data-testid="text-match-rate">98%</div>
-                   <p className="text-xs text-emerald-500 font-medium">Match Rate</p>
-                </CardContent>
-             </Card>
-             <Card className="glass-card">
-                <CardContent className="p-6">
-                   <div className="text-2xl font-bold text-foreground" data-testid="text-late-variations">12</div>
-                   <p className="text-xs text-muted-foreground font-medium">Late Variations</p>
-                </CardContent>
-             </Card>
-             <Card className="glass-card">
-                <CardContent className="p-6">
-                   <div className="text-2xl font-bold text-foreground" data-testid="text-unplanned-adds">5</div>
-                   <p className="text-xs text-muted-foreground font-medium">Unplanned Adds</p>
-                </CardContent>
-             </Card>
-             <Card className="glass-card">
-                <CardContent className="p-6">
-                   <div className="text-2xl font-bold text-foreground" data-testid="text-cancellations">3</div>
-                   <p className="text-xs text-muted-foreground font-medium">Cancellations</p>
-                </CardContent>
-             </Card>
-          </div>
+          <Card className="glass-card p-12 flex flex-col items-center justify-center text-center space-y-6 max-w-2xl mx-auto">
+            <div className="h-20 w-20 rounded-full bg-emerald-500/20 flex items-center justify-center">
+              <CheckCircle2 size={40} className="text-emerald-400" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-semibold text-foreground">Reconciliation Complete</h3>
+              <p className="text-muted-foreground">
+                Your processed Excel file has been downloaded with variation codes applied.
+              </p>
+            </div>
+            <div className="flex gap-4 flex-wrap justify-center">
+              <Button 
+                variant="outline" 
+                className="border-border"
+                onClick={handleReset}
+                data-testid="button-new-reconciliation"
+              >
+                Process Another File
+              </Button>
+            </div>
+          </Card>
 
-          <Card className="glass-card">
-             <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
-                <div>
-                   <CardTitle>Reconciliation Report</CardTitle>
-                   <CardDescription>Generated variances based on uploaded data.</CardDescription>
+          <Card className="glass-card border-blue-500/20 bg-blue-500/5 max-w-2xl mx-auto">
+            <CardContent className="p-4">
+              <div className="flex gap-3">
+                <div className="mt-0.5 text-blue-400"><Download size={18} /></div>
+                <div className="text-sm">
+                  <strong className="text-foreground">File Downloaded</strong>
+                  <p className="text-muted-foreground mt-1">
+                    Check your downloads folder for the reconciled Excel file. The new "Variation Reason" column contains the mapped codes.
+                  </p>
                 </div>
-                <Button variant="outline" className="border-border text-muted-foreground hover:bg-muted" data-testid="button-export-csv">
-                   <Download className="mr-2 h-4 w-4" /> Export CSV
-                </Button>
-             </CardHeader>
-             <CardContent>
-                <Table>
-                   <TableHeader>
-                      <TableRow className="border-border hover:bg-transparent">
-                         <TableHead className="text-muted-foreground">Call ID</TableHead>
-                         <TableHead className="text-muted-foreground">Service User</TableHead>
-                         <TableHead className="text-muted-foreground">Scheduled</TableHead>
-                         <TableHead className="text-muted-foreground">Actual</TableHead>
-                         <TableHead className="text-muted-foreground">Type</TableHead>
-                         <TableHead className="text-muted-foreground">Code</TableHead>
-                         <TableHead className="text-muted-foreground">Variance Reason</TableHead>
-                      </TableRow>
-                   </TableHeader>
-                   <TableBody>
-                      {mockReconciliationResults.map((row) => (
-                         <TableRow key={row.id} className="border-border hover:bg-muted" data-testid={`row-result-${row.id}`}>
-                            <TableCell className="font-mono text-xs text-muted-foreground">{row.id}</TableCell>
-                            <TableCell className="font-medium text-foreground">{row.user}</TableCell>
-                            <TableCell className="text-muted-foreground">{row.scheduled}</TableCell>
-                            <TableCell className="text-muted-foreground">{row.actual}</TableCell>
-                            <TableCell>
-                               <Badge variant={row.type === 'ECM Match' ? 'outline' : 'secondary'} className={
-                                  row.type === 'Cancelled' ? 'bg-red-950/40 text-red-400 border-red-900/50' : 
-                                  row.type === 'Added' ? 'bg-blue-950/40 text-blue-400 border-blue-900/50' : 
-                                  'border-border text-muted-foreground'
-                               }>
-                                  {row.type}
-                               </Badge>
-                            </TableCell>
-                            <TableCell className="font-mono text-xs font-bold text-muted-foreground">{row.code}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{row.variance}</TableCell>
-                         </TableRow>
-                      ))}
-                   </TableBody>
-                </Table>
-             </CardContent>
-             <CardFooter className="border-t border-border p-4 flex justify-end">
-                <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={handleReset} data-testid="button-new-reconciliation">
-                   Start New Reconciliation
-                </Button>
-             </CardFooter>
+              </div>
+            </CardContent>
           </Card>
         </div>
       )}
