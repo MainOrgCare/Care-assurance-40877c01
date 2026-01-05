@@ -4,12 +4,13 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import Layout from "@/components/Layout";
-import Homepage from "@/pages/Homepage";
-import Dashboard from "@/pages/Dashboard";
-import Login from "@/pages/Login";
-import SecretAdminPortal from "@/pages/SecretAdminPortal";
-import CallReconciliation from "@/pages/CallReconciliation";
-import EmailAssistant from "@/pages/EmailAssistant";
+import React, { Suspense, lazy } from "react";
+const Homepage = lazy(() => import("@/pages/Homepage"));
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Login = lazy(() => import("@/pages/Login"));
+const SecretAdminPortal = lazy(() => import("@/pages/SecretAdminPortal"));
+const CallReconciliation = lazy(() => import("@/pages/CallReconciliation"));
+const EmailAssistant = lazy(() => import("@/pages/EmailAssistant"));
 import { AuthProvider } from "@/context/AuthContext";
 import { TemporaryDataProvider } from "@/context/TemporaryDataContext";
 import { SessionProvider } from "@/context/SessionContext";
@@ -22,17 +23,17 @@ import { useAuth } from "@/context/AuthContext";
 import { Redirect } from "wouter";
 
 // New Pages
-import ServiceUserUpload from "@/pages/service-users/Upload";
-import CarePlanning from "@/pages/service-users/CarePlanning";
-import RiskAssessment from "@/pages/service-users/RiskAssessment";
-import PlanEnhancer from "@/pages/service-users/PlanEnhancer";
-import CarersList from "@/pages/care-workers/CarersList";
-import EMARAudit from "@/pages/care-workers/EMARAudit";
-import VisitAudit from "@/pages/care-workers/VisitAudit";
-import Performance from "@/pages/care-workers/Performance";
-import Settings from "@/pages/Settings";
-import Compliance from "@/pages/Compliance";
-import ROICalculator from "@/pages/ROICalculator";
+const ServiceUserUpload = lazy(() => import("@/pages/service-users/Upload"));
+const CarePlanning = lazy(() => import("@/pages/service-users/CarePlanning"));
+const RiskAssessment = lazy(() => import("@/pages/service-users/RiskAssessment"));
+const PlanEnhancer = lazy(() => import("@/pages/service-users/PlanEnhancer"));
+const CarersList = lazy(() => import("@/pages/care-workers/CarersList"));
+const EMARAudit = lazy(() => import("@/pages/care-workers/EMARAudit"));
+const VisitAudit = lazy(() => import("@/pages/care-workers/VisitAudit"));
+const Performance = lazy(() => import("@/pages/care-workers/Performance"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const Compliance = lazy(() => import("@/pages/Compliance"));
+const ROICalculator = lazy(() => import("@/pages/ROICalculator"));
 
 function HomeRoute() {
   const { user } = useAuth();
@@ -44,38 +45,40 @@ function HomeRoute() {
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/login" component={Login} />
-      <Route path="/terms" component={TermsConditions} />
-      <Route path="/privacy" component={PrivacyPolicy} />
-      <ProtectedRoute path="/dashboard" component={Dashboard} />
-      
-      {/* Service Users Dropdown */}
-      <ProtectedRoute path="/service-users/upload" component={ServiceUserUpload} />
-      <ProtectedRoute path="/service-users/care-planning" component={CarePlanning} />
-      <ProtectedRoute path="/service-users/risk-assessment" component={RiskAssessment} />
-      <ProtectedRoute path="/service-users/plan-enhancer" component={PlanEnhancer} />
+    <Suspense fallback={<div>Loading...</div>}>
+      <Switch>
+        <Route path="/login" component={Login} />
+        <Route path="/terms" component={TermsConditions} />
+        <Route path="/privacy" component={PrivacyPolicy} />
+        <ProtectedRoute path="/dashboard" component={Dashboard} />
 
-      {/* Care Workers Dropdown */}
-      <ProtectedRoute path="/care-workers/list" component={CarersList} />
-      <ProtectedRoute path="/care-workers/emar-audit" component={EMARAudit} />
-      <ProtectedRoute path="/care-workers/visit-audit" component={VisitAudit} />
-      <ProtectedRoute path="/care-workers/performance" component={Performance} />
+        {/* Service Users Dropdown */}
+        <ProtectedRoute path="/service-users/upload" component={ServiceUserUpload} />
+        <ProtectedRoute path="/service-users/care-planning" component={CarePlanning} />
+        <ProtectedRoute path="/service-users/risk-assessment" component={RiskAssessment} />
+        <ProtectedRoute path="/service-users/plan-enhancer" component={PlanEnhancer} />
 
-      {/* Admin Dropdown */}
-      <ProtectedRoute path="/shadow-admin-portal" component={SecretAdminPortal} />
-      <ProtectedRoute path="/call-reconciliation" component={CallReconciliation} />
-      <ProtectedRoute path="/email-assistant" component={EmailAssistant} />
-      <ProtectedRoute path="/compliance" component={Compliance} />
-      <ProtectedRoute path="/roi-calculator" component={ROICalculator} />
-      <ProtectedRoute path="/settings" component={Settings} />
-      
-      {/* Homepage - shows landing page or redirects to dashboard */}
-      <Route path="/" component={HomeRoute} />
-      
-      {/* Fallback */}
-      <Route component={NotFound} />
-    </Switch>
+        {/* Care Workers Dropdown */}
+        <ProtectedRoute path="/care-workers/list" component={CarersList} />
+        <ProtectedRoute path="/care-workers/emar-audit" component={EMARAudit} />
+        <ProtectedRoute path="/care-workers/visit-audit" component={VisitAudit} />
+        <ProtectedRoute path="/care-workers/performance" component={Performance} />
+
+        {/* Admin Dropdown */}
+        <ProtectedRoute path="/shadow-admin-portal" component={SecretAdminPortal} />
+        <ProtectedRoute path="/call-reconciliation" component={CallReconciliation} />
+        <ProtectedRoute path="/email-assistant" component={EmailAssistant} />
+        <ProtectedRoute path="/compliance" component={Compliance} />
+        <ProtectedRoute path="/roi-calculator" component={ROICalculator} />
+        <ProtectedRoute path="/settings" component={Settings} />
+
+        {/* Homepage - shows landing page or redirects to dashboard */}
+        <Route path="/" component={HomeRoute} />
+
+        {/* Fallback */}
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 
