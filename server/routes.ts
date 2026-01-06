@@ -219,9 +219,7 @@ interface DrugInteraction {
   description: string;
 }
 
-// Cache for drug interaction checks - keyed by sorted medication list hash
-const drugInteractionCache = new Map<string, { result: DrugInteraction[]; timestamp: number }>();
-const DRUG_INTERACTION_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
 
 function getDrugInteractionCacheKey(medications: Array<{ name: string; genericName?: string }>): string {
   // Create deterministic key from sorted medication names
@@ -241,13 +239,7 @@ async function checkDrugInteractions(
     return [];
   }
 
-  // Check cache first
-  const cacheKey = getDrugInteractionCacheKey(medications);
-  const cached = drugInteractionCache.get(cacheKey);
-  if (cached && (Date.now() - cached.timestamp) < DRUG_INTERACTION_CACHE_TTL) {
-    console.log(`[Drug Interactions] Cache hit for ${medications.length} medications`);
-    return cached.result;
-  }
+
 
   const medList = medications.map(m => 
     m.genericName ? `${m.name} (${m.genericName})` : m.name
@@ -292,15 +284,9 @@ If none found: {"interactions": []}`
         description: i.description || ""
       }));
       
-      // Cache the result
-      drugInteractionCache.set(cacheKey, { result, timestamp: Date.now() });
-      console.log(`[Drug Interactions] Cached result for ${medications.length} medications`);
-      
       return result;
     }
     
-    // Cache empty result too
-    drugInteractionCache.set(cacheKey, { result: [], timestamp: Date.now() });
     return [];
   } catch (error: any) {
     console.error("[Drug Interactions] Check failed:", error.message);
