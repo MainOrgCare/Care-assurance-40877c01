@@ -56,6 +56,13 @@ export function metaImagesPlugin(): Plugin {
 }
 
 function getDeploymentUrl(): string | null {
+  // Use custom domain for production deployments
+  if (process.env.NODE_ENV === 'production') {
+    const url = 'https://careassurance.uk';
+    log('[meta-images] using custom domain:', url);
+    return url;
+  }
+
   if (process.env.REPLIT_INTERNAL_APP_DOMAIN) {
     const url = `https://${process.env.REPLIT_INTERNAL_APP_DOMAIN}`;
     log('[meta-images] using internal app domain:', url);
