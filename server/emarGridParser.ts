@@ -59,7 +59,8 @@ const INITIALS_PATTERN = /\b[A-Z]{2,3}\b/g;
 
 export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   const uint8Array = new Uint8Array(pdfBuffer);
-  const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+  // Server-side parsing: disable worker to avoid PDF.js API/worker version mismatches.
+  const loadingTask = pdfjsLib.getDocument({ data: uint8Array, disableWorker: true } as any);
   const pdf = await loadingTask.promise;
   
   const allTextItems: TextItem[] = [];

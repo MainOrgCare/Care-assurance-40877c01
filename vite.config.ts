@@ -36,6 +36,8 @@ export default defineConfig({
     emptyOutDir: true,
     minify: true,
     sourcemap: false,
+    // Increase limit (in KB) to reduce noisy warnings for intentionally-large bundles.
+    chunkSizeWarningLimit: 1500,
   },
   server: {
     host: "0.0.0.0",

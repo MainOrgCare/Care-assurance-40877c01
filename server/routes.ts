@@ -11,12 +11,12 @@ import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, inse
 import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { emarAgent } from "./services/emarAgent";
 import multer from "multer";
-import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import { scanFile, computeFileHash, getCachedScan } from "./services/fileScan";
 import * as XLSX from "xlsx";
 import { convertPdfToImages } from "./services/pdfToImages";
 import { parseEMARGrid } from "./emarGridParser";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 // Vision-based extraction for improved EMAR accuracy
 
 const upload = multer({ 
@@ -54,6 +54,34 @@ const uploadExcel = multer({
 
 const MAX_NON_ADMIN_SESSIONS = 2;
 const FORCE_LOGOUT_WARNING_SECONDS = 30;
+
+async function extractPdfTextWithPdfjs(pdfBuffer: Buffer): Promise<{ text: string; pageCount: number; pageCharCounts: number[] }> {
+  const uint8Array = new Uint8Array(pdfBuffer);
+  const loadingTask = pdfjsLib.getDocument({ data: uint8Array, disableWorker: true } as any);
+  const pdf = await loadingTask.promise;
+
+  const pageCharCounts: number[] = [];
+  const pageTexts: string[] = [];
+
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
+
+    const strings: string[] = [];
+    for (const item of textContent.items as any[]) {
+      const str = typeof item?.str === "string" ? item.str : "";
+      if (!str.trim()) continue;
+      strings.push(str);
+    }
+
+    const pageText = strings.join(" ").replace(/\s+/g, " ").trim();
+    pageCharCounts.push(pageText.length);
+    pageTexts.push(pageText);
+  }
+
+  const combined = pageTexts.join("\n\n--- PAGE BREAK ---\n\n");
+  return { text: combined, pageCount: pdf.numPages, pageCharCounts };
+}
 
 // Virus scanning helper - scans file, logs result, creates admin alert if threat detected
 async function scanAndLogFile(
@@ -1630,10 +1658,8 @@ export async function registerRoutes(
         const result = await mammoth.extractRawText({ buffer: req.file.buffer });
         content = result.value;
       } else {
-        const parser = new PDFParse({ data: req.file.buffer });
-        const result = await parser.getText();
-        content = result.pages.map((p: any) => p.text).join("\n");
-        await parser.destroy();
+        const extracted = await extractPdfTextWithPdfjs(req.file.buffer);
+        content = extracted.text;
       }
 
       if (!content || content.trim().length === 0) {
@@ -1679,10 +1705,8 @@ export async function registerRoutes(
         const result = await mammoth.extractRawText({ buffer: req.file.buffer });
         text = result.value;
       } else {
-        const parser = new PDFParse({ data: req.file.buffer });
-        const result = await parser.getText();
-        text = result.pages.map((p: any) => p.text).join("\n");
-        await parser.destroy();
+        const extracted = await extractPdfTextWithPdfjs(req.file.buffer);
+        text = extracted.text;
       }
 
       res.json({ text });
@@ -1801,28 +1825,15 @@ export async function registerRoutes(
       // STEP 1: Extract text from PDF (primary method while Vision API unavailable)
       let documentText = "";
       try {
-        const parser = new PDFParse({ data: req.file.buffer });
-        const result = await parser.getText();
-        
-        // Debug: Log page-level extraction details
-        console.log(`DEBUG: PDF has ${result.pages?.length || 0} pages`);
-        if (result.pages && result.pages.length > 0) {
-          result.pages.forEach((p: any, idx: number) => {
-            console.log(`DEBUG: Page ${idx + 1} has ${p.text?.length || 0} chars`);
-          });
-        }
-        
-        // Prefer per-page join. In some PDFs, result.text can be incomplete.
-        if (result.pages && result.pages.length > 0) {
-          documentText = result.pages.map((p: any) => p.text || '').join("\n\n--- PAGE BREAK ---\n\n");
-          console.log(`DEBUG: Using result.pages (joined): ${documentText.length} chars`);
-        } else if (result.text && result.text.length > 0) {
-          documentText = result.text;
-          console.log(`DEBUG: Using result.text (combined fallback): ${documentText.length} chars`);
-        }
-        
-        await parser.destroy();
-        console.log(`DEBUG: Final extracted text: ${documentText.length} chars from PDF`);
+        const extracted = await extractPdfTextWithPdfjs(req.file.buffer);
+
+        console.log(`DEBUG: PDF has ${extracted.pageCount} pages`);
+        extracted.pageCharCounts.forEach((len, idx) => {
+          console.log(`DEBUG: Page ${idx + 1} has ${len} chars`);
+        });
+
+        documentText = extracted.text;
+        console.log(`DEBUG: Final extracted text: ${documentText.length} chars from PDF (pdfjs-dist)`);
       } catch (textError: any) {
         console.error("PDF text extraction failed:", textError);
         sendEvent('error', { message: "Failed to extract text from PDF: " + textError.message });

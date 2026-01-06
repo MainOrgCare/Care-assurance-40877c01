@@ -24,7 +24,8 @@ async function main() {
 	const buffer = fs.readFileSync(absolutePath);
 	const uint8Array = new Uint8Array(buffer);
 
-	const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+	// Node script: disable worker to avoid PDF.js API/worker version mismatches.
+	const loadingTask = pdfjsLib.getDocument({ data: uint8Array, disableWorker: true } as any);
 	const pdf = await loadingTask.promise;
 
 	const dateHits: Hit[] = [];
