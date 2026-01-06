@@ -1812,13 +1812,13 @@ export async function registerRoutes(
           });
         }
         
-        // Also try result.text as fallback (combined text from all pages)
-        if (result.text && result.text.length > 0) {
-          documentText = result.text;
-          console.log(`DEBUG: Using result.text (combined): ${documentText.length} chars`);
-        } else if (result.pages && result.pages.length > 0) {
+        // Prefer per-page join. In some PDFs, result.text can be incomplete.
+        if (result.pages && result.pages.length > 0) {
           documentText = result.pages.map((p: any) => p.text || '').join("\n\n--- PAGE BREAK ---\n\n");
           console.log(`DEBUG: Using result.pages (joined): ${documentText.length} chars`);
+        } else if (result.text && result.text.length > 0) {
+          documentText = result.text;
+          console.log(`DEBUG: Using result.text (combined fallback): ${documentText.length} chars`);
         }
         
         await parser.destroy();
@@ -1844,18 +1844,50 @@ export async function registerRoutes(
         }
       }
       
-      // Maximum text length to send to AI (200K chars ~ 50K tokens, well within GPT-5.1's 1M context)
-      // This handles documents up to ~100 pages - typical EMAR is 2-10 pages per week
+      // Maximum text length to send to AI. Keep conservative to remain compatible with smaller-context models
+      // used in validation steps.
       const MAX_DOC_TEXT_LENGTH = 200000;
       const isDocumentTruncated = documentText.length > MAX_DOC_TEXT_LENGTH;
+
+      const buildSampledText = (text: string, maxLen: number): string => {
+        if (text.length <= maxLen) return text;
+        const headLen = Math.floor(maxLen * 0.45);
+        const tailLen = Math.floor(maxLen * 0.45);
+        const midLen = Math.max(0, maxLen - headLen - tailLen);
+
+        const head = text.slice(0, headLen);
+        const midStart = Math.max(0, Math.floor(text.length / 2) - Math.floor(midLen / 2));
+        const mid = midLen > 0 ? text.slice(midStart, midStart + midLen) : "";
+        const tail = text.slice(Math.max(0, text.length - tailLen));
+
+        return [
+          head,
+          "\n\n--- [TRUNCATED: MIDDLE SAMPLE] ---\n\n",
+          mid,
+          "\n\n--- [TRUNCATED: END SAMPLE] ---\n\n",
+          tail,
+        ].join("");
+      };
+
       if (isDocumentTruncated) {
-        console.warn(`WARNING: Document text truncated from ${documentText.length} to ${MAX_DOC_TEXT_LENGTH} chars. Some medications may be missed.`);
-        // Send warning to client so they know document was partially analyzed
-        sendEvent('warning', { 
-          message: `Document is very large (${Math.round(documentText.length / 1000)}K chars). Analyzing first ~200K characters. If medications are missing, try splitting the document.`
-        });
+        if (emarMode === "legacy") {
+          console.warn(
+            `WARNING: Document text sampled for legacy mode from ${documentText.length} to ${MAX_DOC_TEXT_LENGTH} chars (start/middle/end).`
+          );
+          sendEvent('warning', {
+            message: `Document is very large (${Math.round(documentText.length / 1000)}K chars). Legacy mode will sample start/middle/end (~200K chars) to cover the whole file.`
+          });
+        } else {
+          console.warn(`WARNING: Document text truncated from ${documentText.length} to ${MAX_DOC_TEXT_LENGTH} chars. Some medications may be missed.`);
+          sendEvent('warning', {
+            message: `Document is very large (${Math.round(documentText.length / 1000)}K chars). Analyzing first ~200K characters. If medications are missing, try splitting the document.`
+          });
+        }
       }
-      const analysisText = isDocumentTruncated ? documentText.substring(0, MAX_DOC_TEXT_LENGTH) : documentText;
+
+      const analysisText = isDocumentTruncated
+        ? (emarMode === "legacy" ? buildSampledText(documentText, MAX_DOC_TEXT_LENGTH) : documentText.substring(0, MAX_DOC_TEXT_LENGTH))
+        : documentText;
       
       // Note: Vision API image conversion disabled (pdf-poppler not available on this platform)
       const imageContent: any[] = [];
