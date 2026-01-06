@@ -47,7 +47,9 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      // Keep data reasonably fresh without forcing a visible loading state on navigation.
+      // When cached data exists, React Query will show it immediately and refetch in the background.
+      staleTime: 30_000,
       retry: false,
     },
     mutations: {

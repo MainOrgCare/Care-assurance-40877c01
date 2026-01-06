@@ -30,7 +30,7 @@ export function computeFileHash(buffer: Buffer): string {
 
 function cleanCache(): void {
   const now = Date.now();
-  for (const [hash, entry] of scanCache.entries()) {
+  for (const [hash, entry] of Array.from(scanCache.entries())) {
     if (now - entry.timestamp > CACHE_TTL_MS) {
       scanCache.delete(hash);
     }
