@@ -16,6 +16,7 @@ import mammoth from "mammoth";
 import { scanFile, computeFileHash, getCachedScan } from "./services/fileScan";
 import * as XLSX from "xlsx";
 import { convertPdfToImages } from "./services/pdfToImages";
+import { parseEMARGrid } from "./emarGridParser";
 // Vision-based extraction for improved EMAR accuracy
 
 const upload = multer({ 
@@ -219,8 +220,6 @@ interface DrugInteraction {
   description: string;
 }
 
-
-
 function getDrugInteractionCacheKey(medications: Array<{ name: string; genericName?: string }>): string {
   // Create deterministic key from sorted medication names
   const medNames = medications
@@ -239,11 +238,78 @@ async function checkDrugInteractions(
     return [];
   }
 
+  // Normalize and de-duplicate medication list
+  const normalizedMeds = (medications || [])
+    .map((m) => ({
+      name: typeof m?.name === "string" ? m.name.trim() : "",
+      genericName: typeof m?.genericName === "string" ? m.genericName.trim() : undefined,
+    }))
+    .filter((m) => m.name.length > 0);
 
+  // Avoid spending tokens on duplicate meds
+  const uniqueKeyed = new Map<string, { name: string; genericName?: string }>();
+  for (const med of normalizedMeds) {
+    const key = `${med.name.toLowerCase()}|${(med.genericName || "").toLowerCase()}`;
+    if (!uniqueKeyed.has(key)) uniqueKeyed.set(key, med);
+  }
+  const uniqueMeds = Array.from(uniqueKeyed.values()).sort((a, b) => {
+    const aKey = `${a.name.toLowerCase()}|${(a.genericName || "").toLowerCase()}`;
+    const bKey = `${b.name.toLowerCase()}|${(b.genericName || "").toLowerCase()}`;
+    return aKey.localeCompare(bKey);
+  });
 
-  const medList = medications.map(m => 
-    m.genericName ? `${m.name} (${m.genericName})` : m.name
-  ).join(', ');
+  if (uniqueMeds.length < 2) {
+    return [];
+  }
+
+  const medList = uniqueMeds
+    .map((m) => (m.genericName ? `${m.name} (generic: ${m.genericName})` : m.name))
+    .join(", ");
+
+  const parseInteractions = (raw: string): DrugInteraction[] => {
+    const tryParse = (text: string): any | null => {
+      try {
+        return JSON.parse(text);
+      } catch {
+        return null;
+      }
+    };
+
+    const direct = tryParse(raw);
+    const parsed =
+      direct ??
+      (() => {
+        const match = raw.match(/\{[\s\S]*\}/);
+        return match ? tryParse(match[0]) : null;
+      })();
+
+    const interactions = parsed?.interactions;
+    if (!Array.isArray(interactions)) return [];
+
+    // Sanitize + dedupe
+    const cleaned: DrugInteraction[] = [];
+    const seen = new Set<string>();
+    for (const i of interactions) {
+      const drug1 = typeof i?.drug1 === "string" ? i.drug1.trim() : "";
+      const drug2 = typeof i?.drug2 === "string" ? i.drug2.trim() : "";
+      if (!drug1 || !drug2) continue;
+      if (drug1.toLowerCase() === drug2.toLowerCase()) continue;
+
+      const severityRaw = typeof i?.severity === "string" ? i.severity.trim().toLowerCase() : "moderate";
+      const severity: DrugInteraction["severity"] =
+        severityRaw === "high" || severityRaw === "low" || severityRaw === "moderate"
+          ? (severityRaw as any)
+          : "moderate";
+
+      const description = typeof i?.description === "string" ? i.description.trim() : "";
+      const key = [drug1.toLowerCase(), drug2.toLowerCase()].sort().join("|");
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      cleaned.push({ drug1, drug2, severity, description });
+    }
+    return cleaned;
+  };
 
   try {
     // Use GPT-4.1-mini for drug interactions - cost-efficient with temperature support
@@ -273,21 +339,17 @@ If none found: {"interactions": []}`
       response_format: { type: "json_object" }
     }, "drug_interactions", userContext);
 
-    const content = response.choices[0]?.message?.content || "{}";
-    const parsed = JSON.parse(content);
-    
-    if (parsed.interactions && Array.isArray(parsed.interactions)) {
-      const result = parsed.interactions.map((i: any) => ({
-        drug1: i.drug1 || "",
-        drug2: i.drug2 || "",
-        severity: ["high", "moderate", "low"].includes(i.severity) ? i.severity : "moderate",
-        description: i.description || ""
-      }));
-      
-      return result;
-    }
-    
-    return [];
+    const content = response.choices[0]?.message?.content || "";
+    const result = parseInteractions(content)
+      .sort((a, b) => {
+        const severityRank = (s: DrugInteraction["severity"]) => (s === "high" ? 0 : s === "moderate" ? 1 : 2);
+        const rank = severityRank(a.severity) - severityRank(b.severity);
+        if (rank !== 0) return rank;
+        const aKey = [a.drug1.toLowerCase(), a.drug2.toLowerCase()].sort().join("|");
+        const bKey = [b.drug1.toLowerCase(), b.drug2.toLowerCase()].sort().join("|");
+        return aKey.localeCompare(bKey);
+      });
+    return result;
   } catch (error: any) {
     console.error("[Drug Interactions] Check failed:", error.message);
     return [];
@@ -427,6 +489,8 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
   
   // WebSocket server for real-time notifications (logout warnings)
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
@@ -481,10 +545,17 @@ export async function registerRoutes(
     }, FORCE_LOGOUT_WARNING_SECONDS * 1000);
   };
 
-  // PostgreSQL session store
-  const PgSession = connectPgSimple(session);
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  sessionStore = new PgSession({ pool, createTableIfMissing: true });
+  // Session store: use Postgres when configured; fall back to MemoryStore in dev when DATABASE_URL is missing.
+  if (hasDatabaseUrl) {
+    const PgSession = connectPgSimple(session);
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    sessionStore = new PgSession({ pool, createTableIfMissing: true });
+  } else {
+    sessionStore = null;
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[Auth] DATABASE_URL not set. Using in-memory sessions and enabling demo login for development.");
+    }
+  }
   
   // Trust proxy for production (Replit uses reverse proxies)
   app.set("trust proxy", 1);
@@ -492,7 +563,7 @@ export async function registerRoutes(
   // Session middleware (skip for Vite HMR WebSocket)
   const isReplit = !!process.env.REPL_ID;
   const sessionMiddleware = session({
-    store: sessionStore,
+    ...(sessionStore ? { store: sessionStore } : {}),
     secret: process.env.SESSION_SECRET || "carecompli-secret-key-change-in-prod",
     resave: false,
     saveUninitialized: false,
@@ -589,6 +660,12 @@ export async function registerRoutes(
   // Login
   app.post("/api/auth/login", async (req, res) => {
     try {
+      if (!hasDatabaseUrl) {
+        return res.status(503).json({
+          message: "Development database is not configured (DATABASE_URL missing). Use demo login in development.",
+        });
+      }
+
       const { username, password } = req.body;
       const clientIp = getClientIp(req);
       
@@ -696,59 +773,64 @@ export async function registerRoutes(
     }
   });
 
-  // Demo Login - TEMPORARILY DISABLED
-  // To re-enable, uncomment this endpoint
-  /*
-  app.post("/api/auth/demo", async (req, res) => {
-    try {
-      const clientIp = getClientIp(req);
-      
-      // Check if IP is blocked
-      if (clientIp && clientIp !== 'unknown') {
-        const isBlocked = await storage.isIpBlocked(clientIp);
-        if (isBlocked) {
-          return res.status(403).json({ message: "Access denied. Your IP address has been blocked." });
+  // Demo Login (development only): lets you log in without a database.
+  if (process.env.NODE_ENV !== "production") {
+    app.post("/api/auth/demo", async (req, res) => {
+      try {
+        const clientIp = getClientIp(req);
+
+        // Check if IP is blocked
+        if (hasDatabaseUrl && clientIp && clientIp !== 'unknown') {
+          const isBlocked = await storage.isIpBlocked(clientIp);
+          if (isBlocked) {
+            return res.status(403).json({ message: "Access denied. Your IP address has been blocked." });
+          }
         }
-      }
 
-      // Create a virtual demo user (not stored in database)
-      const demoUser = {
-        id: 'demo-user-' + Date.now(),
-        username: 'demo',
-        firstName: 'Demo',
-        lastName: 'User',
-        role: 'staff' as const,
-        status: 'active' as const,
-        jobTitle: 'Demo Account',
-        isDemo: true,
-        termsVersion: '1.0',
-        termsAcceptedAt: new Date().toISOString(),
-        termsSignatureName: 'Demo User',
-        termsSignatureDate: new Date().toLocaleDateString('en-GB'),
-      };
+        // Create a virtual demo user (not stored in database)
+        const demoUser = {
+          id: 'demo-user-' + Date.now(),
+          username: 'demo',
+          firstName: 'Demo',
+          lastName: 'User',
+          role: 'staff' as const,
+          status: 'active' as const,
+          jobTitle: 'Demo Account',
+          isDemo: true,
+          termsVersion: '1.0',
+          termsAcceptedAt: new Date().toISOString(),
+          termsSignatureName: 'Demo User',
+          termsSignatureDate: new Date().toLocaleDateString('en-GB'),
+        };
 
-      // Store demo session info
-      req.session.userId = demoUser.id;
-      req.session.isDemo = true;
-      
-      // Explicitly save session
-      await new Promise<void>((resolve, reject) => {
-        req.session.save((err: any) => {
-          if (err) reject(err);
-          else resolve();
+        // Store demo session info
+        req.session.userId = demoUser.id;
+        req.session.isDemo = true;
+
+        // Explicitly save session
+        await new Promise<void>((resolve, reject) => {
+          req.session.save((err: any) => {
+            if (err) reject(err);
+            else resolve();
+          });
         });
-      });
-      
-      return res.json(demoUser);
-    } catch (error: any) {
-      return res.status(500).json({ message: error.message });
-    }
-  });
-  */
+
+        return res.json(demoUser);
+      } catch (error: any) {
+        return res.status(500).json({ message: error.message });
+      }
+    });
+  }
 
   // Register (creates pending user)
   app.post("/api/auth/register", async (req, res) => {
     try {
+      if (!hasDatabaseUrl) {
+        return res.status(503).json({
+          message: "Development database is not configured (DATABASE_URL missing). Registration is disabled in this environment.",
+        });
+      }
+
       const validatedData = insertUserSchema.parse(req.body);
       
       // Check if user already exists
@@ -1612,6 +1694,9 @@ export async function registerRoutes(
 
   // Analyze EMAR document using AI-based extraction with streaming progress
   app.post("/api/ai/analyze-emar", requireAuth, upload.single("file"), async (req, res) => {
+    const requestedModeRaw = String(req.query?.mode || req.header("x-emar-mode") || "").toLowerCase();
+    const emarMode: "enhanced" | "legacy" = requestedModeRaw === "legacy" || requestedModeRaw === "old" ? "legacy" : "enhanced";
+
     // Validate file BEFORE setting up streaming (must happen before flushHeaders)
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
@@ -1679,7 +1764,39 @@ export async function registerRoutes(
     
     try {
 
-      sendProgress(5, "Processing PDF...", "pdf_processing");
+      sendProgress(5, emarMode === "legacy" ? "Processing PDF (legacy mode)..." : "Processing PDF...", "pdf_processing");
+
+      // Attempt coordinate-based grid parsing (improves date-column accuracy for grid EMARs)
+      // This is best-effort and will fall back to text-based extraction when not usable.
+      let gridParse: Awaited<ReturnType<typeof parseEMARGrid>> | null = null;
+      let gridParseUsable = false;
+
+      if (emarMode === "enhanced") {
+        try {
+          gridParse = await parseEMARGrid(req.file.buffer);
+          gridParseUsable =
+            (gridParse?.debugInfo?.dateColumnsFound || 0) >= 2 &&
+            (gridParse?.debugInfo?.medicationsFound || 0) >= 1 &&
+            (gridParse?.debugInfo?.cellsGenerated || 0) > 0;
+          if (gridParseUsable) {
+            console.log(
+              `DEBUG: Grid parser usable - ${gridParse.debugInfo.dateColumnsFound} dates, ${gridParse.debugInfo.timeSlotsFound} timeSlots, ${gridParse.debugInfo.medicationsFound} meds, ${gridParse.debugInfo.cellsGenerated} cells`
+            );
+          } else if (gridParse) {
+            console.log(
+              `DEBUG: Grid parser not usable - ${gridParse.debugInfo.dateColumnsFound} dates, ${gridParse.debugInfo.timeSlotsFound} timeSlots, ${gridParse.debugInfo.medicationsFound} meds, ${gridParse.debugInfo.cellsGenerated} cells`
+            );
+          }
+        } catch (e: any) {
+          console.warn("DEBUG: Grid parser failed (continuing with text extraction):", e?.message || e);
+          gridParse = null;
+          gridParseUsable = false;
+        }
+      } else {
+        // Legacy mode: behave like the pre-grid-parser pipeline.
+        gridParse = null;
+        gridParseUsable = false;
+      }
 
       // STEP 1: Extract text from PDF (primary method while Vision API unavailable)
       let documentText = "";
@@ -1712,11 +1829,19 @@ export async function registerRoutes(
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       }
-      
+
       if (documentText.length < 100) {
-        sendEvent('error', { message: "PDF appears to be empty or a scanned image. Please upload a text-based PDF document." });
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        return res.end();
+        // Fallback: use grid parser extracted text if it was able to pull text items.
+        if (emarMode === "enhanced" && gridParse?.rawText && gridParse.rawText.length >= 100) {
+          console.warn(
+            `WARNING: pdf-parse extracted only ${documentText.length} chars, using grid parser rawText (${gridParse.rawText.length} chars)`
+          );
+          documentText = gridParse.rawText;
+        } else {
+          sendEvent('error', { message: "PDF appears to be empty or a scanned image. Please upload a text-based PDF document." });
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+          return res.end();
+        }
       }
       
       // Maximum text length to send to AI (200K chars ~ 50K tokens, well within GPT-5.1's 1M context)
@@ -2404,9 +2529,13 @@ Use this layout information to correctly parse the grid structure.
 `
         : '';
       
+      const gridParserContext = gridParseUsable && gridParse
+        ? `\nGRID PARSER (COORDINATE-BASED) OUTPUT:\n- Detected dates: ${gridParse.dates.slice(0, 14).join(", ")}${gridParse.dates.length > 14 ? "..." : ""}\n- Detected time slots: ${gridParse.timeSlots.slice(0, 12).join(", ")}${gridParse.timeSlots.length > 12 ? "..." : ""}\n- Detected medications (samples): ${gridParse.medications.slice(0, 12).map(m => m.name).join(" | ")}${gridParse.medications.length > 12 ? "..." : ""}\nUse these as strong hints for the grid layout. Do NOT invent extra dates/time slots.\n`
+        : '';
+
       const metadataPrompt = `You are an EMAR (Electronic Medication Administration Record) data extractor analyzing EMAR document text.
 This tool works with ANY EMAR system from ANY provider (e.g., CMM, CarePlanner, MedPass, PCS, etc.).
-${tableStructureContext}${correctionsContext}
+    ${tableStructureContext}${gridParserContext}${correctionsContext}
 Analyze the document text and extract ONLY the metadata (do NOT extract individual administration entries yet).
 
 Return a JSON object with this EXACT structure:
@@ -2484,6 +2613,16 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         sendEvent('error', { message: "No medications found in the document. Please check the PDF contains medication records." });
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
+      }
+
+      // If the grid parser confidently detected dates/time slots, prefer them for alignment with coordinate-based extraction.
+      if (gridParseUsable && gridParse) {
+        if (Array.isArray(gridParse.dates) && gridParse.dates.length >= 2) {
+          metadata.dates = gridParse.dates;
+        }
+        if (Array.isArray(gridParse.timeSlots) && gridParse.timeSlots.length >= 1) {
+          metadata.timeSlots = gridParse.timeSlots;
+        }
       }
       
       // =====================================================================
@@ -2746,6 +2885,106 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
           return true;
         });
       };
+
+      // =====================================================================
+      // GRID-PARSER EXTRACTION (DETERMINISTIC) - preferred when usable
+      // This avoids the most common failure mode: assigning an entry to the wrong date column.
+      // =====================================================================
+      const normalizeMedKey = (value: string): string =>
+        (value || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim()
+          .replace(/\s+/g, " ");
+
+      const tokenSet = (value: string): Set<string> => {
+        const tokens = normalizeMedKey(value).split(" ").filter(Boolean);
+        return new Set(tokens);
+      };
+
+      const jaccard = (a: Set<string>, b: Set<string>): number => {
+        if (a.size === 0 || b.size === 0) return 0;
+        let intersection = 0;
+        for (const t of a) if (b.has(t)) intersection++;
+        const union = a.size + b.size - intersection;
+        return union === 0 ? 0 : intersection / union;
+      };
+
+      const normalizeTimeSlot = (slot: string): string =>
+        (slot || "")
+          .trim()
+          .replace(/[–—]/g, "-")
+          .replace(/\s*-\s*/g, "-")
+          .replace(/\s+/g, " ");
+
+      const normalizeCellCode = (code: string): string => {
+        const upper = (code || "").toUpperCase().trim();
+        if (upper === "N/A" || upper === "NA") return "BLANK";
+        return upper;
+      };
+
+      const buildEntriesFromGrid = (): any[] => {
+        if (!gridParseUsable || !gridParse) return [];
+
+        const metaMeds = medicationsWithIds.map((m: any) => ({
+          medicationId: m.medicationId,
+          name: m.name,
+          tokens: tokenSet(m.name)
+        }));
+
+        const mapMedicationId = (gridMedName: string): number | null => {
+          const gTokens = tokenSet(gridMedName);
+          let bestId: number | null = null;
+          let bestScore = 0;
+          for (const m of metaMeds) {
+            const score = jaccard(gTokens, m.tokens);
+            if (score > bestScore) {
+              bestScore = score;
+              bestId = m.medicationId;
+            }
+          }
+          // Conservative threshold to avoid mis-mapping
+          return bestScore >= 0.35 ? bestId : null;
+        };
+
+        const entries: any[] = [];
+        for (const cell of gridParse.cells || []) {
+          const code = normalizeCellCode(cell.code);
+          if (!code || code === "BLANK") continue;
+
+          const medicationId = mapMedicationId(cell.medication);
+          if (!medicationId) continue;
+
+          const timeSlot = normalizeTimeSlot(cell.timeSlot);
+          const date = String(cell.date || "").trim();
+          if (!date || !timeSlot) continue;
+
+          const careWorkerInitials = String(cell.careWorker || "").trim().toUpperCase();
+          const time = String(cell.time || "").trim();
+
+          let resolvedCareWorker = careWorkerInitials;
+          let isOfficeClosed = false;
+
+          // Manual code entry: code present, but no initials/time.
+          if (!resolvedCareWorker && !time) {
+            resolvedCareWorker = "MANUAL";
+            isOfficeClosed = true;
+          }
+
+          entries.push({
+            medicationId,
+            date,
+            timeSlot,
+            code,
+            careWorkerInitials: resolvedCareWorker,
+            time,
+            hasTime: Boolean(time),
+            isOfficeClosed
+          });
+        }
+
+        return deduplicateEntries(entries);
+      };
       
       // Function to run one complete extraction pass using text extraction
       const runExtractionPass = async (passNumber: number): Promise<any[]> => {
@@ -2855,33 +3094,60 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       // 3-PASS PARALLEL EXTRACTION with per-entry consensus
       // All passes run in parallel - highest entry count wins if no agreement
       // =====================================================================
-      console.log("DEBUG: Running 3-pass parallel text extraction");
-      sendProgress(35, "Extracting medication records...", "extraction_running");
-      
-      // Run 3 extraction passes in parallel
-      const [pass1Entries, pass2Entries, pass3Entries] = await Promise.all([
-        runExtractionPass(1),
-        runExtractionPass(2),
-        runExtractionPass(3)
-      ]);
-      
-      let extractedEntries: any[] = pass1Entries;
+      // Prefer deterministic extraction from grid parser when possible
+      const gridEntries = buildEntriesFromGrid();
+
+      let extractedEntries: any[] = [];
       let consensusStatus: "single_pass" | "verified" | "no_consensus" = "single_pass";
-      let consensusDetails: { 
-        pass1Count: number; 
-        pass2Count?: number; 
-        pass3Count?: number; 
+      let consensusDetails: {
+        pass1Count: number;
+        pass2Count?: number;
+        pass3Count?: number;
         matchingPasses: number[];
         fallbackPassUsed?: number;
         escalationReason?: string;
-      } = { 
-        pass1Count: pass1Entries.length,
-        pass2Count: pass2Entries.length,
-        pass3Count: pass3Entries.length,
-        matchingPasses: [] // Will be populated based on actual consensus
+      } = {
+        pass1Count: 0,
+        pass2Count: 0,
+        pass3Count: 0,
+        matchingPasses: []
       };
-      
-      console.log(`DEBUG: Pass counts - P1: ${pass1Entries.length}, P2: ${pass2Entries.length}, P3: ${pass3Entries.length}`);
+
+      let pass1Entries: any[] = [];
+      let pass2Entries: any[] = [];
+      let pass3Entries: any[] = [];
+
+      if (gridEntries.length > 0) {
+        console.log(`DEBUG: Using grid parser extraction: ${gridEntries.length} entries`);
+        sendProgress(35, "Extracting medication records (grid parser)...", "grid_extraction");
+        extractedEntries = gridEntries;
+        consensusStatus = "verified";
+        consensusDetails.pass1Count = gridEntries.length;
+        consensusDetails.matchingPasses = [0];
+        consensusDetails.fallbackPassUsed = 0;
+        consensusDetails.escalationReason = "Coordinate-based grid extraction";
+      } else {
+        console.log("DEBUG: Running 3-pass parallel text extraction");
+        sendProgress(35, "Extracting medication records...", "extraction_running");
+
+        // Run 3 extraction passes in parallel
+        [pass1Entries, pass2Entries, pass3Entries] = await Promise.all([
+          runExtractionPass(1),
+          runExtractionPass(2),
+          runExtractionPass(3)
+        ]);
+
+        extractedEntries = pass1Entries;
+        consensusStatus = "single_pass";
+        consensusDetails = {
+          pass1Count: pass1Entries.length,
+          pass2Count: pass2Entries.length,
+          pass3Count: pass3Entries.length,
+          matchingPasses: []
+        };
+
+        console.log(`DEBUG: Pass counts - P1: ${pass1Entries.length}, P2: ${pass2Entries.length}, P3: ${pass3Entries.length}`);
+      }
       
       // =====================================================================
       // VALIDATED 3-PASS APPROACH: Use per-entry consensus
@@ -2936,7 +3202,8 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
         return hasEntries && countOK;
       };
       
-      // Validate all 3 passes
+      // If we used grid-parser extraction, skip AI-pass consensus logic.
+      // Otherwise, validate all 3 passes and perform per-entry consensus.
       const p1Validation = validatePassEntries(pass1Entries);
       const p2Validation = validatePassEntries(pass2Entries);
       const p3Validation = validatePassEntries(pass3Entries);
@@ -2956,27 +3223,30 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
         { passNum: 3, entries: p3Validation.validEntries }
       ];
       
-      for (const passData of allPassValidations) {
-        for (const entry of passData.entries) {
-          const hash = hashSingleEntry(entry);
-          if (!entryPassVotes.has(hash)) {
-            entryPassVotes.set(hash, { passIds: new Set(), entry: entry });
+      if (gridEntries.length === 0) {
+        for (const passData of allPassValidations) {
+          for (const entry of passData.entries) {
+            const hash = hashSingleEntry(entry);
+            if (!entryPassVotes.has(hash)) {
+              entryPassVotes.set(hash, { passIds: new Set(), entry: entry });
+            }
+            entryPassVotes.get(hash)!.passIds.add(passData.passNum);
           }
-          entryPassVotes.get(hash)!.passIds.add(passData.passNum);
         }
       }
       
       const consensusEntries: any[] = [];
       const singlePassEntries: any[] = [];
       
-      entryPassVotes.forEach(({ passIds, entry }, hash) => {
-        if (passIds.size >= 2) {
-          // Entry found in 2+ passes = consensus
-          consensusEntries.push(entry);
-        } else {
-          singlePassEntries.push(entry);
-        }
-      });
+      if (gridEntries.length === 0) {
+        entryPassVotes.forEach(({ passIds, entry }) => {
+          if (passIds.size >= 2) {
+            consensusEntries.push(entry);
+          } else {
+            singlePassEntries.push(entry);
+          }
+        });
+      }
       
       console.log(`DEBUG: Per-entry consensus - 2+ passes: ${consensusEntries.length}, Single pass: ${singlePassEntries.length}`);
       
@@ -3008,7 +3278,7 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       
       console.log(`DEBUG: Quality gates - P1: ${passResults[0].meetsGates}, P2: ${passResults[1].meetsGates}, P3: ${passResults[2].meetsGates}`);
       
-      if (p1Validation.validEntries.length > 0 || p2Validation.validEntries.length > 0 || p3Validation.validEntries.length > 0) {
+      if (gridEntries.length === 0 && (p1Validation.validEntries.length > 0 || p2Validation.validEntries.length > 0 || p3Validation.validEntries.length > 0)) {
         // Prefer passes that meet quality gates, then sort by count
         const gatedPasses = passResults.filter(p => p.meetsGates).sort((a, b) => b.entries.length - a.entries.length);
         const sortedByCount = [...passResults].sort((a, b) => b.entries.length - a.entries.length);
@@ -3099,7 +3369,7 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
           consensusDetails.fallbackPassUsed = championPass.pass;
           consensusDetails.escalationReason = `Merged pass ${championPass.pass} (${championPass.entries.length}) + ${addedFromOthers} other + ${addedFromSinglePass} single + ${refusalOverrides} refusal overrides = ${extractedEntries.length} total (consensus: ${(consensusRatio * 100).toFixed(0)}%)`;
         }
-      } else {
+      } else if (gridEntries.length === 0) {
         // All passes returned 0 valid entries
         consensusStatus = "no_consensus";
         consensusDetails.matchingPasses = [];

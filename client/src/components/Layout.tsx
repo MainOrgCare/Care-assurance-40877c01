@@ -58,8 +58,8 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
             onClick={handleSecretClick}
             className="flex items-center gap-2 cursor-pointer"
           >
-            <div className="h-8 w-8 rounded-md bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center">
-              <ShieldCheck className="h-5 w-5 text-white" />
+            <div className="h-8 w-8 rounded-md bg-gradient-to-br from-primary to-secondary flex items-center justify-center ring-1 ring-border/50">
+              <ShieldCheck className="h-5 w-5 text-primary-foreground" />
             </div>
             <h1 className="font-heading text-xl text-sidebar-foreground leading-none">
               <span className="font-bold">Care</span><span className="font-normal">Assurance</span>
@@ -216,9 +216,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
-      {/* Background Overlay */}
-      <div className="fixed inset-0 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 z-0"></div>
-
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 flex-shrink-0 bg-sidebar/80 backdrop-blur-xl border-r border-sidebar-border flex-col z-10">
         <SidebarContent location={location} handleSecretClick={handleSecretClick} logout={logout} />
@@ -226,7 +223,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto flex flex-col w-full relative z-10">
-        <header className="h-16 border-b border-white/5 bg-card/40 backdrop-blur-md px-4 md:px-8 flex items-center justify-between sticky top-0 z-20">
+        <header className="h-16 border-b border-border/50 bg-card/40 backdrop-blur-md px-4 md:px-8 flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-2">
             {/* Mobile Menu Trigger */}
             <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>

@@ -10,7 +10,7 @@ import { ShieldCheck, Lock, Loader2, User, KeyRound } from "lucide-react";
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const { login } = useAuth();
+  const { login, loginDemo } = useAuth();
   const [, setLocation] = useLocation();
   const [loading, setLoading] = useState(false);
 
@@ -18,6 +18,17 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     const success = await login(username, password);
+    setLoading(false);
+    if (success) {
+      setLocation("/dashboard");
+    }
+  };
+
+  const handleDevDemoLogin = async () => {
+    if (!import.meta.env.DEV) return;
+    if (loading) return;
+    setLoading(true);
+    const success = await loginDemo();
     setLoading(false);
     if (success) {
       setLocation("/dashboard");
@@ -43,6 +54,16 @@ export default function Login() {
 
       {/* Glass Card */}
       <Card className="w-full max-w-md border border-white/10 bg-card backdrop-blur-xl shadow-2xl relative z-10 overflow-hidden">
+        {import.meta.env.DEV && (
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-hidden="true"
+            onClick={handleDevDemoLogin}
+            className="absolute top-2 left-2 h-3 w-3 opacity-0"
+            data-testid="button-dev-demo-login"
+          />
+        )}
         {/* Top accent line */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-400 via-indigo-400 to-purple-400" />
         
