@@ -4441,6 +4441,11 @@ If no equivalences found, return: {"equivalences": []}`
         
         // Only check non-PRN medications - PRN meds have their own valid codes
         if (!isPRN && code && !VALID_ADMIN_CODES.includes(code)) {
+          // If it's a PRN-style code on a non-PRN med, CHECK 5d already raised a more specific issue.
+          // Avoid double-reporting the same underlying problem.
+          if (PRN_CODES.includes(code)) {
+            return;
+          }
           // Skip blank/empty codes
           if (code !== '' && code !== 'BLANK' && code !== 'EMPTY') {
             discrepancies.push({
