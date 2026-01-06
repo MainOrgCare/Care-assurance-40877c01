@@ -550,9 +550,10 @@ export default function EMARAudit() {
       const emarMode = (() => {
         try {
           const stored = localStorage.getItem("admin.emarAnalysisMode");
-          return stored === "legacy" ? "legacy" : "enhanced";
+          if (stored === "enhanced" || stored === "legacy") return stored;
+          return "legacy";
         } catch {
-          return "enhanced";
+          return "legacy";
         }
       })();
       

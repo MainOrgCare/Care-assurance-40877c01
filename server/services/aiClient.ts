@@ -29,8 +29,9 @@ export interface AiUserContext {
 // Provider type for billing attribution
 export type AiProvider = "replit" | "openai";
 
-// Admin-configurable preferred AI provider (defaults to Replit)
-let preferredProvider: AiProvider = "replit";
+// Admin-configurable preferred AI provider.
+// Default to OpenAI when an OpenAI key is configured; otherwise fall back to Replit.
+let preferredProvider: AiProvider = process.env.OPENAI_FALLBACK_API_KEY ? "openai" : "replit";
 
 // Admin-configurable preferred AI model (defaults to gpt-5.1)
 let preferredModel: AvailableModel = "gpt-5.1";

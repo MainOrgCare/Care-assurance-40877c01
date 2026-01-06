@@ -55,7 +55,7 @@ const uploadExcel = multer({
 const MAX_NON_ADMIN_SESSIONS = 2;
 const FORCE_LOGOUT_WARNING_SECONDS = 30;
 
-async function extractPdfTextWithPdfjs(pdfBuffer: Buffer): Promise<{ text: string; pageCount: number; pageCharCounts: number[] }> {
+async function extractPdfTextWithPdfjs(pdfBuffer: Buffer): Promise<{ text: string; pageCount: number; pageCharCounts: number[]; pageTexts: string[] }> {
   const uint8Array = new Uint8Array(pdfBuffer);
   const loadingTask = pdfjsLib.getDocument({ data: uint8Array, disableWorker: true } as any);
   const pdf = await loadingTask.promise;
@@ -67,20 +67,51 @@ async function extractPdfTextWithPdfjs(pdfBuffer: Buffer): Promise<{ text: strin
     const page = await pdf.getPage(pageNum);
     const textContent = await page.getTextContent();
 
-    const strings: string[] = [];
+    // Preserve row-ish structure by grouping items with similar Y and sorting by X.
+    const viewport = page.getViewport({ scale: 1.0 });
+    type Positioned = { str: string; x: number; y: number };
+    const positioned: Positioned[] = [];
+
     for (const item of textContent.items as any[]) {
       const str = typeof item?.str === "string" ? item.str : "";
       if (!str.trim()) continue;
-      strings.push(str);
+      const tx = item?.transform;
+      if (!Array.isArray(tx) || tx.length < 6) {
+        positioned.push({ str, x: 0, y: 0 });
+        continue;
+      }
+      const x = tx[4];
+      const y = viewport.height - tx[5];
+      positioned.push({ str, x, y });
     }
 
-    const pageText = strings.join(" ").replace(/\s+/g, " ").trim();
+    positioned.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+
+    const yTolerance = 2.5;
+    const rows: Positioned[][] = [];
+    let currentRow: Positioned[] = [];
+    let currentY: number | null = null;
+
+    for (const p of positioned) {
+      if (currentY === null || Math.abs(p.y - currentY) <= yTolerance) {
+        currentRow.push(p);
+        if (currentY === null) currentY = p.y;
+      } else {
+        rows.push(currentRow);
+        currentRow = [p];
+        currentY = p.y;
+      }
+    }
+    if (currentRow.length > 0) rows.push(currentRow);
+
+    const lines = rows.map((row) => row.sort((a, b) => a.x - b.x).map((r) => r.str).join(" ").replace(/\s+/g, " ").trim());
+    const pageText = lines.filter(Boolean).join("\n");
     pageCharCounts.push(pageText.length);
     pageTexts.push(pageText);
   }
 
   const combined = pageTexts.join("\n\n--- PAGE BREAK ---\n\n");
-  return { text: combined, pageCount: pdf.numPages, pageCharCounts };
+  return { text: combined, pageCount: pdf.numPages, pageCharCounts, pageTexts };
 }
 
 // Virus scanning helper - scans file, logs result, creates admin alert if threat detected
@@ -1719,7 +1750,8 @@ export async function registerRoutes(
   // Analyze EMAR document using AI-based extraction with streaming progress
   app.post("/api/ai/analyze-emar", requireAuth, upload.single("file"), async (req, res) => {
     const requestedModeRaw = String(req.query?.mode || req.header("x-emar-mode") || "").toLowerCase();
-    const emarMode: "enhanced" | "legacy" = requestedModeRaw === "legacy" || requestedModeRaw === "old" ? "legacy" : "enhanced";
+    // Default to legacy unless explicitly requesting enhanced.
+    const emarMode: "enhanced" | "legacy" = requestedModeRaw === "enhanced" || requestedModeRaw === "new" ? "enhanced" : "legacy";
 
     // Validate file BEFORE setting up streaming (must happen before flushHeaders)
     if (!req.file) {
@@ -1823,9 +1855,10 @@ export async function registerRoutes(
       }
 
       // STEP 1: Extract text from PDF (primary method while Vision API unavailable)
+      let extracted: Awaited<ReturnType<typeof extractPdfTextWithPdfjs>> | null = null;
       let documentText = "";
       try {
-        const extracted = await extractPdfTextWithPdfjs(req.file.buffer);
+        extracted = await extractPdfTextWithPdfjs(req.file.buffer);
 
         console.log(`DEBUG: PDF has ${extracted.pageCount} pages`);
         extracted.pageCharCounts.forEach((len, idx) => {
@@ -1860,33 +1893,43 @@ export async function registerRoutes(
       const MAX_DOC_TEXT_LENGTH = 200000;
       const isDocumentTruncated = documentText.length > MAX_DOC_TEXT_LENGTH;
 
-      const buildSampledText = (text: string, maxLen: number): string => {
-        if (text.length <= maxLen) return text;
-        const headLen = Math.floor(maxLen * 0.45);
-        const tailLen = Math.floor(maxLen * 0.45);
-        const midLen = Math.max(0, maxLen - headLen - tailLen);
+      const buildLegacySampledTextAcrossPages = (pageTexts: string[], maxLen: number): string => {
+        const full = pageTexts.join("\n\n--- PAGE BREAK ---\n\n");
+        if (full.length <= maxLen) return full;
 
-        const head = text.slice(0, headLen);
-        const midStart = Math.max(0, Math.floor(text.length / 2) - Math.floor(midLen / 2));
-        const mid = midLen > 0 ? text.slice(midStart, midStart + midLen) : "";
-        const tail = text.slice(Math.max(0, text.length - tailLen));
+        const totalPages = pageTexts.length;
+        const sampleCount = Math.min(totalPages, 12);
+        const indices: number[] = [];
+        for (let i = 0; i < sampleCount; i++) {
+          const idx = sampleCount === 1 ? 0 : Math.round((i * (totalPages - 1)) / (sampleCount - 1));
+          if (!indices.includes(idx)) indices.push(idx);
+        }
 
-        return [
-          head,
-          "\n\n--- [TRUNCATED: MIDDLE SAMPLE] ---\n\n",
-          mid,
-          "\n\n--- [TRUNCATED: END SAMPLE] ---\n\n",
-          tail,
-        ].join("");
+        const perPageBudget = Math.max(500, Math.floor(maxLen / indices.length));
+        const headLen = Math.floor(perPageBudget * 0.5);
+        const tailLen = Math.max(0, perPageBudget - headLen);
+
+        const parts: string[] = [];
+        for (const idx of indices) {
+          const pageNumber = idx + 1;
+          const text = pageTexts[idx] || "";
+          const head = text.slice(0, headLen);
+          const tail = tailLen > 0 ? text.slice(Math.max(0, text.length - tailLen)) : "";
+          parts.push(
+            `--- [PAGE ${pageNumber}/${totalPages} SAMPLE: START] ---\n` + head +
+              `\n--- [PAGE ${pageNumber}/${totalPages} SAMPLE: END] ---\n` + tail
+          );
+        }
+        return parts.join("\n\n--- [TRUNCATED: DISTRIBUTED PAGE SAMPLES] ---\n\n");
       };
 
       if (isDocumentTruncated) {
         if (emarMode === "legacy") {
           console.warn(
-            `WARNING: Document text sampled for legacy mode from ${documentText.length} to ${MAX_DOC_TEXT_LENGTH} chars (start/middle/end).`
+            `WARNING: Document text sampled for legacy mode from ${documentText.length} to ${MAX_DOC_TEXT_LENGTH} chars (distributed page samples).`
           );
           sendEvent('warning', {
-            message: `Document is very large (${Math.round(documentText.length / 1000)}K chars). Legacy mode will sample start/middle/end (~200K chars) to cover the whole file.`
+            message: `Document is very large (${Math.round(documentText.length / 1000)}K chars). Legacy mode will sample across pages (~200K chars) to cover the whole file.`
           });
         } else {
           console.warn(`WARNING: Document text truncated from ${documentText.length} to ${MAX_DOC_TEXT_LENGTH} chars. Some medications may be missed.`);
@@ -1897,7 +1940,9 @@ export async function registerRoutes(
       }
 
       const analysisText = isDocumentTruncated
-        ? (emarMode === "legacy" ? buildSampledText(documentText, MAX_DOC_TEXT_LENGTH) : documentText.substring(0, MAX_DOC_TEXT_LENGTH))
+        ? (emarMode === "legacy"
+            ? buildLegacySampledTextAcrossPages(extracted?.pageTexts || [documentText], MAX_DOC_TEXT_LENGTH)
+            : documentText.substring(0, MAX_DOC_TEXT_LENGTH))
         : documentText;
       
       // Note: Vision API image conversion disabled (pdf-poppler not available on this platform)

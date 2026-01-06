@@ -289,9 +289,10 @@ function AIProviderSection() {
   const [emarMode, setEmarMode] = useState<"enhanced" | "legacy">(() => {
     try {
       const stored = window.localStorage.getItem(EMAR_MODE_STORAGE_KEY);
-      return stored === "legacy" ? "legacy" : "enhanced";
+      if (stored === "enhanced" || stored === "legacy") return stored;
+      return "legacy";
     } catch {
-      return "enhanced";
+      return "legacy";
     }
   });
   const { toast } = useToast();
