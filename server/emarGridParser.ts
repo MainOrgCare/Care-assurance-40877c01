@@ -53,7 +53,7 @@ const DATE_PATTERNS = [
   /\d{1,2}-\d{1,2}-\d{2,4}/g,
 ];
 const TIME_SLOT_PATTERN = /\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}/g;
-const CODE_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|PRN|MISSED|N\/A)\b/gi;
+const CODE_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|PRN\s*[-–]?\s*R|PRN|MISSED|N\/A)\b/gi;
 const TIME_PATTERN = /\d{1,2}:\d{2}/g;
 const INITIALS_PATTERN = /\b[A-Z]{2,3}\b/g;
 
@@ -839,7 +839,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
             const contentUpper = content.toUpperCase();
 
             let code = "BLANK";
-            const codeMatch = contentUpper.match(/\b(AD|AS|P|R|MU|NH|SA|FA|PRN|MISSED|N\/?A)\b/);
+            const codeMatch = contentUpper.match(/\b(AD|AS|P|R|MU|NH|SA|FA|PRN\s*[-–]?\s*R|PRN|MISSED|N\/?A)\b/);
             if (codeMatch) code = codeMatch[1];
 
             let careWorker = "";
@@ -898,7 +898,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
           let content = cellItems.map(i => i.str).join(" ");
         
           const contentUpper = content.toUpperCase();
-          const codeMatch = contentUpper.match(/\b(AD|AS|P|R|MU|NH|SA|FA|PRN|MISSED|N\/?A)\b/);
+          const codeMatch = contentUpper.match(/\b(AD|AS|P|R|MU|NH|SA|FA|PRN\s*[-–]?\s*R|PRN|MISSED|N\/?A)\b/);
           if (codeMatch) {
             code = codeMatch[1];
           }

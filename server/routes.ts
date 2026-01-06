@@ -1893,43 +1893,54 @@ export async function registerRoutes(
       const MAX_DOC_TEXT_LENGTH = 200000;
       const isDocumentTruncated = documentText.length > MAX_DOC_TEXT_LENGTH;
 
-      const buildLegacySampledTextAcrossPages = (pageTexts: string[], maxLen: number): string => {
-        const full = pageTexts.join("\n\n--- PAGE BREAK ---\n\n");
-        if (full.length <= maxLen) return full;
+      const buildTextChunksFromPages = (pageTexts: string[], maxLen: number): string[] => {
+        const chunks: string[] = [];
+        let current: string[] = [];
+        let currentLen = 0;
 
-        const totalPages = pageTexts.length;
-        const sampleCount = Math.min(totalPages, 12);
-        const indices: number[] = [];
-        for (let i = 0; i < sampleCount; i++) {
-          const idx = sampleCount === 1 ? 0 : Math.round((i * (totalPages - 1)) / (sampleCount - 1));
-          if (!indices.includes(idx)) indices.push(idx);
+        const pushCurrent = () => {
+          if (current.length === 0) return;
+          chunks.push(current.join("\n\n--- PAGE BREAK ---\n\n"));
+          current = [];
+          currentLen = 0;
+        };
+
+        for (let i = 0; i < pageTexts.length; i++) {
+          const pageNumber = i + 1;
+          const pageText = pageTexts[i] || "";
+          const pageBlock = `--- [PAGE ${pageNumber}/${pageTexts.length}] ---\n` + pageText;
+          const additionalLen = pageBlock.length + (current.length > 0 ? "\n\n--- PAGE BREAK ---\n\n".length : 0);
+
+          // If a single page is bigger than the max, split it.
+          if (pageBlock.length > maxLen) {
+            pushCurrent();
+            let offset = 0;
+            while (offset < pageBlock.length) {
+              chunks.push(pageBlock.slice(offset, offset + maxLen));
+              offset += maxLen;
+            }
+            continue;
+          }
+
+          if (currentLen + additionalLen > maxLen) {
+            pushCurrent();
+          }
+
+          current.push(pageBlock);
+          currentLen += additionalLen;
         }
 
-        const perPageBudget = Math.max(500, Math.floor(maxLen / indices.length));
-        const headLen = Math.floor(perPageBudget * 0.5);
-        const tailLen = Math.max(0, perPageBudget - headLen);
-
-        const parts: string[] = [];
-        for (const idx of indices) {
-          const pageNumber = idx + 1;
-          const text = pageTexts[idx] || "";
-          const head = text.slice(0, headLen);
-          const tail = tailLen > 0 ? text.slice(Math.max(0, text.length - tailLen)) : "";
-          parts.push(
-            `--- [PAGE ${pageNumber}/${totalPages} SAMPLE: START] ---\n` + head +
-              `\n--- [PAGE ${pageNumber}/${totalPages} SAMPLE: END] ---\n` + tail
-          );
-        }
-        return parts.join("\n\n--- [TRUNCATED: DISTRIBUTED PAGE SAMPLES] ---\n\n");
+        pushCurrent();
+        return chunks.length > 0 ? chunks : [pageTexts.join("\n\n--- PAGE BREAK ---\n\n")];
       };
 
       if (isDocumentTruncated) {
         if (emarMode === "legacy") {
           console.warn(
-            `WARNING: Document text sampled for legacy mode from ${documentText.length} to ${MAX_DOC_TEXT_LENGTH} chars (distributed page samples).`
+            `WARNING: Document text exceeds ${MAX_DOC_TEXT_LENGTH} chars; legacy mode will chunk and scan the entire PDF.`
           );
           sendEvent('warning', {
-            message: `Document is very large (${Math.round(documentText.length / 1000)}K chars). Legacy mode will sample across pages (~200K chars) to cover the whole file.`
+            message: `Document is very large (${Math.round(documentText.length / 1000)}K chars). Legacy mode will scan the entire PDF in chunks to ensure full coverage.`
           });
         } else {
           console.warn(`WARNING: Document text truncated from ${documentText.length} to ${MAX_DOC_TEXT_LENGTH} chars. Some medications may be missed.`);
@@ -1939,11 +1950,13 @@ export async function registerRoutes(
         }
       }
 
-      const analysisText = isDocumentTruncated
-        ? (emarMode === "legacy"
-            ? buildLegacySampledTextAcrossPages(extracted?.pageTexts || [documentText], MAX_DOC_TEXT_LENGTH)
-            : documentText.substring(0, MAX_DOC_TEXT_LENGTH))
-        : documentText;
+      const legacyTextChunks = emarMode === "legacy"
+        ? buildTextChunksFromPages(extracted?.pageTexts || [documentText], MAX_DOC_TEXT_LENGTH)
+        : [];
+
+      const analysisText = emarMode === "legacy"
+        ? (legacyTextChunks[0] || documentText)
+        : (isDocumentTruncated ? documentText.substring(0, MAX_DOC_TEXT_LENGTH) : documentText);
       
       // Note: Vision API image conversion disabled (pdf-poppler not available on this platform)
       const imageContent: any[] = [];
@@ -2660,20 +2673,66 @@ EXTRACTION RULES:
 IMPORTANT: Extract exactly what you see in the text - don't guess or make assumptions.`;
 
       const DETERMINISTIC_SEED = 42;
-      
-      const metadataResponse = await createChatCompletionWithLogging({
-        model: getPreferredModel(),
-        messages: [
-          { role: "system", content: metadataPrompt },
-          { role: "user", content: `Analyze this EMAR document and extract the metadata:\n\n${analysisText}` }
-        ],
-        max_completion_tokens: 4000,
-        temperature: 0,
-        seed: DETERMINISTIC_SEED,
-        response_format: { type: "json_object" },
-      }, "emar_metadata", aiUserContext);
-      
-      const metadataContent = metadataResponse.choices[0]?.message?.content || "{}";
+
+      const mergeMetadata = (base: any, incoming: any) => {
+        const merged = {
+          serviceUserInitials: base.serviceUserInitials || incoming.serviceUserInitials || "",
+          allergies: base.allergies || incoming.allergies || "",
+          medications: [] as any[],
+          dates: [] as string[],
+          timeSlots: [] as string[]
+        };
+
+        const normalizeKey = (s: string) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+        const medByKey = new Map<string, any>();
+        for (const m of [...(base.medications || []), ...(incoming.medications || [])]) {
+          const name = typeof m?.name === "string" ? m.name : "";
+          if (!name.trim()) continue;
+          const key = normalizeKey(name);
+          if (!medByKey.has(key)) {
+            medByKey.set(key, m);
+            continue;
+          }
+          const existing = medByKey.get(key);
+          // Prefer richer instruction text when merging
+          const existingInstr = typeof existing?.instructions === "string" ? existing.instructions : "";
+          const nextInstr = typeof m?.instructions === "string" ? m.instructions : "";
+          medByKey.set(key, nextInstr.length > existingInstr.length ? { ...existing, ...m } : { ...m, ...existing });
+        }
+
+        merged.medications = Array.from(medByKey.values());
+
+        const uniq = (arr: any[]) => Array.from(new Set(arr.filter(Boolean).map((x) => String(x).trim()).filter(Boolean)));
+        merged.dates = uniq([...(base.dates || []), ...(incoming.dates || [])]);
+        merged.timeSlots = uniq([...(base.timeSlots || []), ...(incoming.timeSlots || [])]);
+        return merged;
+      };
+
+      const extractMetadataForText = async (text: string) => {
+        const metadataResponse = await createChatCompletionWithLogging({
+          model: getPreferredModel(),
+          messages: [
+            { role: "system", content: metadataPrompt },
+            { role: "user", content: `Analyze this EMAR document and extract the metadata:\n\n${text}` }
+          ],
+          max_completion_tokens: 4000,
+          temperature: 0,
+          seed: DETERMINISTIC_SEED,
+          response_format: { type: "json_object" },
+        }, "emar_metadata", aiUserContext);
+        return metadataResponse.choices[0]?.message?.content || "{}";
+      };
+
+      // Legacy: if chunked, extract metadata across ALL chunks and merge.
+      const metadataContents: string[] = [];
+      if (emarMode === "legacy" && Array.isArray(legacyTextChunks) && legacyTextChunks.length > 1) {
+        for (let i = 0; i < legacyTextChunks.length; i++) {
+          sendProgress(10, `Extracting metadata (chunk ${i + 1}/${legacyTextChunks.length})...`, "metadata_running");
+          metadataContents.push(await extractMetadataForText(legacyTextChunks[i]));
+        }
+      } else {
+        metadataContents.push(await extractMetadataForText(analysisText));
+      }
       
       let metadata = {
         serviceUserInitials: "",
@@ -2684,12 +2743,15 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       };
       
       try {
-        metadata = JSON.parse(metadataContent);
+        for (const content of metadataContents) {
+          const parsed = JSON.parse(content);
+          metadata = mergeMetadata(metadata, parsed);
+        }
         console.log("DEBUG: Metadata extracted -", metadata.medications?.length, "medications,", metadata.dates?.length, "dates,", metadata.timeSlots?.length, "timeSlots");
         sendProgress(15, `Found ${metadata.medications?.length || 0} medications...`, "metadata_complete");
       } catch (e) {
         console.error("Failed to parse metadata JSON:", e);
-        console.error("Raw metadata content:", metadataContent);
+        console.error("Raw metadata content:", metadataContents[0]);
         sendEvent('error', { message: "Failed to parse medication data from document" });
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
@@ -2815,25 +2877,41 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       let forceMultiPass = false;
       const expectedEntriesPerMedication = new Map<number, number>();
       
-      const medicationCountPrompt = `Analyze the EMAR document text and count how many DISTINCT medications are listed. Return a JSON object with the count: {"count": 5}`;
-      
+      const medicationListPrompt = `Analyze the EMAR document text and list DISTINCT medications mentioned. Return JSON: {"medications": ["Med 1", "Med 2"]}. Only include medication names, no dates/times.`;
+
       const countMedications = async (): Promise<number> => {
         try {
           // Use GPT-4o-mini for count validation - simple task, 33x cheaper
-          const response = await createChatCompletionWithLogging({
-            model: "gpt-4.1-mini",
-            messages: [
-              { role: "system", content: medicationCountPrompt },
-              { role: "user", content: `Count medications in this document:\n\n${analysisText}` }
-            ],
-            temperature: 0,
-        max_completion_tokens: 100,
-            seed: DETERMINISTIC_SEED,
-            response_format: { type: "json_object" },
-          }, "emar_count_validation", aiUserContext);
-          const content = response.choices[0]?.message?.content || '{"count":0}';
-          const parsed = JSON.parse(content);
-          return parsed.count || 0;
+          const texts = (emarMode === "legacy" && Array.isArray(legacyTextChunks) && legacyTextChunks.length > 0)
+            ? legacyTextChunks
+            : [analysisText];
+
+          const allMeds = new Set<string>();
+          const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+
+          for (const text of texts) {
+            const response = await createChatCompletionWithLogging({
+              model: "gpt-4.1-mini",
+              messages: [
+                { role: "system", content: medicationListPrompt },
+                { role: "user", content: `List medications in this document:\n\n${text}` }
+              ],
+              temperature: 0,
+              max_completion_tokens: 500,
+              seed: DETERMINISTIC_SEED,
+              response_format: { type: "json_object" },
+            }, "emar_count_validation", aiUserContext);
+            const content = response.choices[0]?.message?.content || '{"medications":[]}';
+            const parsed = JSON.parse(content);
+            const meds = Array.isArray(parsed.medications) ? parsed.medications : [];
+            for (const m of meds) {
+              const name = typeof m === "string" ? m.trim() : "";
+              if (!name) continue;
+              allMeds.add(normalize(name));
+            }
+          }
+
+          return allMeds.size;
         } catch (e) {
           console.error(`Medication count error:`, e);
           return 0;
@@ -3077,6 +3155,131 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       // Function to run one complete extraction pass using text extraction
       const runExtractionPass = async (passNumber: number): Promise<any[]> => {
         console.log(`DEBUG: Starting text extraction pass ${passNumber}`);
+
+        const useChunkedLegacyScan =
+          emarMode === "legacy" &&
+          Array.isArray(legacyTextChunks) &&
+          legacyTextChunks.length > 1;
+
+        if (useChunkedLegacyScan) {
+          const medList = medicationsWithIds
+            .map(
+              (m: any) =>
+                `[ID:${m.medicationId}] ${m.name}${m.isPRN ? " (PRN)" : ""}`
+            )
+            .join("\n");
+
+          const exampleMedicationId = medicationsWithIds[0]?.medicationId || 1;
+
+          const prompt = `You are an EMAR data extractor analyzing EMAR document text. Extract administration records ONLY for these specific medications:
+
+MEDICATIONS TO FIND (use exact medicationId in output):
+${medList}
+
+DATES FROM DOCUMENT: ${metadata.dates?.join(", ")}
+TIME SLOTS: ${metadata.timeSlots?.join(", ")}
+${correctionsContext}
+ANALYZE THE DOCUMENT TEXT:
+1. Find all entries for the medication(s) listed above
+2. Extract the care worker initials (typically 2 letters)
+3. Identify administration codes and times
+
+Return JSON with entries ONLY for the medications listed above:
+{
+  "entries": [
+    {"medicationId": ${exampleMedicationId}, "date": "Sat, 06 Dec", "timeSlot": "08:00-09:00", "code": "AD", "careWorkerInitials": "RK", "time": "08:30", "hasTime": true, "isOfficeClosed": false},
+    {"medicationId": ${exampleMedicationId}, "date": "Sun, 07 Dec", "timeSlot": "08:00-09:00", "code": "AS", "careWorkerInitials": "MANUAL", "time": "", "hasTime": false, "isOfficeClosed": true}
+  ]
+}
+
+CODES TO LOOK FOR (be thorough - don't miss any):
+- AD (administered), AS (assisted), P (prompted) - regular medications
+- PRN (given as needed) - PRN medications when given/administered
+- R (refused) - medication was refused by service user - VERY IMPORTANT TO CAPTURE
+- MU (medication unavailable), NH (not home)
+- SA (self-administered), FA (family administered)
+- MISSED - for missed doses
+
+CRITICAL: FOR EVERY ENTRY YOU MUST INCLUDE "hasTime" BOOLEAN:
+- hasTime: true = a specific time is recorded in the document (e.g., "08:30", "14:15")
+- hasTime: false = NO time is recorded, just initials or code present
+
+PRN MEDICATION TIME DETECTION (CRITICAL FOR REFUSALS):
+- Look carefully at each PRN row in the document
+- If there is a TIME value recorded (like 08:30, 2:15pm) -> hasTime: true
+- If there is NO time, just initials or blank -> hasTime: false
+- This is used to detect PRN refusals so BE ACCURATE about hasTime
+
+DATE ASSIGNMENT RULES (CRITICAL - prevents cross-day errors):
+1. The EMAR is a grid with DATE COLUMNS. Each date appears in the header row.
+2. Each medication row intersects with each date column. An entry belongs to whichever date column it appears under.
+3. ONLY assign a date to an entry if you can clearly determine which column it belongs to.
+4. The dates available are: ${metadata.dates?.join(", ")}
+5. If you cannot determine which date column an entry belongs to, DO NOT include that entry.
+6. NEVER assign the same date to entries that appear in different columns of the EMAR grid.
+
+OTHER CRITICAL RULES:
+1. ALWAYS extract R codes - refusals are critical for compliance. Look for "R", "Ref", "Refused", "Declined"
+2. Look for ALL entries including those with codes R, MU, NH - these are just as important as AD/AS/P
+3. Care worker initials are typically 2 letters (e.g., RK, HB, BB, GM, SB)
+4. Skip only truly blank/empty cells - but capture ALL cells with any code or initials
+5. IGNORE RED COLORING when a code is present - if a time slot shows red but contains a valid code (AD, AS, R, etc.), follow the code not the color. Red color is often used just for visual emphasis.
+
+MANUAL CODE ENTRY DETECTION (CRITICAL):
+- If a cell contains ONLY a code (AS, AD, P, R, etc.) with NO time and NO other initials, this is a MANUALLY ENTERED CODE by office staff
+- In this case:
+  1. Set careWorkerInitials to "MANUAL" (not the code itself!)
+  2. Set isOfficeClosed to true
+- Example: Cell shows just "AS" → code: "AS", careWorkerInitials: "MANUAL", hasTime: false, isOfficeClosed: true
+- Example: Cell shows "JH 08:41 AS" → code: "AS", careWorkerInitials: "JH", time: "08:41", hasTime: true, isOfficeClosed: false
+- DO NOT confuse medication codes (AS, AD, P, R, MU, NH, SA, FA, PRN) for care worker initials - MEDICATION CODES ARE NEVER INITIALS!`;
+
+          const chunkPromises = legacyTextChunks.map(async (chunkText, chunkIndex) => {
+            try {
+              const response = await createChatCompletionWithLogging(
+                {
+                  model: getPreferredModel(),
+                  messages: [
+                    { role: "system", content: prompt },
+                    {
+                      role: "user",
+                      content: `Extract medication entries from this document chunk (${chunkIndex + 1}/${legacyTextChunks.length}):\n\n${chunkText}`
+                    }
+                  ],
+                  temperature: 0,
+                  max_completion_tokens: 8000,
+                  seed: DETERMINISTIC_SEED,
+                  response_format: { type: "json_object" }
+                },
+                "emar_extraction",
+                aiUserContext
+              );
+
+              const content = response.choices[0]?.message?.content || '{"entries":[]}';
+              const data = JSON.parse(content);
+              const chunkEntries = data.entries || [];
+              console.log(
+                `DEBUG: Pass ${passNumber} Chunk ${chunkIndex + 1}/${legacyTextChunks.length} extracted ${chunkEntries.length} entries`
+              );
+              return chunkEntries;
+            } catch (e) {
+              console.error(
+                `Pass ${passNumber} Chunk ${chunkIndex + 1}/${legacyTextChunks.length} error:`,
+                e
+              );
+            }
+            return [];
+          });
+
+          const chunkResults = await Promise.all(chunkPromises);
+          const rawEntries = chunkResults.flat();
+          const dedupedEntries = deduplicateEntries(rawEntries);
+
+          console.log(
+            `DEBUG: Pass ${passNumber} extracted ${rawEntries.length} raw, ${dedupedEntries.length} after dedup (legacy chunk scan)`
+          );
+          return dedupedEntries;
+        }
         
         const batchPromises = medicationBatches.map(async (batch, batchIndex) => {
           const batchMedList = batch.map((m: any) => 
@@ -3247,6 +3450,32 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       const validCodes = new Set(["AD", "AS", "P", "PRN", "PRN-R", "R", "MU", "NH", "SA", "FA", "MISSED"]);
       const validDates = new Set((metadata.dates || []).map((d: string) => d.toLowerCase().trim()));
       const validTimeSlots = new Set((metadata.timeSlots || []).map((t: string) => t.toLowerCase().trim()));
+
+      const normalizeEmarCode = (raw: unknown): string => {
+        if (typeof raw !== "string") return "";
+        let code = raw
+          .toUpperCase()
+          .trim()
+          .replace(/[()\[\]{}]/g, "")
+          .replace(/[–—]/g, "-")
+          .replace(/\s+/g, "");
+
+        // Common variants
+        if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
+        if (code === "PRNR" || code === "PRN-R" || code === "PRNREFUSED" || code === "PRNREFUS") return "PRN-R";
+        if (code === "PRNRF" || code === "PRNREF") return "PRN-R";
+        if (code === "PRN" + "R") return "PRN-R";
+        if (code === "NOTHOME" || code === "NH") return "NH";
+        if (code === "SELADMIN" || code === "SELFADMIN" || code === "SA") return "SA";
+        if (code === "MEDUNAV" || code === "MEDUNAVAILABLE" || code === "UNAVAILABLE" || code === "MU") return "MU";
+        if (code === "REFUSED" || code === "REFUSE") return "R";
+
+        // Restore dash form for PRN-R if written as PRN-R but stripped
+        if (code === "PRN-R") return "PRN-R";
+        if (code === "PRNR") return "PRN-R";
+
+        return code;
+      };
       
       // Helper to normalize date/time for comparison (handles slight AI formatting differences)
       const normalizeForComparison = (str: string): string => str.toLowerCase().trim().replace(/\s+/g, ' ');
@@ -3260,10 +3489,15 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
           if (typeof e.date !== 'string') return false;
           if (typeof e.timeSlot !== 'string') return false;
           if (typeof e.code !== 'string') return false;
+
+          // Normalize code so legacy outputs like "(NH)" or "PRN R" don't get dropped.
+          const normalizedCode = normalizeEmarCode(e.code);
+          if (!normalizedCode) return false;
+          e.code = normalizedCode;
           
           // Domain constraint checks
           if (!validMedicationIds.has(e.medicationId)) return false;
-          if (!validCodes.has(e.code.toUpperCase())) return false;
+          if (!validCodes.has(normalizedCode)) return false;
           
           // Date/timeSlot validation with normalization
           const normalizedDate = normalizeForComparison(e.date);
