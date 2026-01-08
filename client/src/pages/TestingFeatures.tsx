@@ -74,6 +74,30 @@ const ACTUAL_TIME_KEYWORDS = [
   "check-in time",
 ];
 
+const PLANNED_END_TIME_KEYWORDS = [
+  "planned end date and time",
+  "planned end time",
+  "scheduled end date and time",
+  "scheduled end time",
+  "planned finish",
+  "scheduled finish",
+  "plan end",
+  "end time (planned)",
+];
+
+const ACTUAL_END_TIME_KEYWORDS = [
+  "actual end date and time",
+  "actual end time",
+  "delivered end time",
+  "visit end time",
+  "call end time",
+  "check-out time",
+  "checkout time",
+  "departure time",
+  "left time",
+  "end time (actual)",
+];
+
 const SERVICE_REQUIREMENT_TIME_KEYWORDS = [
   "service requirement start date and time",
   "service requirement start time",
@@ -377,6 +401,29 @@ export default function TestingFeatures() {
         })()
       );
 
+      const plannedEndTimeField = detectField(
+        row,
+        PLANNED_END_TIME_KEYWORDS,
+        (() => {
+          const exclude = new Set<string>();
+          if (plannedTimeField) exclude.add(plannedTimeField.key);
+          if (serviceRequirementTimeField) exclude.add(serviceRequirementTimeField.key);
+          return exclude.size ? exclude : undefined;
+        })()
+      );
+
+      const actualEndTimeField = detectField(
+        row,
+        ACTUAL_END_TIME_KEYWORDS,
+        (() => {
+          const exclude = new Set<string>();
+          if (plannedTimeField) exclude.add(plannedTimeField.key);
+          if (serviceRequirementTimeField) exclude.add(serviceRequirementTimeField.key);
+          if (actualTimeField) exclude.add(actualTimeField.key);
+          return exclude.size ? exclude : undefined;
+        })()
+      );
+
       const plannedDurationField = detectField(row, PLANNED_DURATION_KEYWORDS);
       const actualDurationField = detectField(
         row,
@@ -405,6 +452,8 @@ export default function TestingFeatures() {
         ? parseTimeToMinutes(plannedTimeSource.value)
         : null;
       const actualTimeMinutes = actualTimeField ? parseTimeToMinutes(actualTimeField.value) : null;
+      const plannedEndTimeMinutes = plannedEndTimeField ? parseTimeToMinutes(plannedEndTimeField.value) : null;
+      const actualEndTimeMinutes = actualEndTimeField ? parseTimeToMinutes(actualEndTimeField.value) : null;
       const scheduleDeltaMinutes =
         plannedTimeMinutes !== null && actualTimeMinutes !== null
           ? actualTimeMinutes - plannedTimeMinutes
@@ -421,16 +470,24 @@ export default function TestingFeatures() {
           ? normalizedPlannedWorker === normalizedActualWorker
           : null;
 
-      const plannedDurationMinutes = plannedDurationField
+      const plannedDurationMinutesFromTimes = computeDurationFromTimes(plannedTimeMinutes, plannedEndTimeMinutes);
+      const actualDurationMinutesFromTimes = computeDurationFromTimes(actualTimeMinutes, actualEndTimeMinutes);
+
+      const plannedDurationMinutesFromField = plannedDurationField
         ? parseDurationToMinutes(plannedDurationField.value, plannedDurationField?.key)
         : null;
-      const actualDurationMinutes = actualDurationField
+      const actualDurationMinutesFromField = actualDurationField
         ? parseDurationToMinutes(actualDurationField.value, actualDurationField?.key)
         : null;
+
+      // Prefer time-derived durations (matches the requested definition), fallback to duration fields.
+      const plannedDurationMinutes = plannedDurationMinutesFromTimes ?? plannedDurationMinutesFromField;
+      const actualDurationMinutes = actualDurationMinutesFromTimes ?? actualDurationMinutesFromField;
+
       const hasDurationComparison =
-        plannedDurationMinutes !== null && plannedDurationMinutes > 0 && actualDurationMinutes !== null;
+        typeof plannedDurationMinutes === "number" && plannedDurationMinutes > 0 && typeof actualDurationMinutes === "number";
       const durationMatchPercent = hasDurationComparison
-        ? (actualDurationMinutes! / plannedDurationMinutes!) * 100
+        ? (actualDurationMinutes / plannedDurationMinutes) * 100
         : null;
 
       const scheduleFlag =
@@ -2810,6 +2867,22 @@ function parseDurationToMinutes(value: any, label?: string | null): number | nul
   }
 
   return null;
+}
+
+function computeDurationFromTimes(startMinutes: number | null, endMinutes: number | null): number | null {
+  if (typeof startMinutes !== "number" || typeof endMinutes !== "number") return null;
+  if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes)) return null;
+
+  let diff = endMinutes - startMinutes;
+  // Handle midnight wrap (rare for care calls, but avoids negative durations)
+  if (diff < 0) {
+    diff += 24 * 60;
+  }
+
+  // Basic sanity clamp
+  if (!Number.isFinite(diff) || diff <= 0) return null;
+  if (diff > 8 * 60) return null;
+  return diff;
 }
 
 function excelSerialToMinutes(value: number): number | null {
