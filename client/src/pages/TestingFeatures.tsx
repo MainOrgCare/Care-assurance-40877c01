@@ -179,7 +179,6 @@ const SERVICE_USER_ADDRESS_KEYWORDS = [
 const SERVICE_REQUIREMENT_TYPE_KEYWORDS = [
   "service requirement type description",
   "service requirement description",
-  "service type",
   "service requirement type",
 ];
 const SERVICE_REQUIREMENT_SERVICE_TYPE_KEYWORDS = [
@@ -2083,7 +2082,7 @@ export default function TestingFeatures() {
             <div>
               <CardTitle>Service User Call Stacks</CardTitle>
               <CardDescription>
-                Bundle all calls under each service user. Search narrows the list (we show the five closest matches).
+                One box per service user. Expand to see call types, then expand again to see every call.
               </CardDescription>
             </div>
             <div className="flex flex-col gap-3 w-full xl:w-auto sm:flex-row">
@@ -2134,6 +2133,51 @@ export default function TestingFeatures() {
                     .map((row) => row.actualWorker || row.plannedWorker || undefined)
                     .filter((value): value is string => Boolean(value))
                 );
+
+                const callTypeGroups = (() => {
+                  const map = new Map<
+                    string,
+                    {
+                      key: string;
+                      callTypeLabel: string;
+                      plannedDurationMinutes: number | null;
+                      rows: RowAnalysis[];
+                    }
+                  >();
+
+                  stack.rows.forEach((row) => {
+                    const normalizedType = normalizeCallTypeKey(row.callTypeLabel ?? null) || "unknown";
+                    const durationBucket =
+                      typeof row.plannedDurationMinutes === "number" && Number.isFinite(row.plannedDurationMinutes)
+                        ? roundToNearest(row.plannedDurationMinutes, 5)
+                        : null;
+                    const groupKey = `${normalizedType}|dur-${durationBucket ?? "unknown"}`;
+                    if (!map.has(groupKey)) {
+                      map.set(groupKey, {
+                        key: groupKey,
+                        callTypeLabel: row.callTypeLabel || "Unknown",
+                        plannedDurationMinutes: durationBucket,
+                        rows: [],
+                      });
+                    }
+                    map.get(groupKey)!.rows.push(row);
+                  });
+
+                  return Array.from(map.values())
+                    .map((group) => ({
+                      ...group,
+                      rows: [...group.rows].sort((a, b) => {
+                        const aDate = a.plannedDateKey || "";
+                        const bDate = b.plannedDateKey || "";
+                        if (aDate !== bDate) return aDate.localeCompare(bDate);
+                        const aTime = typeof a.plannedTimeMinutes === "number" ? a.plannedTimeMinutes : Number.POSITIVE_INFINITY;
+                        const bTime = typeof b.plannedTimeMinutes === "number" ? b.plannedTimeMinutes : Number.POSITIVE_INFINITY;
+                        if (aTime !== bTime) return aTime - bTime;
+                        return a.rowNumber - b.rowNumber;
+                      }),
+                    }))
+                    .sort((a, b) => b.rows.length - a.rows.length || a.callTypeLabel.localeCompare(b.callTypeLabel));
+                })();
 
                 return (
                   <AccordionItem
@@ -2207,54 +2251,129 @@ export default function TestingFeatures() {
                         />
                       </div>
 
-                      <div className="mt-4 space-y-3">
-                        {stack.rows.map((row, idx) => (
-                          <div
-                            key={`${stack.key}-${row.rowNumber}`}
-                            className="rounded-xl border border-border/60 bg-background/60 p-4 space-y-2"
-                          >
-                            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                              <div>
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Call {idx + 1}</p>
-                                <p className="font-semibold text-sm">
-                                  {row.actualWorker || row.plannedWorker || "Care worker unavailable"}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {(row.plannedDateLabel ? `${row.plannedDateLabel} ` : "") + (row.plannedTimeLabel || "—")} → {row.actualTimeLabel || "—"}
-                                </p>
-                                {row.callTypeLabel && (
-                                  <p className="text-xs text-muted-foreground">{row.callTypeLabel}</p>
-                                )}
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {typeof row.scheduleDeltaMinutes === "number" && (
-                                  <InsightPill tone={row.scheduleFlag ? "destructive" : "default"}>
-                                    Δ {formatSignedMinutes(row.scheduleDeltaMinutes)}
-                                  </InsightPill>
-                                )}
-                                {typeof row.durationMatchPercent === "number" && (
-                                  <InsightPill
-                                    tone={
-                                      row.durationFlag
-                                        ? "destructive"
-                                        : row.durationOverrunFlag
-                                        ? "warning"
-                                        : row.durationMatchPercent < 90
-                                        ? "warning"
-                                        : "default"
-                                    }
-                                  >
-                                    {row.durationMatchPercent.toFixed(0)}% duration
-                                  </InsightPill>
-                                )}
-                                {row.status === "attention" && <InsightPill tone="warning">Manual review</InsightPill>}
-                              </div>
-                            </div>
-                            {row.issues.length > 0 && (
-                              <p className="text-xs text-muted-foreground">{row.issues.join(" • ")}</p>
-                            )}
-                          </div>
-                        ))}
+                      <div className="mt-4">
+                        <Accordion type="single" collapsible className="w-full">
+                          {callTypeGroups.map((group) => {
+                            const groupFlagged = group.rows.filter((row) => row.scheduleFlag || row.durationFlag).length;
+                            const groupDriftValues = group.rows
+                              .map((row) => (typeof row.scheduleDeltaMinutes === "number" ? Math.abs(row.scheduleDeltaMinutes) : null))
+                              .filter((value): value is number => value !== null);
+                            const groupAverageDrift = groupDriftValues.length
+                              ? groupDriftValues.reduce((acc, val) => acc + val, 0) / groupDriftValues.length
+                              : null;
+                            const groupDurationValues = group.rows
+                              .map((row) => (typeof row.durationMatchPercent === "number" ? row.durationMatchPercent : null))
+                              .filter((value): value is number => value !== null);
+                            const groupAverageDuration = groupDurationValues.length
+                              ? groupDurationValues.reduce((acc, val) => acc + val, 0) / groupDurationValues.length
+                              : null;
+
+                            return (
+                              <AccordionItem key={`${stack.key}-${group.key}`} value={`${stack.key}-${group.key}`} className="border-border/60">
+                                <AccordionTrigger className="py-4">
+                                  <div className="flex flex-1 flex-col gap-2 text-left sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                      <p className="text-sm font-semibold text-foreground">{group.callTypeLabel}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        Planned duration: {group.plannedDurationMinutes !== null ? formatMinutesDisplay(group.plannedDurationMinutes) : "—"}
+                                      </p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <Badge variant="outline" className="text-xs font-semibold">
+                                        {group.rows.length} call{group.rows.length === 1 ? "" : "s"}
+                                      </Badge>
+                                      <Badge variant={groupFlagged ? "destructive" : "secondary"} className="text-xs font-semibold">
+                                        {groupFlagged} flagged
+                                      </Badge>
+                                      <Badge variant="secondary" className="text-xs font-semibold">
+                                        Avg drift {formatMinutesDisplay(groupAverageDrift)}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pb-4">
+                                  <div className="grid gap-3 sm:grid-cols-2">
+                                    <GroupMetric
+                                      label="Avg Schedule Drift"
+                                      value={formatMinutesDisplay(groupAverageDrift)}
+                                      helper="Within this call type"
+                                      tone={
+                                        groupAverageDrift !== null && groupAverageDrift > 120
+                                          ? "destructive"
+                                          : groupAverageDrift !== null && groupAverageDrift > 90
+                                          ? "warning"
+                                          : "default"
+                                      }
+                                    />
+                                    <GroupMetric
+                                      label="Avg Duration Fidelity"
+                                      value={groupAverageDuration !== null ? `${groupAverageDuration.toFixed(0)}%` : "—"}
+                                      helper="Within this call type"
+                                      tone={
+                                        groupAverageDuration !== null && groupAverageDuration < 80
+                                          ? "destructive"
+                                          : groupAverageDuration !== null && groupAverageDuration > 120
+                                          ? "warning"
+                                          : groupAverageDuration !== null && groupAverageDuration < 90
+                                          ? "warning"
+                                          : "default"
+                                      }
+                                    />
+                                  </div>
+
+                                  <div className="mt-4 space-y-3">
+                                    {group.rows.map((row, idx) => (
+                                      <div
+                                        key={`${stack.key}-${group.key}-${row.rowNumber}`}
+                                        className="rounded-xl border border-border/60 bg-background/60 p-4 space-y-2"
+                                      >
+                                        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                                          <div>
+                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Call {idx + 1}</p>
+                                            <p className="font-semibold text-sm">
+                                              {row.actualWorker || row.plannedWorker || "Care worker unavailable"}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                              {(row.plannedDateLabel ? `${row.plannedDateLabel} ` : "") + (row.plannedTimeLabel || "—")} → {row.actualTimeLabel || "—"}
+                                            </p>
+                                          </div>
+                                          <div className="flex flex-wrap gap-2">
+                                            {typeof row.scheduleDeltaMinutes === "number" && (
+                                              <InsightPill tone={row.scheduleFlag ? "destructive" : "default"}>
+                                                Δ {formatSignedMinutes(row.scheduleDeltaMinutes)}
+                                              </InsightPill>
+                                            )}
+                                            {typeof row.durationMatchPercent === "number" && (
+                                              <InsightPill
+                                                tone={
+                                                  row.durationFlag
+                                                    ? "destructive"
+                                                    : row.durationOverrunFlag
+                                                    ? "warning"
+                                                    : row.durationMatchPercent < 90
+                                                    ? "warning"
+                                                    : "default"
+                                                }
+                                              >
+                                                {row.durationMatchPercent.toFixed(0)}% duration
+                                              </InsightPill>
+                                            )}
+                                            {row.status === "attention" && (
+                                              <InsightPill tone="warning">Manual review</InsightPill>
+                                            )}
+                                          </div>
+                                        </div>
+                                        {row.issues.length > 0 && (
+                                          <p className="text-xs text-muted-foreground">{row.issues.join(" • ")}</p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </AccordionContent>
+                              </AccordionItem>
+                            );
+                          })}
+                        </Accordion>
                       </div>
                     </AccordionContent>
                   </AccordionItem>
@@ -2519,14 +2638,23 @@ function parseDurationToMinutes(value: any, label?: string | null): number | nul
   const normalizedLabel = label ? normalizeKeyForMatch(label) : "";
   const prefersHours = normalizedLabel.includes("hour");
   const prefersMinutes = normalizedLabel.includes("min");
+  const prefersSeconds = normalizedLabel.includes("sec") || normalizedLabel.includes("second");
+
+  const clampReasonableDuration = (minutes: number): number | null => {
+    if (!Number.isFinite(minutes) || minutes < 0) return null;
+    // Care calls should not be multiple hours long; treat very large values as mis-parsed.
+    // (Keeps the trends from recommending nonsense like 13 hours for a 30-minute visit.)
+    if (minutes > 8 * 60) return null;
+    return minutes;
+  };
 
   if (typeof value === "number" && Number.isFinite(value)) {
     const excelMinutes = excelSerialToMinutes(value);
-    if (excelMinutes !== null) return excelMinutes;
-    if (prefersHours) return value * 60;
-    if (prefersMinutes) return value;
-    if (value <= 12) return value * 60;
-    return value;
+    if (excelMinutes !== null) return clampReasonableDuration(excelMinutes);
+    if (prefersHours) return clampReasonableDuration(value * 60);
+    if (prefersMinutes) return clampReasonableDuration(value);
+    if (value <= 12) return clampReasonableDuration(value * 60);
+    return clampReasonableDuration(value);
   }
 
   const str = String(value).trim();
@@ -2541,17 +2669,43 @@ function parseDurationToMinutes(value: any, label?: string | null): number | nul
     }
   }
 
-  const hhmm = str.match(/^(\d{1,2}):(\d{2})$/);
-  if (hhmm) {
-    return Number(hhmm[1]) * 60 + Number(hhmm[2]);
+  const hhmmss = str.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (hhmmss) {
+    const hours = Number(hhmmss[1]);
+    const minutes = Number(hhmmss[2]);
+    const seconds = Number(hhmmss[3]);
+    const total = hours * 60 + minutes + seconds / 60;
+    return clampReasonableDuration(total);
+  }
+
+  const twoPart = str.match(/^(\d{1,2}):(\d{2})$/);
+  if (twoPart) {
+    const first = Number(twoPart[1]);
+    const second = Number(twoPart[2]);
+    // Ambiguous formats:
+    // - Could be HH:MM (e.g., 00:30 meaning 30 minutes)
+    // - Could be MM:SS (e.g., 13:55 meaning 13 minutes 55 seconds)
+    const asHoursMinutes = first * 60 + second;
+    const asMinutesSeconds = first + second / 60;
+
+    if (prefersSeconds) {
+      return clampReasonableDuration(asMinutesSeconds);
+    }
+
+    // Heuristic: if HH:MM would imply an implausibly long care call, treat it as MM:SS.
+    if (asHoursMinutes > 6 * 60 && asMinutesSeconds <= 6 * 60) {
+      return clampReasonableDuration(asMinutesSeconds);
+    }
+
+    return clampReasonableDuration(asHoursMinutes);
   }
 
   const numeric = Number(str.replace(/[^0-9.]/g, ""));
   if (!Number.isNaN(numeric)) {
-    if (prefersHours) return numeric * 60;
-    if (prefersMinutes) return numeric;
-    if (numeric <= 12) return numeric * 60;
-    return numeric;
+    if (prefersHours) return clampReasonableDuration(numeric * 60);
+    if (prefersMinutes) return clampReasonableDuration(numeric);
+    if (numeric <= 12) return clampReasonableDuration(numeric * 60);
+    return clampReasonableDuration(numeric);
   }
 
   return null;
