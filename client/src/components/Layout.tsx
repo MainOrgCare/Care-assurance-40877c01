@@ -18,7 +18,8 @@ import {
   ClipboardList,
   BarChart,
   Lock,
-  Calculator
+  Calculator,
+  FlaskConical
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -41,13 +42,14 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
 
   const [openServiceUsers, setOpenServiceUsers] = useState(location.startsWith("/service-users"));
   const [openCareWorkers, setOpenCareWorkers] = useState(location.startsWith("/care-workers"));
-  const [openAdmin, setOpenAdmin] = useState(location.startsWith("/admin"));
+  const isAdminRoute = location.startsWith("/admin") || location === "/shadow-admin-portal" || location === "/testing-features";
+  const [openAdmin, setOpenAdmin] = useState(isAdminRoute);
 
   // Auto-open accordion based on route
   useEffect(() => {
      if (location.startsWith("/service-users")) setOpenServiceUsers(true);
      if (location.startsWith("/care-workers")) setOpenCareWorkers(true);
-     if (location.startsWith("/admin") || location === "/shadow-admin-portal") setOpenAdmin(true);
+      if (location.startsWith("/admin") || location === "/shadow-admin-portal" || location === "/testing-features") setOpenAdmin(true);
   }, [location]);
 
   return (
@@ -163,6 +165,11 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
              {user?.role === 'admin' && (
                <Link href="/roi-calculator" className={cn("flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all", location === "/roi-calculator" ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-foreground/60 hover:text-sidebar-foreground")} data-testid="link-roi-calculator">
                   <Calculator size={16} /> Features & Benefits
+               </Link>
+             )}
+             {user?.role === 'admin' && (
+               <Link href="/testing-features" className={cn("flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all", location === "/testing-features" ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-foreground/60 hover:text-sidebar-foreground")}>
+                  <FlaskConical size={16} /> Testing Features
                </Link>
              )}
           </CollapsibleContent>

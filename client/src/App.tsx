@@ -33,6 +33,7 @@ import Performance from "@/pages/care-workers/Performance";
 import Settings from "@/pages/Settings";
 import Compliance from "@/pages/Compliance";
 import ROICalculator from "@/pages/ROICalculator";
+import TestingFeatures from "@/pages/TestingFeatures";
 
 function HomeRoute() {
   const { user } = useAuth();
@@ -68,6 +69,7 @@ function Router() {
       <ProtectedRoute path="/email-assistant" component={EmailAssistant} />
       <ProtectedRoute path="/compliance" component={Compliance} />
       <ProtectedRoute path="/roi-calculator" component={ROICalculator} />
+      <ProtectedRoute path="/testing-features" component={TestingFeatures} />
       <ProtectedRoute path="/settings" component={Settings} />
 
       {/* Homepage - shows landing page or redirects to dashboard */}
