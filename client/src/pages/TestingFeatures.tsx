@@ -19,6 +19,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   AlertCircle,
   CheckCircle2,
   Clock4,
@@ -31,6 +37,7 @@ import {
   Search,
   Shield,
   Timer,
+  UploadCloud,
   Users,
 } from "lucide-react";
 
@@ -238,6 +245,15 @@ interface CallGroup {
   rows: RowAnalysis[];
 }
 
+interface ServiceUserStack {
+  key: string;
+  normalizedServiceUserKey: string | null;
+  serviceUserName: string | null;
+  serviceUserArea: string | null;
+  serviceUserAddress: string | null;
+  rows: RowAnalysis[];
+}
+
 interface DuplicateCluster {
   key: string;
   serviceUserName: string | null;
@@ -398,7 +414,7 @@ export default function TestingFeatures() {
 
       const plannedWorkerName = sanitizeStringValue(plannedWorkerField?.value);
       const actualWorkerName = sanitizeStringValue(actualWorkerField?.value);
-      const hasWorker = Boolean(plannedWorkerName || actualWorkerName);
+      const isCancelledCall = !actualWorkerName;
       const normalizedPlannedWorker = normalizeWorkerName(plannedWorkerName);
       const normalizedActualWorker = normalizeWorkerName(actualWorkerName);
       const workersMatch =
@@ -508,8 +524,8 @@ export default function TestingFeatures() {
         serviceUserArea
       );
 
-      // Cancelled calls have no carer assigned/recorded; ignore them.
-      const excludeFromMetrics = workersMatch === false || !hasWorker;
+      // Cancelled calls are indicated by a blank actual employee name; ignore them.
+      const excludeFromMetrics = workersMatch === false || isCancelledCall;
       if (excludeFromMetrics && workersMatch === false) {
         issues.push("Care worker mismatch — excluded from metrics");
       }
@@ -1076,21 +1092,64 @@ export default function TestingFeatures() {
     });
   }, [primaryRows]);
 
-  const { visibleCallGroups, hasSearchMatch } = useMemo<{
-    visibleCallGroups: CallGroup[];
+  const serviceUserStacks = useMemo<ServiceUserStack[]>(() => {
+    if (!primaryRows.length) return [];
+    const map = new Map<string, ServiceUserStack>();
+
+    primaryRows.forEach((row) => {
+      const userKey = row.normalizedServiceUserKey || `row-${row.rowNumber}`;
+      if (!map.has(userKey)) {
+        map.set(userKey, {
+          key: userKey,
+          normalizedServiceUserKey: row.normalizedServiceUserKey ?? null,
+          serviceUserName: row.serviceUserName ?? null,
+          serviceUserArea: row.serviceUserArea ?? null,
+          serviceUserAddress: row.serviceUserAddress ?? null,
+          rows: [],
+        });
+      }
+
+      const stack = map.get(userKey)!;
+      stack.rows.push(row);
+      if (!stack.serviceUserName && row.serviceUserName) stack.serviceUserName = row.serviceUserName;
+      if (!stack.serviceUserArea && row.serviceUserArea) stack.serviceUserArea = row.serviceUserArea;
+      if (!stack.serviceUserAddress && row.serviceUserAddress) stack.serviceUserAddress = row.serviceUserAddress;
+      if (!stack.normalizedServiceUserKey && row.normalizedServiceUserKey) {
+        stack.normalizedServiceUserKey = row.normalizedServiceUserKey;
+      }
+    });
+
+    return Array.from(map.values())
+      .map((stack) => ({
+        ...stack,
+        rows: [...stack.rows].sort((a, b) => {
+          const aDate = a.plannedDateKey || "";
+          const bDate = b.plannedDateKey || "";
+          if (aDate !== bDate) return aDate.localeCompare(bDate);
+          const aTime = typeof a.plannedTimeMinutes === "number" ? a.plannedTimeMinutes : Number.POSITIVE_INFINITY;
+          const bTime = typeof b.plannedTimeMinutes === "number" ? b.plannedTimeMinutes : Number.POSITIVE_INFINITY;
+          if (aTime !== bTime) return aTime - bTime;
+          return a.rowNumber - b.rowNumber;
+        }),
+      }))
+      .sort((a, b) => b.rows.length - a.rows.length || (a.serviceUserName || "").localeCompare(b.serviceUserName || ""));
+  }, [primaryRows]);
+
+  const { visibleServiceUserStacks, hasSearchMatch } = useMemo<{
+    visibleServiceUserStacks: ServiceUserStack[];
     hasSearchMatch: boolean;
   }>(() => {
-    if (!callGroups.length) {
-      return { visibleCallGroups: [], hasSearchMatch: true };
+    if (!serviceUserStacks.length) {
+      return { visibleServiceUserStacks: [], hasSearchMatch: true };
     }
 
     const term = callGroupSearch.trim().toLowerCase();
     if (!term) {
-      return { visibleCallGroups: callGroups.slice(0, 5), hasSearchMatch: true };
+      return { visibleServiceUserStacks: serviceUserStacks.slice(0, 5), hasSearchMatch: true };
     }
 
-    const scored = callGroups.map((group) => {
-      const fields = [group.serviceUserName, group.serviceUserArea, group.serviceUserAddress, group.plannedTimeLabel]
+    const scored = serviceUserStacks.map((stack) => {
+      const fields = [stack.serviceUserName, stack.serviceUserArea, stack.serviceUserAddress]
         .map((value) => (value ? value.toString().toLowerCase() : ""));
       const score = fields.reduce((acc, field) => {
         if (!field) return acc;
@@ -1099,20 +1158,20 @@ export default function TestingFeatures() {
         if (field.includes(term)) return acc + 1;
         return acc;
       }, 0);
-      return { group, score };
+      return { stack, score };
     });
 
     const matches = scored.filter((entry) => entry.score > 0);
     const source = (matches.length ? matches : scored).sort(
       (a, b) =>
-        b.score - a.score || (a.group.serviceUserName || "").localeCompare(b.group.serviceUserName || "")
+        b.score - a.score || (a.stack.serviceUserName || "").localeCompare(b.stack.serviceUserName || "")
     );
 
     return {
-      visibleCallGroups: source.map((entry) => entry.group).slice(0, 5),
+      visibleServiceUserStacks: source.map((entry) => entry.stack).slice(0, 5),
       hasSearchMatch: matches.length > 0,
     };
-  }, [callGroups, callGroupSearch]);
+  }, [serviceUserStacks, callGroupSearch]);
 
   const handleLoadMore = () => {
     setVisibleCount((prev) => Math.min(filteredResults.length, prev + INITIAL_VISIBLE_ROWS));
@@ -1473,7 +1532,7 @@ export default function TestingFeatures() {
               />
               <label htmlFor="testing-features-upload" className="cursor-pointer space-y-3 block">
                 <div className="flex items-center justify-center gap-3 text-muted-foreground">
-                  <UploadCloudIcon />
+                  <UploadCloud className="h-5 w-5" />
                   <span>Click to choose a data file or drag it here</span>
                 </div>
                 <p className="text-xs text-muted-foreground/80">
@@ -1604,12 +1663,13 @@ export default function TestingFeatures() {
               title="Average Schedule Drift"
               value={formatMinutesDisplay(summary.averageDriftMinutes)}
               helper={`${summary.scheduleAlerts.toLocaleString()} rows exceeded the 2h tolerance.`}
-              tone=
-                {summary.averageDriftMinutes !== null && summary.averageDriftMinutes > 120
+              tone={
+                summary.averageDriftMinutes !== null && summary.averageDriftMinutes > 120
                   ? "destructive"
                   : summary.averageDriftMinutes !== null && summary.averageDriftMinutes > 90
                   ? "warning"
-                  : "default"}
+                  : "default"
+              }
               badge={summary.averageDriftMinutes !== null ? formatMinutesDisplay(summary.averageDriftMinutes) : undefined}
             />
             <TimingStat
@@ -1620,14 +1680,15 @@ export default function TestingFeatures() {
                   : "—"
               }
               helper={`${summary.durationAlerts.toLocaleString()} rows were under 80% or over 120% of plan.`}
-              tone=
-                {summary.averageDurationPercent !== null && summary.averageDurationPercent < 80
+              tone={
+                summary.averageDurationPercent !== null && summary.averageDurationPercent < 80
                   ? "destructive"
                   : summary.averageDurationPercent !== null && summary.averageDurationPercent > 120
                   ? "warning"
                   : summary.averageDurationPercent !== null && summary.averageDurationPercent < 90
                   ? "warning"
-                  : "default"}
+                  : "default"
+              }
               badge={
                 summary.averageDurationPercent !== null
                   ? `${Math.round(summary.averageDurationPercent)}% actual`
@@ -2016,13 +2077,13 @@ export default function TestingFeatures() {
         </Card>
       )}
 
-      {callGroups.length > 0 && (
+      {serviceUserStacks.length > 0 && (
         <Card>
           <CardHeader className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <CardTitle>Service User Call Stacks</CardTitle>
               <CardDescription>
-                Search for a service user to focus the list. We keep the view lightweight by showing the five closest matches.
+                Bundle all calls under each service user. Search narrows the list (we show the five closest matches).
               </CardDescription>
             </div>
             <div className="flex flex-col gap-3 w-full xl:w-auto sm:flex-row">
@@ -2052,200 +2113,170 @@ export default function TestingFeatures() {
                 No direct match found — showing the nearest stacks instead.
               </p>
             )}
-            {visibleCallGroups.map((group) => {
-              const flaggedRows = group.rows.filter((row) => row.scheduleFlag || row.durationFlag).length;
-              const driftValues = group.rows
-                .map((row) => (typeof row.scheduleDeltaMinutes === "number" ? Math.abs(row.scheduleDeltaMinutes) : null))
-                .filter((value): value is number => value !== null);
-              const averageDrift = driftValues.length
-                ? driftValues.reduce((acc, val) => acc + val, 0) / driftValues.length
-                : null;
-              const durationValues = group.rows
-                .map((row) => (typeof row.durationMatchPercent === "number" ? row.durationMatchPercent : null))
-                .filter((value): value is number => value !== null);
-              const averageDuration = durationValues.length
-                ? durationValues.reduce((acc, val) => acc + val, 0) / durationValues.length
-                : null;
-              const workerSet = new Set(
-                group.rows
-                  .map((row) => row.actualWorker || row.plannedWorker || undefined)
-                  .filter((value): value is string => Boolean(value))
-              );
 
-              return (
-                <div key={group.key} className="rounded-2xl border border-border/70 bg-card/50 p-5 space-y-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Service User</p>
-                      <p className="text-xl font-semibold text-foreground">
-                        {group.serviceUserName || "Unknown service user"}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {(group.serviceUserArea || "Area unavailable").toString()} • {group.serviceUserAddress || "Address unavailable"}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Planned time: {group.plannedTimeLabel || "Not supplied"}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline" className="text-xs font-semibold">
-                        {group.rows.length} call{group.rows.length === 1 ? "" : "s"}
-                      </Badge>
-                      <Badge variant={flaggedRows ? "destructive" : "secondary"} className="text-xs font-semibold">
-                        {flaggedRows} flagged
-                      </Badge>
-                      <Badge variant="secondary" className="text-xs font-semibold">
-                        {workerSet.size || 1} carer{workerSet.size === 1 ? "" : "s"}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <GroupMetric
-                      label="Avg Schedule Drift"
-                      value={formatMinutesDisplay(averageDrift)}
-                      helper="Absolute delta"
-                      tone={
-                        averageDrift !== null && averageDrift > 120
-                          ? "destructive"
-                          : averageDrift !== null && averageDrift > 90
-                          ? "warning"
-                          : "default"
-                      }
-                    />
-                    <GroupMetric
-                      label="Avg Duration Fidelity"
-                      value={averageDuration !== null ? `${averageDuration.toFixed(0)}%` : "—"}
-                      helper="Actual vs planned"
-                      tone={
-                        averageDuration !== null && averageDuration < 80
-                          ? "destructive"
-                          : averageDuration !== null && averageDuration > 120
-                          ? "warning"
-                          : averageDuration !== null && averageDuration < 90
-                          ? "warning"
-                          : "default"
-                      }
-                    />
-                    <GroupMetric
-                      label="Issue Density"
-                      value={group.rows.length ? `${Math.round((flaggedRows / group.rows.length) * 100)}%` : "0%"}
-                      helper="Flagged rows in stack"
-                      tone={flaggedRows ? (flaggedRows / group.rows.length > 0.5 ? "destructive" : "warning") : "default"}
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    {group.rows.map((row, idx) => (
-                      <div
-                        key={`${group.key}-${row.rowNumber}`}
-                        className="rounded-xl border border-border/60 bg-background/60 p-4 space-y-2"
-                      >
-                        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                          <div>
-                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Call {idx + 1}</p>
-                            <p className="font-semibold text-sm">
-                              {row.actualWorker || row.plannedWorker || "Care worker unavailable"}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {row.plannedTimeLabel || "—"} → {row.actualTimeLabel || "—"}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {typeof row.scheduleDeltaMinutes === "number" && (
-                              <InsightPill tone={row.scheduleFlag ? "destructive" : "default"}>
-                                Δ {formatSignedMinutes(row.scheduleDeltaMinutes)}
-                              </InsightPill>
-                            )}
-                            {typeof row.durationMatchPercent === "number" && (
-                              <InsightPill
-                                tone={
-                                  row.durationFlag
-                                    ? "destructive"
-                                    : row.durationOverrunFlag
-                                    ? "warning"
-                                    : row.durationMatchPercent < 90
-                                    ? "warning"
-                                    : "default"
-                                }
-                              >
-                                {row.durationMatchPercent.toFixed(0)}% duration
-                              </InsightPill>
-                            )}
-                            {row.status === "attention" && <InsightPill tone="warning">Manual review</InsightPill>}
-                          </div>
+            <Accordion type="single" collapsible className="w-full">
+              {visibleServiceUserStacks.map((stack) => {
+                const flaggedRows = stack.rows.filter((row) => row.scheduleFlag || row.durationFlag).length;
+                const driftValues = stack.rows
+                  .map((row) => (typeof row.scheduleDeltaMinutes === "number" ? Math.abs(row.scheduleDeltaMinutes) : null))
+                  .filter((value): value is number => value !== null);
+                const averageDrift = driftValues.length
+                  ? driftValues.reduce((acc, val) => acc + val, 0) / driftValues.length
+                  : null;
+                const durationValues = stack.rows
+                  .map((row) => (typeof row.durationMatchPercent === "number" ? row.durationMatchPercent : null))
+                  .filter((value): value is number => value !== null);
+                const averageDuration = durationValues.length
+                  ? durationValues.reduce((acc, val) => acc + val, 0) / durationValues.length
+                  : null;
+                const workerSet = new Set(
+                  stack.rows
+                    .map((row) => row.actualWorker || row.plannedWorker || undefined)
+                    .filter((value): value is string => Boolean(value))
+                );
+
+                return (
+                  <AccordionItem
+                    key={stack.key}
+                    value={stack.key}
+                    className="rounded-2xl border border-border/70 bg-card/50 px-5"
+                  >
+                    <AccordionTrigger className="py-5">
+                      <div className="flex flex-1 flex-col gap-3 text-left lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Service User</p>
+                          <p className="text-xl font-semibold text-foreground">
+                            {stack.serviceUserName || "Unknown service user"}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {(stack.serviceUserArea || "Area unavailable").toString()} • {stack.serviceUserAddress || "Address unavailable"}
+                          </p>
                         </div>
-                        {row.issues.length > 0 && (
-                          <p className="text-xs text-muted-foreground">{row.issues.join(" • ")}</p>
-                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline" className="text-xs font-semibold">
+                            {stack.rows.length} call{stack.rows.length === 1 ? "" : "s"}
+                          </Badge>
+                          <Badge variant={flaggedRows ? "destructive" : "secondary"} className="text-xs font-semibold">
+                            {flaggedRows} flagged
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs font-semibold">
+                            {workerSet.size || 1} carer{workerSet.size === 1 ? "" : "s"}
+                          </Badge>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-            {callGroups.length > visibleCallGroups.length && !callGroupSearch.trim() && (
-              <p className="text-xs text-muted-foreground text-center">
-                Showing the first 5 of {callGroups.length.toLocaleString()} stacks. Use search to focus on a specific service user.
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-5">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <GroupMetric
+                          label="Avg Schedule Drift"
+                          value={formatMinutesDisplay(averageDrift)}
+                          helper="Absolute delta"
+                          tone={
+                            averageDrift !== null && averageDrift > 120
+                              ? "destructive"
+                              : averageDrift !== null && averageDrift > 90
+                              ? "warning"
+                              : "default"
+                          }
+                        />
+                        <GroupMetric
+                          label="Avg Duration Fidelity"
+                          value={averageDuration !== null ? `${averageDuration.toFixed(0)}%` : "—"}
+                          helper="Actual vs planned"
+                          tone={
+                            averageDuration !== null && averageDuration < 80
+                              ? "destructive"
+                              : averageDuration !== null && averageDuration > 120
+                              ? "warning"
+                              : averageDuration !== null && averageDuration < 90
+                              ? "warning"
+                              : "default"
+                          }
+                        />
+                        <GroupMetric
+                          label="Issue Density"
+                          value={stack.rows.length ? `${Math.round((flaggedRows / stack.rows.length) * 100)}%` : "0%"}
+                          helper="Flagged rows in stack"
+                          tone={
+                            flaggedRows
+                              ? flaggedRows / stack.rows.length > 0.5
+                                ? "destructive"
+                                : "warning"
+                              : "default"
+                          }
+                        />
+                      </div>
+
+                      <div className="mt-4 space-y-3">
+                        {stack.rows.map((row, idx) => (
+                          <div
+                            key={`${stack.key}-${row.rowNumber}`}
+                            className="rounded-xl border border-border/60 bg-background/60 p-4 space-y-2"
+                          >
+                            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                              <div>
+                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Call {idx + 1}</p>
+                                <p className="font-semibold text-sm">
+                                  {row.actualWorker || row.plannedWorker || "Care worker unavailable"}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {(row.plannedDateLabel ? `${row.plannedDateLabel} ` : "") + (row.plannedTimeLabel || "—")} → {row.actualTimeLabel || "—"}
+                                </p>
+                                {row.callTypeLabel && (
+                                  <p className="text-xs text-muted-foreground">{row.callTypeLabel}</p>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {typeof row.scheduleDeltaMinutes === "number" && (
+                                  <InsightPill tone={row.scheduleFlag ? "destructive" : "default"}>
+                                    Δ {formatSignedMinutes(row.scheduleDeltaMinutes)}
+                                  </InsightPill>
+                                )}
+                                {typeof row.durationMatchPercent === "number" && (
+                                  <InsightPill
+                                    tone={
+                                      row.durationFlag
+                                        ? "destructive"
+                                        : row.durationOverrunFlag
+                                        ? "warning"
+                                        : row.durationMatchPercent < 90
+                                        ? "warning"
+                                        : "default"
+                                    }
+                                  >
+                                    {row.durationMatchPercent.toFixed(0)}% duration
+                                  </InsightPill>
+                                )}
+                                {row.status === "attention" && <InsightPill tone="warning">Manual review</InsightPill>}
+                              </div>
+                            </div>
+                            {row.issues.length > 0 && (
+                              <p className="text-xs text-muted-foreground">{row.issues.join(" • ")}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
+
+            {serviceUserStacks.length > visibleServiceUserStacks.length && !callGroupSearch.trim() && (
+              <p className="text-xs text-muted-foreground">
+                Showing {visibleServiceUserStacks.length} stacks. Use search to find a specific service user.
               </p>
             )}
-            {callGroupSearch.trim() && (
-              <p className="text-xs text-muted-foreground text-center">
-                Showing up to 5 matches. Refine your search to zero in on a single service user.
+            {callGroupSearch.trim() && !hasSearchMatch && (
+              <p className="text-xs text-muted-foreground">
+                Showing {visibleServiceUserStacks.length} closest match{visibleServiceUserStacks.length === 1 ? "" : "es"}.
               </p>
             )}
           </CardContent>
         </Card>
       )}
+
     </div>
-  );
-}
-
-function formatBytes(bytes: number) {
-  if (!bytes) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const index = Math.floor(Math.log(bytes) / Math.log(1024));
-  const value = bytes / Math.pow(1024, index);
-  return `${value.toFixed(1)} ${units[index]}`;
-}
-
-function UploadCloudIcon() {
-  return (
-    <svg
-      className="h-5 w-5 text-muted-foreground"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M20 15.5a4.5 4.5 0 0 0-3.7-4.4 5 5 0 0 0-9.6-1.3A4 4 0 0 0 4 13.5 4 4 0 0 0 8 17h3" />
-      <path d="m12 12-4 4m4-4 4 4m-4-4v9" />
-    </svg>
-  );
-}
-
-function MetricCard({
-  icon,
-  label,
-  value,
-  helper,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  helper?: string;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        <div className="text-muted-foreground">{icon}</div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {helper && <p className="text-xs text-muted-foreground mt-1">{helper}</p>}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -2285,6 +2316,31 @@ function TimingStat({
       </div>
       <p className="text-xs text-muted-foreground mt-1">{helper}</p>
     </div>
+  );
+}
+
+function MetricCard({
+  icon,
+  label,
+  value,
+  helper,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  helper?: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+        <div className="text-muted-foreground">{icon}</div>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        {helper && <p className="text-xs text-muted-foreground mt-1">{helper}</p>}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -2539,6 +2595,19 @@ function formatSignedMinutes(value: number | null): string {
   const magnitude = formatMinutesDisplay(value);
   if (value === 0) return magnitude;
   return `${value > 0 ? "+" : "-"}${magnitude}`;
+}
+
+function formatBytes(bytes: number): string {
+  if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes < 0) return "—";
+  const units = ["B", "KB", "MB", "GB", "TB"] as const;
+  let unitIndex = 0;
+  let value = bytes;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  const decimals = unitIndex === 0 ? 0 : value < 10 ? 2 : 1;
+  return `${value.toFixed(decimals)} ${units[unitIndex]}`;
 }
 
 function formatDurationDelta(percent: number): string {
