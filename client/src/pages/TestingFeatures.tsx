@@ -105,6 +105,16 @@ const SERVICE_REQUIREMENT_TIME_KEYWORDS = [
   "requirement start time",
 ];
 
+const PLANNED_DATE_KEYWORDS = [
+  "planned date",
+  "planned start date",
+  "scheduled date",
+  "scheduled start date",
+  "service requirement date",
+  "visit date",
+  "call date",
+];
+
 const PLANNED_DURATION_KEYWORDS = [
   "planned duration",
   "scheduled duration",
@@ -390,6 +400,16 @@ export default function TestingFeatures() {
         plannedTimeField ? new Set([plannedTimeField.key]) : undefined
       );
       const plannedTimeSource = plannedTimeField ?? serviceRequirementTimeField;
+      const plannedDateField = detectField(
+        row,
+        PLANNED_DATE_KEYWORDS,
+        (() => {
+          const exclude = new Set<string>();
+          if (plannedTimeField) exclude.add(plannedTimeField.key);
+          if (serviceRequirementTimeField) exclude.add(serviceRequirementTimeField.key);
+          return exclude.size ? exclude : undefined;
+        })()
+      );
       const actualTimeField = detectField(
         row,
         ACTUAL_TIME_KEYWORDS,
@@ -458,7 +478,7 @@ export default function TestingFeatures() {
         plannedTimeMinutes !== null && actualTimeMinutes !== null
           ? actualTimeMinutes - plannedTimeMinutes
           : null;
-      const plannedDateParts = deriveDateParts(plannedTimeSource?.value);
+      const plannedDateParts = deriveDateParts(plannedDateField?.value ?? plannedTimeSource?.value);
 
       const plannedWorkerName = sanitizeStringValue(plannedWorkerField?.value);
       const actualWorkerName = sanitizeStringValue(actualWorkerField?.value);
@@ -1567,7 +1587,8 @@ export default function TestingFeatures() {
         }
 
         doc.setFontSize(11);
-        const heading = `${clusterIndex + 1}. ${cluster.serviceUserName || "Unknown"} — ${cluster.plannedDateLabel || "Unknown date"} at ${cluster.plannedTimeLabel || "Unknown time"}`;
+        const headingDate = formatDateForPdf(cluster.plannedDateLabel) || cluster.plannedDateLabel || "Unknown date";
+        const heading = `${clusterIndex + 1}. ${cluster.serviceUserName || "Unknown"} — ${headingDate} at ${cluster.plannedTimeLabel || "Unknown time"}`;
         const headingLines = doc.splitTextToSize(heading, pageWidth - 80);
         doc.text(headingLines, 40, cursorY);
         cursorY += headingLines.length * 12;
@@ -2702,7 +2723,10 @@ function detectField(
 }
 
 function normalizeKeyForMatch(label: string) {
-  return label.replace(/[_-]+/g, " ").trim().toLowerCase();
+  return label
+    .replace(/[\s_-]+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 function isWorkerRelatedColumnKey(key: string): boolean {
@@ -3003,10 +3027,27 @@ function formatDateForPdf(value: string | null | undefined): string | null {
   const text = value.toString().trim();
   if (!text) return null;
 
+  // ISO datetime (YYYY-MM-DDTHH:mm:ss...) or (YYYY-MM-DD HH:mm:ss...)
+  const isoDateTime = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)$/);
+  if (isoDateTime) {
+    const [, yyyy, mm, dd] = isoDateTime;
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
   // Convert ISO date key (YYYY-MM-DD) into UK display (DD/MM/YYYY).
   const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) {
     const [, yyyy, mm, dd] = iso;
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  // Normalize existing DD/MM/YYYY (possibly without zero padding).
+  const dmy = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (dmy) {
+    const dd = dmy[1].padStart(2, "0");
+    const mm = dmy[2].padStart(2, "0");
+    let yyyy = dmy[3];
+    if (yyyy.length === 2) yyyy = `20${yyyy}`;
     return `${dd}/${mm}/${yyyy}`;
   }
 
@@ -3091,6 +3132,12 @@ function parseDateValue(value: any): Date | null {
 
   const str = String(value).trim();
   if (!str) return null;
+
+  // Guard: a time-only value like "08:00" should NOT become "today".
+  // (Date.parse("08:00") is valid in JS and defaults to today's date.)
+  if (str.match(/^\d{1,2}(?::\d{2})?(?::\d{2})?\s*(am|pm)?$/i)) {
+    return null;
+  }
 
   const european = str.match(/^(\d{1,2})[\/](\d{1,2})[\/](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
   if (european) {
