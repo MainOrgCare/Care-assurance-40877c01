@@ -46,6 +46,9 @@ const DURATION_SHORTFALL_THRESHOLD_PERCENT = 80;
 const DURATION_OVERRUN_THRESHOLD_PERCENT = 120;
 
 const PLANNED_TIME_KEYWORDS = [
+  "planned start date and time",
+  "planned start time",
+  "planned start",
   "planned time",
   "scheduled time",
   "plan time",
@@ -54,12 +57,21 @@ const PLANNED_TIME_KEYWORDS = [
 ];
 
 const ACTUAL_TIME_KEYWORDS = [
+  "actual start date and time",
+  "actual start time",
   "actual time",
   "delivered time",
   "visit time",
   "call time",
   "arrival time",
   "check-in time",
+];
+
+const SERVICE_REQUIREMENT_TIME_KEYWORDS = [
+  "service requirement start date and time",
+  "service requirement start time",
+  "service requirement time",
+  "requirement start time",
 ];
 
 const PLANNED_DURATION_KEYWORDS = [
@@ -73,6 +85,8 @@ const ACTUAL_DURATION_KEYWORDS = [
   "actual duration",
   "recorded duration",
   "delivered duration",
+  "actual call duration",
+  "actual visit duration",
   "call duration",
   "visit duration",
 ];
@@ -80,51 +94,70 @@ const ACTUAL_DURATION_KEYWORDS = [
 const GENERIC_DURATION_KEYWORDS = ["duration", "mins", "minutes"];
 
 const PLANNED_WORKER_KEYWORDS = [
+  "planned employee",
   "planned worker",
   "scheduled worker",
+  "scheduled employee",
   "assigned worker",
+  "assigned employee",
   "planned carer",
   "assigned carer",
 ];
 
 const ACTUAL_WORKER_KEYWORDS = [
+  "actual employee",
   "actual worker",
   "actual carer",
   "delivered worker",
+  "delivered employee",
   "attending worker",
+  "attending employee",
   "visiting carer",
 ];
 
-const GENERIC_WORKER_KEYWORDS = ["care worker", "carer", "staff", "worker", "caregiver"];
+const GENERIC_WORKER_KEYWORDS = [
+  "care worker",
+  "carer",
+  "staff",
+  "worker",
+  "caregiver",
+  "employee name",
+];
 
 const SERVICE_USER_NAME_KEYWORDS = [
   "service user",
   "service user name",
+  "customer name",
   "client",
   "client name",
   "client full name",
+  "service location name",
+  "service location",
   "resident",
   "person",
   "individual",
   "patient",
   "su name",
-  "customer name",
   "people we support",
   "participant",
-  "service location name",
+  "customer",
 ];
 
 const SERVICE_USER_AREA_KEYWORDS = [
-  "area",
   "region",
   "zone",
   "patch",
   "team",
   "borough",
+  "customer area",
+  "service user area",
+  "service location area",
+  "service user branch",
+  "service location branch",
+  "customer branch",
 ];
 
 const SERVICE_USER_ADDRESS_KEYWORDS = [
-  "address",
   "street",
   "road",
   "postcode",
@@ -133,9 +166,15 @@ const SERVICE_USER_ADDRESS_KEYWORDS = [
   "city",
   "town",
   "service location address",
+  "customer address",
 ];
 
-const SERVICE_REQUIREMENT_TYPE_KEYWORDS = ["service requirement type description", "service requirement description"];
+const SERVICE_REQUIREMENT_TYPE_KEYWORDS = [
+  "service requirement type description",
+  "service requirement description",
+  "service type",
+  "service requirement type",
+];
 const SERVICE_REQUIREMENT_SERVICE_TYPE_KEYWORDS = [
   "service requirement service type description",
   "service requirement service description",
@@ -214,12 +253,13 @@ interface SlotTrendSummary {
   serviceUserName: string | null;
   serviceUserArea: string | null;
   serviceUserAddress: string | null;
-  slotLabel: string;
-  slotMinutes: number;
+  callTypeLabel: string;
   totalCalls: number;
   callsWithTimes: number;
   averageStartOffsetMinutes: number | null;
   offsetConsistency: number | null;
+  averageActualStartMinutes: number | null;
+  averagePlannedStartMinutes: number | null;
   suggestedPlannedTimeLabel: string | null;
   callsWithDurations: number;
   averageDurationPercent: number | null;
@@ -297,9 +337,6 @@ export default function TestingFeatures() {
         .map(([key], columnIndex) => normalizeColumnLabel(key, columnIndex));
 
       const issues: string[] = [];
-      if (emptyFields.length) {
-        issues.push(`${emptyFields.length} empty field${emptyFields.length > 1 ? "s" : ""}`);
-      }
       if (numericWarnings.length) {
         issues.push(`${numericWarnings.length} negative value${numericWarnings.length > 1 ? "s" : ""}`);
       }
@@ -308,10 +345,21 @@ export default function TestingFeatures() {
       }
 
       const plannedTimeField = detectField(row, PLANNED_TIME_KEYWORDS);
+      const serviceRequirementTimeField = detectField(
+        row,
+        SERVICE_REQUIREMENT_TIME_KEYWORDS,
+        plannedTimeField ? new Set([plannedTimeField.key]) : undefined
+      );
+      const plannedTimeSource = plannedTimeField ?? serviceRequirementTimeField;
       const actualTimeField = detectField(
         row,
         ACTUAL_TIME_KEYWORDS,
-        plannedTimeField ? new Set([plannedTimeField.key]) : undefined
+        (() => {
+          const exclude = new Set<string>();
+          if (plannedTimeField) exclude.add(plannedTimeField.key);
+          if (serviceRequirementTimeField) exclude.add(serviceRequirementTimeField.key);
+          return exclude.size ? exclude : undefined;
+        })()
       );
 
       const plannedDurationField = detectField(row, PLANNED_DURATION_KEYWORDS);
@@ -338,18 +386,19 @@ export default function TestingFeatures() {
         );
       }
 
-      const plannedTimeMinutes = plannedTimeField
-        ? parseTimeToMinutes(plannedTimeField.value)
+      const plannedTimeMinutes = plannedTimeSource
+        ? parseTimeToMinutes(plannedTimeSource.value)
         : null;
       const actualTimeMinutes = actualTimeField ? parseTimeToMinutes(actualTimeField.value) : null;
       const scheduleDeltaMinutes =
         plannedTimeMinutes !== null && actualTimeMinutes !== null
           ? actualTimeMinutes - plannedTimeMinutes
           : null;
-      const plannedDateParts = deriveDateParts(plannedTimeField?.value);
+      const plannedDateParts = deriveDateParts(plannedTimeSource?.value);
 
       const plannedWorkerName = sanitizeStringValue(plannedWorkerField?.value);
       const actualWorkerName = sanitizeStringValue(actualWorkerField?.value);
+      const hasWorker = Boolean(plannedWorkerName || actualWorkerName);
       const normalizedPlannedWorker = normalizeWorkerName(plannedWorkerName);
       const normalizedActualWorker = normalizeWorkerName(actualWorkerName);
       const workersMatch =
@@ -382,22 +431,44 @@ export default function TestingFeatures() {
       const serviceUserNameField = detectField(row, SERVICE_USER_NAME_KEYWORDS);
       const serviceLocationNameField = detectField(
         row,
-        ["service location name"],
+        ["service location name", "customer name"],
         serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
       );
-      const serviceUserAreaField = detectField(
-        row,
-        SERVICE_USER_AREA_KEYWORDS,
-        serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
-      );
-      const serviceUserAddressField = detectField(
-        row,
-        SERVICE_USER_ADDRESS_KEYWORDS,
-        serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
-      );
+
+      // Prefer explicit customer/service location fields; avoid employee/care worker columns.
+      const serviceUserAreaField =
+        detectFieldExcludingWorkerColumns(
+          row,
+          [
+            "customer area",
+            "service location area",
+            "service user area",
+            "customer branch",
+            "service location branch",
+            "service user branch",
+          ],
+          serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+        ) ??
+        detectFieldExcludingWorkerColumns(
+          row,
+          ["area", "branch"],
+          serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+        );
+
+      const serviceUserAddressField =
+        detectFieldExcludingWorkerColumns(
+          row,
+          ["service location address", "customer address"],
+          serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+        ) ??
+        detectFieldExcludingWorkerColumns(
+          row,
+          ["postcode", "post code", "address"],
+          serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+        );
       const serviceLocationAddressField = detectField(
         row,
-        ["service location address"],
+        ["service location address", "customer address"],
         serviceUserAddressField ? new Set([serviceUserAddressField.key]) : undefined
       );
 
@@ -407,7 +478,21 @@ export default function TestingFeatures() {
         SERVICE_REQUIREMENT_SERVICE_TYPE_KEYWORDS,
         serviceRequirementTypeField ? new Set([serviceRequirementTypeField.key]) : undefined
       );
-      const callTypeParts = [serviceRequirementTypeField?.value, serviceRequirementServiceTypeField?.value]
+      const serviceRequirementFallbackField = detectField(
+        row,
+        ["planned service requirement type description", "planned service type description", "actual service requirement type description", "actual service type description"],
+        (() => {
+          const exclude = new Set<string>();
+          if (serviceRequirementTypeField) exclude.add(serviceRequirementTypeField.key);
+          if (serviceRequirementServiceTypeField) exclude.add(serviceRequirementServiceTypeField.key);
+          return exclude.size ? exclude : undefined;
+        })()
+      );
+      const callTypeParts = [
+        serviceRequirementTypeField?.value,
+        serviceRequirementServiceTypeField?.value,
+        serviceRequirementFallbackField?.value,
+      ]
         .map(sanitizeHumanReadable)
         .filter(Boolean) as string[];
       const callTypeLabel = callTypeParts.length ? Array.from(new Set(callTypeParts)).join(" • ") : null;
@@ -423,8 +508,9 @@ export default function TestingFeatures() {
         serviceUserArea
       );
 
-      const excludeFromMetrics = workersMatch === false;
-      if (excludeFromMetrics) {
+      // Cancelled calls have no carer assigned/recorded; ignore them.
+      const excludeFromMetrics = workersMatch === false || !hasWorker;
+      if (excludeFromMetrics && workersMatch === false) {
         issues.push("Care worker mismatch — excluded from metrics");
       }
 
@@ -456,7 +542,7 @@ export default function TestingFeatures() {
         workersMatch,
         plannedWorker: plannedWorkerName,
         actualWorker: actualWorkerName,
-        plannedTimeLabel: deriveTimeLabel(plannedTimeMinutes, plannedTimeField?.value),
+        plannedTimeLabel: deriveTimeLabel(plannedTimeMinutes, plannedTimeSource?.value),
         actualTimeLabel: deriveTimeLabel(actualTimeMinutes, actualTimeField?.value),
         plannedDurationMinutes,
         actualDurationMinutes,
@@ -702,13 +788,17 @@ export default function TestingFeatures() {
       serviceUserName: string | null;
       serviceUserArea: string | null;
       serviceUserAddress: string | null;
-      slotMinutes: number;
+      callTypeLabel: string;
       totalCalls: number;
       callsWithTimes: number;
       offsetSum: number;
       offsetPositive: number;
       offsetNegative: number;
       offsetAbsOver15: number;
+      callsWithActualStarts: number;
+      actualStartSum: number;
+      callsWithPlannedStarts: number;
+      plannedStartSum: number;
       callsWithDurations: number;
       ratioSum: number;
       longCount: number;
@@ -722,10 +812,10 @@ export default function TestingFeatures() {
     for (const row of primaryRows) {
       const userKey = row.normalizedServiceUserKey;
       if (!userKey) continue;
-      if (typeof row.plannedTimeMinutes !== "number") continue;
+      const callTypeKey = normalizeCallTypeKey(row.callTypeLabel ?? null);
+      if (!callTypeKey) continue;
 
-      const slotMinutes = bucketMinutes(row.plannedTimeMinutes, TREND_BUCKET_MINUTES);
-      const key = `${userKey}|slot-${slotMinutes}`;
+      const key = `${userKey}|type-${callTypeKey}`;
 
       if (!map.has(key)) {
         map.set(key, {
@@ -733,13 +823,17 @@ export default function TestingFeatures() {
           serviceUserName: row.serviceUserName ?? null,
           serviceUserArea: row.serviceUserArea ?? null,
           serviceUserAddress: row.serviceUserAddress ?? null,
-          slotMinutes,
+          callTypeLabel: row.callTypeLabel ?? "Unknown",
           totalCalls: 0,
           callsWithTimes: 0,
           offsetSum: 0,
           offsetPositive: 0,
           offsetNegative: 0,
           offsetAbsOver15: 0,
+          callsWithActualStarts: 0,
+          actualStartSum: 0,
+          callsWithPlannedStarts: 0,
+          plannedStartSum: 0,
           callsWithDurations: 0,
           ratioSum: 0,
           longCount: 0,
@@ -754,8 +848,21 @@ export default function TestingFeatures() {
       if (!acc.serviceUserName && row.serviceUserName) acc.serviceUserName = row.serviceUserName;
       if (!acc.serviceUserArea && row.serviceUserArea) acc.serviceUserArea = row.serviceUserArea;
       if (!acc.serviceUserAddress && row.serviceUserAddress) acc.serviceUserAddress = row.serviceUserAddress;
+      if (acc.callTypeLabel === "Unknown" && row.callTypeLabel) acc.callTypeLabel = row.callTypeLabel;
 
       if (typeof row.actualTimeMinutes === "number") {
+        const actual = clampMinutesOfDay(row.actualTimeMinutes);
+        acc.callsWithActualStarts += 1;
+        acc.actualStartSum += actual;
+      }
+
+      if (typeof row.plannedTimeMinutes === "number") {
+        const planned = clampMinutesOfDay(row.plannedTimeMinutes);
+        acc.callsWithPlannedStarts += 1;
+        acc.plannedStartSum += planned;
+      }
+
+      if (typeof row.actualTimeMinutes === "number" && typeof row.plannedTimeMinutes === "number") {
         const delta = row.actualTimeMinutes - row.plannedTimeMinutes;
         if (Number.isFinite(delta) && Math.abs(delta) <= 12 * 60) {
           acc.callsWithTimes += 1;
@@ -791,6 +898,13 @@ export default function TestingFeatures() {
       const dominantSignCount = Math.max(acc.offsetPositive, acc.offsetNegative);
       const offsetConsistency = acc.callsWithTimes ? dominantSignCount / acc.callsWithTimes : null;
 
+      const averageActualStartMinutes = acc.callsWithActualStarts
+        ? acc.actualStartSum / acc.callsWithActualStarts
+        : null;
+      const averagePlannedStartMinutes = acc.callsWithPlannedStarts
+        ? acc.plannedStartSum / acc.callsWithPlannedStarts
+        : null;
+
       let suggestedPlannedTimeLabel: string | null = null;
       if (
         acc.callsWithTimes >= TREND_MIN_CALLS &&
@@ -800,12 +914,24 @@ export default function TestingFeatures() {
         offsetConsistency >= TREND_CONSISTENCY &&
         acc.offsetAbsOver15 / acc.callsWithTimes >= TREND_CONSISTENCY
       ) {
-        const roundedOffset = roundToNearest(averageStartOffsetMinutes, 5);
-        const suggestedMinutes = clampMinutesOfDay(acc.slotMinutes + roundedOffset);
-        suggestedPlannedTimeLabel = deriveTimeLabel(suggestedMinutes, null) ?? null;
+        const suggestedMinutes =
+          typeof averageActualStartMinutes === "number"
+            ? clampMinutesOfDay(roundToNearest(averageActualStartMinutes, 5))
+            : null;
+        suggestedPlannedTimeLabel =
+          typeof suggestedMinutes === "number" ? deriveTimeLabel(suggestedMinutes, null) ?? null : null;
+
         const direction = averageStartOffsetMinutes > 0 ? "later" : "earlier";
+        const plannedLabel =
+          typeof averagePlannedStartMinutes === "number"
+            ? deriveTimeLabel(averagePlannedStartMinutes, null)
+            : null;
+        const actualLabel =
+          typeof averageActualStartMinutes === "number"
+            ? deriveTimeLabel(averageActualStartMinutes, null)
+            : null;
         advice.push(
-          `Actual starts are consistently ${direction} than planned by about ${formatMinutesDisplay(Math.abs(averageStartOffsetMinutes))}. Consider changing planned time from ${deriveTimeLabel(acc.slotMinutes, null)} to ${suggestedPlannedTimeLabel}.`
+          `For ${acc.callTypeLabel}, actual starts are consistently ${direction} than planned by about ${formatMinutesDisplay(Math.abs(averageStartOffsetMinutes))}${plannedLabel ? ` (planned ~${plannedLabel}` : ""}${actualLabel ? `${plannedLabel ? ", " : " ("}actual ~${actualLabel}` : ""}${plannedLabel || actualLabel ? ")" : ""}. Consider changing planned time to ${suggestedPlannedTimeLabel || "the average actual time"}.`
         );
       }
 
@@ -849,12 +975,13 @@ export default function TestingFeatures() {
         serviceUserName: acc.serviceUserName,
         serviceUserArea: acc.serviceUserArea,
         serviceUserAddress: acc.serviceUserAddress,
-        slotLabel: deriveTimeLabel(acc.slotMinutes, null) ?? "—",
-        slotMinutes: acc.slotMinutes,
+        callTypeLabel: acc.callTypeLabel,
         totalCalls: acc.totalCalls,
         callsWithTimes: acc.callsWithTimes,
         averageStartOffsetMinutes,
         offsetConsistency,
+        averageActualStartMinutes,
+        averagePlannedStartMinutes,
         suggestedPlannedTimeLabel,
         callsWithDurations: acc.callsWithDurations,
         averageDurationPercent,
@@ -1052,6 +1179,25 @@ export default function TestingFeatures() {
         )
       );
 
+      const primaryCallType = (() => {
+        const counts = new Map<string, number>();
+        group.rows.forEach((row) => {
+          const label = row.callTypeLabel;
+          const norm = normalizeCallTypeKey(label ?? null);
+          if (!label || !norm) return;
+          counts.set(label, (counts.get(label) ?? 0) + 1);
+        });
+        let bestLabel: string | null = null;
+        let bestCount = -1;
+        for (const [label, count] of counts.entries()) {
+          if (count > bestCount) {
+            bestLabel = label;
+            bestCount = count;
+          }
+        }
+        return bestLabel;
+      })();
+
       const recommendationLines: string[] = [];
       if (callTypes.length || group.plannedTimeLabel) {
         recommendationLines.push(
@@ -1059,8 +1205,17 @@ export default function TestingFeatures() {
         );
       }
 
-      const slotTrendKey = buildSlotTrendKeyForGroup(group.normalizedServiceUserKey, group.plannedTimeMinutes);
+      const slotTrendKey = buildCallTypeTrendKey(group.normalizedServiceUserKey, primaryCallType);
       const slotTrendInsight = slotTrendKey ? slotTrendMap.get(slotTrendKey) : undefined;
+
+      if (typeof slotTrendInsight?.averageActualStartMinutes === "number") {
+        const avgActualLabel = deriveTimeLabel(slotTrendInsight.averageActualStartMinutes, null);
+        if (avgActualLabel) {
+          recommendationLines.push(
+            `Average actual start for ${slotTrendInsight.callTypeLabel} is around ${avgActualLabel}.`
+          );
+        }
+      }
 
       const startDeltaValues = group.rows
         .map((row) => (typeof row.scheduleDeltaMinutes === "number" ? row.scheduleDeltaMinutes : null))
@@ -1086,8 +1241,12 @@ export default function TestingFeatures() {
         ? actualDurationValues.reduce((acc, value) => acc + value, 0) / actualDurationValues.length
         : null;
 
-      const addStartTrendLine = (consistency?: number | null, offset?: number | null, suggestion?: string | null) => {
-        if (offset === null || typeof group.plannedTimeMinutes !== "number") return;
+      const addStartTrendLine = (
+        consistency: number | null,
+        offset: number | null,
+        suggestion: string | null
+      ) => {
+        if (typeof offset !== "number" || typeof group.plannedTimeMinutes !== "number") return;
         const actualLabel = deriveTimeLabel(clampMinutesOfDay(group.plannedTimeMinutes + offset), null);
         if (!actualLabel) return;
         const direction = offset > 0 ? "later" : "earlier";
@@ -1100,21 +1259,22 @@ export default function TestingFeatures() {
         }
       };
 
-      if (slotTrendInsight?.averageStartOffsetMinutes !== null) {
+      if (typeof slotTrendInsight?.averageStartOffsetMinutes === "number") {
         addStartTrendLine(
-          slotTrendInsight.offsetConsistency,
+          slotTrendInsight.offsetConsistency ?? null,
           slotTrendInsight.averageStartOffsetMinutes,
-          slotTrendInsight.suggestedPlannedTimeLabel
+          slotTrendInsight.suggestedPlannedTimeLabel ?? null
         );
-      } else if (avgStartDelta !== null) {
+      } else if (typeof avgStartDelta === "number") {
         addStartTrendLine(null, avgStartDelta, null);
       }
 
-      if (slotTrendInsight?.averageDurationPercent !== null) {
+      if (typeof slotTrendInsight?.averageDurationPercent === "number") {
         const percent = slotTrendInsight.averageDurationPercent.toFixed(0);
-        const recommendedDuration = slotTrendInsight.suggestedPlannedDurationMinutes
-          ? formatMinutesDisplay(slotTrendInsight.suggestedPlannedDurationMinutes)
-          : null;
+        const recommendedDuration =
+          typeof slotTrendInsight.suggestedPlannedDurationMinutes === "number"
+            ? formatMinutesDisplay(slotTrendInsight.suggestedPlannedDurationMinutes)
+            : null;
         recommendationLines.push(
           `Call duration trend: ${percent}% of plan${
             avgActualDuration !== null ? ` (${formatMinutesDisplay(avgActualDuration)} actual)` : ""
@@ -1380,7 +1540,7 @@ export default function TestingFeatures() {
                 <p>Duplicates ignored: {summary.duplicateCount.toLocaleString()}</p>
               )}
               {summary.excludedCareWorkers > 0 && (
-                <p>Carer mismatches excluded: {summary.excludedCareWorkers.toLocaleString()}</p>
+                <p>Excluded rows (cancelled/mismatch): {summary.excludedCareWorkers.toLocaleString()}</p>
               )}
               <p>Flagged rows: {summary.attention.toLocaleString()}</p>
               <p>Empty fields: {summary.totalEmpty.toLocaleString()}</p>
@@ -1481,9 +1641,9 @@ export default function TestingFeatures() {
       {slotTrends.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Recurring Slot Trends</CardTitle>
+            <CardTitle>Recurring Call Type Trends</CardTitle>
             <CardDescription>
-              Detect consistent drift for the same service user and planned slot, then suggest practical updates to planned times or durations.
+              Detect consistent drift for the same service user and call type, then suggest practical updates to planned times or durations based on actuals.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -1495,9 +1655,9 @@ export default function TestingFeatures() {
                 >
                   <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Service User • Slot</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Service User • Call Type</p>
                       <p className="text-base font-semibold text-foreground">
-                        {trend.serviceUserName || "Unknown"} • {trend.slotLabel}
+                        {trend.serviceUserName || "Unknown"} • {trend.callTypeLabel}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {(trend.serviceUserArea || "Area unavailable").toString()} • {trend.serviceUserAddress || "Address unavailable"}
@@ -2212,6 +2372,35 @@ function normalizeKeyForMatch(label: string) {
   return label.replace(/[_-]+/g, " ").trim().toLowerCase();
 }
 
+function isWorkerRelatedColumnKey(key: string): boolean {
+  const normalized = normalizeKeyForMatch(key);
+  return (
+    normalized.includes("employee") ||
+    normalized.includes("worker") ||
+    normalized.includes("carer") ||
+    normalized.includes("care worker") ||
+    normalized.includes("staff")
+  );
+}
+
+function detectFieldExcludingWorkerColumns(
+  row: Record<string, any>,
+  keywords: string[],
+  excludeKeys?: Set<string>
+): DetectedField {
+  if (!keywords.length) return null;
+  const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
+  for (const key of Object.keys(row)) {
+    if (excludeKeys?.has(key)) continue;
+    if (isWorkerRelatedColumnKey(key)) continue;
+    const normalizedKey = normalizeKeyForMatch(key);
+    if (normalizedKeywords.some((keyword) => normalizedKey.includes(keyword))) {
+      return { key, value: row[key] };
+    }
+  }
+  return null;
+}
+
 function sanitizeStringValue(value: any): string | null {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -2229,8 +2418,11 @@ function parseTimeToMinutes(value: any): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     const excelMinutes = excelSerialToMinutes(value);
     if (excelMinutes !== null) return excelMinutes;
-    if (value >= 0 && value < 1) {
-      return value * 24 * 60;
+    // Fallback for Excel/CSV numeric date-times when SSF parser is unavailable.
+    // Excel stores date-times as days since an epoch; fractional part is time-of-day.
+    const fraction = value - Math.floor(value);
+    if (fraction >= 0 && fraction < 1) {
+      return fraction * 24 * 60;
     }
     if (value <= 24) {
       return value * 60;
@@ -2241,6 +2433,13 @@ function parseTimeToMinutes(value: any): number | null {
   }
   const str = String(value).trim();
   if (!str) return null;
+
+  // Prefer our own date parsing to handle formats like DD/MM/YYYY HH:MM:SS.
+  const parsedDate = parseDateValue(str);
+  if (parsedDate) {
+    return parsedDate.getHours() * 60 + parsedDate.getMinutes() + parsedDate.getSeconds() / 60;
+  }
+
   const dateValue = Date.parse(str);
   if (!Number.isNaN(dateValue)) {
     const date = new Date(dateValue);
@@ -2359,6 +2558,11 @@ function normalizeWorkerName(value: string | null): string | null {
   return value.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+function normalizeCallTypeKey(value: string | null): string | null {
+  if (!value) return null;
+  return value.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
 function normalizeLocationToken(value: string | null): string | null {
   if (!value) return null;
   return value.replace(/\s+/g, " ").trim().toLowerCase();
@@ -2416,6 +2620,22 @@ function parseDateValue(value: any): Date | null {
         return new Date(parts.y, parts.m - 1, parts.d, parts.H ?? parts.h ?? 0, parts.M ?? parts.m ?? 0, parts.S ?? parts.s ?? 0);
       }
     }
+
+    // Fallback when SSF parser is unavailable (common in some bundles).
+    // Convert Excel serial date-time to a local Date without timezone shifting the calendar day.
+    // 25569 is the Excel serial for 1970-01-01.
+    const utcMillis = (value - 25569) * 86400 * 1000;
+    if (Number.isFinite(utcMillis)) {
+      const utcDate = new Date(utcMillis);
+      return new Date(
+        utcDate.getUTCFullYear(),
+        utcDate.getUTCMonth(),
+        utcDate.getUTCDate(),
+        utcDate.getUTCHours(),
+        utcDate.getUTCMinutes(),
+        utcDate.getUTCSeconds()
+      );
+    }
   }
 
   const str = String(value).trim();
@@ -2468,6 +2688,16 @@ function buildSlotTrendKeyForGroup(
   if (typeof plannedTimeMinutes !== "number") return null;
   const slotMinutes = bucketMinutes(plannedTimeMinutes, TREND_BUCKET_MINUTES);
   return `${normalizedServiceUserKey}|slot-${slotMinutes}`;
+}
+
+function buildCallTypeTrendKey(
+  normalizedServiceUserKey?: string | null,
+  callTypeLabel?: string | null
+): string | null {
+  if (!normalizedServiceUserKey) return null;
+  const typeKey = normalizeCallTypeKey(callTypeLabel ?? null);
+  if (!typeKey) return null;
+  return `${normalizedServiceUserKey}|type-${typeKey}`;
 }
 
 function clampMinutesOfDay(value: number): number {
