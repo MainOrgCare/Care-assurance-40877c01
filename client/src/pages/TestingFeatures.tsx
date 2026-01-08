@@ -1202,6 +1202,103 @@ export default function TestingFeatures() {
       return;
     }
 
+    const getPrimaryCallTypeForGroup = (group: CallGroup): string | null => {
+      const counts = new Map<string, number>();
+      group.rows.forEach((row) => {
+        const label = row.callTypeLabel;
+        const norm = normalizeCallTypeKey(label ?? null);
+        if (!label || !norm) return;
+        counts.set(label, (counts.get(label) ?? 0) + 1);
+      });
+      let bestLabel: string | null = null;
+      let bestCount = -1;
+      for (const [label, count] of counts.entries()) {
+        if (count > bestCount) {
+          bestLabel = label;
+          bestCount = count;
+        }
+      }
+      return bestLabel;
+    };
+
+    type ServiceUserSection = {
+      key: string;
+      name: string | null;
+      area: string | null;
+      address: string | null;
+      groups: CallGroup[];
+    };
+
+    const orderedSections: ServiceUserSection[] = (() => {
+      const map = new Map<string, ServiceUserSection>();
+      callGroups.forEach((group, index) => {
+        const key = group.normalizedServiceUserKey || group.serviceUserName || `unknown-${index}`;
+        if (!map.has(key)) {
+          map.set(key, {
+            key,
+            name: group.serviceUserName,
+            area: group.serviceUserArea,
+            address: group.serviceUserAddress,
+            groups: [],
+          });
+        }
+
+        const section = map.get(key)!;
+        section.groups.push(group);
+        if (!section.name && group.serviceUserName) section.name = group.serviceUserName;
+        if (!section.area && group.serviceUserArea) section.area = group.serviceUserArea;
+        if (!section.address && group.serviceUserAddress) section.address = group.serviceUserAddress;
+      });
+
+      const sections = Array.from(map.values());
+      sections.sort((a, b) => {
+        const aName = parsePersonNameForSort(a.name);
+        const bName = parsePersonNameForSort(b.name);
+        if (aName.last !== bName.last) return aName.last.localeCompare(bName.last);
+        if (aName.first !== bName.first) return aName.first.localeCompare(bName.first);
+        if (aName.full !== bName.full) return aName.full.localeCompare(bName.full);
+        return a.key.localeCompare(b.key);
+      });
+
+      sections.forEach((section) => {
+        section.groups.sort((a, b) => {
+          const aPrimaryType = getPrimaryCallTypeForGroup(a);
+          const bPrimaryType = getPrimaryCallTypeForGroup(b);
+          const aNonCare = isNonPersonalCareCallType(aPrimaryType);
+          const bNonCare = isNonPersonalCareCallType(bPrimaryType);
+          if (aNonCare !== bNonCare) return aNonCare ? 1 : -1;
+
+          const aTime = typeof a.plannedTimeMinutes === "number" ? a.plannedTimeMinutes : Number.POSITIVE_INFINITY;
+          const bTime = typeof b.plannedTimeMinutes === "number" ? b.plannedTimeMinutes : Number.POSITIVE_INFINITY;
+          if (aTime !== bTime) return aTime - bTime;
+
+          return (aPrimaryType || "").localeCompare(bPrimaryType || "") || a.key.localeCompare(b.key);
+        });
+      });
+
+      return sections;
+    })();
+
+    const orderedGroups = [...callGroups].sort((a, b) => {
+      const aName = parsePersonNameForSort(a.serviceUserName);
+      const bName = parsePersonNameForSort(b.serviceUserName);
+      if (aName.last !== bName.last) return aName.last.localeCompare(bName.last);
+      if (aName.first !== bName.first) return aName.first.localeCompare(bName.first);
+      if (aName.full !== bName.full) return aName.full.localeCompare(bName.full);
+
+      const aPrimaryType = getPrimaryCallTypeForGroup(a);
+      const bPrimaryType = getPrimaryCallTypeForGroup(b);
+      const aNonCare = isNonPersonalCareCallType(aPrimaryType);
+      const bNonCare = isNonPersonalCareCallType(bPrimaryType);
+      if (aNonCare !== bNonCare) return aNonCare ? 1 : -1;
+
+      const aTime = typeof a.plannedTimeMinutes === "number" ? a.plannedTimeMinutes : Number.POSITIVE_INFINITY;
+      const bTime = typeof b.plannedTimeMinutes === "number" ? b.plannedTimeMinutes : Number.POSITIVE_INFINITY;
+      if (aTime !== bTime) return aTime - bTime;
+
+      return (aPrimaryType || "").localeCompare(bPrimaryType || "") || a.key.localeCompare(b.key);
+    });
+
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -1210,168 +1307,205 @@ export default function TestingFeatures() {
     const duplicateNote = duplicateClusters.length
       ? `Note: Found ${duplicateClusters.length} planned slot${duplicateClusters.length === 1 ? "" : "s"} with multiple carers. Only the first row counted toward metrics. A duplicate review section is included at the end of this report.`
       : null;
-    let currentY = 48;
+    // Front page
+    doc.setFontSize(20);
+    doc.text("Service User Calls Report", pageWidth / 2, 140, { align: "center" });
+    doc.setFontSize(11);
+    doc.setTextColor(80);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, 170, { align: "center" });
+    doc.setTextColor(0);
 
-    callGroups.forEach((group, groupIndex) => {
-      if (currentY > pageHeight - 320) {
+    // Index pages (count is estimated up-front so content page numbers remain stable)
+    const indexHeaderTop = 64;
+    const indexLineHeight = 14;
+    const indexBottomPad = 72;
+    const indexCapacity = Math.max(1, Math.floor((pageHeight - indexHeaderTop - indexBottomPad) / indexLineHeight));
+    const indexPages = Math.max(1, Math.ceil(orderedSections.length / indexCapacity));
+    for (let i = 0; i < indexPages; i += 1) {
+      doc.addPage();
+    }
+
+    // Start content after front + index
+    const contentStartPage = 1 + indexPages + 1;
+    doc.setPage(contentStartPage);
+    let currentY = 48;
+    const serviceUserStartPages = new Map<string, number>();
+    let duplicateNoteWritten = false;
+
+    orderedSections.forEach((section, sectionIndex) => {
+      if (sectionIndex > 0 || currentY > 48) {
         doc.addPage();
         currentY = 48;
       }
 
-      doc.setFontSize(12);
-      doc.text(`Service User: ${group.serviceUserName || "Unknown"}`, 40, currentY);
+      serviceUserStartPages.set(section.key, doc.getCurrentPageInfo().pageNumber);
+
+      doc.setFontSize(14);
+      doc.text(section.name || "Unknown", 40, currentY);
       currentY += 16;
       doc.setFontSize(10);
-      doc.text(`Area: ${group.serviceUserArea || "N/A"}`, 40, currentY);
+      doc.text(`Area: ${section.area || "N/A"}`, 40, currentY);
       currentY += 14;
-      doc.text(`Address: ${group.serviceUserAddress || "N/A"}`, 40, currentY);
-      currentY += 14;
-      doc.text(`Planned Time: ${group.plannedTimeLabel || "N/A"}`, 40, currentY);
-      currentY += 16;
+      doc.text(`Address: ${section.address || "N/A"}`, 40, currentY);
+      currentY += 10;
 
-      const callTypes = Array.from(
-        new Set(
-          group.rows
-            .map((row) => row.callTypeLabel)
-            .filter((value): value is string => Boolean(value))
-        )
-      );
-
-      const primaryCallType = (() => {
-        const counts = new Map<string, number>();
-        group.rows.forEach((row) => {
-          const label = row.callTypeLabel;
-          const norm = normalizeCallTypeKey(label ?? null);
-          if (!label || !norm) return;
-          counts.set(label, (counts.get(label) ?? 0) + 1);
-        });
-        let bestLabel: string | null = null;
-        let bestCount = -1;
-        for (const [label, count] of counts.entries()) {
-          if (count > bestCount) {
-            bestLabel = label;
-            bestCount = count;
-          }
+      section.groups.forEach((group) => {
+        if (currentY > pageHeight - 260) {
+          doc.addPage();
+          currentY = 48;
         }
-        return bestLabel;
-      })();
 
-      const recommendationLines: string[] = [];
-      if (callTypes.length || group.plannedTimeLabel) {
-        recommendationLines.push(
-          `Service requirement: ${callTypes.length ? callTypes.join(", ") : "—"} • Planned ${group.plannedTimeLabel || "—"}`
+        doc.setFontSize(11);
+        doc.text(`Planned Time: ${group.plannedTimeLabel || "N/A"}`, 40, currentY);
+        currentY += 14;
+
+        const callTypes = Array.from(
+          new Set(
+            group.rows
+              .map((row) => row.callTypeLabel)
+              .filter((value): value is string => Boolean(value))
+          )
         );
-      }
 
-      const slotTrendKey = buildCallTypeTrendKey(group.normalizedServiceUserKey, primaryCallType);
-      const slotTrendInsight = slotTrendKey ? slotTrendMap.get(slotTrendKey) : undefined;
+        const primaryCallType = getPrimaryCallTypeForGroup(group);
 
-      if (typeof slotTrendInsight?.averageActualStartMinutes === "number") {
-        const avgActualLabel = deriveTimeLabel(slotTrendInsight.averageActualStartMinutes, null);
-        if (avgActualLabel) {
+        const recommendationLines: string[] = [];
+        if (callTypes.length || group.plannedTimeLabel) {
           recommendationLines.push(
-            `Average actual start for ${slotTrendInsight.callTypeLabel} is around ${avgActualLabel}.`
+            `Service requirement: ${callTypes.length ? callTypes.join(", ") : "—"} • Planned ${group.plannedTimeLabel || "—"}`
           );
         }
-      }
 
-      const startDeltaValues = group.rows
-        .map((row) => (typeof row.scheduleDeltaMinutes === "number" ? row.scheduleDeltaMinutes : null))
-        .filter((value): value is number => value !== null);
-      const avgStartDelta = startDeltaValues.length
-        ? startDeltaValues.reduce((acc, value) => acc + value, 0) / startDeltaValues.length
-        : null;
-      const actualTrendLabel =
-        avgStartDelta !== null && typeof group.plannedTimeMinutes === "number"
-          ? deriveTimeLabel(clampMinutesOfDay(group.plannedTimeMinutes + avgStartDelta), null)
+        const slotTrendKey = buildCallTypeTrendKey(group.normalizedServiceUserKey, primaryCallType);
+        const slotTrendInsight = slotTrendKey ? slotTrendMap.get(slotTrendKey) : undefined;
+
+        if (typeof slotTrendInsight?.averageActualStartMinutes === "number") {
+          const avgActualLabel = deriveTimeLabel(slotTrendInsight.averageActualStartMinutes, null);
+          if (avgActualLabel) {
+            recommendationLines.push(
+              `Average actual start for ${slotTrendInsight.callTypeLabel} is around ${avgActualLabel}.`
+            );
+          }
+        }
+
+        const startDeltaValues = group.rows
+          .map((row) => (typeof row.scheduleDeltaMinutes === "number" ? row.scheduleDeltaMinutes : null))
+          .filter((value): value is number => value !== null);
+        const avgStartDelta = startDeltaValues.length
+          ? startDeltaValues.reduce((acc, value) => acc + value, 0) / startDeltaValues.length
+          : null;
+        const actualTrendLabel =
+          avgStartDelta !== null && typeof group.plannedTimeMinutes === "number"
+            ? deriveTimeLabel(clampMinutesOfDay(group.plannedTimeMinutes + avgStartDelta), null)
+            : null;
+
+        const durationPercents = group.rows
+          .map((row) => (typeof row.durationMatchPercent === "number" ? row.durationMatchPercent : null))
+          .filter((value): value is number => value !== null);
+        const avgDurationPercent = durationPercents.length
+          ? durationPercents.reduce((acc, value) => acc + value, 0) / durationPercents.length
+          : null;
+        const actualDurationValues = group.rows
+          .map((row) => (typeof row.actualDurationMinutes === "number" ? row.actualDurationMinutes : null))
+          .filter((value): value is number => value !== null);
+        const avgActualDuration = actualDurationValues.length
+          ? actualDurationValues.reduce((acc, value) => acc + value, 0) / actualDurationValues.length
           : null;
 
-      const durationPercents = group.rows
-        .map((row) => (typeof row.durationMatchPercent === "number" ? row.durationMatchPercent : null))
-        .filter((value): value is number => value !== null);
-      const avgDurationPercent = durationPercents.length
-        ? durationPercents.reduce((acc, value) => acc + value, 0) / durationPercents.length
-        : null;
-      const actualDurationValues = group.rows
-        .map((row) => (typeof row.actualDurationMinutes === "number" ? row.actualDurationMinutes : null))
-        .filter((value): value is number => value !== null);
-      const avgActualDuration = actualDurationValues.length
-        ? actualDurationValues.reduce((acc, value) => acc + value, 0) / actualDurationValues.length
-        : null;
+        const addStartTrendLine = (
+          consistency: number | null,
+          offset: number | null,
+          suggestion: string | null
+        ) => {
+          if (typeof offset !== "number" || typeof group.plannedTimeMinutes !== "number") return;
+          const actualLabel = deriveTimeLabel(clampMinutesOfDay(group.plannedTimeMinutes + offset), null);
+          if (!actualLabel) return;
+          const direction = offset > 0 ? "later" : "earlier";
+          const coverage = consistency ? `${Math.round(consistency * 100)}% of visits` : "Actual visits";
+          recommendationLines.push(
+            `${coverage} land ${direction} around ${actualLabel} (${formatMinutesDisplay(Math.abs(offset))} from plan).`
+          );
+          if (suggestion) {
+            recommendationLines.push(`Recommended planned time: ${suggestion}.`);
+          }
+        };
 
-      const addStartTrendLine = (
-        consistency: number | null,
-        offset: number | null,
-        suggestion: string | null
-      ) => {
-        if (typeof offset !== "number" || typeof group.plannedTimeMinutes !== "number") return;
-        const actualLabel = deriveTimeLabel(clampMinutesOfDay(group.plannedTimeMinutes + offset), null);
-        if (!actualLabel) return;
-        const direction = offset > 0 ? "later" : "earlier";
-        const coverage = consistency ? `${Math.round(consistency * 100)}% of visits` : "Actual visits";
-        recommendationLines.push(
-          `${coverage} land ${direction} around ${actualLabel} (${formatMinutesDisplay(Math.abs(offset))} from plan).`
-        );
-        if (suggestion) {
-          recommendationLines.push(`Recommended planned time: ${suggestion}.`);
+        if (typeof slotTrendInsight?.averageStartOffsetMinutes === "number") {
+          addStartTrendLine(
+            slotTrendInsight.offsetConsistency ?? null,
+            slotTrendInsight.averageStartOffsetMinutes,
+            slotTrendInsight.suggestedPlannedTimeLabel ?? null
+          );
+        } else if (typeof avgStartDelta === "number") {
+          addStartTrendLine(null, avgStartDelta, null);
         }
-      };
 
-      if (typeof slotTrendInsight?.averageStartOffsetMinutes === "number") {
-        addStartTrendLine(
-          slotTrendInsight.offsetConsistency ?? null,
-          slotTrendInsight.averageStartOffsetMinutes,
-          slotTrendInsight.suggestedPlannedTimeLabel ?? null
-        );
-      } else if (typeof avgStartDelta === "number") {
-        addStartTrendLine(null, avgStartDelta, null);
-      }
+        if (typeof slotTrendInsight?.averageDurationPercent === "number") {
+          const percent = slotTrendInsight.averageDurationPercent.toFixed(0);
+          const recommendedDuration =
+            typeof slotTrendInsight.suggestedPlannedDurationMinutes === "number"
+              ? formatMinutesDisplay(slotTrendInsight.suggestedPlannedDurationMinutes)
+              : null;
+          recommendationLines.push(
+            `Call duration trend: ${percent}% of plan${
+              avgActualDuration !== null ? ` (${formatMinutesDisplay(avgActualDuration)} actual)` : ""
+            }${recommendedDuration ? `. Recommend planning ${recommendedDuration}.` : ""}`
+          );
+        } else if (avgDurationPercent !== null) {
+          recommendationLines.push(
+            `Call duration trend: ${avgDurationPercent.toFixed(0)}% of plan${
+              avgActualDuration !== null ? ` (${formatMinutesDisplay(avgActualDuration)} actual)` : ""
+            }.`
+          );
+        }
 
-      if (typeof slotTrendInsight?.averageDurationPercent === "number") {
-        const percent = slotTrendInsight.averageDurationPercent.toFixed(0);
-        const recommendedDuration =
-          typeof slotTrendInsight.suggestedPlannedDurationMinutes === "number"
-            ? formatMinutesDisplay(slotTrendInsight.suggestedPlannedDurationMinutes)
-            : null;
-        recommendationLines.push(
-          `Call duration trend: ${percent}% of plan${
-            avgActualDuration !== null ? ` (${formatMinutesDisplay(avgActualDuration)} actual)` : ""
-          }${recommendedDuration ? `. Recommend planning ${recommendedDuration}.` : ""}`
-        );
-      } else if (avgDurationPercent !== null) {
-        recommendationLines.push(
-          `Call duration trend: ${avgDurationPercent.toFixed(0)}% of plan${
-            avgActualDuration !== null ? ` (${formatMinutesDisplay(avgActualDuration)} actual)` : ""
-          }.`
-        );
-      }
+        if (slotTrendInsight?.advice.length) {
+          recommendationLines.push(...slotTrendInsight.advice);
+        }
 
-      if (slotTrendInsight?.advice.length) {
-        recommendationLines.push(...slotTrendInsight.advice);
-      }
+        if (recommendationLines.length) {
+          doc.setFontSize(9);
+          doc.setTextColor(80);
+          const wrapped = recommendationLines.flatMap((line) => doc.splitTextToSize(line, pageWidth - 80));
+          doc.text(wrapped, 40, currentY);
+          currentY += wrapped.length * 12 + 8;
+          doc.setTextColor(0);
+        } else {
+          currentY += 4;
+        }
 
-      if (recommendationLines.length) {
-        doc.setFontSize(9);
-        doc.setTextColor(80);
-        const wrapped = recommendationLines.flatMap((line) => doc.splitTextToSize(line, pageWidth - 80));
-        doc.text(wrapped, 40, currentY);
-        currentY += wrapped.length * 12 + 8;
-        doc.setTextColor(0);
-      } else {
-        currentY += 4;
-      }
+        if (!duplicateNoteWritten && duplicateNote) {
+          doc.setFontSize(9);
+          doc.setTextColor(110);
+          const noteLines = doc.splitTextToSize(duplicateNote, pageWidth - 80);
+          doc.text(noteLines, 40, currentY);
+          currentY += noteLines.length * 12 + 8;
+          doc.setTextColor(0);
+          duplicateNoteWritten = true;
+        }
 
-      if (groupIndex === 0 && duplicateNote) {
-        doc.setFontSize(9);
-        doc.setTextColor(110);
-        const noteLines = doc.splitTextToSize(duplicateNote, pageWidth - 80);
-        doc.text(noteLines, 40, currentY);
-        currentY += noteLines.length * 12 + 8;
-        doc.setTextColor(0);
-      }
+      const sortedGroupRows = [...group.rows].sort((a, b) => {
+        const aDate = a.plannedDateKey || "";
+        const bDate = b.plannedDateKey || "";
+        if (aDate !== bDate) return aDate.localeCompare(bDate);
 
-      const rows = group.rows.map((row, idx) => [
-        (idx + 1).toString(),
+        const aTime = typeof a.actualTimeMinutes === "number"
+          ? a.actualTimeMinutes
+          : typeof a.plannedTimeMinutes === "number"
+          ? a.plannedTimeMinutes
+          : Number.POSITIVE_INFINITY;
+        const bTime = typeof b.actualTimeMinutes === "number"
+          ? b.actualTimeMinutes
+          : typeof b.plannedTimeMinutes === "number"
+          ? b.plannedTimeMinutes
+          : Number.POSITIVE_INFINITY;
+        if (aTime !== bTime) return aTime - bTime;
+
+        return a.rowNumber - b.rowNumber;
+      });
+
+      const rows = sortedGroupRows.map((row) => [
+        formatDateForPdf(row.plannedDateKey || row.plannedDateLabel) || "—",
         row.plannedTimeLabel || "—",
         row.actualTimeLabel || "—",
         row.callTypeLabel || "—",
@@ -1381,18 +1515,47 @@ export default function TestingFeatures() {
         buildCallFlagsText(row),
       ]);
 
-      autoTable(doc, {
-        startY: currentY,
-        head: [["#", "Planned", "Actual", "Call Type", "Care Worker", "Schedule Δ", "Duration %", "Flags"]],
-        body: rows,
-        styles: { fontSize: 9 },
-        headStyles: { fillColor: [15, 23, 42] },
-        margin: { left: 40, right: 40 },
+        autoTable(doc, {
+          startY: currentY,
+          head: [["Date", "Planned", "Actual", "Call Type", "Care Worker", "Schedule Δ", "Duration %", "Flags"]],
+          body: rows,
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [15, 23, 42] },
+          margin: { left: 40, right: 40, bottom: 60 },
+        });
+
+        const finalY = (doc as any).lastAutoTable?.finalY ?? currentY;
+        currentY = finalY + 22;
       });
 
-      const finalY = (doc as any).lastAutoTable?.finalY ?? currentY;
-      currentY = finalY + 28;
+      currentY += 8;
     });
+
+    // Fill index pages now that we know service-user start pages
+    for (let i = 0; i < indexPages; i += 1) {
+      const pageNumber = 2 + i;
+      doc.setPage(pageNumber);
+      doc.setFontSize(16);
+      doc.text(i === 0 ? "Index" : "Index (cont.)", 40, 40);
+      doc.setFontSize(10);
+      doc.setTextColor(90);
+      doc.text("Service user", 40, 58);
+      doc.text("Page", pageWidth - 60, 58, { align: "right" });
+      doc.setTextColor(0);
+
+      let y = indexHeaderTop;
+      const start = i * indexCapacity;
+      const end = Math.min(orderedSections.length, start + indexCapacity);
+      for (let j = start; j < end; j += 1) {
+        const section = orderedSections[j];
+        const label = (section.name || "Unknown").toString().trim();
+        const page = serviceUserStartPages.get(section.key) ?? contentStartPage;
+        doc.setFontSize(10);
+        doc.text(label, 40, y, { maxWidth: pageWidth - 120 });
+        doc.text(String(page), pageWidth - 60, y, { align: "right" });
+        y += indexLineHeight;
+      }
+    }
 
     if (duplicateClusters.length) {
       doc.addPage();
@@ -1458,6 +1621,16 @@ export default function TestingFeatures() {
         cursorY += 10;
       });
     }
+
+    // Page numbering bottom-right: current/total
+    const totalPages = doc.getNumberOfPages();
+    doc.setFontSize(9);
+    doc.setTextColor(120);
+    for (let page = 1; page <= totalPages; page += 1) {
+      doc.setPage(page);
+      doc.text(`${page}/${totalPages}`, pageWidth - 40, pageHeight - 28, { align: "right" });
+    }
+    doc.setTextColor(0);
 
     doc.save("service-user-calls.pdf");
   }, [callGroups, duplicateClusters, slotTrends, toast]);
@@ -2784,6 +2957,60 @@ function normalizeWorkerName(value: string | null): string | null {
 function normalizeCallTypeKey(value: string | null): string | null {
   if (!value) return null;
   return value.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function parsePersonNameForSort(name: string | null | undefined): { last: string; first: string; full: string } {
+  const full = (name ?? "").toString().replace(/\s+/g, " ").trim().toLowerCase();
+  if (!full) return { last: "", first: "", full: "" };
+
+  // Handle common formats:
+  // - "Last, First"
+  // - "First Middle Last"
+  if (full.includes(",")) {
+    const [lastRaw, restRaw] = full.split(",", 2);
+    const last = (lastRaw ?? "").trim();
+    const first = (restRaw ?? "").trim();
+    return { last, first, full };
+  }
+
+  const parts = full.split(" ").filter(Boolean);
+  if (parts.length === 1) return { last: parts[0], first: "", full };
+  return { last: parts[parts.length - 1], first: parts[0], full };
+}
+
+function isNonPersonalCareCallType(callTypeLabel: string | null | undefined): boolean {
+  const text = normalizeCallTypeKey(callTypeLabel ?? null);
+  if (!text) return false;
+
+  // Explicitly push these to the end (per request: shopping/escorts/etc after personal care).
+  const nonCareKeywords = [
+    "shopping",
+    "shop",
+    "escort",
+    "escorted",
+    "transport",
+    "appointment",
+    "community",
+    "outing",
+    "errand",
+  ];
+  return nonCareKeywords.some((kw) => text.includes(kw));
+}
+
+function formatDateForPdf(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const text = value.toString().trim();
+  if (!text) return null;
+
+  // Convert ISO date key (YYYY-MM-DD) into UK display (DD/MM/YYYY).
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const [, yyyy, mm, dd] = iso;
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  // Already in DD/MM/YYYY (or other human-readable) – leave as-is.
+  return text;
 }
 
 function normalizeLocationToken(value: string | null): string | null {
