@@ -1279,26 +1279,6 @@ export default function TestingFeatures() {
       return sections;
     })();
 
-    const orderedGroups = [...callGroups].sort((a, b) => {
-      const aName = parsePersonNameForSort(a.serviceUserName);
-      const bName = parsePersonNameForSort(b.serviceUserName);
-      if (aName.last !== bName.last) return aName.last.localeCompare(bName.last);
-      if (aName.first !== bName.first) return aName.first.localeCompare(bName.first);
-      if (aName.full !== bName.full) return aName.full.localeCompare(bName.full);
-
-      const aPrimaryType = getPrimaryCallTypeForGroup(a);
-      const bPrimaryType = getPrimaryCallTypeForGroup(b);
-      const aNonCare = isNonPersonalCareCallType(aPrimaryType);
-      const bNonCare = isNonPersonalCareCallType(bPrimaryType);
-      if (aNonCare !== bNonCare) return aNonCare ? 1 : -1;
-
-      const aTime = typeof a.plannedTimeMinutes === "number" ? a.plannedTimeMinutes : Number.POSITIVE_INFINITY;
-      const bTime = typeof b.plannedTimeMinutes === "number" ? b.plannedTimeMinutes : Number.POSITIVE_INFINITY;
-      if (aTime !== bTime) return aTime - bTime;
-
-      return (aPrimaryType || "").localeCompare(bPrimaryType || "") || a.key.localeCompare(b.key);
-    });
-
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -1325,15 +1305,16 @@ export default function TestingFeatures() {
       doc.addPage();
     }
 
-    // Start content after front + index
-    const contentStartPage = 1 + indexPages + 1;
+    // Start content after front + index (create a real page to avoid writing onto the last index page)
+    doc.addPage();
+    const contentStartPage = doc.getNumberOfPages();
     doc.setPage(contentStartPage);
     let currentY = 48;
     const serviceUserStartPages = new Map<string, number>();
     let duplicateNoteWritten = false;
 
     orderedSections.forEach((section, sectionIndex) => {
-      if (sectionIndex > 0 || currentY > 48) {
+      if (sectionIndex > 0) {
         doc.addPage();
         currentY = 48;
       }
@@ -1349,120 +1330,97 @@ export default function TestingFeatures() {
       doc.text(`Address: ${section.address || "N/A"}`, 40, currentY);
       currentY += 10;
 
-      section.groups.forEach((group) => {
+      if (!duplicateNoteWritten && duplicateNote) {
+        doc.setFontSize(9);
+        doc.setTextColor(110);
+        const noteLines = doc.splitTextToSize(duplicateNote, pageWidth - 80);
+        doc.text(noteLines, 40, currentY);
+        currentY += noteLines.length * 12 + 8;
+        doc.setTextColor(0);
+        duplicateNoteWritten = true;
+      }
+
+      type RequirementSection = { key: string; label: string; rows: RowAnalysis[] };
+      const sectionUserKey =
+        section.groups.map((group) => group.normalizedServiceUserKey).find((value): value is string => Boolean(value)) ??
+        null;
+
+      const rowSort = (a: RowAnalysis, b: RowAnalysis) => {
+        const aDate = a.plannedDateKey || "";
+        const bDate = b.plannedDateKey || "";
+        if (aDate !== bDate) return aDate.localeCompare(bDate);
+
+        const aTime =
+          typeof a.actualTimeMinutes === "number"
+            ? a.actualTimeMinutes
+            : typeof a.plannedTimeMinutes === "number"
+            ? a.plannedTimeMinutes
+            : Number.POSITIVE_INFINITY;
+        const bTime =
+          typeof b.actualTimeMinutes === "number"
+            ? b.actualTimeMinutes
+            : typeof b.plannedTimeMinutes === "number"
+            ? b.plannedTimeMinutes
+            : Number.POSITIVE_INFINITY;
+        if (aTime !== bTime) return aTime - bTime;
+
+        return a.rowNumber - b.rowNumber;
+      };
+
+      const requirementSections: RequirementSection[] = (() => {
+        const map = new Map<string, RequirementSection>();
+        const allRows = section.groups.flatMap((group) => group.rows);
+        allRows.forEach((row) => {
+          const label = row.callTypeLabel || "Unknown";
+          const norm = normalizeCallTypeKey(label) || "unknown";
+          if (!map.has(norm)) {
+            map.set(norm, { key: norm, label, rows: [] });
+          }
+          map.get(norm)!.rows.push(row);
+        });
+
+        const sections = Array.from(map.values()).map((entry) => ({
+          ...entry,
+          rows: [...entry.rows].sort(rowSort),
+        }));
+
+        sections.sort((a, b) => {
+          const aNonCare = isNonPersonalCareCallType(a.label);
+          const bNonCare = isNonPersonalCareCallType(b.label);
+          if (aNonCare !== bNonCare) return aNonCare ? 1 : -1;
+          return a.label.localeCompare(b.label);
+        });
+
+        return sections;
+      })();
+
+      requirementSections.forEach((req) => {
         if (currentY > pageHeight - 260) {
           doc.addPage();
           currentY = 48;
         }
 
         doc.setFontSize(11);
-        doc.text(`Planned Time: ${group.plannedTimeLabel || "N/A"}`, 40, currentY);
+        doc.text(`Service requirement: ${req.label}`, 40, currentY);
         currentY += 14;
 
-        const callTypes = Array.from(
-          new Set(
-            group.rows
-              .map((row) => row.callTypeLabel)
-              .filter((value): value is string => Boolean(value))
-          )
-        );
-
-        const primaryCallType = getPrimaryCallTypeForGroup(group);
-
-        const recommendationLines: string[] = [];
-        if (callTypes.length || group.plannedTimeLabel) {
-          recommendationLines.push(
-            `Service requirement: ${callTypes.length ? callTypes.join(", ") : "—"} • Planned ${group.plannedTimeLabel || "—"}`
-          );
-        }
-
-        const slotTrendKey = buildCallTypeTrendKey(group.normalizedServiceUserKey, primaryCallType);
+        const slotTrendKey = buildCallTypeTrendKey(sectionUserKey, req.label);
         const slotTrendInsight = slotTrendKey ? slotTrendMap.get(slotTrendKey) : undefined;
-
-        if (typeof slotTrendInsight?.averageActualStartMinutes === "number") {
-          const avgActualLabel = deriveTimeLabel(slotTrendInsight.averageActualStartMinutes, null);
-          if (avgActualLabel) {
-            recommendationLines.push(
-              `Average actual start for ${slotTrendInsight.callTypeLabel} is around ${avgActualLabel}.`
-            );
-          }
-        }
-
-        const startDeltaValues = group.rows
-          .map((row) => (typeof row.scheduleDeltaMinutes === "number" ? row.scheduleDeltaMinutes : null))
-          .filter((value): value is number => value !== null);
-        const avgStartDelta = startDeltaValues.length
-          ? startDeltaValues.reduce((acc, value) => acc + value, 0) / startDeltaValues.length
-          : null;
-        const actualTrendLabel =
-          avgStartDelta !== null && typeof group.plannedTimeMinutes === "number"
-            ? deriveTimeLabel(clampMinutesOfDay(group.plannedTimeMinutes + avgStartDelta), null)
-            : null;
-
-        const durationPercents = group.rows
+        const durationPercents = req.rows
           .map((row) => (typeof row.durationMatchPercent === "number" ? row.durationMatchPercent : null))
           .filter((value): value is number => value !== null);
         const avgDurationPercent = durationPercents.length
           ? durationPercents.reduce((acc, value) => acc + value, 0) / durationPercents.length
           : null;
-        const actualDurationValues = group.rows
-          .map((row) => (typeof row.actualDurationMinutes === "number" ? row.actualDurationMinutes : null))
-          .filter((value): value is number => value !== null);
-        const avgActualDuration = actualDurationValues.length
-          ? actualDurationValues.reduce((acc, value) => acc + value, 0) / actualDurationValues.length
-          : null;
-
-        const addStartTrendLine = (
-          consistency: number | null,
-          offset: number | null,
-          suggestion: string | null
-        ) => {
-          if (typeof offset !== "number" || typeof group.plannedTimeMinutes !== "number") return;
-          const actualLabel = deriveTimeLabel(clampMinutesOfDay(group.plannedTimeMinutes + offset), null);
-          if (!actualLabel) return;
-          const direction = offset > 0 ? "later" : "earlier";
-          const coverage = consistency ? `${Math.round(consistency * 100)}% of visits` : "Actual visits";
-          recommendationLines.push(
-            `${coverage} land ${direction} around ${actualLabel} (${formatMinutesDisplay(Math.abs(offset))} from plan).`
-          );
-          if (suggestion) {
-            recommendationLines.push(`Recommended planned time: ${suggestion}.`);
-          }
-        };
-
-        if (typeof slotTrendInsight?.averageStartOffsetMinutes === "number") {
-          addStartTrendLine(
-            slotTrendInsight.offsetConsistency ?? null,
-            slotTrendInsight.averageStartOffsetMinutes,
-            slotTrendInsight.suggestedPlannedTimeLabel ?? null
-          );
-        } else if (typeof avgStartDelta === "number") {
-          addStartTrendLine(null, avgStartDelta, null);
-        }
-
+        const recommendationLines: string[] = [];
         if (typeof slotTrendInsight?.averageDurationPercent === "number") {
-          const percent = slotTrendInsight.averageDurationPercent.toFixed(0);
-          const recommendedDuration =
-            typeof slotTrendInsight.suggestedPlannedDurationMinutes === "number"
-              ? formatMinutesDisplay(slotTrendInsight.suggestedPlannedDurationMinutes)
-              : null;
-          recommendationLines.push(
-            `Call duration trend: ${percent}% of plan${
-              avgActualDuration !== null ? ` (${formatMinutesDisplay(avgActualDuration)} actual)` : ""
-            }${recommendedDuration ? `. Recommend planning ${recommendedDuration}.` : ""}`
-          );
+          recommendationLines.push(`Call duration trend: ${slotTrendInsight.averageDurationPercent.toFixed(0)}% of plan.`);
         } else if (avgDurationPercent !== null) {
-          recommendationLines.push(
-            `Call duration trend: ${avgDurationPercent.toFixed(0)}% of plan${
-              avgActualDuration !== null ? ` (${formatMinutesDisplay(avgActualDuration)} actual)` : ""
-            }.`
-          );
+          recommendationLines.push(`Call duration trend: ${avgDurationPercent.toFixed(0)}% of plan.`);
         }
-
         if (slotTrendInsight?.advice.length) {
           recommendationLines.push(...slotTrendInsight.advice);
         }
-
         if (recommendationLines.length) {
           doc.setFontSize(9);
           doc.setTextColor(80);
@@ -1474,46 +1432,16 @@ export default function TestingFeatures() {
           currentY += 4;
         }
 
-        if (!duplicateNoteWritten && duplicateNote) {
-          doc.setFontSize(9);
-          doc.setTextColor(110);
-          const noteLines = doc.splitTextToSize(duplicateNote, pageWidth - 80);
-          doc.text(noteLines, 40, currentY);
-          currentY += noteLines.length * 12 + 8;
-          doc.setTextColor(0);
-          duplicateNoteWritten = true;
-        }
-
-      const sortedGroupRows = [...group.rows].sort((a, b) => {
-        const aDate = a.plannedDateKey || "";
-        const bDate = b.plannedDateKey || "";
-        if (aDate !== bDate) return aDate.localeCompare(bDate);
-
-        const aTime = typeof a.actualTimeMinutes === "number"
-          ? a.actualTimeMinutes
-          : typeof a.plannedTimeMinutes === "number"
-          ? a.plannedTimeMinutes
-          : Number.POSITIVE_INFINITY;
-        const bTime = typeof b.actualTimeMinutes === "number"
-          ? b.actualTimeMinutes
-          : typeof b.plannedTimeMinutes === "number"
-          ? b.plannedTimeMinutes
-          : Number.POSITIVE_INFINITY;
-        if (aTime !== bTime) return aTime - bTime;
-
-        return a.rowNumber - b.rowNumber;
-      });
-
-      const rows = sortedGroupRows.map((row) => [
-        formatDateForPdf(row.plannedDateKey || row.plannedDateLabel) || "—",
-        row.plannedTimeLabel || "—",
-        row.actualTimeLabel || "—",
-        row.callTypeLabel || "—",
-        row.actualWorker || row.plannedWorker || "—",
-        typeof row.scheduleDeltaMinutes === "number" ? formatSignedMinutes(row.scheduleDeltaMinutes) : "—",
-        row.durationMatchPercent !== null ? `${row.durationMatchPercent.toFixed(0)}%` : "—",
-        buildCallFlagsText(row),
-      ]);
+        const rows = req.rows.map((row) => [
+          formatDateForPdf(row.plannedDateKey || row.plannedDateLabel) || "—",
+          row.plannedTimeLabel || "—",
+          row.actualTimeLabel || "—",
+          row.callTypeLabel || "—",
+          row.actualWorker || row.plannedWorker || "—",
+          typeof row.scheduleDeltaMinutes === "number" ? formatSignedMinutes(row.scheduleDeltaMinutes) : "—",
+          row.durationMatchPercent !== null ? `${row.durationMatchPercent.toFixed(0)}%` : "—",
+          buildCallFlagsText(row),
+        ]);
 
         autoTable(doc, {
           startY: currentY,
