@@ -400,7 +400,7 @@ export default function TestingFeatures() {
         plannedTimeField ? new Set([plannedTimeField.key]) : undefined
       );
       const plannedTimeSource = plannedTimeField ?? serviceRequirementTimeField;
-      const plannedDateField = detectField(
+      const plannedDateField = detectDateField(
         row,
         PLANNED_DATE_KEYWORDS,
         (() => {
@@ -478,7 +478,13 @@ export default function TestingFeatures() {
         plannedTimeMinutes !== null && actualTimeMinutes !== null
           ? actualTimeMinutes - plannedTimeMinutes
           : null;
-      const plannedDateParts = deriveDateParts(plannedDateField?.value ?? plannedTimeSource?.value);
+      // Prefer the date embedded in the planned start datetime when it exists.
+      // (Avoids accidental fallbacks like Planned Start Date Year => 01/01/YYYY.)
+      const plannedDateParts = (() => {
+        const fromPlannedStart = deriveDateParts(plannedTimeSource?.value);
+        if (fromPlannedStart.key) return fromPlannedStart;
+        return deriveDateParts(plannedDateField?.value);
+      })();
 
       const plannedWorkerName = sanitizeStringValue(plannedWorkerField?.value);
       const actualWorkerName = sanitizeStringValue(actualWorkerField?.value);
@@ -2715,6 +2721,37 @@ function detectField(
   for (const key of Object.keys(row)) {
     if (excludeKeys?.has(key)) continue;
     const normalizedKey = normalizeKeyForMatch(key);
+    if (normalizedKeywords.some((keyword) => normalizedKey.includes(keyword))) {
+      return { key, value: row[key] };
+    }
+  }
+  return null;
+}
+
+function detectDateField(
+  row: Record<string, any>,
+  keywords: string[],
+  excludeKeys?: Set<string>
+): DetectedField {
+  if (!keywords.length) return null;
+  const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
+  for (const key of Object.keys(row)) {
+    if (excludeKeys?.has(key)) continue;
+    const normalizedKey = normalizeKeyForMatch(key);
+
+    // Avoid picking date component columns like "Planned Start Date Year" which would
+    // parse as Jan 1st of that year for every row.
+    if (
+      normalizedKey.includes(" year") ||
+      normalizedKey.endsWith(" year") ||
+      normalizedKey.includes(" month") ||
+      normalizedKey.endsWith(" month") ||
+      normalizedKey.includes(" weekday") ||
+      normalizedKey.includes(" week")
+    ) {
+      continue;
+    }
+
     if (normalizedKeywords.some((keyword) => normalizedKey.includes(keyword))) {
       return { key, value: row[key] };
     }
