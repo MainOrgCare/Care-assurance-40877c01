@@ -222,7 +222,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
+    <div className="relative flex h-screen w-full overflow-hidden bg-background">
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-x-0 top-[-30%] h-[520px] bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.2),_transparent_60%)] blur-3xl opacity-80" />
+        <div className="absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 bg-[radial-gradient(circle,_rgba(168,85,247,0.16),_transparent_60%)] blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:320px_320px] opacity-25" />
+      </div>
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 flex-shrink-0 bg-sidebar/80 backdrop-blur-xl border-r border-sidebar-border flex-col z-10">
         <SidebarContent location={location} handleSecretClick={handleSecretClick} logout={logout} />
@@ -230,8 +235,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto flex flex-col w-full relative z-10">
-        <header className="h-16 border-b border-border/50 bg-card/40 backdrop-blur-md px-4 md:px-8 flex items-center justify-between sticky top-0 z-20">
-          <div className="flex items-center gap-2">
+        <header className="h-20 border-b border-border/40 bg-background/70 backdrop-blur-2xl px-4 md:px-8 flex items-center justify-between sticky top-0 z-20 shadow-[0_12px_40px_rgba(8,10,32,0.35)]">
+          <div className="flex items-center gap-3">
             {/* Mobile Menu Trigger */}
             <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
               <SheetTrigger asChild>
@@ -245,11 +250,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </SheetContent>
             </Sheet>
 
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <div className="hidden md:flex flex-col">
+              <span className="text-[11px] uppercase tracking-[0.45em] text-muted-foreground/70">
+                Operational Command
+              </span>
+              <span className="text-sm font-heading text-foreground">
+                Orchestrate confident care decisions
+              </span>
+            </div>
+            <div className="md:hidden text-[11px] uppercase tracking-[0.35em] text-muted-foreground/70">
+              Ops Console
             </div>
           </div>
 
           <div className="flex items-center gap-4">
+             <Badge variant="outline" className="hidden sm:inline-flex bg-primary/15 text-primary border-primary/25 uppercase tracking-tight text-[11px]">
+               Live Preview
+             </Badge>
              <div className="flex items-center gap-3">
                 <div className="text-right hidden sm:block">
                   <p className="text-sm font-medium">
@@ -266,16 +283,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
              </div>
           </div>
         </header>
-        <div className="p-4 md:p-8 max-w-7xl mx-auto w-full flex-1">
-          {children}
+        <div className="relative p-6 md:p-10 max-w-6xl xl:max-w-7xl mx-auto w-full flex-1">
+          <div className="pointer-events-none absolute inset-0 rounded-[36px] border border-white/10 opacity-30" />
+          <div className="pointer-events-none absolute inset-6 rounded-[30px] bg-gradient-to-b from-white/10 via-transparent to-transparent blur-3xl" />
+          <div className="relative z-10">
+            {children}
+          </div>
         </div>
         
         {/* Persistent Footer with Legal Links */}
-        <footer className="border-t border-border/50 bg-card/30 backdrop-blur-sm px-4 py-3 mt-auto">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <span>&copy; {new Date().getFullYear()} CareAssurance.</span>
-              <span className="hidden sm:inline">All rights reserved.</span>
+        <footer className="border-t border-white/10 bg-background/70 backdrop-blur-xl px-4 py-4 mt-auto">
+          <div className="max-w-6xl xl:max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1 font-medium text-foreground/70">
+              <span>&copy; {new Date().getFullYear()} CareAssurance</span>
+              <span className="hidden sm:inline">· Precision tools for high-trust care teams</span>
             </div>
             <div className="flex items-center gap-4">
               <Link href="/terms" className="hover:text-foreground transition-colors" data-testid="link-footer-terms">

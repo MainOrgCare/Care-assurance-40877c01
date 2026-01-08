@@ -99,12 +99,19 @@ const GENERIC_WORKER_KEYWORDS = ["care worker", "carer", "staff", "worker", "car
 
 const SERVICE_USER_NAME_KEYWORDS = [
   "service user",
+  "service user name",
   "client",
+  "client name",
+  "client full name",
   "resident",
   "person",
   "individual",
   "patient",
   "su name",
+  "customer name",
+  "people we support",
+  "participant",
+  "service location name",
 ];
 
 const SERVICE_USER_AREA_KEYWORDS = [
@@ -125,6 +132,13 @@ const SERVICE_USER_ADDRESS_KEYWORDS = [
   "zip",
   "city",
   "town",
+  "service location address",
+];
+
+const SERVICE_REQUIREMENT_TYPE_KEYWORDS = ["service requirement type description", "service requirement description"];
+const SERVICE_REQUIREMENT_SERVICE_TYPE_KEYWORDS = [
+  "service requirement service type description",
+  "service requirement service description",
 ];
 
 type RowStatus = "clean" | "attention";
@@ -158,6 +172,8 @@ interface RowAnalysis {
   serviceUserAddress?: string | null;
   normalizedServiceUserKey?: string | null;
   isDuplicateSlotRow?: boolean;
+  excludeFromMetrics?: boolean;
+  callTypeLabel?: string | null;
 }
 
 interface FileMeta {
@@ -179,6 +195,7 @@ interface CallGroup {
   serviceUserAddress: string | null;
   plannedTimeLabel: string | null;
   plannedTimeMinutes: number | null;
+  normalizedServiceUserKey: string | null;
   rows: RowAnalysis[];
 }
 
@@ -227,6 +244,7 @@ export default function TestingFeatures() {
   const [searchTerm, setSearchTerm] = useState("");
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ROWS);
   const [showDuplicateRows, setShowDuplicateRows] = useState(true);
+  const [callGroupSearch, setCallGroupSearch] = useState("");
   const analysisJobRef = useRef<number>(0);
   const showGlobalProgress = processingState === "parsing" || processingState === "analyzing";
 
@@ -362,6 +380,11 @@ export default function TestingFeatures() {
         durationMatchPercent !== null && durationMatchPercent > DURATION_OVERRUN_THRESHOLD_PERCENT;
 
       const serviceUserNameField = detectField(row, SERVICE_USER_NAME_KEYWORDS);
+      const serviceLocationNameField = detectField(
+        row,
+        ["service location name"],
+        serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+      );
       const serviceUserAreaField = detectField(
         row,
         SERVICE_USER_AREA_KEYWORDS,
@@ -372,15 +395,38 @@ export default function TestingFeatures() {
         SERVICE_USER_ADDRESS_KEYWORDS,
         serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
       );
+      const serviceLocationAddressField = detectField(
+        row,
+        ["service location address"],
+        serviceUserAddressField ? new Set([serviceUserAddressField.key]) : undefined
+      );
 
-      const serviceUserName = sanitizeHumanReadable(serviceUserNameField?.value);
+      const serviceRequirementTypeField = detectField(row, SERVICE_REQUIREMENT_TYPE_KEYWORDS);
+      const serviceRequirementServiceTypeField = detectField(
+        row,
+        SERVICE_REQUIREMENT_SERVICE_TYPE_KEYWORDS,
+        serviceRequirementTypeField ? new Set([serviceRequirementTypeField.key]) : undefined
+      );
+      const callTypeParts = [serviceRequirementTypeField?.value, serviceRequirementServiceTypeField?.value]
+        .map(sanitizeHumanReadable)
+        .filter(Boolean) as string[];
+      const callTypeLabel = callTypeParts.length ? Array.from(new Set(callTypeParts)).join(" • ") : null;
+
+      const serviceUserName = sanitizeHumanReadable(serviceLocationNameField?.value ?? serviceUserNameField?.value);
       const serviceUserArea = sanitizeHumanReadable(serviceUserAreaField?.value);
-      const serviceUserAddress = sanitizeHumanReadable(serviceUserAddressField?.value);
+      const serviceUserAddress = sanitizeHumanReadable(
+        serviceLocationAddressField?.value ?? serviceUserAddressField?.value
+      );
       const normalizedServiceUserKey = createNormalizedServiceUserKey(
         serviceUserName,
         serviceUserAddress,
         serviceUserArea
       );
+
+      const excludeFromMetrics = workersMatch === false;
+      if (excludeFromMetrics) {
+        issues.push("Care worker mismatch — excluded from metrics");
+      }
 
       if (scheduleFlag) {
         issues.push("Same carer drifted from plan by > 2h");
@@ -423,6 +469,8 @@ export default function TestingFeatures() {
         serviceUserAddress,
         normalizedServiceUserKey,
         isDuplicateSlotRow: false,
+        excludeFromMetrics,
+        callTypeLabel,
       };
     },
     [normalizeColumnLabel]
@@ -549,10 +597,13 @@ export default function TestingFeatures() {
     [analyzeRows, toast]
   );
 
+  const usableRows = useMemo(() => analysisResults.filter((row) => !row.excludeFromMetrics), [analysisResults]);
+  const excludedRows = useMemo(() => analysisResults.filter((row) => row.excludeFromMetrics), [analysisResults]);
+
   const dedupedResults = useMemo(() => {
-    if (!analysisResults.length) return [];
+    if (!usableRows.length) return [];
     const seen = new Map<string, boolean>();
-    return analysisResults.map((row) => {
+    return usableRows.map((row) => {
       const duplicateKey = buildDuplicateSlotKey(row);
       if (!duplicateKey) {
         return { ...row, isDuplicateSlotRow: false };
@@ -570,7 +621,7 @@ export default function TestingFeatures() {
       seen.set(duplicateKey, true);
       return { ...row, isDuplicateSlotRow: false };
     });
-  }, [analysisResults]);
+  }, [usableRows]);
 
   const primaryRows = useMemo(() => dedupedResults.filter((row) => !row.isDuplicateSlotRow), [dedupedResults]);
 
@@ -601,6 +652,7 @@ export default function TestingFeatures() {
     const total = dedupedResults.length;
     const workingRows = primaryRows;
     const duplicateCount = total - workingRows.length;
+    const excludedCareWorkers = excludedRows.length;
     const attention = workingRows.filter((row) => row.status === "attention").length;
     const clean = workingRows.length - attention;
     const totalEmpty = workingRows.reduce((acc, row) => acc + row.emptyFields.length, 0);
@@ -638,8 +690,9 @@ export default function TestingFeatures() {
       averageDriftMinutes,
       averageDurationPercent,
       duplicateCount,
+      excludedCareWorkers,
     };
-  }, [dedupedResults, primaryRows]);
+  }, [dedupedResults, excludedRows.length, primaryRows, usableRows.length]);
 
   const slotTrends = useMemo<SlotTrendSummary[]>(() => {
     if (!primaryRows.length) return [];
@@ -870,6 +923,7 @@ export default function TestingFeatures() {
           serviceUserAddress: row.serviceUserAddress ?? null,
           plannedTimeLabel: row.plannedTimeLabel ?? null,
           plannedTimeMinutes: row.plannedTimeMinutes ?? null,
+          normalizedServiceUserKey: row.normalizedServiceUserKey ?? null,
           rows: [],
         });
       }
@@ -884,6 +938,9 @@ export default function TestingFeatures() {
       if (group.plannedTimeMinutes == null && row.plannedTimeMinutes != null) {
         group.plannedTimeMinutes = row.plannedTimeMinutes;
       }
+      if (!group.normalizedServiceUserKey && row.normalizedServiceUserKey) {
+        group.normalizedServiceUserKey = row.normalizedServiceUserKey;
+      }
     });
 
     return Array.from(map.values()).sort((a, b) => {
@@ -891,6 +948,44 @@ export default function TestingFeatures() {
       return (a.serviceUserName || "").localeCompare(b.serviceUserName || "");
     });
   }, [primaryRows]);
+
+  const { visibleCallGroups, hasSearchMatch } = useMemo<{
+    visibleCallGroups: CallGroup[];
+    hasSearchMatch: boolean;
+  }>(() => {
+    if (!callGroups.length) {
+      return { visibleCallGroups: [], hasSearchMatch: true };
+    }
+
+    const term = callGroupSearch.trim().toLowerCase();
+    if (!term) {
+      return { visibleCallGroups: callGroups.slice(0, 5), hasSearchMatch: true };
+    }
+
+    const scored = callGroups.map((group) => {
+      const fields = [group.serviceUserName, group.serviceUserArea, group.serviceUserAddress, group.plannedTimeLabel]
+        .map((value) => (value ? value.toString().toLowerCase() : ""));
+      const score = fields.reduce((acc, field) => {
+        if (!field) return acc;
+        if (field === term) return acc + 4;
+        if (field.startsWith(term)) return acc + 3;
+        if (field.includes(term)) return acc + 1;
+        return acc;
+      }, 0);
+      return { group, score };
+    });
+
+    const matches = scored.filter((entry) => entry.score > 0);
+    const source = (matches.length ? matches : scored).sort(
+      (a, b) =>
+        b.score - a.score || (a.group.serviceUserName || "").localeCompare(b.group.serviceUserName || "")
+    );
+
+    return {
+      visibleCallGroups: source.map((entry) => entry.group).slice(0, 5),
+      hasSearchMatch: matches.length > 0,
+    };
+  }, [callGroups, callGroupSearch]);
 
   const handleLoadMore = () => {
     setVisibleCount((prev) => Math.min(filteredResults.length, prev + INITIAL_VISIBLE_ROWS));
@@ -925,33 +1020,135 @@ export default function TestingFeatures() {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
+    const slotTrendMap = new Map<string, SlotTrendSummary>();
+    slotTrends.forEach((trend) => slotTrendMap.set(trend.key, trend));
     const duplicateNote = duplicateClusters.length
       ? `Note: Found ${duplicateClusters.length} planned slot${duplicateClusters.length === 1 ? "" : "s"} with multiple carers. Only the first row counted toward metrics. A duplicate review section is included at the end of this report.`
       : null;
+    let currentY = 48;
 
     callGroups.forEach((group, groupIndex) => {
-      if (groupIndex > 0) {
+      if (currentY > pageHeight - 320) {
         doc.addPage();
+        currentY = 48;
       }
 
-      let cursorY = 48;
       doc.setFontSize(12);
-      doc.text(`Service User: ${group.serviceUserName || "Unknown"}`, 40, cursorY);
-      cursorY += 16;
+      doc.text(`Service User: ${group.serviceUserName || "Unknown"}`, 40, currentY);
+      currentY += 16;
       doc.setFontSize(10);
-      doc.text(`Area: ${group.serviceUserArea || "N/A"}`, 40, cursorY);
-      cursorY += 14;
-      doc.text(`Address: ${group.serviceUserAddress || "N/A"}`, 40, cursorY);
-      cursorY += 14;
-      doc.text(`Planned Time: ${group.plannedTimeLabel || "N/A"}`, 40, cursorY);
-      cursorY += 20;
+      doc.text(`Area: ${group.serviceUserArea || "N/A"}`, 40, currentY);
+      currentY += 14;
+      doc.text(`Address: ${group.serviceUserAddress || "N/A"}`, 40, currentY);
+      currentY += 14;
+      doc.text(`Planned Time: ${group.plannedTimeLabel || "N/A"}`, 40, currentY);
+      currentY += 16;
+
+      const callTypes = Array.from(
+        new Set(
+          group.rows
+            .map((row) => row.callTypeLabel)
+            .filter((value): value is string => Boolean(value))
+        )
+      );
+
+      const recommendationLines: string[] = [];
+      if (callTypes.length || group.plannedTimeLabel) {
+        recommendationLines.push(
+          `Service requirement: ${callTypes.length ? callTypes.join(", ") : "—"} • Planned ${group.plannedTimeLabel || "—"}`
+        );
+      }
+
+      const slotTrendKey = buildSlotTrendKeyForGroup(group.normalizedServiceUserKey, group.plannedTimeMinutes);
+      const slotTrendInsight = slotTrendKey ? slotTrendMap.get(slotTrendKey) : undefined;
+
+      const startDeltaValues = group.rows
+        .map((row) => (typeof row.scheduleDeltaMinutes === "number" ? row.scheduleDeltaMinutes : null))
+        .filter((value): value is number => value !== null);
+      const avgStartDelta = startDeltaValues.length
+        ? startDeltaValues.reduce((acc, value) => acc + value, 0) / startDeltaValues.length
+        : null;
+      const actualTrendLabel =
+        avgStartDelta !== null && typeof group.plannedTimeMinutes === "number"
+          ? deriveTimeLabel(clampMinutesOfDay(group.plannedTimeMinutes + avgStartDelta), null)
+          : null;
+
+      const durationPercents = group.rows
+        .map((row) => (typeof row.durationMatchPercent === "number" ? row.durationMatchPercent : null))
+        .filter((value): value is number => value !== null);
+      const avgDurationPercent = durationPercents.length
+        ? durationPercents.reduce((acc, value) => acc + value, 0) / durationPercents.length
+        : null;
+      const actualDurationValues = group.rows
+        .map((row) => (typeof row.actualDurationMinutes === "number" ? row.actualDurationMinutes : null))
+        .filter((value): value is number => value !== null);
+      const avgActualDuration = actualDurationValues.length
+        ? actualDurationValues.reduce((acc, value) => acc + value, 0) / actualDurationValues.length
+        : null;
+
+      const addStartTrendLine = (consistency?: number | null, offset?: number | null, suggestion?: string | null) => {
+        if (offset === null || typeof group.plannedTimeMinutes !== "number") return;
+        const actualLabel = deriveTimeLabel(clampMinutesOfDay(group.plannedTimeMinutes + offset), null);
+        if (!actualLabel) return;
+        const direction = offset > 0 ? "later" : "earlier";
+        const coverage = consistency ? `${Math.round(consistency * 100)}% of visits` : "Actual visits";
+        recommendationLines.push(
+          `${coverage} land ${direction} around ${actualLabel} (${formatMinutesDisplay(Math.abs(offset))} from plan).`
+        );
+        if (suggestion) {
+          recommendationLines.push(`Recommended planned time: ${suggestion}.`);
+        }
+      };
+
+      if (slotTrendInsight?.averageStartOffsetMinutes !== null) {
+        addStartTrendLine(
+          slotTrendInsight.offsetConsistency,
+          slotTrendInsight.averageStartOffsetMinutes,
+          slotTrendInsight.suggestedPlannedTimeLabel
+        );
+      } else if (avgStartDelta !== null) {
+        addStartTrendLine(null, avgStartDelta, null);
+      }
+
+      if (slotTrendInsight?.averageDurationPercent !== null) {
+        const percent = slotTrendInsight.averageDurationPercent.toFixed(0);
+        const recommendedDuration = slotTrendInsight.suggestedPlannedDurationMinutes
+          ? formatMinutesDisplay(slotTrendInsight.suggestedPlannedDurationMinutes)
+          : null;
+        recommendationLines.push(
+          `Call duration trend: ${percent}% of plan${
+            avgActualDuration !== null ? ` (${formatMinutesDisplay(avgActualDuration)} actual)` : ""
+          }${recommendedDuration ? `. Recommend planning ${recommendedDuration}.` : ""}`
+        );
+      } else if (avgDurationPercent !== null) {
+        recommendationLines.push(
+          `Call duration trend: ${avgDurationPercent.toFixed(0)}% of plan${
+            avgActualDuration !== null ? ` (${formatMinutesDisplay(avgActualDuration)} actual)` : ""
+          }.`
+        );
+      }
+
+      if (slotTrendInsight?.advice.length) {
+        recommendationLines.push(...slotTrendInsight.advice);
+      }
+
+      if (recommendationLines.length) {
+        doc.setFontSize(9);
+        doc.setTextColor(80);
+        const wrapped = recommendationLines.flatMap((line) => doc.splitTextToSize(line, pageWidth - 80));
+        doc.text(wrapped, 40, currentY);
+        currentY += wrapped.length * 12 + 8;
+        doc.setTextColor(0);
+      } else {
+        currentY += 4;
+      }
 
       if (groupIndex === 0 && duplicateNote) {
         doc.setFontSize(9);
         doc.setTextColor(110);
         const noteLines = doc.splitTextToSize(duplicateNote, pageWidth - 80);
-        doc.text(noteLines, 40, cursorY);
-        cursorY += noteLines.length * 12 + 8;
+        doc.text(noteLines, 40, currentY);
+        currentY += noteLines.length * 12 + 8;
         doc.setTextColor(0);
       }
 
@@ -959,6 +1156,7 @@ export default function TestingFeatures() {
         (idx + 1).toString(),
         row.plannedTimeLabel || "—",
         row.actualTimeLabel || "—",
+        row.callTypeLabel || "—",
         row.actualWorker || row.plannedWorker || "—",
         typeof row.scheduleDeltaMinutes === "number" ? formatSignedMinutes(row.scheduleDeltaMinutes) : "—",
         row.durationMatchPercent !== null ? `${row.durationMatchPercent.toFixed(0)}%` : "—",
@@ -966,13 +1164,16 @@ export default function TestingFeatures() {
       ]);
 
       autoTable(doc, {
-        startY: cursorY,
-        head: [["#", "Planned", "Actual", "Care Worker", "Schedule Δ", "Duration %", "Flags"]],
+        startY: currentY,
+        head: [["#", "Planned", "Actual", "Call Type", "Care Worker", "Schedule Δ", "Duration %", "Flags"]],
         body: rows,
         styles: { fontSize: 9 },
         headStyles: { fillColor: [15, 23, 42] },
         margin: { left: 40, right: 40 },
       });
+
+      const finalY = (doc as any).lastAutoTable?.finalY ?? currentY;
+      currentY = finalY + 28;
     });
 
     if (duplicateClusters.length) {
@@ -1041,7 +1242,7 @@ export default function TestingFeatures() {
     }
 
     doc.save("service-user-calls.pdf");
-  }, [callGroups, duplicateClusters, toast]);
+  }, [callGroups, duplicateClusters, slotTrends, toast]);
 
   if (user?.role !== "admin") {
     return (
@@ -1081,7 +1282,7 @@ export default function TestingFeatures() {
       </Alert>
 
       {showGlobalProgress && (
-        <div className="sticky top-20 z-30">
+        <div className="z-30 mb-6">
           <div className="rounded-full h-2 bg-muted/60 overflow-hidden shadow-inner">
             <div
               className="h-full bg-gradient-to-r from-primary via-primary/80 to-primary/60 transition-all duration-200"
@@ -1177,6 +1378,9 @@ export default function TestingFeatures() {
               <p>Unique slots: {summary.totalPrimary.toLocaleString()}</p>
               {summary.duplicateCount > 0 && (
                 <p>Duplicates ignored: {summary.duplicateCount.toLocaleString()}</p>
+              )}
+              {summary.excludedCareWorkers > 0 && (
+                <p>Carer mismatches excluded: {summary.excludedCareWorkers.toLocaleString()}</p>
               )}
               <p>Flagged rows: {summary.attention.toLocaleString()}</p>
               <p>Empty fields: {summary.totalEmpty.toLocaleString()}</p>
@@ -1412,6 +1616,7 @@ export default function TestingFeatures() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1">
+                            {row.callTypeLabel && <Badge variant="outline">{row.callTypeLabel}</Badge>}
                             {row.emptyFields.length > 0 && (
                               <Badge variant="secondary">{row.emptyFields.length} empty</Badge>
                             )}
@@ -1546,6 +1751,7 @@ export default function TestingFeatures() {
               </Alert>
             )}
             <div className="flex flex-wrap gap-2">
+              {selectedRow.callTypeLabel && <Badge variant="outline">Call: {selectedRow.callTypeLabel}</Badge>}
               {selectedRow.emptyFields.length > 0 && (
                 <Badge variant="secondary">Empty: {selectedRow.emptyFields.join(", ")}</Badge>
               )}
@@ -1652,25 +1858,41 @@ export default function TestingFeatures() {
 
       {callGroups.length > 0 && (
         <Card>
-          <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <CardHeader className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <CardTitle>Service User Call Stacks</CardTitle>
               <CardDescription>
-                Grouping identical service users and planned times to highlight back-to-back calls.
+                Search for a service user to focus the list. We keep the view lightweight by showing the five closest matches.
               </CardDescription>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full sm:w-auto"
-              onClick={handleExportPdf}
-            >
-              <FileText className="h-4 w-4 mr-2" /> Export grouped PDF
-            </Button>
+            <div className="flex flex-col gap-3 w-full xl:w-auto sm:flex-row">
+              <div className="relative flex-1 sm:w-64">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={callGroupSearch}
+                  onChange={(e) => setCallGroupSearch(e.target.value)}
+                  placeholder="Search service users"
+                  className="pl-9"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={handleExportPdf}
+              >
+                <FileText className="h-4 w-4 mr-2" /> Export grouped PDF
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            {callGroups.map((group) => {
+            {callGroupSearch.trim() && !hasSearchMatch && (
+              <p className="text-xs text-muted-foreground">
+                No direct match found — showing the nearest stacks instead.
+              </p>
+            )}
+            {visibleCallGroups.map((group) => {
               const flaggedRows = group.rows.filter((row) => row.scheduleFlag || row.durationFlag).length;
               const driftValues = group.rows
                 .map((row) => (typeof row.scheduleDeltaMinutes === "number" ? Math.abs(row.scheduleDeltaMinutes) : null))
@@ -1800,6 +2022,16 @@ export default function TestingFeatures() {
                 </div>
               );
             })}
+            {callGroups.length > visibleCallGroups.length && !callGroupSearch.trim() && (
+              <p className="text-xs text-muted-foreground text-center">
+                Showing the first 5 of {callGroups.length.toLocaleString()} stacks. Use search to focus on a specific service user.
+              </p>
+            )}
+            {callGroupSearch.trim() && (
+              <p className="text-xs text-muted-foreground text-center">
+                Showing up to 5 matches. Refine your search to zero in on a single service user.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -2226,6 +2458,16 @@ function buildDuplicateSlotKey(row: RowAnalysis): string | null {
 function bucketMinutes(value: number, bucketSize: number): number {
   if (!Number.isFinite(value) || bucketSize <= 1) return clampMinutesOfDay(value);
   return clampMinutesOfDay(Math.round(value / bucketSize) * bucketSize);
+}
+
+function buildSlotTrendKeyForGroup(
+  normalizedServiceUserKey?: string | null,
+  plannedTimeMinutes?: number | null
+): string | null {
+  if (!normalizedServiceUserKey) return null;
+  if (typeof plannedTimeMinutes !== "number") return null;
+  const slotMinutes = bucketMinutes(plannedTimeMinutes, TREND_BUCKET_MINUTES);
+  return `${normalizedServiceUserKey}|slot-${slotMinutes}`;
 }
 
 function clampMinutesOfDay(value: number): number {
