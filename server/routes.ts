@@ -1749,9 +1749,8 @@ export async function registerRoutes(
 
   // Analyze EMAR document using AI-based extraction with streaming progress
   app.post("/api/ai/analyze-emar", requireAuth, upload.single("file"), async (req, res) => {
-    const requestedModeRaw = String(req.query?.mode || req.header("x-emar-mode") || "").toLowerCase();
-    // Default to legacy unless explicitly requesting enhanced.
-    const emarMode: "enhanced" | "legacy" = requestedModeRaw === "enhanced" || requestedModeRaw === "new" ? "enhanced" : "legacy";
+    // Production: force the known-good legacy pipeline.
+    const emarMode: "enhanced" | "legacy" = "legacy";
 
     // Validate file BEFORE setting up streaming (must happen before flushHeaders)
     if (!req.file) {
@@ -1820,7 +1819,7 @@ export async function registerRoutes(
     
     try {
 
-      sendProgress(5, emarMode === "legacy" ? "Processing PDF (legacy mode)..." : "Processing PDF...", "pdf_processing");
+      sendProgress(5, "Processing PDF...", "pdf_processing");
 
       // Attempt coordinate-based grid parsing (improves date-column accuracy for grid EMARs)
       // This is best-effort and will fall back to text-based extraction when not usable.

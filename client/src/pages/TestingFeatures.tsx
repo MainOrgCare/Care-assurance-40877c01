@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 
 const ROW_BATCH_SIZE = 250;
-const INITIAL_VISIBLE_ROWS = 200;
+const INITIAL_VISIBLE_ROWS = 75;
 
 const TREND_MIN_CALLS = 4;
 const TREND_CONSISTENCY = 0.7;
@@ -332,7 +332,7 @@ export default function TestingFeatures() {
   const [filterStatus, setFilterStatus] = useState<RowStatus | "all">("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ROWS);
-  const [showDuplicateRows, setShowDuplicateRows] = useState(true);
+  const [showDuplicateRows, setShowDuplicateRows] = useState(false);
   const [callGroupSearch, setCallGroupSearch] = useState("");
   const analysisJobRef = useRef<number>(0);
   const showGlobalProgress = processingState === "parsing" || processingState === "analyzing";
@@ -1101,7 +1101,7 @@ export default function TestingFeatures() {
         if (bScore !== aScore) return bScore - aScore;
         return (a.serviceUserName || "").localeCompare(b.serviceUserName || "");
       })
-      .slice(0, 25);
+        .slice(0, 10);
   }, [primaryRows]);
 
   const duplicateClusters = useMemo<DuplicateCluster[]>(() => {
@@ -1227,7 +1227,7 @@ export default function TestingFeatures() {
 
     const term = callGroupSearch.trim().toLowerCase();
     if (!term) {
-      return { visibleServiceUserStacks: serviceUserStacks.slice(0, 5), hasSearchMatch: true };
+      return { visibleServiceUserStacks: serviceUserStacks.slice(0, 3), hasSearchMatch: true };
     }
 
     const scored = serviceUserStacks.map((stack) => {
@@ -1250,7 +1250,7 @@ export default function TestingFeatures() {
     );
 
     return {
-      visibleServiceUserStacks: source.map((entry) => entry.stack).slice(0, 5),
+      visibleServiceUserStacks: source.map((entry) => entry.stack).slice(0, 3),
       hasSearchMatch: matches.length > 0,
     };
   }, [serviceUserStacks, callGroupSearch]);
@@ -1836,470 +1836,368 @@ export default function TestingFeatures() {
         />
       </div>
 
-      {summary.total > 0 && (
-        <Card className="border border-primary/20 bg-primary/5">
-          <CardHeader>
-            <CardTitle>Timing Insights</CardTitle>
-            <CardDescription>Compare planned intent against care delivery reality.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <TimingStat
-              title="Average Schedule Drift"
-              value={formatMinutesDisplay(summary.averageDriftMinutes)}
-              helper={`${summary.scheduleAlerts.toLocaleString()} rows exceeded the 2h tolerance.`}
-              tone={
-                summary.averageDriftMinutes !== null && summary.averageDriftMinutes > 120
-                  ? "destructive"
-                  : summary.averageDriftMinutes !== null && summary.averageDriftMinutes > 90
-                  ? "warning"
-                  : "default"
-              }
-              badge={summary.averageDriftMinutes !== null ? formatMinutesDisplay(summary.averageDriftMinutes) : undefined}
-            />
-            <TimingStat
-              title="Average Duration Fidelity"
-              value={
-                summary.averageDurationPercent !== null
-                  ? `${summary.averageDurationPercent.toFixed(1)}%`
-                  : "—"
-              }
-              helper={`${summary.durationAlerts.toLocaleString()} rows were under 80% or over 120% of plan.`}
-              tone={
-                summary.averageDurationPercent !== null && summary.averageDurationPercent < 80
-                  ? "destructive"
-                  : summary.averageDurationPercent !== null && summary.averageDurationPercent > 120
-                  ? "warning"
-                  : summary.averageDurationPercent !== null && summary.averageDurationPercent < 90
-                  ? "warning"
-                  : "default"
-              }
-              badge={
-                summary.averageDurationPercent !== null
-                  ? `${Math.round(summary.averageDurationPercent)}% actual`
-                  : undefined
-              }
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {slotTrends.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Recurring Call Type Trends</CardTitle>
-            <CardDescription>
-              Detect consistent drift for the same service user and call type, then suggest practical updates to planned times or durations based on actuals.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3">
-              {slotTrends.map((trend) => (
-                <div
-                  key={trend.key}
-                  className={`rounded-2xl border p-4 ${toneSurfaceMap[trend.tone]}`}
-                >
-                  <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Service User • Call Type</p>
-                      <p className="text-base font-semibold text-foreground">
-                        {trend.serviceUserName || "Unknown"} • {trend.callTypeLabel}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {(trend.serviceUserArea || "Area unavailable").toString()} • {trend.serviceUserAddress || "Address unavailable"}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline" className="text-xs font-semibold">
-                        {trend.totalCalls} call{trend.totalCalls === 1 ? "" : "s"}
-                      </Badge>
-                      {typeof trend.averageStartOffsetMinutes === "number" && (
-                        <Badge variant="secondary" className="text-xs font-semibold">
-                          Avg start Δ {formatSignedMinutes(trend.averageStartOffsetMinutes)}
-                        </Badge>
-                      )}
-                      {typeof trend.averageDurationPercent === "number" && (
-                        <Badge variant="secondary" className="text-xs font-semibold">
-                          Avg duration {trend.averageDurationPercent.toFixed(0)}%
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 space-y-2">
-                    {trend.advice.map((line, idx) => (
-                      <p key={`${trend.key}-advice-${idx}`} className="text-sm text-foreground">
-                        {line}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <CardTitle>Row-Level Analysis</CardTitle>
-            <CardDescription>Use filters to triage thousands of rows quickly.</CardDescription>
-          </div>
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
-            <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search row or keyword"
-                className="pl-9 w-full md:w-64"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={filterStatus === "all" ? "default" : "secondary"}
-                onClick={() => setFilterStatus("all")}
-              >
-                All
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={filterStatus === "clean" ? "default" : "secondary"}
-                onClick={() => setFilterStatus("clean")}
-              >
-                Clean
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={filterStatus === "attention" ? "default" : "secondary"}
-                onClick={() => setFilterStatus("attention")}
-              >
-                Needs Attention
-              </Button>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Switch id="toggle-duplicates" checked={showDuplicateRows} onCheckedChange={setShowDuplicateRows} />
-              <label htmlFor="toggle-duplicates" className="font-medium">
-                Show duplicate slot rows
-              </label>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {analysisResults.length === 0 ? (
-            <div className="text-center text-muted-foreground py-12">
-              <p>Upload data to see row-by-row insights.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <ScrollArea className="max-h-[480px] rounded-md border border-border/80">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr>
-                      <th className="px-4 py-3 w-16">Row</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Highlights</th>
-                      <th className="px-4 py-3">Issues</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleRows.map((row) => (
-                      <tr
-                        key={row.rowNumber}
-                        className="border-t border-border/60 hover:bg-muted/30 cursor-pointer"
-                        onClick={() => setSelectedRow(row)}
-                      >
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">#{row.rowNumber}</td>
-                        <td className="px-4 py-3">
-                          <Badge variant={row.status === "clean" ? "outline" : "destructive"}>
-                            {row.status === "clean" ? "Clean" : "Needs attention"}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-1">
-                            {row.callTypeLabel && <Badge variant="outline">{row.callTypeLabel}</Badge>}
-                            {row.emptyFields.length > 0 && (
-                              <Badge variant="secondary">{row.emptyFields.length} empty</Badge>
-                            )}
-                            {row.numericWarnings.length > 0 && (
-                              <Badge variant="secondary">{row.numericWarnings.length} negative</Badge>
-                            )}
-                            {row.textWarnings.length > 0 && (
-                              <Badge variant="secondary">{row.textWarnings.length} long</Badge>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {typeof row.scheduleDeltaMinutes === "number" && (
-                              <InsightPill tone={row.scheduleFlag ? "destructive" : "default"}>
-                                Δ {formatSignedMinutes(row.scheduleDeltaMinutes)}
-                              </InsightPill>
-                            )}
-                            {typeof row.durationMatchPercent === "number" && (
-                              <InsightPill
-                                tone={
-                                  row.durationFlag
-                                    ? "destructive"
-                                    : row.durationOverrunFlag
-                                    ? "warning"
-                                    : row.durationMatchPercent < 90
-                                    ? "warning"
-                                    : "default"
-                                }
-                              >
-                                {row.durationMatchPercent.toFixed(0)}% duration
-                              </InsightPill>
-                            )}
-                            {row.isDuplicateSlotRow && <InsightPill tone="warning">Duplicate slot</InsightPill>}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {row.issues.length ? row.issues.join(", ") : "No issues detected"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </ScrollArea>
-
-              {visibleRows.length < filteredResults.length && (
-                <Button onClick={handleLoadMore} variant="secondary" className="w-full">
-                  Load {Math.min(INITIAL_VISIBLE_ROWS, filteredResults.length - visibleRows.length)} more rows
-                </Button>
-              )}
-            </div>
+      {analysisResults.length > 0 && (
+        <Accordion type="multiple" className="w-full">
+          {summary.total > 0 && (
+            <AccordionItem value="timing-insights">
+              <AccordionTrigger>Timing Insights</AccordionTrigger>
+              <AccordionContent>
+                <Card className="border border-primary/20 bg-primary/5">
+                  <CardHeader>
+                    <CardTitle>Timing Insights</CardTitle>
+                    <CardDescription>Compare planned intent against care delivery reality.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 md:grid-cols-2">
+                    <TimingStat
+                      title="Average Schedule Drift"
+                      value={formatMinutesDisplay(summary.averageDriftMinutes)}
+                      helper={`${summary.scheduleAlerts.toLocaleString()} rows exceeded the 2h tolerance.`}
+                      tone={
+                        summary.averageDriftMinutes !== null && summary.averageDriftMinutes > 120
+                          ? "destructive"
+                          : summary.averageDriftMinutes !== null && summary.averageDriftMinutes > 90
+                          ? "warning"
+                          : "default"
+                      }
+                      badge={summary.averageDriftMinutes !== null ? formatMinutesDisplay(summary.averageDriftMinutes) : undefined}
+                    />
+                    <TimingStat
+                      title="Average Duration Fidelity"
+                      value={
+                        summary.averageDurationPercent !== null
+                          ? `${summary.averageDurationPercent.toFixed(1)}%`
+                          : "—"
+                      }
+                      helper={`${summary.durationAlerts.toLocaleString()} rows were under 80% or over 120% of plan.`}
+                      tone={
+                        summary.averageDurationPercent !== null && summary.averageDurationPercent < 80
+                          ? "destructive"
+                          : summary.averageDurationPercent !== null && summary.averageDurationPercent > 120
+                          ? "warning"
+                          : summary.averageDurationPercent !== null && summary.averageDurationPercent < 90
+                          ? "warning"
+                          : "default"
+                      }
+                      badge={
+                        summary.averageDurationPercent !== null
+                          ? `${Math.round(summary.averageDurationPercent)}% actual`
+                          : undefined
+                      }
+                    />
+                  </CardContent>
+                </Card>
+              </AccordionContent>
+            </AccordionItem>
           )}
-        </CardContent>
-      </Card>
 
-      {duplicateClusters.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Duplicate Slot Review</CardTitle>
-            <CardDescription>
-              Multiple carers recorded for the same service user, date, and planned time. We kept the first row for metrics—review the rest here.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {duplicateClusters.map((cluster) => (
-              <div key={cluster.key} className="rounded-2xl border border-border/70 bg-card/50 p-4 space-y-3">
-                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Service User</p>
-                    <p className="text-base font-semibold text-foreground">
-                      {cluster.serviceUserName || "Unknown"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {(cluster.serviceUserArea || "Area unavailable").toString()} • {cluster.serviceUserAddress || "Address unavailable"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Planned date: {cluster.plannedDateLabel || "—"} • Planned time: {cluster.plannedTimeLabel || "—"}
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-xs font-semibold">
-                    {cluster.rows.length} entries
-                  </Badge>
-                </div>
-                <div className="space-y-2">
-                  {cluster.rows.map((row) => (
-                    <div
-                      key={`${cluster.key}-${row.rowNumber}`}
-                      className="rounded-xl border border-border/60 bg-background/60 p-3 text-sm"
-                    >
-                      <div className="flex flex-wrap items-center gap-2 justify-between">
-                        <div className="flex flex-col">
-                          <span className="text-xs text-muted-foreground">Row #{row.rowNumber}</span>
-                          <span className="font-semibold">{row.actualWorker || row.plannedWorker || "Care worker unavailable"}</span>
+          {slotTrends.length > 0 && (
+            <AccordionItem value="call-type-trends">
+              <AccordionTrigger>Recurring Call Type Trends</AccordionTrigger>
+              <AccordionContent>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recurring Call Type Trends</CardTitle>
+                    <CardDescription>
+                      Detect consistent drift for the same service user and call type, then suggest practical updates to planned times or durations based on actuals.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-3">
+                      {slotTrends.map((trend) => (
+                        <div
+                          key={trend.key}
+                          className={`rounded-2xl border p-4 ${toneSurfaceMap[trend.tone]}`}
+                        >
+                          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Service User • Call Type</p>
+                              <p className="text-base font-semibold text-foreground">
+                                {trend.serviceUserName || "Unknown"} • {trend.callTypeLabel}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {(trend.serviceUserArea || "Area unavailable").toString()} • {trend.serviceUserAddress || "Address unavailable"}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant="outline" className="text-xs font-semibold">
+                                {trend.totalCalls} call{trend.totalCalls === 1 ? "" : "s"}
+                              </Badge>
+                              {typeof trend.averageStartOffsetMinutes === "number" && (
+                                <Badge variant="secondary" className="text-xs font-semibold">
+                                  Avg start Δ {formatSignedMinutes(trend.averageStartOffsetMinutes)}
+                                </Badge>
+                              )}
+                              {typeof trend.averageDurationPercent === "number" && (
+                                <Badge variant="secondary" className="text-xs font-semibold">
+                                  Avg duration {trend.averageDurationPercent.toFixed(0)}%
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="mt-3 space-y-2">
+                            {trend.advice.map((line, idx) => (
+                              <p key={`${trend.key}-advice-${idx}`} className="text-sm text-foreground">
+                                {line}
+                              </p>
+                            ))}
+                          </div>
                         </div>
-                        <Badge variant={row.isDuplicateSlotRow ? "secondary" : "default"} className="text-xs">
-                          {row.isDuplicateSlotRow ? "Ignored duplicate" : "Used for metrics"}
-                        </Badge>
-                      </div>
-                      <div className="mt-2 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                        <span>
-                          Planned {row.plannedTimeLabel || "—"} → Actual {row.actualTimeLabel || "—"}
-                        </span>
-                        <span>
-                          Duration {typeof row.durationMatchPercent === "number" ? `${row.durationMatchPercent.toFixed(0)}% of plan` : "—"}
-                        </span>
-                      </div>
-                      {row.issues.length > 0 && (
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          {row.issues.join(" • ")}
-                        </p>
-                      )}
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+                  </CardContent>
+                </Card>
+              </AccordionContent>
+            </AccordionItem>
+          )}
 
-      {selectedRow && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Row {selectedRow.rowNumber} Details</CardTitle>
-            <CardDescription>Full payload plus issues detected.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {selectedRow.isDuplicateSlotRow && (
-              <Alert variant="destructive">
-                <AlertTitle>Duplicate care slot</AlertTitle>
-                <AlertDescription>
-                  Another row with the same service user, planned date, and planned time already counts toward the metrics. This entry is shown for context only.
-                </AlertDescription>
-              </Alert>
-            )}
-            <div className="flex flex-wrap gap-2">
-              {selectedRow.callTypeLabel && <Badge variant="outline">Call: {selectedRow.callTypeLabel}</Badge>}
-              {selectedRow.emptyFields.length > 0 && (
-                <Badge variant="secondary">Empty: {selectedRow.emptyFields.join(", ")}</Badge>
-              )}
-              {selectedRow.numericWarnings.length > 0 && (
-                <Badge variant="secondary">Negative: {selectedRow.numericWarnings.join(", ")}</Badge>
-              )}
-              {selectedRow.textWarnings.length > 0 && (
-                <Badge variant="secondary">Long Text: {selectedRow.textWarnings.join(", ")}</Badge>
-              )}
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <DiagnosticStat
-                title="Schedule Delta"
-                value={
-                  typeof selectedRow.scheduleDeltaMinutes === "number"
-                    ? formatSignedMinutes(selectedRow.scheduleDeltaMinutes)
-                    : "No timing data"
-                }
-                helper={
-                  selectedRow.workersMatch === false
-                    ? "Different carer delivered this visit."
-                    : selectedRow.scheduleFlag
-                    ? "Same carer drifted more than 2 hours."
-                    : "Within the 2 hour tolerance."
-                }
-                tone={
-                  typeof selectedRow.scheduleDeltaMinutes !== "number"
-                    ? "warning"
-                    : selectedRow.scheduleFlag
-                    ? "destructive"
-                    : Math.abs(selectedRow.scheduleDeltaMinutes) > 90
-                    ? "warning"
-                    : "default"
-                }
-                meta={[
-                  { label: "Planned", value: selectedRow.plannedTimeLabel || "—" },
-                  { label: "Actual", value: selectedRow.actualTimeLabel || "—" },
-                  { label: "Carer", value: formatWorkersMatch(selectedRow.workersMatch) },
-                ]}
-              />
-              <DiagnosticStat
-                title="Duration Fidelity"
-                value={
-                  typeof selectedRow.durationMatchPercent === "number"
-                    ? `${selectedRow.durationMatchPercent.toFixed(1)}%`
-                    : "No duration data"
-                }
-                helper={
-                  selectedRow.durationFlag
-                    ? "Actual duration delivered under 80% of the plan."
-                    : selectedRow.durationOverrunFlag
-                    ? "Actual duration exceeded 120% of the plan."
-                    : typeof selectedRow.durationMatchPercent === "number"
-                    ? "Actual vs planned duration."
-                    : "Provide planned & actual duration columns."
-                }
-                tone={
-                  typeof selectedRow.durationMatchPercent !== "number"
-                    ? "warning"
-                    : selectedRow.durationFlag
-                    ? "destructive"
-                    : selectedRow.durationOverrunFlag
-                    ? "warning"
-                    : selectedRow.durationMatchPercent < 90
-                    ? "warning"
-                    : "default"
-                }
-                meta={[
-                  {
-                    label: "Planned",
-                    value:
-                      typeof selectedRow.plannedDurationMinutes === "number"
-                        ? formatMinutesDisplay(selectedRow.plannedDurationMinutes)
-                        : "—",
-                  },
-                  {
-                    label: "Actual",
-                    value:
-                      typeof selectedRow.actualDurationMinutes === "number"
-                        ? formatMinutesDisplay(selectedRow.actualDurationMinutes)
-                        : "—",
-                  },
-                  {
-                    label: "Delta",
-                    value:
-                      typeof selectedRow.durationMatchPercent === "number"
-                        ? formatDurationDelta(selectedRow.durationMatchPercent)
-                        : "—",
-                  },
-                ]}
-              />
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              {Object.entries(selectedRow.data).map(([key, value], index) => (
-                <div key={`${key}-${index}`} className="rounded border border-border/80 p-3 text-sm">
-                  <p className="text-xs uppercase text-muted-foreground">{normalizeColumnLabel(key, index)}</p>
-                  <p className="mt-1 break-words">{String(value ?? "").trim() || "—"}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          <AccordionItem value="row-level-analysis">
+            <AccordionTrigger>Row-Level Analysis</AccordionTrigger>
+            <AccordionContent>
+              <Card>
+                <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <CardTitle>Row-Level Analysis</CardTitle>
+                    <CardDescription>Use filters to triage thousands of rows quickly.</CardDescription>
+                  </div>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Search row or keyword"
+                        className="pl-9 w-full md:w-64"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={filterStatus === "all" ? "default" : "secondary"}
+                        onClick={() => setFilterStatus("all")}
+                      >
+                        All
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={filterStatus === "clean" ? "default" : "secondary"}
+                        onClick={() => setFilterStatus("clean")}
+                      >
+                        Clean
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={filterStatus === "attention" ? "default" : "secondary"}
+                        onClick={() => setFilterStatus("attention")}
+                      >
+                        Needs Attention
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Switch id="toggle-duplicates" checked={showDuplicateRows} onCheckedChange={setShowDuplicateRows} />
+                      <label htmlFor="toggle-duplicates" className="font-medium">
+                        Show duplicate slot rows
+                      </label>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <ScrollArea className="max-h-[480px] rounded-md border border-border/80">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                          <tr>
+                            <th className="px-4 py-3 w-16">Row</th>
+                            <th className="px-4 py-3">Status</th>
+                            <th className="px-4 py-3">Highlights</th>
+                            <th className="px-4 py-3">Issues</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleRows.map((row) => (
+                            <tr
+                              key={row.rowNumber}
+                              className="border-t border-border/60 hover:bg-muted/30 cursor-pointer"
+                              onClick={() => setSelectedRow(row)}
+                            >
+                              <td className="px-4 py-3 font-mono text-xs text-muted-foreground">#{row.rowNumber}</td>
+                              <td className="px-4 py-3">
+                                <Badge variant={row.status === "clean" ? "outline" : "destructive"}>
+                                  {row.status === "clean" ? "Clean" : "Needs attention"}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {row.callTypeLabel && <Badge variant="outline">{row.callTypeLabel}</Badge>}
+                                  {row.emptyFields.length > 0 && (
+                                    <Badge variant="secondary">{row.emptyFields.length} empty</Badge>
+                                  )}
+                                  {row.numericWarnings.length > 0 && (
+                                    <Badge variant="secondary">{row.numericWarnings.length} negative</Badge>
+                                  )}
+                                  {row.textWarnings.length > 0 && (
+                                    <Badge variant="secondary">{row.textWarnings.length} long</Badge>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {typeof row.scheduleDeltaMinutes === "number" && (
+                                    <InsightPill tone={row.scheduleFlag ? "destructive" : "default"}>
+                                      Δ {formatSignedMinutes(row.scheduleDeltaMinutes)}
+                                    </InsightPill>
+                                  )}
+                                  {typeof row.durationMatchPercent === "number" && (
+                                    <InsightPill
+                                      tone={
+                                        row.durationFlag
+                                          ? "destructive"
+                                          : row.durationOverrunFlag
+                                          ? "warning"
+                                          : row.durationMatchPercent < 90
+                                          ? "warning"
+                                          : "default"
+                                      }
+                                    >
+                                      {row.durationMatchPercent.toFixed(0)}% duration
+                                    </InsightPill>
+                                  )}
+                                  {row.isDuplicateSlotRow && <InsightPill tone="warning">Duplicate slot</InsightPill>}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground">
+                                {row.issues.length ? row.issues.join(", ") : "No issues detected"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </ScrollArea>
 
-      {serviceUserStacks.length > 0 && (
-        <Card>
-          <CardHeader className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <CardTitle>Service User Call Stacks</CardTitle>
-              <CardDescription>
-                One box per service user. Expand to see call types, then expand again to see every call.
-              </CardDescription>
-            </div>
-            <div className="flex flex-col gap-3 w-full xl:w-auto sm:flex-row">
-              <div className="relative flex-1 sm:w-64">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={callGroupSearch}
-                  onChange={(e) => setCallGroupSearch(e.target.value)}
-                  placeholder="Search service users"
-                  className="pl-9"
-                />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-full sm:w-auto"
-                onClick={handleExportPdf}
-              >
-                <FileText className="h-4 w-4 mr-2" /> Export grouped PDF
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {callGroupSearch.trim() && !hasSearchMatch && (
-              <p className="text-xs text-muted-foreground">
-                No direct match found — showing the nearest stacks instead.
-              </p>
-            )}
+                    {visibleRows.length < filteredResults.length && (
+                      <Button onClick={handleLoadMore} variant="secondary" className="w-full">
+                        Load {Math.min(INITIAL_VISIBLE_ROWS, filteredResults.length - visibleRows.length)} more rows
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
 
-            <Accordion type="single" collapsible className="w-full">
-              {visibleServiceUserStacks.map((stack) => {
+          {duplicateClusters.length > 0 && (
+            <AccordionItem value="duplicate-slot-review">
+              <AccordionTrigger>Duplicate Slot Review</AccordionTrigger>
+              <AccordionContent>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Duplicate Slot Review</CardTitle>
+                    <CardDescription>
+                      Multiple carers recorded for the same service user, date, and planned time. We kept the first row for metrics—review the rest here.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {duplicateClusters.map((cluster) => (
+                      <div key={cluster.key} className="rounded-2xl border border-border/70 bg-card/50 p-4 space-y-3">
+                        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Service User</p>
+                            <p className="text-base font-semibold text-foreground">
+                              {cluster.serviceUserName || "Unknown"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {(cluster.serviceUserArea || "Area unavailable").toString()} • {cluster.serviceUserAddress || "Address unavailable"}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Planned date: {cluster.plannedDateLabel || "—"} • Planned time: {cluster.plannedTimeLabel || "—"}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-xs font-semibold">
+                            {cluster.rows.length} entries
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          {cluster.rows.map((row) => (
+                            <div
+                              key={`${cluster.key}-${row.rowNumber}`}
+                              className="rounded-xl border border-border/60 bg-background/60 p-3 text-sm"
+                            >
+                              <div className="flex flex-wrap items-center gap-2 justify-between">
+                                <div className="flex flex-col">
+                                  <span className="text-xs text-muted-foreground">Row #{row.rowNumber}</span>
+                                  <span className="font-semibold">{row.actualWorker || row.plannedWorker || "Care worker unavailable"}</span>
+                                </div>
+                                <Badge variant={row.isDuplicateSlotRow ? "secondary" : "default"} className="text-xs">
+                                  {row.isDuplicateSlotRow ? "Ignored duplicate" : "Used for metrics"}
+                                </Badge>
+                              </div>
+                              <div className="mt-2 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                                <span>
+                                  Planned {row.plannedTimeLabel || "—"} → Actual {row.actualTimeLabel || "—"}
+                                </span>
+                                <span>
+                                  Duration {typeof row.durationMatchPercent === "number" ? `${row.durationMatchPercent.toFixed(0)}% of plan` : "—"}
+                                </span>
+                              </div>
+                              {row.issues.length > 0 && (
+                                <p className="mt-2 text-xs text-muted-foreground">
+                                  {row.issues.join(" • ")}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </AccordionContent>
+            </AccordionItem>
+          )}
+
+          {serviceUserStacks.length > 0 && (
+            <AccordionItem value="service-user-call-stacks">
+              <AccordionTrigger>Service User Call Stacks</AccordionTrigger>
+              <AccordionContent>
+                <Card>
+                  <CardHeader className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div>
+                      <CardTitle>Service User Call Stacks</CardTitle>
+                      <CardDescription>
+                        One box per service user. Expand to see call types, then expand again to see every call.
+                      </CardDescription>
+                    </div>
+                    <div className="flex flex-col gap-3 w-full xl:w-auto sm:flex-row">
+                      <div className="relative flex-1 sm:w-64">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          value={callGroupSearch}
+                          onChange={(e) => setCallGroupSearch(e.target.value)}
+                          placeholder="Search service users"
+                          className="pl-9"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full sm:w-auto"
+                        onClick={handleExportPdf}
+                      >
+                        <FileText className="h-4 w-4 mr-2" /> Export grouped PDF
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {callGroupSearch.trim() && !hasSearchMatch && (
+                      <p className="text-xs text-muted-foreground">
+                        No direct match found — showing the nearest stacks instead.
+                      </p>
+                    )}
+
+                    <Accordion type="single" collapsible className="w-full">
+                      {visibleServiceUserStacks.map((stack) => {
                 const flaggedRows = stack.rows.filter((row) => row.scheduleFlag || row.durationFlag).length;
                 const driftValues = stack.rows
                   .map((row) => (typeof row.scheduleDeltaMinutes === "number" ? Math.abs(row.scheduleDeltaMinutes) : null))
@@ -2578,6 +2476,136 @@ export default function TestingFeatures() {
             )}
           </CardContent>
         </Card>
+              </AccordionContent>
+            </AccordionItem>
+          )}
+
+          {selectedRow && (
+            <AccordionItem value="selected-row-details">
+              <AccordionTrigger>Selected Row Details (Row {selectedRow.rowNumber})</AccordionTrigger>
+              <AccordionContent>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Row {selectedRow.rowNumber} Details</CardTitle>
+                    <CardDescription>Full payload plus issues detected.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {selectedRow.isDuplicateSlotRow && (
+                      <Alert variant="destructive">
+                        <AlertTitle>Duplicate care slot</AlertTitle>
+                        <AlertDescription>
+                          Another row with the same service user, planned date, and planned time already counts toward the metrics. This entry is shown for context only.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {selectedRow.callTypeLabel && <Badge variant="outline">Call: {selectedRow.callTypeLabel}</Badge>}
+                      {selectedRow.emptyFields.length > 0 && (
+                        <Badge variant="secondary">Empty: {selectedRow.emptyFields.join(", ")}</Badge>
+                      )}
+                      {selectedRow.numericWarnings.length > 0 && (
+                        <Badge variant="secondary">Negative: {selectedRow.numericWarnings.join(", ")}</Badge>
+                      )}
+                      {selectedRow.textWarnings.length > 0 && (
+                        <Badge variant="secondary">Long Text: {selectedRow.textWarnings.join(", ")}</Badge>
+                      )}
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <DiagnosticStat
+                        title="Schedule Delta"
+                        value={
+                          typeof selectedRow.scheduleDeltaMinutes === "number"
+                            ? formatSignedMinutes(selectedRow.scheduleDeltaMinutes)
+                            : "No timing data"
+                        }
+                        helper={
+                          selectedRow.workersMatch === false
+                            ? "Different carer delivered this visit."
+                            : selectedRow.scheduleFlag
+                            ? "Same carer drifted more than 2 hours."
+                            : "Within the 2 hour tolerance."
+                        }
+                        tone={
+                          typeof selectedRow.scheduleDeltaMinutes !== "number"
+                            ? "warning"
+                            : selectedRow.scheduleFlag
+                            ? "destructive"
+                            : Math.abs(selectedRow.scheduleDeltaMinutes) > 90
+                            ? "warning"
+                            : "default"
+                        }
+                        meta={[
+                          { label: "Planned", value: selectedRow.plannedTimeLabel || "—" },
+                          { label: "Actual", value: selectedRow.actualTimeLabel || "—" },
+                          { label: "Carer", value: formatWorkersMatch(selectedRow.workersMatch) },
+                        ]}
+                      />
+                      <DiagnosticStat
+                        title="Duration Fidelity"
+                        value={
+                          typeof selectedRow.durationMatchPercent === "number"
+                            ? `${selectedRow.durationMatchPercent.toFixed(1)}%`
+                            : "No duration data"
+                        }
+                        helper={
+                          selectedRow.durationFlag
+                            ? "Actual duration delivered under 80% of the plan."
+                            : selectedRow.durationOverrunFlag
+                            ? "Actual duration exceeded 120% of the plan."
+                            : typeof selectedRow.durationMatchPercent === "number"
+                            ? "Actual vs planned duration."
+                            : "Provide planned & actual duration columns."
+                        }
+                        tone={
+                          typeof selectedRow.durationMatchPercent !== "number"
+                            ? "warning"
+                            : selectedRow.durationFlag
+                            ? "destructive"
+                            : selectedRow.durationOverrunFlag
+                            ? "warning"
+                            : selectedRow.durationMatchPercent < 90
+                            ? "warning"
+                            : "default"
+                        }
+                        meta={[
+                          {
+                            label: "Planned",
+                            value:
+                              typeof selectedRow.plannedDurationMinutes === "number"
+                                ? formatMinutesDisplay(selectedRow.plannedDurationMinutes)
+                                : "—",
+                          },
+                          {
+                            label: "Actual",
+                            value:
+                              typeof selectedRow.actualDurationMinutes === "number"
+                                ? formatMinutesDisplay(selectedRow.actualDurationMinutes)
+                                : "—",
+                          },
+                          {
+                            label: "Delta",
+                            value:
+                              typeof selectedRow.durationMatchPercent === "number"
+                                ? formatDurationDelta(selectedRow.durationMatchPercent)
+                                : "—",
+                          },
+                        ]}
+                      />
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {Object.entries(selectedRow.data).map(([key, value], index) => (
+                        <div key={`${key}-${index}`} className="rounded border border-border/80 p-3 text-sm">
+                          <p className="text-xs uppercase text-muted-foreground">{normalizeColumnLabel(key, index)}</p>
+                          <p className="mt-1 break-words">{String(value ?? "").trim() || "—"}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </AccordionContent>
+            </AccordionItem>
+          )}
+        </Accordion>
       )}
 
     </div>

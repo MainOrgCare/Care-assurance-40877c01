@@ -547,17 +547,7 @@ export default function EMARAudit() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const emarMode = (() => {
-        try {
-          const stored = localStorage.getItem("admin.emarAnalysisMode");
-          if (stored === "enhanced" || stored === "legacy") return stored;
-          return "legacy";
-        } catch {
-          return "legacy";
-        }
-      })();
-      
-      const response = await fetch(`/api/ai/analyze-emar?mode=${encodeURIComponent(emarMode)}`,
+      const response = await fetch(`/api/ai/analyze-emar`,
       {
         method: "POST",
         credentials: "include",

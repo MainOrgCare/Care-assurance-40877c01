@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 const SidebarContent = ({ location, handleSecretClick, logout }: { location: string, handleSecretClick: (e: React.MouseEvent) => void, logout: () => void }) => {
   const { user } = useAuth();
   const { timeLeft } = useTemporaryData();
+  const isAdminUser = user?.role === "admin";
   
   // Format timer
   const formatTime = (seconds: number) => {
@@ -43,13 +44,15 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
   const [openServiceUsers, setOpenServiceUsers] = useState(location.startsWith("/service-users"));
   const [openCareWorkers, setOpenCareWorkers] = useState(location.startsWith("/care-workers"));
   const isAdminRoute = location.startsWith("/admin") || location === "/shadow-admin-portal" || location === "/testing-features";
-  const [openAdmin, setOpenAdmin] = useState(isAdminRoute);
+  const [openAdmin, setOpenAdmin] = useState(isAdminUser && isAdminRoute);
 
   // Auto-open accordion based on route
   useEffect(() => {
      if (location.startsWith("/service-users")) setOpenServiceUsers(true);
      if (location.startsWith("/care-workers")) setOpenCareWorkers(true);
-      if (location.startsWith("/admin") || location === "/shadow-admin-portal" || location === "/testing-features") setOpenAdmin(true);
+      if (isAdminUser && (location.startsWith("/admin") || location === "/shadow-admin-portal" || location === "/testing-features")) {
+        setOpenAdmin(true);
+      }
   }, [location]);
 
   return (
@@ -81,6 +84,27 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
         )}>
             <LayoutDashboard size={18} className={cn("transition-colors", location === "/dashboard" ? "text-white" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground")} />
             Dashboard
+        </Link>
+
+        {/* Tools - Top Level */}
+        <Link href="/email-assistant" className={cn(
+          "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 group cursor-pointer",
+          location === "/email-assistant"
+            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md"
+            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+        )}>
+          <Mail size={18} className={cn("transition-colors", location === "/email-assistant" ? "text-white" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground")} />
+          Email Assistant
+        </Link>
+
+        <Link href="/compliance" className={cn(
+          "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 group cursor-pointer",
+          location === "/compliance"
+            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md"
+            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+        )}>
+          <CheckCircle size={18} className={cn("transition-colors", location === "/compliance" ? "text-white" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground")} />
+          Compliance
         </Link>
 
         {/* Dropdown 1: Service Users */}
@@ -140,40 +164,54 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
           </CollapsibleContent>
         </Collapsible>
 
-        {/* Dropdown 3: Admin */}
-        <Collapsible open={openAdmin} onOpenChange={setOpenAdmin} className="space-y-1">
-          <CollapsibleTrigger className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground rounded-lg transition-all group">
-            <div className="flex items-center gap-3">
-               <Lock size={18} className="text-sidebar-foreground/50 group-hover:text-sidebar-foreground" />
-               Admin
-            </div>
-            <ChevronDown size={16} className={cn("transition-transform duration-200", openAdmin ? "rotate-180" : "")} />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-1 pl-4">
-             {/* Only accessible via secret click or direct link if admin */}
-             {user?.role === 'admin' && (
-               <Link href="/shadow-admin-portal" className={cn("flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all", location === "/shadow-admin-portal" ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-foreground/60 hover:text-sidebar-foreground")}>
-                  <ShieldCheck size={16} /> Administrator Controls
-               </Link>
-             )}
-             <Link href="/email-assistant" className={cn("flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all", location === "/email-assistant" ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-foreground/60 hover:text-sidebar-foreground")}>
-                <Mail size={16} /> Email Assistant
-             </Link>
-             <Link href="/compliance" className={cn("flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all", location === "/compliance" ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-foreground/60 hover:text-sidebar-foreground")}>
-                <CheckCircle size={16} /> Compliance
-             </Link>
-             {user?.role === 'admin' && (
-               <Link href="/roi-calculator" className={cn("flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all", location === "/roi-calculator" ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-foreground/60 hover:text-sidebar-foreground")} data-testid="link-roi-calculator">
-                  <Calculator size={16} /> Features & Benefits
-               </Link>
-             )}
-             {user?.role === 'admin' && (
-               <Link href="/testing-features" className={cn("flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all", location === "/testing-features" ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-foreground/60 hover:text-sidebar-foreground")}>
-                  <FlaskConical size={16} /> Testing Features
-               </Link>
-             )}
-          </CollapsibleContent>
-        </Collapsible>
+        {/* Dropdown 3: Admin (admin-only) */}
+        {isAdminUser && (
+          <Collapsible open={openAdmin} onOpenChange={setOpenAdmin} className="space-y-1">
+            <CollapsibleTrigger className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground rounded-lg transition-all group">
+              <div className="flex items-center gap-3">
+                <Lock size={18} className="text-sidebar-foreground/50 group-hover:text-sidebar-foreground" />
+                Admin
+              </div>
+              <ChevronDown size={16} className={cn("transition-transform duration-200", openAdmin ? "rotate-180" : "")} />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1 pl-4">
+              <Link
+                href="/shadow-admin-portal"
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all",
+                  location === "/shadow-admin-portal"
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:text-sidebar-foreground"
+                )}
+              >
+                <ShieldCheck size={16} /> Administrator Controls
+              </Link>
+              <Link
+                href="/roi-calculator"
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all",
+                  location === "/roi-calculator"
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:text-sidebar-foreground"
+                )}
+                data-testid="link-roi-calculator"
+              >
+                <Calculator size={16} /> Features & Benefits
+              </Link>
+              <Link
+                href="/testing-features"
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all",
+                  location === "/testing-features"
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:text-sidebar-foreground"
+                )}
+              >
+                <FlaskConical size={16} /> Testing Features
+              </Link>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </nav>
 
       <div className="p-4 border-t border-sidebar-border space-y-2 mt-auto">
@@ -223,11 +261,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative flex h-screen w-full overflow-hidden bg-background">
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-x-0 top-[-30%] h-[520px] bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.2),_transparent_60%)] blur-3xl opacity-80" />
-        <div className="absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 bg-[radial-gradient(circle,_rgba(168,85,247,0.16),_transparent_60%)] blur-3xl" />
-        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:320px_320px] opacity-25" />
-      </div>
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 flex-shrink-0 bg-sidebar/80 backdrop-blur-xl border-r border-sidebar-border flex-col z-10">
         <SidebarContent location={location} handleSecretClick={handleSecretClick} logout={logout} />
@@ -235,7 +268,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto flex flex-col w-full relative z-10">
-        <header className="h-20 border-b border-border/40 bg-background/70 backdrop-blur-2xl px-4 md:px-8 flex items-center justify-between sticky top-0 z-20 shadow-[0_12px_40px_rgba(8,10,32,0.35)]">
+        <header className="h-16 border-b border-border/50 bg-background/70 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between sticky top-0 z-20 shadow-sm">
           <div className="flex items-center gap-3">
             {/* Mobile Menu Trigger */}
             <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -283,17 +316,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
              </div>
           </div>
         </header>
-        <div className="relative p-6 md:p-10 max-w-6xl xl:max-w-7xl mx-auto w-full flex-1">
-          <div className="pointer-events-none absolute inset-0 rounded-[36px] border border-white/10 opacity-30" />
-          <div className="pointer-events-none absolute inset-6 rounded-[30px] bg-gradient-to-b from-white/10 via-transparent to-transparent blur-3xl" />
-          <div className="relative z-10">
-            {children}
-          </div>
+        <div className="p-4 md:p-8 max-w-7xl mx-auto w-full flex-1">
+          {children}
         </div>
         
         {/* Persistent Footer with Legal Links */}
-        <footer className="border-t border-white/10 bg-background/70 backdrop-blur-xl px-4 py-4 mt-auto">
-          <div className="max-w-6xl xl:max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
+        <footer className="border-t border-border/50 bg-background/70 backdrop-blur-xl px-4 py-4 mt-auto">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
             <div className="flex items-center gap-1 font-medium text-foreground/70">
               <span>&copy; {new Date().getFullYear()} CareAssurance</span>
               <span className="hidden sm:inline">· Precision tools for high-trust care teams</span>

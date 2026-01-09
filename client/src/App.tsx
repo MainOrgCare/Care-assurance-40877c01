@@ -15,6 +15,7 @@ import { TemporaryDataProvider } from "@/context/TemporaryDataContext";
 import { SessionProvider } from "@/context/SessionContext";
 import { SettingsProvider } from "@/context/SettingsContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AdminRoute from "@/components/AdminRoute";
 import { TermsGuard } from "@/components/TermsGuard";
 import TermsConditions from "@/pages/TermsConditions";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
@@ -64,12 +65,12 @@ function Router() {
       <ProtectedRoute path="/care-workers/performance" component={Performance} />
 
       {/* Admin Dropdown */}
-      <ProtectedRoute path="/shadow-admin-portal" component={SecretAdminPortal} />
+      <AdminRoute path="/shadow-admin-portal" component={SecretAdminPortal} />
       <ProtectedRoute path="/call-reconciliation" component={CallReconciliation} />
       <ProtectedRoute path="/email-assistant" component={EmailAssistant} />
       <ProtectedRoute path="/compliance" component={Compliance} />
-      <ProtectedRoute path="/roi-calculator" component={ROICalculator} />
-      <ProtectedRoute path="/testing-features" component={TestingFeatures} />
+      <AdminRoute path="/roi-calculator" component={ROICalculator} />
+      <AdminRoute path="/testing-features" component={TestingFeatures} />
       <ProtectedRoute path="/settings" component={Settings} />
 
       {/* Homepage - shows landing page or redirects to dashboard */}

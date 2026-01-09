@@ -285,29 +285,11 @@ function AIProviderSection() {
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
-  const EMAR_MODE_STORAGE_KEY = "admin.emarAnalysisMode";
-  const [emarMode, setEmarMode] = useState<"enhanced" | "legacy">(() => {
-    try {
-      const stored = window.localStorage.getItem(EMAR_MODE_STORAGE_KEY);
-      if (stored === "enhanced" || stored === "legacy") return stored;
-      return "legacy";
-    } catch {
-      return "legacy";
-    }
-  });
   const { toast } = useToast();
 
   useEffect(() => {
     fetchSettings();
   }, []);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(EMAR_MODE_STORAGE_KEY, emarMode);
-    } catch {
-      // ignore
-    }
-  }, [emarMode]);
 
   const fetchSettings = async () => {
     try {
@@ -452,31 +434,6 @@ function AIProviderSection() {
                 )}
               </div>
             </button>
-          </div>
-        </div>
-
-        <div className="border-t border-white/5 pt-6">
-          <h4 className="text-sm font-medium text-foreground mb-3">EMAR Analysis Mode</h4>
-          <div className="p-4 bg-black/20 rounded-lg border border-white/10 flex items-center justify-between gap-6">
-            <div className="min-w-0">
-              <div className="font-medium text-foreground">Legacy AI-only mode</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                When enabled, EMAR analysis skips the new coordinate-based grid parser and uses the original AI-only extraction.
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Badge
-                variant="outline"
-                className={emarMode === "legacy" ? "border-yellow-500/50 text-yellow-400" : "border-white/15 text-muted-foreground"}
-              >
-                {emarMode === "legacy" ? "Legacy" : "Enhanced"}
-              </Badge>
-              <Switch
-                checked={emarMode === "legacy"}
-                onCheckedChange={(checked) => setEmarMode(checked ? "legacy" : "enhanced")}
-                data-testid="switch-emar-legacy-mode"
-              />
-            </div>
           </div>
         </div>
 
