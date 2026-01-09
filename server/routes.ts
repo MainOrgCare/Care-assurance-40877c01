@@ -15,7 +15,6 @@ import mammoth from "mammoth";
 import { scanFile, computeFileHash, getCachedScan } from "./services/fileScan";
 import * as XLSX from "xlsx";
 import { convertPdfToImages } from "./services/pdfToImages";
-import { parseEMARGrid } from "./emarGridParser";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 // Vision-based extraction for improved EMAR accuracy
 
@@ -92,20 +91,30 @@ async function extractPdfTextWithPdfjs(pdfBuffer: Buffer): Promise<{ text: strin
     let currentRow: Positioned[] = [];
     let currentY: number | null = null;
 
-    for (const p of positioned) {
-      if (currentY === null || Math.abs(p.y - currentY) <= yTolerance) {
-        currentRow.push(p);
-        if (currentY === null) currentY = p.y;
+    for (const token of positioned) {
+      if (currentY === null || Math.abs(token.y - currentY) <= yTolerance) {
+        currentRow.push(token);
+        if (currentY === null) currentY = token.y;
       } else {
         rows.push(currentRow);
-        currentRow = [p];
-        currentY = p.y;
+        currentRow = [token];
+        currentY = token.y;
       }
     }
     if (currentRow.length > 0) rows.push(currentRow);
 
-    const lines = rows.map((row) => row.sort((a, b) => a.x - b.x).map((r) => r.str).join(" ").replace(/\s+/g, " ").trim());
-    const pageText = lines.filter(Boolean).join("\n");
+    const lines = rows
+      .map((row) =>
+        row
+          .sort((a, b) => a.x - b.x)
+          .map((segment) => segment.str)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim()
+      )
+      .filter(Boolean);
+
+    const pageText = lines.join("\n");
     pageCharCounts.push(pageText.length);
     pageTexts.push(pageText);
   }
@@ -127,7 +136,6 @@ async function scanAndLogFile(
       buffer: file.buffer,
     });
 
-    // Log the scan result
     await storage.createFileScanLog({
       fileName: file.originalname,
       fileHash: scanResult.fileHash,
@@ -140,8 +148,9 @@ async function scanAndLogFile(
     });
 
     if (!scanResult.isClean) {
-      // Log security threat - the fileScanLogs table provides the audit trail
-      console.error(`[SECURITY ALERT] Threat detected in file "${file.originalname}": ${scanResult.threatsFound}. Upload blocked by ${scannedBy || 'unknown user'}.`);
+      console.error(
+        `[SECURITY ALERT] Threat detected in file "${file.originalname}": ${scanResult.threatsFound}. Upload blocked by ${scannedBy || "unknown user"}.`
+      );
 
       return {
         allowed: false,
@@ -152,7 +161,6 @@ async function scanAndLogFile(
     return { allowed: true };
   } catch (error: any) {
     console.error("Virus scan error:", error);
-    // If scan fails, we should not allow the upload for security
     return {
       allowed: false,
       error: `File scan failed: ${error.message}. Please try again later.`,
@@ -163,83 +171,143 @@ async function scanAndLogFile(
 const connectedClients: Map<string, WebSocket> = new Map();
 let sessionStore: any = null;
 
-// the newest OpenAI model is "gpt-5.1" - do not change this unless explicitly requested by the user
-// Using AI client wrapper with automatic failover to direct OpenAI if Replit AI fails
-
-
-// Clinical/medical whitelist to prevent false positive name detection
 const CLINICAL_WHITELIST = new Set([
-  'alzheimer', 'parkinson', 'huntington', 'crohn', 'addison', 'hodgkin', 'raynaud',
-  'bartholin', 'cushing', 'graves', 'hashimoto', 'meniere', 'paget', 'bell',
-  'down syndrome', 'turner syndrome', 'klinefelter', 'marfan', 'ehlers danlos',
-  'asperger', 'guillain barre', 'lou gehrig', 'wilson disease', 'bright disease'
+  "alzheimer",
+  "parkinson",
+  "huntington",
+  "crohn",
+  "addison",
+  "hodgkin",
+  "raynaud",
+  "bartholin",
+  "cushing",
+  "graves",
+  "hashimoto",
+  "meniere",
+  "paget",
+  "bell",
+  "down syndrome",
+  "turner syndrome",
+  "klinefelter",
+  "marfan",
+  "ehlers danlos",
+  "asperger",
+  "guillain barre",
+  "lou gehrig",
+  "wilson disease",
+  "bright disease",
 ]);
 
-// Check if a phrase is in the clinical whitelist
 function isClinicalTerm(phrase: string): boolean {
   return CLINICAL_WHITELIST.has(phrase.toLowerCase());
 }
 
-// Privacy scrubbing utility - ensures no full names or DOBs leak through
 function scrubPII(data: any): any {
-  if (typeof data === 'string') {
+  if (typeof data === "string") {
     let scrubbed = data;
-    
-    // 1. Remove DOB patterns (DD/MM/YYYY, DD-MM-YYYY, D/M/YY, etc.)
-    scrubbed = scrubbed.replace(/\b\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}\b/g, '[REDACTED]');
-    
-    // 2. Remove "My name is [Name]" patterns
-    scrubbed = scrubbed.replace(/\b(my name is|i am called|i'm called|call me)\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)*/gi, '$1 [SERVICE USER]');
-    
-    // 3. Remove possessive name patterns like "John's" or "Mary's" (except for clinical terms)
+
+    scrubbed = scrubbed.replace(/\b\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}\b/g, "[REDACTED]");
+
+    scrubbed = scrubbed.replace(/\b(my name is|i am called|i'm called|call me)\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)*/gi, "$1 [SERVICE USER]");
+
     scrubbed = scrubbed.replace(/\b([A-Z][a-z]+)'s\b/g, (match, name) => {
-      if (isClinicalTerm(name)) return match;
-      return "[SERVICE USER]'s";
+      return isClinicalTerm(name) ? match : "[SERVICE USER]'s";
     });
-    
-    // 4. Remove ALL likely full name patterns: two or more capitalized words anywhere
-    // This catches names at sentence start, after newlines, in bullets, etc.
-    // Pattern: Capitalized word + space + (optional prefix) + Capitalized word
-    scrubbed = scrubbed.replace(/\b([A-Z][a-z]+)\s+((?:O'|Mc|Mac)?[A-Z][a-z]+)(?:\s+((?:O'|Mc|Mac)?[A-Z][a-z]+))?\b/g, (match, first, second, third) => {
-      // Check if it's a clinical term
-      if (isClinicalTerm(match) || isClinicalTerm(first) || isClinicalTerm(second)) {
-        return match;
+
+    scrubbed = scrubbed.replace(
+      /\b([A-Z][a-z]+)\s+((?:O'|Mc|Mac)?[A-Z][a-z]+)(?:\s+((?:O'|Mc|Mac)?[A-Z][a-z]+))?\b/g,
+      (match, first, second) => {
+        const whitelist = [
+          "care plan",
+          "care worker",
+          "care home",
+          "care needs",
+          "risk assessment",
+          "personal care",
+          "mental health",
+          "social worker",
+          "general practitioner",
+          "district nurse",
+          "care staff",
+          "care team",
+          "health visitor",
+          "care manager",
+          "service user",
+          "family member",
+          "next of kin",
+          "emergency contact",
+          "falls prevention",
+          "fire safety",
+          "skin integrity",
+          "medication administration",
+          "infection control",
+          "environmental safety",
+          "lone working",
+          "behavior support",
+          "communication support",
+          "dementia care",
+          "end of life",
+          "epilepsy management",
+          "diabetes management",
+          "nutrition assessment",
+          "continence care",
+          "mobility assessment",
+          "moving and handling",
+          "safeguarding adults",
+          "safeguarding children",
+          "coshh assessment",
+          "manual handling",
+          "pressure areas",
+          "tissue viability",
+          "wound care",
+          "initial assessment",
+          "care planning",
+          "daily living",
+          "personal hygiene",
+          "oral care",
+          "food preparation",
+          "medication support",
+          "emotional support",
+          "social activities",
+          "blood pressure",
+          "heart rate",
+          "respiratory rate",
+          "oxygen saturation",
+          "body temperature",
+          "weight management",
+          "pain management",
+          "symptom control",
+          "palliative care",
+          "health and safety",
+          "dignity and respect",
+          "person centred",
+          "person centered",
+          "best practice",
+          "quality assurance",
+          "clinical governance",
+          "duty of care",
+        ];
+
+        if (
+          isClinicalTerm(match) ||
+          isClinicalTerm(first) ||
+          isClinicalTerm(second) ||
+          whitelist.includes(match.toLowerCase())
+        ) {
+          return match;
+        }
+        return "[SERVICE USER]";
       }
-      // Common non-name phrases to whitelist (medical, care-related, risk assessment categories)
-      const commonPhrases = [
-        // Care-related terms
-        'care plan', 'care worker', 'care home', 'care needs', 'risk assessment', 'personal care', 
-        'mental health', 'social worker', 'general practitioner', 'district nurse', 'care staff', 'care team',
-        'health visitor', 'care manager', 'service user', 'family member', 'next of kin', 'emergency contact',
-        // Risk assessment categories
-        'falls prevention', 'fire safety', 'skin integrity', 'medication administration', 'infection control',
-        'environmental safety', 'lone working', 'behavior support', 'communication support', 'dementia care',
-        'end of life', 'epilepsy management', 'diabetes management', 'nutrition assessment', 'continence care',
-        'mobility assessment', 'moving and handling', 'mobility moving', 'safeguarding adults', 'safeguarding children',
-        'coshh assessment', 'manual handling', 'pressure areas', 'tissue viability', 'wound care',
-        // Care plan sections
-        'initial assessment', 'care planning', 'daily living', 'personal hygiene', 'oral care',
-        'food preparation', 'medication support', 'emotional support', 'social activities',
-        // Medical terms
-        'blood pressure', 'heart rate', 'respiratory rate', 'oxygen saturation', 'body temperature',
-        'weight management', 'pain management', 'symptom control', 'palliative care',
-        // Other common phrases
-        'health and safety', 'dignity and respect', 'person centred', 'person centered',
-        'best practice', 'quality assurance', 'clinical governance', 'duty of care'
-      ];
-      if (commonPhrases.includes(match.toLowerCase())) {
-        return match;
-      }
-      return '[SERVICE USER]';
-    });
-    
+    );
+
     return scrubbed;
   }
+
   if (Array.isArray(data)) {
-    return data.map(item => scrubPII(item));
+    return data.map((item) => scrubPII(item));
   }
-  if (typeof data === 'object' && data !== null) {
-    const scrubbed: any = {};
+  if (typeof data === "object" && data !== null) {
+    const scrubbed: Record<string, any> = {};
     for (const key of Object.keys(data)) {
       scrubbed[key] = scrubPII(data[key]);
     }
@@ -557,21 +625,20 @@ export async function registerRoutes(
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url || "", `http://${req.headers.host}`);
     const userId = url.searchParams.get("userId");
-    
+
     if (userId) {
       connectedClients.set(userId, ws);
-      
+
       ws.on("close", () => {
         connectedClients.delete(userId);
       });
-      
+
       ws.on("error", () => {
         connectedClients.delete(userId);
       });
     }
   });
 
-  // Function to send message to a specific user
   const sendToUser = (userId: string, message: any) => {
     const client = connectedClients.get(userId);
     if (client && client.readyState === WebSocket.OPEN) {
@@ -579,32 +646,30 @@ export async function registerRoutes(
     }
   };
 
-  // Function to force logout a user with warning
   const forceLogoutUser = async (activeSession: any) => {
     sendToUser(activeSession.userId, {
       type: "FORCE_LOGOUT_WARNING",
       message: "An administrator needs access. You will be logged out in 30 seconds.",
       seconds: FORCE_LOGOUT_WARNING_SECONDS,
     });
-    
+
     setTimeout(async () => {
       sendToUser(activeSession.userId, {
         type: "FORCE_LOGOUT",
         message: "You have been logged out to allow administrator access.",
       });
-      
-      // Destroy Express session from store
+
       if (sessionStore) {
         sessionStore.destroy(activeSession.sessionId, (err: any) => {
           if (err) console.error("Failed to destroy session:", err);
         });
       }
-      
+
       await storage.deleteActiveSession(activeSession.sessionId);
     }, FORCE_LOGOUT_WARNING_SECONDS * 1000);
   };
 
-  // Session store: use Postgres when configured; fall back to MemoryStore in dev when DATABASE_URL is missing.
+  // Session store: prefer Postgres when available, fall back to in-memory for local dev
   if (hasDatabaseUrl) {
     const PgSession = connectPgSimple(session);
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -615,10 +680,10 @@ export async function registerRoutes(
       console.warn("[Auth] DATABASE_URL not set. Using in-memory sessions and enabling demo login for development.");
     }
   }
-  
-  // Trust proxy for production (Replit uses reverse proxies)
+
+  // Trust proxy so secure cookies work when behind reverse proxies
   app.set("trust proxy", 1);
-  
+
   // Session middleware (skip for Vite HMR WebSocket)
   const isReplit = !!process.env.REPL_ID;
   const sessionMiddleware = session({
@@ -1749,8 +1814,8 @@ export async function registerRoutes(
 
   // Analyze EMAR document using AI-based extraction with streaming progress
   app.post("/api/ai/analyze-emar", requireAuth, upload.single("file"), async (req, res) => {
-    // Production: force the known-good legacy pipeline.
-    const emarMode: "enhanced" | "legacy" = "legacy";
+    // Force the known-good legacy pipeline.
+    const emarMode = "legacy" as const;
 
     // Validate file BEFORE setting up streaming (must happen before flushHeaders)
     if (!req.file) {
@@ -1821,38 +1886,6 @@ export async function registerRoutes(
 
       sendProgress(5, "Processing PDF...", "pdf_processing");
 
-      // Attempt coordinate-based grid parsing (improves date-column accuracy for grid EMARs)
-      // This is best-effort and will fall back to text-based extraction when not usable.
-      let gridParse: Awaited<ReturnType<typeof parseEMARGrid>> | null = null;
-      let gridParseUsable = false;
-
-      if (emarMode === "enhanced") {
-        try {
-          gridParse = await parseEMARGrid(req.file.buffer);
-          gridParseUsable =
-            (gridParse?.debugInfo?.dateColumnsFound || 0) >= 2 &&
-            (gridParse?.debugInfo?.medicationsFound || 0) >= 1 &&
-            (gridParse?.debugInfo?.cellsGenerated || 0) > 0;
-          if (gridParseUsable) {
-            console.log(
-              `DEBUG: Grid parser usable - ${gridParse.debugInfo.dateColumnsFound} dates, ${gridParse.debugInfo.timeSlotsFound} timeSlots, ${gridParse.debugInfo.medicationsFound} meds, ${gridParse.debugInfo.cellsGenerated} cells`
-            );
-          } else if (gridParse) {
-            console.log(
-              `DEBUG: Grid parser not usable - ${gridParse.debugInfo.dateColumnsFound} dates, ${gridParse.debugInfo.timeSlotsFound} timeSlots, ${gridParse.debugInfo.medicationsFound} meds, ${gridParse.debugInfo.cellsGenerated} cells`
-            );
-          }
-        } catch (e: any) {
-          console.warn("DEBUG: Grid parser failed (continuing with text extraction):", e?.message || e);
-          gridParse = null;
-          gridParseUsable = false;
-        }
-      } else {
-        // Legacy mode: behave like the pre-grid-parser pipeline.
-        gridParse = null;
-        gridParseUsable = false;
-      }
-
       // STEP 1: Extract text from PDF (primary method while Vision API unavailable)
       let extracted: Awaited<ReturnType<typeof extractPdfTextWithPdfjs>> | null = null;
       let documentText = "";
@@ -1874,17 +1907,9 @@ export async function registerRoutes(
       }
 
       if (documentText.length < 100) {
-        // Fallback: use grid parser extracted text if it was able to pull text items.
-        if (emarMode === "enhanced" && gridParse?.rawText && gridParse.rawText.length >= 100) {
-          console.warn(
-            `WARNING: pdf-parse extracted only ${documentText.length} chars, using grid parser rawText (${gridParse.rawText.length} chars)`
-          );
-          documentText = gridParse.rawText;
-        } else {
-          sendEvent('error', { message: "PDF appears to be empty or a scanned image. Please upload a text-based PDF document." });
-          if (heartbeatInterval) clearInterval(heartbeatInterval);
-          return res.end();
-        }
+        sendEvent('error', { message: "PDF appears to be empty or a scanned image. Please upload a text-based PDF document." });
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
       }
       
       // Maximum text length to send to AI. Keep conservative to remain compatible with smaller-context models
@@ -2629,13 +2654,9 @@ Use this layout information to correctly parse the grid structure.
 `
         : '';
       
-      const gridParserContext = gridParseUsable && gridParse
-        ? `\nGRID PARSER (COORDINATE-BASED) OUTPUT:\n- Detected dates: ${gridParse.dates.slice(0, 14).join(", ")}${gridParse.dates.length > 14 ? "..." : ""}\n- Detected time slots: ${gridParse.timeSlots.slice(0, 12).join(", ")}${gridParse.timeSlots.length > 12 ? "..." : ""}\n- Detected medications (samples): ${gridParse.medications.slice(0, 12).map(m => m.name).join(" | ")}${gridParse.medications.length > 12 ? "..." : ""}\nUse these as strong hints for the grid layout. Do NOT invent extra dates/time slots.\n`
-        : '';
-
       const metadataPrompt = `You are an EMAR (Electronic Medication Administration Record) data extractor analyzing EMAR document text.
 This tool works with ANY EMAR system from ANY provider (e.g., CMM, CarePlanner, MedPass, PCS, etc.).
-    ${tableStructureContext}${gridParserContext}${correctionsContext}
+    ${tableStructureContext}${correctionsContext}
 Analyze the document text and extract ONLY the metadata (do NOT extract individual administration entries yet).
 
 Return a JSON object with this EXACT structure:
@@ -2764,16 +2785,6 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         return res.end();
       }
 
-      // If the grid parser confidently detected dates/time slots, prefer them for alignment with coordinate-based extraction.
-      if (gridParseUsable && gridParse) {
-        if (Array.isArray(gridParse.dates) && gridParse.dates.length >= 2) {
-          metadata.dates = gridParse.dates;
-        }
-        if (Array.isArray(gridParse.timeSlots) && gridParse.timeSlots.length >= 1) {
-          metadata.timeSlots = gridParse.timeSlots;
-        }
-      }
-      
       // =====================================================================
       // DRUG INTERACTION CHECK
       // =====================================================================
@@ -3051,106 +3062,6 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         });
       };
 
-      // =====================================================================
-      // GRID-PARSER EXTRACTION (DETERMINISTIC) - preferred when usable
-      // This avoids the most common failure mode: assigning an entry to the wrong date column.
-      // =====================================================================
-      const normalizeMedKey = (value: string): string =>
-        (value || "")
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, " ")
-          .trim()
-          .replace(/\s+/g, " ");
-
-      const tokenSet = (value: string): Set<string> => {
-        const tokens = normalizeMedKey(value).split(" ").filter(Boolean);
-        return new Set(tokens);
-      };
-
-      const jaccard = (a: Set<string>, b: Set<string>): number => {
-        if (a.size === 0 || b.size === 0) return 0;
-        let intersection = 0;
-        for (const t of a) if (b.has(t)) intersection++;
-        const union = a.size + b.size - intersection;
-        return union === 0 ? 0 : intersection / union;
-      };
-
-      const normalizeTimeSlot = (slot: string): string =>
-        (slot || "")
-          .trim()
-          .replace(/[–—]/g, "-")
-          .replace(/\s*-\s*/g, "-")
-          .replace(/\s+/g, " ");
-
-      const normalizeCellCode = (code: string): string => {
-        const upper = (code || "").toUpperCase().trim();
-        if (upper === "N/A" || upper === "NA") return "BLANK";
-        return upper;
-      };
-
-      const buildEntriesFromGrid = (): any[] => {
-        if (!gridParseUsable || !gridParse) return [];
-
-        const metaMeds = medicationsWithIds.map((m: any) => ({
-          medicationId: m.medicationId,
-          name: m.name,
-          tokens: tokenSet(m.name)
-        }));
-
-        const mapMedicationId = (gridMedName: string): number | null => {
-          const gTokens = tokenSet(gridMedName);
-          let bestId: number | null = null;
-          let bestScore = 0;
-          for (const m of metaMeds) {
-            const score = jaccard(gTokens, m.tokens);
-            if (score > bestScore) {
-              bestScore = score;
-              bestId = m.medicationId;
-            }
-          }
-          // Conservative threshold to avoid mis-mapping
-          return bestScore >= 0.35 ? bestId : null;
-        };
-
-        const entries: any[] = [];
-        for (const cell of gridParse.cells || []) {
-          const code = normalizeCellCode(cell.code);
-          if (!code || code === "BLANK") continue;
-
-          const medicationId = mapMedicationId(cell.medication);
-          if (!medicationId) continue;
-
-          const timeSlot = normalizeTimeSlot(cell.timeSlot);
-          const date = String(cell.date || "").trim();
-          if (!date || !timeSlot) continue;
-
-          const careWorkerInitials = String(cell.careWorker || "").trim().toUpperCase();
-          const time = String(cell.time || "").trim();
-
-          let resolvedCareWorker = careWorkerInitials;
-          let isOfficeClosed = false;
-
-          // Manual code entry: code present, but no initials/time.
-          if (!resolvedCareWorker && !time) {
-            resolvedCareWorker = "MANUAL";
-            isOfficeClosed = true;
-          }
-
-          entries.push({
-            medicationId,
-            date,
-            timeSlot,
-            code,
-            careWorkerInitials: resolvedCareWorker,
-            time,
-            hasTime: Boolean(time),
-            isOfficeClosed
-          });
-        }
-
-        return deduplicateEntries(entries);
-      };
-      
       // Function to run one complete extraction pass using text extraction
       const runExtractionPass = async (passNumber: number): Promise<any[]> => {
         console.log(`DEBUG: Starting text extraction pass ${passNumber}`);
@@ -3384,8 +3295,6 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       // 3-PASS PARALLEL EXTRACTION with per-entry consensus
       // All passes run in parallel - highest entry count wins if no agreement
       // =====================================================================
-      // Prefer deterministic extraction from grid parser when possible
-      const gridEntries = buildEntriesFromGrid();
 
       let extractedEntries: any[] = [];
       let consensusStatus: "single_pass" | "verified" | "no_consensus" = "single_pass";
@@ -3407,37 +3316,25 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       let pass2Entries: any[] = [];
       let pass3Entries: any[] = [];
 
-      if (gridEntries.length > 0) {
-        console.log(`DEBUG: Using grid parser extraction: ${gridEntries.length} entries`);
-        sendProgress(35, "Extracting medication records (grid parser)...", "grid_extraction");
-        extractedEntries = gridEntries;
-        consensusStatus = "verified";
-        consensusDetails.pass1Count = gridEntries.length;
-        consensusDetails.matchingPasses = [0];
-        consensusDetails.fallbackPassUsed = 0;
-        consensusDetails.escalationReason = "Coordinate-based grid extraction";
-      } else {
-        console.log("DEBUG: Running 3-pass parallel text extraction");
-        sendProgress(35, "Extracting medication records...", "extraction_running");
+      console.log("DEBUG: Running 3-pass parallel text extraction");
+      sendProgress(35, "Extracting medication records...", "extraction_running");
 
-        // Run 3 extraction passes in parallel
-        [pass1Entries, pass2Entries, pass3Entries] = await Promise.all([
-          runExtractionPass(1),
-          runExtractionPass(2),
-          runExtractionPass(3)
-        ]);
+      [pass1Entries, pass2Entries, pass3Entries] = await Promise.all([
+        runExtractionPass(1),
+        runExtractionPass(2),
+        runExtractionPass(3)
+      ]);
 
-        extractedEntries = pass1Entries;
-        consensusStatus = "single_pass";
-        consensusDetails = {
-          pass1Count: pass1Entries.length,
-          pass2Count: pass2Entries.length,
-          pass3Count: pass3Entries.length,
-          matchingPasses: []
-        };
+      extractedEntries = pass1Entries;
+      consensusStatus = "single_pass";
+      consensusDetails = {
+        pass1Count: pass1Entries.length,
+        pass2Count: pass2Entries.length,
+        pass3Count: pass3Entries.length,
+        matchingPasses: []
+      };
 
-        console.log(`DEBUG: Pass counts - P1: ${pass1Entries.length}, P2: ${pass2Entries.length}, P3: ${pass3Entries.length}`);
-      }
+      console.log(`DEBUG: Pass counts - P1: ${pass1Entries.length}, P2: ${pass2Entries.length}, P3: ${pass3Entries.length}`);
       
       // =====================================================================
       // VALIDATED 3-PASS APPROACH: Use per-entry consensus
@@ -3544,30 +3441,26 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
         { passNum: 3, entries: p3Validation.validEntries }
       ];
       
-      if (gridEntries.length === 0) {
-        for (const passData of allPassValidations) {
-          for (const entry of passData.entries) {
-            const hash = hashSingleEntry(entry);
-            if (!entryPassVotes.has(hash)) {
-              entryPassVotes.set(hash, { passIds: new Set(), entry: entry });
-            }
-            entryPassVotes.get(hash)!.passIds.add(passData.passNum);
+      for (const passData of allPassValidations) {
+        for (const entry of passData.entries) {
+          const hash = hashSingleEntry(entry);
+          if (!entryPassVotes.has(hash)) {
+            entryPassVotes.set(hash, { passIds: new Set(), entry });
           }
+          entryPassVotes.get(hash)!.passIds.add(passData.passNum);
         }
       }
       
       const consensusEntries: any[] = [];
       const singlePassEntries: any[] = [];
       
-      if (gridEntries.length === 0) {
-        entryPassVotes.forEach(({ passIds, entry }) => {
-          if (passIds.size >= 2) {
-            consensusEntries.push(entry);
-          } else {
-            singlePassEntries.push(entry);
-          }
-        });
-      }
+      entryPassVotes.forEach(({ passIds, entry }) => {
+        if (passIds.size >= 2) {
+          consensusEntries.push(entry);
+        } else {
+          singlePassEntries.push(entry);
+        }
+      });
       
       console.log(`DEBUG: Per-entry consensus - 2+ passes: ${consensusEntries.length}, Single pass: ${singlePassEntries.length}`);
       
@@ -3599,7 +3492,7 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       
       console.log(`DEBUG: Quality gates - P1: ${passResults[0].meetsGates}, P2: ${passResults[1].meetsGates}, P3: ${passResults[2].meetsGates}`);
       
-      if (gridEntries.length === 0 && (p1Validation.validEntries.length > 0 || p2Validation.validEntries.length > 0 || p3Validation.validEntries.length > 0)) {
+      if (p1Validation.validEntries.length > 0 || p2Validation.validEntries.length > 0 || p3Validation.validEntries.length > 0) {
         // Prefer passes that meet quality gates, then sort by count
         const gatedPasses = passResults.filter(p => p.meetsGates).sort((a, b) => b.entries.length - a.entries.length);
         const sortedByCount = [...passResults].sort((a, b) => b.entries.length - a.entries.length);
@@ -3690,7 +3583,7 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
           consensusDetails.fallbackPassUsed = championPass.pass;
           consensusDetails.escalationReason = `Merged pass ${championPass.pass} (${championPass.entries.length}) + ${addedFromOthers} other + ${addedFromSinglePass} single + ${refusalOverrides} refusal overrides = ${extractedEntries.length} total (consensus: ${(consensusRatio * 100).toFixed(0)}%)`;
         }
-      } else if (gridEntries.length === 0) {
+      } else {
         // All passes returned 0 valid entries
         consensusStatus = "no_consensus";
         consensusDetails.matchingPasses = [];

@@ -418,9 +418,6 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     animation: liquid-morph 10s ease-in-out infinite;
     background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1));
   }
-  .neon-text {
-    text-shadow: 0 0 5px currentColor, 0 0 10px currentColor, 0 0 15px currentColor, 0 0 20px currentColor;
-  }
   .particle-field {
     position: absolute;
     width: 2px;
@@ -430,6 +427,77 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     animation: float 6s ease-in-out infinite;
     box-shadow: 0 0 6px #3b82f6;
   }
+}
+
+/* Theme transition effects */
+.theme-transitioning * {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
+}
+
+.theme-transitioning .glass-card,
+.theme-transitioning .glass-morphism {
+  transition: background-color 0.3s ease, backdrop-filter 0.3s ease, border-color 0.3s ease !important;
+}
+
+/* Enhanced theme previews */
+.theme-preview {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  height: 60px;
+  background: linear-gradient(135deg, var(--preview-bg-1), var(--preview-bg-2));
+  transition: all 0.3s ease;
+}
+
+.theme-preview::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 30% 30%, var(--preview-accent-1) 0%, transparent 50%),
+              radial-gradient(circle at 70% 70%, var(--preview-accent-2) 0%, transparent 50%);
+  opacity: 0.6;
+}
+
+.theme-preview::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--preview-accent-1), var(--preview-accent-2));
+}
+
+/* Theme-specific preview colors */
+.theme-dark .theme-preview {
+  --preview-bg-1: hsl(215, 28%, 13%);
+  --preview-bg-2: hsl(215, 28%, 17%);
+  --preview-accent-1: hsl(210, 100%, 50%);
+  --preview-accent-2: hsl(170, 60%, 45%);
+}
+
+.theme-midnight .theme-preview {
+  --preview-bg-1: hsl(260, 30%, 8%);
+  --preview-bg-2: hsl(260, 30%, 12%);
+  --preview-accent-1: hsl(262, 83%, 58%);
+  --preview-accent-2: hsl(280, 65%, 60%);
+}
+
+.theme-ocean .theme-preview {
+  --preview-bg-1: hsl(200, 35%, 10%);
+  --preview-bg-2: hsl(200, 35%, 14%);
+  --preview-accent-1: hsl(168, 76%, 42%);
+  --preview-accent-2: hsl(199, 89%, 48%);
+}
+
+.theme-light .theme-preview {
+  --preview-bg-1: hsl(220, 20%, 97%);
+  --preview-bg-2: hsl(0, 0%, 100%);
+  --preview-accent-1: hsl(220, 85%, 50%);
+  --preview-accent-2: hsl(160, 60%, 38%);
 }
 
 /* Glass effect variables per theme */

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { AlertCircle, CheckCircle2, FileText, Activity, RefreshCw, Loader2, Settings, GripVertical, Pill, ClipboardList, Shield, Users, Palette, Moon, Sun, Waves, Sparkles, ArrowRight, Upload, Brain, TrendingUp, Clock, Zap, Play, Info } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileText, Activity, RefreshCw, Loader2, Settings, GripVertical, Pill, ClipboardList, Shield, Users, Palette, Moon, Sun, Waves, Sparkles, ArrowRight, Upload, Brain, TrendingUp, Clock, Zap, Play, Info, type LucideIcon } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -39,7 +39,7 @@ interface DashboardResponse {
 interface WidgetConfig {
   id: string;
   label: string;
-  icon: any;
+  icon: LucideIcon;
 }
 
 const ALL_WIDGETS: WidgetConfig[] = [
@@ -84,13 +84,15 @@ function SortableWidgetItem({ widget, isActive, onToggle }: { widget: WidgetConf
   );
 }
 
-const THEMES: { id: Theme; label: string; icon: any; description: string; colors: string }[] = [
+const THEMES: { id: Theme; label: string; icon: LucideIcon; description: string; colors: string }[] = [
+  { id: "auto", label: "Auto", icon: Zap, description: "System & schedule", colors: "from-blue-500 to-purple-500" },
   { id: "dark", label: "Dark", icon: Moon, description: "Classic dark mode", colors: "from-slate-800 to-slate-900" },
-  { id: "midnight", label: "Midnight", icon: Sparkles, description: "Deep blue theme", colors: "from-indigo-900 to-slate-900" },
-  { id: "ocean", label: "Ocean", icon: Waves, description: "Teal sea theme", colors: "from-teal-900 to-slate-900" },
+  { id: "midnight", label: "Midnight", icon: Sparkles, description: "Deep purple theme", colors: "from-indigo-900 to-purple-900" },
+  { id: "ocean", label: "Ocean", icon: Waves, description: "Teal sea theme", colors: "from-teal-900 to-cyan-900" },
+  { id: "light", label: "Light", icon: Sun, description: "Clean light mode", colors: "from-gray-100 to-white" },
 ];
 
-const QUICK_ACTIONS = [
+const QUICK_ACTIONS: { icon: LucideIcon; label: string; description: string; href: string; color: string }[] = [
   { icon: Upload, label: "EMAR Audit", description: "Upload and analyze medication records", href: "/care-workers/emar-audit", color: "from-blue-500 to-cyan-500" },
   { icon: FileText, label: "Care Plan", description: "Generate AI-powered care plans", href: "/service-users/upload", color: "from-violet-500 to-purple-500" },
   { icon: Shield, label: "Risk Assessment", description: "Create comprehensive risk assessments", href: "/service-users/risk-assessment", color: "from-amber-500 to-orange-500" },
@@ -101,7 +103,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { loadDemoData } = useTemporaryData();
   const queryClient = useQueryClient();
-  const { theme, setTheme } = useSettings();
+  const { theme, setTheme, actualTheme, isThemeTransitioning, themeSchedule, setThemeSchedule } = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeWidgets, setActiveWidgets] = useState<string[]>(DEFAULT_WIDGETS);
   const [widgetOrder, setWidgetOrder] = useState<string[]>(ALL_WIDGETS.map(w => w.id));
@@ -432,34 +434,54 @@ export default function Dashboard() {
           <div className="flex items-center gap-2">
             <Palette className="h-5 w-5 text-muted-foreground" />
             <CardTitle className="text-base">Choose Your Theme</CardTitle>
+            {isThemeTransitioning && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span>Switching...</span>
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {THEMES.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTheme(t.id)}
-                className={`relative p-4 rounded-lg border-2 transition-all duration-300 text-left group ${
-                  theme === t.id 
-                    ? "border-primary bg-primary/10 scale-105" 
-                    : "border-border hover:border-primary/50 hover:bg-muted/50 hover:scale-102"
-                }`}
-                data-testid={`button-theme-${t.id}`}
-              >
-                <div className={`h-8 w-full rounded-md bg-gradient-to-r ${t.colors} mb-3 group-hover:shadow-lg transition-shadow`} />
-                <div className="flex items-center gap-2 mb-1">
-                  <t.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                  <span className="font-medium text-sm group-hover:text-primary transition-colors">{t.label}</span>
-                </div>
-                <p className="text-xs text-muted-foreground">{t.description}</p>
-                {theme === t.id && (
-                  <div className="absolute top-2 right-2">
-                    <CheckCircle2 className="h-4 w-4 text-primary animate-pulse" />
+            {THEMES.map((t) => {
+              const isSelected = theme === t.id;
+              const isAutoSelected = t.id === "auto" && theme === "auto";
+
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTheme(t.id)}
+                  disabled={isThemeTransitioning}
+                  className={`relative p-4 rounded-lg border-2 transition-all duration-300 text-left group disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isSelected
+                      ? "border-primary bg-primary/10 scale-105 shadow-lg"
+                      : "border-border hover:border-primary/50 hover:bg-muted/50 hover:scale-102"
+                  }`}
+                  data-testid={`button-theme-${t.id}`}
+                >
+                  <div className={`h-8 w-full rounded-md bg-gradient-to-r ${t.colors} mb-3 group-hover:shadow-lg transition-shadow`} />
+                  <div className="flex items-center gap-2 mb-1">
+                    <t.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <span className="font-medium text-sm group-hover:text-primary transition-colors">{t.label}</span>
                   </div>
-                )}
-              </button>
-            ))}
+                  <p className="text-xs text-muted-foreground">{t.description}</p>
+
+                  {isAutoSelected && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                      <span>Currently: {actualTheme}</span>
+                      {themeSchedule.enabled && <span>• Scheduled</span>}
+                    </div>
+                  )}
+
+                  {isSelected && (
+                    <div className="absolute top-2 right-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary animate-pulse" />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
