@@ -91,14 +91,14 @@
     background: radial-gradient(circle at 20% 20%, hsla(200, 90%, 60%, 0.18), transparent 45%),
                 radial-gradient(circle at 80% 0%, hsla(280, 80%, 65%, 0.14), transparent 50%),
                 radial-gradient(circle at 50% 80%, hsla(170, 70%, 55%, 0.12), transparent 40%);
-    animation: float 20s ease-in-out infinite;
+    /* Keep background static (no ambient motion) */
   }
   body::after {
     background-image: linear-gradient(120deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
                       linear-gradient(0deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
     background-size: 220px 220px, 160px 160px;
     opacity: 0.25;
-    animation: drift 30s linear infinite;
+    /* Keep background static (no ambient motion) */
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading font-bold tracking-tight;
@@ -255,7 +255,11 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     width: 100%;
     height: 100%;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    animation: shimmer 2s infinite;
+    /* Disable looping shimmer; play only on hover */
+    animation: none;
+  }
+  .shimmer:hover::after {
+    animation: shimmer 1.5s ease-in-out infinite;
   }
   .glow-on-hover {
     transition: all 0.3s ease;
@@ -270,7 +274,7 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    animation: gradient-shift 3s ease infinite;
+    /* Keep gradient static */
   }
   .bounce-in {
     animation: bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
@@ -305,7 +309,7 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     box-shadow: 0 0 5px currentColor, 0 0 10px currentColor, 0 0 15px currentColor;
   }
   .floating {
-    animation: float 6s ease-in-out infinite;
+    /* Disable looping float */
   }
   .floating:nth-child(2) {
     animation-delay: -2s;
@@ -314,10 +318,10 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     animation-delay: -4s;
   }
   .morphing-blob {
-    animation: morphing-blob 8s ease-in-out infinite;
+    /* Disable looping morph */
   }
   .hologram-effect {
-    animation: hologram 3s ease-in-out infinite;
+    /* Disable looping hologram motion */
     filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.5));
   }
   .neural-network {
@@ -334,7 +338,7 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     background: radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
                 radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.1) 0%, transparent 50%),
                 radial-gradient(circle at 40% 40%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
-    animation: neural-pulse 4s ease-in-out infinite;
+    /* Disable looping neural pulse */
     pointer-events: none;
   }
   .data-stream {
@@ -360,14 +364,14 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
   .premium-gradient {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     background-size: 200% 200%;
-    animation: gradient-shift 4s ease infinite;
+    /* Keep gradient static */
   }
   .magnetic-hover {
     transition: all 0.3s cubic-bezier(0.23, 1, 0.320, 1);
   }
   .magnetic-hover:hover {
-    transform: translateY(-8px) scale(1.02);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
   }
   .quantum-button {
     position: relative;
@@ -386,16 +390,15 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     transform: translate(-50%, -50%);
   }
   .quantum-button:hover::before {
-    width: 300px;
-    height: 300px;
-    animation: quantum-ripple 0.6s ease-out;
+    width: 220px;
+    height: 220px;
   }
   .matrix-bg {
     position: relative;
     overflow: hidden;
   }
   .matrix-bg::after {
-    content: '01010101';
+    content: '';
     position: absolute;
     top: 0;
     left: 0;
@@ -404,7 +407,7 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     font-family: 'Courier New', monospace;
     font-size: 12px;
     color: rgba(34, 197, 94, 0.1);
-    animation: matrix-rain 8s linear infinite;
+    /* Disable matrix animation */
     pointer-events: none;
     z-index: 1;
   }
@@ -412,10 +415,10 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     position: relative;
     border: 2px solid transparent;
     background: linear-gradient(45deg, #3b82f6, #06b6d4) border-box;
-    animation: energy-pulse 2s ease-in-out infinite;
+    /* Disable looping energy pulse */
   }
   .liquid-card {
-    animation: liquid-morph 10s ease-in-out infinite;
+    /* Disable looping liquid morph */
     background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1));
   }
   .particle-field {
@@ -424,8 +427,17 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     height: 2px;
     background: #3b82f6;
     border-radius: 50%;
-    animation: float 6s ease-in-out infinite;
+    /* Disable looping float */
     box-shadow: 0 0 6px #3b82f6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

@@ -341,7 +341,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8">
       {user?.isDemo && (
         <Card className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 border-purple-500/30" data-testid="demo-mode-banner">
           <CardContent className="p-4">
