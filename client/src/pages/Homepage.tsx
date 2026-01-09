@@ -283,7 +283,7 @@ export default function Homepage() {
               <Popover open={loginOpen} onOpenChange={setLoginOpen}>
                 <PopoverTrigger asChild>
                   <Button 
-                    className="bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-medium shadow-lg shadow-blue-900/30"
+                    className="bg-gradient-to-r from-blue-600 to-teal-500 hover:opacity-95 text-white font-medium shadow-lg shadow-blue-900/30 transition-opacity"
                     data-testid="button-header-login"
                   >
                     Login
@@ -338,7 +338,7 @@ export default function Homepage() {
                     </div>
                     <Button 
                       type="submit"
-                      className="w-full bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-medium"
+                      className="w-full bg-gradient-to-r from-blue-600 to-teal-500 hover:opacity-95 text-white font-medium transition-opacity"
                       disabled={loading}
                       data-testid="button-dropdown-submit"
                     >
@@ -421,7 +421,7 @@ export default function Homepage() {
           >
             <Button 
               size="lg"
-              className="bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-semibold shadow-xl shadow-blue-900/40 px-8 h-12 text-base quantum-button energy-border relative overflow-hidden group"
+              className="bg-gradient-to-r from-blue-600 to-teal-500 hover:opacity-95 text-white font-semibold shadow-xl shadow-blue-900/40 px-8 h-12 text-base quantum-button energy-border relative overflow-hidden group transition-opacity"
               data-testid="button-hero-login"
               onClick={() => setLoginOpen(true)}
             >
@@ -642,7 +642,7 @@ export default function Homepage() {
                 <Card className="h-full border border-border/50 bg-card/30 backdrop-blur-xl group hover:border-teal-500/30 transition-all duration-300 liquid-card matrix-bg energy-border">
                   <CardContent className="p-6 relative z-10">
                     <div className="flex items-start justify-between gap-3 mb-4">
-                      <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-500/20 to-teal-500/20 flex items-center justify-center group-hover:from-blue-500/30 group-hover:to-teal-500/30 transition-all duration-300 flex-shrink-0 group-hover:scale-110 hologram-effect energy-border">
+                      <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-500/20 to-teal-500/20 flex items-center justify-center group-hover:opacity-95 transition-opacity duration-200 flex-shrink-0 hologram-effect energy-border">
                         <feature.icon className="h-6 w-6 text-teal-400 group-hover:text-teal-300 transition-colors" />
                       </div>
                       <Badge variant="secondary" className="text-[10px] bg-green-500/10 text-green-400 border-green-500/20 shimmer neon-text">
@@ -825,7 +825,7 @@ export default function Homepage() {
                 
                 <Button 
                   size="lg"
-                  className="bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-semibold shadow-xl shadow-blue-900/40 px-8 h-12"
+                  className="bg-gradient-to-r from-blue-600 to-teal-500 hover:opacity-95 text-white font-semibold shadow-xl shadow-blue-900/40 px-8 h-12 transition-opacity"
                   data-testid="button-cta-login"
                   onClick={() => setLoginOpen(true)}
                 >

@@ -2309,7 +2309,7 @@ export default function SecretAdminPortal() {
                   <ArrowRightLeft size={80} />
                 </div>
                 <div className="relative z-10">
-                  <div className="h-10 w-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400 mb-4 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                  <div className="h-10 w-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400 mb-4 group-hover:bg-blue-500/30 transition-colors">
                     <ArrowRightLeft size={20} />
                   </div>
                   <h3 className="text-lg font-semibold text-foreground mb-1">Call Reconciliation</h3>
@@ -2319,7 +2319,7 @@ export default function SecretAdminPortal() {
             </Link>
 
             <Button 
-              className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-600 to-purple-800 border border-purple-500/30 p-6 h-auto transition-all hover:from-purple-500 hover:to-purple-700 hover:border-purple-400/50 hover:shadow-lg hover:shadow-purple-500/20 cursor-pointer w-full text-left flex flex-col items-start"
+              className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-600 to-purple-800 border border-purple-500/30 p-6 h-auto transition-all hover:opacity-95 hover:border-purple-400/50 hover:shadow-lg hover:shadow-purple-500/20 cursor-pointer w-full text-left flex flex-col items-start"
               onClick={handleOpenSystemLogDialog}
               data-testid="button-system-log"
             >

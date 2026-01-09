@@ -315,7 +315,7 @@ export default function PlanEnhancer() {
           <Button 
             onClick={() => enhanceMutation.mutate()}
             disabled={enhanceMutation.isPending || isAnyParsing()}
-            className="w-full mt-4 gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+            className="w-full mt-4 gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 transition-opacity"
             data-testid="button-enhance-plan"
           >
             {enhanceMutation.isPending ? (

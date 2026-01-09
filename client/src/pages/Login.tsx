@@ -114,7 +114,7 @@ export default function Login() {
             </div>
             <Button 
               type="submit" 
-              className="w-full h-11 rounded-lg bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-semibold shadow-lg shadow-blue-900/30 transition-all duration-200 mt-2" 
+              className="w-full h-11 rounded-lg bg-gradient-to-r from-blue-600 to-teal-500 hover:opacity-95 text-white font-semibold shadow-lg shadow-blue-900/30 transition-opacity duration-200 mt-2" 
               disabled={loading}
               data-testid="button-login"
             >
