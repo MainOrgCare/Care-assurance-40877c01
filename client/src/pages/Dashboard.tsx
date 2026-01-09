@@ -213,13 +213,13 @@ export default function Dashboard() {
     switch (widgetId) {
       case "compliance_score":
         return (
-          <Card key={widgetId} className="glass-card transition-all duration-300 hover:bg-card/80" data-testid="widget-compliance-score">
+          <Card key={widgetId} className="liquid-card matrix-bg transition-all duration-300 hover:bg-card/80 quantum-button group energy-border" data-testid="widget-compliance-score">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Compliance Score</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium group-hover:text-primary transition-colors cyber-text neon-text">Compliance Score</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors hologram-effect energy-border" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-compliance-score">
+            <CardContent className="relative z-10">
+              <div className="text-2xl font-bold gradient-text neon-text" data-testid="text-compliance-score">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : stats?.auditsCompleted ? "100%" : "-"}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -230,13 +230,13 @@ export default function Dashboard() {
         );
       case "audits_completed":
         return (
-          <Card key={widgetId} className="glass-card transition-all duration-300 hover:bg-card/80" data-testid="widget-audits-completed">
+          <Card key={widgetId} className="glass-card transition-all duration-300 hover:bg-card/80 glow-on-hover group" data-testid="widget-audits-completed">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Audits Completed</CardTitle>
-              <FileText className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-medium group-hover:text-primary transition-colors">Audits Completed</CardTitle>
+              <FileText className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-audits-completed">
+              <div className="text-2xl font-bold gradient-text" data-testid="text-audits-completed">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : stats?.auditsCompleted ?? 0}
               </div>
               <p className="text-xs text-muted-foreground mt-1">Last 24 hours</p>
@@ -245,13 +245,13 @@ export default function Dashboard() {
         );
       case "active_alerts":
         return (
-          <Card key={widgetId} className="glass-card transition-all duration-300 hover:bg-card/80" data-testid="widget-active-alerts">
+          <Card key={widgetId} className="glass-card transition-all duration-300 hover:bg-card/80 glow-on-hover group" data-testid="widget-active-alerts">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Alerts</CardTitle>
-              <AlertCircle className={`h-4 w-4 ${stats?.activeAlerts ? "text-destructive" : "text-muted-foreground"}`} />
+              <CardTitle className="text-sm font-medium group-hover:text-primary transition-colors">Active Alerts</CardTitle>
+              <AlertCircle className={`h-4 w-4 group-hover:scale-110 transition-transform ${stats?.activeAlerts ? "text-destructive animate-pulse" : "text-muted-foreground"}`} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-active-alerts">
+              <div className="text-2xl font-bold gradient-text" data-testid="text-active-alerts">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : stats?.activeAlerts ?? 0}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -427,7 +427,7 @@ export default function Dashboard() {
       </div>
 
       {/* Theme Selector */}
-      <Card className="glass-card" data-testid="card-theme-selector">
+      <Card className="glass-card glow-on-hover" data-testid="card-theme-selector">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Palette className="h-5 w-5 text-muted-foreground" />
@@ -440,22 +440,22 @@ export default function Dashboard() {
               <button
                 key={t.id}
                 onClick={() => setTheme(t.id)}
-                className={`relative p-4 rounded-lg border-2 transition-all duration-200 text-left ${
+                className={`relative p-4 rounded-lg border-2 transition-all duration-300 text-left group ${
                   theme === t.id 
-                    ? "border-primary bg-primary/10" 
-                    : "border-border hover:border-primary/50 hover:bg-muted/50"
+                    ? "border-primary bg-primary/10 scale-105" 
+                    : "border-border hover:border-primary/50 hover:bg-muted/50 hover:scale-102"
                 }`}
                 data-testid={`button-theme-${t.id}`}
               >
-                <div className={`h-8 w-full rounded-md bg-gradient-to-r ${t.colors} mb-3`} />
+                <div className={`h-8 w-full rounded-md bg-gradient-to-r ${t.colors} mb-3 group-hover:shadow-lg transition-shadow`} />
                 <div className="flex items-center gap-2 mb-1">
-                  <t.icon className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium text-sm">{t.label}</span>
+                  <t.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <span className="font-medium text-sm group-hover:text-primary transition-colors">{t.label}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">{t.description}</p>
                 {theme === t.id && (
                   <div className="absolute top-2 right-2">
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                    <CheckCircle2 className="h-4 w-4 text-primary animate-pulse" />
                   </div>
                 )}
               </button>
@@ -473,14 +473,14 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {QUICK_ACTIONS.map((action, index) => (
             <Link key={index} href={action.href}>
-              <Card className="glass-card hover:bg-card/80 transition-all duration-200 cursor-pointer group h-full" data-testid={`card-quick-action-${index}`}>
-                <CardContent className="p-4">
-                  <div className={`h-10 w-10 rounded-lg bg-gradient-to-r ${action.color} flex items-center justify-center mb-3 group-hover:scale-105 transition-transform`}>
+              <Card className="liquid-card matrix-bg hover:bg-card/80 transition-all duration-300 cursor-pointer group h-full quantum-button energy-border" data-testid={`card-quick-action-${index}`}>
+                <CardContent className="p-4 relative z-10">
+                  <div className={`h-10 w-10 rounded-lg bg-gradient-to-r ${action.color} flex items-center justify-center mb-3 group-hover:scale-110 transition-all duration-300 shadow-lg hologram-effect energy-border`}>
                     <action.icon className="h-5 w-5 text-white" />
                   </div>
-                  <h4 className="font-medium mb-1 group-hover:text-primary transition-colors">{action.label}</h4>
+                  <h4 className="font-medium mb-1 group-hover:text-primary transition-colors cyber-text neon-text">{action.label}</h4>
                   <p className="text-xs text-muted-foreground">{action.description}</p>
-                  <div className="flex items-center gap-1 mt-2 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 mt-2 text-xs text-primary opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-0 group-hover:translate-x-1">
                     <span>Get started</span>
                     <ArrowRight className="h-3 w-3" />
                   </div>
@@ -584,54 +584,54 @@ export default function Dashboard() {
       )}
 
       {/* Platform Benefits */}
-      <Card className="glass-card border-primary/20" data-testid="card-platform-benefits">
+      <Card className="glass-morphism border-primary/20 magnetic-hover neural-network" data-testid="card-platform-benefits">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            <CardTitle>Platform Features</CardTitle>
+            <TrendingUp className="h-5 w-5 text-primary hologram-effect" />
+            <CardTitle className="cyber-text">Platform Features</CardTitle>
           </div>
           <CardDescription>Tools designed to support your care facility workflows</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="space-y-2">
+            <div className="space-y-2 group">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <div className="h-8 w-8 rounded-lg bg-blue-500/20 flex items-center justify-center group-hover:bg-blue-500/30 transition-colors hologram-effect">
                   <Clock className="h-4 w-4 text-blue-400" />
                 </div>
-                <span className="text-2xl font-bold text-foreground">Minutes</span>
+                <span className="text-2xl font-bold text-foreground gradient-text">Minutes</span>
               </div>
-              <p className="text-sm font-medium">Faster Reviews</p>
+              <p className="text-sm font-medium group-hover:text-primary transition-colors cyber-text">Faster Reviews</p>
               <p className="text-xs text-muted-foreground">AI-assisted analysis helps speed up record reviews</p>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 group">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                <div className="h-8 w-8 rounded-lg bg-emerald-500/20 flex items-center justify-center group-hover:bg-emerald-500/30 transition-colors hologram-effect">
                   <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                 </div>
-                <span className="text-2xl font-bold text-foreground">Multi-Pass</span>
+                <span className="text-2xl font-bold text-foreground gradient-text">Multi-Pass</span>
               </div>
-              <p className="text-sm font-medium">AI Analysis</p>
+              <p className="text-sm font-medium group-hover:text-primary transition-colors cyber-text">AI Analysis</p>
               <p className="text-xs text-muted-foreground">Multiple review passes help surface potential issues</p>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 group">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                <div className="h-8 w-8 rounded-lg bg-violet-500/20 flex items-center justify-center group-hover:bg-violet-500/30 transition-colors hologram-effect">
                   <Shield className="h-4 w-4 text-violet-400" />
                 </div>
-                <span className="text-2xl font-bold text-foreground">24/7</span>
+                <span className="text-2xl font-bold text-foreground gradient-text">24/7</span>
               </div>
-              <p className="text-sm font-medium">Access Anytime</p>
+              <p className="text-sm font-medium group-hover:text-primary transition-colors cyber-text">Access Anytime</p>
               <p className="text-xs text-muted-foreground">Available when you need it for compliance tracking</p>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 group">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                <div className="h-8 w-8 rounded-lg bg-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/30 transition-colors hologram-effect">
                   <Brain className="h-4 w-4 text-amber-400" />
                 </div>
-                <span className="text-2xl font-bold text-foreground">11</span>
+                <span className="text-2xl font-bold text-foreground gradient-text">11</span>
               </div>
-              <p className="text-sm font-medium">Care Plan Sections</p>
+              <p className="text-sm font-medium group-hover:text-primary transition-colors cyber-text">Care Plan Sections</p>
               <p className="text-xs text-muted-foreground">AI-generated draft care plans for your review</p>
             </div>
           </div>
@@ -640,7 +640,7 @@ export default function Dashboard() {
               Estimate potential time savings for your facility
             </p>
             <Link href="/roi-calculator">
-              <Button variant="outline" className="gap-2" data-testid="button-roi-calculator">
+              <Button variant="outline" className="gap-2 magnetic-hover" data-testid="button-roi-calculator">
                 <TrendingUp className="h-4 w-4" />
                 Savings Estimator
                 <ArrowRight className="h-4 w-4" />

@@ -250,6 +250,22 @@ export default function Homepage() {
         }}
       />
 
+      {/* Floating Particles */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        {[...Array(50)].map((_, i) => (
+          <div
+            key={i}
+            className="particle-field"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 20}s`,
+              animationDuration: `${10 + Math.random() * 15}s`
+            }}
+          />
+        ))}
+      </div>
+
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b border-border/50 backdrop-blur-xl bg-background/70">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -353,20 +369,20 @@ export default function Homepage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-sm bg-teal-500/10 text-teal-400 border-teal-500/20">
+            <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-sm bg-teal-500/10 text-teal-400 border-teal-500/20 shimmer">
               <Sparkles className="h-3.5 w-3.5 mr-1.5" />
               AI-Powered Care Compliance Tools
             </Badge>
           </motion.div>
 
           <motion.h1 
-            className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-foreground mb-6 leading-[1.1] tracking-tight"
+            className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-foreground mb-6 leading-[1.1] tracking-tight cyber-text"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
           >
             Discover Issues Before{" "}
-            <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
+            <span className="gradient-text hologram-effect neon-text">
               Your Next Inspection
             </span>
           </motion.h1>
@@ -387,11 +403,11 @@ export default function Homepage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.25 }}
           >
-            <Badge variant="outline" className="text-xs px-3 py-1 border-green-500/30 text-green-400 bg-green-500/10">
+            <Badge variant="outline" className="text-xs px-3 py-1 border-green-500/30 text-green-400 bg-green-500/10 floating">
               <CheckCircle2 className="h-3 w-3 mr-1" />
               Built for UK Care
             </Badge>
-            <Badge variant="outline" className="text-xs px-3 py-1 border-blue-500/30 text-blue-400 bg-blue-500/10">
+            <Badge variant="outline" className="text-xs px-3 py-1 border-blue-500/30 text-blue-400 bg-blue-500/10 floating">
               <Lock className="h-3 w-3 mr-1" />
               Privacy-Focused
             </Badge>
@@ -405,17 +421,17 @@ export default function Homepage() {
           >
             <Button 
               size="lg"
-              className="bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-semibold shadow-xl shadow-blue-900/40 px-8 h-12 text-base"
+              className="bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-semibold shadow-xl shadow-blue-900/40 px-8 h-12 text-base quantum-button energy-border relative overflow-hidden group"
               data-testid="button-hero-login"
               onClick={() => setLoginOpen(true)}
             >
-              Login
-              <ArrowRight className="ml-2 h-5 w-5" />
+              <span className="relative z-10">Login</span>
+              <ArrowRight className="ml-2 h-5 w-5 relative z-10 group-hover:translate-x-1 transition-transform" />
             </Button>
             <Button 
               variant="outline" 
               size="lg"
-              className="h-12 px-6 text-base border-border/50 bg-background/50 backdrop-blur-sm"
+              className="h-12 px-6 text-base border-border/50 bg-background/50 backdrop-blur-sm hover:bg-background/80 transition-all duration-300"
               onClick={() => document.getElementById('roi-calculator')?.scrollIntoView({ behavior: 'smooth' })}
               data-testid="button-hero-roi"
             >
@@ -623,19 +639,19 @@ export default function Homepage() {
           >
             {features.map((feature, index) => (
               <motion.div key={index} variants={fadeInUp}>
-                <Card className="h-full border border-border/50 bg-card/30 backdrop-blur-xl group hover:border-teal-500/30 transition-colors duration-300">
-                  <CardContent className="p-6">
+                <Card className="h-full border border-border/50 bg-card/30 backdrop-blur-xl group hover:border-teal-500/30 transition-all duration-300 liquid-card matrix-bg energy-border">
+                  <CardContent className="p-6 relative z-10">
                     <div className="flex items-start justify-between gap-3 mb-4">
-                      <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-500/20 to-teal-500/20 flex items-center justify-center group-hover:from-blue-500/30 group-hover:to-teal-500/30 transition-colors duration-300 flex-shrink-0">
-                        <feature.icon className="h-6 w-6 text-teal-400" />
+                      <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-500/20 to-teal-500/20 flex items-center justify-center group-hover:from-blue-500/30 group-hover:to-teal-500/30 transition-all duration-300 flex-shrink-0 group-hover:scale-110 hologram-effect energy-border">
+                        <feature.icon className="h-6 w-6 text-teal-400 group-hover:text-teal-300 transition-colors" />
                       </div>
-                      <Badge variant="secondary" className="text-[10px] bg-green-500/10 text-green-400 border-green-500/20">
+                      <Badge variant="secondary" className="text-[10px] bg-green-500/10 text-green-400 border-green-500/20 shimmer neon-text">
                         {feature.highlight}
                       </Badge>
                     </div>
-                    <h3 className="text-lg font-semibold text-foreground mb-2">{feature.title}</h3>
+                    <h3 className="text-lg font-semibold text-foreground mb-2 group-hover:text-teal-300 transition-colors cyber-text neon-text">{feature.title}</h3>
                     <p className="text-sm text-muted-foreground leading-relaxed mb-3">{feature.description}</p>
-                    <div className="flex items-center gap-1 text-xs text-teal-400">
+                    <div className="flex items-center gap-1 text-xs text-teal-400 group-hover:text-teal-300 transition-colors">
                       <CheckCircle2 className="h-3 w-3" />
                       <span>{feature.benefit}</span>
                     </div>
