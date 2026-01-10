@@ -333,8 +333,12 @@ export default function TestingFeatures() {
   const [searchTerm, setSearchTerm] = useState("");
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ROWS);
   const [showDuplicateRows, setShowDuplicateRows] = useState(false);
+  const [includeCancelledCalls, setIncludeCancelledCalls] = useState(false);
+  const [includeMismatchedWorkers, setIncludeMismatchedWorkers] = useState(false);
   const [callGroupSearch, setCallGroupSearch] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
   const analysisJobRef = useRef<number>(0);
+  const dragCounterRef = useRef(0);
   const showGlobalProgress = processingState === "parsing" || processingState === "analyzing";
 
   useEffect(() => {
@@ -343,6 +347,7 @@ export default function TestingFeatures() {
 
   useEffect(() => {
     setSelectedRow(null);
+    setCallGroupSearch("");
   }, [fileMeta?.name]);
 
   useEffect(() => {
@@ -608,8 +613,11 @@ export default function TestingFeatures() {
 
       // Cancelled calls are indicated by a blank actual employee name; ignore them.
       const excludeFromMetrics = workersMatch === false || isCancelledCall;
-      if (excludeFromMetrics && workersMatch === false) {
-        issues.push("Care worker mismatch — excluded from metrics");
+      if (workersMatch === false) {
+        issues.push("Care worker mismatch");
+      }
+      if (isCancelledCall) {
+        issues.push("Cancelled call (no actual carer)");
       }
 
       if (scheduleFlag) {
@@ -696,13 +704,8 @@ export default function TestingFeatures() {
     [runRowAnalysis]
   );
 
-  const handleFileChange = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) {
-        return;
-      }
-
+  const processFile = useCallback(
+    async (file: File) => {
       if (!file.name.toLowerCase().match(/\.(csv|xlsx|xls)$/)) {
         toast({
           title: "Unsupported file",
@@ -720,6 +723,13 @@ export default function TestingFeatures() {
       setConvertedBlob(null);
       setSelectedRow(null);
       setAnalysisResults([]);
+      setSearchTerm("");
+      setFilterStatus("all");
+      setShowDuplicateRows(false);
+      setCallGroupSearch("");
+      setVisibleCount(INITIAL_VISIBLE_ROWS);
+      setIncludeCancelledCalls(false);
+      setIncludeMismatchedWorkers(false);
 
       try {
         const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
@@ -774,15 +784,84 @@ export default function TestingFeatures() {
           variant: "destructive",
         });
         setProcessingState("idle");
-      } finally {
-        event.target.value = "";
       }
     },
     [analyzeRows, toast]
   );
 
-  const usableRows = useMemo(() => analysisResults.filter((row) => !row.excludeFromMetrics), [analysisResults]);
-  const excludedRows = useMemo(() => analysisResults.filter((row) => row.excludeFromMetrics), [analysisResults]);
+  const handleFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      await processFile(file);
+      event.target.value = "";
+    },
+    [processFile]
+  );
+
+  const handleDrop = useCallback(
+    async (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      dragCounterRef.current = 0;
+      setIsDragging(false);
+      const file = event.dataTransfer.files?.[0];
+      if (file) {
+        await processFile(file);
+      }
+    },
+    [processFile]
+  );
+
+  const handleDragEnter = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragCounterRef.current += 1;
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+  }, []);
+
+  const usableRows = useMemo(
+    () =>
+      analysisResults.filter((row) => {
+        const isCancelled = !row.actualWorker;
+        const isMismatch = row.workersMatch === false;
+        if (!includeCancelledCalls && isCancelled) return false;
+        if (!includeMismatchedWorkers && isMismatch) return false;
+        return true;
+      }),
+    [analysisResults, includeCancelledCalls, includeMismatchedWorkers]
+  );
+
+  const excludedCounts = useMemo(() => {
+    let cancelled = 0;
+    let mismatched = 0;
+    analysisResults.forEach((row) => {
+      const isCancelled = !row.actualWorker;
+      const isMismatch = row.workersMatch === false;
+      if (!includeCancelledCalls && isCancelled) cancelled += 1;
+      if (!includeMismatchedWorkers && isMismatch) mismatched += 1;
+    });
+    return {
+      cancelled,
+      mismatched,
+      total: cancelled + mismatched,
+    };
+  }, [analysisResults, includeCancelledCalls, includeMismatchedWorkers]);
 
   const dedupedResults = useMemo(() => {
     if (!usableRows.length) return [];
@@ -836,7 +915,6 @@ export default function TestingFeatures() {
     const total = dedupedResults.length;
     const workingRows = primaryRows;
     const duplicateCount = total - workingRows.length;
-    const excludedCareWorkers = excludedRows.length;
     const attention = workingRows.filter((row) => row.status === "attention").length;
     const clean = workingRows.length - attention;
     const totalEmpty = workingRows.reduce((acc, row) => acc + row.emptyFields.length, 0);
@@ -874,9 +952,383 @@ export default function TestingFeatures() {
       averageDriftMinutes,
       averageDurationPercent,
       duplicateCount,
-      excludedCareWorkers,
     };
-  }, [dedupedResults, excludedRows.length, primaryRows, usableRows.length]);
+  }, [dedupedResults, primaryRows]);
+
+  const coverage = useMemo(() => {
+    const total = primaryRows.length;
+    const counts = {
+      total,
+      plannedTime: 0,
+      actualTime: 0,
+      plannedDuration: 0,
+      actualDuration: 0,
+      plannedWorker: 0,
+      actualWorker: 0,
+      serviceUser: 0,
+      plannedDate: 0,
+      callType: 0,
+    };
+
+    primaryRows.forEach((row) => {
+      if (typeof row.plannedTimeMinutes === "number") counts.plannedTime += 1;
+      if (typeof row.actualTimeMinutes === "number") counts.actualTime += 1;
+      if (typeof row.plannedDurationMinutes === "number") counts.plannedDuration += 1;
+      if (typeof row.actualDurationMinutes === "number") counts.actualDuration += 1;
+      if (row.plannedWorker) counts.plannedWorker += 1;
+      if (row.actualWorker) counts.actualWorker += 1;
+      if (row.serviceUserName) counts.serviceUser += 1;
+      if (row.plannedDateKey) counts.plannedDate += 1;
+      if (row.callTypeLabel) counts.callType += 1;
+    });
+
+    return counts;
+  }, [primaryRows]);
+
+  const issueBreakdown = useMemo(() => {
+    const totalRows = analysisResults.length;
+    const uniqueSlots = primaryRows.length;
+    const duplicateSlots = dedupedResults.length - primaryRows.length;
+    const cancelledCalls = analysisResults.filter((row) => !row.actualWorker).length;
+    const mismatchedCarers = analysisResults.filter((row) => row.workersMatch === false).length;
+    const missingPlannedTime = primaryRows.filter((row) => typeof row.plannedTimeMinutes !== "number").length;
+    const missingActualTime = primaryRows.filter((row) => typeof row.actualTimeMinutes !== "number").length;
+    const missingPlannedDuration = primaryRows.filter((row) => typeof row.plannedDurationMinutes !== "number").length;
+    const missingActualDuration = primaryRows.filter((row) => typeof row.actualDurationMinutes !== "number").length;
+    const driftOverTwoHours = primaryRows.filter((row) => row.scheduleFlag).length;
+    const durationShortfall = primaryRows.filter((row) => row.durationFlag).length;
+    const durationOverrun = primaryRows.filter((row) => row.durationOverrunFlag).length;
+
+    return {
+      totalRows,
+      uniqueSlots,
+      duplicateSlots,
+      cancelledCalls,
+      mismatchedCarers,
+      missingPlannedTime,
+      missingActualTime,
+      missingPlannedDuration,
+      missingActualDuration,
+      driftOverTwoHours,
+      durationShortfall,
+      durationOverrun,
+    };
+  }, [analysisResults, dedupedResults.length, primaryRows]);
+
+  const issueHighlights = useMemo(() => {
+    if (!issueBreakdown.totalRows) return [];
+    const uniqueBase = issueBreakdown.uniqueSlots || 1;
+    const totalBase = issueBreakdown.totalRows || 1;
+
+    const items = [
+      {
+        key: "drift",
+        label: "Schedule drift > 2h",
+        count: issueBreakdown.driftOverTwoHours,
+        base: uniqueBase,
+        helper: "Unique slots",
+      },
+      {
+        key: "duration-short",
+        label: `Duration under ${DURATION_SHORTFALL_THRESHOLD_PERCENT}%`,
+        count: issueBreakdown.durationShortfall,
+        base: uniqueBase,
+        helper: "Unique slots",
+      },
+      {
+        key: "duration-over",
+        label: `Duration over ${DURATION_OVERRUN_THRESHOLD_PERCENT}%`,
+        count: issueBreakdown.durationOverrun,
+        base: uniqueBase,
+        helper: "Unique slots",
+      },
+      {
+        key: "missing-planned-time",
+        label: "Missing planned time",
+        count: issueBreakdown.missingPlannedTime,
+        base: uniqueBase,
+        helper: "Unique slots",
+      },
+      {
+        key: "missing-actual-time",
+        label: "Missing actual time",
+        count: issueBreakdown.missingActualTime,
+        base: uniqueBase,
+        helper: "Unique slots",
+      },
+      {
+        key: "missing-planned-duration",
+        label: "Missing planned duration",
+        count: issueBreakdown.missingPlannedDuration,
+        base: uniqueBase,
+        helper: "Unique slots",
+      },
+      {
+        key: "missing-actual-duration",
+        label: "Missing actual duration",
+        count: issueBreakdown.missingActualDuration,
+        base: uniqueBase,
+        helper: "Unique slots",
+      },
+      {
+        key: "duplicates",
+        label: "Duplicate slot rows",
+        count: issueBreakdown.duplicateSlots,
+        base: totalBase,
+        helper: "All rows",
+      },
+      {
+        key: "cancelled",
+        label: "Cancelled calls",
+        count: issueBreakdown.cancelledCalls,
+        base: totalBase,
+        helper: "All rows",
+      },
+      {
+        key: "mismatched",
+        label: "Carer mismatches",
+        count: issueBreakdown.mismatchedCarers,
+        base: totalBase,
+        helper: "All rows",
+      },
+    ];
+
+    return items
+      .filter((item) => item.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }, [issueBreakdown]);
+
+  const healthSummary = useMemo(() => {
+    if (!analysisResults.length || !coverage.total) return null;
+
+    const coverageValues = [
+      coverage.plannedTime,
+      coverage.actualTime,
+      coverage.plannedDuration,
+      coverage.actualDuration,
+      coverage.plannedWorker,
+      coverage.actualWorker,
+      coverage.serviceUser,
+      coverage.plannedDate,
+      coverage.callType,
+    ]
+      .map((count) => count / coverage.total)
+      .filter((value) => Number.isFinite(value));
+    const coverageAvg =
+      coverageValues.length > 0
+        ? coverageValues.reduce((acc, value) => acc + value, 0) / coverageValues.length
+        : 0;
+
+    const attentionRate = summary.totalPrimary
+      ? summary.attention / summary.totalPrimary
+      : 0;
+    const duplicateRate = summary.total ? summary.duplicateCount / summary.total : 0;
+    const excludedRate = excludedCounts.total / analysisResults.length;
+
+    const scoreRaw =
+      coverageAvg * 0.55 +
+      (1 - attentionRate) * 0.25 +
+      (1 - duplicateRate) * 0.1 +
+      (1 - excludedRate) * 0.1;
+
+    const score = Math.round(Math.max(0, Math.min(1, scoreRaw)) * 100);
+    const label =
+      score >= 85 ? "Excellent quality" : score >= 70 ? "Good quality" : score >= 55 ? "Needs attention" : "Critical quality";
+    const tone: InsightTone = score >= 70 ? "default" : score >= 55 ? "warning" : "destructive";
+
+    return {
+      score,
+      label,
+      tone,
+      coverageAvg,
+      attentionRate,
+      duplicateRate,
+      excludedRate,
+    };
+  }, [analysisResults.length, coverage, excludedCounts.total, summary]);
+
+  const detectedColumns = useMemo(() => {
+    if (!analysisResults.length) return [];
+    const firstRow = analysisResults[0]?.data;
+    if (!firstRow) return [];
+    const rowKeys = Object.keys(firstRow);
+    if (!rowKeys.length) return [];
+
+    const headerRow = rowKeys.reduce<Record<string, any>>((acc, key) => {
+      acc[key] = key;
+      return acc;
+    }, {});
+
+    const plannedTimeField = detectField(headerRow, PLANNED_TIME_KEYWORDS);
+    const serviceRequirementTimeField = detectField(
+      headerRow,
+      SERVICE_REQUIREMENT_TIME_KEYWORDS,
+      plannedTimeField ? new Set([plannedTimeField.key]) : undefined
+    );
+    const plannedTimeSource = plannedTimeField ?? serviceRequirementTimeField;
+    const plannedDateField = detectDateField(
+      headerRow,
+      PLANNED_DATE_KEYWORDS,
+      (() => {
+        const exclude = new Set<string>();
+        if (plannedTimeField) exclude.add(plannedTimeField.key);
+        if (serviceRequirementTimeField) exclude.add(serviceRequirementTimeField.key);
+        return exclude.size ? exclude : undefined;
+      })()
+    );
+    const actualTimeField = detectField(
+      headerRow,
+      ACTUAL_TIME_KEYWORDS,
+      (() => {
+        const exclude = new Set<string>();
+        if (plannedTimeField) exclude.add(plannedTimeField.key);
+        if (serviceRequirementTimeField) exclude.add(serviceRequirementTimeField.key);
+        return exclude.size ? exclude : undefined;
+      })()
+    );
+    const plannedEndTimeField = detectField(
+      headerRow,
+      PLANNED_END_TIME_KEYWORDS,
+      (() => {
+        const exclude = new Set<string>();
+        if (plannedTimeField) exclude.add(plannedTimeField.key);
+        if (serviceRequirementTimeField) exclude.add(serviceRequirementTimeField.key);
+        return exclude.size ? exclude : undefined;
+      })()
+    );
+    const actualEndTimeField = detectField(
+      headerRow,
+      ACTUAL_END_TIME_KEYWORDS,
+      (() => {
+        const exclude = new Set<string>();
+        if (plannedTimeField) exclude.add(plannedTimeField.key);
+        if (serviceRequirementTimeField) exclude.add(serviceRequirementTimeField.key);
+        if (actualTimeField) exclude.add(actualTimeField.key);
+        return exclude.size ? exclude : undefined;
+      })()
+    );
+    const plannedDurationField = detectField(headerRow, PLANNED_DURATION_KEYWORDS);
+    const actualDurationField = detectField(
+      headerRow,
+      ACTUAL_DURATION_KEYWORDS,
+      plannedDurationField ? new Set([plannedDurationField.key]) : undefined
+    );
+
+    let plannedWorkerField = detectField(headerRow, PLANNED_WORKER_KEYWORDS);
+    if (!plannedWorkerField) {
+      plannedWorkerField = detectField(headerRow, GENERIC_WORKER_KEYWORDS);
+    }
+    let actualWorkerField = detectField(
+      headerRow,
+      ACTUAL_WORKER_KEYWORDS,
+      plannedWorkerField ? new Set([plannedWorkerField.key]) : undefined
+    );
+    if (!actualWorkerField) {
+      actualWorkerField = detectField(
+        headerRow,
+        GENERIC_WORKER_KEYWORDS,
+        plannedWorkerField ? new Set([plannedWorkerField.key]) : undefined
+      );
+    }
+
+    const serviceUserNameField = detectField(headerRow, SERVICE_USER_NAME_KEYWORDS);
+    const serviceUserAreaField =
+      detectFieldExcludingWorkerColumns(
+        headerRow,
+        [
+          "customer area",
+          "service location area",
+          "service user area",
+          "customer branch",
+          "service location branch",
+          "service user branch",
+        ],
+        serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+      ) ??
+      detectFieldExcludingWorkerColumns(
+        headerRow,
+        ["area", "branch"],
+        serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+      );
+    const serviceUserAddressField =
+      detectFieldExcludingWorkerColumns(
+        headerRow,
+        ["service location address", "customer address"],
+        serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+      ) ??
+      detectFieldExcludingWorkerColumns(
+        headerRow,
+        ["postcode", "post code", "address"],
+        serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+      );
+
+    const serviceRequirementTypeField = detectField(headerRow, SERVICE_REQUIREMENT_TYPE_KEYWORDS);
+    const serviceRequirementServiceTypeField = detectField(
+      headerRow,
+      SERVICE_REQUIREMENT_SERVICE_TYPE_KEYWORDS,
+      serviceRequirementTypeField ? new Set([serviceRequirementTypeField.key]) : undefined
+    );
+    const serviceRequirementFallbackField = detectField(
+      headerRow,
+      ["planned service requirement type description", "planned service type description", "actual service requirement type description", "actual service type description"],
+      (() => {
+        const exclude = new Set<string>();
+        if (serviceRequirementTypeField) exclude.add(serviceRequirementTypeField.key);
+        if (serviceRequirementServiceTypeField) exclude.add(serviceRequirementServiceTypeField.key);
+        return exclude.size ? exclude : undefined;
+      })()
+    );
+
+    const getColumnLabel = (key: string) => {
+      const index = rowKeys.indexOf(key);
+      return normalizeColumnLabel(key, index);
+    };
+
+    const getSampleValue = (key: string) => {
+      const match = analysisResults.find((row) => {
+        const value = row.data[key];
+        return value !== null && value !== undefined && String(value).trim() !== "";
+      });
+      if (!match) return null;
+      const value = String(match.data[key]).trim();
+      if (!value) return null;
+      return value.length > 44 ? `${value.slice(0, 41)}...` : value;
+    };
+
+    const coveragePercent = (count?: number) => {
+      if (!coverage.total || typeof count !== "number") return null;
+      return Math.round((count / coverage.total) * 100);
+    };
+
+    const rows = [
+      { label: "Planned start time", field: plannedTimeSource, coverageCount: coverage.plannedTime },
+      { label: "Actual start time", field: actualTimeField, coverageCount: coverage.actualTime },
+      { label: "Planned end time", field: plannedEndTimeField },
+      { label: "Actual end time", field: actualEndTimeField },
+      { label: "Planned duration", field: plannedDurationField, coverageCount: coverage.plannedDuration },
+      { label: "Actual duration", field: actualDurationField, coverageCount: coverage.actualDuration },
+      { label: "Planned carer", field: plannedWorkerField, coverageCount: coverage.plannedWorker },
+      { label: "Actual carer", field: actualWorkerField, coverageCount: coverage.actualWorker },
+      { label: "Service user name", field: serviceUserNameField, coverageCount: coverage.serviceUser },
+      { label: "Service user area", field: serviceUserAreaField },
+      { label: "Service user address", field: serviceUserAddressField },
+      { label: "Call type", field: serviceRequirementTypeField ?? serviceRequirementServiceTypeField ?? serviceRequirementFallbackField, coverageCount: coverage.callType },
+      { label: "Planned date", field: plannedDateField, coverageCount: coverage.plannedDate },
+    ];
+
+    return rows.map((row) => {
+      const key = row.field?.key;
+      const columnLabel = key ? getColumnLabel(key) : "Not detected";
+      return {
+        label: row.label,
+        key: key ?? null,
+        columnLabel,
+        sample: key ? getSampleValue(key) : null,
+        coveragePercent: coveragePercent(row.coverageCount),
+      };
+    });
+  }, [analysisResults, coverage, normalizeColumnLabel]);
 
   const slotTrends = useMemo<SlotTrendSummary[]>(() => {
     if (!primaryRows.length) return [];
@@ -1270,11 +1722,75 @@ export default function TestingFeatures() {
     setAnalysisResults([]);
     setSelectedRow(null);
     setSearchTerm("");
+    setCallGroupSearch("");
     setFilterStatus("all");
+    setShowDuplicateRows(false);
+    setIncludeCancelledCalls(false);
+    setIncludeMismatchedWorkers(false);
     setVisibleCount(INITIAL_VISIBLE_ROWS);
     setProgress(0);
     setProcessingState("idle");
   };
+
+  const triggerDownload = useCallback((blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const handleExportFiltered = useCallback(() => {
+    if (!filteredResults.length) {
+      toast({
+        title: "No rows to export",
+        description: "Adjust filters or load a workbook to export rows.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const exportRows = filteredResults.map((row) => ({
+      "Row #": row.rowNumber,
+      Status: row.status === "clean" ? "Clean" : "Needs attention",
+      "Service User": row.serviceUserName ?? "",
+      Area: row.serviceUserArea ?? "",
+      Address: row.serviceUserAddress ?? "",
+      "Call Type": row.callTypeLabel ?? "",
+      "Planned Date": row.plannedDateLabel ?? "",
+      "Planned Time": row.plannedTimeLabel ?? "",
+      "Actual Time": row.actualTimeLabel ?? "",
+      "Planned Worker": row.plannedWorker ?? "",
+      "Actual Worker": row.actualWorker ?? "",
+      "Schedule Delta (mins)":
+        typeof row.scheduleDeltaMinutes === "number" ? Math.round(row.scheduleDeltaMinutes) : "",
+      "Duration %":
+        typeof row.durationMatchPercent === "number"
+          ? Number(row.durationMatchPercent.toFixed(1))
+          : "",
+      Flags: buildCallFlagsText(row),
+      Issues: row.issues.join(" | "),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Filtered Rows");
+    const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const mode = showDuplicateRows ? "with-duplicates" : "unique";
+    const filename = `testing-features-${filterStatus}-${mode}-${filteredResults.length}-rows.xlsx`;
+    triggerDownload(blob, filename);
+
+    toast({
+      title: "Export ready",
+      description: `Exported ${filteredResults.length.toLocaleString()} rows.`,
+    });
+  }, [filteredResults, filterStatus, showDuplicateRows, toast, triggerDownload]);
 
   const handleExportPdf = useCallback(() => {
     if (!callGroups.length) {
@@ -1706,7 +2222,15 @@ export default function TestingFeatures() {
             {processingState === "analyzing" && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="border border-dashed border-border rounded-xl p-6 text-center bg-muted/40">
+            <div
+              className={`border border-dashed rounded-xl p-6 text-center transition-colors ${
+                isDragging ? "border-primary bg-primary/10" : "border-border bg-muted/40"
+              }`}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
               <input
                 id="testing-features-upload"
                 type="file"
@@ -1717,7 +2241,7 @@ export default function TestingFeatures() {
               <label htmlFor="testing-features-upload" className="cursor-pointer space-y-3 block">
                 <div className="flex items-center justify-center gap-3 text-muted-foreground">
                   <UploadCloud className="h-5 w-5" />
-                  <span>Click to choose a data file or drag it here</span>
+                  <span>{isDragging ? "Drop the file to start analysis" : "Click to choose a data file or drag it here"}</span>
                 </div>
                 <p className="text-xs text-muted-foreground/80">
                   We keep everything client-side so you can experiment safely.
@@ -1782,11 +2306,38 @@ export default function TestingFeatures() {
               {summary.duplicateCount > 0 && (
                 <p>Duplicates ignored: {summary.duplicateCount.toLocaleString()}</p>
               )}
-              {summary.excludedCareWorkers > 0 && (
-                <p>Excluded rows (cancelled/mismatch): {summary.excludedCareWorkers.toLocaleString()}</p>
+              {excludedCounts.total > 0 && (
+                <p>
+                  Excluded rows: {excludedCounts.total.toLocaleString()} (cancelled{" "}
+                  {excludedCounts.cancelled.toLocaleString()}, mismatched{" "}
+                  {excludedCounts.mismatched.toLocaleString()})
+                </p>
               )}
               <p>Flagged rows: {summary.attention.toLocaleString()}</p>
               <p>Empty fields: {summary.totalEmpty.toLocaleString()}</p>
+            </div>
+            <div className="pt-3 border-t border-border/60 space-y-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Metrics filters</p>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <label htmlFor="toggle-include-cancelled" className="font-medium">
+                  Include cancelled calls
+                </label>
+                <Switch
+                  id="toggle-include-cancelled"
+                  checked={includeCancelledCalls}
+                  onCheckedChange={setIncludeCancelledCalls}
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <label htmlFor="toggle-include-mismatch" className="font-medium">
+                  Include mismatched carers
+                </label>
+                <Switch
+                  id="toggle-include-mismatch"
+                  checked={includeMismatchedWorkers}
+                  onCheckedChange={setIncludeMismatchedWorkers}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1835,6 +2386,118 @@ export default function TestingFeatures() {
           helper="Under 80% or over 120%"
         />
       </div>
+
+      {analysisResults.length > 0 && healthSummary && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Data Health Score</CardTitle>
+              <CardDescription>Weighted quality score for this dataset.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Overall</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-4xl font-semibold text-foreground">{healthSummary.score}</span>
+                    <Badge variant="outline" className={toneTextMap[healthSummary.tone]}>
+                      {healthSummary.label}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Coverage {Math.round(healthSummary.coverageAvg * 100)}% • Attention {Math.round(healthSummary.attentionRate * 100)}%
+                  </p>
+                </div>
+                <div className="flex-1 sm:pl-6">
+                  <Progress value={healthSummary.score} className="h-2" />
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <HealthStat label="Coverage" value={`${Math.round(healthSummary.coverageAvg * 100)}%`} />
+                    <HealthStat label="Attention rate" value={`${Math.round(healthSummary.attentionRate * 100)}%`} />
+                    <HealthStat label="Duplicate rate" value={`${Math.round(healthSummary.duplicateRate * 100)}%`} />
+                    <HealthStat label="Excluded rate" value={`${Math.round(healthSummary.excludedRate * 100)}%`} />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Issue Breakdown</CardTitle>
+              <CardDescription>Top risk signals across the dataset.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {issueHighlights.length ? (
+                issueHighlights.map((item) => (
+                  <IssueBreakdownRow
+                    key={item.key}
+                    label={item.label}
+                    count={item.count}
+                    base={item.base}
+                    helper={item.helper}
+                  />
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No issues detected in the current dataset.</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {coverage.total > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Data Coverage</CardTitle>
+            <CardDescription>How many of the unique slots contain each key signal.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <CoverageStat label="Planned time" count={coverage.plannedTime} total={coverage.total} />
+              <CoverageStat label="Actual time" count={coverage.actualTime} total={coverage.total} />
+              <CoverageStat label="Planned duration" count={coverage.plannedDuration} total={coverage.total} />
+              <CoverageStat label="Actual duration" count={coverage.actualDuration} total={coverage.total} />
+              <CoverageStat label="Planned carer" count={coverage.plannedWorker} total={coverage.total} />
+              <CoverageStat label="Actual carer" count={coverage.actualWorker} total={coverage.total} />
+              <CoverageStat label="Service user" count={coverage.serviceUser} total={coverage.total} />
+              <CoverageStat label="Planned date" count={coverage.plannedDate} total={coverage.total} />
+              <CoverageStat label="Call type" count={coverage.callType} total={coverage.total} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {detectedColumns.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Detected Columns</CardTitle>
+            <CardDescription>Auto-mapped columns used in this analysis.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-2">
+              {detectedColumns.map((item) => {
+                const hasColumn = Boolean(item.key);
+                return (
+                  <div key={item.label} className="rounded-2xl border border-border/70 bg-background/60 p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                      {item.coveragePercent !== null && (
+                        <Badge variant="secondary">{item.coveragePercent}% coverage</Badge>
+                      )}
+                    </div>
+                    <p className={`mt-1 text-sm font-semibold ${hasColumn ? "text-foreground" : "text-muted-foreground"}`}>
+                      {hasColumn ? item.columnLabel : "Not detected"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Sample: {item.sample || "—"}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {analysisResults.length > 0 && (
         <Accordion type="multiple" className="w-full">
@@ -1951,15 +2614,17 @@ export default function TestingFeatures() {
             </AccordionItem>
           )}
 
-          <AccordionItem value="row-level-analysis">
-            <AccordionTrigger>Row-Level Analysis</AccordionTrigger>
-            <AccordionContent>
-              <Card>
-                <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <CardTitle>Row-Level Analysis</CardTitle>
-                    <CardDescription>Use filters to triage thousands of rows quickly.</CardDescription>
-                  </div>
+            <AccordionItem value="row-level-analysis">
+              <AccordionTrigger>Row-Level Analysis</AccordionTrigger>
+              <AccordionContent>
+                <Card>
+                  <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <CardTitle>Row-Level Analysis</CardTitle>
+                      <CardDescription>
+                        Use filters to triage thousands of rows quickly. Showing {filteredResults.length.toLocaleString()} of {primaryRows.length.toLocaleString()} rows.
+                      </CardDescription>
+                    </div>
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
                     <div className="relative">
                       <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -1996,6 +2661,16 @@ export default function TestingFeatures() {
                         Needs Attention
                       </Button>
                     </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleExportFiltered}
+                      disabled={!filteredResults.length}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export filtered ({filteredResults.length})
+                    </Button>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Switch id="toggle-duplicates" checked={showDuplicateRows} onCheckedChange={setShowDuplicateRows} />
                       <label htmlFor="toggle-duplicates" className="font-medium">
@@ -2695,6 +3370,84 @@ function GroupMetric({
     </div>
   );
 }
+
+function HealthStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-border/70 bg-background/60 px-3 py-2">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-sm font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function IssueBreakdownRow({
+  label,
+  count,
+  base,
+  helper,
+}: {
+  label: string;
+  count: number;
+  base: number;
+  helper: string;
+}) {
+  const percent = base > 0 ? Math.round((count / base) * 100) : 0;
+  const tone: InsightTone = percent >= 40 ? "destructive" : percent >= 20 ? "warning" : "default";
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${toneSurfaceMap[tone]}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-foreground">{label}</p>
+          <p className="text-xs text-muted-foreground">
+            {count.toLocaleString()} of {base.toLocaleString()} {helper.toLowerCase()}
+          </p>
+        </div>
+        <Badge variant="outline" className={toneTextMap[tone]}>
+          {percent}%
+        </Badge>
+      </div>
+      <div className="mt-2">
+        <Progress value={percent} className="h-1" />
+      </div>
+    </div>
+  );
+}
+
+function CoverageStat({
+  label,
+  count,
+  total,
+}: {
+  label: string;
+  count: number;
+  total: number;
+}) {
+  const percent = total > 0 ? Math.round((count / total) * 100) : null;
+  const tone: InsightTone =
+    percent === null
+      ? "warning"
+      : percent < 50
+      ? "destructive"
+      : percent < 75
+      ? "warning"
+      : "default";
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${toneSurfaceMap[tone]}`}>
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <div className="flex items-baseline gap-2 mt-1">
+        <span className="text-lg font-semibold text-foreground">{percent !== null ? `${percent}%` : "—"}</span>
+        {percent !== null && (
+          <span className="text-xs text-muted-foreground">
+            {count}/{total}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function DiagnosticStat({
 
   title,
