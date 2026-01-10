@@ -3648,13 +3648,45 @@ function parseDurationToMinutes(value: any, label?: string | null): number | nul
     return minutes;
   };
 
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const excelMinutes = excelSerialToMinutes(value);
+  const parseNumericDuration = (numericValue: number): number | null => {
+    if (!Number.isFinite(numericValue)) return null;
+    if (numericValue < 0) return null;
+
+    if (prefersSeconds) return clampReasonableDuration(numericValue / 60);
+    if (prefersMinutes) return clampReasonableDuration(numericValue);
+    if (prefersHours) return clampReasonableDuration(numericValue * 60);
+
+    const minutesFromHoursRaw = numericValue * 60;
+    const minutesFromDayRaw = numericValue * 24 * 60;
+    const minutesFromHours = clampReasonableDuration(minutesFromHoursRaw);
+    const minutesFromMinutes = clampReasonableDuration(numericValue);
+    const minutesFromDayFraction = clampReasonableDuration(minutesFromDayRaw);
+    const isFractional = numericValue > 0 && numericValue < 1;
+
+    if (isFractional) {
+      const hoursScore = Math.abs(minutesFromHoursRaw - Math.round(minutesFromHoursRaw));
+      const dayScore = Math.abs(minutesFromDayRaw - Math.round(minutesFromDayRaw));
+      if (minutesFromDayFraction !== null && dayScore + 0.01 < hoursScore) {
+        return minutesFromDayFraction;
+      }
+      if (minutesFromHours !== null) return minutesFromHours;
+      if (minutesFromDayFraction !== null) return minutesFromDayFraction;
+      if (minutesFromMinutes !== null) return minutesFromMinutes;
+      return null;
+    }
+
+    if (numericValue <= 12 && minutesFromHours !== null) {
+      return minutesFromHours;
+    }
+    if (minutesFromMinutes !== null) return minutesFromMinutes;
+
+    const excelMinutes = excelSerialToMinutes(numericValue);
     if (excelMinutes !== null) return clampReasonableDuration(excelMinutes);
-    if (prefersHours) return clampReasonableDuration(value * 60);
-    if (prefersMinutes) return clampReasonableDuration(value);
-    if (value <= 12) return clampReasonableDuration(value * 60);
-    return clampReasonableDuration(value);
+    return null;
+  };
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return parseNumericDuration(value);
   }
 
   const str = String(value).trim();
@@ -3702,10 +3734,7 @@ function parseDurationToMinutes(value: any, label?: string | null): number | nul
 
   const numeric = Number(str.replace(/[^0-9.]/g, ""));
   if (!Number.isNaN(numeric)) {
-    if (prefersHours) return clampReasonableDuration(numeric * 60);
-    if (prefersMinutes) return clampReasonableDuration(numeric);
-    if (numeric <= 12) return clampReasonableDuration(numeric * 60);
-    return clampReasonableDuration(numeric);
+    return parseNumericDuration(numeric);
   }
 
   return null;
