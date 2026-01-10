@@ -103,7 +103,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   
   const [theme, setThemeState] = useState<Theme>(() => {
     const saved = getStorageItem("lewis-theme");
-    return (saved as Theme) || "auto";
+    return (saved as Theme) || "dark";
   });
   
   const [themeSchedule, setThemeScheduleState] = useState<ThemeSchedule>(() => {

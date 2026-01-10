@@ -54,6 +54,7 @@ const DURATION_OVERRUN_THRESHOLD_PERCENT = 120;
 const DEFAULT_ROUTE_DURATION_MINUTES = 30;
 const TYPICAL_DAY_MIN_OCCURRENCES = 2;
 const TIME_CRITICAL_WINDOW_MINUTES = 15;
+const SHIFT_BAR_DURATION_MINUTES = 8 * 60;
 const TEMPLATE_WEEK_OPTIONS = [
   { key: "week1", label: "Week 1 (starts 05/01/26)" },
   { key: "week2", label: "Week 2 (starts 12/01/26)" },
@@ -197,6 +198,15 @@ const TEMPLATE_WORKER_KEYWORDS = [
   "templated carer",
   "template staff",
 ];
+const PAYROLL_RUN_DESCRIPTION_KEYWORDS = [
+  "payroll run description",
+  "payrollrundescription",
+];
+const SERVICE_TYPE_DESCRIPTION_KEYWORDS = [
+  "planned service type description",
+  "service type description",
+  "service type",
+];
 const SERVICE_DUTY_CLASS_TYPE_KEYWORDS = [
   "servicetypecustom servicedutyclasstype",
   "service duty class type",
@@ -288,6 +298,10 @@ interface RowAnalysis {
   plannedWorker?: string | null;
   actualWorker?: string | null;
   templateWorker?: string | null;
+  payrollRunDescription?: string | null;
+  serviceTypeDescription?: string | null;
+  isAdminStaffRow?: boolean;
+  isShiftBar?: boolean;
   serviceDutyClassType?: string | null;
   isExcludedServiceDutyClass?: boolean;
   isAdhocCall?: boolean;
@@ -388,6 +402,7 @@ interface WorkerCallGroup {
   totalCalls: number;
   uniqueDays: number;
   templatedWeekdayKeys: Set<string>;
+  doubleUpWeekdayKeys: Set<string>;
   templatedRows: number;
   isTimeCritical: boolean;
   rows: RowAnalysis[];
@@ -408,6 +423,20 @@ interface ResolvedWorkerCallGroup extends WorkerCallGroup {
   overrideWeek1Days: WeekdayLabel[];
   overrideWeek2Days: WeekdayLabel[];
   hasTemplateOverride: boolean;
+  isDoubleUpForSelection: boolean;
+}
+
+interface ShiftBar {
+  key: string;
+  templateKey: string | null;
+  templateWeek: TemplateWeekKey | null;
+  templateDay: WeekdayLabel | null;
+  startMinutes: number | null;
+  endMinutes: number | null;
+  durationMinutes: number;
+  startLabel: string | null;
+  endLabel: string | null;
+  plannedDateLabel: string | null;
 }
 
 interface CareWorkerRoster {
@@ -415,10 +444,20 @@ interface CareWorkerRoster {
   workerName: string;
   workerNameNormalized: string;
   rows: RowAnalysis[];
+  callRows: RowAnalysis[];
+  shiftBars: ShiftBar[];
+  shiftBarsCount: number;
+  isAdminStaff: boolean;
   uniqueServiceUsers: number;
   uniqueDays: number;
   callGroups: WorkerCallGroup[];
   missingRequirementTimes: number;
+}
+
+interface ShiftBarEntry {
+  startMinutes: number | null;
+  endMinutes: number | null;
+  durationMinutes: number;
 }
 
 interface OptimizedRouteEntry {
@@ -432,6 +471,7 @@ interface OptimizedRouteEntry {
   durationMinutes: number | null;
   shiftMinutes: number | null;
   isTimeCritical: boolean;
+  isDoubleUp: boolean;
   windowStartMinutes: number | null;
   windowEndMinutes: number | null;
   isOutsideWindow: boolean;
@@ -444,6 +484,7 @@ interface CareWorkerRotaPayload {
   templateWeek: TemplateWeekKey;
   templateDay: WeekdayLabel;
   timeCriticalWindowEnforced: boolean;
+  shiftBars: ShiftBarEntry[];
   selectedGroupKeys: string[];
   overrides: Record<string, TemplateOverride>;
   optimizedRun: OptimizedRouteEntry[];
@@ -623,6 +664,8 @@ export default function TestingFeatures() {
       }
 
       const serviceDutyClassField = detectField(row, SERVICE_DUTY_CLASS_TYPE_KEYWORDS);
+      const payrollRunDescriptionField = detectField(row, PAYROLL_RUN_DESCRIPTION_KEYWORDS);
+      const serviceTypeDescriptionField = detectField(row, SERVICE_TYPE_DESCRIPTION_KEYWORDS);
       const adhocField = detectField(row, ADHOC_KEYWORDS);
       const timeCriticalField = detectField(row, TIME_CRITICAL_KEYWORDS);
 
@@ -650,6 +693,13 @@ export default function TestingFeatures() {
       const templateWorkerName = sanitizeStringValue(templateWorkerField?.value);
       const plannedWorkerName = sanitizeStringValue(plannedWorkerField?.value);
       const actualWorkerName = sanitizeStringValue(actualWorkerField?.value);
+      const payrollRunDescription = sanitizeHumanReadable(payrollRunDescriptionField?.value);
+      const payrollRunNormalized = payrollRunDescription
+        ? normalizeKeyForMatch(payrollRunDescription).replace(/&/g, "and").replace(/\s+/g, " ").trim()
+        : null;
+      const isAdminStaffRow = payrollRunNormalized === "admin wages and overtime";
+      const serviceTypeDescription = sanitizeHumanReadable(serviceTypeDescriptionField?.value);
+      const serviceTypeNormalized = serviceTypeDescription ? normalizeKeyForMatch(serviceTypeDescription) : null;
       const serviceDutyClassRaw = sanitizeStringValue(serviceDutyClassField?.value);
       const serviceDutyClassType = serviceDutyClassRaw ? serviceDutyClassRaw.trim().toUpperCase() : null;
       const serviceDutyClassPrefix = serviceDutyClassType ? serviceDutyClassType[0] : null;
@@ -663,7 +713,6 @@ export default function TestingFeatures() {
           : null);
       const isAdhocCall = isTruthyValue(adhocFallbackValue);
       const isTimeCritical = isTruthyValue(timeCriticalField?.value);
-      const isCancelledCall = !actualWorkerName;
       const normalizedPlannedWorker = normalizeWorkerName(plannedWorkerName);
       const normalizedActualWorker = normalizeWorkerName(actualWorkerName);
       const workersMatch =
@@ -769,6 +818,10 @@ export default function TestingFeatures() {
         .map(sanitizeHumanReadable)
         .filter(Boolean) as string[];
       const callTypeLabel = callTypeParts.length ? Array.from(new Set(callTypeParts)).join(" • ") : null;
+      const callTypeNormalized = callTypeLabel ? normalizeKeyForMatch(callTypeLabel) : null;
+      const isShiftBar =
+        (serviceTypeNormalized ? serviceTypeNormalized.includes("shift") : false) ||
+        (callTypeNormalized ? callTypeNormalized.includes("shift") : false);
 
       const serviceUserName = sanitizeHumanReadable(serviceLocationNameField?.value ?? serviceUserNameField?.value);
       const serviceUserArea = sanitizeHumanReadable(serviceUserAreaField?.value);
@@ -782,7 +835,8 @@ export default function TestingFeatures() {
       );
 
       // Cancelled calls are indicated by a blank actual employee name; ignore them.
-      const excludeFromMetrics = workersMatch === false || isCancelledCall;
+      const isCancelledCall = !actualWorkerName && !isShiftBar;
+      const excludeFromMetrics = workersMatch === false || isCancelledCall || isShiftBar;
       if (workersMatch === false) {
         issues.push("Care worker mismatch");
       }
@@ -819,6 +873,10 @@ export default function TestingFeatures() {
         plannedWorker: plannedWorkerName,
         actualWorker: actualWorkerName,
         templateWorker: templateWorkerName,
+        payrollRunDescription,
+        serviceTypeDescription,
+        isAdminStaffRow,
+        isShiftBar,
         serviceDutyClassType,
         isExcludedServiceDutyClass,
         isAdhocCall,
@@ -1031,7 +1089,7 @@ export default function TestingFeatures() {
   const usableRows = useMemo(
     () =>
       analysisResults.filter((row) => {
-        const isCancelled = !row.actualWorker;
+        const isCancelled = !row.actualWorker && !row.isShiftBar;
         const isMismatch = row.workersMatch === false;
         if (!includeCancelledCalls && isCancelled) return false;
         if (!includeMismatchedWorkers && isMismatch) return false;
@@ -1044,7 +1102,7 @@ export default function TestingFeatures() {
     let cancelled = 0;
     let mismatched = 0;
     analysisResults.forEach((row) => {
-      const isCancelled = !row.actualWorker;
+      const isCancelled = !row.actualWorker && !row.isShiftBar;
       const isMismatch = row.workersMatch === false;
       if (!includeCancelledCalls && isCancelled) cancelled += 1;
       if (!includeMismatchedWorkers && isMismatch) mismatched += 1;
@@ -1069,9 +1127,9 @@ export default function TestingFeatures() {
           ...row,
           status: "attention" as RowStatus,
           isDuplicateSlotRow: true,
-          issues: row.issues.includes("Duplicate care slot (ignored in totals)")
+          issues: row.issues.includes("Duplicate care slot (possible double-up; ignored in totals)")
             ? row.issues
-            : [...row.issues, "Duplicate care slot (ignored in totals)"],
+            : [...row.issues, "Duplicate care slot (possible double-up; ignored in totals)"],
         };
       }
       seen.set(duplicateKey, true);
@@ -1182,7 +1240,7 @@ export default function TestingFeatures() {
     const totalRows = analysisResults.length;
     const uniqueSlots = primaryRows.length;
     const duplicateSlots = dedupedResults.length - primaryRows.length;
-    const cancelledCalls = analysisResults.filter((row) => !row.actualWorker).length;
+    const cancelledCalls = analysisResults.filter((row) => !row.actualWorker && !row.isShiftBar).length;
     const mismatchedCarers = analysisResults.filter((row) => row.workersMatch === false).length;
     const missingPlannedTime = primaryRows.filter((row) => typeof row.plannedTimeMinutes !== "number").length;
     const missingActualTime = primaryRows.filter((row) => typeof row.actualTimeMinutes !== "number").length;
@@ -1902,28 +1960,143 @@ export default function TestingFeatures() {
 
   const rosterRows = useMemo(() => {
     if (!analysisResults.length) return [];
-    const seen = new Set<string>();
+    const seenWorkerSlots = new Set<string>();
     return analysisResults.filter((row) => {
       if (row.isExcludedServiceDutyClass || row.isAdhocCall) return false;
+      if (row.isShiftBar) return false;
       const isMismatch = row.workersMatch === false && !row.templateWorker;
       if (!includeMismatchedWorkers && isMismatch) return false;
       const isCancelled = !row.actualWorker && !row.templateWorker;
       if (!includeCancelledCalls && isCancelled) return false;
 
-      const duplicateKey = buildDuplicateSlotKey(row);
-      if (duplicateKey) {
-        if (seen.has(duplicateKey)) return false;
-        seen.add(duplicateKey);
+      // Keep double-up calls (same slot, different carers) by deduping per worker+slot.
+      const workerSlotKey = buildWorkerSlotKey(row);
+      if (workerSlotKey) {
+        if (seenWorkerSlots.has(workerSlotKey)) return false;
+        seenWorkerSlots.add(workerSlotKey);
       }
       return true;
     });
   }, [analysisResults, includeCancelledCalls, includeMismatchedWorkers]);
 
-  const careWorkerRosters = useMemo<CareWorkerRoster[]>(() => {
-    if (!rosterRows.length) return [];
+  const doubleUpSlotWorkers = useMemo(() => {
+    if (!analysisResults.length) return new Map<string, Set<string>>();
+    const map = new Map<string, Set<string>>();
+    analysisResults.forEach((row) => {
+      if (row.isExcludedServiceDutyClass || row.isAdhocCall) return;
+      if (row.isShiftBar) return;
+      const slotKey = buildDoubleUpSlotKey(row);
+      if (!slotKey) return;
+      const workerName = getRowAssignedWorkerName(row);
+      if (!workerName) return;
+      const workerKey = normalizeWorkerName(workerName) || workerName.toLowerCase();
+      const set = map.get(slotKey) ?? new Set<string>();
+      set.add(workerKey);
+      map.set(slotKey, set);
+    });
+    return map;
+  }, [analysisResults]);
 
-    const workerMap = new Map<string, { workerName: string; workerNameNormalized: string; rows: RowAnalysis[] }>();
-    rosterRows.forEach((row) => {
+  const doubleUpSlots = useMemo(() => {
+    const set = new Set<string>();
+    doubleUpSlotWorkers.forEach((workers, slotKey) => {
+      if (workers.size > 1) set.add(slotKey);
+    });
+    return set;
+  }, [doubleUpSlotWorkers]);
+
+  const shiftBarRows = useMemo(() => {
+    if (!analysisResults.length) return [];
+    return analysisResults.filter((row) => {
+      if (!row.isShiftBar) return false;
+      if (row.isExcludedServiceDutyClass || row.isAdhocCall) return false;
+      const workerName = row.templateWorker || row.actualWorker || row.plannedWorker;
+      return Boolean(workerName);
+    });
+  }, [analysisResults]);
+
+  const workerRosterRows = useMemo(() => {
+    if (!rosterRows.length && !shiftBarRows.length) return [];
+    const combined = [...rosterRows, ...shiftBarRows];
+    const seen = new Set<number>();
+    return combined.filter((row) => {
+      if (seen.has(row.rowNumber)) return false;
+      seen.add(row.rowNumber);
+      return true;
+    });
+  }, [rosterRows, shiftBarRows]);
+
+  const shiftBarsByWorker = useMemo(() => {
+    if (!shiftBarRows.length) return new Map<string, ShiftBar[]>();
+    const map = new Map<string, ShiftBar[]>();
+    shiftBarRows.forEach((row) => {
+      const workerName = row.templateWorker || row.actualWorker || row.plannedWorker;
+      if (!workerName) return;
+      const workerKey = normalizeWorkerName(workerName) || workerName.toLowerCase();
+      const startMinutes =
+        typeof row.plannedTimeMinutes === "number"
+          ? row.plannedTimeMinutes
+          : typeof row.serviceRequirementTimeMinutes === "number"
+          ? row.serviceRequirementTimeMinutes
+          : typeof row.actualTimeMinutes === "number"
+          ? row.actualTimeMinutes
+          : null;
+      const endMinutes = typeof startMinutes === "number" ? startMinutes + SHIFT_BAR_DURATION_MINUTES : null;
+      const startLabel = deriveTimeLabel(
+        startMinutes,
+        row.plannedTimeLabel ?? row.serviceRequirementTimeLabel ?? row.actualTimeLabel
+      );
+      const endLabel = typeof endMinutes === "number" ? deriveTimeLabel(endMinutes, null) : null;
+      const templateDate = parseDateKeyToLocalDate(row.plannedDateKey ?? null);
+      const templateWeek = templateDate ? deriveTemplateWeekKey(templateDate) : null;
+      const templateDay = templateDate ? deriveWeekdayLabel(templateDate) : null;
+      const templateKey =
+        templateWeek && templateDay ? buildTemplateWeekdayKey(templateWeek, templateDay) : null;
+      const shiftBar: ShiftBar = {
+        key: `${workerKey}-${row.rowNumber}`,
+        templateKey,
+        templateWeek,
+        templateDay,
+        startMinutes,
+        endMinutes,
+        durationMinutes: SHIFT_BAR_DURATION_MINUTES,
+        startLabel,
+        endLabel,
+        plannedDateLabel: row.plannedDateLabel ?? null,
+      };
+      if (!map.has(workerKey)) {
+        map.set(workerKey, [shiftBar]);
+      } else {
+        map.get(workerKey)!.push(shiftBar);
+      }
+    });
+
+    map.forEach((bars) => {
+      bars.sort((a, b) => {
+        const aStart = typeof a.startMinutes === "number" ? a.startMinutes : Number.POSITIVE_INFINITY;
+        const bStart = typeof b.startMinutes === "number" ? b.startMinutes : Number.POSITIVE_INFINITY;
+        if (aStart !== bStart) return aStart - bStart;
+        return (a.plannedDateLabel || "").localeCompare(b.plannedDateLabel || "");
+      });
+    });
+
+    return map;
+  }, [shiftBarRows]);
+
+  const careWorkerRosters = useMemo<CareWorkerRoster[]>(() => {
+    if (!workerRosterRows.length) return [];
+
+    const workerMap = new Map<
+      string,
+      {
+        workerName: string;
+        workerNameNormalized: string;
+        rows: RowAnalysis[];
+        callRows: RowAnalysis[];
+        isAdminStaff: boolean;
+      }
+    >();
+    workerRosterRows.forEach((row) => {
       const workerName = row.templateWorker || row.actualWorker || row.plannedWorker;
       if (!workerName) return;
       const normalized = normalizeWorkerName(workerName) || workerName.toLowerCase();
@@ -1932,9 +2105,14 @@ export default function TestingFeatures() {
           workerName,
           workerNameNormalized: normalized,
           rows: [],
+          callRows: [],
+          isAdminStaff: false,
         });
       }
-      workerMap.get(normalized)!.rows.push(row);
+      const worker = workerMap.get(normalized)!;
+      worker.rows.push(row);
+      if (!row.isShiftBar) worker.callRows.push(row);
+      if (row.isAdminStaffRow) worker.isAdminStaff = true;
     });
 
     return Array.from(workerMap.values())
@@ -1957,13 +2135,14 @@ export default function TestingFeatures() {
             durations: number[];
             dayKeys: Set<string>;
             templatedWeekdayKeys: Set<string>;
+            doubleUpWeekdayKeys: Set<string>;
             templatedRows: number;
             isTimeCritical: boolean;
             rows: RowAnalysis[];
           }
         >();
 
-        worker.rows.forEach((row) => {
+        worker.callRows.forEach((row) => {
           if (row.normalizedServiceUserKey) serviceUserSet.add(row.normalizedServiceUserKey);
           if (row.plannedDateKey) daySet.add(row.plannedDateKey);
           const requirementMinutes =
@@ -1989,6 +2168,7 @@ export default function TestingFeatures() {
               durations: [],
               dayKeys: new Set<string>(),
               templatedWeekdayKeys: new Set<string>(),
+              doubleUpWeekdayKeys: new Set<string>(),
               templatedRows: 0,
               isTimeCritical: false,
               rows: [],
@@ -2022,6 +2202,11 @@ export default function TestingFeatures() {
               );
               group.templatedWeekdayKeys.add(templateKey);
               group.templatedRows += 1;
+
+              const doubleUpKey = buildDoubleUpSlotKey(row);
+              if (doubleUpKey && doubleUpSlots.has(doubleUpKey)) {
+                group.doubleUpWeekdayKeys.add(templateKey);
+              }
             }
           }
         });
@@ -2046,6 +2231,7 @@ export default function TestingFeatures() {
               totalCalls: group.rows.length,
               uniqueDays: group.dayKeys.size,
               templatedWeekdayKeys: group.templatedWeekdayKeys,
+              doubleUpWeekdayKeys: group.doubleUpWeekdayKeys,
               templatedRows: group.templatedRows,
               isTimeCritical: group.isTimeCritical,
               rows: group.rows,
@@ -2058,11 +2244,16 @@ export default function TestingFeatures() {
             return (a.serviceUserName || "").localeCompare(b.serviceUserName || "");
           });
 
+        const shiftBars = shiftBarsByWorker.get(worker.workerNameNormalized) ?? [];
         return {
           key: worker.workerNameNormalized,
           workerName: worker.workerName,
           workerNameNormalized: worker.workerNameNormalized,
           rows: worker.rows,
+          callRows: worker.callRows,
+          shiftBars,
+          shiftBarsCount: shiftBars.length,
+          isAdminStaff: worker.isAdminStaff,
           uniqueServiceUsers: serviceUserSet.size,
           uniqueDays: daySet.size,
           callGroups,
@@ -2076,7 +2267,7 @@ export default function TestingFeatures() {
         if (aName.first !== bName.first) return aName.first.localeCompare(bName.first);
         return aName.full.localeCompare(bName.full);
       });
-  }, [rosterRows]);
+  }, [doubleUpSlots, shiftBarsByWorker, workerRosterRows]);
 
   const { visibleCareWorkerRosters, careWorkerHasMatch } = useMemo(() => {
     if (!careWorkerRosters.length) {
@@ -2113,6 +2304,28 @@ export default function TestingFeatures() {
     [selectedTemplateDay, selectedTemplateWeek]
   );
 
+  const shiftBarsForSelection = useMemo(() => {
+    if (!selectedCareWorker) return [];
+    const shiftBars = shiftBarsByWorker.get(selectedCareWorker.key) ?? [];
+    return shiftBars.filter((bar) => bar.templateKey === templateSelectionKey);
+  }, [selectedCareWorker, shiftBarsByWorker, templateSelectionKey]);
+
+  const unassignedShiftBars = useMemo(() => {
+    if (!selectedCareWorker) return [];
+    const shiftBars = shiftBarsByWorker.get(selectedCareWorker.key) ?? [];
+    return shiftBars.filter((bar) => !bar.templateKey);
+  }, [selectedCareWorker, shiftBarsByWorker]);
+
+  const shiftBarsForPayload = useMemo<ShiftBarEntry[]>(
+    () =>
+      shiftBarsForSelection.map((bar) => ({
+        startMinutes: bar.startMinutes,
+        endMinutes: bar.endMinutes,
+        durationMinutes: bar.durationMinutes,
+      })),
+    [shiftBarsForSelection]
+  );
+
   const resolvedCallGroups = useMemo<ResolvedWorkerCallGroup[]>(() => {
     if (!selectedCareWorker) return [];
     return selectedCareWorker.callGroups.map((group) => {
@@ -2133,6 +2346,7 @@ export default function TestingFeatures() {
           ? deriveTimeLabel(effectiveRequirementStartMinutes, null)
           : group.requirementStartLabel;
       const effectiveTimeBandLabel = deriveTimeBandLabel(effectiveRequirementStartMinutes);
+      const isDoubleUpForSelection = group.doubleUpWeekdayKeys.has(templateSelectionKey);
       return {
         ...group,
         overrideKey,
@@ -2143,9 +2357,10 @@ export default function TestingFeatures() {
         overrideWeek1Days: week1Days,
         overrideWeek2Days: week2Days,
         hasTemplateOverride: Boolean(override),
+        isDoubleUpForSelection,
       };
     });
-  }, [selectedCareWorker, templateOverrides]);
+  }, [selectedCareWorker, templateOverrides, templateSelectionKey]);
 
   const availableTemplateGroups = useMemo(
     () => resolvedCallGroups.filter((group) => group.effectiveTemplateWeekdayKeys.has(templateSelectionKey)),
@@ -2179,86 +2394,141 @@ export default function TestingFeatures() {
 
   const optimizedRun = useMemo<OptimizedRouteEntry[]>(() => {
     if (!selectedWorkerGroups.length) return [];
-    const sorted = [...selectedWorkerGroups].sort((a, b) => {
-      const aStart =
-        typeof a.effectiveRequirementStartMinutes === "number"
-          ? a.effectiveRequirementStartMinutes
-          : Number.POSITIVE_INFINITY;
-      const bStart =
-        typeof b.effectiveRequirementStartMinutes === "number"
-          ? b.effectiveRequirementStartMinutes
-          : Number.POSITIVE_INFINITY;
-      if (aStart !== bStart) return aStart - bStart;
-      return (a.serviceUserName || "").localeCompare(b.serviceUserName || "");
+    const DAY_START_MINUTES = 6 * 60;
+    const bandOrder = ["AM", "Lunch", "Tea", "Evening", "Night", "Unscheduled"];
+
+    const groupsByBand = bandOrder.reduce<Record<string, ResolvedWorkerCallGroup[]>>((acc, band) => {
+      acc[band] = [];
+      return acc;
+    }, {});
+    selectedWorkerGroups.forEach((group) => {
+      const band = group.effectiveTimeBandLabel;
+      if (!groupsByBand[band]) groupsByBand[band] = [];
+      groupsByBand[band].push(group);
     });
 
-    let currentEnd: number | null = null;
-    return sorted.map((group) => {
-      const durationMinutes =
-        typeof group.durationMinutes === "number" ? group.durationMinutes : DEFAULT_ROUTE_DURATION_MINUTES;
-      if (typeof group.effectiveRequirementStartMinutes !== "number") {
-        return {
+    const optimized: OptimizedRouteEntry[] = [];
+    let currentEndOverall: number | null = null;
+
+    bandOrder.forEach((band) => {
+      const bandGroups = groupsByBand[band] ?? [];
+      if (!bandGroups.length) return;
+
+      const bandGroupsWithTimes = bandGroups.filter(
+        (group) => typeof group.effectiveRequirementStartMinutes === "number"
+      );
+      const bandMinRequirement = bandGroupsWithTimes.reduce<number | null>((acc, group) => {
+        const minutes = group.effectiveRequirementStartMinutes as number;
+        if (acc === null || minutes < acc) return minutes;
+        return acc;
+      }, null);
+
+      const bandAnchorStart =
+        typeof bandMinRequirement === "number"
+          ? Math.max(DAY_START_MINUTES, bandMinRequirement)
+          : DAY_START_MINUTES;
+      let cursor = currentEndOverall;
+      if (cursor === null || cursor < bandAnchorStart) cursor = bandAnchorStart;
+
+      const sorted = [...bandGroups].sort((a, b) => {
+        const aStart =
+          typeof a.effectiveRequirementStartMinutes === "number"
+            ? a.effectiveRequirementStartMinutes
+            : Number.POSITIVE_INFINITY;
+        const bStart =
+          typeof b.effectiveRequirementStartMinutes === "number"
+            ? b.effectiveRequirementStartMinutes
+            : Number.POSITIVE_INFINITY;
+        if (aStart !== bStart) return aStart - bStart;
+        return (a.serviceUserName || "").localeCompare(b.serviceUserName || "");
+      });
+
+      sorted.forEach((group) => {
+        const durationMinutes =
+          typeof group.durationMinutes === "number" ? group.durationMinutes : DEFAULT_ROUTE_DURATION_MINUTES;
+        const isLockedDoubleUp = group.isDoubleUpForSelection;
+
+        if (typeof group.effectiveRequirementStartMinutes !== "number") {
+          optimized.push({
+            key: group.key,
+            serviceUserName: group.serviceUserName,
+            callTypeLabel: group.callTypeLabel,
+            timeBandLabel: group.effectiveTimeBandLabel,
+            requirementStartMinutes: group.effectiveRequirementStartMinutes,
+            scheduledStartMinutes: null,
+            scheduledEndMinutes: null,
+            durationMinutes: group.durationMinutes,
+            shiftMinutes: null,
+            isTimeCritical: group.isTimeCritical,
+            isDoubleUp: isLockedDoubleUp,
+            windowStartMinutes: null,
+            windowEndMinutes: null,
+            isOutsideWindow: false,
+            hasWindowConflict: false,
+          });
+          return;
+        }
+
+        const requirementStart = group.effectiveRequirementStartMinutes;
+        const windowStart = group.isTimeCritical ? requirementStart - TIME_CRITICAL_WINDOW_MINUTES : null;
+        const windowEnd = group.isTimeCritical ? requirementStart + TIME_CRITICAL_WINDOW_MINUTES : null;
+
+        let scheduledStart: number;
+        let hasWindowConflict = false;
+
+        if (isLockedDoubleUp) {
+          scheduledStart = Math.max(DAY_START_MINUTES, requirementStart);
+          if (cursor !== null && scheduledStart < cursor) {
+            hasWindowConflict = true;
+          }
+        } else {
+          scheduledStart = Math.max(cursor ?? requirementStart, DAY_START_MINUTES);
+
+          if (group.isTimeCritical && enforceTimeCriticalWindow && windowStart !== null && windowEnd !== null) {
+            if (scheduledStart < windowStart) {
+              scheduledStart = windowStart;
+            }
+            if (scheduledStart > windowEnd) {
+              // Cannot satisfy the time window without going backwards; keep schedule monotonic and flag it.
+              hasWindowConflict = true;
+              scheduledStart = Math.max(cursor ?? scheduledStart, DAY_START_MINUTES);
+            }
+          }
+        }
+
+        const scheduledEnd = scheduledStart + durationMinutes;
+        const hadOverlap = cursor !== null && scheduledStart < cursor;
+        if (hadOverlap) hasWindowConflict = true;
+        cursor = cursor !== null ? Math.max(cursor, scheduledEnd) : scheduledEnd;
+
+        const isOutsideWindow =
+          group.isTimeCritical && windowStart !== null && windowEnd !== null
+            ? scheduledStart < windowStart || scheduledStart > windowEnd
+            : false;
+
+        optimized.push({
           key: group.key,
           serviceUserName: group.serviceUserName,
           callTypeLabel: group.callTypeLabel,
           timeBandLabel: group.effectiveTimeBandLabel,
-          requirementStartMinutes: group.effectiveRequirementStartMinutes,
-          scheduledStartMinutes: null,
-          scheduledEndMinutes: null,
-          durationMinutes: group.durationMinutes,
-          shiftMinutes: null,
+          requirementStartMinutes: requirementStart,
+          scheduledStartMinutes: scheduledStart,
+          scheduledEndMinutes: scheduledEnd,
+          durationMinutes,
+          shiftMinutes: scheduledStart - requirementStart,
           isTimeCritical: group.isTimeCritical,
-          windowStartMinutes: null,
-          windowEndMinutes: null,
-          isOutsideWindow: false,
-          hasWindowConflict: false,
-        };
-      }
+          isDoubleUp: isLockedDoubleUp,
+          windowStartMinutes: windowStart,
+          windowEndMinutes: windowEnd,
+          isOutsideWindow,
+          hasWindowConflict,
+        });
+      });
 
-      const requirementStart = group.effectiveRequirementStartMinutes;
-      const windowStart = group.isTimeCritical ? requirementStart - TIME_CRITICAL_WINDOW_MINUTES : null;
-      const windowEnd = group.isTimeCritical ? requirementStart + TIME_CRITICAL_WINDOW_MINUTES : null;
-      let scheduledStart = requirementStart;
-      let hasWindowConflict = false;
-
-      if (group.isTimeCritical && enforceTimeCriticalWindow) {
-        if (currentEnd !== null && windowEnd !== null && currentEnd > windowEnd) {
-          scheduledStart = windowEnd;
-          hasWindowConflict = true;
-        } else if (currentEnd !== null && windowStart !== null && currentEnd > windowStart) {
-          scheduledStart = Math.max(currentEnd, windowStart);
-        } else {
-          scheduledStart = requirementStart;
-        }
-      } else if (currentEnd !== null && scheduledStart < currentEnd) {
-        scheduledStart = currentEnd;
-      }
-      const scheduledEnd = scheduledStart + durationMinutes;
-      const hadOverlap = currentEnd !== null && scheduledStart < currentEnd;
-      currentEnd = currentEnd !== null ? Math.max(currentEnd, scheduledEnd) : scheduledEnd;
-      if (hadOverlap) hasWindowConflict = true;
-      const isOutsideWindow =
-        group.isTimeCritical && windowStart !== null && windowEnd !== null
-          ? scheduledStart < windowStart || scheduledStart > windowEnd
-          : false;
-
-      return {
-        key: group.key,
-        serviceUserName: group.serviceUserName,
-        callTypeLabel: group.callTypeLabel,
-        timeBandLabel: group.effectiveTimeBandLabel,
-        requirementStartMinutes: requirementStart,
-        scheduledStartMinutes: scheduledStart,
-        scheduledEndMinutes: scheduledEnd,
-        durationMinutes,
-        shiftMinutes: scheduledStart - requirementStart,
-        isTimeCritical: group.isTimeCritical,
-        windowStartMinutes: windowStart,
-        windowEndMinutes: windowEnd,
-        isOutsideWindow,
-        hasWindowConflict,
-      };
+      currentEndOverall = cursor;
     });
+
+    return optimized;
   }, [enforceTimeCriticalWindow, selectedWorkerGroups]);
 
   const handleSaveRota = useCallback(async () => {
@@ -2294,6 +2564,7 @@ export default function TestingFeatures() {
       templateWeek: selectedTemplateWeek,
       templateDay: selectedTemplateDay,
       timeCriticalWindowEnforced: enforceTimeCriticalWindow,
+      shiftBars: shiftBarsForPayload,
       selectedGroupKeys: selectedWorkerGroups.map((group) => group.key),
       overrides,
       optimizedRun,
@@ -2335,6 +2606,7 @@ export default function TestingFeatures() {
     selectedTemplateDay,
     selectedTemplateWeek,
     selectedWorkerGroups,
+    shiftBarsForPayload,
     templateOverrides,
     toast,
   ]);
@@ -3337,9 +3609,19 @@ export default function TestingFeatures() {
                                   }`}
                                 >
                                   <div>
-                                    <p className="text-sm font-semibold text-foreground">{roster.workerName}</p>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="text-sm font-semibold text-foreground">{roster.workerName}</p>
+                                      {roster.isAdminStaff && (
+                                        <Badge variant="outline" className="text-[10px] font-semibold">
+                                          Office staff
+                                        </Badge>
+                                      )}
+                                    </div>
                                     <p className="text-xs text-muted-foreground">
-                                      {roster.uniqueServiceUsers} service users • {roster.rows.length} calls
+                                      {roster.uniqueServiceUsers} service users • {roster.callRows.length} calls
+                                      {roster.shiftBarsCount
+                                        ? ` • ${roster.shiftBarsCount} shift bar${roster.shiftBarsCount === 1 ? "" : "s"}`
+                                        : ""}
                                     </p>
                                   </div>
                                   {isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
@@ -3366,9 +3648,22 @@ export default function TestingFeatures() {
                           <>
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                               <div>
-                                <p className="text-sm font-semibold text-foreground">{selectedCareWorker.workerName}</p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-sm font-semibold text-foreground">{selectedCareWorker.workerName}</p>
+                                  {selectedCareWorker.isAdminStaff && (
+                                    <Badge variant="outline" className="text-xs font-semibold">
+                                      Office staff
+                                    </Badge>
+                                  )}
+                                  {selectedCareWorker.shiftBarsCount > 0 && (
+                                    <Badge variant="secondary" className="text-xs font-semibold">
+                                      {selectedCareWorker.shiftBarsCount} shift bar{selectedCareWorker.shiftBarsCount === 1 ? "" : "s"}
+                                    </Badge>
+                                  )}
+                                </div>
                                 <p className="text-xs text-muted-foreground">
-                                  {selectedCareWorker.uniqueServiceUsers} service users • {selectedCareWorker.callGroups.length} call types • {selectedCareWorker.uniqueDays} days
+                                  {selectedCareWorker.uniqueServiceUsers} service users • {selectedCareWorker.callGroups.length} call types •{" "}
+                                  {selectedCareWorker.callRows.length} calls • {selectedCareWorker.uniqueDays} days
                                 </p>
                               </div>
                               <div className="flex flex-wrap gap-2">
@@ -3439,6 +3734,51 @@ export default function TestingFeatures() {
                                 {availableTemplateGroups.length} templated call{availableTemplateGroups.length === 1 ? "" : "s"} available for {selectedTemplateWeekLabel} • {selectedTemplateDay}.
                               </p>
                             </div>
+
+                            {selectedCareWorker.shiftBarsCount > 0 && (
+                              <div className="rounded-2xl border border-border/70 bg-background/60 p-4 space-y-3">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                  Shift bars (fixed)
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Shift bars stay at their template time for {formatMinutesDisplay(SHIFT_BAR_DURATION_MINUTES)} and can overlap calls.
+                                </p>
+                                {shiftBarsForSelection.length ? (
+                                  <div className="space-y-2">
+                                    {shiftBarsForSelection.map((bar) => (
+                                      <div
+                                        key={bar.key}
+                                        className="flex flex-col gap-2 rounded-xl border border-border/60 bg-background/70 p-3 sm:flex-row sm:items-center sm:justify-between"
+                                      >
+                                        <div>
+                                          <p className="text-sm font-semibold text-foreground">Shift bar</p>
+                                          <p className="text-xs text-muted-foreground">
+                                            {bar.plannedDateLabel ? `Template date ${bar.plannedDateLabel}` : "Template date not set"}
+                                          </p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                          <Badge variant="outline" className="text-xs font-semibold">
+                                            Fixed {bar.startLabel || "—"} → {bar.endLabel || "—"}
+                                          </Badge>
+                                          <Badge variant="secondary" className="text-xs font-semibold">
+                                            {formatMinutesDisplay(bar.durationMinutes)}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">
+                                    No shift bars on {selectedTemplateWeekLabel} • {selectedTemplateDay}.
+                                  </p>
+                                )}
+                                {unassignedShiftBars.length > 0 && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {unassignedShiftBars.length} shift bar{unassignedShiftBars.length === 1 ? "" : "s"} missing a template date and not placed.
+                                  </p>
+                                )}
+                              </div>
+                            )}
 
                             <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-background/60 p-4 sm:flex-row sm:items-center sm:justify-between">
                               <div>
@@ -3524,6 +3864,11 @@ export default function TestingFeatures() {
                                         {group.isTimeCritical && (
                                           <Badge variant="outline" className="text-xs font-semibold">
                                             Time critical
+                                          </Badge>
+                                        )}
+                                        {group.isDoubleUpForSelection && (
+                                          <Badge variant="outline" className="text-xs font-semibold">
+                                            Double-up (locked)
                                           </Badge>
                                         )}
                                         <Badge variant="secondary" className="text-xs font-semibold">
@@ -3718,9 +4063,12 @@ export default function TestingFeatures() {
                             <div className="rounded-2xl border border-border/70 bg-card/50 p-4">
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
-                                  <p className="text-sm font-semibold text-foreground">Optimized run (no overlaps)</p>
+                                  <p className="text-sm font-semibold text-foreground">Optimized run</p>
                                   <p className="text-xs text-muted-foreground">
-                                    Uses service requirement start times; overlapping calls are shifted forward to prevent clashes.
+                                    Packs calls back-to-back within each time band (AM/Lunch/Tea/Evening/Night). Double-up calls stay locked to the shared time.
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Suggested working window: 06:00 → 22:00 (up to 23:00 with a warning).
                                   </p>
                                 </div>
                                 <Button
@@ -3744,17 +4092,33 @@ export default function TestingFeatures() {
                               {optimizedRun.length ? (
                                 <div className="mt-3 space-y-2">
                                   {optimizedRun.map((entry) => {
+                                    const EARLIEST_START_MINUTES = 6 * 60;
+                                    const SOFT_LATEST_END_MINUTES = 22 * 60;
+                                    const HARD_LATEST_END_MINUTES = 23 * 60;
                                     const requiredLabel = deriveTimeLabel(entry.requirementStartMinutes, null) || "—";
                                     const scheduledStart = deriveTimeLabel(entry.scheduledStartMinutes, null) || "—";
                                     const scheduledEnd = deriveTimeLabel(entry.scheduledEndMinutes, null) || "—";
-                                    const shiftLabel =
-                                      typeof entry.shiftMinutes === "number" && entry.shiftMinutes > 0
-                                        ? `+${Math.round(entry.shiftMinutes)} mins`
-                                        : "On time";
+                                    const shiftLabel = (() => {
+                                      if (typeof entry.shiftMinutes !== "number") return "—";
+                                      const rounded = Math.round(entry.shiftMinutes);
+                                      if (rounded > 0) return `+${rounded} mins`;
+                                      if (rounded < 0) return `${Math.abs(rounded)} mins earlier`;
+                                      return "On time";
+                                    })();
                                     const windowLabel =
                                       entry.windowStartMinutes !== null && entry.windowEndMinutes !== null
                                         ? `${deriveTimeLabel(entry.windowStartMinutes, null)} → ${deriveTimeLabel(entry.windowEndMinutes, null)}`
                                         : null;
+                                    const isBeforeDayStart =
+                                      typeof entry.scheduledStartMinutes === "number" &&
+                                      entry.scheduledStartMinutes < EARLIEST_START_MINUTES;
+                                    const endMinutes =
+                                      typeof entry.scheduledEndMinutes === "number" ? entry.scheduledEndMinutes : null;
+                                    const isAfterHardLimit = endMinutes !== null && endMinutes > HARD_LATEST_END_MINUTES;
+                                    const isAfterSoftLimit =
+                                      endMinutes !== null &&
+                                      endMinutes > SOFT_LATEST_END_MINUTES &&
+                                      endMinutes <= HARD_LATEST_END_MINUTES;
                                     return (
                                       <div
                                         key={entry.key}
@@ -3778,6 +4142,29 @@ export default function TestingFeatures() {
                                           <Badge variant="outline" className="text-xs font-semibold">
                                             {shiftLabel}
                                           </Badge>
+                                          {entry.isDoubleUp && (
+                                            <Badge variant="outline" className="text-xs font-semibold">
+                                              Double-up (locked)
+                                            </Badge>
+                                          )}
+                                          {isBeforeDayStart && (
+                                            <Badge variant="destructive" className="text-xs font-semibold">
+                                              Before 06:00
+                                            </Badge>
+                                          )}
+                                          {isAfterSoftLimit && (
+                                            <Badge
+                                              variant="outline"
+                                              className="text-xs font-semibold border-amber-500/40 text-amber-600 dark:text-amber-300"
+                                            >
+                                              After 22:00
+                                            </Badge>
+                                          )}
+                                          {isAfterHardLimit && (
+                                            <Badge variant="destructive" className="text-xs font-semibold">
+                                              After 23:00
+                                            </Badge>
+                                          )}
                                           {entry.isTimeCritical && windowLabel && (
                                             <Badge variant="outline" className="text-xs font-semibold">
                                               Time critical {windowLabel}
@@ -5298,6 +5685,34 @@ function buildDuplicateSlotKey(row: RowAnalysis): string | null {
   if (!row.plannedDateKey) return null;
   if (typeof row.plannedTimeMinutes !== "number") return null;
   return `${row.normalizedServiceUserKey}|${row.plannedDateKey}|${Math.round(row.plannedTimeMinutes)}`;
+}
+
+function getRowAssignedWorkerName(row: RowAnalysis): string | null {
+  return row.templateWorker || row.actualWorker || row.plannedWorker || null;
+}
+
+function getRowSlotMinutes(row: RowAnalysis): number | null {
+  if (typeof row.plannedTimeMinutes === "number") return row.plannedTimeMinutes;
+  if (typeof row.serviceRequirementTimeMinutes === "number") return row.serviceRequirementTimeMinutes;
+  if (typeof row.actualTimeMinutes === "number") return row.actualTimeMinutes;
+  return null;
+}
+
+function buildDoubleUpSlotKey(row: RowAnalysis): string | null {
+  if (!row.normalizedServiceUserKey) return null;
+  if (!row.plannedDateKey) return null;
+  const minutes = getRowSlotMinutes(row);
+  if (typeof minutes !== "number") return null;
+  return `${row.normalizedServiceUserKey}|${row.plannedDateKey}|${Math.round(minutes)}`;
+}
+
+function buildWorkerSlotKey(row: RowAnalysis): string | null {
+  const slotKey = buildDoubleUpSlotKey(row);
+  if (!slotKey) return null;
+  const workerName = getRowAssignedWorkerName(row);
+  if (!workerName) return null;
+  const workerKey = normalizeWorkerName(workerName) || workerName.toLowerCase();
+  return `${slotKey}|${workerKey}`;
 }
 
 function bucketMinutes(value: number, bucketSize: number): number {

@@ -20,10 +20,17 @@ type OptimizedRouteEntry = {
   durationMinutes: number | null;
   shiftMinutes: number | null;
   isTimeCritical?: boolean;
+  isDoubleUp?: boolean;
   windowStartMinutes?: number | null;
   windowEndMinutes?: number | null;
   isOutsideWindow?: boolean;
   hasWindowConflict?: boolean;
+};
+
+type ShiftBarEntry = {
+  startMinutes: number | null;
+  endMinutes: number | null;
+  durationMinutes: number | null;
 };
 
 type CareWorkerRotaPayload = {
@@ -32,6 +39,7 @@ type CareWorkerRotaPayload = {
   templateWeek: "week1" | "week2";
   templateDay: string;
   timeCriticalWindowEnforced?: boolean;
+  shiftBars?: ShiftBarEntry[];
   optimizedRun: OptimizedRouteEntry[];
   selectedGroupKeys?: string[];
   overrides?: Record<string, any>;
@@ -59,6 +67,18 @@ function formatMinutesLabel(minutes: number | null | undefined): string {
   const hrs = Math.floor(normalized / 60);
   const mins = Math.round(normalized % 60);
   return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
+}
+
+function formatDurationLabel(minutes: number | null | undefined): string {
+  if (typeof minutes !== "number" || Number.isNaN(minutes)) return "—";
+  const abs = Math.abs(minutes);
+  const hrs = Math.floor(abs / 60);
+  const mins = Math.round(abs % 60);
+  const parts: string[] = [];
+  if (hrs) parts.push(`${hrs}h`);
+  if (mins) parts.push(`${mins}m`);
+  if (!parts.length) parts.push("0m");
+  return parts.join(" ");
 }
 
 function formatDateLabel(isoString: string | null | undefined): string {
@@ -254,19 +274,62 @@ export default function CareWorkerRotas() {
                   {selectedRota.createdByUsername && <span>• Saved by {selectedRota.createdByUsername}</span>}
                 </div>
 
+                {(selectedRota.payload?.shiftBars?.length ?? 0) > 0 && (
+                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                    <p className="text-sm font-semibold text-foreground">Fixed shift bars</p>
+                    <p className="text-xs text-muted-foreground">
+                      Shift bars stay at their template time and can overlap calls.
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {(selectedRota.payload?.shiftBars || []).map((bar, index) => (
+                        <div
+                          key={`shift-bar-${index}`}
+                          className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-xs text-muted-foreground"
+                        >
+                          <Badge variant="outline" className="text-xs font-semibold">
+                            Shift
+                          </Badge>
+                          <span>
+                            {formatMinutesLabel(bar.startMinutes)} → {formatMinutesLabel(bar.endMinutes)}
+                          </span>
+                          <Badge variant="secondary" className="text-xs font-semibold">
+                            {formatDurationLabel(bar.durationMinutes)}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   {(selectedRota.payload?.optimizedRun || []).map((entry) => {
+                    const EARLIEST_START_MINUTES = 6 * 60;
+                    const SOFT_LATEST_END_MINUTES = 22 * 60;
+                    const HARD_LATEST_END_MINUTES = 23 * 60;
                     const requiredLabel = formatMinutesLabel(entry.requirementStartMinutes);
                     const scheduledStart = formatMinutesLabel(entry.scheduledStartMinutes);
                     const scheduledEnd = formatMinutesLabel(entry.scheduledEndMinutes);
-                    const shiftLabel =
-                      typeof entry.shiftMinutes === "number" && entry.shiftMinutes > 0
-                        ? `+${Math.round(entry.shiftMinutes)} mins`
-                        : "On time";
+                    const shiftLabel = (() => {
+                      if (typeof entry.shiftMinutes !== "number") return "—";
+                      const rounded = Math.round(entry.shiftMinutes);
+                      if (rounded > 0) return `+${rounded} mins`;
+                      if (rounded < 0) return `${Math.abs(rounded)} mins earlier`;
+                      return "On time";
+                    })();
                     const windowLabel =
                       typeof entry.windowStartMinutes === "number" && typeof entry.windowEndMinutes === "number"
                         ? `${formatMinutesLabel(entry.windowStartMinutes)} → ${formatMinutesLabel(entry.windowEndMinutes)}`
                         : null;
+                    const isBeforeDayStart =
+                      typeof entry.scheduledStartMinutes === "number" &&
+                      entry.scheduledStartMinutes < EARLIEST_START_MINUTES;
+                    const endMinutes =
+                      typeof entry.scheduledEndMinutes === "number" ? entry.scheduledEndMinutes : null;
+                    const isAfterHardLimit = endMinutes !== null && endMinutes > HARD_LATEST_END_MINUTES;
+                    const isAfterSoftLimit =
+                      endMinutes !== null &&
+                      endMinutes > SOFT_LATEST_END_MINUTES &&
+                      endMinutes <= HARD_LATEST_END_MINUTES;
                     return (
                       <div
                         key={entry.key}
@@ -286,6 +349,17 @@ export default function CareWorkerRotas() {
                             Scheduled {scheduledStart} → {scheduledEnd}
                           </Badge>
                           <Badge variant="outline">{shiftLabel}</Badge>
+                          {entry.isDoubleUp && <Badge variant="outline">Double-up (locked)</Badge>}
+                          {isBeforeDayStart && <Badge variant="destructive">Before 06:00</Badge>}
+                          {isAfterSoftLimit && (
+                            <Badge
+                              variant="outline"
+                              className="border-amber-500/40 text-amber-600 dark:text-amber-300"
+                            >
+                              After 22:00
+                            </Badge>
+                          )}
+                          {isAfterHardLimit && <Badge variant="destructive">After 23:00</Badge>}
                           {entry.isTimeCritical && windowLabel && (
                             <Badge variant="outline">Time critical {windowLabel}</Badge>
                           )}

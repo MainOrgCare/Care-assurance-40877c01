@@ -566,7 +566,7 @@ export default function Homepage() {
               </motion.div>
 
               <motion.div 
-                className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-8"
+                className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-4"
                 {...getRevealProps(0.3)}
               >
                 <Button 
@@ -588,6 +588,27 @@ export default function Homepage() {
                   <TrendingUp className="mr-2 h-5 w-5" />
                   Calculate Your ROI
                 </Button>
+              </motion.div>
+
+              <motion.div
+                className="flex flex-wrap items-center justify-center lg:justify-start gap-3 text-xs text-muted-foreground mb-8"
+                {...getRevealProps(0.35)}
+              >
+                <Link
+                  href="/terms"
+                  className="hover:text-foreground transition-colors"
+                  data-testid="link-hero-terms"
+                >
+                  Terms & Conditions
+                </Link>
+                <span className="text-muted-foreground/60">•</span>
+                <Link
+                  href="/privacy"
+                  className="hover:text-foreground transition-colors"
+                  data-testid="link-hero-privacy"
+                >
+                  Privacy Policy
+                </Link>
               </motion.div>
 
               <motion.div 

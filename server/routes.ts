@@ -1713,6 +1713,7 @@ export async function registerRoutes(
     durationMinutes: z.number().nullable().optional(),
     shiftMinutes: z.number().nullable().optional(),
     isTimeCritical: z.boolean().optional(),
+    isDoubleUp: z.boolean().optional(),
     windowStartMinutes: z.number().nullable().optional(),
     windowEndMinutes: z.number().nullable().optional(),
     isOutsideWindow: z.boolean().optional(),
@@ -1725,12 +1726,19 @@ export async function registerRoutes(
     requirementStartMinutes: z.number().nullable().optional(),
   });
 
+  const shiftBarSchema = z.object({
+    startMinutes: z.number().nullable().optional(),
+    endMinutes: z.number().nullable().optional(),
+    durationMinutes: z.number().nullable().optional(),
+  });
+
   const careWorkerRotaPayloadSchema = z.object({
     workerName: z.string().min(1),
     workerKey: z.string().min(1),
     templateWeek: z.enum(["week1", "week2"]),
     templateDay: rotaWeekdayEnum,
     timeCriticalWindowEnforced: z.boolean().default(false),
+    shiftBars: z.array(shiftBarSchema).default([]),
     selectedGroupKeys: z.array(z.string()).default([]),
     optimizedRun: z.array(rotaEntrySchema).default([]),
     overrides: z.record(rotaOverrideSchema).default({}),
@@ -1778,12 +1786,28 @@ export async function registerRoutes(
         durationMinutes: typeof entry.durationMinutes === "number" ? entry.durationMinutes : null,
         shiftMinutes: typeof entry.shiftMinutes === "number" ? entry.shiftMinutes : null,
         isTimeCritical: Boolean(entry.isTimeCritical),
+        isDoubleUp: Boolean(entry.isDoubleUp),
         windowStartMinutes: typeof entry.windowStartMinutes === "number" ? entry.windowStartMinutes : null,
         windowEndMinutes: typeof entry.windowEndMinutes === "number" ? entry.windowEndMinutes : null,
         isOutsideWindow: Boolean(entry.isOutsideWindow),
         hasWindowConflict: Boolean(entry.hasWindowConflict),
       }))
       .sort((a, b) => a.key.localeCompare(b.key));
+
+    const shiftBars = [...payload.shiftBars]
+      .map((bar) => ({
+        startMinutes: typeof bar.startMinutes === "number" ? bar.startMinutes : null,
+        endMinutes: typeof bar.endMinutes === "number" ? bar.endMinutes : null,
+        durationMinutes: typeof bar.durationMinutes === "number" ? bar.durationMinutes : null,
+      }))
+      .sort((a, b) => {
+        const aStart = typeof a.startMinutes === "number" ? a.startMinutes : -1;
+        const bStart = typeof b.startMinutes === "number" ? b.startMinutes : -1;
+        if (aStart !== bStart) return aStart - bStart;
+        const aEnd = typeof a.endMinutes === "number" ? a.endMinutes : -1;
+        const bEnd = typeof b.endMinutes === "number" ? b.endMinutes : -1;
+        return aEnd - bEnd;
+      });
 
     const selectedGroupKeys = Array.from(new Set(payload.selectedGroupKeys)).sort();
 
@@ -1792,6 +1816,7 @@ export async function registerRoutes(
       templateWeek: payload.templateWeek,
       templateDay: payload.templateDay,
       timeCriticalWindowEnforced: Boolean(payload.timeCriticalWindowEnforced),
+      shiftBars,
       selectedGroupKeys,
       overrides,
       optimizedRun,
