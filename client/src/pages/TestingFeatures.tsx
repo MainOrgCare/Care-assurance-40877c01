@@ -51,6 +51,8 @@ const TREND_BUCKET_MINUTES = 15;
 
 const DURATION_SHORTFALL_THRESHOLD_PERCENT = 80;
 const DURATION_OVERRUN_THRESHOLD_PERCENT = 120;
+const DEFAULT_ROUTE_DURATION_MINUTES = 30;
+const TYPICAL_DAY_MIN_OCCURRENCES = 2;
 
 const PLANNED_TIME_KEYWORDS = [
   "planned start date and time",
@@ -244,6 +246,8 @@ interface RowAnalysis {
   actualDurationMinutes?: number | null;
   plannedTimeMinutes?: number | null;
   actualTimeMinutes?: number | null;
+  serviceRequirementTimeMinutes?: number | null;
+  serviceRequirementTimeLabel?: string | null;
   plannedDateLabel?: string | null;
   plannedDateKey?: string | null;
   serviceUserName?: string | null;
@@ -317,9 +321,50 @@ interface SlotTrendSummary {
   tone: InsightTone;
 }
 
+interface WorkerCallGroup {
+  key: string;
+  serviceUserName: string | null;
+  serviceUserArea: string | null;
+  serviceUserAddress: string | null;
+  normalizedServiceUserKey: string | null;
+  callTypeLabel: string;
+  callTypeKey: string;
+  timeBandLabel: string;
+  requirementStartMinutes: number | null;
+  requirementStartLabel: string | null;
+  durationMinutes: number | null;
+  totalCalls: number;
+  uniqueDays: number;
+  rows: RowAnalysis[];
+}
+
+interface CareWorkerRoster {
+  key: string;
+  workerName: string;
+  workerNameNormalized: string;
+  rows: RowAnalysis[];
+  uniqueServiceUsers: number;
+  uniqueDays: number;
+  callGroups: WorkerCallGroup[];
+  missingRequirementTimes: number;
+}
+
+interface OptimizedRouteEntry {
+  key: string;
+  serviceUserName: string | null;
+  callTypeLabel: string;
+  timeBandLabel: string;
+  requirementStartMinutes: number | null;
+  scheduledStartMinutes: number | null;
+  scheduledEndMinutes: number | null;
+  durationMinutes: number | null;
+  shiftMinutes: number | null;
+}
+
 export default function TestingFeatures() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const isAdmin = user?.role === "admin";
   const [fileMeta, setFileMeta] = useState<FileMeta | null>(null);
   const [analysisResults, setAnalysisResults] = useState<RowAnalysis[]>([]);
   const [processingState, setProcessingState] = useState<
@@ -336,6 +381,9 @@ export default function TestingFeatures() {
   const [includeCancelledCalls, setIncludeCancelledCalls] = useState(false);
   const [includeMismatchedWorkers, setIncludeMismatchedWorkers] = useState(false);
   const [callGroupSearch, setCallGroupSearch] = useState("");
+  const [careWorkerSearch, setCareWorkerSearch] = useState("");
+  const [selectedCareWorkerKey, setSelectedCareWorkerKey] = useState<string | null>(null);
+  const [selectedWorkerCallKeys, setSelectedWorkerCallKeys] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const analysisJobRef = useRef<number>(0);
   const dragCounterRef = useRef(0);
@@ -475,6 +523,9 @@ export default function TestingFeatures() {
 
       const plannedTimeMinutes = plannedTimeSource
         ? parseTimeToMinutes(plannedTimeSource.value)
+        : null;
+      const serviceRequirementTimeMinutes = serviceRequirementTimeField
+        ? parseTimeToMinutes(serviceRequirementTimeField.value)
         : null;
       const actualTimeMinutes = actualTimeField ? parseTimeToMinutes(actualTimeField.value) : null;
       const plannedEndTimeMinutes = plannedEndTimeField ? parseTimeToMinutes(plannedEndTimeField.value) : null;
@@ -654,6 +705,8 @@ export default function TestingFeatures() {
         actualDurationMinutes,
         plannedTimeMinutes,
         actualTimeMinutes,
+        serviceRequirementTimeMinutes,
+        serviceRequirementTimeLabel: deriveTimeLabel(serviceRequirementTimeMinutes, serviceRequirementTimeField?.value),
         plannedDateLabel: plannedDateParts.label,
         plannedDateKey: plannedDateParts.key,
         serviceUserName,
@@ -706,6 +759,14 @@ export default function TestingFeatures() {
 
   const processFile = useCallback(
     async (file: File) => {
+      if (!isAdmin) {
+        toast({
+          title: "Restricted access",
+          description: "Administrator access is required to use Testing Features.",
+          variant: "destructive",
+        });
+        return;
+      }
       if (!file.name.toLowerCase().match(/\.(csv|xlsx|xls)$/)) {
         toast({
           title: "Unsupported file",
@@ -727,6 +788,9 @@ export default function TestingFeatures() {
       setFilterStatus("all");
       setShowDuplicateRows(false);
       setCallGroupSearch("");
+      setCareWorkerSearch("");
+      setSelectedCareWorkerKey(null);
+      setSelectedWorkerCallKeys([]);
       setVisibleCount(INITIAL_VISIBLE_ROWS);
       setIncludeCancelledCalls(false);
       setIncludeMismatchedWorkers(false);
@@ -786,7 +850,7 @@ export default function TestingFeatures() {
         setProcessingState("idle");
       }
     },
-    [analyzeRows, toast]
+    [analyzeRows, isAdmin, toast]
   );
 
   const handleFileChange = useCallback(
@@ -1707,11 +1771,233 @@ export default function TestingFeatures() {
     };
   }, [serviceUserStacks, callGroupSearch]);
 
+  const careWorkerRosters = useMemo<CareWorkerRoster[]>(() => {
+    if (!primaryRows.length) return [];
+
+    const workerMap = new Map<string, { workerName: string; workerNameNormalized: string; rows: RowAnalysis[] }>();
+    primaryRows.forEach((row) => {
+      const workerName = row.actualWorker || row.plannedWorker;
+      if (!workerName) return;
+      const normalized = normalizeWorkerName(workerName) || workerName.toLowerCase();
+      if (!workerMap.has(normalized)) {
+        workerMap.set(normalized, {
+          workerName,
+          workerNameNormalized: normalized,
+          rows: [],
+        });
+      }
+      workerMap.get(normalized)!.rows.push(row);
+    });
+
+    return Array.from(workerMap.values())
+      .map((worker) => {
+        const serviceUserSet = new Set<string>();
+        const daySet = new Set<string>();
+        let missingRequirementTimes = 0;
+        const callGroupMap = new Map<
+          string,
+          {
+            key: string;
+            serviceUserName: string | null;
+            serviceUserArea: string | null;
+            serviceUserAddress: string | null;
+            normalizedServiceUserKey: string | null;
+            callTypeLabel: string;
+            callTypeKey: string;
+            timeBandLabel: string;
+            requirementTimes: number[];
+            durations: number[];
+            dayKeys: Set<string>;
+            rows: RowAnalysis[];
+          }
+        >();
+
+        worker.rows.forEach((row) => {
+          if (row.normalizedServiceUserKey) serviceUserSet.add(row.normalizedServiceUserKey);
+          if (row.plannedDateKey) daySet.add(row.plannedDateKey);
+          const requirementMinutes =
+            typeof row.serviceRequirementTimeMinutes === "number" ? row.serviceRequirementTimeMinutes : null;
+          if (requirementMinutes === null) missingRequirementTimes += 1;
+
+          if (!row.normalizedServiceUserKey) return;
+          const callTypeKey = normalizeCallTypeKey(row.callTypeLabel ?? null) || "unknown";
+          const timeBandLabel = deriveTimeBandLabel(requirementMinutes);
+          const groupKey = `${row.normalizedServiceUserKey}|${callTypeKey}|${timeBandLabel}`;
+
+          if (!callGroupMap.has(groupKey)) {
+            callGroupMap.set(groupKey, {
+              key: groupKey,
+              serviceUserName: row.serviceUserName ?? null,
+              serviceUserArea: row.serviceUserArea ?? null,
+              serviceUserAddress: row.serviceUserAddress ?? null,
+              normalizedServiceUserKey: row.normalizedServiceUserKey ?? null,
+              callTypeLabel: row.callTypeLabel ?? "Unknown",
+              callTypeKey,
+              timeBandLabel,
+              requirementTimes: [],
+              durations: [],
+              dayKeys: new Set<string>(),
+              rows: [],
+            });
+          }
+
+          const group = callGroupMap.get(groupKey)!;
+          group.rows.push(row);
+          if (!group.serviceUserName && row.serviceUserName) group.serviceUserName = row.serviceUserName;
+          if (!group.serviceUserArea && row.serviceUserArea) group.serviceUserArea = row.serviceUserArea;
+          if (!group.serviceUserAddress && row.serviceUserAddress) group.serviceUserAddress = row.serviceUserAddress;
+          if (typeof requirementMinutes === "number") group.requirementTimes.push(requirementMinutes);
+
+          const durationCandidate =
+            typeof row.plannedDurationMinutes === "number"
+              ? row.plannedDurationMinutes
+              : typeof row.actualDurationMinutes === "number"
+              ? row.actualDurationMinutes
+              : null;
+          if (typeof durationCandidate === "number" && Number.isFinite(durationCandidate)) {
+            group.durations.push(durationCandidate);
+          }
+          if (row.plannedDateKey) group.dayKeys.add(row.plannedDateKey);
+        });
+
+        const callGroups = Array.from(callGroupMap.values())
+          .map((group) => {
+            const requirementStartMinutes = calculateMedian(group.requirementTimes);
+            const requirementStartLabel = requirementStartMinutes !== null ? deriveTimeLabel(requirementStartMinutes, null) : null;
+            const durationMinutes = calculateMedian(group.durations);
+            return {
+              key: group.key,
+              serviceUserName: group.serviceUserName,
+              serviceUserArea: group.serviceUserArea,
+              serviceUserAddress: group.serviceUserAddress,
+              normalizedServiceUserKey: group.normalizedServiceUserKey,
+              callTypeLabel: group.callTypeLabel,
+              callTypeKey: group.callTypeKey,
+              timeBandLabel: group.timeBandLabel,
+              requirementStartMinutes,
+              requirementStartLabel,
+              durationMinutes,
+              totalCalls: group.rows.length,
+              uniqueDays: group.dayKeys.size,
+              rows: group.rows,
+            } satisfies WorkerCallGroup;
+          })
+          .sort((a, b) => {
+            const aStart = typeof a.requirementStartMinutes === "number" ? a.requirementStartMinutes : Number.POSITIVE_INFINITY;
+            const bStart = typeof b.requirementStartMinutes === "number" ? b.requirementStartMinutes : Number.POSITIVE_INFINITY;
+            if (aStart !== bStart) return aStart - bStart;
+            return (a.serviceUserName || "").localeCompare(b.serviceUserName || "");
+          });
+
+        return {
+          key: worker.workerNameNormalized,
+          workerName: worker.workerName,
+          workerNameNormalized: worker.workerNameNormalized,
+          rows: worker.rows,
+          uniqueServiceUsers: serviceUserSet.size,
+          uniqueDays: daySet.size,
+          callGroups,
+          missingRequirementTimes,
+        } satisfies CareWorkerRoster;
+      })
+      .sort((a, b) => {
+        const aName = parsePersonNameForSort(a.workerName);
+        const bName = parsePersonNameForSort(b.workerName);
+        if (aName.last !== bName.last) return aName.last.localeCompare(bName.last);
+        if (aName.first !== bName.first) return aName.first.localeCompare(bName.first);
+        return aName.full.localeCompare(bName.full);
+      });
+  }, [primaryRows]);
+
+  const { visibleCareWorkerRosters, careWorkerHasMatch } = useMemo(() => {
+    if (!careWorkerRosters.length) {
+      return { visibleCareWorkerRosters: [], careWorkerHasMatch: true };
+    }
+    const term = careWorkerSearch.trim().toLowerCase();
+    if (!term) {
+      return { visibleCareWorkerRosters: careWorkerRosters.slice(0, 8), careWorkerHasMatch: true };
+    }
+
+    const scored = careWorkerRosters.map((roster) => {
+      const name = roster.workerName.toLowerCase();
+      const score = name === term ? 4 : name.startsWith(term) ? 3 : name.includes(term) ? 1 : 0;
+      return { roster, score };
+    });
+    const matches = scored.filter((entry) => entry.score > 0);
+    const source = (matches.length ? matches : scored).sort(
+      (a, b) => b.score - a.score || a.roster.workerName.localeCompare(b.roster.workerName)
+    );
+
+    return {
+      visibleCareWorkerRosters: source.map((entry) => entry.roster).slice(0, 8),
+      careWorkerHasMatch: matches.length > 0,
+    };
+  }, [careWorkerRosters, careWorkerSearch]);
+
+  const selectedCareWorker = useMemo(
+    () => careWorkerRosters.find((roster) => roster.key === selectedCareWorkerKey) ?? null,
+    [careWorkerRosters, selectedCareWorkerKey]
+  );
+
+  const selectedWorkerGroups = useMemo(() => {
+    if (!selectedCareWorker) return [];
+    const selected = new Set(selectedWorkerCallKeys);
+    return selectedCareWorker.callGroups.filter((group) => selected.has(group.key));
+  }, [selectedCareWorker, selectedWorkerCallKeys]);
+
+  const optimizedRun = useMemo<OptimizedRouteEntry[]>(() => {
+    if (!selectedWorkerGroups.length) return [];
+    const sorted = [...selectedWorkerGroups].sort((a, b) => {
+      const aStart = typeof a.requirementStartMinutes === "number" ? a.requirementStartMinutes : Number.POSITIVE_INFINITY;
+      const bStart = typeof b.requirementStartMinutes === "number" ? b.requirementStartMinutes : Number.POSITIVE_INFINITY;
+      if (aStart !== bStart) return aStart - bStart;
+      return (a.serviceUserName || "").localeCompare(b.serviceUserName || "");
+    });
+
+    let currentEnd: number | null = null;
+    return sorted.map((group) => {
+      const durationMinutes =
+        typeof group.durationMinutes === "number" ? group.durationMinutes : DEFAULT_ROUTE_DURATION_MINUTES;
+      if (typeof group.requirementStartMinutes !== "number") {
+        return {
+          key: group.key,
+          serviceUserName: group.serviceUserName,
+          callTypeLabel: group.callTypeLabel,
+          timeBandLabel: group.timeBandLabel,
+          requirementStartMinutes: group.requirementStartMinutes,
+          scheduledStartMinutes: null,
+          scheduledEndMinutes: null,
+          durationMinutes: group.durationMinutes,
+          shiftMinutes: null,
+        };
+      }
+
+      let scheduledStart = group.requirementStartMinutes;
+      if (currentEnd !== null && scheduledStart < currentEnd) {
+        scheduledStart = currentEnd;
+      }
+      const scheduledEnd = scheduledStart + durationMinutes;
+      currentEnd = scheduledEnd;
+
+      return {
+        key: group.key,
+        serviceUserName: group.serviceUserName,
+        callTypeLabel: group.callTypeLabel,
+        timeBandLabel: group.timeBandLabel,
+        requirementStartMinutes: group.requirementStartMinutes,
+        scheduledStartMinutes: scheduledStart,
+        scheduledEndMinutes: scheduledEnd,
+        durationMinutes,
+        shiftMinutes: scheduledStart - group.requirementStartMinutes,
+      };
+    });
+  }, [selectedWorkerGroups]);
+
   const handleLoadMore = () => {
     setVisibleCount((prev) => Math.min(filteredResults.length, prev + INITIAL_VISIBLE_ROWS));
   };
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     analysisJobRef.current = Date.now();
     setFileMeta(null);
     setConvertedBlob(null);
@@ -1723,6 +2009,9 @@ export default function TestingFeatures() {
     setSelectedRow(null);
     setSearchTerm("");
     setCallGroupSearch("");
+    setCareWorkerSearch("");
+    setSelectedCareWorkerKey(null);
+    setSelectedWorkerCallKeys([]);
     setFilterStatus("all");
     setShowDuplicateRows(false);
     setIncludeCancelledCalls(false);
@@ -1730,7 +2019,28 @@ export default function TestingFeatures() {
     setVisibleCount(INITIAL_VISIBLE_ROWS);
     setProgress(0);
     setProcessingState("idle");
-  };
+  }, []);
+
+  useEffect(() => {
+    if (
+      !isAdmin &&
+      (analysisResults.length > 0 ||
+        fileMeta ||
+        convertedBlob ||
+        downloadUrl ||
+        processingState !== "idle")
+    ) {
+      handleReset();
+    }
+  }, [
+    analysisResults.length,
+    convertedBlob,
+    downloadUrl,
+    fileMeta,
+    handleReset,
+    isAdmin,
+    processingState,
+  ]);
 
   const triggerDownload = useCallback((blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -1744,6 +2054,14 @@ export default function TestingFeatures() {
   }, []);
 
   const handleExportFiltered = useCallback(() => {
+    if (!isAdmin) {
+      toast({
+        title: "Restricted access",
+        description: "Administrator access is required to export Testing Features data.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!filteredResults.length) {
       toast({
         title: "No rows to export",
@@ -1790,9 +2108,16 @@ export default function TestingFeatures() {
       title: "Export ready",
       description: `Exported ${filteredResults.length.toLocaleString()} rows.`,
     });
-  }, [filteredResults, filterStatus, showDuplicateRows, toast, triggerDownload]);
+  }, [filteredResults, filterStatus, isAdmin, showDuplicateRows, toast, triggerDownload]);
 
   const handleExportPdf = useCallback(() => {
+    if (!isAdmin) {
+      toast({
+        title: "Restricted access",
+        description: "Administrator access is required to export Testing Features data.",
+      });
+      return;
+    }
     if (!callGroups.length) {
       toast({
         title: "No data to export",
@@ -2161,7 +2486,7 @@ export default function TestingFeatures() {
     doc.setTextColor(0);
 
     doc.save("service-user-calls.pdf");
-  }, [callGroups, duplicateClusters, slotTrends, toast]);
+  }, [callGroups, duplicateClusters, isAdmin, slotTrends, toast]);
 
   if (user?.role !== "admin") {
     return (
@@ -2607,6 +2932,249 @@ export default function TestingFeatures() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </AccordionContent>
+            </AccordionItem>
+          )}
+
+          {careWorkerRosters.length > 0 && (
+            <AccordionItem value="care-worker-route-optimizer">
+              <AccordionTrigger>Care Worker Route Optimizer</AccordionTrigger>
+              <AccordionContent>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Care Worker Route Optimizer</CardTitle>
+                    <CardDescription>
+                      Save care worker/service user names from the file, then build a typical daily run using service requirement start times (no overlaps).
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {!careWorkerHasMatch && (
+                      <p className="text-xs text-muted-foreground">
+                        No direct match found — showing the nearest care workers instead.
+                      </p>
+                    )}
+                    <div className="grid gap-4 xl:grid-cols-[260px,1fr]">
+                      <div className="space-y-3">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            value={careWorkerSearch}
+                            onChange={(e) => setCareWorkerSearch(e.target.value)}
+                            placeholder="Search care worker"
+                            className="pl-9"
+                          />
+                        </div>
+                        <ScrollArea className="h-[360px] rounded-md border border-border/70">
+                          <div className="space-y-2 p-2">
+                            {visibleCareWorkerRosters.map((roster) => {
+                              const isSelected = roster.key === selectedCareWorkerKey;
+                              return (
+                                <button
+                                  key={roster.key}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedCareWorkerKey(roster.key);
+                                    setSelectedWorkerCallKeys([]);
+                                  }}
+                                  className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left transition ${
+                                    isSelected
+                                      ? "border-primary/50 bg-primary/10"
+                                      : "border-border/60 bg-background/60 hover:bg-muted/40"
+                                  }`}
+                                >
+                                  <div>
+                                    <p className="text-sm font-semibold text-foreground">{roster.workerName}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {roster.uniqueServiceUsers} service users • {roster.rows.length} calls
+                                    </p>
+                                  </div>
+                                  {isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </ScrollArea>
+                        <p className="text-xs text-muted-foreground">
+                          Saved {careWorkerRosters.length} care workers • {serviceUserStacks.length} service users
+                        </p>
+                      </div>
+
+                      <div className="space-y-4">
+                        {!selectedCareWorker ? (
+                          <Alert>
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>Select a care worker</AlertTitle>
+                            <AlertDescription>
+                              Choose a care worker on the left to view their typical daily calls and build a route.
+                            </AlertDescription>
+                          </Alert>
+                        ) : (
+                          <>
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-foreground">{selectedCareWorker.workerName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {selectedCareWorker.uniqueServiceUsers} service users • {selectedCareWorker.callGroups.length} call types • {selectedCareWorker.uniqueDays} days
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => {
+                                    const typicalKeys = selectedCareWorker.callGroups
+                                      .filter(
+                                        (group) =>
+                                          group.uniqueDays >= TYPICAL_DAY_MIN_OCCURRENCES &&
+                                          typeof group.requirementStartMinutes === "number"
+                                      )
+                                      .map((group) => group.key);
+                                    setSelectedWorkerCallKeys(typicalKeys);
+                                  }}
+                                >
+                                  Select typical day
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    const selectableKeys = selectedCareWorker.callGroups
+                                      .filter((group) => typeof group.requirementStartMinutes === "number")
+                                      .map((group) => group.key);
+                                    setSelectedWorkerCallKeys(selectableKeys);
+                                  }}
+                                >
+                                  Select all
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setSelectedWorkerCallKeys([])}
+                                >
+                                  Clear
+                                </Button>
+                              </div>
+                            </div>
+
+                            {selectedCareWorker.missingRequirementTimes > 0 && (
+                              <Alert>
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Missing service requirement times</AlertTitle>
+                                <AlertDescription>
+                                  {selectedCareWorker.missingRequirementTimes} calls have no service requirement time and are excluded from routing.
+                                </AlertDescription>
+                              </Alert>
+                            )}
+
+                            <div className="space-y-2">
+                              {selectedCareWorker.callGroups.map((group) => {
+                                const isSelected = selectedWorkerCallKeys.includes(group.key);
+                                const isSelectable = typeof group.requirementStartMinutes === "number";
+                                const durationLabel =
+                                  group.durationMinutes !== null
+                                    ? formatMinutesDisplay(group.durationMinutes)
+                                    : `${DEFAULT_ROUTE_DURATION_MINUTES} mins assumed`;
+                                return (
+                                  <div
+                                    key={group.key}
+                                    className={`flex flex-col gap-3 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+                                      isSelectable ? "border-border/60 bg-background/60" : "border-border/40 bg-muted/30"
+                                    }`}
+                                  >
+                                    <div>
+                                      <p className="text-sm font-semibold text-foreground">
+                                        {group.serviceUserName || "Unknown service user"}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {group.callTypeLabel} • {group.timeBandLabel} • Req{" "}
+                                        {group.requirementStartLabel || "No requirement time"}
+                                      </p>
+                                      <div className="mt-2 flex flex-wrap gap-2">
+                                        <Badge variant="outline" className="text-xs font-semibold">
+                                          {group.totalCalls} call{group.totalCalls === 1 ? "" : "s"}
+                                        </Badge>
+                                        <Badge variant="secondary" className="text-xs font-semibold">
+                                          {group.uniqueDays} days
+                                        </Badge>
+                                        <Badge variant="outline" className="text-xs font-semibold">
+                                          Duration {durationLabel}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                    <Switch
+                                      checked={isSelected}
+                                      onCheckedChange={(checked) => {
+                                        if (!isSelectable) return;
+                                        setSelectedWorkerCallKeys((prev) =>
+                                          checked ? (prev.includes(group.key) ? prev : [...prev, group.key]) : prev.filter((key) => key !== group.key)
+                                        );
+                                      }}
+                                      disabled={!isSelectable}
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <div className="rounded-2xl border border-border/70 bg-card/50 p-4">
+                              <p className="text-sm font-semibold text-foreground">Optimized run (no overlaps)</p>
+                              <p className="text-xs text-muted-foreground">
+                                Uses service requirement start times; overlapping calls are shifted forward to prevent clashes.
+                              </p>
+
+                              {optimizedRun.length ? (
+                                <div className="mt-3 space-y-2">
+                                  {optimizedRun.map((entry) => {
+                                    const requiredLabel = deriveTimeLabel(entry.requirementStartMinutes, null) || "—";
+                                    const scheduledStart = deriveTimeLabel(entry.scheduledStartMinutes, null) || "—";
+                                    const scheduledEnd = deriveTimeLabel(entry.scheduledEndMinutes, null) || "—";
+                                    const shiftLabel =
+                                      typeof entry.shiftMinutes === "number" && entry.shiftMinutes > 0
+                                        ? `+${Math.round(entry.shiftMinutes)} mins`
+                                        : "On time";
+                                    return (
+                                      <div
+                                        key={entry.key}
+                                        className="flex flex-col gap-2 rounded-xl border border-border/60 bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between"
+                                      >
+                                        <div>
+                                          <p className="text-sm font-semibold text-foreground">
+                                            {entry.serviceUserName || "Unknown service user"}
+                                          </p>
+                                          <p className="text-xs text-muted-foreground">
+                                            {entry.callTypeLabel} • {entry.timeBandLabel}
+                                          </p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                          <Badge variant="outline" className="text-xs font-semibold">
+                                            Required {requiredLabel}
+                                          </Badge>
+                                          <Badge variant="secondary" className="text-xs font-semibold">
+                                            Scheduled {scheduledStart} → {scheduledEnd}
+                                          </Badge>
+                                          <Badge variant="outline" className="text-xs font-semibold">
+                                            {shiftLabel}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <p className="mt-3 text-xs text-muted-foreground">
+                                  Select call groups above to generate an optimized run.
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -3829,6 +4397,26 @@ function normalizeWorkerName(value: string | null): string | null {
 function normalizeCallTypeKey(value: string | null): string | null {
   if (!value) return null;
   return value.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function calculateMedian(values: number[]): number | null {
+  const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+}
+
+function deriveTimeBandLabel(minutes: number | null): string {
+  if (minutes === null || Number.isNaN(minutes)) return "Unscheduled";
+  const normalized = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  if (normalized >= 4 * 60 && normalized < 11 * 60) return "AM";
+  if (normalized >= 11 * 60 && normalized < 14 * 60) return "Lunch";
+  if (normalized >= 14 * 60 && normalized < 17 * 60) return "Tea";
+  if (normalized >= 17 * 60 && normalized < 20 * 60) return "Evening";
+  return "Night";
 }
 
 function parsePersonNameForSort(name: string | null | undefined): { last: string; first: string; full: string } {
