@@ -60,9 +60,26 @@ const DATE_PATTERNS = [
   /\d{1,2}-\d{1,2}-\d{2,4}/g,
 ];
 const TIME_SLOT_PATTERN = /\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}/g;
-const CODE_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|PRN\s*[-–]?\s*R|PRN|MISSED|N\/A)\b/gi;
+const CODE_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/gi;
+const CODE_PATTERN_SINGLE = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/i;
 const TIME_PATTERN = /\d{1,2}:\d{2}/g;
 const INITIALS_PATTERN = /\b[A-Z]{2,3}\b/g;
+
+const normalizeGridCode = (raw: string): string => {
+  const normalized = raw
+    .toUpperCase()
+    .trim()
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, "");
+
+  if (normalized === "N/A" || normalized === "NA") return "N/A";
+  if (normalized === "F/A" || normalized === "FA") return "FA";
+  if (normalized === "PRNR" || normalized === "PRN-R") return "PRN-R";
+  if (normalized === "PRNAD" || normalized === "PRN-AD") return "PRN-AD";
+  if (normalized === "PRNAS" || normalized === "PRN-AS") return "PRN-AS";
+
+  return normalized;
+};
 
 export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   const uint8Array = new Uint8Array(pdfBuffer);
@@ -1051,8 +1068,8 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
               const contentUpper = content.toUpperCase();
 
               let code = "BLANK";
-              const codeMatch = contentUpper.match(/\b(AD|AS|P|R|MU|NH|SA|FA|PRN\s*[-–]?\s*R|PRN|MISSED|N\/?A)\b/);
-              if (codeMatch) code = codeMatch[1];
+              const codeMatch = contentUpper.match(CODE_PATTERN_SINGLE);
+              if (codeMatch) code = normalizeGridCode(codeMatch[1]);
 
               let careWorker = "";
               const initialsMatch = content.match(/\b([A-Z]{2,3})\b/);
@@ -1111,9 +1128,9 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
           let content = cellItems.map(i => i.str).join(" ");
         
           const contentUpper = content.toUpperCase();
-          const codeMatch = contentUpper.match(/\b(AD|AS|P|R|MU|NH|SA|FA|PRN\s*[-–]?\s*R|PRN|MISSED|N\/?A)\b/);
+          const codeMatch = contentUpper.match(CODE_PATTERN_SINGLE);
           if (codeMatch) {
-            code = codeMatch[1];
+            code = normalizeGridCode(codeMatch[1]);
           }
         
           const initialsMatch = content.match(/\b([A-Z]{2,3})\b/);
@@ -1243,16 +1260,21 @@ function groupByY(items: TextItem[], tolerance: number): TextItem[][] {
 }
 
 export function extractCodesFromCell(content: string): { code: string; careWorker: string; time: string } {
-  const codes = ["AD", "AS", "P", "R", "MU", "NH", "SA", "PRN", "N/A"];
+  const codes = ["AD", "AS", "P", "R", "MU", "NH", "SA", "FA", "PRN", "PRN-R", "PRN-AD", "PRN-AS", "MISSED", "N/A"];
   let foundCode = "BLANK";
   let careWorker = "";
   let time = "";
   
   const upperContent = content.toUpperCase();
-  for (const code of codes) {
-    if (upperContent.includes(code)) {
-      foundCode = code;
-      break;
+  const codeMatch = upperContent.match(CODE_PATTERN_SINGLE);
+  if (codeMatch) {
+    foundCode = normalizeGridCode(codeMatch[1]);
+  } else {
+    for (const code of codes) {
+      if (upperContent.includes(code)) {
+        foundCode = code;
+        break;
+      }
     }
   }
   

@@ -3015,18 +3015,27 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       
       // Helper to compute hasTime deterministically from entry
       const computeHasTime = (entry: any): boolean => {
-        // Prefer explicit hasTime boolean from AI
-        if (typeof entry.hasTime === 'boolean') {
-          return entry.hasTime;
-        }
-        // Fallback: regex-based detection from time field
         const timeStr = String(entry.time || "").trim();
-        if (timeStr === "" || timeStr === "-" || timeStr === "--" || 
-            timeStr.toLowerCase() === "n/a" || timeStr.toLowerCase() === "na" ||
-            timeStr.toLowerCase() === "null" || timeStr === "0") {
+        if (
+          timeStr === "" ||
+          timeStr === "-" ||
+          timeStr === "--" ||
+          timeStr.toLowerCase() === "n/a" ||
+          timeStr.toLowerCase() === "na" ||
+          timeStr.toLowerCase() === "null" ||
+          timeStr === "0"
+        ) {
           return false;
         }
-        return TIME_REGEX.test(timeStr);
+
+        // Treat time-slot ranges as missing explicit admin times.
+        const rangePattern = /\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/;
+        if (rangePattern.test(timeStr)) return false;
+
+        // Accept a single time token anywhere in the field.
+        if (TIME_REGEX.test(timeStr)) return true;
+        const tokenMatch = timeStr.match(/\b(?:0?[0-9]|1[0-9]|2[0-3])[:.]?[0-5][0-9](?:\s*(?:am|pm|AM|PM))?\b/);
+        return !!tokenMatch;
       };
       
       // Helper function to normalize entries for comparison (sort by medicationId, date, timeSlot, code)
@@ -3136,7 +3145,7 @@ Return JSON with entries ONLY for the medications listed above:
 CODES TO LOOK FOR (be thorough - don't miss any):
 - AD (administered), AS (assisted), P (prompted) - regular medications
     - PRN (given as needed) - PRN medications when given/administered
-    - PRN-R (PRN refused) - PRN medications refused when explicitly indicated
+    - PRN-AD / PRN-AS - PRN administered/assisted (some systems)
     - PRN-R (PRN refused) - PRN medications refused when explicitly indicated
 - R (refused) - medication was refused by service user - VERY IMPORTANT TO CAPTURE
 - MU (medication unavailable), NH (not home)
@@ -3149,6 +3158,7 @@ CRITICAL: FOR EVERY ENTRY YOU MUST INCLUDE "hasTime" BOOLEAN:
 
     PRN MEDICATION GUIDANCE:
     - PRN (usually shown in blue) means administered as needed
+    - PRN-AD / PRN-AS may appear and should be preserved when shown
     - PRN without a recorded time (red) means PRN refused -> use PRN-R
     - Apply PRN/PRN-R only if the medication is marked PRN in the prescription
     - Use R for refusals on non-PRN medications
@@ -3254,6 +3264,8 @@ Return JSON with entries ONLY for the medications listed above:
 CODES TO LOOK FOR (be thorough - don't miss any):
 - AD (administered), AS (assisted), P (prompted) - regular medications
 - PRN (given as needed) - PRN medications when given/administered
+- PRN-AD / PRN-AS - PRN administered/assisted (some systems)
+- PRN-R (PRN refused) - PRN medications refused when explicitly indicated
 - R (refused) - medication was refused by service user - VERY IMPORTANT TO CAPTURE
 - MU (medication unavailable), NH (not home)
 - SA (self-administered), FA (family administered)
@@ -3265,6 +3277,7 @@ CRITICAL: FOR EVERY ENTRY YOU MUST INCLUDE "hasTime" BOOLEAN:
 
 PRN MEDICATION GUIDANCE:
 - PRN (usually shown in blue) means administered as needed
+- PRN-AD / PRN-AS may appear and should be preserved when shown
 - PRN without a recorded time (red) means PRN refused -> use PRN-R
 - Apply PRN/PRN-R only if the medication is marked PRN in the prescription
 - Use R for refusals on non-PRN medications
@@ -3378,7 +3391,7 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       
       // Domain constraints for validation
       const validMedicationIds = new Set(medicationsWithIds.map((m: any) => m.medicationId));
-      const validCodes = new Set(["AD", "AS", "P", "PRN", "PRN-R", "R", "MU", "NH", "SA", "FA", "MISSED"]);
+      const validCodes = new Set(["AD", "AS", "P", "PRN", "PRN-R", "PRN-AD", "PRN-AS", "R", "MU", "NH", "SA", "FA", "MISSED"]);
       const validDates = new Set((metadata.dates || []).map((d: string) => d.toLowerCase().trim()));
       const validTimeSlots = new Set((metadata.timeSlots || []).map((t: string) => t.toLowerCase().trim()));
 
@@ -3393,6 +3406,8 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
 
         // Common variants
         if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
+        if (code === "PRNAD" || code === "PRN-AD") return "PRN-AD";
+        if (code === "PRNAS" || code === "PRN-AS") return "PRN-AS";
         if (code === "PRNR" || code === "PRN-R" || code === "PRNREFUSED" || code === "PRNREFUS") return "PRN-R";
         if (code === "PRNRF" || code === "PRNREF") return "PRN-R";
         if (code === "PRN" + "R") return "PRN-R";
