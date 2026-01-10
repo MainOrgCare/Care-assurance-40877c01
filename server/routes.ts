@@ -16,6 +16,7 @@ import { scanFile, computeFileHash, getCachedScan } from "./services/fileScan";
 import * as XLSX from "xlsx";
 import { convertPdfToImages } from "./services/pdfToImages";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
 // Vision-based extraction for improved EMAR accuracy
 
 const upload = multer({ 
@@ -56,7 +57,12 @@ const FORCE_LOGOUT_WARNING_SECONDS = 30;
 
 async function extractPdfTextWithPdfjs(pdfBuffer: Buffer): Promise<{ text: string; pageCount: number; pageCharCounts: number[]; pageTexts: string[] }> {
   const uint8Array = new Uint8Array(pdfBuffer);
-  const loadingTask = pdfjsLib.getDocument({ data: uint8Array, disableWorker: true } as any);
+  const loadingTask = pdfjsLib.getDocument({
+    data: uint8Array,
+    disableWorker: true,
+    standardFontDataUrl: new URL("../node_modules/pdfjs-dist/standard_fonts/", import.meta.url).toString(),
+    useSystemFonts: true,
+  } as any);
   const pdf = await loadingTask.promise;
 
   const pageCharCounts: number[] = [];
@@ -1886,6 +1892,24 @@ export async function registerRoutes(
 
       sendProgress(5, "Processing PDF...", "pdf_processing");
 
+      // STEP 0: Deterministic grid scan (baseline check before AI)
+      // This catches obvious non-admin codes that text/AI extraction might miss.
+      let gridBaseline: ParsedEMAR | null = null;
+      try {
+        sendProgress(6, "Running quick grid scan...", "grid_scan");
+        gridBaseline = await parseEMARGrid(req.file.buffer);
+        console.log("[EMAR GRID BASELINE]", {
+          dates: gridBaseline.dates?.length || 0,
+          timeSlots: gridBaseline.timeSlots?.length || 0,
+          medications: gridBaseline.medications?.length || 0,
+          cells: gridBaseline.cells?.length || 0,
+          debug: gridBaseline.debugInfo
+        });
+      } catch (gridError: any) {
+        // Non-fatal: continue with AI pipeline.
+        console.warn("[EMAR GRID BASELINE] Failed:", gridError?.message || gridError);
+      }
+
       // STEP 1: Extract text from PDF (primary method while Vision API unavailable)
       let extracted: Awaited<ReturnType<typeof extractPdfTextWithPdfjs>> | null = null;
       let documentText = "";
@@ -2999,7 +3023,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       };
       
       // Helper function to normalize entries for comparison (sort by medicationId, date, timeSlot, code)
-      // IMPORTANT: Includes hasTime for PRN refusal consensus
+      // IMPORTANT: Includes hasTime for documentation completeness
       const normalizeEntries = (entries: any[]): any[] => {
         return entries
           .map((e: any) => {
@@ -3032,7 +3056,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       };
       
       // Helper function to create hash of a SINGLE normalized entry (for per-entry consensus)
-      // Note: hasTime is explicitly included for PRN refusal consensus
+      // Note: hasTime is explicitly included for documentation completeness
       const hashSingleEntry = (entry: any): string => {
         let timeSlot = (entry.timeSlot || "").trim().toUpperCase();
         timeSlot = timeSlot.replace(/\s*-\s*/g, "-").replace(/\s+/g, " ");
@@ -3104,7 +3128,9 @@ Return JSON with entries ONLY for the medications listed above:
 
 CODES TO LOOK FOR (be thorough - don't miss any):
 - AD (administered), AS (assisted), P (prompted) - regular medications
-- PRN (given as needed) - PRN medications when given/administered
+    - PRN (given as needed) - PRN medications when given/administered
+    - PRN-R (PRN refused) - PRN medications refused when explicitly indicated
+    - PRN-R (PRN refused) - PRN medications refused when explicitly indicated
 - R (refused) - medication was refused by service user - VERY IMPORTANT TO CAPTURE
 - MU (medication unavailable), NH (not home)
 - SA (self-administered), FA (family administered)
@@ -3114,11 +3140,12 @@ CRITICAL: FOR EVERY ENTRY YOU MUST INCLUDE "hasTime" BOOLEAN:
 - hasTime: true = a specific time is recorded in the document (e.g., "08:30", "14:15")
 - hasTime: false = NO time is recorded, just initials or code present
 
-PRN MEDICATION TIME DETECTION (CRITICAL FOR REFUSALS):
-- Look carefully at each PRN row in the document
-- If there is a TIME value recorded (like 08:30, 2:15pm) -> hasTime: true
-- If there is NO time, just initials or blank -> hasTime: false
-- This is used to detect PRN refusals so BE ACCURATE about hasTime
+    PRN MEDICATION GUIDANCE:
+    - PRN (usually shown in blue) means administered as needed
+    - PRN without a recorded time (red) means PRN refused -> use PRN-R
+    - Apply PRN/PRN-R only if the medication is marked PRN in the prescription
+    - Use R for refusals on non-PRN medications
+    - Still set hasTime accurately for documentation completeness
 
 DATE ASSIGNMENT RULES (CRITICAL - prevents cross-day errors):
 1. The EMAR is a grid with DATE COLUMNS. Each date appears in the header row.
@@ -3133,7 +3160,7 @@ OTHER CRITICAL RULES:
 2. Look for ALL entries including those with codes R, MU, NH - these are just as important as AD/AS/P
 3. Care worker initials are typically 2 letters (e.g., RK, HB, BB, GM, SB)
 4. Skip only truly blank/empty cells - but capture ALL cells with any code or initials
-5. IGNORE RED COLORING when a code is present - if a time slot shows red but contains a valid code (AD, AS, R, etc.), follow the code not the color. Red color is often used just for visual emphasis.
+    5. For PRN meds: if PRN has no time recorded, treat it as PRN-R. For non-PRN meds, use R for refusals.
 
 MANUAL CODE ENTRY DETECTION (CRITICAL):
 - If a cell contains ONLY a code (AS, AD, P, R, etc.) with NO time and NO other initials, this is a MANUALLY ENTERED CODE by office staff
@@ -3229,11 +3256,12 @@ CRITICAL: FOR EVERY ENTRY YOU MUST INCLUDE "hasTime" BOOLEAN:
 - hasTime: true = a specific time is recorded in the document (e.g., "08:30", "14:15")
 - hasTime: false = NO time is recorded, just initials or code present
 
-PRN MEDICATION TIME DETECTION (CRITICAL FOR REFUSALS):
-- Look carefully at each PRN row in the document
-- If there is a TIME value recorded (like 08:30, 2:15pm) -> hasTime: true
-- If there is NO time, just initials or blank -> hasTime: false
-- This is used to detect PRN refusals so BE ACCURATE about hasTime
+PRN MEDICATION GUIDANCE:
+- PRN (usually shown in blue) means administered as needed
+- PRN without a recorded time (red) means PRN refused -> use PRN-R
+- Apply PRN/PRN-R only if the medication is marked PRN in the prescription
+- Use R for refusals on non-PRN medications
+- Still set hasTime accurately for documentation completeness
 
 DATE ASSIGNMENT RULES (CRITICAL - prevents cross-day errors):
 1. The EMAR is a grid with DATE COLUMNS. Each date appears in the header row.
@@ -3248,7 +3276,7 @@ OTHER CRITICAL RULES:
 2. Look for ALL entries including those with codes R, MU, NH - these are just as important as AD/AS/P
 3. Care worker initials are typically 2 letters (e.g., RK, HB, BB, GM, SB)
 4. Skip only truly blank/empty cells - but capture ALL cells with any code or initials
-5. IGNORE RED COLORING when a code is present - if a time slot shows red but contains a valid code (AD, AS, R, etc.), follow the code not the color. Red color is often used just for visual emphasis.
+5. For PRN meds: if PRN has no time recorded, treat it as PRN-R. For non-PRN meds, use R for refusals.
 
 MANUAL CODE ENTRY DETECTION (CRITICAL):
 - If a cell contains ONLY a code (AS, AD, P, R, etc.) with NO time and NO other initials, this is a MANUALLY ENTERED CODE by office staff
@@ -3597,30 +3625,30 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       console.log(`DEBUG: Extraction result: ${consensusStatus}, using ${extractedEntries.length} entries`);
       
       // =====================================================================
-      // POST-PROCESSING: Convert PRN entries without times to PRN-R (refused)
-      // In EMAR systems, PRN without time = PRN refused (shown in red)
-      // Uses computeHasTime() which was already applied during normalization
+      // PRN POLICY: PRN without a time = PRN refused (PRN-R).
+      // Apply only to medications marked as PRN in the prescription.
       // =====================================================================
-      
       let prnRefusalCount = 0;
       extractedEntries = extractedEntries.map((entry: any) => {
         const code = (entry.code || "").toUpperCase();
-        const isPrnMed = medicationsWithIds.some((m: any) => 
+        const isPrnMed = medicationsWithIds.some((m: any) =>
           m.medicationId === entry.medicationId && m.isPRN === true
         );
-        
+
         // Use computeHasTime for deterministic detection (same logic used in consensus)
         const hasTime = computeHasTime(entry);
-        
+
         // If this is a PRN medication entry with code "PRN" but no time, it's a refusal
         if (isPrnMed && code === "PRN" && !hasTime) {
           prnRefusalCount++;
-          console.log(`DEBUG: PRN->PRN-R conversion: medId=${entry.medicationId}, date=${entry.date}, timeSlot=${entry.timeSlot}, hasTime=${hasTime}, time="${entry.time}"`);
+          console.log(
+            `DEBUG: PRN->PRN-R conversion: medId=${entry.medicationId}, date=${entry.date}, timeSlot=${entry.timeSlot}, hasTime=${hasTime}, time="${entry.time}"`
+          );
           return { ...entry, code: "PRN-R", hasTime: false };
         }
         return entry;
       });
-      
+
       if (prnRefusalCount > 0) {
         console.log(`DEBUG: Converted ${prnRefusalCount} PRN entries without times to PRN-R (refused)`);
       }
@@ -4191,6 +4219,254 @@ If no equivalences found, return: {"equivalences": []}`
       });
       
       console.log(`DEBUG: Grid statistics - ${filledCells} filled cells, ${callCancelledCount} call cancelled (blank cells are NOT discrepancies)`);
+
+      // =====================================================================
+      // CHECK 5.9: GRID BASELINE CROSS-CHECK (BEFORE discrepancy validation)
+      // Purpose: if the deterministic grid scan sees important non-admin codes
+      // but AI extraction missed them, we still surface them as discrepancies.
+      // =====================================================================
+      if (gridBaseline && Array.isArray(gridBaseline.cells) && gridBaseline.cells.length > 0) {
+        const normalizeLoose = (s: unknown) =>
+          String(s || "")
+            .toLowerCase()
+            .replace(/[–—]/g, "-")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        const normalizeTimeSlotKey = (s: unknown) =>
+          normalizeLoose(s).replace(/\s*/g, "").replace(/\./g, ":");
+
+        const normalizeDateKey = (s: unknown) =>
+          normalizeLoose(s)
+            .replace(/,/g, "")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        const normalizeCodeLoose = (raw: unknown): string => {
+          const input = String(raw || "").toUpperCase().trim();
+          if (!input) return "";
+          let code = input
+            .replace(/[()\[\]{}]/g, "")
+            .replace(/[–—]/g, "-")
+            .replace(/\s+/g, "");
+
+          // Common variants
+          if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
+          if (code === "PRNR" || code === "PRNREFUSED" || code === "PRNREFUS" || code === "PRNREF" || code === "PRNRF") return "PRN-R";
+          if (code === "NOTHOME") return "NH";
+          if (code === "SELADMIN" || code === "SELFADMIN") return "SA";
+          if (code === "MEDUNAV" || code === "MEDUNAVAILABLE" || code === "UNAVAILABLE") return "MU";
+          if (code === "REFUSED" || code === "REFUSE" || code === "REF") return "R";
+          if (code === "NA" || code === "N/A") return "N/A";
+
+          return code;
+        };
+
+        const normalizeMedKey = (s: unknown) => {
+          const base = normalizeLoose(s)
+            .replace(/[^a-z0-9]+/g, " ")
+            .replace(/\b(mg|mcg|g|ml|iu|units?|unit|tablet|tablets|tab|tabs|capsule|capsules|cap|caps|patch|spray|drop|drops)\b/g, " ")
+            .replace(/\b\d+(?:\.\d+)?\b/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+          return base;
+        };
+
+        // Build AI extraction index by (med/date/timeSlot)
+        const aiMedKeys: Array<{ key: string; name: string }> = (medications || [])
+          .map((m: any) => ({ key: normalizeMedKey(m?.name), name: m?.name }))
+          .filter((m: any) => m.key);
+
+        const findBestAiMedKey = (gridMed: string): { key: string; name: string } | null => {
+          const g = normalizeMedKey(gridMed);
+          if (!g) return null;
+
+          // Exact match first
+          const exact = aiMedKeys.find((m) => m.key === g);
+          if (exact) return exact;
+
+          // Substring match with longest overlap
+          let best: { key: string; name: string } | null = null;
+          let bestScore = 0;
+          for (const m of aiMedKeys) {
+            if (!m.key) continue;
+            const a = m.key;
+            const hit = a.includes(g) || g.includes(a);
+            if (!hit) continue;
+            const score = Math.min(a.length, g.length);
+            if (score > bestScore) {
+              bestScore = score;
+              best = m;
+            }
+          }
+          return bestScore >= 6 ? best : null;
+        };
+
+        const slotKey = (medKey: string, date: unknown, timeSlot: unknown) =>
+          `${medKey}|${normalizeDateKey(date)}|${normalizeTimeSlotKey(timeSlot)}`;
+
+        const aiCodesBySlot = new Map<string, Set<string>>();
+        for (const entry of allEntries) {
+          const med = medications.find((m: any) => m.medicationId === entry.medicationId);
+          const medKey = normalizeMedKey(med?.name || entry.medication);
+          if (!medKey) continue;
+          const key = slotKey(medKey, entry.date, entry.timeSlot);
+          const code = normalizeCodeLoose(entry.code);
+          if (!aiCodesBySlot.has(key)) aiCodesBySlot.set(key, new Set());
+          if (code) aiCodesBySlot.get(key)!.add(code);
+        }
+
+        // Dedupe against existing discrepancies (by med/date/timeSlot/code)
+        const existingDiscKeys = new Set<string>();
+        for (const d of discrepancies) {
+          const medKey = normalizeMedKey(d.medication);
+          if (!medKey) continue;
+          const key = slotKey(medKey, d.date, d.timeSlot) + `|${normalizeCodeLoose(d.code)}`;
+          existingDiscKeys.add(key);
+        }
+
+        const IMPORTANT_CODES = new Set(["R", "PRN-R", "MU", "NH", "SA", "FA", "MISSED"]);
+        const verificationNotes: Record<string, string> = {
+          MU: "Check if medication unavailability is documented and escalated",
+          NH: "Check if not home status is documented",
+          SA: "Check if self-administration was appropriate and witnessed",
+          FA: "Check if family administration is documented and appropriate",
+        };
+        const pushVerificationItem = (
+          code: string,
+          context: { careWorkerName: string; date: string; medication: string; note?: string }
+        ) => {
+          const baseNote =
+            code === "PRN-R"
+              ? "Check if PRN refusal reason is documented and acceptable"
+              : code === "R"
+                ? "Check if refusal reason is documented and acceptable"
+                : verificationNotes[code] || "Check if this entry is documented appropriately";
+          const note = context.note ? `${baseNote} ${context.note}` : baseNote;
+          verificationItems.push({
+            careWorkerName: context.careWorkerName,
+            date: context.date,
+            medication: context.medication,
+            code,
+            note,
+          });
+        };
+        let missingImportant = 0;
+        let mismatchImportant = 0;
+        let scannedImportant = 0;
+
+        for (const cell of gridBaseline.cells) {
+          const code = normalizeCodeLoose(cell.code || cell.content);
+          if (!code || !IMPORTANT_CODES.has(code)) continue;
+          scannedImportant++;
+
+          const medMatch = findBestAiMedKey(cell.medication);
+          if (!medMatch) continue;
+
+          const sKey = slotKey(medMatch.key, cell.date, cell.timeSlot);
+          const codes = aiCodesBySlot.get(sKey);
+
+          const discKey = sKey + `|${code}`;
+          if (existingDiscKeys.has(discKey)) continue;
+
+          const careWorkerName = cell.careWorker || "Unknown";
+          const medicationName = medMatch.name || cell.medication;
+
+          const isRefusal = code === "R" || code === "PRN-R";
+          const isMissed = code === "MISSED";
+          const needsVerification = code === "MU" || code === "NH" || code === "SA" || code === "FA";
+
+          if (!codes || codes.size === 0) {
+            missingImportant++;
+
+            if (isRefusal) {
+              discrepancies.push({
+                careWorkerName,
+                date: cell.date,
+                timeSlot: cell.timeSlot,
+                medication: medicationName,
+                code,
+                issue:
+                  code === "PRN-R"
+                    ? "PRN medication refused (PRN-R) - requires documented reason"
+                    : "Medication refused (R) - requires documented reason",
+                severity: "high",
+                actions: { performanceNote: true, meeting: "phone", referToManager: false },
+              });
+              pushVerificationItem(code, { careWorkerName, date: cell.date, medication: medicationName });
+              existingDiscKeys.add(discKey);
+            } else if (isMissed) {
+              discrepancies.push({
+                careWorkerName,
+                date: cell.date,
+                timeSlot: cell.timeSlot,
+                medication: medicationName,
+                issue: "Missed medication - red/highlighted blank box indicates medication was not given",
+                severity: "high",
+                actions: { performanceNote: true, meeting: "phone", referToManager: true },
+              });
+              existingDiscKeys.add(discKey);
+            } else if (needsVerification) {
+              pushVerificationItem(code, { careWorkerName, date: cell.date, medication: medicationName });
+            }
+            continue;
+          }
+
+          if (!codes.has(code)) {
+            mismatchImportant++;
+            const extractedCodes = Array.from(codes).join(", ");
+            const mismatchNote = `(grid shows "${code}" but extraction captured "${extractedCodes}")`;
+
+            if (isRefusal) {
+              discrepancies.push({
+                careWorkerName,
+                date: cell.date,
+                timeSlot: cell.timeSlot,
+                medication: medicationName,
+                code,
+                issue: `Code mismatch: grid shows "${code}" but extraction captured "${extractedCodes}" (review this cell)`,
+                severity: "high",
+                actions: { performanceNote: true, meeting: "phone", referToManager: false },
+              });
+              pushVerificationItem(code, {
+                careWorkerName,
+                date: cell.date,
+                medication: medicationName,
+                note: mismatchNote,
+              });
+              existingDiscKeys.add(discKey);
+            } else if (isMissed) {
+              discrepancies.push({
+                careWorkerName,
+                date: cell.date,
+                timeSlot: cell.timeSlot,
+                medication: medicationName,
+                issue: `Code mismatch: grid shows "MISSED" but extraction captured "${extractedCodes}" (review this cell)`,
+                severity: "high",
+                actions: { performanceNote: true, meeting: "phone", referToManager: true },
+              });
+              existingDiscKeys.add(discKey);
+            } else if (needsVerification) {
+              pushVerificationItem(code, {
+                careWorkerName,
+                date: cell.date,
+                medication: medicationName,
+                note: mismatchNote,
+              });
+            }
+          }
+        }
+
+        if (scannedImportant > 0 && (missingImportant > 0 || mismatchImportant > 0)) {
+          warnings.push({
+            type: "grid_baseline_mismatch",
+            severity: missingImportant > 0 ? "high" : "medium",
+            medication: "Multiple",
+            description: `Baseline grid scan found ${scannedImportant} important non-admin code cells. Extraction missed ${missingImportant} and mismatched ${mismatchImportant}.`,
+            recommendedAction: "Review the affected rows/cells in the original EMAR. Consider re-running analysis or uploading a cleaner PDF export if available."
+          });
+        }
+      }
 
       // =====================================================================
       // CHECK 6: VALIDATE EXTRACTED ENTRIES (for codes like R, MU, NH, SA)

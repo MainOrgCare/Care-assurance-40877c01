@@ -1,5 +1,8 @@
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
+const getStandardFontDataUrl = () =>
+  new URL("../node_modules/pdfjs-dist/standard_fonts/", import.meta.url).toString();
+
 interface TextItem {
   str: string;
   x: number;
@@ -9,7 +12,7 @@ interface TextItem {
   page: number;
 }
 
-interface GridCell {
+export interface GridCell {
   medication: string;
   date: string;
   timeSlot: string;
@@ -19,7 +22,7 @@ interface GridCell {
   time: string;
 }
 
-interface ParsedEMAR {
+export interface ParsedEMAR {
   serviceUserName: string;
   allergies: string;
   auditPeriodStart: string;
@@ -60,7 +63,12 @@ const INITIALS_PATTERN = /\b[A-Z]{2,3}\b/g;
 export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   const uint8Array = new Uint8Array(pdfBuffer);
   // Server-side parsing: disable worker to avoid PDF.js API/worker version mismatches.
-  const loadingTask = pdfjsLib.getDocument({ data: uint8Array, disableWorker: true } as any);
+  const loadingTask = pdfjsLib.getDocument({
+    data: uint8Array,
+    disableWorker: true,
+    standardFontDataUrl: getStandardFontDataUrl(),
+    useSystemFonts: true,
+  } as any);
   const pdf = await loadingTask.promise;
   
   const allTextItems: TextItem[] = [];
@@ -355,7 +363,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   const medicationPattern = /\d+\s*(mg|mcg|ml|%|g|units?|iu)/i;
 
   // Some EMARs include medicines without strength units on the same line as forms/instructions.
-  const medicationPatternLoose = /\b(\d+\s*(mg|mcg|ml|%|g|units?|iu)|tablets?|capsules?|gel|patch|spray|drops?)\b/i;
+  const medicationPatternLoose = /\b(\d+\s*(mg|mcg|ml|%|g|units?|iu)|tablets?|capsules?|gel|patch|spray|drops?|cream|ointment|lotion|powder)\b/i;
 
   interface SlotColumn {
     slot: string;
@@ -459,7 +467,8 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     for (const cluster of clusters) {
       const bySlot = new Map<string, SlotCandidate>();
       for (const c of cluster) {
-        if (!bySlot.has(c.slot)) bySlot.set(c.slot, c);
+        const key = `${c.slot}|${Math.round(c.x / 40)}`;
+        if (!bySlot.has(key)) bySlot.set(key, c);
       }
       const unique = Array.from(bySlot.values()).sort((a, b) => a.x - b.x);
       if (unique.length < 2) continue;
@@ -481,7 +490,8 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
         const clusterSummaries = clusters.map((cluster) => {
           const bySlot = new Map<string, SlotCandidate>();
           for (const c of cluster) {
-            if (!bySlot.has(c.slot)) bySlot.set(c.slot, c);
+            const key = `${c.slot}|${Math.round(c.x / 40)}`;
+            if (!bySlot.has(key)) bySlot.set(key, c);
           }
           const unique = Array.from(bySlot.values()).sort((a, b) => a.x - b.x);
           const spread = unique.length >= 2 ? unique[unique.length - 1].x - unique[0].x : 0;
@@ -607,6 +617,115 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     }
 
     return rows;
+  };
+
+  const splitRowIntoSegments = (
+    rowItems: TextItem[],
+    gapThreshold: number
+  ): Array<{ items: TextItem[]; xMin: number; xMax: number }> => {
+    if (rowItems.length === 0) return [];
+    const sorted = [...rowItems].sort((a, b) => a.x - b.x);
+    const segments: Array<{ items: TextItem[]; xMin: number; xMax: number }> = [];
+    let current: TextItem[] = [sorted[0]];
+    let currentMin = sorted[0].x;
+    let currentMax = sorted[0].x + (sorted[0].width || 0);
+
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const cur = sorted[i];
+      const gap = cur.x - prev.x;
+      if (gap > gapThreshold) {
+        segments.push({ items: current, xMin: currentMin, xMax: currentMax });
+        current = [cur];
+        currentMin = cur.x;
+        currentMax = cur.x + (cur.width || 0);
+        continue;
+      }
+      current.push(cur);
+      currentMax = Math.max(currentMax, cur.x + (cur.width || 0));
+    }
+    segments.push({ items: current, xMin: currentMin, xMax: currentMax });
+    return segments;
+  };
+
+  const extractMedicationCandidatesForPage = (
+    page: number,
+    headerY: number | null,
+    upperBoundY: number | null
+  ): Array<{ name: string; x: number; y: number; xMin: number; xMax: number }> => {
+    const pageItems = itemsByPage.get(page) || [];
+    const rows = groupByY(pageItems, yTolerance);
+    const candidates: Array<{ name: string; x: number; y: number; xMin: number; xMax: number }> = [];
+
+    for (const row of rows) {
+      const avgY = row.reduce((sum, i) => sum + i.y, 0) / row.length;
+
+      if (headerY !== null) {
+        if (upperBoundY !== null && avgY >= upperBoundY) continue;
+        if (avgY <= headerY + 5) continue;
+        const distanceFromHeader = avgY - headerY;
+        if (distanceFromHeader > 220) continue;
+      }
+
+      const segments = splitRowIntoSegments(row, 45);
+      for (const segment of segments) {
+        // Focus on the left content region for medication labels.
+        if (segment.xMin > 520) continue;
+        const text = segment.items.map(i => i.str).join(" ").replace(/\s+/g, " ").trim();
+        if (!text) continue;
+        if (isLikelyDateLabel(text)) continue;
+        const slotHeaderRegex = new RegExp(TIME_SLOT_PATTERN.source, "i");
+        if (slotHeaderRegex.test(text)) continue;
+
+        const routeIndex = text.toLowerCase().indexOf("route");
+        const cleaned = (routeIndex > 0 ? text.slice(0, routeIndex) : text).trim();
+        if (!cleaned) continue;
+
+        const matchesMed = medicationPattern.test(cleaned) || medicationPatternLoose.test(cleaned);
+        let candidateName = cleaned;
+
+        if (!matchesMed && /route/i.test(text)) {
+          const routeParts = text
+            .split(/route/i)
+            .map(part => part.trim())
+            .filter(part => part.length > 0);
+          if (routeParts.length > 0) {
+            candidateName = routeParts[0];
+          }
+        }
+
+        const validCandidate =
+          matchesMed ||
+          (candidateName !== cleaned && /[a-zA-Z]/.test(candidateName) && candidateName.length >= 3);
+        if (!validCandidate) continue;
+
+        const xCenter = (segment.xMin + segment.xMax) / 2;
+        candidates.push({
+          name: candidateName.substring(0, 140).trim(),
+          x: xCenter,
+          y: avgY,
+          xMin: segment.xMin,
+          xMax: segment.xMax,
+        });
+      }
+    }
+
+    const deduped: Array<{ name: string; x: number; y: number; xMin: number; xMax: number }> = [];
+    for (const candidate of candidates.sort((a, b) => a.x - b.x)) {
+      const existing = deduped.find((d) => Math.abs(d.x - candidate.x) <= 40);
+      if (!existing) {
+        deduped.push(candidate);
+        continue;
+      }
+      if (candidate.name.length > existing.name.length) {
+        existing.name = candidate.name;
+        existing.y = candidate.y;
+        existing.x = candidate.x;
+        existing.xMin = candidate.xMin;
+        existing.xMax = candidate.xMax;
+      }
+    }
+    return deduped;
   };
 
   const inferMedicationNameForPage = (page: number, headerY: number | null, upperBoundY: number | null): string => {
@@ -813,55 +932,145 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
 
         // Upper bound prevents the medication-name heuristic from selecting the prior stacked section.
         const upperBoundY = prevSection ? prevSection.headerY - 2 : null;
-        const medName =
-          inferMedicationNameForPage(page, section.headerY, upperBoundY) ||
-          `Medication page ${page} block ${sectionIndex + 1}`;
+        const medCandidates = extractMedicationCandidatesForPage(page, section.headerY, upperBoundY);
 
-        transposedMedications.push({
-          name: medName,
-          row: transposedMedications.length,
-          instructions: "",
-          timeSlots: section.columns.map(c => c.slot),
-        });
-
-        for (const dr of sectionDateRows) {
-          for (const col of section.columns) {
-            const cellItems = pageItems.filter(item =>
-              item.x >= col.xStart &&
-              item.x < col.xEnd &&
-              item.y <= dr.yStart &&
-              item.y >= dr.yEnd &&
-              item.y <= yUpper &&
-              item.y >= yLower
-            );
-
-            const content = cellItems.map(i => i.str).join(" ");
-            const contentUpper = content.toUpperCase();
-
-            let code = "BLANK";
-            const codeMatch = contentUpper.match(/\b(AD|AS|P|R|MU|NH|SA|FA|PRN\s*[-–]?\s*R|PRN|MISSED|N\/?A)\b/);
-            if (codeMatch) code = codeMatch[1];
-
-            let careWorker = "";
-            const initialsMatch = content.match(/\b([A-Z]{2,3})\b/);
-            if (initialsMatch && !["AD", "AS", "MU", "NH", "SA", "FA", "PRN"].includes(initialsMatch[1])) {
-              careWorker = initialsMatch[1];
+        const assignColumnsToMeds = (
+          columns: SlotColumn[],
+          meds: Array<{ name: string; x: number; y: number; xMin: number; xMax: number }>
+        ): Map<number, SlotColumn[]> => {
+          const grouped = new Map<number, SlotColumn[]>();
+          for (let i = 0; i < meds.length; i++) grouped.set(i, []);
+          for (const col of columns) {
+            const center = (col.xStart + col.xEnd) / 2;
+            let bestIndex = 0;
+            let bestDist = Number.POSITIVE_INFINITY;
+            let inBandIndex = -1;
+            let inBandDist = Number.POSITIVE_INFINITY;
+            for (let i = 0; i < meds.length; i++) {
+              const dist = Math.abs(center - meds[i].x);
+              const bandMin = Math.max(0, meds[i].xMin - 40);
+              const bandMax = meds[i].xMax + 120;
+              if (center >= bandMin && center <= bandMax && dist < inBandDist) {
+                inBandIndex = i;
+                inBandDist = dist;
+              }
+              if (dist < bestDist) {
+                bestDist = dist;
+                bestIndex = i;
+              }
             }
+            const targetIndex = inBandIndex >= 0 ? inBandIndex : bestIndex;
+            grouped.get(targetIndex)!.push(col);
+          }
 
-            let time = "";
-            const timeMatch = content.match(/\d{1,2}:\d{2}/);
-            // Avoid confusing time slots with an actual administered time
-            if (timeMatch && !TIME_SLOT_PATTERN.test(content)) time = timeMatch[0];
+          // Ensure each medication gets at least one column, even if shared.
+          for (let i = 0; i < meds.length; i++) {
+            if ((grouped.get(i) || []).length > 0) continue;
+            let closest: SlotColumn | null = null;
+            let closestDist = Number.POSITIVE_INFINITY;
+            for (const col of columns) {
+              const center = (col.xStart + col.xEnd) / 2;
+              const dist = Math.abs(center - meds[i].x);
+              if (dist < closestDist) {
+                closestDist = dist;
+                closest = col;
+              }
+            }
+            if (closest) grouped.get(i)!.push(closest);
+          }
+          return grouped;
+        };
 
-            transposedPageCells.push({
-              medication: medName,
-              date: dr.date,
-              timeSlot: col.slot,
-              content,
-              code,
-              careWorker,
-              time,
-            });
+        const medGroups =
+          medCandidates.length > 0
+            ? assignColumnsToMeds(section.columns, medCandidates)
+            : new Map<number, SlotColumn[]>([
+                [0, section.columns],
+              ]);
+
+        const medsForSection =
+          medCandidates.length > 0
+            ? medCandidates
+            : [
+                {
+                  name:
+                    inferMedicationNameForPage(page, section.headerY, upperBoundY) ||
+                    `Medication page ${page} block ${sectionIndex + 1}`,
+                  x: section.columns[0]?.xStart || 0,
+                  y: section.headerY,
+                },
+              ];
+
+        const dedupeColumnsBySlot = (columns: SlotColumn[], targetX: number): SlotColumn[] => {
+          const bySlot = new Map<string, SlotColumn>();
+          for (const col of columns) {
+            const slotKey = normalizeSlot(col.slot);
+            const center = (col.xStart + col.xEnd) / 2;
+            const existing = bySlot.get(slotKey);
+            if (!existing) {
+              bySlot.set(slotKey, col);
+              continue;
+            }
+            const existingCenter = (existing.xStart + existing.xEnd) / 2;
+            if (Math.abs(center - targetX) < Math.abs(existingCenter - targetX)) {
+              bySlot.set(slotKey, col);
+            }
+          }
+          return Array.from(bySlot.values());
+        };
+
+        for (let i = 0; i < medsForSection.length; i++) {
+          const med = medsForSection[i];
+          const assignedColumnsRaw = medGroups.get(i) || [];
+          const assignedColumns = dedupeColumnsBySlot(assignedColumnsRaw, med.x);
+          if (assignedColumns.length === 0) continue;
+
+          transposedMedications.push({
+            name: med.name,
+            row: transposedMedications.length,
+            instructions: "",
+            timeSlots: assignedColumns.map(c => c.slot),
+          });
+
+          for (const dr of sectionDateRows) {
+            for (const col of assignedColumns) {
+              const cellItems = pageItems.filter(item =>
+                item.x >= col.xStart &&
+                item.x < col.xEnd &&
+                item.y <= dr.yStart &&
+                item.y >= dr.yEnd &&
+                item.y <= yUpper &&
+                item.y >= yLower
+              );
+
+              const content = cellItems.map(i => i.str).join(" ");
+              const contentUpper = content.toUpperCase();
+
+              let code = "BLANK";
+              const codeMatch = contentUpper.match(/\b(AD|AS|P|R|MU|NH|SA|FA|PRN\s*[-–]?\s*R|PRN|MISSED|N\/?A)\b/);
+              if (codeMatch) code = codeMatch[1];
+
+              let careWorker = "";
+              const initialsMatch = content.match(/\b([A-Z]{2,3})\b/);
+              if (initialsMatch && !["AD", "AS", "MU", "NH", "SA", "FA", "PRN"].includes(initialsMatch[1])) {
+                careWorker = initialsMatch[1];
+              }
+
+              let time = "";
+              const timeMatch = content.match(/\d{1,2}:\d{2}/);
+              // Avoid confusing time slots with an actual administered time
+              if (timeMatch && !TIME_SLOT_PATTERN.test(content)) time = timeMatch[0];
+
+              transposedPageCells.push({
+                medication: med.name,
+                date: dr.date,
+                timeSlot: col.slot,
+                content,
+                code,
+                careWorker,
+                time,
+              });
+            }
           }
         }
       }
@@ -968,7 +1177,13 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     allergies = allergyMatch[1].trim();
   }
   
-  console.log(`DEBUG: Parser complete - ${dateColumns.length} dates, ${medicationBlocks.length} meds, ${cells.length} cells`);
+  const detectedDatesCount = dates.length;
+  const detectedMedsCount = medicationBlocks.length > 0 ? medicationBlocks.length : transposedMedications.length;
+  const parserMode =
+    medicationBlocks.length > 0 ? "grid" : transposedMedications.length > 0 ? "transposed" : "unknown";
+  console.log(
+    `DEBUG: Parser complete (${parserMode}) - ${detectedDatesCount} dates, ${detectedMedsCount} meds, ${cells.length} cells`
+  );
   
   return {
     serviceUserName,

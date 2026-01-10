@@ -1,0 +1,9 @@
+{
+    "chatgpt.openOnStartup": false,
+    "github.copilot.chat.agent.autoFix": true,
+    "github.codespaces.defaultExtensions": [
+        "GitHub.codespaces",
+        "GitHub.vscode-pull-request-github",
+        "Github.copilot"
+    ]
+}

@@ -25,7 +25,12 @@ async function main() {
 	const uint8Array = new Uint8Array(buffer);
 
 	// Node script: disable worker to avoid PDF.js API/worker version mismatches.
-	const loadingTask = pdfjsLib.getDocument({ data: uint8Array, disableWorker: true } as any);
+	const loadingTask = pdfjsLib.getDocument({
+		data: uint8Array,
+		disableWorker: true,
+		standardFontDataUrl: new URL("../node_modules/pdfjs-dist/standard_fonts/", import.meta.url).toString(),
+		useSystemFonts: true,
+	} as any);
 	const pdf = await loadingTask.promise;
 
 	const dateHits: Hit[] = [];

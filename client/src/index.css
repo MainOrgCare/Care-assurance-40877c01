@@ -89,16 +89,16 @@
     z-index: -1;
   }
   body::before {
-    background: radial-gradient(circle at 20% 20%, hsla(200, 90%, 60%, 0.18), transparent 45%),
-                radial-gradient(circle at 80% 0%, hsla(280, 80%, 65%, 0.14), transparent 50%),
-                radial-gradient(circle at 50% 80%, hsla(170, 70%, 55%, 0.12), transparent 40%);
+    background: radial-gradient(circle at 18% 18%, hsla(200, 70%, 55%, 0.12), transparent 50%),
+                radial-gradient(circle at 82% 10%, hsla(210, 65%, 55%, 0.08), transparent 55%),
+                radial-gradient(circle at 55% 78%, hsla(170, 60%, 50%, 0.1), transparent 45%);
     /* Keep background static (no ambient motion) */
   }
   body::after {
     background-image: linear-gradient(120deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
                       linear-gradient(0deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
     background-size: 220px 220px, 160px 160px;
-    opacity: 0.25;
+    opacity: 0.1;
     /* Keep background static (no ambient motion) */
   }
   h1, h2, h3, h4, h5, h6 {
@@ -429,12 +429,12 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
   }
   .particle-field {
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #3b82f6;
+    width: 1.5px;
+    height: 1.5px;
+    background: rgba(148, 203, 255, 0.4);
     border-radius: 50%;
     /* Disable looping float */
-    box-shadow: 0 0 6px #3b82f6;
+    box-shadow: none;
   }
 }
 
