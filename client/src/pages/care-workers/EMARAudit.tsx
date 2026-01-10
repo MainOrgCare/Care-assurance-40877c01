@@ -615,6 +615,14 @@ export default function EMARAudit() {
               setAnalyzed(true);
               receivedResult = true;
               toast({ title: "Analysis Complete", description: "EMAR analysis processed successfully." });
+            } else if (eventType === 'warning') {
+              const message = data.message || "Warning";
+              const isHighSeverity = /alert|high[-\s]severity/i.test(message);
+              toast({
+                title: "Warning",
+                description: message,
+                variant: isHighSeverity ? "destructive" : "default",
+              });
             } else if (eventType === 'error') {
               throw new Error(data.message || "Analysis failed");
             }
@@ -649,6 +657,14 @@ export default function EMARAudit() {
               setAnalyzed(true);
               receivedResult = true;
               toast({ title: "Analysis Complete", description: "EMAR analysis processed successfully." });
+            } else if (eventType === 'warning') {
+              const message = data.message || "Warning";
+              const isHighSeverity = /alert|high[-\s]severity/i.test(message);
+              toast({
+                title: "Warning",
+                description: message,
+                variant: isHighSeverity ? "destructive" : "default",
+              });
             } else if (eventType === 'error') {
               throw new Error(data.message || "Analysis failed");
             }

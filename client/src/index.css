@@ -46,6 +46,11 @@
   --color-border: hsl(215 28% 30% / 0.5);
   --color-input: hsl(215 28% 30% / 0.5);
   --color-ring: hsl(210 100% 50%);
+  --color-primary-border: hsl(210 100% 42% / 0.6);
+  --color-secondary-border: hsl(170 60% 35% / 0.6);
+  --color-destructive-border: hsl(0 84% 45% / 0.6);
+  --button-outline: hsl(215 28% 35% / 0.6);
+  --badge-outline: hsl(215 28% 40% / 0.6);
 
   /* Chart Colors */
   --color-chart-1: hsl(210 100% 50%); /* Blue */
@@ -103,6 +108,10 @@
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading font-bold tracking-tight;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
   }
 }
 
@@ -220,11 +229,13 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
 @layer utilities {
   .glass-card {
     background-color: var(--color-card);
-    backdrop-filter: blur(20px);
+    background-image: linear-gradient(140deg, var(--glass-highlight-strong), transparent 55%);
+    backdrop-filter: blur(20px) saturate(140%);
     border: 1px solid var(--glass-border);
     box-shadow: var(--glass-shadow);
     position: relative;
     overflow: hidden;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
   }
   .glass-card::before {
     content: '';
@@ -237,13 +248,36 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     background: none;
     transition: none;
   }
+  .glass-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 15% 0%, var(--glass-highlight), transparent 60%);
+    opacity: 0.8;
+    pointer-events: none;
+  }
   .glass-card:hover::before {
     left: -100%;
   }
   .glass-panel {
     background-color: var(--color-muted);
+    background-image: linear-gradient(120deg, var(--glass-highlight), transparent 70%);
     backdrop-filter: blur(12px);
     border: 1px solid var(--glass-border-subtle);
+  }
+  .hover-elevate {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .hover-elevate:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+  }
+  .active-elevate-2:active {
+    transform: translateY(1px) scale(0.98);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+  }
+  .neon-text {
+    text-shadow: 0 0 16px rgba(59, 130, 246, 0.35);
   }
   .shimmer {
     position: relative;
@@ -523,12 +557,16 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
   --glass-border: rgba(255, 255, 255, 0.1);
   --glass-border-subtle: rgba(255, 255, 255, 0.05);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --glass-highlight: rgba(255, 255, 255, 0.08);
+  --glass-highlight-strong: rgba(255, 255, 255, 0.12);
 }
 
 .theme-light {
   --glass-border: rgba(0, 0, 0, 0.08);
   --glass-border-subtle: rgba(0, 0, 0, 0.05);
   --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --glass-highlight: rgba(0, 0, 0, 0.04);
+  --glass-highlight-strong: rgba(0, 0, 0, 0.08);
 }
 
 .theme-midnight {
@@ -562,6 +600,11 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
   --color-border: hsl(260 30% 25% / 0.5);
   --color-input: hsl(260 30% 25% / 0.5);
   --color-ring: hsl(262 83% 58%);
+  --color-primary-border: hsl(262 83% 45% / 0.55);
+  --color-secondary-border: hsl(280 65% 45% / 0.55);
+  --color-destructive-border: hsl(0 84% 45% / 0.55);
+  --button-outline: hsl(260 30% 30% / 0.6);
+  --badge-outline: hsl(260 30% 35% / 0.6);
   --color-sidebar: hsl(260 30% 6% / 0.8);
   --color-sidebar-foreground: hsl(260 20% 90%);
   --color-sidebar-primary: hsl(262 83% 58%);
@@ -591,6 +634,11 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
   --color-border: hsl(200 35% 28% / 0.5);
   --color-input: hsl(200 35% 28% / 0.5);
   --color-ring: hsl(168 76% 42%);
+  --color-primary-border: hsl(168 76% 34% / 0.55);
+  --color-secondary-border: hsl(199 89% 38% / 0.55);
+  --color-destructive-border: hsl(0 84% 45% / 0.55);
+  --button-outline: hsl(200 35% 32% / 0.6);
+  --badge-outline: hsl(200 35% 36% / 0.6);
   --color-sidebar: hsl(200 35% 8% / 0.8);
   --color-sidebar-foreground: hsl(200 20% 90%);
   --color-sidebar-primary: hsl(168 76% 42%);
@@ -622,6 +670,11 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
   --color-border: hsl(220 15% 85%);
   --color-input: hsl(220 15% 85%);
   --color-ring: hsl(220 85% 50%);
+  --color-primary-border: hsl(220 85% 42% / 0.45);
+  --color-secondary-border: hsl(160 60% 30% / 0.45);
+  --color-destructive-border: hsl(0 72% 45% / 0.45);
+  --button-outline: hsl(220 15% 75% / 0.7);
+  --badge-outline: hsl(220 15% 70% / 0.7);
   --color-sidebar: hsl(220 20% 98%);
   --color-sidebar-foreground: hsl(220 25% 25%);
   --color-sidebar-primary: hsl(220 85% 50%);

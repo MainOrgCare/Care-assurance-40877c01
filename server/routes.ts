@@ -453,6 +453,7 @@ async function checkDrugInteractions(
 
   try {
     // Use GPT-4.1-mini for drug interactions - cost-efficient with temperature support
+    const deterministicSeed = 42;
     const response = await createChatCompletionWithLogging({
       model: "gpt-4.1-mini",
       messages: [
@@ -476,6 +477,7 @@ If none found: {"interactions": []}`
       ],
       max_completion_tokens: 800,
       temperature: 0,
+      seed: deterministicSeed,
       response_format: { type: "json_object" }
     }, "drug_interactions", userContext);
 
@@ -2720,6 +2722,7 @@ EXTRACTION RULES:
    - scheduledTimeSlots: The time slots that apply to this medication
 4. dates: Extract ALL dates visible in the EXACT format shown
 5. timeSlots: Look for time windows in the document
+6. medications: Include EVERY medication row you can see, even if no strength/unit is shown or it appears only once across pages.
 
 IMPORTANT: Extract exactly what you see in the text - don't guess or make assumptions.`;
 
@@ -2792,6 +2795,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         dates: [] as string[],
         timeSlots: [] as string[]
       };
+      let drugInteractions: DrugInteraction[] = [];
       
       try {
         for (const content of metadataContents) {
@@ -2814,21 +2818,6 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         sendEvent('error', { message: "No medications found in the document. Please check the PDF contains medication records." });
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
-      }
-
-      // =====================================================================
-      // DRUG INTERACTION CHECK
-      // =====================================================================
-      sendProgress(16, "Checking for drug interactions...", "drug_interaction_check");
-      const drugInteractions = await checkDrugInteractions(metadata.medications, aiUserContext);
-      if (drugInteractions.length > 0) {
-        console.log(`DEBUG: Found ${drugInteractions.length} potential drug interactions`);
-        const highSeverity = drugInteractions.filter(d => d.severity === 'high').length;
-        if (highSeverity > 0) {
-          sendEvent('warning', { 
-            message: `ALERT: ${highSeverity} high-severity drug interaction(s) detected. Review medications carefully.`
-          });
-        }
       }
       
       // =====================================================================
@@ -2918,74 +2907,237 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       let forceMultiPass = false;
       const expectedEntriesPerMedication = new Map<number, number>();
       
-      const medicationListPrompt = `Analyze the EMAR document text and list DISTINCT medications mentioned. Return JSON: {"medications": ["Med 1", "Med 2"]}. Only include medication names, no dates/times.`;
+      const medicationListPrompt = `Analyze the EMAR document text and list DISTINCT medications mentioned. Include strength and form if shown (e.g., "Paracetamol 500mg tablets"). Include PRN and topical items. Do NOT include headings, dates, times, routes, signatures or codes. Return JSON: {"medications": ["Med 1", "Med 2"]}.`;
 
-      const countMedications = async (): Promise<number> => {
-        try {
-          // Use GPT-4o-mini for count validation - simple task, 33x cheaper
-          const texts = (emarMode === "legacy" && Array.isArray(legacyTextChunks) && legacyTextChunks.length > 0)
-            ? legacyTextChunks
-            : [analysisText];
+      const normalizeMedicationKey = (name: string): string =>
+        (name || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
 
-          const allMeds = new Set<string>();
-          const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+      const isLikelyMedicationLabel = (name: string): boolean => {
+        const cleaned = (name || "").replace(/\s+/g, " ").trim();
+        if (!cleaned || cleaned.length < 3) return false;
+        if (!/[a-zA-Z]/.test(cleaned)) return false;
+        const lower = cleaned.toLowerCase();
+        if (["n/a", "na", "none", "unknown"].includes(lower)) return false;
+        const blocked = [
+          "medication",
+          "medications",
+          "medicine",
+          "route",
+          "dose",
+          "dosage",
+          "time",
+          "time slot",
+          "date",
+          "signature",
+          "initials",
+          "administered",
+          "emar",
+          "chart",
+          "record",
+          "page",
+          "allergy",
+          "allergies",
+          "service user",
+          "patient",
+          "name",
+        ];
+        if (blocked.some((term) => lower === term || lower.startsWith(`${term} `))) return false;
+        if (/^\d{1,2}:\d{2}/.test(cleaned)) return false;
+        return true;
+      };
 
-          for (const text of texts) {
+      const mergeMedicationMaps = (target: Map<string, string>, source: Map<string, string>) => {
+        for (const [key, name] of source.entries()) {
+          const existing = target.get(key);
+          if (!existing || name.length > existing.length) {
+            target.set(key, name);
+          }
+        }
+      };
+
+      const collectMedicationList = async (): Promise<Map<string, string>> => {
+        const medsByKey = new Map<string, string>();
+        const texts = (emarMode === "legacy" && Array.isArray(legacyTextChunks) && legacyTextChunks.length > 0)
+          ? legacyTextChunks
+          : [analysisText];
+
+        for (const text of texts) {
+          try {
             const response = await createChatCompletionWithLogging({
               model: "gpt-4.1-mini",
               messages: [
                 { role: "system", content: medicationListPrompt },
-                { role: "user", content: `List medications in this document:\n\n${text}` }
+                { role: "user", content: `List medications in this document:\n\n${text}` },
               ],
               temperature: 0,
               max_completion_tokens: 500,
               seed: DETERMINISTIC_SEED,
               response_format: { type: "json_object" },
             }, "emar_count_validation", aiUserContext);
+
             const content = response.choices[0]?.message?.content || '{"medications":[]}';
-            const parsed = JSON.parse(content);
+            let parsed: any = null;
+            try {
+              parsed = JSON.parse(content);
+            } catch {
+              const match = content.match(/\{[\s\S]*\}/);
+              parsed = match ? JSON.parse(match[0]) : { medications: [] };
+            }
             const meds = Array.isArray(parsed.medications) ? parsed.medications : [];
             for (const m of meds) {
               const name = typeof m === "string" ? m.trim() : "";
-              if (!name) continue;
-              allMeds.add(normalize(name));
+              if (!name || !isLikelyMedicationLabel(name)) continue;
+              const key = normalizeMedicationKey(name);
+              if (!key) continue;
+              const existing = medsByKey.get(key);
+              if (!existing || name.length > existing.length) {
+                medsByKey.set(key, name);
+              }
             }
+          } catch (e) {
+            console.error(`Medication list extraction error:`, e);
           }
-
-          return allMeds.size;
-        } catch (e) {
-          console.error(`Medication count error:`, e);
-          return 0;
         }
+
+        return medsByKey;
+      };
+
+      const countMedications = async (): Promise<{ count: number; medsByKey: Map<string, string> }> => {
+        const medsByKey = await collectMedicationList();
+        return { count: medsByKey.size, medsByKey };
       };
       
       // COST OPTIMIZATION: Single pass for count, only run consensus if mismatch
-      const extractedMedicationCount = metadata.medications?.length || 0;
-      const firstCount = await countMedications();
+      const initialExtractedMedicationCount = metadata.medications?.length || 0;
+      let extractedMedicationCount = initialExtractedMedicationCount;
+      const firstList = await countMedications();
+      const firstCount = firstList.count;
+      let combinedMedicationList = new Map(firstList.medsByKey);
       let agreedMedicationCount = firstCount;
       let medicationCountConsensus = true;
       
-      if (firstCount !== extractedMedicationCount) {
+      if (firstCount !== initialExtractedMedicationCount) {
         // Mismatch - run one more pass to confirm
-        const secondCount = await countMedications();
+        const secondList = await countMedications();
+        const secondCount = secondList.count;
+        mergeMedicationMaps(combinedMedicationList, secondList.medsByKey);
         if (secondCount === firstCount) {
           agreedMedicationCount = firstCount;
           console.log(`DEBUG: Medication count confirmed: ${agreedMedicationCount} (2 passes agreed)`);
-        } else if (secondCount === extractedMedicationCount) {
-          agreedMedicationCount = extractedMedicationCount;
+        } else if (secondCount === initialExtractedMedicationCount) {
+          agreedMedicationCount = initialExtractedMedicationCount;
           console.log(`DEBUG: Medication count matches metadata: ${agreedMedicationCount}`);
         } else {
           // Still mismatch, trust metadata
-          agreedMedicationCount = extractedMedicationCount;
+          agreedMedicationCount = initialExtractedMedicationCount;
           medicationCountConsensus = false;
           forceMultiPass = true;
-          console.warn(`DEBUG: Medication count mismatch - using metadata: ${extractedMedicationCount}`);
+          console.warn(`DEBUG: Medication count mismatch - using metadata: ${initialExtractedMedicationCount}`);
         }
       } else {
         console.log(`DEBUG: Medication count validated on first pass: ${agreedMedicationCount}`);
       }
+
+      // Merge deterministic grid-derived medication labels for reconciliation (if available)
+      if (gridBaseline?.medications?.length) {
+        const gridMap = new Map<string, string>();
+        for (const med of gridBaseline.medications) {
+          const name = typeof med?.name === "string" ? med.name.trim() : "";
+          if (!name || !isLikelyMedicationLabel(name)) continue;
+          const key = normalizeMedicationKey(name);
+          if (!key) continue;
+          const existing = gridMap.get(key);
+          if (!existing || name.length > existing.length) {
+            gridMap.set(key, name);
+          }
+        }
+        mergeMedicationMaps(combinedMedicationList, gridMap);
+      }
+
+      // Reconcile missing medications into metadata so interactions and extraction cover them
+      const existingMeds = metadata.medications || [];
+      const existingKeys = new Set<string>();
+      for (const med of existingMeds) {
+        const key = normalizeMedicationKey(med?.name || "");
+        if (key) existingKeys.add(key);
+      }
+
+      const missingMedicationNames: string[] = [];
+      for (const [key, name] of combinedMedicationList.entries()) {
+        if (!key || existingKeys.has(key)) continue;
+        const isSimilar = existingMeds.some((m: any) => {
+          const existingKey = normalizeMedicationKey(m?.name || "");
+          if (!existingKey) return false;
+          if (existingKey === key) return true;
+          if (existingKey.length >= 6 && existingKey.includes(key)) return true;
+          if (key.length >= 6 && key.includes(existingKey)) return true;
+          return false;
+        });
+        if (isSimilar) continue;
+        missingMedicationNames.push(name);
+      }
+
+      if (missingMedicationNames.length > 0) {
+        sendProgress(22, `Reconciling ${missingMedicationNames.length} medications...`, "medication_reconciliation");
+        const addedMeds = missingMedicationNames.map((name) => ({
+          name,
+          genericName: "",
+          isPRN: false,
+          instructions: "",
+          requiredGapHours: 4,
+          scheduledTimeSlots: [],
+        }));
+        metadata.medications = [...existingMeds, ...addedMeds];
+        extractedMedicationCount = metadata.medications.length;
+        console.log(`DEBUG: Added ${addedMeds.length} medications from reconciliation: ${addedMeds.map(m => m.name).join(", ")}`);
+        sendEvent('warning', {
+          message: `Medication reconciliation added ${addedMeds.length} medication(s) to avoid missing items. Please review the list.`
+        });
+      } else {
+        extractedMedicationCount = metadata.medications?.length || 0;
+      }
       
       sendProgress(25, "Count validation complete...", "count_complete");
+
+      // Ensure deterministic medication ordering before assigning IDs.
+      if (Array.isArray(metadata.medications) && metadata.medications.length > 1) {
+        const getMedSortKey = (med: any) =>
+          (med?.name || "")
+            .toString()
+            .toLowerCase()
+            .replace(/\s+/g, " ")
+            .trim();
+        metadata.medications = [...metadata.medications].sort((a: any, b: any) => {
+          const aKey = getMedSortKey(a);
+          const bKey = getMedSortKey(b);
+          if (aKey !== bKey) return aKey.localeCompare(bKey);
+          const aInstr = (a?.instructions || "").toString();
+          const bInstr = (b?.instructions || "").toString();
+          if (aInstr !== bInstr) return aInstr.localeCompare(bInstr);
+          const aGeneric = (a?.genericName || "").toString();
+          const bGeneric = (b?.genericName || "").toString();
+          return aGeneric.localeCompare(bGeneric);
+        });
+      }
+
+      // =====================================================================
+      // DRUG INTERACTION CHECK (post-reconciliation)
+      // =====================================================================
+      sendProgress(26, "Checking for drug interactions...", "drug_interaction_check");
+      drugInteractions = await checkDrugInteractions(metadata.medications, aiUserContext);
+      if (drugInteractions.length > 0) {
+        console.log(`DEBUG: Found ${drugInteractions.length} potential drug interactions`);
+        const highSeverity = drugInteractions.filter(d => d.severity === 'high').length;
+        if (highSeverity > 0) {
+          sendEvent('warning', { 
+            message: `ALERT: ${highSeverity} high-severity drug interaction(s) detected. Review medications carefully.`
+          });
+        }
+      }
 
       // Phase 2: Extract entries using per-medication prompts for reliability
       // Assign each medication an index for deterministic matching
@@ -4104,8 +4256,9 @@ If no equivalences found, return: {"equivalences": []}`
                 content: "Identify any medication equivalences from the list provided."
               }
             ],
-        temperature: 0,
-        max_completion_tokens: 1000,
+            temperature: 0,
+            max_completion_tokens: 1000,
+            seed: DETERMINISTIC_SEED,
             response_format: { type: "json_object" }
           }, "emar_equivalence", aiUserContext);
 
@@ -5020,8 +5173,9 @@ Return JSON with indices that are VALID (keep these). Include ALL indices unless
                 : [...imageContent, { type: "text", text: "Review the discrepancies based on these EMAR images. Be conservative - when in doubt, keep the discrepancy." }]
               }
             ],
-        temperature: 0,
-        max_completion_tokens: 2000,
+            temperature: 0,
+            max_completion_tokens: 2000,
+            seed: DETERMINISTIC_SEED,
             response_format: { type: "json_object" },
           }, "emar_validation_pass2", aiUserContext);
           
@@ -5090,6 +5244,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
               ],
               max_completion_tokens: 2000,
               temperature: 0,
+              seed: DETERMINISTIC_SEED,
               response_format: { type: "json_object" },
             }, "emar_validation_pass3", aiUserContext);
             
