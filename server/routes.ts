@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
@@ -1684,6 +1685,154 @@ export async function registerRoutes(
     try {
       await storage.markAlertAsRead(req.params.id);
       return res.json({ message: "Alert marked as read" });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ===== CARE WORKER ROTA ROUTES =====
+
+  const rotaWeekdayEnum = z.enum([
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ]);
+
+  const rotaEntrySchema = z.object({
+    key: z.string(),
+    serviceUserName: z.string().nullable().optional(),
+    callTypeLabel: z.string().nullable().optional(),
+    timeBandLabel: z.string().nullable().optional(),
+    requirementStartMinutes: z.number().nullable().optional(),
+    scheduledStartMinutes: z.number().nullable().optional(),
+    scheduledEndMinutes: z.number().nullable().optional(),
+    durationMinutes: z.number().nullable().optional(),
+    shiftMinutes: z.number().nullable().optional(),
+    isTimeCritical: z.boolean().optional(),
+    windowStartMinutes: z.number().nullable().optional(),
+    windowEndMinutes: z.number().nullable().optional(),
+    isOutsideWindow: z.boolean().optional(),
+    hasWindowConflict: z.boolean().optional(),
+  });
+
+  const rotaOverrideSchema = z.object({
+    week1Days: z.array(rotaWeekdayEnum).default([]),
+    week2Days: z.array(rotaWeekdayEnum).default([]),
+    requirementStartMinutes: z.number().nullable().optional(),
+  });
+
+  const careWorkerRotaPayloadSchema = z.object({
+    workerName: z.string().min(1),
+    workerKey: z.string().min(1),
+    templateWeek: z.enum(["week1", "week2"]),
+    templateDay: rotaWeekdayEnum,
+    timeCriticalWindowEnforced: z.boolean().default(false),
+    selectedGroupKeys: z.array(z.string()).default([]),
+    optimizedRun: z.array(rotaEntrySchema).default([]),
+    overrides: z.record(rotaOverrideSchema).default({}),
+  });
+
+  const sortKeysDeep = (value: any): any => {
+    if (Array.isArray(value)) {
+      return value.map(sortKeysDeep);
+    }
+    if (value && typeof value === "object") {
+      return Object.keys(value)
+        .sort()
+        .reduce<Record<string, any>>((acc, key) => {
+          acc[key] = sortKeysDeep(value[key]);
+          return acc;
+        }, {});
+    }
+    return value;
+  };
+
+  const normalizeRotaPayload = (payload: z.infer<typeof careWorkerRotaPayloadSchema>) => {
+    const overrides = Object.keys(payload.overrides)
+      .sort()
+      .reduce<Record<string, any>>((acc, key) => {
+        const override = payload.overrides[key];
+        acc[key] = {
+          week1Days: [...override.week1Days].sort(),
+          week2Days: [...override.week2Days].sort(),
+          requirementStartMinutes:
+            typeof override.requirementStartMinutes === "number" ? override.requirementStartMinutes : null,
+        };
+        return acc;
+      }, {});
+
+    const optimizedRun = [...payload.optimizedRun]
+      .map((entry) => ({
+        key: entry.key,
+        serviceUserName: entry.serviceUserName ?? null,
+        callTypeLabel: entry.callTypeLabel ?? null,
+        timeBandLabel: entry.timeBandLabel ?? null,
+        requirementStartMinutes:
+          typeof entry.requirementStartMinutes === "number" ? entry.requirementStartMinutes : null,
+        scheduledStartMinutes: typeof entry.scheduledStartMinutes === "number" ? entry.scheduledStartMinutes : null,
+        scheduledEndMinutes: typeof entry.scheduledEndMinutes === "number" ? entry.scheduledEndMinutes : null,
+        durationMinutes: typeof entry.durationMinutes === "number" ? entry.durationMinutes : null,
+        shiftMinutes: typeof entry.shiftMinutes === "number" ? entry.shiftMinutes : null,
+        isTimeCritical: Boolean(entry.isTimeCritical),
+        windowStartMinutes: typeof entry.windowStartMinutes === "number" ? entry.windowStartMinutes : null,
+        windowEndMinutes: typeof entry.windowEndMinutes === "number" ? entry.windowEndMinutes : null,
+        isOutsideWindow: Boolean(entry.isOutsideWindow),
+        hasWindowConflict: Boolean(entry.hasWindowConflict),
+      }))
+      .sort((a, b) => a.key.localeCompare(b.key));
+
+    const selectedGroupKeys = Array.from(new Set(payload.selectedGroupKeys)).sort();
+
+    return {
+      workerKey: payload.workerKey,
+      templateWeek: payload.templateWeek,
+      templateDay: payload.templateDay,
+      timeCriticalWindowEnforced: Boolean(payload.timeCriticalWindowEnforced),
+      selectedGroupKeys,
+      overrides,
+      optimizedRun,
+    };
+  };
+
+  // Save care worker rota (admin only)
+  app.post("/api/admin/care-worker-rotas", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const payload = careWorkerRotaPayloadSchema.parse(req.body);
+      const normalized = normalizeRotaPayload(payload);
+      const sourceHash = createHash("sha256")
+        .update(JSON.stringify(sortKeysDeep(normalized)))
+        .digest("hex");
+
+      const { rota, deduped } = await storage.upsertCareWorkerRota({
+        workerName: payload.workerName,
+        workerKey: payload.workerKey,
+        templateWeek: payload.templateWeek,
+        templateDay: payload.templateDay,
+        payload,
+        sourceHash,
+        createdBy: req.user?.id ?? null,
+        createdByUsername: req.user?.username ?? null,
+      });
+
+      return res.status(201).json({ rota, deduped });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get care worker rotas (admin only)
+  app.get("/api/admin/care-worker-rotas", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const search = typeof req.query.search === "string" ? req.query.search : undefined;
+      const rotas = await storage.getCareWorkerRotas({ search });
+      return res.json(rotas);
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
     }

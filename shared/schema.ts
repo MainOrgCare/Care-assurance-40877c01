@@ -94,6 +94,28 @@ export const insertAuditSchema = createInsertSchema(audits).omit({
 export type InsertAudit = z.infer<typeof insertAuditSchema>;
 export type Audit = typeof audits.$inferSelect;
 
+// Care Worker Rotas - stores saved optimized runs from Testing Features
+export const careWorkerRotas = pgTable("care_worker_rotas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workerName: text("worker_name").notNull(),
+  workerKey: text("worker_key").notNull(),
+  templateWeek: text("template_week").notNull(), // week1 / week2
+  templateDay: text("template_day").notNull(), // Monday..Sunday
+  payload: jsonb("payload").notNull(),
+  sourceHash: text("source_hash").notNull().unique(),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByUsername: text("created_by_username"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertCareWorkerRotaSchema = createInsertSchema(careWorkerRotas).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertCareWorkerRota = z.infer<typeof insertCareWorkerRotaSchema>;
+export type CareWorkerRota = typeof careWorkerRotas.$inferSelect;
+
 // Admin Alerts table
 export const adminAlerts = pgTable("admin_alerts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

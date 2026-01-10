@@ -53,6 +53,25 @@ const DURATION_SHORTFALL_THRESHOLD_PERCENT = 80;
 const DURATION_OVERRUN_THRESHOLD_PERCENT = 120;
 const DEFAULT_ROUTE_DURATION_MINUTES = 30;
 const TYPICAL_DAY_MIN_OCCURRENCES = 2;
+const TIME_CRITICAL_WINDOW_MINUTES = 15;
+const TEMPLATE_WEEK_OPTIONS = [
+  { key: "week1", label: "Week 1 (starts 05/01/26)" },
+  { key: "week2", label: "Week 2 (starts 12/01/26)" },
+] as const;
+const WEEKDAY_OPTIONS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
+type TemplateWeekKey = (typeof TEMPLATE_WEEK_OPTIONS)[number]["key"];
+type WeekdayLabel = (typeof WEEKDAY_OPTIONS)[number];
+const DEFAULT_TEMPLATE_WEEK: TemplateWeekKey = "week1";
+const DEFAULT_TEMPLATE_DAY: WeekdayLabel = WEEKDAY_OPTIONS[0];
+const TEMPLATE_WEEK_1_START_DAY_NUMBER = Math.floor(Date.UTC(2026, 0, 5) / 86400000);
 
 const PLANNED_TIME_KEYWORDS = [
   "planned start date and time",
@@ -166,6 +185,34 @@ const GENERIC_WORKER_KEYWORDS = [
   "caregiver",
   "employee name",
 ];
+const TEMPLATE_WORKER_KEYWORDS = [
+  "template employee name",
+  "template employee",
+  "template worker",
+  "template carer",
+  "template care worker",
+  "templated employee name",
+  "templated employee",
+  "templated worker",
+  "templated carer",
+  "template staff",
+];
+const SERVICE_DUTY_CLASS_TYPE_KEYWORDS = [
+  "servicetypecustom servicedutyclasstype",
+  "service duty class type",
+  "service duty class",
+  "duty class type",
+  "servicedutyclasstype",
+];
+const ADHOC_KEYWORDS = ["adhoc", "ad hoc", "ad-hoc"];
+const TIME_CRITICAL_KEYWORDS = [
+  "time critical",
+  "time-critical",
+  "critical time",
+  "is time critical",
+  "time critical visit",
+  "time critical call",
+];
 
 const SERVICE_USER_NAME_KEYWORDS = [
   "service user",
@@ -240,6 +287,11 @@ interface RowAnalysis {
   workersMatch: boolean | null;
   plannedWorker?: string | null;
   actualWorker?: string | null;
+  templateWorker?: string | null;
+  serviceDutyClassType?: string | null;
+  isExcludedServiceDutyClass?: boolean;
+  isAdhocCall?: boolean;
+  isTimeCritical?: boolean;
   plannedTimeLabel?: string | null;
   actualTimeLabel?: string | null;
   plannedDurationMinutes?: number | null;
@@ -335,7 +387,27 @@ interface WorkerCallGroup {
   durationMinutes: number | null;
   totalCalls: number;
   uniqueDays: number;
+  templatedWeekdayKeys: Set<string>;
+  templatedRows: number;
+  isTimeCritical: boolean;
   rows: RowAnalysis[];
+}
+
+interface TemplateOverride {
+  week1Days: WeekdayLabel[];
+  week2Days: WeekdayLabel[];
+  requirementStartMinutes: number | null;
+}
+
+interface ResolvedWorkerCallGroup extends WorkerCallGroup {
+  overrideKey: string;
+  effectiveTemplateWeekdayKeys: Set<string>;
+  effectiveRequirementStartMinutes: number | null;
+  effectiveRequirementStartLabel: string | null;
+  effectiveTimeBandLabel: string;
+  overrideWeek1Days: WeekdayLabel[];
+  overrideWeek2Days: WeekdayLabel[];
+  hasTemplateOverride: boolean;
 }
 
 interface CareWorkerRoster {
@@ -359,6 +431,22 @@ interface OptimizedRouteEntry {
   scheduledEndMinutes: number | null;
   durationMinutes: number | null;
   shiftMinutes: number | null;
+  isTimeCritical: boolean;
+  windowStartMinutes: number | null;
+  windowEndMinutes: number | null;
+  isOutsideWindow: boolean;
+  hasWindowConflict: boolean;
+}
+
+interface CareWorkerRotaPayload {
+  workerName: string;
+  workerKey: string;
+  templateWeek: TemplateWeekKey;
+  templateDay: WeekdayLabel;
+  timeCriticalWindowEnforced: boolean;
+  selectedGroupKeys: string[];
+  overrides: Record<string, TemplateOverride>;
+  optimizedRun: OptimizedRouteEntry[];
 }
 
 export default function TestingFeatures() {
@@ -382,8 +470,14 @@ export default function TestingFeatures() {
   const [includeMismatchedWorkers, setIncludeMismatchedWorkers] = useState(false);
   const [callGroupSearch, setCallGroupSearch] = useState("");
   const [careWorkerSearch, setCareWorkerSearch] = useState("");
+  const [selectedTemplateWeek, setSelectedTemplateWeek] = useState<TemplateWeekKey>(DEFAULT_TEMPLATE_WEEK);
+  const [selectedTemplateDay, setSelectedTemplateDay] = useState<WeekdayLabel>(DEFAULT_TEMPLATE_DAY);
+  const [enforceTimeCriticalWindow, setEnforceTimeCriticalWindow] = useState(false);
+  const [templateOverrides, setTemplateOverrides] = useState<Record<string, TemplateOverride>>({});
+  const [expandedTemplateGroupKeys, setExpandedTemplateGroupKeys] = useState<string[]>([]);
   const [selectedCareWorkerKey, setSelectedCareWorkerKey] = useState<string | null>(null);
   const [selectedWorkerCallKeys, setSelectedWorkerCallKeys] = useState<string[]>([]);
+  const [isSavingRota, setIsSavingRota] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const analysisJobRef = useRef<number>(0);
   const dragCounterRef = useRef(0);
@@ -504,22 +598,33 @@ export default function TestingFeatures() {
         plannedDurationField ? new Set([plannedDurationField.key]) : undefined
       );
 
-      let plannedWorkerField = detectField(row, PLANNED_WORKER_KEYWORDS);
-      if (!plannedWorkerField) {
-        plannedWorkerField = detectField(row, GENERIC_WORKER_KEYWORDS);
-      }
-      let actualWorkerField = detectField(
+      const templateWorkerField = detectField(row, TEMPLATE_WORKER_KEYWORDS);
+      let plannedWorkerField = detectField(
         row,
-        ACTUAL_WORKER_KEYWORDS,
-        plannedWorkerField ? new Set([plannedWorkerField.key]) : undefined
+        PLANNED_WORKER_KEYWORDS,
+        templateWorkerField ? new Set([templateWorkerField.key]) : undefined
       );
-      if (!actualWorkerField) {
-        actualWorkerField = detectField(
+      if (!plannedWorkerField) {
+        plannedWorkerField = detectField(
           row,
           GENERIC_WORKER_KEYWORDS,
-          plannedWorkerField ? new Set([plannedWorkerField.key]) : undefined
+          templateWorkerField ? new Set([templateWorkerField.key]) : undefined
         );
       }
+      const actualWorkerExclude = (() => {
+        const exclude = new Set<string>();
+        if (plannedWorkerField) exclude.add(plannedWorkerField.key);
+        if (templateWorkerField) exclude.add(templateWorkerField.key);
+        return exclude.size ? exclude : undefined;
+      })();
+      let actualWorkerField = detectField(row, ACTUAL_WORKER_KEYWORDS, actualWorkerExclude);
+      if (!actualWorkerField) {
+        actualWorkerField = detectField(row, GENERIC_WORKER_KEYWORDS, actualWorkerExclude);
+      }
+
+      const serviceDutyClassField = detectField(row, SERVICE_DUTY_CLASS_TYPE_KEYWORDS);
+      const adhocField = detectField(row, ADHOC_KEYWORDS);
+      const timeCriticalField = detectField(row, TIME_CRITICAL_KEYWORDS);
 
       const plannedTimeMinutes = plannedTimeSource
         ? parseTimeToMinutes(plannedTimeSource.value)
@@ -542,8 +647,22 @@ export default function TestingFeatures() {
         return deriveDateParts(plannedDateField?.value);
       })();
 
+      const templateWorkerName = sanitizeStringValue(templateWorkerField?.value);
       const plannedWorkerName = sanitizeStringValue(plannedWorkerField?.value);
       const actualWorkerName = sanitizeStringValue(actualWorkerField?.value);
+      const serviceDutyClassRaw = sanitizeStringValue(serviceDutyClassField?.value);
+      const serviceDutyClassType = serviceDutyClassRaw ? serviceDutyClassRaw.trim().toUpperCase() : null;
+      const serviceDutyClassPrefix = serviceDutyClassType ? serviceDutyClassType[0] : null;
+      const isExcludedServiceDutyClass = serviceDutyClassPrefix === "A" || serviceDutyClassPrefix === "S";
+      const adhocFallbackValue =
+        adhocField?.value ??
+        (Object.prototype.hasOwnProperty.call(row, "AA")
+          ? (row as Record<string, any>)["AA"]
+          : Object.prototype.hasOwnProperty.call(row, "aa")
+          ? (row as Record<string, any>)["aa"]
+          : null);
+      const isAdhocCall = isTruthyValue(adhocFallbackValue);
+      const isTimeCritical = isTruthyValue(timeCriticalField?.value);
       const isCancelledCall = !actualWorkerName;
       const normalizedPlannedWorker = normalizeWorkerName(plannedWorkerName);
       const normalizedActualWorker = normalizeWorkerName(actualWorkerName);
@@ -699,6 +818,11 @@ export default function TestingFeatures() {
         workersMatch,
         plannedWorker: plannedWorkerName,
         actualWorker: actualWorkerName,
+        templateWorker: templateWorkerName,
+        serviceDutyClassType,
+        isExcludedServiceDutyClass,
+        isAdhocCall,
+        isTimeCritical,
         plannedTimeLabel: deriveTimeLabel(plannedTimeMinutes, plannedTimeSource?.value),
         actualTimeLabel: deriveTimeLabel(actualTimeMinutes, actualTimeField?.value),
         plannedDurationMinutes,
@@ -789,6 +913,11 @@ export default function TestingFeatures() {
       setShowDuplicateRows(false);
       setCallGroupSearch("");
       setCareWorkerSearch("");
+      setSelectedTemplateWeek(DEFAULT_TEMPLATE_WEEK);
+      setSelectedTemplateDay(DEFAULT_TEMPLATE_DAY);
+      setEnforceTimeCriticalWindow(false);
+      setTemplateOverrides({});
+      setExpandedTemplateGroupKeys([]);
       setSelectedCareWorkerKey(null);
       setSelectedWorkerCallKeys([]);
       setVisibleCount(INITIAL_VISIBLE_ROWS);
@@ -1771,12 +1900,31 @@ export default function TestingFeatures() {
     };
   }, [serviceUserStacks, callGroupSearch]);
 
+  const rosterRows = useMemo(() => {
+    if (!analysisResults.length) return [];
+    const seen = new Set<string>();
+    return analysisResults.filter((row) => {
+      if (row.isExcludedServiceDutyClass || row.isAdhocCall) return false;
+      const isMismatch = row.workersMatch === false && !row.templateWorker;
+      if (!includeMismatchedWorkers && isMismatch) return false;
+      const isCancelled = !row.actualWorker && !row.templateWorker;
+      if (!includeCancelledCalls && isCancelled) return false;
+
+      const duplicateKey = buildDuplicateSlotKey(row);
+      if (duplicateKey) {
+        if (seen.has(duplicateKey)) return false;
+        seen.add(duplicateKey);
+      }
+      return true;
+    });
+  }, [analysisResults, includeCancelledCalls, includeMismatchedWorkers]);
+
   const careWorkerRosters = useMemo<CareWorkerRoster[]>(() => {
-    if (!primaryRows.length) return [];
+    if (!rosterRows.length) return [];
 
     const workerMap = new Map<string, { workerName: string; workerNameNormalized: string; rows: RowAnalysis[] }>();
-    primaryRows.forEach((row) => {
-      const workerName = row.actualWorker || row.plannedWorker;
+    rosterRows.forEach((row) => {
+      const workerName = row.templateWorker || row.actualWorker || row.plannedWorker;
       if (!workerName) return;
       const normalized = normalizeWorkerName(workerName) || workerName.toLowerCase();
       if (!workerMap.has(normalized)) {
@@ -1808,6 +1956,9 @@ export default function TestingFeatures() {
             requirementTimes: number[];
             durations: number[];
             dayKeys: Set<string>;
+            templatedWeekdayKeys: Set<string>;
+            templatedRows: number;
+            isTimeCritical: boolean;
             rows: RowAnalysis[];
           }
         >();
@@ -1837,6 +1988,9 @@ export default function TestingFeatures() {
               requirementTimes: [],
               durations: [],
               dayKeys: new Set<string>(),
+              templatedWeekdayKeys: new Set<string>(),
+              templatedRows: 0,
+              isTimeCritical: false,
               rows: [],
             });
           }
@@ -1858,6 +2012,18 @@ export default function TestingFeatures() {
             group.durations.push(durationCandidate);
           }
           if (row.plannedDateKey) group.dayKeys.add(row.plannedDateKey);
+          if (row.isTimeCritical) group.isTimeCritical = true;
+          if (row.templateWorker) {
+            const templateDate = parseDateKeyToLocalDate(row.plannedDateKey ?? null);
+            if (templateDate) {
+              const templateKey = buildTemplateWeekdayKey(
+                deriveTemplateWeekKey(templateDate),
+                deriveWeekdayLabel(templateDate)
+              );
+              group.templatedWeekdayKeys.add(templateKey);
+              group.templatedRows += 1;
+            }
+          }
         });
 
         const callGroups = Array.from(callGroupMap.values())
@@ -1879,6 +2045,9 @@ export default function TestingFeatures() {
               durationMinutes,
               totalCalls: group.rows.length,
               uniqueDays: group.dayKeys.size,
+              templatedWeekdayKeys: group.templatedWeekdayKeys,
+              templatedRows: group.templatedRows,
+              isTimeCritical: group.isTimeCritical,
               rows: group.rows,
             } satisfies WorkerCallGroup;
           })
@@ -1907,7 +2076,7 @@ export default function TestingFeatures() {
         if (aName.first !== bName.first) return aName.first.localeCompare(bName.first);
         return aName.full.localeCompare(bName.full);
       });
-  }, [primaryRows]);
+  }, [rosterRows]);
 
   const { visibleCareWorkerRosters, careWorkerHasMatch } = useMemo(() => {
     if (!careWorkerRosters.length) {
@@ -1939,17 +2108,86 @@ export default function TestingFeatures() {
     [careWorkerRosters, selectedCareWorkerKey]
   );
 
-  const selectedWorkerGroups = useMemo(() => {
+  const templateSelectionKey = useMemo(
+    () => buildTemplateWeekdayKey(selectedTemplateWeek, selectedTemplateDay),
+    [selectedTemplateDay, selectedTemplateWeek]
+  );
+
+  const resolvedCallGroups = useMemo<ResolvedWorkerCallGroup[]>(() => {
     if (!selectedCareWorker) return [];
+    return selectedCareWorker.callGroups.map((group) => {
+      const overrideKey = buildTemplateOverrideKey(selectedCareWorker.key, group.key);
+      const override = templateOverrides[overrideKey];
+      const baseDays = splitTemplateWeekdayKeys(group.templatedWeekdayKeys);
+      const week1Days = override?.week1Days ?? baseDays.week1Days;
+      const week2Days = override?.week2Days ?? baseDays.week2Days;
+      const effectiveTemplateWeekdayKeys = new Set<string>();
+      week1Days.forEach((day) => effectiveTemplateWeekdayKeys.add(buildTemplateWeekdayKey("week1", day)));
+      week2Days.forEach((day) => effectiveTemplateWeekdayKeys.add(buildTemplateWeekdayKey("week2", day)));
+      const effectiveRequirementStartMinutes =
+        typeof override?.requirementStartMinutes === "number"
+          ? override.requirementStartMinutes
+          : group.requirementStartMinutes;
+      const effectiveRequirementStartLabel =
+        typeof effectiveRequirementStartMinutes === "number"
+          ? deriveTimeLabel(effectiveRequirementStartMinutes, null)
+          : group.requirementStartLabel;
+      const effectiveTimeBandLabel = deriveTimeBandLabel(effectiveRequirementStartMinutes);
+      return {
+        ...group,
+        overrideKey,
+        effectiveTemplateWeekdayKeys,
+        effectiveRequirementStartMinutes,
+        effectiveRequirementStartLabel,
+        effectiveTimeBandLabel,
+        overrideWeek1Days: week1Days,
+        overrideWeek2Days: week2Days,
+        hasTemplateOverride: Boolean(override),
+      };
+    });
+  }, [selectedCareWorker, templateOverrides]);
+
+  const availableTemplateGroups = useMemo(
+    () => resolvedCallGroups.filter((group) => group.effectiveTemplateWeekdayKeys.has(templateSelectionKey)),
+    [resolvedCallGroups, templateSelectionKey]
+  );
+
+  const templatedAutoSelection = useMemo(
+    () => availableTemplateGroups.map((group) => group.key),
+    [availableTemplateGroups]
+  );
+
+  const selectedTemplateWeekLabel =
+    TEMPLATE_WEEK_OPTIONS.find((option) => option.key === selectedTemplateWeek)?.label ?? selectedTemplateWeek;
+
+  useEffect(() => {
+    if (!selectedCareWorker) return;
+    setSelectedWorkerCallKeys(templatedAutoSelection);
+  }, [selectedCareWorker, templatedAutoSelection]);
+
+  useEffect(() => {
+    setExpandedTemplateGroupKeys([]);
+  }, [selectedCareWorker?.key]);
+
+  const selectedWorkerGroups = useMemo(() => {
+    if (!resolvedCallGroups.length) return [];
     const selected = new Set(selectedWorkerCallKeys);
-    return selectedCareWorker.callGroups.filter((group) => selected.has(group.key));
-  }, [selectedCareWorker, selectedWorkerCallKeys]);
+    return resolvedCallGroups.filter(
+      (group) => selected.has(group.key) && group.effectiveTemplateWeekdayKeys.has(templateSelectionKey)
+    );
+  }, [resolvedCallGroups, selectedWorkerCallKeys, templateSelectionKey]);
 
   const optimizedRun = useMemo<OptimizedRouteEntry[]>(() => {
     if (!selectedWorkerGroups.length) return [];
     const sorted = [...selectedWorkerGroups].sort((a, b) => {
-      const aStart = typeof a.requirementStartMinutes === "number" ? a.requirementStartMinutes : Number.POSITIVE_INFINITY;
-      const bStart = typeof b.requirementStartMinutes === "number" ? b.requirementStartMinutes : Number.POSITIVE_INFINITY;
+      const aStart =
+        typeof a.effectiveRequirementStartMinutes === "number"
+          ? a.effectiveRequirementStartMinutes
+          : Number.POSITIVE_INFINITY;
+      const bStart =
+        typeof b.effectiveRequirementStartMinutes === "number"
+          ? b.effectiveRequirementStartMinutes
+          : Number.POSITIVE_INFINITY;
       if (aStart !== bStart) return aStart - bStart;
       return (a.serviceUserName || "").localeCompare(b.serviceUserName || "");
     });
@@ -1958,40 +2196,148 @@ export default function TestingFeatures() {
     return sorted.map((group) => {
       const durationMinutes =
         typeof group.durationMinutes === "number" ? group.durationMinutes : DEFAULT_ROUTE_DURATION_MINUTES;
-      if (typeof group.requirementStartMinutes !== "number") {
+      if (typeof group.effectiveRequirementStartMinutes !== "number") {
         return {
           key: group.key,
           serviceUserName: group.serviceUserName,
           callTypeLabel: group.callTypeLabel,
-          timeBandLabel: group.timeBandLabel,
-          requirementStartMinutes: group.requirementStartMinutes,
+          timeBandLabel: group.effectiveTimeBandLabel,
+          requirementStartMinutes: group.effectiveRequirementStartMinutes,
           scheduledStartMinutes: null,
           scheduledEndMinutes: null,
           durationMinutes: group.durationMinutes,
           shiftMinutes: null,
+          isTimeCritical: group.isTimeCritical,
+          windowStartMinutes: null,
+          windowEndMinutes: null,
+          isOutsideWindow: false,
+          hasWindowConflict: false,
         };
       }
 
-      let scheduledStart = group.requirementStartMinutes;
-      if (currentEnd !== null && scheduledStart < currentEnd) {
+      const requirementStart = group.effectiveRequirementStartMinutes;
+      const windowStart = group.isTimeCritical ? requirementStart - TIME_CRITICAL_WINDOW_MINUTES : null;
+      const windowEnd = group.isTimeCritical ? requirementStart + TIME_CRITICAL_WINDOW_MINUTES : null;
+      let scheduledStart = requirementStart;
+      let hasWindowConflict = false;
+
+      if (group.isTimeCritical && enforceTimeCriticalWindow) {
+        if (currentEnd !== null && windowEnd !== null && currentEnd > windowEnd) {
+          scheduledStart = windowEnd;
+          hasWindowConflict = true;
+        } else if (currentEnd !== null && windowStart !== null && currentEnd > windowStart) {
+          scheduledStart = Math.max(currentEnd, windowStart);
+        } else {
+          scheduledStart = requirementStart;
+        }
+      } else if (currentEnd !== null && scheduledStart < currentEnd) {
         scheduledStart = currentEnd;
       }
       const scheduledEnd = scheduledStart + durationMinutes;
-      currentEnd = scheduledEnd;
+      const hadOverlap = currentEnd !== null && scheduledStart < currentEnd;
+      currentEnd = currentEnd !== null ? Math.max(currentEnd, scheduledEnd) : scheduledEnd;
+      if (hadOverlap) hasWindowConflict = true;
+      const isOutsideWindow =
+        group.isTimeCritical && windowStart !== null && windowEnd !== null
+          ? scheduledStart < windowStart || scheduledStart > windowEnd
+          : false;
 
       return {
         key: group.key,
         serviceUserName: group.serviceUserName,
         callTypeLabel: group.callTypeLabel,
-        timeBandLabel: group.timeBandLabel,
-        requirementStartMinutes: group.requirementStartMinutes,
+        timeBandLabel: group.effectiveTimeBandLabel,
+        requirementStartMinutes: requirementStart,
         scheduledStartMinutes: scheduledStart,
         scheduledEndMinutes: scheduledEnd,
         durationMinutes,
-        shiftMinutes: scheduledStart - group.requirementStartMinutes,
+        shiftMinutes: scheduledStart - requirementStart,
+        isTimeCritical: group.isTimeCritical,
+        windowStartMinutes: windowStart,
+        windowEndMinutes: windowEnd,
+        isOutsideWindow,
+        hasWindowConflict,
       };
     });
-  }, [selectedWorkerGroups]);
+  }, [enforceTimeCriticalWindow, selectedWorkerGroups]);
+
+  const handleSaveRota = useCallback(async () => {
+    if (!selectedCareWorker) {
+      toast({
+        title: "Select a care worker",
+        description: "Choose a care worker before saving a rota.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!optimizedRun.length) {
+      toast({
+        title: "No rota to save",
+        description: "Generate an optimized run before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const overridePrefix = `${selectedCareWorker.key}::`;
+    const overrides = Object.entries(templateOverrides)
+      .filter(([key]) => key.startsWith(overridePrefix))
+      .reduce<Record<string, TemplateOverride>>((acc, [key, value]) => {
+        const groupKey = key.slice(overridePrefix.length);
+        acc[groupKey] = value;
+        return acc;
+      }, {});
+
+    const payload: CareWorkerRotaPayload = {
+      workerName: selectedCareWorker.workerName,
+      workerKey: selectedCareWorker.key,
+      templateWeek: selectedTemplateWeek,
+      templateDay: selectedTemplateDay,
+      timeCriticalWindowEnforced: enforceTimeCriticalWindow,
+      selectedGroupKeys: selectedWorkerGroups.map((group) => group.key),
+      overrides,
+      optimizedRun,
+    };
+
+    setIsSavingRota(true);
+    try {
+      const response = await fetch("/api/admin/care-worker-rotas", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Unable to save rota.");
+      }
+      toast({
+        title: result.deduped ? "Rota already saved" : "Rota saved",
+        description: result.deduped
+          ? "An identical rota already exists in the admin library."
+          : "The optimized rota is now available in the admin library.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Save failed",
+        description: error.message || "Unable to save the rota.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingRota(false);
+    }
+  }, [
+    enforceTimeCriticalWindow,
+    optimizedRun,
+    selectedCareWorker,
+    selectedTemplateDay,
+    selectedTemplateWeek,
+    selectedWorkerGroups,
+    templateOverrides,
+    toast,
+  ]);
 
   const handleLoadMore = () => {
     setVisibleCount((prev) => Math.min(filteredResults.length, prev + INITIAL_VISIBLE_ROWS));
@@ -2010,6 +2356,11 @@ export default function TestingFeatures() {
     setSearchTerm("");
     setCallGroupSearch("");
     setCareWorkerSearch("");
+    setSelectedTemplateWeek(DEFAULT_TEMPLATE_WEEK);
+    setSelectedTemplateDay(DEFAULT_TEMPLATE_DAY);
+    setEnforceTimeCriticalWindow(false);
+    setTemplateOverrides({});
+    setExpandedTemplateGroupKeys([]);
     setSelectedCareWorkerKey(null);
     setSelectedWorkerCallKeys([]);
     setFilterStatus("all");
@@ -3026,12 +3377,8 @@ export default function TestingFeatures() {
                                   size="sm"
                                   variant="secondary"
                                   onClick={() => {
-                                    const typicalKeys = selectedCareWorker.callGroups
-                                      .filter(
-                                        (group) =>
-                                          group.uniqueDays >= TYPICAL_DAY_MIN_OCCURRENCES &&
-                                          typeof group.requirementStartMinutes === "number"
-                                      )
+                                    const typicalKeys = availableTemplateGroups
+                                      .filter((group) => group.uniqueDays >= TYPICAL_DAY_MIN_OCCURRENCES)
                                       .map((group) => group.key);
                                     setSelectedWorkerCallKeys(typicalKeys);
                                   }}
@@ -3043,9 +3390,7 @@ export default function TestingFeatures() {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => {
-                                    const selectableKeys = selectedCareWorker.callGroups
-                                      .filter((group) => typeof group.requirementStartMinutes === "number")
-                                      .map((group) => group.key);
+                                    const selectableKeys = availableTemplateGroups.map((group) => group.key);
                                     setSelectedWorkerCallKeys(selectableKeys);
                                   }}
                                 >
@@ -3062,6 +3407,55 @@ export default function TestingFeatures() {
                               </div>
                             </div>
 
+                            <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 space-y-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Template schedule</p>
+                              <div className="flex flex-wrap gap-2">
+                                {TEMPLATE_WEEK_OPTIONS.map((option) => (
+                                  <Button
+                                    key={option.key}
+                                    type="button"
+                                    size="sm"
+                                    variant={selectedTemplateWeek === option.key ? "secondary" : "outline"}
+                                    onClick={() => setSelectedTemplateWeek(option.key)}
+                                  >
+                                    {option.label}
+                                  </Button>
+                                ))}
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {WEEKDAY_OPTIONS.map((day) => (
+                                  <Button
+                                    key={day}
+                                    type="button"
+                                    size="sm"
+                                    variant={selectedTemplateDay === day ? "secondary" : "outline"}
+                                    onClick={() => setSelectedTemplateDay(day)}
+                                  >
+                                    {day}
+                                  </Button>
+                                ))}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {availableTemplateGroups.length} templated call{availableTemplateGroups.length === 1 ? "" : "s"} available for {selectedTemplateWeekLabel} • {selectedTemplateDay}.
+                              </p>
+                            </div>
+
+                            <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-background/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-foreground">Time-critical window</p>
+                                <p className="text-xs text-muted-foreground">
+                                  When enabled, time-critical calls must stay within ±{TIME_CRITICAL_WINDOW_MINUTES} mins of the service requirement start.
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Calls flagged as adhoc or ServiceDutyClassType A/S are excluded from routing.
+                                </p>
+                              </div>
+                              <Switch
+                                checked={enforceTimeCriticalWindow}
+                                onCheckedChange={setEnforceTimeCriticalWindow}
+                              />
+                            </div>
+
                             {selectedCareWorker.missingRequirementTimes > 0 && (
                               <Alert>
                                 <AlertCircle className="h-4 w-4" />
@@ -3073,13 +3467,30 @@ export default function TestingFeatures() {
                             )}
 
                             <div className="space-y-2">
-                              {selectedCareWorker.callGroups.map((group) => {
+                              {!availableTemplateGroups.length ? (
+                                <Alert>
+                                  <AlertCircle className="h-4 w-4" />
+                                  <AlertTitle>No templated calls for this day</AlertTitle>
+                                  <AlertDescription>
+                                    There are no permanent template assignments for {selectedTemplateWeekLabel} • {selectedTemplateDay}.
+                                  </AlertDescription>
+                                </Alert>
+                              ) : null}
+                              <p className="text-xs text-muted-foreground">
+                                Showing all call groups; only templated calls for {selectedTemplateWeekLabel} • {selectedTemplateDay} can be added to the run.
+                              </p>
+                              {resolvedCallGroups.map((group) => {
+                                const isAvailable = group.effectiveTemplateWeekdayKeys.has(templateSelectionKey);
                                 const isSelected = selectedWorkerCallKeys.includes(group.key);
-                                const isSelectable = typeof group.requirementStartMinutes === "number";
+                                const isSelectable = isAvailable && typeof group.effectiveRequirementStartMinutes === "number";
+                                const hasTimeOverride =
+                                  group.hasTemplateOverride &&
+                                  group.effectiveRequirementStartMinutes !== group.requirementStartMinutes;
                                 const durationLabel =
                                   group.durationMinutes !== null
                                     ? formatMinutesDisplay(group.durationMinutes)
                                     : `${DEFAULT_ROUTE_DURATION_MINUTES} mins assumed`;
+                                const isExpanded = expandedTemplateGroupKeys.includes(group.overrideKey);
                                 return (
                                   <div
                                     key={group.key}
@@ -3092,13 +3503,29 @@ export default function TestingFeatures() {
                                         {group.serviceUserName || "Unknown service user"}
                                       </p>
                                       <p className="text-xs text-muted-foreground">
-                                        {group.callTypeLabel} • {group.timeBandLabel} • Req{" "}
-                                        {group.requirementStartLabel || "No requirement time"}
+                                        {group.callTypeLabel} • {group.effectiveTimeBandLabel} • Req{" "}
+                                        {group.effectiveRequirementStartLabel || "No requirement time"}
+                                        {hasTimeOverride ? " (override)" : ""}
                                       </p>
                                       <div className="mt-2 flex flex-wrap gap-2">
                                         <Badge variant="outline" className="text-xs font-semibold">
                                           {group.totalCalls} call{group.totalCalls === 1 ? "" : "s"}
                                         </Badge>
+                                        {!isAvailable && (
+                                          <Badge variant="outline" className="text-xs font-semibold">
+                                            Not templated
+                                          </Badge>
+                                        )}
+                                        {group.hasTemplateOverride && (
+                                          <Badge variant="secondary" className="text-xs font-semibold">
+                                            Manual override
+                                          </Badge>
+                                        )}
+                                        {group.isTimeCritical && (
+                                          <Badge variant="outline" className="text-xs font-semibold">
+                                            Time critical
+                                          </Badge>
+                                        )}
                                         <Badge variant="secondary" className="text-xs font-semibold">
                                           {group.uniqueDays} days
                                         </Badge>
@@ -3106,6 +3533,172 @@ export default function TestingFeatures() {
                                           Duration {durationLabel}
                                         </Badge>
                                       </div>
+                                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() =>
+                                            setExpandedTemplateGroupKeys((prev) =>
+                                              prev.includes(group.overrideKey)
+                                                ? prev.filter((key) => key !== group.overrideKey)
+                                                : [...prev, group.overrideKey]
+                                            )
+                                          }
+                                        >
+                                          {isExpanded ? "Hide edit" : "Edit template"}
+                                        </Button>
+                                        {group.hasTemplateOverride && (
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() =>
+                                              setTemplateOverrides((prev) => {
+                                                const next = { ...prev };
+                                                delete next[group.overrideKey];
+                                                return next;
+                                              })
+                                            }
+                                          >
+                                            Reset overrides
+                                          </Button>
+                                        )}
+                                      </div>
+                                      {isExpanded && (
+                                        <div className="mt-3 space-y-3 rounded-xl border border-border/60 bg-background/70 p-3">
+                                          <div>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                              Week 1
+                                            </p>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                              {WEEKDAY_OPTIONS.map((day) => (
+                                                <Button
+                                                  key={`${group.overrideKey}-week1-${day}`}
+                                                  type="button"
+                                                  size="sm"
+                                                  variant={group.overrideWeek1Days.includes(day) ? "secondary" : "outline"}
+                                                  onClick={() =>
+                                                    setTemplateOverrides((prev) => {
+                                                      const current = prev[group.overrideKey] ?? {
+                                                        week1Days: group.overrideWeek1Days,
+                                                        week2Days: group.overrideWeek2Days,
+                                                        requirementStartMinutes: group.effectiveRequirementStartMinutes,
+                                                      };
+                                                      const nextWeek1Days = toggleWeekdaySelection(current.week1Days, day);
+                                                      return {
+                                                        ...prev,
+                                                        [group.overrideKey]: {
+                                                          ...current,
+                                                          week1Days: nextWeek1Days,
+                                                        },
+                                                      };
+                                                    })
+                                                  }
+                                                >
+                                                  {day.slice(0, 3)}
+                                                </Button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                              Week 2
+                                            </p>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                              {WEEKDAY_OPTIONS.map((day) => (
+                                                <Button
+                                                  key={`${group.overrideKey}-week2-${day}`}
+                                                  type="button"
+                                                  size="sm"
+                                                  variant={group.overrideWeek2Days.includes(day) ? "secondary" : "outline"}
+                                                  onClick={() =>
+                                                    setTemplateOverrides((prev) => {
+                                                      const current = prev[group.overrideKey] ?? {
+                                                        week1Days: group.overrideWeek1Days,
+                                                        week2Days: group.overrideWeek2Days,
+                                                        requirementStartMinutes: group.effectiveRequirementStartMinutes,
+                                                      };
+                                                      const nextWeek2Days = toggleWeekdaySelection(current.week2Days, day);
+                                                      return {
+                                                        ...prev,
+                                                        [group.overrideKey]: {
+                                                          ...current,
+                                                          week2Days: nextWeek2Days,
+                                                        },
+                                                      };
+                                                    })
+                                                  }
+                                                >
+                                                  {day.slice(0, 3)}
+                                                </Button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                            <div>
+                                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                Time override
+                                              </p>
+                                              <p className="text-xs text-muted-foreground">
+                                                Update the requirement time if the template needs adjusting.
+                                              </p>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              <Input
+                                                type="time"
+                                                value={formatTimeInputValue(group.effectiveRequirementStartMinutes)}
+                                                onChange={(event) => {
+                                                  const minutes = parseTimeToMinutes(event.target.value);
+                                                  setTemplateOverrides((prev) => {
+                                                    const current = prev[group.overrideKey] ?? {
+                                                      week1Days: group.overrideWeek1Days,
+                                                      week2Days: group.overrideWeek2Days,
+                                                      requirementStartMinutes: group.effectiveRequirementStartMinutes,
+                                                    };
+                                                    return {
+                                                      ...prev,
+                                                      [group.overrideKey]: {
+                                                        ...current,
+                                                        requirementStartMinutes: minutes,
+                                                      },
+                                                    };
+                                                  });
+                                                }}
+                                                className="w-32"
+                                              />
+                                              {hasTimeOverride && (
+                                                <Button
+                                                  type="button"
+                                                  size="sm"
+                                                  variant="outline"
+                                                  onClick={() =>
+                                                    setTemplateOverrides((prev) => {
+                                                      const current = prev[group.overrideKey] ?? {
+                                                        week1Days: group.overrideWeek1Days,
+                                                        week2Days: group.overrideWeek2Days,
+                                                        requirementStartMinutes: group.effectiveRequirementStartMinutes,
+                                                      };
+                                                      return {
+                                                        ...prev,
+                                                        [group.overrideKey]: {
+                                                          ...current,
+                                                          requirementStartMinutes: group.requirementStartMinutes ?? null,
+                                                        },
+                                                      };
+                                                    })
+                                                  }
+                                                >
+                                                  Use detected time
+                                                </Button>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <p className="text-xs text-muted-foreground">
+                                            Overrides are saved for this session only.
+                                          </p>
+                                        </div>
+                                      )}
                                     </div>
                                     <Switch
                                       checked={isSelected}
@@ -3123,10 +3716,30 @@ export default function TestingFeatures() {
                             </div>
 
                             <div className="rounded-2xl border border-border/70 bg-card/50 p-4">
-                              <p className="text-sm font-semibold text-foreground">Optimized run (no overlaps)</p>
-                              <p className="text-xs text-muted-foreground">
-                                Uses service requirement start times; overlapping calls are shifted forward to prevent clashes.
-                              </p>
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                  <p className="text-sm font-semibold text-foreground">Optimized run (no overlaps)</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Uses service requirement start times; overlapping calls are shifted forward to prevent clashes.
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={handleSaveRota}
+                                  disabled={!optimizedRun.length || isSavingRota}
+                                >
+                                  {isSavingRota ? (
+                                    <>
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      Saving
+                                    </>
+                                  ) : (
+                                    "Save rota"
+                                  )}
+                                </Button>
+                              </div>
 
                               {optimizedRun.length ? (
                                 <div className="mt-3 space-y-2">
@@ -3138,6 +3751,10 @@ export default function TestingFeatures() {
                                       typeof entry.shiftMinutes === "number" && entry.shiftMinutes > 0
                                         ? `+${Math.round(entry.shiftMinutes)} mins`
                                         : "On time";
+                                    const windowLabel =
+                                      entry.windowStartMinutes !== null && entry.windowEndMinutes !== null
+                                        ? `${deriveTimeLabel(entry.windowStartMinutes, null)} → ${deriveTimeLabel(entry.windowEndMinutes, null)}`
+                                        : null;
                                     return (
                                       <div
                                         key={entry.key}
@@ -3161,6 +3778,21 @@ export default function TestingFeatures() {
                                           <Badge variant="outline" className="text-xs font-semibold">
                                             {shiftLabel}
                                           </Badge>
+                                          {entry.isTimeCritical && windowLabel && (
+                                            <Badge variant="outline" className="text-xs font-semibold">
+                                              Time critical {windowLabel}
+                                            </Badge>
+                                          )}
+                                          {entry.isOutsideWindow && (
+                                            <Badge variant="destructive" className="text-xs font-semibold">
+                                              Outside ±{TIME_CRITICAL_WINDOW_MINUTES} mins
+                                            </Badge>
+                                          )}
+                                          {entry.hasWindowConflict && (
+                                            <Badge variant="destructive" className="text-xs font-semibold">
+                                              Window conflict
+                                            </Badge>
+                                          )}
                                         </div>
                                       </div>
                                     );
@@ -4156,6 +4788,15 @@ function sanitizeHumanReadable(value: any): string | null {
   return text.replace(/\s+/g, " ").trim();
 }
 
+function isTruthyValue(value: any): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  const text = String(value).trim().toLowerCase();
+  if (!text) return false;
+  return ["true", "yes", "y", "1", "t", "checked"].includes(text);
+}
+
 function parseTimeToMinutes(value: any): number | null {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -4599,6 +5240,57 @@ function formatDateKey(date: Date): string {
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
   const day = date.getDate().toString().padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function parseDateKeyToLocalDate(key: string | null): Date | null {
+  if (!key) return null;
+  const match = key.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+  return parseDateValue(key);
+}
+
+function getDateDayNumber(date: Date): number {
+  return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
+}
+
+function deriveTemplateWeekKey(date: Date): TemplateWeekKey {
+  const diffDays = getDateDayNumber(date) - TEMPLATE_WEEK_1_START_DAY_NUMBER;
+  const weekOffset = Math.floor(diffDays / 7);
+  const parity = ((weekOffset % 2) + 2) % 2;
+  return parity === 0 ? "week1" : "week2";
+}
+
+function deriveWeekdayLabel(date: Date): WeekdayLabel {
+  const dayIndex = date.getDay();
+  return WEEKDAY_OPTIONS[(dayIndex + 6) % 7];
+}
+
+function buildTemplateWeekdayKey(week: TemplateWeekKey, day: WeekdayLabel): string {
+  return `${week}|${day}`;
+}
+
+function buildTemplateOverrideKey(workerKey: string, groupKey: string): string {
+  return `${workerKey}::${groupKey}`;
+}
+
+function splitTemplateWeekdayKeys(keys: Set<string>): { week1Days: WeekdayLabel[]; week2Days: WeekdayLabel[] } {
+  const week1Days = WEEKDAY_OPTIONS.filter((day) => keys.has(buildTemplateWeekdayKey("week1", day)));
+  const week2Days = WEEKDAY_OPTIONS.filter((day) => keys.has(buildTemplateWeekdayKey("week2", day)));
+  return { week1Days, week2Days };
+}
+
+function toggleWeekdaySelection(days: WeekdayLabel[], day: WeekdayLabel): WeekdayLabel[] {
+  return days.includes(day) ? days.filter((value) => value !== day) : [...days, day];
+}
+
+function formatTimeInputValue(minutes: number | null): string {
+  if (typeof minutes !== "number" || !Number.isFinite(minutes)) return "";
+  const normalized = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  const hrs = Math.floor(normalized / 60);
+  const mins = Math.round(normalized % 60);
+  return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
 }
 
 function buildDuplicateSlotKey(row: RowAnalysis): string | null {

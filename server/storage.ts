@@ -12,6 +12,8 @@ import {
   type InsertDiscrepancy,
   type Audit,
   type InsertAudit,
+  type CareWorkerRota,
+  type InsertCareWorkerRota,
   type AdminAlert,
   type InsertAdminAlert,
   type ActiveSession,
@@ -38,6 +40,7 @@ import {
   careWorkers,
   discrepancies,
   audits,
+  careWorkerRotas,
   adminAlerts,
   activeSessions,
   riskAssessmentLogs,
@@ -82,6 +85,11 @@ export interface IStorage {
   createAudit(audit: InsertAudit): Promise<Audit>;
   getAuditsByServiceUser(serviceUserName: string): Promise<Audit[]>;
   getAllAudits(): Promise<Audit[]>;
+
+  // Care Worker Rota operations
+  upsertCareWorkerRota(rota: InsertCareWorkerRota): Promise<{ rota: CareWorkerRota; deduped: boolean }>;
+  getCareWorkerRotaByHash(sourceHash: string): Promise<CareWorkerRota | undefined>;
+  getCareWorkerRotas(options?: { search?: string }): Promise<CareWorkerRota[]>;
 
   // Admin Alert operations
   createAdminAlert(alert: InsertAdminAlert): Promise<AdminAlert>;
@@ -346,6 +354,52 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(audits)
       .orderBy(desc(audits.createdAt));
+  }
+
+  // Care Worker Rota operations
+  async upsertCareWorkerRota(rota: InsertCareWorkerRota): Promise<{ rota: CareWorkerRota; deduped: boolean }> {
+    const inserted = await this.db
+      .insert(careWorkerRotas)
+      .values(rota)
+      .onConflictDoNothing({ target: careWorkerRotas.sourceHash })
+      .returning();
+
+    if (inserted.length) {
+      return { rota: inserted[0], deduped: false };
+    }
+
+    const existing = await this.getCareWorkerRotaByHash(rota.sourceHash);
+    if (!existing) {
+      throw new Error("Unable to save care worker rota.");
+    }
+    return { rota: existing, deduped: true };
+  }
+
+  async getCareWorkerRotaByHash(sourceHash: string): Promise<CareWorkerRota | undefined> {
+    const result = await this.db
+      .select()
+      .from(careWorkerRotas)
+      .where(eq(careWorkerRotas.sourceHash, sourceHash))
+      .limit(1);
+    return result[0];
+  }
+
+  async getCareWorkerRotas(options?: { search?: string }): Promise<CareWorkerRota[]> {
+    const term = options?.search?.trim().toLowerCase();
+    if (term) {
+      return await this.db
+        .select()
+        .from(careWorkerRotas)
+        .where(
+          sql`lower(${careWorkerRotas.workerName}) like ${`%${term}%`} or lower(${careWorkerRotas.workerKey}) like ${`%${term}%`}`
+        )
+        .orderBy(desc(careWorkerRotas.createdAt));
+    }
+
+    return await this.db
+      .select()
+      .from(careWorkerRotas)
+      .orderBy(desc(careWorkerRotas.createdAt));
   }
 
   // Admin Alert operations

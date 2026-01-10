@@ -43,14 +43,21 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
 
   const [openServiceUsers, setOpenServiceUsers] = useState(location.startsWith("/service-users"));
   const [openCareWorkers, setOpenCareWorkers] = useState(location.startsWith("/care-workers"));
-  const isAdminRoute = location.startsWith("/admin") || location === "/shadow-admin-portal" || location === "/testing-features";
+  const isAdminRoute =
+    location.startsWith("/admin") ||
+    location === "/shadow-admin-portal" ||
+    location === "/testing-features" ||
+    location === "/care-worker-rotas";
   const [openAdmin, setOpenAdmin] = useState(isAdminUser && isAdminRoute);
 
   // Auto-open accordion based on route
   useEffect(() => {
      if (location.startsWith("/service-users")) setOpenServiceUsers(true);
      if (location.startsWith("/care-workers")) setOpenCareWorkers(true);
-      if (isAdminUser && (location.startsWith("/admin") || location === "/shadow-admin-portal" || location === "/testing-features")) {
+      if (
+        isAdminUser &&
+        (location.startsWith("/admin") || location === "/shadow-admin-portal" || location === "/testing-features" || location === "/care-worker-rotas")
+      ) {
         setOpenAdmin(true);
       }
   }, [location]);
@@ -208,6 +215,17 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
                 )}
               >
                 <FlaskConical size={16} /> Testing Features
+              </Link>
+              <Link
+                href="/care-worker-rotas"
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all",
+                  location === "/care-worker-rotas"
+                    ? "bg-sidebar-accent text-sidebar-foreground"
+                    : "text-sidebar-foreground/60 hover:text-sidebar-foreground"
+                )}
+              >
+                <ClipboardList size={16} /> Care Worker Rotas
               </Link>
             </CollapsibleContent>
           </Collapsible>
