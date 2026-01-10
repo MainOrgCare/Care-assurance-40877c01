@@ -1,4 +1,6 @@
 import type { Express } from "express";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
@@ -55,12 +57,17 @@ const uploadExcel = multer({
 const MAX_NON_ADMIN_SESSIONS = 2;
 const FORCE_LOGOUT_WARNING_SECONDS = 30;
 
+const getStandardFontDataUrl = (): string => {
+  const fontsPath = path.resolve(process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts");
+  return pathToFileURL(fontsPath + path.sep).toString();
+};
+
 async function extractPdfTextWithPdfjs(pdfBuffer: Buffer): Promise<{ text: string; pageCount: number; pageCharCounts: number[]; pageTexts: string[] }> {
   const uint8Array = new Uint8Array(pdfBuffer);
   const loadingTask = pdfjsLib.getDocument({
     data: uint8Array,
     disableWorker: true,
-    standardFontDataUrl: new URL("../node_modules/pdfjs-dist/standard_fonts/", import.meta.url).toString(),
+    standardFontDataUrl: getStandardFontDataUrl(),
     useSystemFonts: true,
   } as any);
   const pdf = await loadingTask.promise;

@@ -1,7 +1,11 @@
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
-const getStandardFontDataUrl = () =>
-  new URL("../node_modules/pdfjs-dist/standard_fonts/", import.meta.url).toString();
+const getStandardFontDataUrl = () => {
+  const fontsPath = path.resolve(process.cwd(), 'node_modules', 'pdfjs-dist', 'standard_fonts');
+  return pathToFileURL(fontsPath + path.sep).toString();
+};
 
 interface TextItem {
   str: string;
