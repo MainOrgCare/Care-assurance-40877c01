@@ -3770,7 +3770,7 @@ export default function TestingFeatures() {
                         {selectedTemplateWeekLabel} • {selectedTemplateDay}
                       </Badge>
                       <Button size="sm" variant="outline" asChild>
-                        <a href="/admin/care-worker-rotas">Open rota library</a>
+                        <a href="/care-worker-rotas">Open rota library</a>
                       </Button>
                     </div>
                   </CardHeader>

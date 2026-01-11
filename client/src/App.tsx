@@ -73,6 +73,9 @@ function Router() {
       <AdminRoute path="/roi-calculator" component={ROICalculator} />
       <AdminRoute path="/testing-features" component={TestingFeatures} />
       <AdminRoute path="/care-worker-rotas" component={CareWorkerRotas} />
+      <Route path="/admin/care-worker-rotas">
+        <Redirect to="/care-worker-rotas" />
+      </Route>
       <ProtectedRoute path="/settings" component={Settings} />
 
       {/* Homepage - shows landing page or redirects to dashboard */}
