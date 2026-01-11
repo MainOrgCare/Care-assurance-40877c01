@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { Link } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -526,6 +527,7 @@ export default function TestingFeatures() {
   const [selectedTemplateDay, setSelectedTemplateDay] = useState<WeekdayLabel>(DEFAULT_TEMPLATE_DAY);
   const [enforceTimeCriticalWindow, setEnforceTimeCriticalWindow] = useState(false);
   const [packCallsBackToBack, setPackCallsBackToBack] = useState(true);
+  const [useObservedAverages, setUseObservedAverages] = useState(true);
   const [templateOverrides, setTemplateOverrides] = useState<Record<string, TemplateOverride>>({});
   const [expandedTemplateGroupKeys, setExpandedTemplateGroupKeys] = useState<string[]>([]);
   const [selectedCareWorkerKey, setSelectedCareWorkerKey] = useState<string | null>(null);
@@ -1594,8 +1596,21 @@ export default function TestingFeatures() {
     });
   }, [analysisResults, coverage, normalizeColumnLabel]);
 
-  const slotTrends = useMemo<SlotTrendSummary[]>(() => {
-    if (!primaryRows.length) return [];
+  const slotTrendMetrics = useMemo(() => {
+    if (!primaryRows.length) {
+      return {
+        topInsights: [] as SlotTrendSummary[],
+        byKey: new Map<
+          string,
+          {
+            suggestedStartMinutes: number | null;
+            suggestedDurationMinutes: number | null;
+            averageStartOffsetMinutes: number | null;
+            averageDurationPercent: number | null;
+          }
+        >(),
+      };
+    }
 
     type Accumulator = {
       key: string;
@@ -1670,14 +1685,21 @@ export default function TestingFeatures() {
         acc.actualStartSum += actual;
       }
 
-      if (typeof row.plannedTimeMinutes === "number") {
-        const planned = clampMinutesOfDay(row.plannedTimeMinutes);
+      const baselineMinutesRaw =
+        typeof row.serviceRequirementTimeMinutes === "number"
+          ? row.serviceRequirementTimeMinutes
+          : typeof row.plannedTimeMinutes === "number"
+          ? row.plannedTimeMinutes
+          : null;
+
+      if (typeof baselineMinutesRaw === "number") {
+        const planned = clampMinutesOfDay(baselineMinutesRaw);
         acc.callsWithPlannedStarts += 1;
         acc.plannedStartSum += planned;
       }
 
-      if (typeof row.actualTimeMinutes === "number" && typeof row.plannedTimeMinutes === "number") {
-        const delta = row.actualTimeMinutes - row.plannedTimeMinutes;
+      if (typeof row.actualTimeMinutes === "number" && typeof baselineMinutesRaw === "number") {
+        const delta = row.actualTimeMinutes - baselineMinutesRaw;
         if (Number.isFinite(delta) && Math.abs(delta) <= 12 * 60) {
           acc.callsWithTimes += 1;
           acc.offsetSum += delta;
@@ -1706,6 +1728,15 @@ export default function TestingFeatures() {
     }
 
     const result: SlotTrendSummary[] = [];
+    const byKey = new Map<
+      string,
+      {
+        suggestedStartMinutes: number | null;
+        suggestedDurationMinutes: number | null;
+        averageStartOffsetMinutes: number | null;
+        averageDurationPercent: number | null;
+      }
+    >();
     for (const acc of map.values()) {
       const advice: string[] = [];
       const averageStartOffsetMinutes = acc.callsWithTimes ? acc.offsetSum / acc.callsWithTimes : null;
@@ -1720,6 +1751,7 @@ export default function TestingFeatures() {
         : null;
 
       let suggestedPlannedTimeLabel: string | null = null;
+      let suggestedStartMinutes: number | null = null;
       if (
         acc.callsWithTimes >= TREND_MIN_CALLS &&
         averageStartOffsetMinutes !== null &&
@@ -1732,6 +1764,7 @@ export default function TestingFeatures() {
           typeof averageActualStartMinutes === "number"
             ? clampMinutesOfDay(roundToNearest(averageActualStartMinutes, 5))
             : null;
+        suggestedStartMinutes = typeof suggestedMinutes === "number" ? suggestedMinutes : null;
         suggestedPlannedTimeLabel =
           typeof suggestedMinutes === "number" ? deriveTimeLabel(suggestedMinutes, null) ?? null : null;
 
@@ -1777,6 +1810,13 @@ export default function TestingFeatures() {
         );
       }
 
+      byKey.set(acc.key, {
+        suggestedStartMinutes,
+        suggestedDurationMinutes: suggestedPlannedDurationMinutes,
+        averageStartOffsetMinutes,
+        averageDurationPercent,
+      });
+
       const tone: InsightTone =
         advice.length > 0
           ? "warning"
@@ -1805,7 +1845,7 @@ export default function TestingFeatures() {
       });
     }
 
-    return result
+    const topInsights = result
       .filter((item) => item.advice.length > 0)
       .sort((a, b) => {
         const aScore =
@@ -1817,8 +1857,13 @@ export default function TestingFeatures() {
         if (bScore !== aScore) return bScore - aScore;
         return (a.serviceUserName || "").localeCompare(b.serviceUserName || "");
       })
-        .slice(0, 10);
+      .slice(0, 10);
+
+    return { topInsights, byKey };
   }, [primaryRows]);
+
+  const slotTrends = slotTrendMetrics.topInsights;
+  const slotTrendLookup = slotTrendMetrics.byKey;
 
   const duplicateClusters = useMemo<DuplicateCluster[]>(() => {
     if (!dedupedResults.length) return [];
@@ -2288,7 +2333,10 @@ export default function TestingFeatures() {
     }
     const term = careWorkerSearch.trim().toLowerCase();
     if (!term) {
-      return { visibleCareWorkerRosters: careWorkerRosters.slice(0, 8), careWorkerHasMatch: true };
+      return {
+        visibleCareWorkerRosters: careWorkerRosters.slice(0, rosteringFullscreen ? 16 : 8),
+        careWorkerHasMatch: true,
+      };
     }
 
     const scored = careWorkerRosters.map((roster) => {
@@ -2302,10 +2350,30 @@ export default function TestingFeatures() {
     );
 
     return {
-      visibleCareWorkerRosters: source.map((entry) => entry.roster).slice(0, 8),
+      visibleCareWorkerRosters: source
+        .map((entry) => entry.roster)
+        .slice(0, rosteringFullscreen ? 16 : 8),
       careWorkerHasMatch: matches.length > 0,
     };
-  }, [careWorkerRosters, careWorkerSearch]);
+  }, [careWorkerRosters, careWorkerSearch, rosteringFullscreen]);
+
+  const handleResetRosteringStudio = useCallback(() => {
+    setCareWorkerSearch("");
+    setRosterCallSearch("");
+    setSelectedCareWorkerKey(null);
+    setSelectedWorkerCallKeys([]);
+    setTemplateOverrides({});
+    setExpandedTemplateGroupKeys([]);
+    setSelectedTemplateWeek(DEFAULT_TEMPLATE_WEEK);
+    setSelectedTemplateDay(DEFAULT_TEMPLATE_DAY);
+    setEnforceTimeCriticalWindow(false);
+    setPackCallsBackToBack(true);
+    setUseObservedAverages(true);
+    toast({
+      title: "Rostering Studio reset",
+      description: "Selections and temporary overrides cleared for this session.",
+    });
+  }, [toast]);
 
   const selectedCareWorker = useMemo(
     () => careWorkerRosters.find((roster) => roster.key === selectedCareWorkerKey) ?? null,
@@ -2344,6 +2412,14 @@ export default function TestingFeatures() {
     return selectedCareWorker.callGroups.map((group) => {
       const overrideKey = buildTemplateOverrideKey(selectedCareWorker.key, group.key);
       const override = templateOverrides[overrideKey];
+
+      const trendKey =
+        group.normalizedServiceUserKey && group.callTypeKey
+          ? `${group.normalizedServiceUserKey}|type-${group.callTypeKey}`
+          : null;
+      const trend = trendKey ? slotTrendLookup.get(trendKey) : undefined;
+      const suggestedStartMinutes = useObservedAverages ? trend?.suggestedStartMinutes : null;
+
       const baseDays = splitTemplateWeekdayKeys(group.templatedWeekdayKeys);
       const week1Days = override?.week1Days ?? baseDays.week1Days;
       const week2Days = override?.week2Days ?? baseDays.week2Days;
@@ -2353,6 +2429,8 @@ export default function TestingFeatures() {
       const effectiveRequirementStartMinutes =
         typeof override?.requirementStartMinutes === "number"
           ? override.requirementStartMinutes
+          : typeof suggestedStartMinutes === "number"
+          ? suggestedStartMinutes
           : group.requirementStartMinutes;
       const effectiveRequirementStartLabel =
         typeof effectiveRequirementStartMinutes === "number"
@@ -2373,7 +2451,7 @@ export default function TestingFeatures() {
         isDoubleUpForSelection,
       };
     });
-  }, [selectedCareWorker, templateOverrides, templateSelectionKey]);
+  }, [selectedCareWorker, slotTrendLookup, templateOverrides, templateSelectionKey, useObservedAverages]);
 
   const filteredResolvedCallGroups = useMemo(() => {
     if (!resolvedCallGroups.length) return [];
@@ -2430,6 +2508,41 @@ export default function TestingFeatures() {
     const DAY_START_MINUTES = ROSTER_DAY_START_MINUTES;
     const bandOrder = ["AM", "Lunch", "Tea", "Evening", "Night", "Unscheduled"];
 
+    const blockedIntervals = (() => {
+      if (!selectedCareWorker?.isAdminStaff) return [] as Array<{ start: number; end: number }>;
+      const intervals = shiftBarsForSelection
+        .map((bar) => {
+          if (typeof bar.startMinutes !== "number" || typeof bar.endMinutes !== "number") return null;
+          return { start: bar.startMinutes, end: bar.endMinutes };
+        })
+        .filter(Boolean) as Array<{ start: number; end: number }>;
+      intervals.sort((a, b) => a.start - b.start || a.end - b.end);
+      return intervals;
+    })();
+
+    const overlapsBlocked = (start: number, end: number) => {
+      return blockedIntervals.some((interval) => start < interval.end && end > interval.start);
+    };
+
+    const shiftPastBlocked = (start: number, durationMinutes: number) => {
+      if (!blockedIntervals.length) {
+        return { start, shifted: false };
+      }
+
+      let candidate = start;
+      let shifted = false;
+      // Prevent infinite loops in pathological data.
+      for (let i = 0; i < blockedIntervals.length + 2; i += 1) {
+        const end = candidate + durationMinutes;
+        const overlap = blockedIntervals.find((interval) => candidate < interval.end && end > interval.start);
+        if (!overlap) break;
+        candidate = overlap.end;
+        shifted = true;
+      }
+
+      return { start: candidate, shifted };
+    };
+
     const groupsByBand = bandOrder.reduce<Record<string, ResolvedWorkerCallGroup[]>>((acc, band) => {
       acc[band] = [];
       return acc;
@@ -2477,8 +2590,19 @@ export default function TestingFeatures() {
       });
 
       sorted.forEach((group) => {
+        const trendKey =
+          group.normalizedServiceUserKey && group.callTypeKey
+            ? `${group.normalizedServiceUserKey}|type-${group.callTypeKey}`
+            : null;
+        const trend = trendKey ? slotTrendLookup.get(trendKey) : undefined;
+        const suggestedDurationMinutes = useObservedAverages ? trend?.suggestedDurationMinutes : null;
+
         const durationMinutes =
-          typeof group.durationMinutes === "number" ? group.durationMinutes : DEFAULT_ROUTE_DURATION_MINUTES;
+          typeof suggestedDurationMinutes === "number" && Number.isFinite(suggestedDurationMinutes) && suggestedDurationMinutes > 0
+            ? suggestedDurationMinutes
+            : typeof group.durationMinutes === "number"
+            ? group.durationMinutes
+            : DEFAULT_ROUTE_DURATION_MINUTES;
         const isLockedDoubleUp = group.isDoubleUpForSelection;
 
         if (typeof group.effectiveRequirementStartMinutes !== "number") {
@@ -2533,10 +2657,24 @@ export default function TestingFeatures() {
           }
         }
 
+        // Office staff: prevent scheduling calls inside shift bars.
+        if (selectedCareWorker?.isAdminStaff) {
+          const shiftResult = shiftPastBlocked(scheduledStart, durationMinutes);
+          if (shiftResult.shifted) {
+            hasWindowConflict = true;
+          }
+          scheduledStart = shiftResult.start;
+        }
+
         const scheduledEnd = scheduledStart + durationMinutes;
         const hadOverlap = cursor !== null && scheduledStart < cursor;
         if (hadOverlap) hasWindowConflict = true;
         cursor = cursor !== null ? Math.max(cursor, scheduledEnd) : scheduledEnd;
+
+        // Final safety: if something caused an overlap with blocked time, flag it.
+        if (selectedCareWorker?.isAdminStaff && overlapsBlocked(scheduledStart, scheduledEnd)) {
+          hasWindowConflict = true;
+        }
 
         const isOutsideWindow =
           group.isTimeCritical && windowStart !== null && windowEnd !== null
@@ -2566,7 +2704,7 @@ export default function TestingFeatures() {
     });
 
     return optimized;
-  }, [enforceTimeCriticalWindow, packCallsBackToBack, selectedWorkerGroups]);
+  }, [enforceTimeCriticalWindow, packCallsBackToBack, selectedCareWorker?.isAdminStaff, selectedWorkerGroups, shiftBarsForSelection, slotTrendLookup, useObservedAverages]);
 
   const rosterSummary = useMemo(() => {
     if (!optimizedRun.length) return null;
@@ -3331,7 +3469,7 @@ export default function TestingFeatures() {
         </p>
       </div>
 
-      <Alert className="border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
+      <Alert className="border-amber-500/25 bg-amber-500/5 text-foreground shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10">
         <AlertTitle>Volatile workspace</AlertTitle>
         <AlertDescription>
           Data stays in-memory only. Refreshing the page clears every upload, so export a PDF if you need a temporary record.
@@ -3340,7 +3478,7 @@ export default function TestingFeatures() {
 
       {showGlobalProgress && (
         <div className="z-30 mb-6">
-          <div className="rounded-full h-2 bg-muted/60 overflow-hidden shadow-inner">
+          <div className="rounded-full h-2 bg-border/50 overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-primary via-primary/80 to-primary/60 transition-all duration-200"
               style={{ width: `${Math.min(Math.max(progress, 5), 100)}%` }}
@@ -3362,7 +3500,7 @@ export default function TestingFeatures() {
           <CardContent className="space-y-4">
             <div
               className={`border border-dashed rounded-xl p-6 text-center transition-colors ${
-                isDragging ? "border-primary bg-primary/10" : "border-border bg-muted/40"
+                isDragging ? "border-primary bg-primary/5" : "border-border bg-background/60 hover:bg-muted/20"
               }`}
               onDragEnter={handleDragEnter}
               onDragLeave={handleDragLeave}
@@ -3640,10 +3778,10 @@ export default function TestingFeatures() {
       {analysisResults.length > 0 && (
         <Accordion type="multiple" className="w-full">
           {summary.total > 0 && (
-            <AccordionItem value="timing-insights">
-              <AccordionTrigger>Timing Insights</AccordionTrigger>
-              <AccordionContent>
-                <Card className="border border-primary/20 bg-primary/5">
+            <AccordionItem value="timing-insights" className="mb-4 rounded-2xl border border-border/70 bg-card px-5 shadow-sm border-b-0">
+              <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline">Timing Insights</AccordionTrigger>
+              <AccordionContent className="pb-5">
+                <Card className="border border-primary/20 bg-card">
                   <CardHeader>
                     <CardTitle>Timing Insights</CardTitle>
                     <CardDescription>Compare planned intent against care delivery reality.</CardDescription>
@@ -3692,9 +3830,9 @@ export default function TestingFeatures() {
           )}
 
           {slotTrends.length > 0 && (
-            <AccordionItem value="call-type-trends">
-              <AccordionTrigger>Recurring Call Type Trends</AccordionTrigger>
-              <AccordionContent>
+            <AccordionItem value="call-type-trends" className="mb-4 rounded-2xl border border-border/70 bg-card px-5 shadow-sm border-b-0">
+              <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline">Recurring Call Type Trends</AccordionTrigger>
+              <AccordionContent className="pb-5">
                 <Card>
                   <CardHeader>
                     <CardTitle>Recurring Call Type Trends</CardTitle>
@@ -3753,8 +3891,8 @@ export default function TestingFeatures() {
           )}
 
           {careWorkerRosters.length > 0 && (
-            <AccordionItem value="care-worker-route-optimizer">
-              <AccordionTrigger>Rostering Studio</AccordionTrigger>
+            <AccordionItem value="care-worker-route-optimizer" className="mb-4 rounded-2xl border border-border/70 bg-card px-5 shadow-sm border-b-0">
+              <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline">Rostering Studio</AccordionTrigger>
               <AccordionContent className="relative">
                 {rosteringFullscreen && (
                   <div
@@ -3774,12 +3912,36 @@ export default function TestingFeatures() {
                       <CardDescription>
                         Build a care worker run from templated calls, then refine it into a working rota with time-critical safeguards and zero overlaps.
                       </CardDescription>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Badge variant="outline" className="text-[10px] font-semibold">
+                          {careWorkerRosters.length} workers
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] font-semibold">
+                          {serviceUserStacks.length} service users
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] font-semibold">
+                          {rosterRows.length} calls
+                        </Badge>
+                        {summary.averageDriftMinutes !== null && (
+                          <Badge variant="secondary" className="text-[10px] font-semibold">
+                            Avg drift {formatMinutesDisplay(summary.averageDriftMinutes)}
+                          </Badge>
+                        )}
+                        {summary.averageDurationPercent !== null && (
+                          <Badge variant="secondary" className="text-[10px] font-semibold">
+                            Avg duration {Math.round(summary.averageDurationPercent)}%
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="secondary" className="text-xs font-semibold">
                         <CalendarDays className="mr-1 h-3.5 w-3.5" />
                         {selectedTemplateWeekLabel} • {selectedTemplateDay}
                       </Badge>
+                      <Button size="sm" variant="ghost" onClick={handleResetRosteringStudio}>
+                        Reset
+                      </Button>
                       <Button
                         size="sm"
                         variant={rosteringFullscreen ? "secondary" : "outline"}
@@ -3798,7 +3960,7 @@ export default function TestingFeatures() {
                         )}
                       </Button>
                       <Button size="sm" variant="outline" asChild>
-                        <a href="/care-worker-rotas">Open rota library</a>
+                        <Link href="/care-worker-rotas">Open rota library</Link>
                       </Button>
                     </div>
                   </CardHeader>
@@ -3983,6 +4145,16 @@ export default function TestingFeatures() {
                                           />
                                         </div>
                                         <div className="flex items-center justify-between">
+                                          <label htmlFor="toggle-observed-averages" className="font-medium">
+                                            Use observed averages (starts & durations)
+                                          </label>
+                                          <Switch
+                                            id="toggle-observed-averages"
+                                            checked={useObservedAverages}
+                                            onCheckedChange={setUseObservedAverages}
+                                          />
+                                        </div>
+                                        <div className="flex items-center justify-between">
                                           <label htmlFor="toggle-time-critical" className="font-medium">
                                             Enforce time-critical window (±{TIME_CRITICAL_WINDOW_MINUTES} mins)
                                           </label>
@@ -3994,6 +4166,9 @@ export default function TestingFeatures() {
                                         </div>
                                       </div>
                                       <p className="text-xs text-muted-foreground">
+                                        Observed averages use consistent drift in the uploaded data to shift requirement times and durations.
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
                                         Calls flagged as adhoc or ServiceDutyClassType A/S are excluded from routing.
                                       </p>
                                     </div>
@@ -4003,7 +4178,9 @@ export default function TestingFeatures() {
                                         Shift bars (fixed)
                                       </p>
                                       <p className="text-xs text-muted-foreground">
-                                        Shift bars stay at their template time for {formatMinutesDisplay(SHIFT_BAR_DURATION_MINUTES)} and can overlap calls.
+                                        {selectedCareWorker.isAdminStaff
+                                          ? "For office staff, shift bars block scheduling (no calls will be placed inside them)."
+                                          : `Shift bars stay at their template time for ${formatMinutesDisplay(SHIFT_BAR_DURATION_MINUTES)} and can overlap calls.`}
                                       </p>
                                       {selectedCareWorker.shiftBarsCount === 0 ? (
                                         <p className="text-xs text-muted-foreground">No shift bars recorded for this worker.</p>
@@ -4126,7 +4303,7 @@ export default function TestingFeatures() {
                                   ) : null}
 
                                   {filteredResolvedCallGroups.length ? (
-                                    <ScrollArea className="max-h-[520px] rounded-xl border border-border/60 bg-background/60">
+                                    <div className="rounded-xl border border-border/60 bg-background/60">
                                       <div className="space-y-3 p-3">
                                         {filteredResolvedCallGroups.map((group) => {
                                           const isAvailable = group.effectiveTemplateWeekdayKeys.has(templateSelectionKey);
@@ -4144,12 +4321,12 @@ export default function TestingFeatures() {
                                           return (
                                             <div
                                               key={group.key}
-                                              className={`flex flex-col gap-3 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+                                              className={`flex flex-col gap-3 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between transition-colors ${
                                                 isSelectable
                                                   ? isSelected
-                                                    ? "border-primary/50 bg-primary/10"
-                                                    : "border-border/60 bg-background/60"
-                                                  : "border-border/40 bg-muted/30"
+                                                    ? "border-primary/50 bg-primary/10 hover:bg-primary/15"
+                                                    : "border-border/60 bg-background/60 hover:bg-muted/20"
+                                                  : "border-border/40 bg-muted/30 opacity-75"
                                               }`}
                                             >
                                               <div>
@@ -4382,7 +4559,7 @@ export default function TestingFeatures() {
                                           );
                                         })}
                                       </div>
-                                    </ScrollArea>
+                                    </div>
                                   ) : (
                                     <p className="text-xs text-muted-foreground">
                                       {rosterCallSearch.trim()
@@ -4579,10 +4756,18 @@ export default function TestingFeatures() {
                                             : entry.isDoubleUp
                                             ? "bg-emerald-500/70"
                                             : "bg-primary/70";
+                                        const borderTone =
+                                          isAfterHardLimit || entry.isOutsideWindow || entry.hasWindowConflict
+                                            ? "border-l-red-500/70"
+                                            : isAfterSoftLimit || isBeforeDayStart
+                                            ? "border-l-amber-400/80"
+                                            : entry.isDoubleUp
+                                            ? "border-l-emerald-500/70"
+                                            : "border-l-primary/70";
                                         return (
                                           <div
                                             key={entry.key}
-                                            className="flex flex-col gap-2 rounded-xl border border-border/60 bg-background/60 p-3"
+                                            className={`flex flex-col gap-2 rounded-xl border border-border/60 bg-background/60 p-3 shadow-sm transition-shadow hover:shadow-md border-l-4 ${borderTone}`}
                                           >
                                             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                                               <div>
@@ -4751,7 +4936,7 @@ export default function TestingFeatures() {
                   <div className="space-y-4">
                     <ScrollArea className="max-h-[480px] rounded-md border border-border/80">
                       <table className="w-full text-sm">
-                        <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                        <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
                           <tr>
                             <th className="px-4 py-3 w-16">Row</th>
                             <th className="px-4 py-3">Status</th>
@@ -5358,9 +5543,9 @@ export default function TestingFeatures() {
 type InsightTone = "default" | "warning" | "destructive";
 
 const toneSurfaceMap: Record<InsightTone, string> = {
-  default: "border-emerald-500/30 bg-emerald-500/5",
-  warning: "border-amber-500/30 bg-amber-500/5",
-  destructive: "border-red-500/30 bg-red-500/5",
+  default: "border-emerald-500/30 bg-card shadow-sm",
+  warning: "border-amber-500/30 bg-card shadow-sm",
+  destructive: "border-red-500/30 bg-card shadow-sm",
 };
 
 const toneTextMap: Record<InsightTone, string> = {

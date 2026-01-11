@@ -2042,7 +2042,10 @@ export async function registerRoutes(
     }
     
     // User context for AI cost tracking
-    const aiUserContext: AiUserContext = { userId: user?.id || null, username: user?.username || null };
+    const aiUserContext: AiUserContext = {
+      userId: user?.id != null ? String(user.id) : null,
+      username: user?.username != null ? String(user.username) : null,
+    };
     const emarPrimaryModel = process.env.EMAR_AI_MODEL || "gpt-4o-mini";
     const emarMetadataModel = process.env.EMAR_METADATA_MODEL || emarPrimaryModel;
     const emarExtractionModel = process.env.EMAR_EXTRACTION_MODEL || emarPrimaryModel;
