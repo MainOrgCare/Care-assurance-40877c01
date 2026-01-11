@@ -3336,8 +3336,12 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
 
       gridNonBlankCount = gridBaseline?.cells?.reduce((count, cell) => {
         const code = String(cell.code || "").toUpperCase().trim();
-        if (!code || code === "BLANK" || code === "N/A") return count;
-        return count + 1;
+        if (code && code !== "BLANK" && code !== "N/A") return count + 1;
+        const content = String(cell.content || "");
+        const hasTime = Boolean(cell.time && cell.time.trim()) || /\b\d{1,2}:\d{2}\b/.test(content);
+        const hasInitials = Boolean(cell.careWorker && cell.careWorker.trim()) || /\b[A-Z]{2,3}\b/.test(content);
+        if (hasTime || hasInitials) return count + 1;
+        return count;
       }, 0) || 0;
       gridPrimaryEnabled = gridLooksValid && gridNonBlankCount > 0;
 
@@ -3449,6 +3453,10 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         ...m,
         medicationId: i + 1  // 1-indexed for easier human readability
       }));
+      const prnMedicationIds = new Set<number>();
+      for (const med of medicationsWithIds) {
+        if (med?.isPRN) prnMedicationIds.add(med.medicationId);
+      }
       
       // COST OPTIMIZATION: Process 3 medications per batch (reduced from 1)
       // This cuts API calls by ~66% while maintaining good accuracy
@@ -3520,6 +3528,21 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         if (code === "PRNR") return "PRN-R";
 
         return code;
+      };
+
+      const inferGridCode = (cell: ParsedEMAR["cells"][number], medId: number): string => {
+        const rawCode = String(cell.code || "").toUpperCase().trim();
+        const normalized = normalizeEmarCode(rawCode);
+        if (normalized && normalized !== "BLANK" && normalized !== "N/A") return normalized;
+
+        const content = String(cell.content || "");
+        const hasTime = Boolean(cell.time && cell.time.trim()) || /\b\d{1,2}:\d{2}\b/.test(content);
+        const hasInitials = Boolean(cell.careWorker && cell.careWorker.trim()) || /\b[A-Z]{2,3}\b/.test(content);
+
+        if (hasTime || hasInitials) {
+          return prnMedicationIds.has(medId) ? "PRN" : "AD";
+        }
+        return normalized || "BLANK";
       };
 
       // Helper function to normalize entries for comparison (sort by medicationId, date, timeSlot, code)
@@ -3881,7 +3904,7 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
         for (const cell of gridBaseline.cells) {
           const medId = resolveMedicationId(cell.medication || "");
           if (!medId) continue;
-          const code = normalizeEmarCode(String(cell.code || cell.content || ""));
+          const code = inferGridCode(cell, medId);
           if (!code || code === "BLANK" || code === "N/A") continue;
           const entry: any = {
             medicationId: medId,
@@ -4207,13 +4230,13 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
 
         const buildGridEntries = () => {
           const entries: any[] = [];
-          for (const cell of gridBaseline.cells) {
-            const medId = resolveMedicationId(cell.medication || "");
-            if (!medId) continue;
-            const code = normalizeEmarCode(cell.code || cell.content);
-            if (!code || code === "BLANK" || code === "N/A") continue;
-            const entry: any = {
-              medicationId: medId,
+        for (const cell of gridBaseline.cells) {
+          const medId = resolveMedicationId(cell.medication || "");
+          if (!medId) continue;
+          const code = inferGridCode(cell, medId);
+          if (!code || code === "BLANK" || code === "N/A") continue;
+          const entry: any = {
+            medicationId: medId,
               date: cell.date || "",
               timeSlot: cell.timeSlot || "",
               code,
@@ -4233,9 +4256,13 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
         };
 
         const gridNonBlankCount = gridBaseline.cells.reduce((count, cell) => {
-          const code = normalizeEmarCode(cell.code || cell.content);
-          if (!code || code === "BLANK" || code === "N/A") return count;
-          return count + 1;
+          const code = String(cell.code || "").toUpperCase().trim();
+          if (code && code !== "BLANK" && code !== "N/A") return count + 1;
+          const content = String(cell.content || "");
+          const hasTime = Boolean(cell.time && cell.time.trim()) || /\b\d{1,2}:\d{2}\b/.test(content);
+          const hasInitials = Boolean(cell.careWorker && cell.careWorker.trim()) || /\b[A-Z]{2,3}\b/.test(content);
+          if (hasTime || hasInitials) return count + 1;
+          return count;
         }, 0);
 
         if (gridNonBlankCount > 0) {

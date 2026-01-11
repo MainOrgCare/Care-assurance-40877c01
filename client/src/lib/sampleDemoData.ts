@@ -1,9 +1,9 @@
-export const SAMPLE_CARE_PLAN_CONTENT = `Service User: M.S. (Margaret Smith)
+export const SAMPLE_CARE_PLAN_CONTENT = `Service User: [REDACTED]
 Date of Birth: [REDACTED]
 Date of Assessment: 15/12/2024
 
 BACKGROUND INFORMATION:
-Margaret is an 82-year-old widow who has lived alone in her bungalow for the past 5 years following the death of her husband. She has two adult children who live nearby and visit regularly. Margaret was a primary school teacher for 35 years and remains very proud of her career.
+The service user is an 82-year-old widow who has lived alone in a bungalow for the past 5 years following the death of a spouse. The service user has two adult children who live nearby and visit regularly. The service user was a primary school teacher for 35 years and remains very proud of that career.
 
 CURRENT HEALTH CONDITIONS:
 - Type 2 Diabetes (diet controlled)
@@ -13,10 +13,10 @@ CURRENT HEALTH CONDITIONS:
 - Hearing loss - uses hearing aids bilaterally
 
 MOBILITY:
-Margaret mobilises independently indoors using a walking frame. She requires supervision and minimal assistance with outdoor mobility. She can manage stairs slowly with the bannister but prefers to use the stairlift that was installed in 2022.
+The service user mobilises independently indoors using a walking frame. The service user requires supervision and minimal assistance with outdoor mobility. The service user can manage stairs slowly with the bannister but prefers to use the stairlift that was installed in 2022.
 
 PERSONAL CARE NEEDS:
-Margaret requires prompting and supervision with personal hygiene. She can wash herself with adapted equipment but needs assistance with back and feet. She is independent with toileting during the day but uses incontinence pads at night as a precaution.
+The service user requires prompting and supervision with personal hygiene. The service user can wash independently with adapted equipment but needs assistance with back and feet. The service user is independent with toileting during the day but uses incontinence pads at night as a precaution.
 
 MEDICATION:
 Current medications include:
@@ -26,13 +26,13 @@ Current medications include:
 - Eye drops for dry eyes twice daily
 
 NUTRITION:
-Margaret follows a diabetic-friendly diet. She enjoys cooking simple meals but benefits from meal preparation support. She has a good appetite and maintains a healthy weight. She drinks approximately 6-8 glasses of water daily.
+The service user follows a diabetic-friendly diet. The service user enjoys cooking simple meals but benefits from meal preparation support. The service user has a good appetite and maintains a healthy weight. The service user drinks approximately 6-8 glasses of water daily.
 
 COMMUNICATION:
-Margaret communicates well verbally when wearing her hearing aids. She may need repetition in noisy environments. She is oriented to person and place but occasionally confused about dates and recent events.
+The service user communicates well verbally when wearing hearing aids. The service user may need repetition in noisy environments. The service user is oriented to person and place but occasionally confused about dates and recent events.
 
 SOCIAL AND EMOTIONAL WELLBEING:
-Margaret enjoys reading, watching nature documentaries, and tending to her small garden. She attends a local church group weekly and has a good network of friends. She reports feeling lonely at times, particularly in the evenings.
+The service user enjoys reading, watching nature documentaries, and tending to a small garden. The service user attends a local church group weekly and has a good network of friends. The service user reports feeling lonely at times, particularly in the evenings.
 
 RISKS IDENTIFIED:
 - Falls risk due to mobility issues and cognitive impairment
@@ -48,7 +48,7 @@ GOALS:
 
 export const SAMPLE_EMAR_CONTENT = `ELECTRONIC MEDICATION ADMINISTRATION RECORD (EMAR)
 Facility: Oakwood Care Home
-Service User: J.T. (John Thompson)
+Service User: [REDACTED]
 Period: 01/12/2024 - 14/12/2024
 
 REGULAR MEDICATIONS:
@@ -96,25 +96,25 @@ export const SAMPLE_SOCIAL_WORK_CONTENT = `SOCIAL WORK ASSESSMENT REPORT
 Date: 10/12/2024
 Assessor: Community Social Worker Team
 
-RE: Margaret Smith (M.S.)
+RE: Service User (Redacted)
 Address: [REDACTED]
 
 REASON FOR REFERRAL:
-Family has expressed concerns about Margaret's ability to manage independently at home following recent falls and increasing forgetfulness.
+Family has expressed concerns about the service user's ability to manage independently at home following recent falls and increasing forgetfulness.
 
 ASSESSMENT FINDINGS:
 
 Living Situation:
-Margaret lives alone in a ground-floor bungalow which she has owned for 40 years. The property is generally well-maintained with family support. A stairlift was installed in 2022, and grab rails are in place in the bathroom.
+The service user lives alone in a ground-floor bungalow which has been owned for 40 years. The property is generally well-maintained with family support. A stairlift was installed in 2022, and grab rails are in place in the bathroom.
 
 Family Support:
-Daughter (Susan) visits twice weekly and assists with shopping and finances. Son (Robert) visits every Sunday and helps with garden maintenance. Both children are supportive but work full-time and have their own family commitments.
+Daughter visits twice weekly and assists with shopping and finances. Son visits every Sunday and helps with garden maintenance. Both children are supportive but work full-time and have their own family commitments.
 
 Financial Circumstances:
-Margaret receives State Pension and Attendance Allowance (lower rate). She owns her property outright and has modest savings. She is eligible for local authority funded care services.
+The service user receives State Pension and Attendance Allowance (lower rate). The service user owns the property outright and has modest savings. The service user is eligible for local authority funded care services.
 
 Mental Capacity:
-Margaret demonstrates capacity to make decisions about her care with appropriate support. She understands information when presented clearly and can weigh options. Short-term memory difficulties mean she may need reminders.
+The service user demonstrates capacity to make decisions about care with appropriate support. The service user understands information when presented clearly and can weigh options. Short-term memory difficulties mean the service user may need reminders.
 
 RECOMMENDATIONS:
 1. Home care package: 3 visits daily for medication prompting, meal preparation, and personal care support
