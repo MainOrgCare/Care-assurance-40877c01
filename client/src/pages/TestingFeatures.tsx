@@ -37,6 +37,8 @@ import {
   Filter,
   FlaskConical,
   Loader2,
+  Maximize2,
+  Minimize2,
   Route,
   Search,
   Shield,
@@ -530,6 +532,7 @@ export default function TestingFeatures() {
   const [selectedWorkerCallKeys, setSelectedWorkerCallKeys] = useState<string[]>([]);
   const [isSavingRota, setIsSavingRota] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [rosteringFullscreen, setRosteringFullscreen] = useState(false);
   const analysisJobRef = useRef<number>(0);
   const dragCounterRef = useRef(0);
   const showGlobalProgress = processingState === "parsing" || processingState === "analyzing";
@@ -3752,9 +3755,17 @@ export default function TestingFeatures() {
           {careWorkerRosters.length > 0 && (
             <AccordionItem value="care-worker-route-optimizer">
               <AccordionTrigger>Rostering Studio</AccordionTrigger>
-              <AccordionContent>
-                <Card>
-                  <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <AccordionContent className="relative">
+                {rosteringFullscreen && (
+                  <div
+                    className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+                    onClick={() => setRosteringFullscreen(false)}
+                    aria-hidden="true"
+                  />
+                )}
+                <div className={rosteringFullscreen ? "fixed inset-4 z-50" : undefined}>
+                <Card className={rosteringFullscreen ? "h-[calc(100vh-2rem)]" : undefined}>
+                  <CardHeader className={`flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between ${rosteringFullscreen ? "sticky top-0 z-10 border-b border-border/60 bg-background/95 backdrop-blur" : ""}`}>
                     <div>
                       <CardTitle className="flex items-center gap-2">
                         <Route className="h-5 w-5 text-primary" />
@@ -3769,12 +3780,35 @@ export default function TestingFeatures() {
                         <CalendarDays className="mr-1 h-3.5 w-3.5" />
                         {selectedTemplateWeekLabel} • {selectedTemplateDay}
                       </Badge>
+                      <Button
+                        size="sm"
+                        variant={rosteringFullscreen ? "secondary" : "outline"}
+                        onClick={() => setRosteringFullscreen((prev) => !prev)}
+                      >
+                        {rosteringFullscreen ? (
+                          <>
+                            <Minimize2 className="h-4 w-4 mr-2" />
+                            Exit full screen
+                          </>
+                        ) : (
+                          <>
+                            <Maximize2 className="h-4 w-4 mr-2" />
+                            Full screen
+                          </>
+                        )}
+                      </Button>
                       <Button size="sm" variant="outline" asChild>
                         <a href="/care-worker-rotas">Open rota library</a>
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-6">
+                  <CardContent
+                    className={`space-y-6 overflow-auto pr-2 ${
+                      rosteringFullscreen
+                        ? "h-[calc(100vh-12rem)]"
+                        : "max-h-[70vh]"
+                    }`}
+                  >
                     {!careWorkerHasMatch && (
                       <p className="text-xs text-muted-foreground">
                         No direct match found — showing the nearest care workers instead.
@@ -3791,7 +3825,13 @@ export default function TestingFeatures() {
                             className="pl-9"
                           />
                         </div>
-                        <ScrollArea className="h-[360px] rounded-md border border-border/70">
+                        <ScrollArea
+                          className={`${
+                            rosteringFullscreen
+                              ? "h-[calc(100vh-22rem)]"
+                              : "h-[360px]"
+                          } rounded-md border border-border/70`}
+                        >
                           <div className="space-y-2 p-2">
                             {visibleCareWorkerRosters.map((roster) => {
                               const isSelected = roster.key === selectedCareWorkerKey;
@@ -4637,6 +4677,7 @@ export default function TestingFeatures() {
                     </div>
                   </CardContent>
                 </Card>
+                </div>
               </AccordionContent>
             </AccordionItem>
           )}
