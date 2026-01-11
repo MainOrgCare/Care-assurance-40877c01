@@ -31,7 +31,8 @@ export type AiProvider = "replit" | "openai";
 
 // Admin-configurable preferred AI provider.
 // Default to OpenAI when an OpenAI key is configured; otherwise fall back to Replit.
-let preferredProvider: AiProvider = process.env.OPENAI_FALLBACK_API_KEY ? "openai" : "replit";
+let preferredProvider: AiProvider =
+  process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY ? "openai" : "replit";
 
 // Admin-configurable preferred AI model (defaults to gpt-5.1)
 let preferredModel: AvailableModel = "gpt-5.1";
@@ -77,7 +78,7 @@ let openaiClient: OpenAI | null = null;
 function getOpenAIClient(): OpenAI | null {
   if (openaiClient) return openaiClient;
   
-  const fallbackKey = process.env.OPENAI_FALLBACK_API_KEY;
+  const fallbackKey = process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY;
   if (!fallbackKey) {
     return null;
   }

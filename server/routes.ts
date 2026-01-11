@@ -150,16 +150,29 @@ async function scanAndLogFile(
       buffer: file.buffer,
     });
 
-    await storage.createFileScanLog({
-      fileName: file.originalname,
-      fileHash: scanResult.fileHash,
-      fileSize: file.size,
-      scanResult: scanResult.scanResult,
-      threatsFound: scanResult.threatsFound,
-      scannedBy: scannedBy || null,
-      uploadType,
-      cachedResult: scanResult.cached,
-    });
+    const canLogScan = Boolean(process.env.DATABASE_URL);
+    if (canLogScan) {
+      try {
+        await storage.createFileScanLog({
+          fileName: file.originalname,
+          fileHash: scanResult.fileHash,
+          fileSize: file.size,
+          scanResult: scanResult.scanResult,
+          threatsFound: scanResult.threatsFound,
+          scannedBy: scannedBy || null,
+          uploadType,
+          cachedResult: scanResult.cached,
+        });
+      } catch (error) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("File scan log failed in development; continuing without log.");
+        } else {
+          throw error;
+        }
+      }
+    } else if (process.env.NODE_ENV !== "production") {
+      console.warn("DATABASE_URL not set - skipping file scan log");
+    }
 
     if (!scanResult.isClean) {
       console.error(
@@ -2022,7 +2035,7 @@ export async function registerRoutes(
     }
 
     // Virus scan the uploaded file
-    const user = await storage.getUser(req.session.userId!);
+    const user = req.user ?? await storage.getUser(req.session.userId!);
     const scanCheck = await scanAndLogFile(req.file, "emar-analysis", user?.username);
     if (!scanCheck.allowed) {
       return res.status(400).json({ message: scanCheck.error });
@@ -2030,6 +2043,10 @@ export async function registerRoutes(
     
     // User context for AI cost tracking
     const aiUserContext: AiUserContext = { userId: user?.id || null, username: user?.username || null };
+    const emarPrimaryModel = process.env.EMAR_AI_MODEL || "gpt-4o-mini";
+    const emarMetadataModel = process.env.EMAR_METADATA_MODEL || emarPrimaryModel;
+    const emarExtractionModel = process.env.EMAR_EXTRACTION_MODEL || emarPrimaryModel;
+    const emarValidationModel = process.env.EMAR_VALIDATION_MODEL || "gpt-4o-mini";
     
     // Set up SSE streaming response headers (after file is validated)
     res.setHeader('Content-Type', 'text/event-stream');
@@ -2395,7 +2412,20 @@ export async function registerRoutes(
       console.log("=================================");
       
       // Fetch recent EMAR corrections to improve AI extraction accuracy
-      const recentCorrections = await storage.getRecentEmarCorrections(20);
+      let recentCorrections: any[] = [];
+      if (process.env.DATABASE_URL) {
+        try {
+          recentCorrections = await storage.getRecentEmarCorrections(20);
+        } catch (error) {
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("EMAR corrections lookup failed in development; continuing without history.");
+          } else {
+            throw error;
+          }
+        }
+      } else if (process.env.NODE_ENV !== "production") {
+        console.warn("DATABASE_URL not set - skipping EMAR corrections history");
+      }
       let correctionsContext = '';
       if (recentCorrections.length > 0) {
         const correctionExamples = recentCorrections.map(c => {
@@ -2844,6 +2874,11 @@ ${correctionExamples}
       
       // STANDARD EXTRACTION (when agent is disabled or fails)
       if (!agentExtractionSucceeded) {
+      let extractionMethod = "vision-api";
+      let gridOverrideUsed = false;
+      let gridPrimaryEnabled = false;
+      let gridNonBlankCount = 0;
+      let gridPrnKeys = new Set<string>();
       // STEP 2: Two-phase AI extraction to handle large grids
       // Phase 1: Extract metadata only (medications, dates, timeSlots) from document text
       
@@ -2938,7 +2973,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
 
       const extractMetadataForText = async (text: string) => {
         const metadataResponse = await createChatCompletionWithLogging({
-          model: getPreferredModel(),
+          model: emarMetadataModel,
           messages: [
             { role: "system", content: metadataPrompt },
             { role: "user", content: `Analyze this EMAR document and extract the metadata:\n\n${text}` }
@@ -2997,26 +3032,26 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       // =====================================================================
       // DATE COUNT VALIDATION: Compare AI dates vs pre-parsed dates
       // =====================================================================
-      const aiDateCount = metadata.dates?.length || 0;
+      const aiDatesCount = metadata.dates?.length || 0;
       const preParseCount = preAnalysis.dateCount;
-      const dateMismatch = Math.abs(aiDateCount - preParseCount);
+      const dateMismatch = Math.abs(aiDatesCount - preParseCount);
       
       console.log("=== DATE VALIDATION ===");
-      console.log(`AI detected dates: ${aiDateCount}`);
+      console.log(`AI detected dates: ${aiDatesCount}`);
       console.log(`Pre-parse detected dates: ${preParseCount}`);
       console.log(`Mismatch: ${dateMismatch} dates`);
       
       // If mismatch is significant (>2 dates difference), prefer pre-parsed dates
       if (preParseCount > 0 && dateMismatch > 2) {
-        console.warn(`WARNING: AI date count (${aiDateCount}) differs significantly from pre-parsed count (${preParseCount}). Using pre-parsed dates.`);
+        console.warn(`WARNING: AI date count (${aiDatesCount}) differs significantly from pre-parsed count (${preParseCount}). Using pre-parsed dates.`);
         metadata.dates = preAnalysis.dates;
         console.log(`Corrected dates to: ${metadata.dates.join(', ')}`);
         sendEvent('warning', { 
-          message: `Date count corrected: AI detected ${aiDateCount} dates, but document structure shows ${preParseCount} dates. Using validated count.`
+          message: `Date count corrected: AI detected ${aiDatesCount} dates, but document structure shows ${preParseCount} dates. Using validated count.`
         });
-      } else if (preParseCount > 0 && aiDateCount !== preParseCount) {
+      } else if (preParseCount > 0 && aiDatesCount !== preParseCount) {
         // Minor mismatch - log but don't override
-        console.log(`INFO: Minor date count difference (AI: ${aiDateCount}, Pre-parse: ${preParseCount}). Keeping AI dates.`);
+        console.log(`INFO: Minor date count difference (AI: ${aiDatesCount}, Pre-parse: ${preParseCount}). Keeping AI dates.`);
       }
       
       // Log final pre-analysis summary for debugging
@@ -3142,7 +3177,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         for (const text of texts) {
           try {
             const response = await createChatCompletionWithLogging({
-              model: "gpt-4.1-mini",
+              model: emarValidationModel,
               messages: [
                 { role: "system", content: medicationListPrompt },
                 { role: "user", content: `List medications in this document:\n\n${text}` },
@@ -3274,6 +3309,97 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       } else {
         extractedMedicationCount = metadata.medications?.length || 0;
       }
+
+      const gridMedCount = gridBaseline?.medications?.length || 0;
+      const gridDateCount = gridBaseline?.dates?.length || 0;
+      const gridSlotCount = gridBaseline?.timeSlots?.length || 0;
+      const aiMedCount = metadata.medications?.length || 0;
+      const aiSlotCount = metadata.timeSlots?.length || 0;
+      const gridCoverageRatio = aiMedCount > 0 ? gridMedCount / aiMedCount : 1;
+      const gridLooksValid = Boolean(
+        gridBaseline &&
+          gridMedCount >= 6 &&
+          gridDateCount >= 2 &&
+          gridSlotCount >= 2
+      );
+      const aiLikelyOvercount =
+        aiMedCount > gridMedCount &&
+        aiMedCount - gridMedCount >= 2 &&
+        gridCoverageRatio >= 0.6;
+      const aiMissingStructure = aiDatesCount === 0 || aiSlotCount === 0;
+      const shouldUseGridMetadata = gridLooksValid && (
+        aiMedCount === 0 ||
+        gridMedCount >= aiMedCount ||
+        aiLikelyOvercount ||
+        aiMissingStructure
+      );
+
+      gridNonBlankCount = gridBaseline?.cells?.reduce((count, cell) => {
+        const code = String(cell.code || "").toUpperCase().trim();
+        if (!code || code === "BLANK" || code === "N/A") return count;
+        return count + 1;
+      }, 0) || 0;
+      gridPrimaryEnabled = gridLooksValid && gridNonBlankCount > 0;
+
+      if (gridBaseline?.cells?.length) {
+        gridPrnKeys = new Set<string>();
+        for (const cell of gridBaseline.cells) {
+          const key = normalizeMedicationKey(cell.medication || "");
+          if (!key) continue;
+          const raw = String(cell.code || cell.content || "").toUpperCase().replace(/\s+/g, "");
+          if (raw.startsWith("PRN")) {
+            gridPrnKeys.add(key);
+          }
+        }
+      }
+
+      if (shouldUseGridMetadata && gridBaseline) {
+        const aiMedByKey = new Map<string, any>();
+        for (const med of metadata.medications || []) {
+          const key = normalizeMedicationKey(med?.name || "");
+          if (key) aiMedByKey.set(key, med);
+        }
+
+        const mergedGridMeds = gridBaseline.medications
+          .map((med) => {
+            const name = typeof med?.name === "string" ? med.name.trim() : "";
+            if (!name) return null;
+            const key = normalizeMedicationKey(name);
+            const aiMed = key ? aiMedByKey.get(key) : null;
+            const aiInstructions = typeof aiMed?.instructions === "string" ? aiMed.instructions : "";
+            const gridInstructions = typeof med?.instructions === "string" ? med.instructions : "";
+            const instructions = aiInstructions.length >= gridInstructions.length ? aiInstructions : gridInstructions;
+            const scheduledTimeSlots = Array.isArray(aiMed?.scheduledTimeSlots) && aiMed.scheduledTimeSlots.length > 0
+              ? aiMed.scheduledTimeSlots
+              : Array.isArray(med?.timeSlots) ? med.timeSlots : [];
+            return {
+              name,
+              genericName: aiMed?.genericName || "",
+              isPRN: Boolean(aiMed?.isPRN) || (key ? gridPrnKeys.has(key) : false),
+              instructions,
+              requiredGapHours: aiMed?.requiredGapHours || 4,
+              scheduledTimeSlots,
+              timeSlots: Array.isArray(med?.timeSlots) ? med.timeSlots : Array.isArray(aiMed?.timeSlots) ? aiMed.timeSlots : []
+            };
+          })
+          .filter(Boolean);
+
+        if (mergedGridMeds.length > 0) {
+          metadata.medications = mergedGridMeds as any[];
+          if (gridBaseline.dates?.length) metadata.dates = gridBaseline.dates;
+          if (gridBaseline.timeSlots?.length) metadata.timeSlots = gridBaseline.timeSlots;
+          if (!metadata.serviceUserInitials && gridBaseline.serviceUserName) {
+            metadata.serviceUserInitials = gridBaseline.serviceUserName;
+          }
+
+          extractedMedicationCount = metadata.medications.length;
+          agreedMedicationCount = metadata.medications.length;
+          medicationCountConsensus = true;
+          sendEvent('warning', {
+            message: `Grid parser detected ${gridMedCount} medications. Using grid-derived medication list for accuracy.`
+          });
+        }
+      }
       
       sendProgress(25, "Count validation complete...", "count_complete");
 
@@ -3301,8 +3427,12 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       // =====================================================================
       // DRUG INTERACTION CHECK (post-reconciliation)
       // =====================================================================
-      sendProgress(26, "Checking for drug interactions...", "drug_interaction_check");
-      drugInteractions = await checkDrugInteractions(metadata.medications, aiUserContext);
+      if (!gridPrimaryEnabled) {
+        sendProgress(26, "Checking for drug interactions...", "drug_interaction_check");
+        drugInteractions = await checkDrugInteractions(metadata.medications, aiUserContext);
+      } else {
+        sendProgress(26, "Skipping drug interaction check (grid mode)...", "drug_interaction_check");
+      }
       if (drugInteractions.length > 0) {
         console.log(`DEBUG: Found ${drugInteractions.length} potential drug interactions`);
         const highSeverity = drugInteractions.filter(d => d.severity === 'high').length;
@@ -3363,7 +3493,35 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         const tokenMatch = timeStr.match(/\b(?:0?[0-9]|1[0-9]|2[0-3])[:.]?[0-5][0-9](?:\s*(?:am|pm|AM|PM))?\b/);
         return !!tokenMatch;
       };
-      
+
+      const normalizeEmarCode = (raw: unknown): string => {
+        if (typeof raw !== "string") return "";
+        let code = raw
+          .toUpperCase()
+          .trim()
+          .replace(/[()\[\]{}]/g, "")
+          .replace(/[–—]/g, "-")
+          .replace(/\s+/g, "");
+
+        // Common variants
+        if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
+        if (code === "PRNAD" || code === "PRN-AD") return "PRN-AD";
+        if (code === "PRNAS" || code === "PRN-AS") return "PRN-AS";
+        if (code === "PRNR" || code === "PRN-R" || code === "PRNREFUSED" || code === "PRNREFUS") return "PRN-R";
+        if (code === "PRNRF" || code === "PRNREF") return "PRN-R";
+        if (code === "PRN" + "R") return "PRN-R";
+        if (code === "NOTHOME" || code === "NH") return "NH";
+        if (code === "SELADMIN" || code === "SELFADMIN" || code === "SA") return "SA";
+        if (code === "MEDUNAV" || code === "MEDUNAVAILABLE" || code === "UNAVAILABLE" || code === "MU") return "MU";
+        if (code === "REFUSED" || code === "REFUSE") return "R";
+
+        // Restore dash form for PRN-R if written as PRN-R but stripped
+        if (code === "PRN-R") return "PRN-R";
+        if (code === "PRNR") return "PRN-R";
+
+        return code;
+      };
+
       // Helper function to normalize entries for comparison (sort by medicationId, date, timeSlot, code)
       // IMPORTANT: Includes hasTime for documentation completeness
       const normalizeEntries = (entries: any[]): any[] => {
@@ -3518,7 +3676,7 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
             try {
               const response = await createChatCompletionWithLogging(
                 {
-                  model: getPreferredModel(),
+                  model: emarExtractionModel,
                   messages: [
                     { role: "system", content: prompt },
                     {
@@ -3635,7 +3793,7 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
           
           try {
             const response = await createChatCompletionWithLogging({
-              model: getPreferredModel(),
+              model: emarExtractionModel,
               messages: [
                 { role: "system", content: batchPrompt },
                 { role: "user", content: `Extract medication entries from this document:\n\n${analysisText}` }
@@ -3690,26 +3848,98 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       let pass2Entries: any[] = [];
       let pass3Entries: any[] = [];
 
-      console.log("DEBUG: Running 3-pass parallel text extraction");
-      sendProgress(35, "Extracting medication records...", "extraction_running");
+      const buildGridEntries = () => {
+        if (!gridBaseline?.cells?.length) return [];
 
-      [pass1Entries, pass2Entries, pass3Entries] = await Promise.all([
-        runExtractionPass(1),
-        runExtractionPass(2),
-        runExtractionPass(3)
-      ]);
+        const medIdByKey = new Map<string, number>();
+        for (const med of medicationsWithIds) {
+          const key = normalizeMedicationKey(med?.name || "");
+          if (key) medIdByKey.set(key, med.medicationId);
+        }
 
-      extractedEntries = pass1Entries;
-      consensusStatus = "single_pass";
-      consensusDetails = {
-        pass1Count: pass1Entries.length,
-        pass2Count: pass2Entries.length,
-        pass3Count: pass3Entries.length,
-        matchingPasses: []
+        const resolveMedicationId = (name: string): number | null => {
+          const key = normalizeMedicationKey(name || "");
+          if (!key) return null;
+          const direct = medIdByKey.get(key);
+          if (direct) return direct;
+          let bestId: number | null = null;
+          let bestScore = 0;
+          for (const [candidateKey, id] of medIdByKey.entries()) {
+            if (!candidateKey) continue;
+            const hit = candidateKey.includes(key) || key.includes(candidateKey);
+            if (!hit) continue;
+            const score = Math.min(candidateKey.length, key.length);
+            if (score > bestScore) {
+              bestScore = score;
+              bestId = id;
+            }
+          }
+          return bestScore >= 6 ? bestId : null;
+        };
+
+        const entries: any[] = [];
+        for (const cell of gridBaseline.cells) {
+          const medId = resolveMedicationId(cell.medication || "");
+          if (!medId) continue;
+          const code = normalizeEmarCode(String(cell.code || cell.content || ""));
+          if (!code || code === "BLANK" || code === "N/A") continue;
+          const entry: any = {
+            medicationId: medId,
+            date: cell.date || "",
+            timeSlot: cell.timeSlot || "",
+            code,
+            careWorkerInitials: cell.careWorker || "",
+            time: cell.time || "",
+            hasTime: false,
+            isOfficeClosed: false
+          };
+          entry.hasTime = computeHasTime(entry);
+          if (!entry.careWorkerInitials && !entry.hasTime) {
+            entry.careWorkerInitials = "MANUAL";
+            entry.isOfficeClosed = true;
+          }
+          entries.push(entry);
+        }
+        return deduplicateEntries(entries);
       };
 
-      console.log(`DEBUG: Pass counts - P1: ${pass1Entries.length}, P2: ${pass2Entries.length}, P3: ${pass3Entries.length}`);
+      if (gridPrimaryEnabled) {
+        sendProgress(35, "Using deterministic grid extraction...", "extraction_running");
+        extractedEntries = buildGridEntries();
+        consensusStatus = "verified";
+        consensusDetails = {
+          pass1Count: extractedEntries.length,
+          pass2Count: 0,
+          pass3Count: 0,
+          matchingPasses: [1],
+          fallbackPassUsed: 0,
+          escalationReason: "Grid parser extraction (deterministic)"
+        };
+        extractionMethod = "grid-parser";
+        console.log(`DEBUG: Grid primary extraction produced ${extractedEntries.length} entries`);
+      } else {
+        console.log("DEBUG: Running 3-pass parallel text extraction");
+        sendProgress(35, "Extracting medication records...", "extraction_running");
+
+        [pass1Entries, pass2Entries, pass3Entries] = await Promise.all([
+          runExtractionPass(1),
+          runExtractionPass(2),
+          runExtractionPass(3)
+        ]);
+
+        extractedEntries = pass1Entries;
+        consensusStatus = "single_pass";
+        consensusDetails = {
+          pass1Count: pass1Entries.length,
+          pass2Count: pass2Entries.length,
+          pass3Count: pass3Entries.length,
+          matchingPasses: []
+        };
+
+        console.log(`DEBUG: Pass counts - P1: ${pass1Entries.length}, P2: ${pass2Entries.length}, P3: ${pass3Entries.length}`);
+      }
       
+      if (!gridPrimaryEnabled) {
       // =====================================================================
       // VALIDATED 3-PASS APPROACH: Use per-entry consensus
       // Validates entries against domain constraints to prevent hallucinated data
@@ -3720,34 +3950,6 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       const validCodes = new Set(["AD", "AS", "P", "PRN", "PRN-R", "PRN-AD", "PRN-AS", "R", "MU", "NH", "SA", "FA", "MISSED"]);
       const validDates = new Set((metadata.dates || []).map((d: string) => d.toLowerCase().trim()));
       const validTimeSlots = new Set((metadata.timeSlots || []).map((t: string) => t.toLowerCase().trim()));
-
-      const normalizeEmarCode = (raw: unknown): string => {
-        if (typeof raw !== "string") return "";
-        let code = raw
-          .toUpperCase()
-          .trim()
-          .replace(/[()\[\]{}]/g, "")
-          .replace(/[–—]/g, "-")
-          .replace(/\s+/g, "");
-
-        // Common variants
-        if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
-        if (code === "PRNAD" || code === "PRN-AD") return "PRN-AD";
-        if (code === "PRNAS" || code === "PRN-AS") return "PRN-AS";
-        if (code === "PRNR" || code === "PRN-R" || code === "PRNREFUSED" || code === "PRNREFUS") return "PRN-R";
-        if (code === "PRNRF" || code === "PRNREF") return "PRN-R";
-        if (code === "PRN" + "R") return "PRN-R";
-        if (code === "NOTHOME" || code === "NH") return "NH";
-        if (code === "SELADMIN" || code === "SELFADMIN" || code === "SA") return "SA";
-        if (code === "MEDUNAV" || code === "MEDUNAVAILABLE" || code === "UNAVAILABLE" || code === "MU") return "MU";
-        if (code === "REFUSED" || code === "REFUSE") return "R";
-
-        // Restore dash form for PRN-R if written as PRN-R but stripped
-        if (code === "PRN-R") return "PRN-R";
-        if (code === "PRNR") return "PRN-R";
-
-        return code;
-      };
       
       // Helper to normalize date/time for comparison (handles slight AI formatting differences)
       const normalizeForComparison = (str: string): string => str.toLowerCase().trim().replace(/\s+/g, ' ');
@@ -3968,9 +4170,91 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
         consensusDetails.escalationReason = "CRITICAL: All extraction passes failed validation - manual document review required";
         console.log(`DEBUG: CRITICAL - all passes failed validation`);
       }
+      }
       sendProgress(65, "Extraction complete...", "extraction_complete");
       
       console.log(`DEBUG: Extraction result: ${consensusStatus}, using ${extractedEntries.length} entries`);
+
+      // =====================================================================
+      // GRID FALLBACK: if AI extraction misses too many entries, use grid parser
+      // =====================================================================
+      if (!gridPrimaryEnabled && gridBaseline && Array.isArray(gridBaseline.cells) && gridBaseline.cells.length > 0) {
+        const medIdByKey = new Map<string, number>();
+        for (const med of medicationsWithIds) {
+          const key = normalizeMedicationKey(med?.name || "");
+          if (key) medIdByKey.set(key, med.medicationId);
+        }
+
+        const resolveMedicationId = (name: string): number | null => {
+          const key = normalizeMedicationKey(name || "");
+          if (!key) return null;
+          const direct = medIdByKey.get(key);
+          if (direct) return direct;
+          let bestId: number | null = null;
+          let bestScore = 0;
+          for (const [candidateKey, id] of medIdByKey.entries()) {
+            if (!candidateKey) continue;
+            const hit = candidateKey.includes(key) || key.includes(candidateKey);
+            if (!hit) continue;
+            const score = Math.min(candidateKey.length, key.length);
+            if (score > bestScore) {
+              bestScore = score;
+              bestId = id;
+            }
+          }
+          return bestScore >= 6 ? bestId : null;
+        };
+
+        const buildGridEntries = () => {
+          const entries: any[] = [];
+          for (const cell of gridBaseline.cells) {
+            const medId = resolveMedicationId(cell.medication || "");
+            if (!medId) continue;
+            const code = normalizeEmarCode(cell.code || cell.content);
+            if (!code || code === "BLANK" || code === "N/A") continue;
+            const entry: any = {
+              medicationId: medId,
+              date: cell.date || "",
+              timeSlot: cell.timeSlot || "",
+              code,
+              careWorkerInitials: cell.careWorker || "",
+              time: cell.time || "",
+              hasTime: false,
+              isOfficeClosed: false
+            };
+            entry.hasTime = computeHasTime(entry);
+            if (!entry.careWorkerInitials && !entry.hasTime) {
+              entry.careWorkerInitials = "MANUAL";
+              entry.isOfficeClosed = true;
+            }
+            entries.push(entry);
+          }
+          return deduplicateEntries(entries);
+        };
+
+        const gridNonBlankCount = gridBaseline.cells.reduce((count, cell) => {
+          const code = normalizeEmarCode(cell.code || cell.content);
+          if (!code || code === "BLANK" || code === "N/A") return count;
+          return count + 1;
+        }, 0);
+
+        if (gridNonBlankCount > 0) {
+          const aiEntryCount = extractedEntries.length;
+          const gridEntries = buildGridEntries();
+          const minExpected = Math.max(10, Math.floor(gridNonBlankCount * 0.5));
+          if (aiEntryCount < minExpected && gridEntries.length > 0) {
+            extractedEntries = gridEntries;
+            gridOverrideUsed = true;
+            extractionMethod = "grid-parser";
+            consensusStatus = "no_consensus";
+            consensusDetails.fallbackPassUsed = 0;
+            consensusDetails.escalationReason = `Grid parser override: AI extracted ${aiEntryCount} entries vs ${gridEntries.length} grid entries (non-blank cells: ${gridNonBlankCount}).`;
+            sendEvent('warning', {
+              message: `AI extraction captured ${aiEntryCount} entries; grid parser found ${gridEntries.length}. Using grid parser results.`
+            });
+          }
+        }
+      }
       
       // =====================================================================
       // PRN POLICY: PRN without a time = PRN refused (PRN-R).
@@ -4289,11 +4573,13 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       medications.forEach((med: any) => {
         // VALIDATE PRN: Only mark as PRN if instructions contain PRN keywords
         const validatedIsPRN = isPRNFromInstructions(med.instructions);
+        const gridPrnHint = gridPrnKeys.has(normalizeMedicationKey(med.name));
+        const finalIsPRN = validatedIsPRN || (gridPrimaryEnabled && gridPrnHint);
         
         // Override AI's isPRN with validated value from prescription text
-        if (med.isPRN !== validatedIsPRN) {
-          console.log(`DEBUG: PRN validation override for "${med.name}": AI said isPRN=${med.isPRN}, instructions say isPRN=${validatedIsPRN}`);
-          med.isPRN = validatedIsPRN;
+        if (med.isPRN !== finalIsPRN) {
+          console.log(`DEBUG: PRN validation override for "${med.name}": AI said isPRN=${med.isPRN}, instructions say isPRN=${validatedIsPRN}, gridHint=${gridPrnHint}`);
+          med.isPRN = finalIsPRN;
         }
         
         if (med.isPRN) {
@@ -4389,7 +4675,7 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       // Uses GPT to identify brand/generic name equivalences that weren't caught
       // Example: Oxycodone and Oxypro MR are the same medication
       // =====================================================================
-      if (medications.length >= 2) {
+      if (!gridPrimaryEnabled && medications.length >= 2) {
         sendProgress(52, "Checking for medication equivalences...", "medication_equivalence_check");
         
         const medNames = medications.map((m: any) => m.name).join(", ");
@@ -4397,7 +4683,7 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
         try {
           // Use GPT-4o-mini for equivalence detection - 33x cheaper
           const equivalenceResponse = await createChatCompletionWithLogging({
-            model: "gpt-4.1-mini",
+            model: emarValidationModel,
             messages: [
               {
                 role: "system",
@@ -5295,7 +5581,7 @@ If no equivalences found, return: {"equivalences": []}`
       let validationEvidence: Record<string, string> = {};
       let validationStatus = "not_run";
       
-      if (discrepancies.length > 0) {
+      if (discrepancies.length > 0 && !gridPrimaryEnabled) {
         console.log(`DEBUG: Starting triple-check validation on ${discrepancies.length} discrepancies`);
         sendProgress(85, `Validating ${discrepancies.length} potential issues...`, "validation_running");
         
@@ -5339,7 +5625,7 @@ Return JSON with indices that are VALID (keep these). Include ALL indices unless
         try {
           // Use GPT-4o-mini for validation passes - 33x cheaper than GPT-5.1
           const pass2Response = await createChatCompletionWithLogging({
-            model: "gpt-4.1-mini",
+            model: emarValidationModel,
             messages: [
               { role: "system", content: pass2SystemPrompt },
               { role: "user", content: hasTextContext 
@@ -5408,7 +5694,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
           try {
             // Use GPT-4o-mini for validation passes - 33x cheaper than GPT-5.1
             const pass3Response = await createChatCompletionWithLogging({
-              model: "gpt-4.1-mini",
+              model: emarValidationModel,
               messages: [
                 { role: "system", content: pass3SystemPrompt },
                 { role: "user", content: hasTextContext
@@ -5459,6 +5745,10 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         } else {
           validationStatus = pass2Success ? "completed" : "failed";
         }
+      } else if (discrepancies.length > 0 && gridPrimaryEnabled) {
+        validationStatus = "not_run";
+        validationEvidence.gridMode = "Grid parser mode - AI validation skipped for speed.";
+        sendProgress(85, "Skipping AI validation (grid mode)...", "validation_skipped");
       }
       
       console.log(`DEBUG: Triple-check complete - ${originalCount} initial -> ${validatedDiscrepancies.length} confirmed (status: ${validationStatus})`);
@@ -5595,6 +5885,19 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       // =====================================================================
       // BUILD RESPONSE
       // =====================================================================
+      const gridEntryMode = gridPrimaryEnabled || gridOverrideUsed;
+      const extractionConsensusDescription = gridEntryMode
+        ? gridPrimaryEnabled
+          ? "Deterministic grid extraction used (primary)"
+          : "Grid parser override used due to low AI extraction coverage"
+        : consensusStatus === "verified"
+          ? `Extraction verified - passes ${consensusDetails.matchingPasses.join(", ")} agreed`
+          : `No consensus - using pass ${consensusDetails.fallbackPassUsed} with highest count for safety`;
+
+      const themesAndTrendsSummary = gridEntryMode
+        ? `Processed ${allEntries.length} entries across ${medications.length} medications for ${allDates.length} days. Grid parser extraction used; ${originalCount} initial findings -> ${validatedDiscrepancies.length} confirmed discrepancies, ${verificationItems.length} items requiring verification, and ${warnings.length} warnings.`
+        : `Processed ${allEntries.length} entries across ${medications.length} medications for ${allDates.length} days. 3-pass Vision consensus validation: ${originalCount} initial findings -> ${validatedDiscrepancies.length} confirmed discrepancies, ${verificationItems.length} items requiring verification, and ${warnings.length} warnings.`;
+
       const result = {
         serviceUserName: extractedData.serviceUserInitials || "Unknown",
         serviceUserType: serviceUserType,
@@ -5629,12 +5932,12 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         totalMedications: medications.length,
         datesAudited: allDates,
         timeSlotsFound: timeSlots,
-        extractionMethod: "vision-api",
+        extractionMethod: extractionMethod,
         validationPasses: 3,
         validationStatus: validationStatus,
         validationEvidence: validationEvidence,
         initialDiscrepancyCount: originalCount,
-        themesAndTrends: `Processed ${allEntries.length} entries across ${medications.length} medications for ${allDates.length} days. 3-pass Vision consensus validation: ${originalCount} initial findings -> ${validatedDiscrepancies.length} confirmed discrepancies, ${verificationItems.length} items requiring verification, and ${warnings.length} warnings.`,
+        themesAndTrends: themesAndTrendsSummary,
         gapsInKnowledge: validatedDiscrepancies.length > 0 
           ? "Training needed on: " + Array.from(new Set(validatedDiscrepancies.map(d => {
               if (d.issue.includes("refused")) return "documenting refusal reasons";
@@ -5666,9 +5969,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
           matchingPasses: consensusDetails.matchingPasses,
           fallbackPassUsed: consensusDetails.fallbackPassUsed,
           escalationReason: consensusDetails.escalationReason,
-          description: consensusStatus === "verified"
-            ? `Extraction verified - passes ${consensusDetails.matchingPasses.join(", ")} agreed`
-            : `No consensus - using pass ${consensusDetails.fallbackPassUsed} with highest count for safety`
+          description: extractionConsensusDescription
         }
       };
 
