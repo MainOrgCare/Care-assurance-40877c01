@@ -2530,6 +2530,7 @@ ${correctionExamples}
           
           const agentDiscrepancies: any[] = [];
           const agentWarnings: any[] = [];
+          const agentVerificationItems: any[] = [];
           
           // =====================================================================
           // NON-ADMINISTRATION DETECTION (codes requiring reason review)
@@ -2558,28 +2559,54 @@ ${correctionExamples}
                 return `Medication ${prnPrefix}not administered - ${code}`;
             }
           };
+
+          const getVerificationNote = (code: string, isPRN: boolean): string => {
+            switch (code) {
+              case 'R':
+              case 'PRN-R':
+                return isPRN
+                  ? "Check if PRN refusal reason is documented and acceptable"
+                  : "Check if refusal reason is documented and acceptable";
+              case 'NH':
+                return "Check if not home status is documented";
+              case 'SA':
+                return "Check if self-administration was appropriate and witnessed";
+              case 'F':
+              case 'FA':
+                return "Check if family administration is documented and appropriate";
+              case 'MU':
+                return "Check if medication unavailability is documented and escalated";
+              default:
+                return "Check if this entry is documented appropriately";
+            }
+          };
           
           agentEntries.forEach((entry: any) => {
             const code = (entry.code || '').toUpperCase();
             if (reviewCodes.includes(code)) {
               const isPRN = agentPrnMeds.has(entry.medication) || code.includes('PRN');
-              const discrepancy = {
+              const verificationItem = {
+                careWorkerName: entry.careWorkerInitials || 'Unknown',
+                date: entry.date,
+                medication: entry.medication,
+                code: code,
+                note: getVerificationNote(code, isPRN)
+              };
+              agentVerificationItems.push(verificationItem);
+
+              const refusalItem = {
                 careWorkerName: entry.careWorkerInitials || 'Unknown',
                 date: entry.date,
                 timeSlot: entry.timeSlot,
                 medication: entry.medication,
                 code: code,
-                issue: getIssueDescription(code, isPRN),
-                severity: "medium",
-                actions: { performanceNote: true, meeting: "in_person", referToManager: false }
               };
               
               if (isPRN) {
-                prnRefusalDiscrepancies.push(discrepancy);
+                prnRefusalDiscrepancies.push(refusalItem);
               } else {
-                mainRefusalDiscrepancies.push(discrepancy);
+                mainRefusalDiscrepancies.push(refusalItem);
               }
-              agentDiscrepancies.push(discrepancy);
             }
           });
           
@@ -2797,7 +2824,7 @@ ${correctionExamples}
             totalMainRefusalCount: mainRefusalDiscrepancies.length,
             totalPrnRefusalCount: prnRefusalDiscrepancies.length,
             totalOtherDiscrepancyCount: otherDiscrepancies.length,
-            userVerificationItems: [],
+            userVerificationItems: agentVerificationItems,
             prnMedications: {
               hasPRN: agentPrnMeds.size > 0,
               medications: agentMedications.filter((m: any) => m.isPRN).map((m: any) => ({
@@ -2879,6 +2906,7 @@ ${correctionExamples}
       let gridPrimaryEnabled = false;
       let gridNonBlankCount = 0;
       let gridPrnKeys = new Set<string>();
+      const gridPrnStats = new Map<string, { prnCount: number; nonBlankCount: number }>();
       // STEP 2: Two-phase AI extraction to handle large grids
       // Phase 1: Extract metadata only (medications, dates, timeSlots) from document text
       
@@ -3125,6 +3153,9 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
           .replace(/\s+/g, " ")
           .trim();
 
+      const PRN_TEXT_PATTERN = /\b(prn|as required|as needed|when required|when needed|if needed|as necessary|up to \d+\s*(?:times|tablets?|capsules?|puffs|drops?)\s*(?:daily|per day))\b/i;
+      const isPrnFromText = (text: string): boolean => PRN_TEXT_PATTERN.test(text || "");
+
       const isLikelyMedicationLabel = (name: string): boolean => {
         const cleaned = (name || "").replace(/\s+/g, " ").trim();
         if (!cleaned || cleaned.length < 3) return false;
@@ -3316,9 +3347,10 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       const aiMedCount = metadata.medications?.length || 0;
       const aiSlotCount = metadata.timeSlots?.length || 0;
       const gridCoverageRatio = aiMedCount > 0 ? gridMedCount / aiMedCount : 1;
+      const MIN_GRID_MED_COUNT = 2;
       const gridLooksValid = Boolean(
         gridBaseline &&
-          gridMedCount >= 6 &&
+          gridMedCount >= MIN_GRID_MED_COUNT &&
           gridDateCount >= 2 &&
           gridSlotCount >= 2
       );
@@ -3350,9 +3382,17 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         for (const cell of gridBaseline.cells) {
           const key = normalizeMedicationKey(cell.medication || "");
           if (!key) continue;
-          const raw = String(cell.code || cell.content || "").toUpperCase().replace(/\s+/g, "");
-          if (raw.startsWith("PRN")) {
-            gridPrnKeys.add(key);
+          const raw = String(cell.code || "").toUpperCase().replace(/\s+/g, "");
+          if (raw) {
+            if (!gridPrnStats.has(key)) gridPrnStats.set(key, { prnCount: 0, nonBlankCount: 0 });
+            const stats = gridPrnStats.get(key)!;
+            if (raw !== "BLANK" && raw !== "N/A") {
+              stats.nonBlankCount += 1;
+            }
+            if (raw.startsWith("PRN")) {
+              stats.prnCount += 1;
+              gridPrnKeys.add(key);
+            }
           }
         }
       }
@@ -3373,13 +3413,22 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
             const aiInstructions = typeof aiMed?.instructions === "string" ? aiMed.instructions : "";
             const gridInstructions = typeof med?.instructions === "string" ? med.instructions : "";
             const instructions = aiInstructions.length >= gridInstructions.length ? aiInstructions : gridInstructions;
+            const prnText = `${name} ${instructions}`.trim();
+            const textIndicatesPrn = isPrnFromText(prnText);
+            const aiIndicatesPrn = Boolean(aiMed?.isPRN);
+            const stats = key ? gridPrnStats.get(key) : undefined;
+            const nonBlankCount = stats?.nonBlankCount || 0;
+            const prnRatio = nonBlankCount > 0 ? (stats?.prnCount || 0) / nonBlankCount : 0;
+            const gridPrnStrong = Boolean(stats && stats.prnCount >= 2 && prnRatio >= 0.6);
+            const hasGridEvidence = Boolean(stats && nonBlankCount > 0);
+            const isPrn = textIndicatesPrn || gridPrnStrong || (aiIndicatesPrn && !hasGridEvidence);
             const scheduledTimeSlots = Array.isArray(aiMed?.scheduledTimeSlots) && aiMed.scheduledTimeSlots.length > 0
               ? aiMed.scheduledTimeSlots
               : Array.isArray(med?.timeSlots) ? med.timeSlots : [];
             return {
               name,
               genericName: aiMed?.genericName || "",
-              isPRN: Boolean(aiMed?.isPRN) || (key ? gridPrnKeys.has(key) : false),
+              isPRN: isPrn,
               instructions,
               requiredGapHours: aiMed?.requiredGapHours || 4,
               scheduledTimeSlots,
@@ -3917,7 +3966,9 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
             isOfficeClosed: false
           };
           entry.hasTime = computeHasTime(entry);
-          if (!entry.careWorkerInitials && !entry.hasTime) {
+          const isPrnCode = String(entry.code || "").toUpperCase().startsWith("PRN");
+          const isPrnMed = prnMedicationIds.has(medId);
+          if (!entry.careWorkerInitials && !entry.hasTime && !isPrnCode && !isPrnMed) {
             entry.careWorkerInitials = "MANUAL";
             entry.isOfficeClosed = true;
           }
@@ -4244,12 +4295,14 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
               time: cell.time || "",
               hasTime: false,
               isOfficeClosed: false
-            };
-            entry.hasTime = computeHasTime(entry);
-            if (!entry.careWorkerInitials && !entry.hasTime) {
-              entry.careWorkerInitials = "MANUAL";
-              entry.isOfficeClosed = true;
-            }
+          };
+          entry.hasTime = computeHasTime(entry);
+          const isPrnCode = String(entry.code || "").toUpperCase().startsWith("PRN");
+          const isPrnMed = prnMedicationIds.has(medId);
+          if (!entry.careWorkerInitials && !entry.hasTime && !isPrnCode && !isPrnMed) {
+            entry.careWorkerInitials = "MANUAL";
+            entry.isOfficeClosed = true;
+          }
             entries.push(entry);
           }
           return deduplicateEntries(entries);
@@ -4288,21 +4341,40 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       // Apply only to medications marked as PRN in the prescription.
       // =====================================================================
       let prnRefusalCount = 0;
+      let prnAdminRemapCount = 0;
       extractedEntries = extractedEntries.map((entry: any) => {
         const code = (entry.code || "").toUpperCase();
-        const isPrnMed = medicationsWithIds.some((m: any) =>
-          m.medicationId === entry.medicationId && m.isPRN === true
-        );
+        const isPrnMed = prnMedicationIds.has(entry.medicationId);
 
         // Use computeHasTime for deterministic detection (same logic used in consensus)
         const hasTime = computeHasTime(entry);
 
-        // If this is a PRN medication entry with code "PRN" but no time, it's a refusal
-        if (isPrnMed && code === "PRN" && !hasTime) {
+        if (!isPrnMed) return entry;
+
+        if (!hasTime) {
+          if (code !== "PRN-R") {
+            prnRefusalCount++;
+            console.log(
+              `DEBUG: PRN->PRN-R conversion: medId=${entry.medicationId}, date=${entry.date}, timeSlot=${entry.timeSlot}, hasTime=${hasTime}, time="${entry.time}"`
+            );
+          }
+          return { ...entry, code: "PRN-R", hasTime: false };
+        }
+
+        if (code === "AD") {
+          prnAdminRemapCount++;
+          return { ...entry, code: "PRN-AD" };
+        }
+        if (code === "AS") {
+          prnAdminRemapCount++;
+          return { ...entry, code: "PRN-AS" };
+        }
+        if (code === "P") {
+          prnAdminRemapCount++;
+          return { ...entry, code: "PRN" };
+        }
+        if (code === "R") {
           prnRefusalCount++;
-          console.log(
-            `DEBUG: PRN->PRN-R conversion: medId=${entry.medicationId}, date=${entry.date}, timeSlot=${entry.timeSlot}, hasTime=${hasTime}, time="${entry.time}"`
-          );
           return { ...entry, code: "PRN-R", hasTime: false };
         }
         return entry;
@@ -4310,6 +4382,9 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
 
       if (prnRefusalCount > 0) {
         console.log(`DEBUG: Converted ${prnRefusalCount} PRN entries without times to PRN-R (refused)`);
+      }
+      if (prnAdminRemapCount > 0) {
+        console.log(`DEBUG: Remapped ${prnAdminRemapCount} PRN entries from AD/AS/P to PRN codes`);
       }
       
       // =====================================================================
@@ -4352,6 +4427,9 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       // COUNT VALIDATION - Compare extracted count to agreedCount for transparency
       // =====================================================================
       extractedCount = extractedEntries.length;
+      if ((gridPrimaryEnabled || gridOverrideUsed) && gridNonBlankCount > 0) {
+        agreedCount = gridNonBlankCount;
+      }
       
       if (agreedCount === 0) {
         // No agreed count available - no baseline to validate against
@@ -4386,7 +4464,9 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       const prnMedsList = metadata.medications?.filter((m: any) => m.isPRN) || [];
       const expectedNonPrnEntries = nonPrnMedsList.length * (metadata.dates?.length || 0) * (metadata.timeSlots?.length || 0);
       const actualEntriesCount = extractedEntries.length;
-      const expectedEntriesCount = expectedNonPrnEntries; // We only expect entries for non-PRN meds
+      const expectedEntriesCount = (gridPrimaryEnabled || gridOverrideUsed) && gridNonBlankCount > 0
+        ? gridNonBlankCount
+        : expectedNonPrnEntries;
       
       console.log(`DEBUG: Grid structure - ${metadata.medications?.length || 0} meds (${nonPrnMedsList.length} regular, ${prnMedsList.length} PRN), ${metadata.dates?.length || 0} dates, ${metadata.timeSlots?.length || 0} timeSlots`);
       console.log(`DEBUG: Expected non-PRN entries: ${expectedNonPrnEntries}, Actual entries extracted: ${extractedEntries.length}`);
@@ -4447,7 +4527,10 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
           timeSlot: entry.timeSlot || "",
           time: entry.time || "",
           code: entry.code || "BLANK",
-          careWorker: careWorkerValue
+          careWorker: careWorkerValue,
+          careWorkerInitials: initials,
+          hasTime: typeof entry.hasTime === "boolean" ? entry.hasTime : computeHasTime(entry),
+          isOfficeClosed: Boolean(entry.isOfficeClosed)
         };
       });
       
@@ -4576,16 +4659,17 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
         'take up to', 'if needed', 'if required', 'when necessary'
       ];
       
-      const isPRNFromInstructions = (instructions: string | undefined): boolean => {
-        if (!instructions) return false;
-        const lower = instructions.toLowerCase();
+      const isPRNFromInstructions = (med: { name?: string; instructions?: string }): boolean => {
+        const combined = `${med?.name || ""} ${med?.instructions || ""}`.trim();
+        if (!combined) return false;
+        const lower = combined.toLowerCase();
         // Check for exact PRN keyword (word boundary to avoid matching in other words)
-        if (/\bprn\b/i.test(instructions)) return true;
+        if (/\bprn\b/i.test(combined)) return true;
         // Check for phrase keywords
         if (PRN_KEYWORDS.some(keyword => lower.includes(keyword))) return true;
         // Check for "up to X times" or "up to X tablets" pattern (PRN indicator)
         // But NOT "up to Xmg" or "up to X mg" (dosage adjustment, not PRN)
-        if (/up to \d+\s*(times|tablets?|capsules?|doses?|daily|a day)/i.test(instructions)) return true;
+        if (/up to \d+\s*(times|tablets?|capsules?|doses?|daily|a day)/i.test(combined)) return true;
         return false;
       };
       
@@ -4599,13 +4683,17 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       
       medications.forEach((med: any) => {
         // VALIDATE PRN: Only mark as PRN if instructions contain PRN keywords
-        const validatedIsPRN = isPRNFromInstructions(med.instructions);
-        const gridPrnHint = gridPrnKeys.has(normalizeMedicationKey(med.name));
-        const finalIsPRN = validatedIsPRN || (gridPrimaryEnabled && gridPrnHint);
+        const validatedIsPRN = isPRNFromInstructions(med);
+        const medKey = normalizeMedicationKey(med.name);
+        const gridStats = medKey ? gridPrnStats.get(medKey) : undefined;
+        const nonBlankCount = gridStats?.nonBlankCount || 0;
+        const prnRatio = nonBlankCount > 0 ? (gridStats?.prnCount || 0) / nonBlankCount : 0;
+        const gridPrnStrong = Boolean(gridStats && gridStats.prnCount >= 2 && prnRatio >= 0.6);
+        const finalIsPRN = validatedIsPRN || (gridPrimaryEnabled && gridPrnStrong);
         
         // Override AI's isPRN with validated value from prescription text
         if (med.isPRN !== finalIsPRN) {
-          console.log(`DEBUG: PRN validation override for "${med.name}": AI said isPRN=${med.isPRN}, instructions say isPRN=${validatedIsPRN}, gridHint=${gridPrnHint}`);
+          console.log(`DEBUG: PRN validation override for "${med.name}": AI said isPRN=${med.isPRN}, instructions say isPRN=${validatedIsPRN}, gridHint=${gridPrnStrong}`);
           med.isPRN = finalIsPRN;
         }
         
@@ -4626,7 +4714,15 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       // CHECK 1: ALLERGY MATCHING
       // =====================================================================
       const allergyLower = allergies.toLowerCase();
-      if (!allergyLower.includes("no known") && !allergyLower.includes("nkda") && allergies.trim() !== "") {
+      const noKnownAllergies = [
+        "no known",
+        "none known",
+        "no allergies",
+        "nkda",
+        "nka",
+        "none"
+      ].some((phrase) => allergyLower.includes(phrase));
+      if (!noKnownAllergies && allergies.trim() !== "") {
         // Parse allergies - split by comma, semicolon, or "and"
         const allergyList = allergies.split(/[,;]|\band\b/i).map(a => a.trim().toLowerCase()).filter(a => a.length > 2);
         
@@ -4993,6 +5089,7 @@ If no equivalences found, return: {"equivalences": []}`
           NH: "Check if not home status is documented",
           SA: "Check if self-administration was appropriate and witnessed",
           FA: "Check if family administration is documented and appropriate",
+          MISSED: "Check why the medication was missed and ensure it is documented",
         };
         const pushVerificationItem = (
           code: string,
@@ -5042,32 +5139,9 @@ If no equivalences found, return: {"equivalences": []}`
             missingImportant++;
 
             if (isRefusal) {
-              discrepancies.push({
-                careWorkerName,
-                date: cell.date,
-                timeSlot: cell.timeSlot,
-                medication: medicationName,
-                code,
-                issue:
-                  code === "PRN-R"
-                    ? "PRN medication refused (PRN-R) - requires documented reason"
-                    : "Medication refused (R) - requires documented reason",
-                severity: "high",
-                actions: { performanceNote: true, meeting: "phone", referToManager: false },
-              });
               pushVerificationItem(code, { careWorkerName, date: cell.date, medication: medicationName });
-              existingDiscKeys.add(discKey);
             } else if (isMissed) {
-              discrepancies.push({
-                careWorkerName,
-                date: cell.date,
-                timeSlot: cell.timeSlot,
-                medication: medicationName,
-                issue: "Missed medication - red/highlighted blank box indicates medication was not given",
-                severity: "high",
-                actions: { performanceNote: true, meeting: "phone", referToManager: true },
-              });
-              existingDiscKeys.add(discKey);
+              pushVerificationItem(code, { careWorkerName, date: cell.date, medication: medicationName });
             } else if (needsVerification) {
               pushVerificationItem(code, { careWorkerName, date: cell.date, medication: medicationName });
             }
@@ -5080,34 +5154,19 @@ If no equivalences found, return: {"equivalences": []}`
             const mismatchNote = `(grid shows "${code}" but extraction captured "${extractedCodes}")`;
 
             if (isRefusal) {
-              discrepancies.push({
-                careWorkerName,
-                date: cell.date,
-                timeSlot: cell.timeSlot,
-                medication: medicationName,
-                code,
-                issue: `Code mismatch: grid shows "${code}" but extraction captured "${extractedCodes}" (review this cell)`,
-                severity: "high",
-                actions: { performanceNote: true, meeting: "phone", referToManager: false },
-              });
               pushVerificationItem(code, {
                 careWorkerName,
                 date: cell.date,
                 medication: medicationName,
                 note: mismatchNote,
               });
-              existingDiscKeys.add(discKey);
             } else if (isMissed) {
-              discrepancies.push({
+              pushVerificationItem(code, {
                 careWorkerName,
                 date: cell.date,
-                timeSlot: cell.timeSlot,
                 medication: medicationName,
-                issue: `Code mismatch: grid shows "MISSED" but extraction captured "${extractedCodes}" (review this cell)`,
-                severity: "high",
-                actions: { performanceNote: true, meeting: "phone", referToManager: true },
+                note: mismatchNote,
               });
-              existingDiscKeys.add(discKey);
             } else if (needsVerification) {
               pushVerificationItem(code, {
                 careWorkerName,
@@ -5141,22 +5200,9 @@ If no equivalences found, return: {"equivalences": []}`
         const medication = entry.medication || "";
         const isPRN = prnMeds.has(medication);
 
-        // CHECK 5a: R (Refused) or PRN-R (PRN Refused) - ALWAYS flag as discrepancy
+        // CHECK 5a: R (Refused) or PRN-R (PRN Refused) - verification only
         if (code === "R" || code === "PRN-R") {
           const isPrnRefusal = code === "PRN-R";
-          discrepancies.push({
-            careWorkerName: careWorker,
-            date: date,
-            timeSlot: timeSlot,
-            medication: medication,
-            code: code, // "R" or "PRN-R" for refusal grouping filter
-            issue: isPrnRefusal 
-              ? "PRN medication refused (PRN-R) - requires documented reason"
-              : "Medication refused (R) - requires documented reason",
-            severity: "high",
-            actions: { performanceNote: true, meeting: "phone", referToManager: false }
-          });
-          
           verificationItems.push({
             careWorkerName: careWorker,
             date: date,
@@ -5168,18 +5214,15 @@ If no equivalences found, return: {"equivalences": []}`
           });
         }
 
-        // CHECK 5b: MISSED entries (red highlighted blank boxes) - these indicate missed medications
-        // Note: White/normal blank boxes are NOT extracted and are NOT discrepancies
+        // CHECK 5b: MISSED entries (red highlighted blank boxes) - verification only
+        // Note: White/normal blank boxes are NOT extracted
         if (code === "MISSED") {
-          // This was a red/highlighted blank box indicating a missed medication
-          discrepancies.push({
-            careWorkerName: "Unknown",
+          verificationItems.push({
+            careWorkerName: careWorker || "Unknown",
             date: date,
-            timeSlot: timeSlot,
             medication: medication,
-            issue: "Missed medication - red/highlighted blank box indicates medication was not given",
-            severity: "high",
-            actions: { performanceNote: true, meeting: "phone", referToManager: true }
+            code: "MISSED",
+            note: "Check why the medication was missed and ensure it is documented"
           });
         }
 
@@ -5231,16 +5274,19 @@ If no equivalences found, return: {"equivalences": []}`
         
         // Check 1: PRN codes used on non-PRN medications
         if (PRN_CODES.includes(code) && !isPRN) {
-          discrepancies.push({
-            careWorkerName: careWorker,
-            date: date,
-            timeSlot: timeSlot,
-            medication: medication,
-            code: code,
-            issue: `PRN code "${code}" used on regular medication - "${medication}" is not prescribed as PRN`,
-            severity: "high",
-            actions: { performanceNote: true, meeting: "phone", referToManager: true }
-          });
+          // PRN-R is treated as a red-code verification rather than a discrepancy.
+          if (code !== "PRN-R") {
+            discrepancies.push({
+              careWorkerName: careWorker,
+              date: date,
+              timeSlot: timeSlot,
+              medication: medication,
+              code: code,
+              issue: `PRN code "${code}" used on regular medication - "${medication}" is not prescribed as PRN`,
+              severity: "high",
+              actions: { performanceNote: true, meeting: "phone", referToManager: true }
+            });
+          }
         }
         
         // Check 2: Invalid codes (AD/AS/P) used on PRN medications
@@ -5787,25 +5833,34 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       // PRN Refusals: PRN-R codes only
       // Other discrepancies: everything else
       // =====================================================================
-      const mainRefusalDiscrepancies: any[] = [];
-      const prnRefusalDiscrepancies: any[] = [];
-      const otherDiscrepancies: any[] = [];
-      
-      validatedDiscrepancies.forEach((d: any) => {
-        const code = (d.code || "").toUpperCase();
-        
-        // Main refusal codes: R, MU, NH, FA, SA
-        const isMainRefusalCode = code === "R" || code === "MU" || code === "NH" || code === "FA" || code === "SA";
-        // PRN refusal code: PRN-R only
-        const isPrnRefusalCode = code === "PRN-R";
-        
-        if (isPrnRefusalCode) {
-          prnRefusalDiscrepancies.push(d);
-        } else if (isMainRefusalCode) {
-          mainRefusalDiscrepancies.push(d);
-        } else {
-          otherDiscrepancies.push(d);
-        }
+      const normalizeRefusalCode = (raw: unknown): string => {
+        const input = String(raw || "").toUpperCase().trim();
+        if (!input) return "";
+        if (input === "F" || input === "F/A") return "FA";
+        if (input === "PRNR") return "PRN-R";
+        return input;
+      };
+
+      const REFUSAL_CODES = new Set(["R", "MU", "NH", "FA", "SA", "PRN-R", "MISSED"]);
+      const refusalEntries: any[] = [];
+
+      allEntries.forEach((entry: any) => {
+        const normalizedCode = normalizeRefusalCode(entry.code);
+        if (!REFUSAL_CODES.has(normalizedCode)) return;
+        refusalEntries.push({
+          careWorkerName: entry.careWorker || "Unknown",
+          medication: entry.medication,
+          code: normalizedCode,
+          date: entry.date,
+          timeSlot: entry.timeSlot || ""
+        });
+      });
+
+      const mainRefusalDiscrepancies = refusalEntries.filter((d) => d.code !== "PRN-R");
+      const prnRefusalDiscrepancies = refusalEntries.filter((d) => d.code === "PRN-R");
+      const otherDiscrepancies = validatedDiscrepancies.filter((d: any) => {
+        const code = normalizeRefusalCode(d.code);
+        return !REFUSAL_CODES.has(code);
       });
 
       // Group main refusals by care worker + medication

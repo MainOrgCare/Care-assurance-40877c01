@@ -638,7 +638,7 @@ export default function Homepage() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-xs uppercase tracking-[0.35em] text-muted-foreground">Live Audit</p>
-                      <h3 className="mt-2 text-xl font-semibold text-foreground">Freda O'Neill</h3>
+                      <h3 className="mt-2 text-xl font-semibold text-foreground">Live Audit Snapshot</h3>
                       <p className="text-xs text-muted-foreground">7-day snapshot • Week 48</p>
                     </div>
                     <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-300 border-emerald-500/20">

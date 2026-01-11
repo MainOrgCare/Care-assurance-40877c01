@@ -64,6 +64,16 @@ const CODE_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|PRN\s*[-–]?\s*R|PRN\
 const CODE_PATTERN_SINGLE = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/i;
 const TIME_PATTERN = /\d{1,2}:\d{2}/g;
 const INITIALS_PATTERN = /\b[A-Z]{2,3}\b/g;
+const CODE_INITIALS = new Set(["AD", "AS", "MU", "NH", "SA", "FA", "PRN", "NA"]);
+
+const extractCareWorkerInitials = (content: string): string => {
+  if (!content) return "";
+  const matches = content.match(INITIALS_PATTERN) || [];
+  for (const token of matches) {
+    if (!CODE_INITIALS.has(token)) return token;
+  }
+  return "";
+};
 
 const normalizeGridCode = (raw: string): string => {
   const normalized = raw
@@ -1071,11 +1081,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
               const codeMatch = contentUpper.match(CODE_PATTERN_SINGLE);
               if (codeMatch) code = normalizeGridCode(codeMatch[1]);
 
-              let careWorker = "";
-              const initialsMatch = content.match(/\b([A-Z]{2,3})\b/);
-              if (initialsMatch && !["AD", "AS", "MU", "NH", "SA", "FA", "PRN"].includes(initialsMatch[1])) {
-                careWorker = initialsMatch[1];
-              }
+              const careWorker = extractCareWorkerInitials(content);
 
               let time = "";
               const timeMatch = content.match(/\d{1,2}:\d{2}/);
@@ -1133,10 +1139,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
             code = normalizeGridCode(codeMatch[1]);
           }
         
-          const initialsMatch = content.match(/\b([A-Z]{2,3})\b/);
-          if (initialsMatch && !["AD", "AS", "MU", "NH", "SA", "FA", "PRN"].includes(initialsMatch[1])) {
-            careWorker = initialsMatch[1];
-          }
+          careWorker = extractCareWorkerInitials(content);
         
           const timeMatch = content.match(/\d{1,2}:\d{2}/);
           if (timeMatch && !content.includes("-")) {
@@ -1278,10 +1281,7 @@ export function extractCodesFromCell(content: string): { code: string; careWorke
     }
   }
   
-  const initialsMatch = content.match(/\b([A-Z]{2,3})\b/);
-  if (initialsMatch && !codes.includes(initialsMatch[1])) {
-    careWorker = initialsMatch[1];
-  }
+  careWorker = extractCareWorkerInitials(content);
   
   const timeMatch = content.match(/(\d{1,2}:\d{2})/);
   if (timeMatch) {

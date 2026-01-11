@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Accordion,
@@ -26,16 +27,20 @@ import {
 } from "@/components/ui/accordion";
 import {
   AlertCircle,
+  CalendarDays,
   CheckCircle2,
   Clock4,
+  Copy,
   FileText,
   Download,
   FileSpreadsheet,
   Filter,
   FlaskConical,
   Loader2,
+  Route,
   Search,
   Shield,
+  SlidersHorizontal,
   Timer,
   UploadCloud,
   Users,
@@ -55,6 +60,9 @@ const DEFAULT_ROUTE_DURATION_MINUTES = 30;
 const TYPICAL_DAY_MIN_OCCURRENCES = 2;
 const TIME_CRITICAL_WINDOW_MINUTES = 15;
 const SHIFT_BAR_DURATION_MINUTES = 8 * 60;
+const ROSTER_DAY_START_MINUTES = 6 * 60;
+const ROSTER_DAY_SOFT_END_MINUTES = 22 * 60;
+const ROSTER_DAY_HARD_END_MINUTES = 23 * 60;
 const TEMPLATE_WEEK_OPTIONS = [
   { key: "week1", label: "Week 1 (starts 05/01/26)" },
   { key: "week2", label: "Week 2 (starts 12/01/26)" },
@@ -511,9 +519,11 @@ export default function TestingFeatures() {
   const [includeMismatchedWorkers, setIncludeMismatchedWorkers] = useState(false);
   const [callGroupSearch, setCallGroupSearch] = useState("");
   const [careWorkerSearch, setCareWorkerSearch] = useState("");
+  const [rosterCallSearch, setRosterCallSearch] = useState("");
   const [selectedTemplateWeek, setSelectedTemplateWeek] = useState<TemplateWeekKey>(DEFAULT_TEMPLATE_WEEK);
   const [selectedTemplateDay, setSelectedTemplateDay] = useState<WeekdayLabel>(DEFAULT_TEMPLATE_DAY);
   const [enforceTimeCriticalWindow, setEnforceTimeCriticalWindow] = useState(false);
+  const [packCallsBackToBack, setPackCallsBackToBack] = useState(true);
   const [templateOverrides, setTemplateOverrides] = useState<Record<string, TemplateOverride>>({});
   const [expandedTemplateGroupKeys, setExpandedTemplateGroupKeys] = useState<string[]>([]);
   const [selectedCareWorkerKey, setSelectedCareWorkerKey] = useState<string | null>(null);
@@ -2362,6 +2372,26 @@ export default function TestingFeatures() {
     });
   }, [selectedCareWorker, templateOverrides, templateSelectionKey]);
 
+  const filteredResolvedCallGroups = useMemo(() => {
+    if (!resolvedCallGroups.length) return [];
+    const term = rosterCallSearch.trim().toLowerCase();
+    if (!term) return resolvedCallGroups;
+    return resolvedCallGroups.filter((group) => {
+      const haystack = [
+        group.serviceUserName,
+        group.callTypeLabel,
+        group.serviceUserArea,
+        group.serviceUserAddress,
+        group.effectiveTimeBandLabel,
+        group.effectiveRequirementStartLabel,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [resolvedCallGroups, rosterCallSearch]);
+
   const availableTemplateGroups = useMemo(
     () => resolvedCallGroups.filter((group) => group.effectiveTemplateWeekdayKeys.has(templateSelectionKey)),
     [resolvedCallGroups, templateSelectionKey]
@@ -2394,7 +2424,7 @@ export default function TestingFeatures() {
 
   const optimizedRun = useMemo<OptimizedRouteEntry[]>(() => {
     if (!selectedWorkerGroups.length) return [];
-    const DAY_START_MINUTES = 6 * 60;
+    const DAY_START_MINUTES = ROSTER_DAY_START_MINUTES;
     const bandOrder = ["AM", "Lunch", "Tea", "Evening", "Night", "Unscheduled"];
 
     const groupsByBand = bandOrder.reduce<Record<string, ResolvedWorkerCallGroup[]>>((acc, band) => {
@@ -2482,7 +2512,11 @@ export default function TestingFeatures() {
             hasWindowConflict = true;
           }
         } else {
-          scheduledStart = Math.max(cursor ?? requirementStart, DAY_START_MINUTES);
+          const allowEarlyStart = packCallsBackToBack && !group.isTimeCritical;
+          const baselineStart = allowEarlyStart
+            ? cursor ?? requirementStart
+            : Math.max(cursor ?? requirementStart, requirementStart);
+          scheduledStart = Math.max(baselineStart, DAY_START_MINUTES);
 
           if (group.isTimeCritical && enforceTimeCriticalWindow && windowStart !== null && windowEnd !== null) {
             if (scheduledStart < windowStart) {
@@ -2529,7 +2563,73 @@ export default function TestingFeatures() {
     });
 
     return optimized;
-  }, [enforceTimeCriticalWindow, selectedWorkerGroups]);
+  }, [enforceTimeCriticalWindow, packCallsBackToBack, selectedWorkerGroups]);
+
+  const rosterSummary = useMemo(() => {
+    if (!optimizedRun.length) return null;
+    const scheduledEntries = optimizedRun.filter(
+      (entry) => typeof entry.scheduledStartMinutes === "number" && typeof entry.scheduledEndMinutes === "number"
+    );
+    const scheduledCount = scheduledEntries.length;
+    const unscheduledCount = optimizedRun.length - scheduledCount;
+    const totalDurationMinutes = scheduledEntries.reduce((total, entry) => {
+      const duration = typeof entry.durationMinutes === "number" ? entry.durationMinutes : DEFAULT_ROUTE_DURATION_MINUTES;
+      return total + duration;
+    }, 0);
+    const earliestStart =
+      scheduledEntries.length > 0
+        ? Math.min(...scheduledEntries.map((entry) => entry.scheduledStartMinutes as number))
+        : null;
+    const latestEnd =
+      scheduledEntries.length > 0
+        ? Math.max(...scheduledEntries.map((entry) => entry.scheduledEndMinutes as number))
+        : null;
+    const runSpanMinutes =
+      typeof earliestStart === "number" && typeof latestEnd === "number" ? latestEnd - earliestStart : null;
+
+    const sortedByStart = [...scheduledEntries].sort((a, b) => {
+      return (a.scheduledStartMinutes as number) - (b.scheduledStartMinutes as number);
+    });
+    const idleMinutes = sortedByStart.reduce((acc, entry, idx) => {
+      if (idx === 0) return acc;
+      const prevEnd = sortedByStart[idx - 1].scheduledEndMinutes as number;
+      const gap = (entry.scheduledStartMinutes as number) - prevEnd;
+      return gap > 0 ? acc + gap : acc;
+    }, 0);
+
+    const beforeStartCount = scheduledEntries.filter(
+      (entry) => (entry.scheduledStartMinutes as number) < ROSTER_DAY_START_MINUTES
+    ).length;
+    const afterSoftCount = scheduledEntries.filter((entry) => {
+      const endMinutes = entry.scheduledEndMinutes as number;
+      return endMinutes > ROSTER_DAY_SOFT_END_MINUTES && endMinutes <= ROSTER_DAY_HARD_END_MINUTES;
+    }).length;
+    const afterHardCount = scheduledEntries.filter(
+      (entry) => (entry.scheduledEndMinutes as number) > ROSTER_DAY_HARD_END_MINUTES
+    ).length;
+    const outsideWindowCount = scheduledEntries.filter((entry) => entry.isOutsideWindow).length;
+    const windowConflictCount = scheduledEntries.filter((entry) => entry.hasWindowConflict).length;
+    const timeCriticalCount = optimizedRun.filter((entry) => entry.isTimeCritical).length;
+    const doubleUpCount = optimizedRun.filter((entry) => entry.isDoubleUp).length;
+
+    return {
+      totalCalls: optimizedRun.length,
+      scheduledCount,
+      unscheduledCount,
+      totalDurationMinutes,
+      earliestStart,
+      latestEnd,
+      runSpanMinutes,
+      idleMinutes,
+      beforeStartCount,
+      afterSoftCount,
+      afterHardCount,
+      outsideWindowCount,
+      windowConflictCount,
+      timeCriticalCount,
+      doubleUpCount,
+    };
+  }, [optimizedRun]);
 
   const handleSaveRota = useCallback(async () => {
     if (!selectedCareWorker) {
@@ -2628,9 +2728,11 @@ export default function TestingFeatures() {
     setSearchTerm("");
     setCallGroupSearch("");
     setCareWorkerSearch("");
+    setRosterCallSearch("");
     setSelectedTemplateWeek(DEFAULT_TEMPLATE_WEEK);
     setSelectedTemplateDay(DEFAULT_TEMPLATE_DAY);
     setEnforceTimeCriticalWindow(false);
+    setPackCallsBackToBack(true);
     setTemplateOverrides({});
     setExpandedTemplateGroupKeys([]);
     setSelectedCareWorkerKey(null);
@@ -2675,6 +2777,91 @@ export default function TestingFeatures() {
     link.remove();
     URL.revokeObjectURL(url);
   }, []);
+
+  const buildRotaExportRows = useCallback(() => {
+    return optimizedRun.map((entry, index) => ({
+      Order: index + 1,
+      "Service User": entry.serviceUserName ?? "",
+      "Call Type": entry.callTypeLabel ?? "",
+      "Time Band": entry.timeBandLabel ?? "",
+      "Requirement Time": deriveTimeLabel(entry.requirementStartMinutes, null) ?? "",
+      "Scheduled Start": deriveTimeLabel(entry.scheduledStartMinutes, null) ?? "",
+      "Scheduled End": deriveTimeLabel(entry.scheduledEndMinutes, null) ?? "",
+      "Duration (mins)": typeof entry.durationMinutes === "number" ? Math.round(entry.durationMinutes) : "",
+      "Shift (mins)":
+        typeof entry.shiftMinutes === "number" ? Math.round(entry.shiftMinutes) : "",
+      "Time Critical": entry.isTimeCritical ? "Yes" : "No",
+      "Double Up": entry.isDoubleUp ? "Yes" : "No",
+      "Window Start": deriveTimeLabel(entry.windowStartMinutes, null) ?? "",
+      "Window End": deriveTimeLabel(entry.windowEndMinutes, null) ?? "",
+      "Outside Window": entry.isOutsideWindow ? "Yes" : "No",
+      "Window Conflict": entry.hasWindowConflict ? "Yes" : "No",
+    }));
+  }, [optimizedRun]);
+
+  const buildRotaFilename = useCallback(
+    (suffix: string) => {
+      const worker = selectedCareWorker?.workerName || "rota";
+      const safeWorker = worker.replace(/[^a-z0-9]+/gi, "_").toLowerCase();
+      return `${safeWorker}-${selectedTemplateWeek}-${selectedTemplateDay}-${suffix}`;
+    },
+    [selectedCareWorker?.workerName, selectedTemplateDay, selectedTemplateWeek]
+  );
+
+  const handleExportRotaCsv = useCallback(() => {
+    if (!optimizedRun.length) {
+      toast({
+        title: "No rota to export",
+        description: "Generate an optimized run before exporting.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const rows = buildRotaExportRows();
+    const headers = rows.length ? Object.keys(rows[0]) : [];
+    const escapeValue = (value: unknown) => {
+      const text = String(value ?? "");
+      if (/[",\n]/.test(text)) {
+        return `"${text.replace(/"/g, '""')}"`;
+      }
+      return text;
+    };
+    const csv = [
+      headers.join(","),
+      ...rows.map((row) => headers.map((key) => escapeValue((row as Record<string, unknown>)[key])).join(",")),
+    ].join("\n");
+    triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8" }), buildRotaFilename("rota.csv"));
+  }, [buildRotaExportRows, buildRotaFilename, optimizedRun.length, toast, triggerDownload]);
+
+  const handleCopyRota = useCallback(async () => {
+    if (!optimizedRun.length) {
+      toast({
+        title: "No rota to copy",
+        description: "Generate an optimized run before copying.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const rows = buildRotaExportRows();
+    const headers = rows.length ? Object.keys(rows[0]) : [];
+    const text = [
+      headers.join("\t"),
+      ...rows.map((row) => headers.map((key) => String((row as Record<string, unknown>)[key] ?? "")).join("\t")),
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: "Rota copied",
+        description: "The schedule is now on your clipboard.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Copy failed",
+        description: error.message || "Unable to copy the rota.",
+        variant: "destructive",
+      });
+    }
+  }, [buildRotaExportRows, optimizedRun.length, toast]);
 
   const handleExportFiltered = useCallback(() => {
     if (!isAdmin) {
@@ -3564,14 +3751,28 @@ export default function TestingFeatures() {
 
           {careWorkerRosters.length > 0 && (
             <AccordionItem value="care-worker-route-optimizer">
-              <AccordionTrigger>Care Worker Route Optimizer</AccordionTrigger>
+              <AccordionTrigger>Rostering Studio</AccordionTrigger>
               <AccordionContent>
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Care Worker Route Optimizer</CardTitle>
-                    <CardDescription>
-                      Save care worker/service user names from the file, then build a typical daily run using service requirement start times (no overlaps).
-                    </CardDescription>
+                  <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Route className="h-5 w-5 text-primary" />
+                        Rostering Studio
+                      </CardTitle>
+                      <CardDescription>
+                        Build a care worker run from templated calls, then refine it into a working rota with time-critical safeguards and zero overlaps.
+                      </CardDescription>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className="text-xs font-semibold">
+                        <CalendarDays className="mr-1 h-3.5 w-3.5" />
+                        {selectedTemplateWeekLabel} • {selectedTemplateDay}
+                      </Badge>
+                      <Button size="sm" variant="outline" asChild>
+                        <a href="/admin/care-worker-rotas">Open rota library</a>
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {!careWorkerHasMatch && (
@@ -3646,7 +3847,7 @@ export default function TestingFeatures() {
                           </Alert>
                         ) : (
                           <>
-                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                               <div>
                                 <div className="flex flex-wrap items-center gap-2">
                                   <p className="text-sm font-semibold text-foreground">{selectedCareWorker.workerName}</p>
@@ -3666,531 +3867,770 @@ export default function TestingFeatures() {
                                   {selectedCareWorker.callRows.length} calls • {selectedCareWorker.uniqueDays} days
                                 </p>
                               </div>
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="secondary"
-                                  onClick={() => {
-                                    const typicalKeys = availableTemplateGroups
-                                      .filter((group) => group.uniqueDays >= TYPICAL_DAY_MIN_OCCURRENCES)
-                                      .map((group) => group.key);
-                                    setSelectedWorkerCallKeys(typicalKeys);
-                                  }}
-                                >
-                                  Select typical day
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    const selectableKeys = availableTemplateGroups.map((group) => group.key);
-                                    setSelectedWorkerCallKeys(selectableKeys);
-                                  }}
-                                >
-                                  Select all
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => setSelectedWorkerCallKeys([])}
-                                >
-                                  Clear
-                                </Button>
-                              </div>
                             </div>
 
-                            <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 space-y-3">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Template schedule</p>
-                              <div className="flex flex-wrap gap-2">
-                                {TEMPLATE_WEEK_OPTIONS.map((option) => (
-                                  <Button
-                                    key={option.key}
-                                    type="button"
-                                    size="sm"
-                                    variant={selectedTemplateWeek === option.key ? "secondary" : "outline"}
-                                    onClick={() => setSelectedTemplateWeek(option.key)}
-                                  >
-                                    {option.label}
-                                  </Button>
-                                ))}
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {WEEKDAY_OPTIONS.map((day) => (
-                                  <Button
-                                    key={day}
-                                    type="button"
-                                    size="sm"
-                                    variant={selectedTemplateDay === day ? "secondary" : "outline"}
-                                    onClick={() => setSelectedTemplateDay(day)}
-                                  >
-                                    {day}
-                                  </Button>
-                                ))}
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                {availableTemplateGroups.length} templated call{availableTemplateGroups.length === 1 ? "" : "s"} available for {selectedTemplateWeekLabel} • {selectedTemplateDay}.
-                              </p>
-                            </div>
+                            <Tabs defaultValue="library" className="space-y-4">
+                              <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="library">Call Library</TabsTrigger>
+                                <TabsTrigger value="preview">Schedule Preview</TabsTrigger>
+                              </TabsList>
 
-                            {selectedCareWorker.shiftBarsCount > 0 && (
-                              <div className="rounded-2xl border border-border/70 bg-background/60 p-4 space-y-3">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                  Shift bars (fixed)
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  Shift bars stay at their template time for {formatMinutesDisplay(SHIFT_BAR_DURATION_MINUTES)} and can overlap calls.
-                                </p>
-                                {shiftBarsForSelection.length ? (
-                                  <div className="space-y-2">
-                                    {shiftBarsForSelection.map((bar) => (
-                                      <div
-                                        key={bar.key}
-                                        className="flex flex-col gap-2 rounded-xl border border-border/60 bg-background/70 p-3 sm:flex-row sm:items-center sm:justify-between"
-                                      >
-                                        <div>
-                                          <p className="text-sm font-semibold text-foreground">Shift bar</p>
-                                          <p className="text-xs text-muted-foreground">
-                                            {bar.plannedDateLabel ? `Template date ${bar.plannedDateLabel}` : "Template date not set"}
-                                          </p>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                          <Badge variant="outline" className="text-xs font-semibold">
-                                            Fixed {bar.startLabel || "—"} → {bar.endLabel || "—"}
-                                          </Badge>
-                                          <Badge variant="secondary" className="text-xs font-semibold">
-                                            {formatMinutesDisplay(bar.durationMinutes)}
-                                          </Badge>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground">
-                                    No shift bars on {selectedTemplateWeekLabel} • {selectedTemplateDay}.
-                                  </p>
-                                )}
-                                {unassignedShiftBars.length > 0 && (
-                                  <p className="text-xs text-muted-foreground">
-                                    {unassignedShiftBars.length} shift bar{unassignedShiftBars.length === 1 ? "" : "s"} missing a template date and not placed.
-                                  </p>
-                                )}
-                              </div>
-                            )}
-
-                            <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-background/60 p-4 sm:flex-row sm:items-center sm:justify-between">
-                              <div>
-                                <p className="text-sm font-semibold text-foreground">Time-critical window</p>
-                                <p className="text-xs text-muted-foreground">
-                                  When enabled, time-critical calls must stay within ±{TIME_CRITICAL_WINDOW_MINUTES} mins of the service requirement start.
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  Calls flagged as adhoc or ServiceDutyClassType A/S are excluded from routing.
-                                </p>
-                              </div>
-                              <Switch
-                                checked={enforceTimeCriticalWindow}
-                                onCheckedChange={setEnforceTimeCriticalWindow}
-                              />
-                            </div>
-
-                            {selectedCareWorker.missingRequirementTimes > 0 && (
-                              <Alert>
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>Missing service requirement times</AlertTitle>
-                                <AlertDescription>
-                                  {selectedCareWorker.missingRequirementTimes} calls have no service requirement time and are excluded from routing.
-                                </AlertDescription>
-                              </Alert>
-                            )}
-
-                            <div className="space-y-2">
-                              {!availableTemplateGroups.length ? (
-                                <Alert>
-                                  <AlertCircle className="h-4 w-4" />
-                                  <AlertTitle>No templated calls for this day</AlertTitle>
-                                  <AlertDescription>
-                                    There are no permanent template assignments for {selectedTemplateWeekLabel} • {selectedTemplateDay}.
-                                  </AlertDescription>
-                                </Alert>
-                              ) : null}
-                              <p className="text-xs text-muted-foreground">
-                                Showing all call groups; only templated calls for {selectedTemplateWeekLabel} • {selectedTemplateDay} can be added to the run.
-                              </p>
-                              {resolvedCallGroups.map((group) => {
-                                const isAvailable = group.effectiveTemplateWeekdayKeys.has(templateSelectionKey);
-                                const isSelected = selectedWorkerCallKeys.includes(group.key);
-                                const isSelectable = isAvailable && typeof group.effectiveRequirementStartMinutes === "number";
-                                const hasTimeOverride =
-                                  group.hasTemplateOverride &&
-                                  group.effectiveRequirementStartMinutes !== group.requirementStartMinutes;
-                                const durationLabel =
-                                  group.durationMinutes !== null
-                                    ? formatMinutesDisplay(group.durationMinutes)
-                                    : `${DEFAULT_ROUTE_DURATION_MINUTES} mins assumed`;
-                                const isExpanded = expandedTemplateGroupKeys.includes(group.overrideKey);
-                                return (
-                                  <div
-                                    key={group.key}
-                                    className={`flex flex-col gap-3 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
-                                      isSelectable ? "border-border/60 bg-background/60" : "border-border/40 bg-muted/30"
-                                    }`}
-                                  >
-                                    <div>
-                                      <p className="text-sm font-semibold text-foreground">
-                                        {group.serviceUserName || "Unknown service user"}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {group.callTypeLabel} • {group.effectiveTimeBandLabel} • Req{" "}
-                                        {group.effectiveRequirementStartLabel || "No requirement time"}
-                                        {hasTimeOverride ? " (override)" : ""}
-                                      </p>
-                                      <div className="mt-2 flex flex-wrap gap-2">
-                                        <Badge variant="outline" className="text-xs font-semibold">
-                                          {group.totalCalls} call{group.totalCalls === 1 ? "" : "s"}
-                                        </Badge>
-                                        {!isAvailable && (
-                                          <Badge variant="outline" className="text-xs font-semibold">
-                                            Not templated
-                                          </Badge>
-                                        )}
-                                        {group.hasTemplateOverride && (
-                                          <Badge variant="secondary" className="text-xs font-semibold">
-                                            Manual override
-                                          </Badge>
-                                        )}
-                                        {group.isTimeCritical && (
-                                          <Badge variant="outline" className="text-xs font-semibold">
-                                            Time critical
-                                          </Badge>
-                                        )}
-                                        {group.isDoubleUpForSelection && (
-                                          <Badge variant="outline" className="text-xs font-semibold">
-                                            Double-up (locked)
-                                          </Badge>
-                                        )}
-                                        <Badge variant="secondary" className="text-xs font-semibold">
-                                          {group.uniqueDays} days
-                                        </Badge>
-                                        <Badge variant="outline" className="text-xs font-semibold">
-                                          Duration {durationLabel}
+                              <TabsContent value="library" className="space-y-4">
+                                <div className="grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
+                                  <div className="space-y-4">
+                                    <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                          Template schedule
+                                        </p>
+                                        <Badge variant="secondary" className="text-[10px] font-semibold">
+                                          {selectedTemplateWeekLabel} • {selectedTemplateDay}
                                         </Badge>
                                       </div>
-                                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          variant="ghost"
-                                          onClick={() =>
-                                            setExpandedTemplateGroupKeys((prev) =>
-                                              prev.includes(group.overrideKey)
-                                                ? prev.filter((key) => key !== group.overrideKey)
-                                                : [...prev, group.overrideKey]
-                                            )
-                                          }
-                                        >
-                                          {isExpanded ? "Hide edit" : "Edit template"}
-                                        </Button>
-                                        {group.hasTemplateOverride && (
+                                      <div className="flex flex-wrap gap-2">
+                                        {TEMPLATE_WEEK_OPTIONS.map((option) => (
                                           <Button
+                                            key={option.key}
                                             type="button"
                                             size="sm"
-                                            variant="outline"
-                                            onClick={() =>
-                                              setTemplateOverrides((prev) => {
-                                                const next = { ...prev };
-                                                delete next[group.overrideKey];
-                                                return next;
-                                              })
-                                            }
+                                            variant={selectedTemplateWeek === option.key ? "secondary" : "outline"}
+                                            onClick={() => setSelectedTemplateWeek(option.key)}
                                           >
-                                            Reset overrides
+                                            {option.label}
                                           </Button>
-                                        )}
+                                        ))}
                                       </div>
-                                      {isExpanded && (
-                                        <div className="mt-3 space-y-3 rounded-xl border border-border/60 bg-background/70 p-3">
-                                          <div>
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                              Week 1
-                                            </p>
-                                            <div className="mt-2 flex flex-wrap gap-2">
-                                              {WEEKDAY_OPTIONS.map((day) => (
-                                                <Button
-                                                  key={`${group.overrideKey}-week1-${day}`}
-                                                  type="button"
-                                                  size="sm"
-                                                  variant={group.overrideWeek1Days.includes(day) ? "secondary" : "outline"}
-                                                  onClick={() =>
-                                                    setTemplateOverrides((prev) => {
-                                                      const current = prev[group.overrideKey] ?? {
-                                                        week1Days: group.overrideWeek1Days,
-                                                        week2Days: group.overrideWeek2Days,
-                                                        requirementStartMinutes: group.effectiveRequirementStartMinutes,
-                                                      };
-                                                      const nextWeek1Days = toggleWeekdaySelection(current.week1Days, day);
-                                                      return {
-                                                        ...prev,
-                                                        [group.overrideKey]: {
-                                                          ...current,
-                                                          week1Days: nextWeek1Days,
-                                                        },
-                                                      };
-                                                    })
-                                                  }
-                                                >
-                                                  {day.slice(0, 3)}
-                                                </Button>
-                                              ))}
-                                            </div>
-                                          </div>
-                                          <div>
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                              Week 2
-                                            </p>
-                                            <div className="mt-2 flex flex-wrap gap-2">
-                                              {WEEKDAY_OPTIONS.map((day) => (
-                                                <Button
-                                                  key={`${group.overrideKey}-week2-${day}`}
-                                                  type="button"
-                                                  size="sm"
-                                                  variant={group.overrideWeek2Days.includes(day) ? "secondary" : "outline"}
-                                                  onClick={() =>
-                                                    setTemplateOverrides((prev) => {
-                                                      const current = prev[group.overrideKey] ?? {
-                                                        week1Days: group.overrideWeek1Days,
-                                                        week2Days: group.overrideWeek2Days,
-                                                        requirementStartMinutes: group.effectiveRequirementStartMinutes,
-                                                      };
-                                                      const nextWeek2Days = toggleWeekdaySelection(current.week2Days, day);
-                                                      return {
-                                                        ...prev,
-                                                        [group.overrideKey]: {
-                                                          ...current,
-                                                          week2Days: nextWeek2Days,
-                                                        },
-                                                      };
-                                                    })
-                                                  }
-                                                >
-                                                  {day.slice(0, 3)}
-                                                </Button>
-                                              ))}
-                                            </div>
-                                          </div>
-                                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                                            <div>
-                                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                                Time override
-                                              </p>
-                                              <p className="text-xs text-muted-foreground">
-                                                Update the requirement time if the template needs adjusting.
-                                              </p>
-                                            </div>
-                                            <div className="flex flex-wrap items-center gap-2">
-                                              <Input
-                                                type="time"
-                                                value={formatTimeInputValue(group.effectiveRequirementStartMinutes)}
-                                                onChange={(event) => {
-                                                  const minutes = parseTimeToMinutes(event.target.value);
-                                                  setTemplateOverrides((prev) => {
-                                                    const current = prev[group.overrideKey] ?? {
-                                                      week1Days: group.overrideWeek1Days,
-                                                      week2Days: group.overrideWeek2Days,
-                                                      requirementStartMinutes: group.effectiveRequirementStartMinutes,
-                                                    };
-                                                    return {
-                                                      ...prev,
-                                                      [group.overrideKey]: {
-                                                        ...current,
-                                                        requirementStartMinutes: minutes,
-                                                      },
-                                                    };
-                                                  });
-                                                }}
-                                                className="w-32"
-                                              />
-                                              {hasTimeOverride && (
-                                                <Button
-                                                  type="button"
-                                                  size="sm"
-                                                  variant="outline"
-                                                  onClick={() =>
-                                                    setTemplateOverrides((prev) => {
-                                                      const current = prev[group.overrideKey] ?? {
-                                                        week1Days: group.overrideWeek1Days,
-                                                        week2Days: group.overrideWeek2Days,
-                                                        requirementStartMinutes: group.effectiveRequirementStartMinutes,
-                                                      };
-                                                      return {
-                                                        ...prev,
-                                                        [group.overrideKey]: {
-                                                          ...current,
-                                                          requirementStartMinutes: group.requirementStartMinutes ?? null,
-                                                        },
-                                                      };
-                                                    })
-                                                  }
-                                                >
-                                                  Use detected time
-                                                </Button>
-                                              )}
-                                            </div>
-                                          </div>
-                                          <p className="text-xs text-muted-foreground">
-                                            Overrides are saved for this session only.
-                                          </p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {WEEKDAY_OPTIONS.map((day) => (
+                                          <Button
+                                            key={day}
+                                            type="button"
+                                            size="sm"
+                                            variant={selectedTemplateDay === day ? "secondary" : "outline"}
+                                            onClick={() => setSelectedTemplateDay(day)}
+                                          >
+                                            {day}
+                                          </Button>
+                                        ))}
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">
+                                        {availableTemplateGroups.length} templated call{availableTemplateGroups.length === 1 ? "" : "s"} available
+                                        for {selectedTemplateWeekLabel} • {selectedTemplateDay}.
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        Template employee assignments override planned and actual carers for routing.
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-4">
+                                    <div className="rounded-2xl border border-border/70 bg-background/60 p-4 space-y-3">
+                                      <div className="flex items-center gap-2">
+                                        <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                                        <p className="text-sm font-semibold text-foreground">Roster controls</p>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Working window: 06:00 → 22:00 (warn at 23:00). Double-up calls stay locked to the shared time.
+                                      </p>
+                                      <div className="space-y-2 text-xs text-muted-foreground">
+                                        <div className="flex items-center justify-between">
+                                          <label htmlFor="toggle-pack-calls" className="font-medium">
+                                            Pack calls back-to-back
+                                          </label>
+                                          <Switch
+                                            id="toggle-pack-calls"
+                                            checked={packCallsBackToBack}
+                                            onCheckedChange={setPackCallsBackToBack}
+                                          />
                                         </div>
+                                        <div className="flex items-center justify-between">
+                                          <label htmlFor="toggle-time-critical" className="font-medium">
+                                            Enforce time-critical window (±{TIME_CRITICAL_WINDOW_MINUTES} mins)
+                                          </label>
+                                          <Switch
+                                            id="toggle-time-critical"
+                                            checked={enforceTimeCriticalWindow}
+                                            onCheckedChange={setEnforceTimeCriticalWindow}
+                                          />
+                                        </div>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Calls flagged as adhoc or ServiceDutyClassType A/S are excluded from routing.
+                                      </p>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-border/70 bg-background/60 p-4 space-y-3">
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                        Shift bars (fixed)
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        Shift bars stay at their template time for {formatMinutesDisplay(SHIFT_BAR_DURATION_MINUTES)} and can overlap calls.
+                                      </p>
+                                      {selectedCareWorker.shiftBarsCount === 0 ? (
+                                        <p className="text-xs text-muted-foreground">No shift bars recorded for this worker.</p>
+                                      ) : shiftBarsForSelection.length ? (
+                                        <div className="space-y-2">
+                                          {shiftBarsForSelection.map((bar) => (
+                                            <div
+                                              key={bar.key}
+                                              className="flex flex-col gap-2 rounded-xl border border-border/60 bg-background/70 p-3 sm:flex-row sm:items-center sm:justify-between"
+                                            >
+                                              <div>
+                                                <p className="text-sm font-semibold text-foreground">Shift bar</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                  {bar.plannedDateLabel ? `Template date ${bar.plannedDateLabel}` : "Template date not set"}
+                                                </p>
+                                              </div>
+                                              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                                <Badge variant="outline" className="text-xs font-semibold">
+                                                  Fixed {bar.startLabel || "—"} → {bar.endLabel || "—"}
+                                                </Badge>
+                                                <Badge variant="secondary" className="text-xs font-semibold">
+                                                  {formatMinutesDisplay(bar.durationMinutes)}
+                                                </Badge>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="text-xs text-muted-foreground">
+                                          No shift bars on {selectedTemplateWeekLabel} • {selectedTemplateDay}.
+                                        </p>
+                                      )}
+                                      {unassignedShiftBars.length > 0 && (
+                                        <p className="text-xs text-muted-foreground">
+                                          {unassignedShiftBars.length} shift bar{unassignedShiftBars.length === 1 ? "" : "s"} missing a template date and not placed.
+                                        </p>
                                       )}
                                     </div>
-                                    <Switch
-                                      checked={isSelected}
-                                      onCheckedChange={(checked) => {
-                                        if (!isSelectable) return;
-                                        setSelectedWorkerCallKeys((prev) =>
-                                          checked ? (prev.includes(group.key) ? prev : [...prev, group.key]) : prev.filter((key) => key !== group.key)
-                                        );
-                                      }}
-                                      disabled={!isSelectable}
-                                    />
                                   </div>
-                                );
-                              })}
-                            </div>
-
-                            <div className="rounded-2xl border border-border/70 bg-card/50 p-4">
-                              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                                <div>
-                                  <p className="text-sm font-semibold text-foreground">Optimized run</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    Packs calls back-to-back within each time band (AM/Lunch/Tea/Evening/Night). Double-up calls stay locked to the shared time.
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    Suggested working window: 06:00 → 22:00 (up to 23:00 with a warning).
-                                  </p>
                                 </div>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={handleSaveRota}
-                                  disabled={!optimizedRun.length || isSavingRota}
-                                >
-                                  {isSavingRota ? (
-                                    <>
-                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                      Saving
-                                    </>
-                                  ) : (
-                                    "Save rota"
-                                  )}
-                                </Button>
-                              </div>
 
-                              {optimizedRun.length ? (
-                                <div className="mt-3 space-y-2">
-                                  {optimizedRun.map((entry) => {
-                                    const EARLIEST_START_MINUTES = 6 * 60;
-                                    const SOFT_LATEST_END_MINUTES = 22 * 60;
-                                    const HARD_LATEST_END_MINUTES = 23 * 60;
-                                    const requiredLabel = deriveTimeLabel(entry.requirementStartMinutes, null) || "—";
-                                    const scheduledStart = deriveTimeLabel(entry.scheduledStartMinutes, null) || "—";
-                                    const scheduledEnd = deriveTimeLabel(entry.scheduledEndMinutes, null) || "—";
-                                    const shiftLabel = (() => {
-                                      if (typeof entry.shiftMinutes !== "number") return "—";
-                                      const rounded = Math.round(entry.shiftMinutes);
-                                      if (rounded > 0) return `+${rounded} mins`;
-                                      if (rounded < 0) return `${Math.abs(rounded)} mins earlier`;
-                                      return "On time";
-                                    })();
-                                    const windowLabel =
-                                      entry.windowStartMinutes !== null && entry.windowEndMinutes !== null
-                                        ? `${deriveTimeLabel(entry.windowStartMinutes, null)} → ${deriveTimeLabel(entry.windowEndMinutes, null)}`
-                                        : null;
-                                    const isBeforeDayStart =
-                                      typeof entry.scheduledStartMinutes === "number" &&
-                                      entry.scheduledStartMinutes < EARLIEST_START_MINUTES;
-                                    const endMinutes =
-                                      typeof entry.scheduledEndMinutes === "number" ? entry.scheduledEndMinutes : null;
-                                    const isAfterHardLimit = endMinutes !== null && endMinutes > HARD_LATEST_END_MINUTES;
-                                    const isAfterSoftLimit =
-                                      endMinutes !== null &&
-                                      endMinutes > SOFT_LATEST_END_MINUTES &&
-                                      endMinutes <= HARD_LATEST_END_MINUTES;
-                                    return (
-                                      <div
-                                        key={entry.key}
-                                        className="flex flex-col gap-2 rounded-xl border border-border/60 bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between"
+                                {selectedCareWorker.missingRequirementTimes > 0 && (
+                                  <Alert>
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertTitle>Missing service requirement times</AlertTitle>
+                                    <AlertDescription>
+                                      {selectedCareWorker.missingRequirementTimes} calls have no service requirement time and are excluded from routing.
+                                    </AlertDescription>
+                                  </Alert>
+                                )}
+
+                                <div className="rounded-2xl border border-border/70 bg-card/50 p-4 space-y-3">
+                                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                      <p className="text-sm font-semibold text-foreground">Call library</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {selectedWorkerCallKeys.length} selected • {availableTemplateGroups.length} templated call
+                                        {availableTemplateGroups.length === 1 ? "" : "s"} for {selectedTemplateWeekLabel} • {selectedTemplateDay}.
+                                      </p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() => {
+                                          const typicalKeys = availableTemplateGroups
+                                            .filter((group) => group.uniqueDays >= TYPICAL_DAY_MIN_OCCURRENCES)
+                                            .map((group) => group.key);
+                                          setSelectedWorkerCallKeys(typicalKeys);
+                                        }}
                                       >
-                                        <div>
-                                          <p className="text-sm font-semibold text-foreground">
-                                            {entry.serviceUserName || "Unknown service user"}
-                                          </p>
-                                          <p className="text-xs text-muted-foreground">
-                                            {entry.callTypeLabel} • {entry.timeBandLabel}
-                                          </p>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                          <Badge variant="outline" className="text-xs font-semibold">
-                                            Required {requiredLabel}
-                                          </Badge>
-                                          <Badge variant="secondary" className="text-xs font-semibold">
-                                            Scheduled {scheduledStart} → {scheduledEnd}
-                                          </Badge>
-                                          <Badge variant="outline" className="text-xs font-semibold">
-                                            {shiftLabel}
-                                          </Badge>
-                                          {entry.isDoubleUp && (
-                                            <Badge variant="outline" className="text-xs font-semibold">
-                                              Double-up (locked)
-                                            </Badge>
-                                          )}
-                                          {isBeforeDayStart && (
-                                            <Badge variant="destructive" className="text-xs font-semibold">
-                                              Before 06:00
-                                            </Badge>
-                                          )}
-                                          {isAfterSoftLimit && (
-                                            <Badge
-                                              variant="outline"
-                                              className="text-xs font-semibold border-amber-500/40 text-amber-600 dark:text-amber-300"
+                                        Select typical day
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          const selectableKeys = availableTemplateGroups.map((group) => group.key);
+                                          setSelectedWorkerCallKeys(selectableKeys);
+                                        }}
+                                      >
+                                        Select all
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => setSelectedWorkerCallKeys([])}
+                                      >
+                                        Clear
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="relative w-full sm:w-72">
+                                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                      <Input
+                                        value={rosterCallSearch}
+                                        onChange={(e) => setRosterCallSearch(e.target.value)}
+                                        placeholder="Search service user, call type, or area"
+                                        className="pl-9"
+                                      />
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      Showing {filteredResolvedCallGroups.length} of {resolvedCallGroups.length} call groups
+                                    </p>
+                                  </div>
+
+                                  {!availableTemplateGroups.length ? (
+                                    <Alert>
+                                      <AlertCircle className="h-4 w-4" />
+                                      <AlertTitle>No templated calls for this day</AlertTitle>
+                                      <AlertDescription>
+                                        There are no permanent template assignments for {selectedTemplateWeekLabel} • {selectedTemplateDay}.
+                                      </AlertDescription>
+                                    </Alert>
+                                  ) : null}
+
+                                  {filteredResolvedCallGroups.length ? (
+                                    <ScrollArea className="max-h-[520px] rounded-xl border border-border/60 bg-background/60">
+                                      <div className="space-y-3 p-3">
+                                        {filteredResolvedCallGroups.map((group) => {
+                                          const isAvailable = group.effectiveTemplateWeekdayKeys.has(templateSelectionKey);
+                                          const isSelected = selectedWorkerCallKeys.includes(group.key);
+                                          const isSelectable =
+                                            isAvailable && typeof group.effectiveRequirementStartMinutes === "number";
+                                          const hasTimeOverride =
+                                            group.hasTemplateOverride &&
+                                            group.effectiveRequirementStartMinutes !== group.requirementStartMinutes;
+                                          const durationLabel =
+                                            group.durationMinutes !== null
+                                              ? formatMinutesDisplay(group.durationMinutes)
+                                              : `${DEFAULT_ROUTE_DURATION_MINUTES} mins assumed`;
+                                          const isExpanded = expandedTemplateGroupKeys.includes(group.overrideKey);
+                                          return (
+                                            <div
+                                              key={group.key}
+                                              className={`flex flex-col gap-3 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+                                                isSelectable
+                                                  ? isSelected
+                                                    ? "border-primary/50 bg-primary/10"
+                                                    : "border-border/60 bg-background/60"
+                                                  : "border-border/40 bg-muted/30"
+                                              }`}
                                             >
-                                              After 22:00
-                                            </Badge>
-                                          )}
-                                          {isAfterHardLimit && (
-                                            <Badge variant="destructive" className="text-xs font-semibold">
-                                              After 23:00
-                                            </Badge>
-                                          )}
-                                          {entry.isTimeCritical && windowLabel && (
-                                            <Badge variant="outline" className="text-xs font-semibold">
-                                              Time critical {windowLabel}
-                                            </Badge>
-                                          )}
-                                          {entry.isOutsideWindow && (
-                                            <Badge variant="destructive" className="text-xs font-semibold">
-                                              Outside ±{TIME_CRITICAL_WINDOW_MINUTES} mins
-                                            </Badge>
-                                          )}
-                                          {entry.hasWindowConflict && (
-                                            <Badge variant="destructive" className="text-xs font-semibold">
-                                              Window conflict
-                                            </Badge>
-                                          )}
-                                        </div>
+                                              <div>
+                                                <p className="text-sm font-semibold text-foreground">
+                                                  {group.serviceUserName || "Unknown service user"}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                  {group.callTypeLabel} • {group.effectiveTimeBandLabel} • Req{" "}
+                                                  {group.effectiveRequirementStartLabel || "No requirement time"}
+                                                  {hasTimeOverride ? " (override)" : ""}
+                                                </p>
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                  <Badge variant="outline" className="text-xs font-semibold">
+                                                    {group.totalCalls} call{group.totalCalls === 1 ? "" : "s"}
+                                                  </Badge>
+                                                  {!isAvailable && (
+                                                    <Badge variant="outline" className="text-xs font-semibold">
+                                                      Not templated
+                                                    </Badge>
+                                                  )}
+                                                  {!isSelectable && isAvailable && (
+                                                    <Badge variant="outline" className="text-xs font-semibold">
+                                                      Missing requirement time
+                                                    </Badge>
+                                                  )}
+                                                  {group.hasTemplateOverride && (
+                                                    <Badge variant="secondary" className="text-xs font-semibold">
+                                                      Manual override
+                                                    </Badge>
+                                                  )}
+                                                  {group.isTimeCritical && (
+                                                    <Badge variant="outline" className="text-xs font-semibold">
+                                                      Time critical
+                                                    </Badge>
+                                                  )}
+                                                  {group.isDoubleUpForSelection && (
+                                                    <Badge variant="outline" className="text-xs font-semibold">
+                                                      Double-up (locked)
+                                                    </Badge>
+                                                  )}
+                                                  <Badge variant="secondary" className="text-xs font-semibold">
+                                                    {group.uniqueDays} days
+                                                  </Badge>
+                                                  <Badge variant="outline" className="text-xs font-semibold">
+                                                    Duration {durationLabel}
+                                                  </Badge>
+                                                </div>
+                                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                  <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() =>
+                                                      setExpandedTemplateGroupKeys((prev) =>
+                                                        prev.includes(group.overrideKey)
+                                                          ? prev.filter((key) => key !== group.overrideKey)
+                                                          : [...prev, group.overrideKey]
+                                                      )
+                                                    }
+                                                  >
+                                                    {isExpanded ? "Hide edit" : "Edit template"}
+                                                  </Button>
+                                                  {group.hasTemplateOverride && (
+                                                    <Button
+                                                      type="button"
+                                                      size="sm"
+                                                      variant="outline"
+                                                      onClick={() =>
+                                                        setTemplateOverrides((prev) => {
+                                                          const next = { ...prev };
+                                                          delete next[group.overrideKey];
+                                                          return next;
+                                                        })
+                                                      }
+                                                    >
+                                                      Reset overrides
+                                                    </Button>
+                                                  )}
+                                                </div>
+                                                {isExpanded && (
+                                                  <div className="mt-3 space-y-3 rounded-xl border border-border/60 bg-background/70 p-3">
+                                                    <div>
+                                                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                        Week 1
+                                                      </p>
+                                                      <div className="mt-2 flex flex-wrap gap-2">
+                                                        {WEEKDAY_OPTIONS.map((day) => (
+                                                          <Button
+                                                            key={`${group.overrideKey}-week1-${day}`}
+                                                            type="button"
+                                                            size="sm"
+                                                            variant={group.overrideWeek1Days.includes(day) ? "secondary" : "outline"}
+                                                            onClick={() =>
+                                                              setTemplateOverrides((prev) => {
+                                                                const current = prev[group.overrideKey] ?? {
+                                                                  week1Days: group.overrideWeek1Days,
+                                                                  week2Days: group.overrideWeek2Days,
+                                                                  requirementStartMinutes: group.effectiveRequirementStartMinutes,
+                                                                };
+                                                                const nextWeek1Days = toggleWeekdaySelection(current.week1Days, day);
+                                                                return {
+                                                                  ...prev,
+                                                                  [group.overrideKey]: {
+                                                                    ...current,
+                                                                    week1Days: nextWeek1Days,
+                                                                  },
+                                                                };
+                                                              })
+                                                            }
+                                                          >
+                                                            {day.slice(0, 3)}
+                                                          </Button>
+                                                        ))}
+                                                      </div>
+                                                    </div>
+                                                    <div>
+                                                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                        Week 2
+                                                      </p>
+                                                      <div className="mt-2 flex flex-wrap gap-2">
+                                                        {WEEKDAY_OPTIONS.map((day) => (
+                                                          <Button
+                                                            key={`${group.overrideKey}-week2-${day}`}
+                                                            type="button"
+                                                            size="sm"
+                                                            variant={group.overrideWeek2Days.includes(day) ? "secondary" : "outline"}
+                                                            onClick={() =>
+                                                              setTemplateOverrides((prev) => {
+                                                                const current = prev[group.overrideKey] ?? {
+                                                                  week1Days: group.overrideWeek1Days,
+                                                                  week2Days: group.overrideWeek2Days,
+                                                                  requirementStartMinutes: group.effectiveRequirementStartMinutes,
+                                                                };
+                                                                const nextWeek2Days = toggleWeekdaySelection(current.week2Days, day);
+                                                                return {
+                                                                  ...prev,
+                                                                  [group.overrideKey]: {
+                                                                    ...current,
+                                                                    week2Days: nextWeek2Days,
+                                                                  },
+                                                                };
+                                                              })
+                                                            }
+                                                          >
+                                                            {day.slice(0, 3)}
+                                                          </Button>
+                                                        ))}
+                                                      </div>
+                                                    </div>
+                                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                                      <div>
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                          Time override
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                          Update the requirement time if the template needs adjusting.
+                                                        </p>
+                                                      </div>
+                                                      <div className="flex flex-wrap items-center gap-2">
+                                                        <Input
+                                                          type="time"
+                                                          value={formatTimeInputValue(group.effectiveRequirementStartMinutes)}
+                                                          onChange={(event) => {
+                                                            const minutes = parseTimeToMinutes(event.target.value);
+                                                            setTemplateOverrides((prev) => {
+                                                              const current = prev[group.overrideKey] ?? {
+                                                                week1Days: group.overrideWeek1Days,
+                                                                week2Days: group.overrideWeek2Days,
+                                                                requirementStartMinutes: group.effectiveRequirementStartMinutes,
+                                                              };
+                                                              return {
+                                                                ...prev,
+                                                                [group.overrideKey]: {
+                                                                  ...current,
+                                                                  requirementStartMinutes: minutes,
+                                                                },
+                                                              };
+                                                            });
+                                                          }}
+                                                          className="w-32"
+                                                        />
+                                                        {hasTimeOverride && (
+                                                          <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() =>
+                                                              setTemplateOverrides((prev) => {
+                                                                const current = prev[group.overrideKey] ?? {
+                                                                  week1Days: group.overrideWeek1Days,
+                                                                  week2Days: group.overrideWeek2Days,
+                                                                  requirementStartMinutes: group.effectiveRequirementStartMinutes,
+                                                                };
+                                                                return {
+                                                                  ...prev,
+                                                                  [group.overrideKey]: {
+                                                                    ...current,
+                                                                    requirementStartMinutes: group.requirementStartMinutes ?? null,
+                                                                  },
+                                                                };
+                                                              })
+                                                            }
+                                                          >
+                                                            Use detected time
+                                                          </Button>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                      Overrides are saved for this session only.
+                                                    </p>
+                                                  </div>
+                                                )}
+                                              </div>
+                                              <Switch
+                                                checked={isSelected}
+                                                onCheckedChange={(checked) => {
+                                                  if (!isSelectable) return;
+                                                  setSelectedWorkerCallKeys((prev) =>
+                                                    checked
+                                                      ? prev.includes(group.key)
+                                                        ? prev
+                                                        : [...prev, group.key]
+                                                      : prev.filter((key) => key !== group.key)
+                                                  );
+                                                }}
+                                                disabled={!isSelectable}
+                                              />
+                                            </div>
+                                          );
+                                        })}
                                       </div>
-                                    );
-                                  })}
+                                    </ScrollArea>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">
+                                      {rosterCallSearch.trim()
+                                        ? "No call groups match that search."
+                                        : "No call groups available for this worker."}
+                                    </p>
+                                  )}
                                 </div>
-                              ) : (
-                                <p className="mt-3 text-xs text-muted-foreground">
-                                  Select call groups above to generate an optimized run.
-                                </p>
-                              )}
-                            </div>
+                              </TabsContent>
+
+                              <TabsContent value="preview" className="space-y-4">
+                                {!rosterSummary ? (
+                                  <Alert>
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertTitle>No optimized run yet</AlertTitle>
+                                    <AlertDescription>
+                                      Select calls in the library to generate a schedule preview.
+                                    </AlertDescription>
+                                  </Alert>
+                                ) : (
+                                  <>
+                                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                      <GroupMetric
+                                        label="Scheduled calls"
+                                        value={`${rosterSummary.scheduledCount}/${rosterSummary.totalCalls}`}
+                                        helper={`${rosterSummary.unscheduledCount} unscheduled`}
+                                        tone={rosterSummary.unscheduledCount ? "warning" : "default"}
+                                      />
+                                      <GroupMetric
+                                        label="Run window"
+                                        value={`${deriveTimeLabel(rosterSummary.earliestStart, null) ?? "—"} → ${deriveTimeLabel(rosterSummary.latestEnd, null) ?? "—"}`}
+                                        helper={`Span ${formatMinutesDisplay(rosterSummary.runSpanMinutes)}`}
+                                      />
+                                      <GroupMetric
+                                        label="Care minutes"
+                                        value={formatMinutesDisplay(rosterSummary.totalDurationMinutes)}
+                                        helper={`Idle ${formatMinutesDisplay(rosterSummary.idleMinutes)}`}
+                                        tone={rosterSummary.idleMinutes > 30 ? "warning" : "default"}
+                                      />
+                                      <GroupMetric
+                                        label="Time-critical calls"
+                                        value={`${rosterSummary.timeCriticalCount}`}
+                                        helper={`${rosterSummary.outsideWindowCount} outside window`}
+                                        tone={rosterSummary.outsideWindowCount ? "destructive" : "default"}
+                                      />
+                                      <GroupMetric
+                                        label="Double-up calls"
+                                        value={`${rosterSummary.doubleUpCount}`}
+                                        helper="Locked to shared time"
+                                      />
+                                      <GroupMetric
+                                        label="Window conflicts"
+                                        value={`${rosterSummary.windowConflictCount}`}
+                                        helper="Overlaps or ordering clashes"
+                                        tone={rosterSummary.windowConflictCount ? "destructive" : "default"}
+                                      />
+                                    </div>
+
+                                    {(rosterSummary.beforeStartCount > 0 ||
+                                      rosterSummary.afterSoftCount > 0 ||
+                                      rosterSummary.afterHardCount > 0 ||
+                                      rosterSummary.outsideWindowCount > 0 ||
+                                      rosterSummary.windowConflictCount > 0 ||
+                                      rosterSummary.unscheduledCount > 0) && (
+                                      <Alert>
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertTitle>Rota warnings</AlertTitle>
+                                        <AlertDescription className="space-y-1">
+                                          {rosterSummary.unscheduledCount > 0 && (
+                                            <p>{rosterSummary.unscheduledCount} calls have no scheduled time.</p>
+                                          )}
+                                          {rosterSummary.beforeStartCount > 0 && (
+                                            <p>{rosterSummary.beforeStartCount} calls start before 06:00.</p>
+                                          )}
+                                          {rosterSummary.afterSoftCount > 0 && (
+                                            <p>{rosterSummary.afterSoftCount} calls end after 22:00.</p>
+                                          )}
+                                          {rosterSummary.afterHardCount > 0 && (
+                                            <p>{rosterSummary.afterHardCount} calls end after 23:00.</p>
+                                          )}
+                                          {rosterSummary.outsideWindowCount > 0 && (
+                                            <p>{rosterSummary.outsideWindowCount} time-critical calls are outside the ±{TIME_CRITICAL_WINDOW_MINUTES}-minute window.</p>
+                                          )}
+                                          {rosterSummary.windowConflictCount > 0 && (
+                                            <p>{rosterSummary.windowConflictCount} calls overlap or violate ordering.</p>
+                                          )}
+                                        </AlertDescription>
+                                      </Alert>
+                                    )}
+                                  </>
+                                )}
+
+                                <div className="rounded-2xl border border-border/70 bg-card/50 p-4">
+                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                    <div>
+                                      <p className="text-sm font-semibold text-foreground">Optimized run</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {packCallsBackToBack
+                                          ? "Packing calls back-to-back to reduce idle gaps."
+                                          : "Respecting requirement times with gaps where needed."}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        Time-critical window {enforceTimeCriticalWindow ? "enforced." : "not enforced."}
+                                      </p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleExportRotaCsv}
+                                        disabled={!optimizedRun.length}
+                                      >
+                                        <Download className="h-4 w-4 mr-2" />
+                                        Export CSV
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleCopyRota}
+                                        disabled={!optimizedRun.length}
+                                      >
+                                        <Copy className="h-4 w-4 mr-2" />
+                                        Copy
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={handleSaveRota}
+                                        disabled={!optimizedRun.length || isSavingRota}
+                                      >
+                                        {isSavingRota ? (
+                                          <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Saving
+                                          </>
+                                        ) : (
+                                          "Save rota"
+                                        )}
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  {optimizedRun.length ? (
+                                    <div className="mt-3 space-y-2">
+                                      {optimizedRun.map((entry) => {
+                                        const requiredLabel = deriveTimeLabel(entry.requirementStartMinutes, null) || "—";
+                                        const scheduledStart = deriveTimeLabel(entry.scheduledStartMinutes, null) || "—";
+                                        const scheduledEnd = deriveTimeLabel(entry.scheduledEndMinutes, null) || "—";
+                                        const shiftLabel = (() => {
+                                          if (typeof entry.shiftMinutes !== "number") return "—";
+                                          const rounded = Math.round(entry.shiftMinutes);
+                                          if (rounded > 0) return `+${rounded} mins`;
+                                          if (rounded < 0) return `${Math.abs(rounded)} mins earlier`;
+                                          return "On time";
+                                        })();
+                                        const windowLabel =
+                                          entry.windowStartMinutes !== null && entry.windowEndMinutes !== null
+                                            ? `${deriveTimeLabel(entry.windowStartMinutes, null)} → ${deriveTimeLabel(entry.windowEndMinutes, null)}`
+                                            : null;
+                                        const isBeforeDayStart =
+                                          typeof entry.scheduledStartMinutes === "number" &&
+                                          entry.scheduledStartMinutes < ROSTER_DAY_START_MINUTES;
+                                        const endMinutes =
+                                          typeof entry.scheduledEndMinutes === "number" ? entry.scheduledEndMinutes : null;
+                                        const isAfterHardLimit = endMinutes !== null && endMinutes > ROSTER_DAY_HARD_END_MINUTES;
+                                        const isAfterSoftLimit =
+                                          endMinutes !== null &&
+                                          endMinutes > ROSTER_DAY_SOFT_END_MINUTES &&
+                                          endMinutes <= ROSTER_DAY_HARD_END_MINUTES;
+                                        const hasSchedule =
+                                          typeof entry.scheduledStartMinutes === "number" &&
+                                          typeof entry.scheduledEndMinutes === "number";
+                                        const timelineRange = ROSTER_DAY_HARD_END_MINUTES - ROSTER_DAY_START_MINUTES || 1;
+                                        const startOffset = hasSchedule
+                                          ? (entry.scheduledStartMinutes as number) - ROSTER_DAY_START_MINUTES
+                                          : 0;
+                                        const endOffset = hasSchedule
+                                          ? (entry.scheduledEndMinutes as number) - ROSTER_DAY_START_MINUTES
+                                          : 0;
+                                        const rawLeft = hasSchedule ? (startOffset / timelineRange) * 100 : 0;
+                                        const rawWidth = hasSchedule ? ((endOffset - startOffset) / timelineRange) * 100 : 0;
+                                        const leftPercent = hasSchedule ? Math.max(0, Math.min(98, rawLeft)) : 0;
+                                        const widthPercent = hasSchedule
+                                          ? Math.max(2, Math.min(100 - leftPercent, Math.max(0, rawWidth)))
+                                          : 0;
+                                        const barTone =
+                                          isAfterHardLimit || entry.isOutsideWindow || entry.hasWindowConflict
+                                            ? "bg-red-500/70"
+                                            : isAfterSoftLimit || isBeforeDayStart
+                                            ? "bg-amber-400/80"
+                                            : entry.isDoubleUp
+                                            ? "bg-emerald-500/70"
+                                            : "bg-primary/70";
+                                        return (
+                                          <div
+                                            key={entry.key}
+                                            className="flex flex-col gap-2 rounded-xl border border-border/60 bg-background/60 p-3"
+                                          >
+                                            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                                              <div>
+                                                <p className="text-sm font-semibold text-foreground">
+                                                  {entry.serviceUserName || "Unknown service user"}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                  {entry.callTypeLabel} • {entry.timeBandLabel}
+                                                </p>
+                                              </div>
+                                              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                                <Badge variant="outline" className="text-xs font-semibold">
+                                                  Required {requiredLabel}
+                                                </Badge>
+                                                {hasSchedule ? (
+                                                  <Badge variant="secondary" className="text-xs font-semibold">
+                                                    Scheduled {scheduledStart} → {scheduledEnd}
+                                                  </Badge>
+                                                ) : (
+                                                  <Badge variant="destructive" className="text-xs font-semibold">
+                                                    No scheduled time
+                                                  </Badge>
+                                                )}
+                                                <Badge variant="outline" className="text-xs font-semibold">
+                                                  {shiftLabel}
+                                                </Badge>
+                                                {entry.isDoubleUp && (
+                                                  <Badge variant="outline" className="text-xs font-semibold">
+                                                    Double-up (locked)
+                                                  </Badge>
+                                                )}
+                                                {isBeforeDayStart && (
+                                                  <Badge variant="destructive" className="text-xs font-semibold">
+                                                    Before 06:00
+                                                  </Badge>
+                                                )}
+                                                {isAfterSoftLimit && (
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="text-xs font-semibold border-amber-500/40 text-amber-600 dark:text-amber-300"
+                                                  >
+                                                    After 22:00
+                                                  </Badge>
+                                                )}
+                                                {isAfterHardLimit && (
+                                                  <Badge variant="destructive" className="text-xs font-semibold">
+                                                    After 23:00
+                                                  </Badge>
+                                                )}
+                                                {entry.isTimeCritical && windowLabel && (
+                                                  <Badge variant="outline" className="text-xs font-semibold">
+                                                    Time critical {windowLabel}
+                                                  </Badge>
+                                                )}
+                                                {entry.isOutsideWindow && (
+                                                  <Badge variant="destructive" className="text-xs font-semibold">
+                                                    Outside ±{TIME_CRITICAL_WINDOW_MINUTES} mins
+                                                  </Badge>
+                                                )}
+                                                {entry.hasWindowConflict && (
+                                                  <Badge variant="destructive" className="text-xs font-semibold">
+                                                    Window conflict
+                                                  </Badge>
+                                                )}
+                                              </div>
+                                            </div>
+                                            {hasSchedule && (
+                                              <div className="mt-2">
+                                                <div className="relative h-2 rounded-full bg-muted/50">
+                                                  <div
+                                                    className={`absolute h-2 rounded-full ${barTone}`}
+                                                    style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
+                                                  />
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <p className="mt-3 text-xs text-muted-foreground">
+                                      Select call groups in the Call Library to generate an optimized run.
+                                    </p>
+                                  )}
+                                </div>
+                              </TabsContent>
+                            </Tabs>
                           </>
                         )}
                       </div>
