@@ -4403,11 +4403,39 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       // PRN POLICY: PRN without a time = PRN refused (PRN-R).
       // Apply only to medications marked as PRN in the prescription.
       // =====================================================================
+      const inferredPrnMedicationIds = new Set<number>();
+      const inferredPrnMedicationNames: string[] = [];
+      const prnCodeSet = new Set(["PRN", "PRN-AD", "PRN-AS", "PRN-R"]);
+      const adminCodeSet = new Set(["AD", "AS", "P"]);
+      const medCodeStats = new Map<number, { prn: number; admin: number }>();
+
+      for (const entry of extractedEntries) {
+        const medId = Number(entry.medicationId) || 0;
+        if (!medId) continue;
+        const code = normalizeEmarCode(entry.code || "");
+        if (!medCodeStats.has(medId)) medCodeStats.set(medId, { prn: 0, admin: 0 });
+        const stats = medCodeStats.get(medId)!;
+        if (prnCodeSet.has(code)) stats.prn += 1;
+        if (adminCodeSet.has(code)) stats.admin += 1;
+      }
+
+      for (const [medId, stats] of medCodeStats.entries()) {
+        const inferred =
+          stats.prn >= 1 && stats.admin === 0
+            ? true
+            : stats.prn >= 2 && stats.prn >= stats.admin;
+        if (!inferred) continue;
+        if (prnMedicationIds.has(medId)) continue;
+        inferredPrnMedicationIds.add(medId);
+        const medName = medicationsWithIds.find((m: any) => m.medicationId === medId)?.name;
+        if (medName) inferredPrnMedicationNames.push(medName);
+      }
+
       let prnRefusalCount = 0;
       let prnAdminRemapCount = 0;
       extractedEntries = extractedEntries.map((entry: any) => {
         const code = (entry.code || "").toUpperCase();
-        const isPrnMed = prnMedicationIds.has(entry.medicationId);
+        const isPrnMed = prnMedicationIds.has(entry.medicationId) || inferredPrnMedicationIds.has(entry.medicationId);
 
         // Use computeHasTime for deterministic detection (same logic used in consensus)
         const hasTime = computeHasTime(entry);
@@ -4712,6 +4740,16 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       const discrepancies: Discrepancy[] = [];
       const verificationItems: VerificationItem[] = [];
       const warnings: Warning[] = [];
+
+      if (inferredPrnMedicationNames.length > 0) {
+        warnings.push({
+          type: "prn_inferred_from_codes",
+          severity: "low",
+          medication: inferredPrnMedicationNames.join(", "),
+          description: "PRN status inferred from chart codes because prescription text did not explicitly confirm PRN.",
+          recommendedAction: "Verify the prescription instructions confirm PRN status."
+        });
+      }
       
       // =====================================================================
       // PRN VALIDATION HELPER - Only prescription text determines PRN status
@@ -5179,7 +5217,8 @@ If no equivalences found, return: {"equivalences": []}`
         let scannedImportant = 0;
 
         for (const cell of gridBaseline.cells) {
-          const code = normalizeCodeLoose(cell.code || cell.content);
+          const rawCode = normalizeCodeLoose(cell.code || cell.content);
+          const code = rawCode === "PRN" && !hasExplicitTimeInCell(cell) ? "PRN-R" : rawCode;
           if (!code || !IMPORTANT_CODES.has(code)) continue;
           scannedImportant++;
 
