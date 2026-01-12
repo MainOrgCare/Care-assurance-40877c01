@@ -347,22 +347,35 @@ function scrubPII(data: any): any {
 function normalizeInitials(name: string | undefined | null): string {
   if (!name) return 'N.N.';
   const trimmed = name.trim();
-  
+  if (!trimmed) return 'N.N.';
+  const upper = trimmed.toUpperCase();
+
   // Check if already in initials format (X.X. or X.X)
-  if (/^[A-Z]\.[A-Z]\.?$/i.test(trimmed)) {
-    return trimmed.endsWith('.') ? trimmed : trimmed + '.';
+  if (/^[A-Z]\.[A-Z]\.?$/.test(upper)) {
+    return upper.endsWith('.') ? upper : upper + '.';
   }
-  
+
+  // Compact initials like "FO" or "FON"
+  if (/^[A-Z]{2,3}$/.test(upper)) {
+    return upper.split("").map(ch => `${ch}.`).join("");
+  }
+
+  // Single-letter initial fallback
+  if (/^[A-Z]\.?$/.test(upper)) {
+    return `${upper[0]}.N.`;
+  }
+
   // If it looks like a full name (multiple words or longer than 4 chars), extract initials
   if (trimmed.includes(' ') || trimmed.length > 4) {
     const parts = trimmed.split(/[\s.]+/).filter(p => p.length > 0);
     if (parts.length >= 2) {
       return parts[0][0].toUpperCase() + '.' + parts[parts.length - 1][0].toUpperCase() + '.';
-    } else if (parts.length === 1) {
+    }
+    if (parts.length === 1) {
       return parts[0][0].toUpperCase() + '.N.';
     }
   }
-  
+
   return 'N.N.';
 }
 
@@ -2473,6 +2486,7 @@ ${correctionExamples}
           
           // Convert agent result to the format expected by the rest of the code
           const metadata = agentResult.metadata;
+          metadata.serviceUserInitials = normalizeInitials(metadata.serviceUserInitials);
           const allEntries = agentResult.entries.map((e: any) => ({
             ...e,
             medication: metadata.medications.find((m: any) => m.medicationId === e.medicationId)?.name || `Medication ${e.medicationId}`
@@ -2808,7 +2822,8 @@ ${correctionExamples}
           console.log(`Agent: Found ${officeClosedEntries.length} office-closed entries`);
           
           const agentAnalysisResult = {
-            serviceUserName: agentExtractedData.serviceUserInitials || 'Unknown',
+            serviceUserName: agentExtractedData.serviceUserInitials || 'N.N.',
+            serviceUserInitials: agentExtractedData.serviceUserInitials || 'N.N.',
             serviceUserType: agentServiceUserType,
             allergies: agentExtractedData.allergies || 'NKDA',
             medicationLevelEvidence: `Code counts (regular): AD=${agentCodeCounts.AD}, AS=${agentCodeCounts.AS}, P=${agentCodeCounts.P}. PRN: PRN=${agentPrnCodeCounts.PRN}, FA=${agentPrnCodeCounts.FA}, MU=${agentPrnCodeCounts.MU}, NH=${agentPrnCodeCounts.NH}, R=${agentPrnCodeCounts.R}. Service level: ${agentServiceUserType.toUpperCase()}.`,
@@ -3369,12 +3384,18 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         aiMissingStructure
       );
 
+      const TIME_RANGE_PATTERN = /\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g;
+      const hasExplicitTimeInCell = (cell: ParsedEMAR["cells"][number]) => {
+        if (cell.time && cell.time.trim()) return true;
+        const content = String(cell.content || "").replace(TIME_RANGE_PATTERN, " ");
+        return /\b\d{1,2}[:.]\d{2}\b/.test(content);
+      };
+
       gridNonBlankCount = gridBaseline?.cells?.reduce((count, cell) => {
         const code = String(cell.code || "").toUpperCase().trim();
         if (code && code !== "BLANK" && code !== "N/A") return count + 1;
-        const content = String(cell.content || "");
-        const hasTime = Boolean(cell.time && cell.time.trim()) || /\b\d{1,2}:\d{2}\b/.test(content);
-        const hasInitials = Boolean(cell.careWorker && cell.careWorker.trim()) || /\b[A-Z]{2,3}\b/.test(content);
+        const hasTime = hasExplicitTimeInCell(cell);
+        const hasInitials = Boolean(cell.careWorker && cell.careWorker.trim());
         if (hasTime || hasInitials) return count + 1;
         return count;
       }, 0) || 0;
@@ -3400,6 +3421,41 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         }
       }
 
+      const getGridPrnStatsForMed = (name: string) => {
+        const key = normalizeMedicationKey(name || "");
+        if (!key) return undefined;
+        const direct = gridPrnStats.get(key);
+        if (direct) return direct;
+        let best: { stats: { prnCount: number; nonBlankCount: number }; score: number } | null = null;
+        for (const [candidateKey, stats] of gridPrnStats.entries()) {
+          if (!candidateKey) continue;
+          if (candidateKey.includes(key) || key.includes(candidateKey)) {
+            const score = Math.min(candidateKey.length, key.length);
+            if (!best || score > best.score) {
+              best = { stats, score };
+            }
+          }
+        }
+        return best && best.score >= 6 ? best.stats : undefined;
+      };
+
+      if (Array.isArray(metadata.medications) && metadata.medications.length > 0 && gridPrnStats.size > 0) {
+        metadata.medications = metadata.medications.map((med: any) => {
+          const name = typeof med?.name === "string" ? med.name : "";
+          const instructions = typeof med?.instructions === "string" ? med.instructions : "";
+          const textIndicatesPrn = isPrnFromText(`${name} ${instructions}`.trim());
+          const stats = getGridPrnStatsForMed(name);
+          const nonBlankCount = stats?.nonBlankCount || 0;
+          const prnCount = stats?.prnCount || 0;
+          const prnRatio = nonBlankCount > 0 ? prnCount / nonBlankCount : 0;
+          const gridPrnStrong = Boolean(stats && prnCount >= 2 && prnRatio >= 0.5);
+          const aiIndicatesPrn = Boolean(med?.isPRN);
+          const hasInstructionText = Boolean(instructions && instructions.trim());
+          const isPrn = textIndicatesPrn || gridPrnStrong || (aiIndicatesPrn && !textIndicatesPrn && !gridPrnStrong && !hasInstructionText);
+          return { ...med, isPRN: isPrn };
+        });
+      }
+
       if (shouldUseGridMetadata && gridBaseline) {
         const aiMedByKey = new Map<string, any>();
         for (const med of metadata.medications || []) {
@@ -3422,7 +3478,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
             const stats = key ? gridPrnStats.get(key) : undefined;
             const nonBlankCount = stats?.nonBlankCount || 0;
             const prnRatio = nonBlankCount > 0 ? (stats?.prnCount || 0) / nonBlankCount : 0;
-            const gridPrnStrong = Boolean(stats && stats.prnCount >= 2 && prnRatio >= 0.6);
+            const gridPrnStrong = Boolean(stats && stats.prnCount >= 2 && prnRatio >= 0.5);
             const hasGridEvidence = Boolean(stats && nonBlankCount > 0);
             const isPrn = textIndicatesPrn || gridPrnStrong || (aiIndicatesPrn && !hasGridEvidence);
             const scheduledTimeSlots = Array.isArray(aiMed?.scheduledTimeSlots) && aiMed.scheduledTimeSlots.length > 0
@@ -3457,6 +3513,8 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         }
       }
       
+      metadata.serviceUserInitials = normalizeInitials(metadata.serviceUserInitials);
+
       sendProgress(25, "Count validation complete...", "count_complete");
 
       // Ensure deterministic medication ordering before assigning IDs.
@@ -3585,11 +3643,14 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       const inferGridCode = (cell: ParsedEMAR["cells"][number], medId: number): string => {
         const rawCode = String(cell.code || "").toUpperCase().trim();
         const normalized = normalizeEmarCode(rawCode);
-        if (normalized && normalized !== "BLANK" && normalized !== "N/A") return normalized;
 
-        const content = String(cell.content || "");
-        const hasTime = Boolean(cell.time && cell.time.trim()) || /\b\d{1,2}:\d{2}\b/.test(content);
-        const hasInitials = Boolean(cell.careWorker && cell.careWorker.trim()) || /\b[A-Z]{2,3}\b/.test(content);
+        const hasTime = hasExplicitTimeInCell(cell);
+        const hasInitials = Boolean(cell.careWorker && cell.careWorker.trim());
+
+        if (normalized === "PRN" && prnMedicationIds.has(medId) && !hasTime) {
+          return "PRN-R";
+        }
+        if (normalized && normalized !== "BLANK" && normalized !== "N/A") return normalized;
 
         if (hasTime || hasInitials) {
           return prnMedicationIds.has(medId) ? "PRN" : "AD";
@@ -4314,9 +4375,8 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
         const gridNonBlankCount = gridBaseline.cells.reduce((count, cell) => {
           const code = String(cell.code || "").toUpperCase().trim();
           if (code && code !== "BLANK" && code !== "N/A") return count + 1;
-          const content = String(cell.content || "");
-          const hasTime = Boolean(cell.time && cell.time.trim()) || /\b\d{1,2}:\d{2}\b/.test(content);
-          const hasInitials = Boolean(cell.careWorker && cell.careWorker.trim()) || /\b[A-Z]{2,3}\b/.test(content);
+          const hasTime = hasExplicitTimeInCell(cell);
+          const hasInitials = Boolean(cell.careWorker && cell.careWorker.trim());
           if (hasTime || hasInitials) return count + 1;
           return count;
         }, 0);
@@ -4687,12 +4747,13 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       medications.forEach((med: any) => {
         // VALIDATE PRN: Only mark as PRN if instructions contain PRN keywords
         const validatedIsPRN = isPRNFromInstructions(med);
-        const medKey = normalizeMedicationKey(med.name);
-        const gridStats = medKey ? gridPrnStats.get(medKey) : undefined;
+        const gridStats = getGridPrnStatsForMed(med.name);
         const nonBlankCount = gridStats?.nonBlankCount || 0;
-        const prnRatio = nonBlankCount > 0 ? (gridStats?.prnCount || 0) / nonBlankCount : 0;
-        const gridPrnStrong = Boolean(gridStats && gridStats.prnCount >= 2 && prnRatio >= 0.6);
-        const finalIsPRN = validatedIsPRN || (gridPrimaryEnabled && gridPrnStrong);
+        const prnCount = gridStats?.prnCount || 0;
+        const prnRatio = nonBlankCount > 0 ? prnCount / nonBlankCount : 0;
+        const gridPrnStrong = Boolean(gridStats && prnCount >= 2 && prnRatio >= 0.5);
+        const hasInstructionText = Boolean((med?.instructions || "").toString().trim());
+        const finalIsPRN = validatedIsPRN || gridPrnStrong || (med.isPRN && !validatedIsPRN && !gridPrnStrong && !hasInstructionText);
         
         // Override AI's isPRN with validated value from prescription text
         if (med.isPRN !== finalIsPRN) {
@@ -5830,6 +5891,57 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       console.log(`DEBUG: Triple-check complete - ${originalCount} initial -> ${validatedDiscrepancies.length} confirmed (status: ${validationStatus})`);
       sendProgress(95, "Generating report...", "report_generation");
 
+      const redCodeSet = new Set(["R", "MU", "NH", "FA", "SA", "PRN-R", "MISSED"]);
+      const redIssuePattern = /\b(refus|not home|self-admin|self administered|family|unavailable|missed)\b/i;
+      const normalizeRedCode = (raw: unknown): string => {
+        const input = String(raw || "").toUpperCase().trim();
+        if (!input) return "";
+        if (input === "F" || input === "F/A") return "FA";
+        if (input === "PRNR") return "PRN-R";
+        return input;
+      };
+      const inferRedCodeFromIssue = (issue: string): string => {
+        if (/not home/i.test(issue)) return "NH";
+        if (/self-admin/i.test(issue)) return "SA";
+        if (/family/i.test(issue)) return "FA";
+        if (/unavailable|out of stock/i.test(issue)) return "MU";
+        if (/missed/i.test(issue)) return "MISSED";
+        if (/refus/i.test(issue)) return "R";
+        return "";
+      };
+
+      const verificationKey = (item: VerificationItem) =>
+        `${item.careWorkerName}|${item.date}|${item.medication}|${item.code}`;
+      const existingVerificationKeys = new Set(verificationItems.map(verificationKey));
+
+      if (validatedDiscrepancies.length > 0) {
+        const filteredDiscrepancies: Discrepancy[] = [];
+        for (const discrepancy of validatedDiscrepancies) {
+          const normalizedCode = normalizeRedCode(discrepancy.code);
+          const inferredCode = normalizedCode || inferRedCodeFromIssue(discrepancy.issue || "");
+          const isRedCode = Boolean(inferredCode && redCodeSet.has(inferredCode));
+          const isRedIssue = redIssuePattern.test(discrepancy.issue || "");
+
+          if (isRedCode || isRedIssue) {
+            const verificationItem: VerificationItem = {
+              careWorkerName: discrepancy.careWorkerName || "Unknown",
+              date: discrepancy.date || "",
+              medication: discrepancy.medication || "",
+              code: inferredCode || normalizedCode || "R",
+              note: discrepancy.issue || "Check if this entry is documented appropriately",
+            };
+            const key = verificationKey(verificationItem);
+            if (!existingVerificationKeys.has(key)) {
+              verificationItems.push(verificationItem);
+              existingVerificationKeys.add(key);
+            }
+            continue;
+          }
+          filteredDiscrepancies.push(discrepancy);
+        }
+        validatedDiscrepancies = filteredDiscrepancies;
+      }
+
       // =====================================================================
       // GROUP REFUSAL DISCREPANCIES INTO MAIN AND PRN CATEGORIES
       // Main Refusals: R, MU, NH, FA, SA codes (non-PRN refusal-related codes)
@@ -5984,7 +6096,8 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         : `Processed ${allEntries.length} entries across ${medications.length} medications for ${allDates.length} days. 3-pass Vision consensus validation: ${originalCount} initial findings -> ${validatedDiscrepancies.length} confirmed discrepancies, ${verificationItems.length} items requiring verification, and ${warnings.length} warnings.`;
 
       const result = {
-        serviceUserName: extractedData.serviceUserInitials || "Unknown",
+        serviceUserName: extractedData.serviceUserInitials || "N.N.",
+        serviceUserInitials: extractedData.serviceUserInitials || "N.N.",
         serviceUserType: serviceUserType,
         allergies: allergies,
         medicationLevelEvidence: `Code counts (regular meds): AD=${codeCounts.AD}, AS=${codeCounts.AS}, P=${codeCounts.P}. PRN meds: PRN=${prnCodeCounts.PRN}, FA=${prnCodeCounts.FA}, MU=${prnCodeCounts.MU}, NH=${prnCodeCounts.NH}, R=${prnCodeCounts.R}. Service level: ${serviceUserType.toUpperCase()}.`,

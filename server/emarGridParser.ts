@@ -1184,21 +1184,43 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   }
   
   let serviceUserName = "";
-  const namePatterns = [/Name:\s*([A-Z][a-z]+\s+[A-Z])/i, /Service User:\s*([A-Z][a-z]+\s+[A-Z])/i];
+  const normalizeInitials = (fullName: string): string => {
+    const parts = fullName
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (parts.length === 0) return "";
+    return parts.map(p => p[0]).join(".") + ".";
+  };
+  const namePatterns = [
+    /Printed date\s+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)\s+CASE/i,
+    /Service User(?: Name)?[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
+    /Resident(?: Name)?[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
+    /Patient(?: Name)?[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
+    /Client(?: Name)?[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
+    /Name[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
+  ];
   for (const pattern of namePatterns) {
     const match = rawText.match(pattern);
     if (match) {
       const fullName = match[1];
-      const parts = fullName.split(/\s+/);
-      serviceUserName = parts.map(p => p[0]).join(".") + ".";
+      serviceUserName = normalizeInitials(fullName);
       break;
     }
   }
   
   let allergies = "No known allergies";
-  const allergyMatch = rawText.match(/Allerg(?:y|ies)[:\s]+([^.]+)/i);
+  const allergyMatch = rawText.match(/Allerg(?:y|ies)\s*[:\-]?\s*([A-Za-z0-9 ,/'()\-]{0,120})/i);
   if (allergyMatch) {
-    allergies = allergyMatch[1].trim();
+    let captured = allergyMatch[1].trim();
+    if (captured) {
+      captured = captured.split(/(?:Route|Date|Time|Sun|Mon|Tue|Wed|Thu|Fri|Sat|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i)[0].trim();
+      const tooLong = captured.length > 80;
+      const hasDateLike = /\b(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\b/i.test(captured) || /\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i.test(captured);
+      if (captured && !tooLong && !hasDateLike) {
+        allergies = captured;
+      }
+    }
   }
   
   const detectedDatesCount = dates.length;

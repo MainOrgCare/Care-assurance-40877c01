@@ -188,6 +188,28 @@ function formatDate(date: Date): string {
   return `${day}/${month}/${year}`;
 }
 
+function formatServiceUserInitials(value?: string): string {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return "N.N.";
+  const upper = trimmed.toUpperCase();
+
+  if (/^[A-Z]\.[A-Z]\.?$/.test(upper)) {
+    return upper.endsWith(".") ? upper : `${upper}.`;
+  }
+  if (/^[A-Z]{2,3}$/.test(upper)) {
+    return upper.split("").map(ch => `${ch}.`).join("");
+  }
+  if (/^[A-Z]\.?$/.test(upper)) {
+    return `${upper[0]}.N.`;
+  }
+
+  const parts = trimmed.split(/[\s.]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0].toUpperCase()}.${parts[parts.length - 1][0].toUpperCase()}.`;
+  }
+  return "N.N.";
+}
+
 const CopyButton = memo(function CopyButton({ text, label }: { text: string; label?: string }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
@@ -699,7 +721,7 @@ export default function EMARAudit() {
       setLoading(true);
 
       const auditData = {
-        serviceUserName: result.serviceUserName,
+        serviceUserName: serviceUserDisplay,
         auditor: user.username,
         auditType: "EMAR",
         periodStart: result.auditPeriodStart,
@@ -1015,6 +1037,10 @@ ${generatedProtocol.additionalComments}`;
   };
 
   const auditorDisplay = getAuditorDisplay();
+  const serviceUserDisplay = useMemo(() => {
+    if (!result) return "N.N.";
+    return formatServiceUserInitials(result.serviceUserInitials || result.serviceUserName);
+  }, [result]);
 
   const hasAnyDiscrepancies = () => {
     const allDiscrepancies = getAllDiscrepancies();
@@ -1044,7 +1070,7 @@ ${generatedProtocol.additionalComments}`;
     yPos += 8;
     
     doc.setFontSize(10);
-    doc.text(`Service User: ${result.serviceUserName}`, 14, yPos);
+    doc.text(`Service User: ${serviceUserDisplay}`, 14, yPos);
     yPos += 6;
     doc.text(`Medication Level: ${getServiceUserTypeDisplay()}`, 14, yPos);
     yPos += 6;
@@ -1172,7 +1198,7 @@ ${generatedProtocol.additionalComments}`;
       yPos = (doc as any).lastAutoTable.finalY + 10;
     }
     
-    const fileName = `EMAR_Audit_${result.serviceUserName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+    const fileName = `EMAR_Audit_${serviceUserDisplay.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
     doc.save(fileName);
     
     toast({
@@ -1872,7 +1898,7 @@ ${generatedProtocol.additionalComments}`;
                 </Button>
               </div>
               <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <CopyableBox label="Service User" value={result.serviceUserName} />
+                <CopyableBox label="Service User" value={serviceUserDisplay} />
                 <CopyableBox label="Type" value={getServiceUserTypeDisplay()} />
                 <CopyableBox label="Auditor" value={auditorDisplay} />
                 <CopyableBox label="First Day of Audit" value={result.auditPeriodStart} />
