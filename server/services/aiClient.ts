@@ -2,37 +2,17 @@ import OpenAI from "openai";
 import { storage } from "../storage";
 import { calculateCostMicroDollars, AVAILABLE_MODELS, type AvailableModel } from "../config/aiPricing";
 
-let replitClient: OpenAI | null = null;
-
-function getReplitClient(): OpenAI | null {
-  if (replitClient) return replitClient;
-  
-  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-  if (!apiKey) {
-    return null;
-  }
-  
-  replitClient = new OpenAI({
-    apiKey: apiKey,
-    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  });
-  
-  return replitClient;
-}
-
 // User context type for logging
 export interface AiUserContext {
   userId: string | null;
   username: string | null;
 }
 
-// Provider type for billing attribution
-export type AiProvider = "replit" | "openai";
+// Provider type for billing attribution (locked to OpenAI for this deployment)
+export type AiProvider = "openai";
 
-// Admin-configurable preferred AI provider.
-// Default to OpenAI when an OpenAI key is configured; otherwise fall back to Replit.
-let preferredProvider: AiProvider =
-  process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY ? "openai" : "replit";
+// Admin-configurable preferred AI provider (OpenAI only).
+let preferredProvider: AiProvider = "openai";
 
 // Admin-configurable preferred AI model (defaults to gpt-5.1)
 let preferredModel: AvailableModel = "gpt-5.1";
@@ -42,8 +22,8 @@ export function getPreferredProvider(): AiProvider {
 }
 
 export function setPreferredProvider(provider: AiProvider): void {
-  if (provider !== "replit" && provider !== "openai") {
-    throw new Error("Invalid provider. Must be 'replit' or 'openai'");
+  if (provider !== "openai") {
+    throw new Error("Invalid provider. This deployment is locked to OpenAI-only.");
   }
   preferredProvider = provider;
   console.log(`[AI Config] Preferred provider set to: ${provider}`);
@@ -91,89 +71,21 @@ function getOpenAIClient(): OpenAI | null {
   return openaiClient;
 }
 
-function shouldFallback(error: any): boolean {
-  const status = error?.status || error?.response?.status;
-  if (status === 401 || status === 402 || status === 403 || status === 429 || status >= 500) {
-    return true;
-  }
-  if (error?.code === "ECONNREFUSED" || error?.code === "ETIMEDOUT" || error?.code === "ENOTFOUND") {
-    return true;
-  }
-  if (error?.message?.toLowerCase().includes("billing") || 
-      error?.message?.toLowerCase().includes("quota") ||
-      error?.message?.toLowerCase().includes("rate limit")) {
-    return true;
-  }
-  return false;
-}
-
-// Internal function that tracks which provider was used
-// Respects admin-configured preferred provider with automatic failover
+// Internal function that tracks which provider was used (OpenAI-only)
 async function createChatCompletionWithProvider(
   params: OpenAI.ChatCompletionCreateParamsNonStreaming
 ): Promise<AiCompletionResult> {
-  const preferred = preferredProvider;
   const openai = getOpenAIClient();
-  const replit = getReplitClient();
-  
-  // If OpenAI is preferred and available, use it first
-  if (preferred === "openai" && openai) {
-    console.log("[AI] Admin preferred provider: OpenAI - initiating direct request...");
-    try {
-      const completion = await openai.chat.completions.create(params);
-      return { completion, provider: "openai" };
-    } catch (openaiError: any) {
-      console.error("[AI] OpenAI preferred request failed, falling back to Replit:", openaiError.message);
-      if (shouldFallback(openaiError) && replit) {
-        try {
-          const completion = await replit.chat.completions.create(params);
-          return { completion, provider: "replit" };
-        } catch (replitError: any) {
-          console.error("[AI] Replit fallback also failed:", replitError.message);
-          throw replitError;
-        }
-      }
-      throw openaiError;
-    }
+  if (!openai) {
+    throw new Error("OpenAI is not configured. Set OPENAI_API_KEY or OPENAI_FALLBACK_API_KEY.");
   }
-  
-  // Default: Use Replit first with OpenAI fallback
-  if (!replit && !openai) {
-    throw new Error("No AI provider is configured. Please set either AI_INTEGRATIONS_OPENAI_API_KEY or OPENAI_FALLBACK_API_KEY");
-  }
-  
-  if (replit) {
-    try {
-      const completion = await replit.chat.completions.create(params);
-      return { completion, provider: "replit" };
-    } catch (replitError: any) {
-      if (shouldFallback(replitError) && openai) {
-        console.log("[AI Failover] Replit failed, using OpenAI fallback");
-        try {
-          const completion = await openai.chat.completions.create(params);
-          return { completion, provider: "openai" };
-        } catch (openaiError: any) {
-          console.error("[AI Failover] OpenAI fallback also failed:", openaiError.message);
-          throw openaiError;
-        }
-      } else if (!openai) {
-        console.warn("[AI Failover] Replit failed and no OpenAI fallback key configured");
-      }
-      throw replitError;
-    }
-  }
-  
-  // If only OpenAI is available (no Replit client)
-  if (openai) {
-    try {
-      const completion = await openai.chat.completions.create(params);
-      return { completion, provider: "openai" };
-    } catch (openaiError: any) {
-      throw openaiError;
-    }
-  }
-  
-  throw new Error("No AI provider is available");
+
+  // Force model to preferred if not provided
+  const model = (params.model as string) || preferredModel;
+
+  console.log("[AI] Using OpenAI provider with model:", model);
+  const completion = await openai.chat.completions.create({ ...params, model });
+  return { completion, provider: "openai" };
 }
 
 // Legacy function for backwards compatibility (returns just the completion)
@@ -191,7 +103,7 @@ export async function createChatCompletionWithLogging(
 ): Promise<OpenAI.ChatCompletion> {
   const startTime = Date.now();
   // Ensure we use the model passed in params, which should be from getPreferredModel()
-  const model = params.model as string || "gpt-4o";
+  const model = (params.model as string) || preferredModel;
   const userId = userContext?.userId || null;
   const username = userContext?.username || null;
   
@@ -202,7 +114,7 @@ export async function createChatCompletionWithLogging(
   
   console.log(`[AI:${featureName}] Starting request with ${model}${username ? ` for ${username}` : ""}...`);
   
-  let provider: AiProvider = "replit";
+  let provider: AiProvider = "openai";
   
   try {
     const result = await createChatCompletionWithProvider(params);
@@ -254,4 +166,5 @@ export async function createChatCompletionWithLogging(
   }
 }
 
-export const openai = getReplitClient();
+// Export the configured OpenAI client for legacy imports
+export const openai = getOpenAIClient();

@@ -40,8 +40,8 @@ export default function Login() {
       {/* Gradient Background - uses theme-aware colors */}
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-background via-muted/50 to-background" />
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-violet-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-amber-500/12 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-teal-500/12 rounded-full blur-3xl" />
       </div>
       
       {/* Subtle grid pattern */}
@@ -65,11 +65,11 @@ export default function Login() {
           />
         )}
         {/* Top accent line */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-400 via-indigo-400 to-purple-400" />
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-teal-400 to-sky-400" />
         
         {/* Header */}
         <div className="pt-8 pb-4 px-6 flex flex-col items-center gap-3">
-          <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center">
+          <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-amber-500 to-teal-500 flex items-center justify-center">
             <ShieldCheck className="h-7 w-7 text-white" />
           </div>
           <h2 className="text-3xl text-foreground">
@@ -90,7 +90,7 @@ export default function Login() {
                   onChange={(e) => setUsername(e.target.value)}
                   required
                   autoComplete="username"
-                  className="bg-muted border-border text-foreground placeholder:text-muted-foreground h-11 rounded-lg pl-10 focus:border-blue-500 focus:ring-blue-500/20 transition-colors"
+                  className="bg-muted/70 border-border text-foreground placeholder:text-muted-foreground h-11 rounded-lg pl-10 focus:border-primary focus:ring-primary/20 transition-colors"
                   data-testid="input-username"
                 />
               </div>
@@ -107,14 +107,14 @@ export default function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
-                  className="bg-muted border-border text-foreground placeholder:text-muted-foreground h-11 rounded-lg pl-10 focus:border-blue-500 focus:ring-blue-500/20 transition-colors"
+                  className="bg-muted/70 border-border text-foreground placeholder:text-muted-foreground h-11 rounded-lg pl-10 focus:border-primary focus:ring-primary/20 transition-colors"
                   data-testid="input-password"
                 />
               </div>
             </div>
             <Button 
               type="submit" 
-              className="w-full h-11 rounded-lg bg-gradient-to-r from-blue-600 to-teal-500 hover:opacity-95 text-white font-semibold shadow-lg shadow-blue-900/30 transition-opacity duration-200 mt-2" 
+              className="w-full h-11 rounded-lg bg-gradient-to-r from-amber-500 to-teal-500 hover:opacity-95 text-white font-semibold shadow-lg shadow-black/25 transition-opacity duration-200 mt-2" 
               disabled={loading}
               data-testid="button-login"
             >
@@ -136,12 +136,12 @@ export default function Login() {
         <CardFooter className="flex-col justify-center border-t border-border bg-card py-4 gap-3 px-6">
           <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <Lock className="w-3 h-3 text-teal-500/70" />
+              <Lock className="w-3 h-3 text-primary/70" />
               Encrypted
             </span>
             <span className="text-border">|</span>
             <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-3 h-3 text-teal-500/70" />
+              <ShieldCheck className="w-3 h-3 text-primary/70" />
               CQC Compliant
             </span>
           </div>

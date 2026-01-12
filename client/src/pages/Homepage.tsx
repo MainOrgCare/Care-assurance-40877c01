@@ -390,7 +390,7 @@ export default function Homepage() {
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-background via-muted/30 to-background" />
         <motion.div 
-          className="hidden sm:block absolute top-10 left-[18%] w-[420px] h-[420px] bg-blue-600/12 rounded-full blur-3xl"
+          className="hidden sm:block absolute top-10 left-[18%] w-[420px] h-[420px] bg-amber-500/14 rounded-full blur-3xl"
           animate={prefersReducedMotion ? undefined : { 
             x: [0, 24, 0],
             y: [0, 18, 0]
@@ -439,7 +439,7 @@ export default function Homepage() {
               <Popover open={loginOpen} onOpenChange={setLoginOpen}>
                 <PopoverTrigger asChild>
                   <Button 
-                    className="bg-gradient-to-r from-blue-600 to-teal-500 hover:opacity-95 text-white font-medium shadow-lg shadow-blue-900/30 transition-opacity"
+                    className="bg-gradient-to-r from-amber-500 to-teal-500 hover:opacity-95 text-white font-medium shadow-lg shadow-black/25 transition-opacity"
                     data-testid="button-header-login"
                   >
                     Login
@@ -494,7 +494,7 @@ export default function Homepage() {
                     </div>
                     <Button 
                       type="submit"
-                      className="w-full bg-gradient-to-r from-blue-600 to-teal-500 hover:opacity-95 text-white font-medium transition-opacity"
+                      className="w-full bg-gradient-to-r from-amber-500 to-teal-500 hover:opacity-95 text-white font-medium transition-opacity"
                       disabled={loading}
                       data-testid="button-dropdown-submit"
                     >
@@ -559,7 +559,7 @@ export default function Homepage() {
                   <Lock className="h-3 w-3 mr-1" />
                   Privacy-First Processing
                 </Badge>
-                <Badge variant="outline" className="text-xs px-3 py-1 border-blue-500/30 text-blue-300 bg-blue-500/10">
+                <Badge variant="outline" className="text-xs px-3 py-1 border-amber-500/30 text-amber-200 bg-amber-500/10">
                   <ShieldCheck className="h-3 w-3 mr-1" />
                   Audit-Ready Trails
                 </Badge>
@@ -571,7 +571,7 @@ export default function Homepage() {
               >
                 <Button 
                   size="lg"
-                  className="bg-gradient-to-r from-blue-600 to-teal-500 hover:opacity-95 text-white font-semibold shadow-xl shadow-blue-900/40 px-8 h-12 text-base relative overflow-hidden group transition-opacity"
+                  className="bg-gradient-to-r from-amber-500 to-teal-500 hover:opacity-95 text-white font-semibold shadow-xl shadow-black/30 px-8 h-12 text-base relative overflow-hidden group transition-opacity"
                   data-testid="button-hero-login"
                   onClick={() => setLoginOpen(true)}
                 >
@@ -632,7 +632,7 @@ export default function Homepage() {
               className="relative"
               {...getRevealProps(0.45)}
             >
-              <div className="absolute -inset-6 rounded-[32px] bg-gradient-to-br from-blue-600/25 via-teal-500/10 to-emerald-500/20 blur-3xl opacity-70" />
+              <div className="absolute -inset-6 rounded-[32px] bg-gradient-to-br from-amber-500/25 via-teal-500/12 to-sky-500/18 blur-3xl opacity-70" />
               <Card className="relative border border-border/60 bg-card/40 backdrop-blur-xl">
                 <CardContent className="p-6 sm:p-7">
                   <div className="flex items-start justify-between gap-4">
@@ -747,10 +747,10 @@ export default function Homepage() {
                 className="rounded-2xl border border-border/50 bg-card/40 p-6 text-center backdrop-blur-xl shadow-[0_20px_60px_rgba(10,20,40,0.25)]"
                 variants={FADE_IN_UP}
               >
-                <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-500/20 to-teal-500/20 mb-4">
+                <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-teal-500/20 mb-4">
                   <stat.icon className="h-6 w-6 text-teal-300" />
                 </div>
-                <div className="text-3xl sm:text-4xl font-bold text-foreground mb-1 bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent">
+                <div className="text-3xl sm:text-4xl font-bold text-foreground mb-1 bg-gradient-to-r from-amber-400 to-teal-400 bg-clip-text text-transparent">
                   {stat.value}
                 </div>
                 <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">{stat.label}</div>
@@ -813,7 +813,7 @@ export default function Homepage() {
             className="text-center mb-16"
             {...getInViewProps()}
           >
-            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs bg-blue-500/10 text-blue-400 border-blue-500/20">
+            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20">
               <Zap className="h-3 w-3 mr-1" />
               Quick Start
             </Badge>
@@ -837,12 +837,12 @@ export default function Homepage() {
                   <Card className="h-full border border-border/50 bg-card/30 backdrop-blur-xl overflow-visible">
                     <CardContent className="p-6 pt-8">
                       <div className="absolute -top-4 left-6">
-                        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-600 to-teal-500 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-blue-900/30">
+                        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-amber-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-black/25">
                           {item.step}
                         </div>
                       </div>
                       <div className="mt-4">
-                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-500/10 to-teal-500/10 flex items-center justify-center mb-4">
+                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-amber-500/10 to-teal-500/10 flex items-center justify-center mb-4">
                           <item.icon className="h-6 w-6 text-teal-300" />
                         </div>
                         <h3 className="text-lg font-semibold text-foreground mb-2">{item.title}</h3>
@@ -1031,7 +1031,7 @@ export default function Homepage() {
                   <div className={`absolute inset-0 bg-gradient-to-br ${FEATURE_STYLES[index % FEATURE_STYLES.length].accent} opacity-0 transition-opacity duration-300 group-hover:opacity-100`} />
                   <CardContent className="p-6 relative z-10">
                     <div className="flex items-start justify-between gap-3 mb-4">
-                      <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-500/10 to-teal-500/10 flex items-center justify-center transition-opacity duration-200 flex-shrink-0">
+                      <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-amber-500/10 to-teal-500/10 flex items-center justify-center transition-opacity duration-200 flex-shrink-0">
                         <feature.icon className={`h-6 w-6 ${FEATURE_STYLES[index % FEATURE_STYLES.length].icon} transition-colors`} />
                       </div>
                       <Badge variant="secondary" className={`text-[10px] ${FEATURE_STYLES[index % FEATURE_STYLES.length].badge}`}>
@@ -1074,7 +1074,7 @@ export default function Homepage() {
                   key={bullet.title}
                   className="flex gap-4 rounded-2xl border border-border/50 bg-card/30 p-4 backdrop-blur-xl"
                 >
-                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500/10 to-teal-500/10 flex items-center justify-center">
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-500/10 to-teal-500/10 flex items-center justify-center">
                     <bullet.icon className="h-5 w-5 text-teal-300" />
                   </div>
                   <div>
@@ -1236,10 +1236,10 @@ export default function Homepage() {
                 <div className="text-xs text-muted-foreground/80">per year</div>
                   </div>
 
-                  <div className="p-5 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <div className="p-5 rounded-lg bg-amber-500/10 border border-amber-500/20">
                 <div className="flex items-center gap-2 mb-2">
-                  <Timer className="h-4 w-4 text-blue-300" />
-                  <span className="text-sm text-blue-300">Time Saved</span>
+                  <Timer className="h-4 w-4 text-amber-300" />
+                  <span className="text-sm text-amber-300">Time Saved</span>
                     </div>
                     <div className="text-2xl font-bold text-foreground" data-testid="text-hours-saved">
                       {roi.hoursSaved.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
@@ -1315,9 +1315,9 @@ export default function Homepage() {
           <motion.div
             {...getInViewProps()}
           >
-            <Card className="border border-border/50 bg-gradient-to-br from-blue-600/10 via-card/50 to-teal-600/10 backdrop-blur-xl overflow-hidden">
+            <Card className="border border-border/50 bg-gradient-to-br from-amber-500/10 via-card/50 to-teal-500/10 backdrop-blur-xl overflow-hidden">
               <CardContent className="p-8 sm:p-12 text-center relative">
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500" />
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-teal-400 to-sky-400" />
                 
                 <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-4">
                   Ready to See What You Might Be Missing?
@@ -1340,7 +1340,7 @@ export default function Homepage() {
                 
                 <Button 
                   size="lg"
-                  className="bg-gradient-to-r from-blue-600 to-teal-500 hover:opacity-95 text-white font-semibold shadow-xl shadow-blue-900/40 px-8 h-12 transition-opacity"
+                  className="bg-gradient-to-r from-amber-500 to-teal-500 hover:opacity-95 text-white font-semibold shadow-xl shadow-black/30 px-8 h-12 transition-opacity"
                   data-testid="button-cta-login"
                   onClick={() => setLoginOpen(true)}
                 >
@@ -1386,7 +1386,7 @@ export default function Homepage() {
                 <Lock className="h-2.5 w-2.5 mr-1" />
                 256-bit SSL Secured
               </Badge>
-              <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-400">
+              <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-300">
                 <ShieldCheck className="h-2.5 w-2.5 mr-1" />
                 Privacy-Focused
               </Badge>

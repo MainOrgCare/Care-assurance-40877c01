@@ -280,9 +280,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex h-screen w-full overflow-hidden bg-background">
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-muted/25 to-background" />
-        <div className="absolute -top-32 left-[20%] h-80 w-80 rounded-full bg-sky-500/12 blur-3xl" />
-        <div className="absolute bottom-[-20%] right-[18%] h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute inset-0 bg-gradient-to-br from-background via-muted/30 to-background" />
+        <div className="absolute -top-32 left-[18%] h-80 w-80 rounded-full bg-amber-500/12 blur-3xl" />
+        <div className="absolute bottom-[-20%] right-[18%] h-96 w-96 rounded-full bg-teal-500/12 blur-3xl" />
         <div
           className="absolute inset-0 opacity-[0.015]"
           style={{

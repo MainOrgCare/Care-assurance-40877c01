@@ -60,6 +60,9 @@ const TEMPLATE_WEEK_LABELS: Record<string, string> = {
   week1: "Week 1 (starts 05/01/26)",
   week2: "Week 2 (starts 12/01/26)",
 };
+const ROSTER_DAY_START_MINUTES = 6 * 60;
+const ROSTER_DAY_SOFT_END_MINUTES = 22 * 60;
+const ROSTER_DAY_HARD_END_MINUTES = 23 * 60;
 
 function formatMinutesLabel(minutes: number | null | undefined): string {
   if (typeof minutes !== "number" || Number.isNaN(minutes)) return "—";
@@ -86,6 +89,16 @@ function formatDateLabel(isoString: string | null | undefined): string {
   const date = new Date(isoString);
   if (Number.isNaN(date.getTime())) return isoString;
   return date.toLocaleString();
+}
+
+function SummaryMetric({ label, value, helper }: { label: string; value: string; helper?: string }) {
+  return (
+    <div className="rounded-xl border border-border/70 bg-background/60 px-3 py-2">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-sm font-semibold text-foreground">{value}</p>
+      {helper && <p className="text-xs text-muted-foreground">{helper}</p>}
+    </div>
+  );
 }
 
 export default function CareWorkerRotas() {
@@ -149,6 +162,156 @@ export default function CareWorkerRotas() {
     () => filteredRotas.find((rota) => rota.id === selectedRotaId) ?? null,
     [filteredRotas, selectedRotaId]
   );
+
+  const rosterSummary = useMemo(() => {
+    const entries = selectedRota?.payload?.optimizedRun ?? [];
+    if (!entries.length) return null;
+    const scheduledEntries = entries.filter(
+      (entry) => typeof entry.scheduledStartMinutes === "number" && typeof entry.scheduledEndMinutes === "number"
+    );
+    const unscheduledCount = entries.length - scheduledEntries.length;
+    const totalDurationMinutes = scheduledEntries.reduce((total, entry) => {
+      const duration = typeof entry.durationMinutes === "number" ? entry.durationMinutes : 0;
+      return total + duration;
+    }, 0);
+    const earliestStart =
+      scheduledEntries.length > 0
+        ? Math.min(...scheduledEntries.map((entry) => entry.scheduledStartMinutes as number))
+        : null;
+    const latestEnd =
+      scheduledEntries.length > 0
+        ? Math.max(...scheduledEntries.map((entry) => entry.scheduledEndMinutes as number))
+        : null;
+    const sortedByStart = [...scheduledEntries].sort((a, b) => {
+      return (a.scheduledStartMinutes as number) - (b.scheduledStartMinutes as number);
+    });
+    const idleMinutes = sortedByStart.reduce((acc, entry, idx) => {
+      if (idx === 0) return acc;
+      const prevEnd = sortedByStart[idx - 1].scheduledEndMinutes as number;
+      const gap = (entry.scheduledStartMinutes as number) - prevEnd;
+      return gap > 0 ? acc + gap : acc;
+    }, 0);
+
+    const beforeStartCount = scheduledEntries.filter(
+      (entry) => (entry.scheduledStartMinutes as number) < ROSTER_DAY_START_MINUTES
+    ).length;
+    const afterSoftCount = scheduledEntries.filter((entry) => {
+      const endMinutes = entry.scheduledEndMinutes as number;
+      return endMinutes > ROSTER_DAY_SOFT_END_MINUTES && endMinutes <= ROSTER_DAY_HARD_END_MINUTES;
+    }).length;
+    const afterHardCount = scheduledEntries.filter(
+      (entry) => (entry.scheduledEndMinutes as number) > ROSTER_DAY_HARD_END_MINUTES
+    ).length;
+    const outsideWindowCount = scheduledEntries.filter((entry) => entry.isOutsideWindow).length;
+    const windowConflictCount = scheduledEntries.filter((entry) => entry.hasWindowConflict).length;
+    const timeCriticalCount = entries.filter((entry) => entry.isTimeCritical).length;
+    const doubleUpCount = entries.filter((entry) => entry.isDoubleUp).length;
+
+    return {
+      totalCalls: entries.length,
+      scheduledCount: scheduledEntries.length,
+      unscheduledCount,
+      totalDurationMinutes,
+      earliestStart,
+      latestEnd,
+      idleMinutes,
+      beforeStartCount,
+      afterSoftCount,
+      afterHardCount,
+      outsideWindowCount,
+      windowConflictCount,
+      timeCriticalCount,
+      doubleUpCount,
+    };
+  }, [selectedRota?.payload?.optimizedRun]);
+
+  const triggerDownload = useCallback((blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const buildExportRows = useCallback((entries: OptimizedRouteEntry[]) => {
+    return entries.map((entry, index) => ({
+      Order: index + 1,
+      "Service User": entry.serviceUserName ?? "",
+      "Call Type": entry.callTypeLabel ?? "",
+      "Time Band": entry.timeBandLabel ?? "",
+      "Requirement Time": formatMinutesLabel(entry.requirementStartMinutes),
+      "Scheduled Start": formatMinutesLabel(entry.scheduledStartMinutes),
+      "Scheduled End": formatMinutesLabel(entry.scheduledEndMinutes),
+      "Duration (mins)": typeof entry.durationMinutes === "number" ? Math.round(entry.durationMinutes) : "",
+      "Shift (mins)": typeof entry.shiftMinutes === "number" ? Math.round(entry.shiftMinutes) : "",
+      "Time Critical": entry.isTimeCritical ? "Yes" : "No",
+      "Double Up": entry.isDoubleUp ? "Yes" : "No",
+      "Window Start": formatMinutesLabel(entry.windowStartMinutes),
+      "Window End": formatMinutesLabel(entry.windowEndMinutes),
+      "Outside Window": entry.isOutsideWindow ? "Yes" : "No",
+      "Window Conflict": entry.hasWindowConflict ? "Yes" : "No",
+    }));
+  }, []);
+
+  const handleExportCsv = useCallback(() => {
+    if (!selectedRota?.payload?.optimizedRun?.length) {
+      toast({
+        title: "No rota to export",
+        description: "Select a saved rota with an optimized run.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const rows = buildExportRows(selectedRota.payload.optimizedRun);
+    const headers = rows.length ? Object.keys(rows[0]) : [];
+    const escapeValue = (value: unknown) => {
+      const text = String(value ?? "");
+      if (/[",\n]/.test(text)) {
+        return `"${text.replace(/"/g, '""')}"`;
+      }
+      return text;
+    };
+    const csv = [
+      headers.join(","),
+      ...rows.map((row) => headers.map((key) => escapeValue((row as Record<string, unknown>)[key])).join(",")),
+    ].join("\n");
+    const safeWorker = (selectedRota.workerName || "rota").replace(/[^a-z0-9]+/gi, "_").toLowerCase();
+    const filename = `${safeWorker}-${selectedRota.templateWeek}-${selectedRota.templateDay}-rota.csv`;
+    triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8" }), filename);
+  }, [buildExportRows, selectedRota, toast, triggerDownload]);
+
+  const handleCopyRota = useCallback(async () => {
+    if (!selectedRota?.payload?.optimizedRun?.length) {
+      toast({
+        title: "No rota to copy",
+        description: "Select a saved rota with an optimized run.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const rows = buildExportRows(selectedRota.payload.optimizedRun);
+    const headers = rows.length ? Object.keys(rows[0]) : [];
+    const text = [
+      headers.join("\t"),
+      ...rows.map((row) => headers.map((key) => String((row as Record<string, unknown>)[key] ?? "")).join("\t")),
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: "Rota copied",
+        description: "The optimized rota is on your clipboard.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Copy failed",
+        description: error.message || "Unable to copy the rota.",
+        variant: "destructive",
+      });
+    }
+  }, [buildExportRows, selectedRota, toast]);
 
   if (user?.role !== "admin") {
     return (
@@ -266,6 +429,12 @@ export default function CareWorkerRotas() {
                     {selectedRota.payload?.timeCriticalWindowEnforced && (
                       <Badge variant="outline">Time window enforced</Badge>
                     )}
+                    <Button size="sm" variant="outline" onClick={handleExportCsv}>
+                      Export CSV
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={handleCopyRota}>
+                      Copy
+                    </Button>
                   </div>
                 </div>
 
@@ -273,6 +442,31 @@ export default function CareWorkerRotas() {
                   <span>Saved: {formatDateLabel(selectedRota.createdAt)}</span>
                   {selectedRota.createdByUsername && <span>• Saved by {selectedRota.createdByUsername}</span>}
                 </div>
+
+                {rosterSummary && (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <SummaryMetric
+                      label="Scheduled calls"
+                      value={`${rosterSummary.scheduledCount}/${rosterSummary.totalCalls}`}
+                      helper={`${rosterSummary.unscheduledCount} unscheduled`}
+                    />
+                    <SummaryMetric
+                      label="Run window"
+                      value={`${formatMinutesLabel(rosterSummary.earliestStart)} → ${formatMinutesLabel(rosterSummary.latestEnd)}`}
+                      helper={`Idle ${formatDurationLabel(rosterSummary.idleMinutes)}`}
+                    />
+                    <SummaryMetric
+                      label="Care minutes"
+                      value={formatDurationLabel(rosterSummary.totalDurationMinutes)}
+                      helper={`${rosterSummary.timeCriticalCount} time critical`}
+                    />
+                    <SummaryMetric
+                      label="Warnings"
+                      value={`${rosterSummary.windowConflictCount + rosterSummary.outsideWindowCount}`}
+                      helper={`${rosterSummary.beforeStartCount} early, ${rosterSummary.afterHardCount} after 23:00`}
+                    />
+                  </div>
+                )}
 
                 {(selectedRota.payload?.shiftBars?.length ?? 0) > 0 && (
                   <div className="rounded-xl border border-border/60 bg-background/60 p-3">
@@ -303,9 +497,6 @@ export default function CareWorkerRotas() {
 
                 <div className="space-y-2">
                   {(selectedRota.payload?.optimizedRun || []).map((entry) => {
-                    const EARLIEST_START_MINUTES = 6 * 60;
-                    const SOFT_LATEST_END_MINUTES = 22 * 60;
-                    const HARD_LATEST_END_MINUTES = 23 * 60;
                     const requiredLabel = formatMinutesLabel(entry.requirementStartMinutes);
                     const scheduledStart = formatMinutesLabel(entry.scheduledStartMinutes);
                     const scheduledEnd = formatMinutesLabel(entry.scheduledEndMinutes);
@@ -322,54 +513,94 @@ export default function CareWorkerRotas() {
                         : null;
                     const isBeforeDayStart =
                       typeof entry.scheduledStartMinutes === "number" &&
-                      entry.scheduledStartMinutes < EARLIEST_START_MINUTES;
+                      entry.scheduledStartMinutes < ROSTER_DAY_START_MINUTES;
                     const endMinutes =
                       typeof entry.scheduledEndMinutes === "number" ? entry.scheduledEndMinutes : null;
-                    const isAfterHardLimit = endMinutes !== null && endMinutes > HARD_LATEST_END_MINUTES;
+                    const isAfterHardLimit = endMinutes !== null && endMinutes > ROSTER_DAY_HARD_END_MINUTES;
                     const isAfterSoftLimit =
                       endMinutes !== null &&
-                      endMinutes > SOFT_LATEST_END_MINUTES &&
-                      endMinutes <= HARD_LATEST_END_MINUTES;
+                      endMinutes > ROSTER_DAY_SOFT_END_MINUTES &&
+                      endMinutes <= ROSTER_DAY_HARD_END_MINUTES;
+                    const hasSchedule =
+                      typeof entry.scheduledStartMinutes === "number" &&
+                      typeof entry.scheduledEndMinutes === "number";
+                    const timelineRange = ROSTER_DAY_HARD_END_MINUTES - ROSTER_DAY_START_MINUTES || 1;
+                    const startOffset = hasSchedule
+                      ? (entry.scheduledStartMinutes as number) - ROSTER_DAY_START_MINUTES
+                      : 0;
+                    const endOffset = hasSchedule
+                      ? (entry.scheduledEndMinutes as number) - ROSTER_DAY_START_MINUTES
+                      : 0;
+                    const rawLeft = hasSchedule ? (startOffset / timelineRange) * 100 : 0;
+                    const rawWidth = hasSchedule ? ((endOffset - startOffset) / timelineRange) * 100 : 0;
+                    const leftPercent = hasSchedule ? Math.max(0, Math.min(98, rawLeft)) : 0;
+                    const widthPercent = hasSchedule
+                      ? Math.max(2, Math.min(100 - leftPercent, Math.max(0, rawWidth)))
+                      : 0;
+                    const barTone =
+                      isAfterHardLimit || entry.isOutsideWindow || entry.hasWindowConflict
+                        ? "bg-red-500/70"
+                        : isAfterSoftLimit || isBeforeDayStart
+                        ? "bg-amber-400/80"
+                        : entry.isDoubleUp
+                        ? "bg-emerald-500/70"
+                        : "bg-primary/70";
                     return (
                       <div
                         key={entry.key}
-                        className="flex flex-col gap-2 rounded-xl border border-border/60 bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between"
+                        className="flex flex-col gap-2 rounded-xl border border-border/60 bg-background/60 p-3"
                       >
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">
-                            {entry.serviceUserName || "Unknown service user"}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {(entry.callTypeLabel || "Call").toString()} • {entry.timeBandLabel || "Unscheduled"}
-                          </p>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">
+                              {entry.serviceUserName || "Unknown service user"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {(entry.callTypeLabel || "Call").toString()} • {entry.timeBandLabel || "Unscheduled"}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                            <Badge variant="outline">Required {requiredLabel}</Badge>
+                            {hasSchedule ? (
+                              <Badge variant="secondary">
+                                Scheduled {scheduledStart} → {scheduledEnd}
+                              </Badge>
+                            ) : (
+                              <Badge variant="destructive">No scheduled time</Badge>
+                            )}
+                            <Badge variant="outline">{shiftLabel}</Badge>
+                            {entry.isDoubleUp && <Badge variant="outline">Double-up (locked)</Badge>}
+                            {isBeforeDayStart && <Badge variant="destructive">Before 06:00</Badge>}
+                            {isAfterSoftLimit && (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-500/40 text-amber-600 dark:text-amber-300"
+                              >
+                                After 22:00
+                              </Badge>
+                            )}
+                            {isAfterHardLimit && <Badge variant="destructive">After 23:00</Badge>}
+                            {entry.isTimeCritical && windowLabel && (
+                              <Badge variant="outline">Time critical {windowLabel}</Badge>
+                            )}
+                            {entry.isOutsideWindow && (
+                              <Badge variant="destructive">Outside window</Badge>
+                            )}
+                            {entry.hasWindowConflict && (
+                              <Badge variant="destructive">Window conflict</Badge>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                          <Badge variant="outline">Required {requiredLabel}</Badge>
-                          <Badge variant="secondary">
-                            Scheduled {scheduledStart} → {scheduledEnd}
-                          </Badge>
-                          <Badge variant="outline">{shiftLabel}</Badge>
-                          {entry.isDoubleUp && <Badge variant="outline">Double-up (locked)</Badge>}
-                          {isBeforeDayStart && <Badge variant="destructive">Before 06:00</Badge>}
-                          {isAfterSoftLimit && (
-                            <Badge
-                              variant="outline"
-                              className="border-amber-500/40 text-amber-600 dark:text-amber-300"
-                            >
-                              After 22:00
-                            </Badge>
-                          )}
-                          {isAfterHardLimit && <Badge variant="destructive">After 23:00</Badge>}
-                          {entry.isTimeCritical && windowLabel && (
-                            <Badge variant="outline">Time critical {windowLabel}</Badge>
-                          )}
-                          {entry.isOutsideWindow && (
-                            <Badge variant="destructive">Outside window</Badge>
-                          )}
-                          {entry.hasWindowConflict && (
-                            <Badge variant="destructive">Window conflict</Badge>
-                          )}
-                        </div>
+                        {hasSchedule && (
+                          <div className="mt-2">
+                            <div className="relative h-2 rounded-full bg-muted/50">
+                              <div
+                                className={`absolute h-2 rounded-full ${barTone}`}
+                                style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

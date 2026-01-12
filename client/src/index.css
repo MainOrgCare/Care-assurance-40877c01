@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=General+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Sora:wght@400;500;600&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -10,68 +10,68 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* Medical / Clinical Palette - Liquid Dark Theme */
-  /* Primary: Trustworthy Blue */
-  --color-primary: hsl(210 100% 50%);
+  /* Medical / Clinical Palette - Deep Ink Theme */
+  /* Primary: Teal Focus */
+  --color-primary: hsl(188 84% 45%);
   --color-primary-foreground: hsl(0 0% 100%);
 
-  /* Secondary: Soft Teal/Green for positive/health */
-  --color-secondary: hsl(170 60% 45%);
+  /* Secondary: Warm Amber */
+  --color-secondary: hsl(28 90% 55%);
   --color-secondary-foreground: hsl(0 0% 100%);
 
   /* Backgrounds */
-  --color-background: hsl(215 28% 13%); /* Darker slate/blue background */
-  --color-foreground: hsl(210 20% 98%);
+  --color-background: hsl(220 24% 10%); /* Deep ink */
+  --color-foreground: hsl(210 25% 96%);
   
-  --color-card: hsl(215 28% 17% / 0.6); /* Glass effect base */
-  --color-card-foreground: hsl(210 20% 98%);
+  --color-card: hsl(220 22% 14% / 0.72); /* Glass effect base */
+  --color-card-foreground: hsl(210 25% 96%);
   
-  --color-popover: hsl(215 28% 17% / 0.9);
-  --color-popover-foreground: hsl(210 20% 98%);
+  --color-popover: hsl(220 22% 14% / 0.9);
+  --color-popover-foreground: hsl(210 25% 96%);
 
   /* Muted */
-  --color-muted: hsl(215 28% 25% / 0.5);
-  --color-muted-foreground: hsl(215 20% 70%);
+  --color-muted: hsl(220 18% 22% / 0.7);
+  --color-muted-foreground: hsl(215 18% 72%);
 
   /* Accent: Active states */
   /* Keep accent hover/focus subtle (avoid bright hover flash) */
-  --color-accent: hsl(210 100% 50% / 0.08);
-  --color-accent-foreground: hsl(210 100% 60%);
+  --color-accent: hsl(188 84% 45% / 0.12);
+  --color-accent-foreground: hsl(188 84% 60%);
 
   /* Destructive: Compliance Errors */
   --color-destructive: hsl(0 84% 60%);
   --color-destructive-foreground: hsl(0 0% 98%);
 
   /* Borders */
-  --color-border: hsl(215 28% 30% / 0.5);
-  --color-input: hsl(215 28% 30% / 0.5);
-  --color-ring: hsl(210 100% 50%);
-  --color-primary-border: hsl(210 100% 42% / 0.6);
-  --color-secondary-border: hsl(170 60% 35% / 0.6);
+  --color-border: hsl(220 18% 28% / 0.6);
+  --color-input: hsl(220 18% 28% / 0.6);
+  --color-ring: hsl(188 84% 45%);
+  --color-primary-border: hsl(188 84% 36% / 0.7);
+  --color-secondary-border: hsl(28 90% 45% / 0.6);
   --color-destructive-border: hsl(0 84% 45% / 0.6);
-  --button-outline: hsl(215 28% 35% / 0.6);
-  --badge-outline: hsl(215 28% 40% / 0.6);
+  --button-outline: hsl(220 18% 32% / 0.6);
+  --badge-outline: hsl(220 18% 35% / 0.6);
 
   /* Chart Colors */
-  --color-chart-1: hsl(210 100% 50%); /* Blue */
-  --color-chart-2: hsl(172 66% 50%); /* Teal */
+  --color-chart-1: hsl(188 84% 45%); /* Teal */
+  --color-chart-2: hsl(28 90% 55%);  /* Amber */
   --color-chart-3: hsl(0 84% 60%);   /* Red */
-  --color-chart-4: hsl(43 96% 64%);  /* Warning Orange */
-  --color-chart-5: hsl(280 65% 60%); /* Purple */
+  --color-chart-4: hsl(200 70% 55%); /* Blue */
+  --color-chart-5: hsl(150 60% 48%); /* Green */
 
-  --color-sidebar: hsl(215 28% 10% / 0.8); /* Darker, glass-like sidebar */
-  --color-sidebar-foreground: hsl(210 20% 90%);
-  --color-sidebar-primary: hsl(210 100% 50%);
+  --color-sidebar: hsl(220 24% 8% / 0.88); /* Darker, glass-like sidebar */
+  --color-sidebar-foreground: hsl(210 25% 90%);
+  --color-sidebar-primary: hsl(188 84% 45%);
   --color-sidebar-primary-foreground: hsl(0 0% 100%);
-  --color-sidebar-accent: hsl(215 28% 20%);
-  --color-sidebar-accent-foreground: hsl(210 20% 98%);
-  --color-sidebar-border: hsl(215 28% 20% / 0.5);
-  --color-sidebar-ring: hsl(210 100% 50%);
+  --color-sidebar-accent: hsl(220 20% 16%);
+  --color-sidebar-accent-foreground: hsl(210 25% 96%);
+  --color-sidebar-border: hsl(220 20% 18% / 0.6);
+  --color-sidebar-ring: hsl(188 84% 45%);
 
-  --font-sans: 'General Sans', 'Plus Jakarta Sans', sans-serif;
-  --font-heading: 'Space Grotesk', 'DM Sans', sans-serif;
+  --font-sans: 'Sora', 'Manrope', sans-serif;
+  --font-heading: 'Bricolage Grotesque', 'Space Grotesk', sans-serif;
   
-  --radius: 0.75rem;
+  --radius: 1rem;
 }
 
 @layer base {
@@ -94,16 +94,16 @@
     z-index: -1;
   }
   body::before {
-    background: radial-gradient(circle at 18% 18%, hsla(200, 70%, 55%, 0.12), transparent 50%),
-                radial-gradient(circle at 82% 10%, hsla(210, 65%, 55%, 0.08), transparent 55%),
-                radial-gradient(circle at 55% 78%, hsla(170, 60%, 50%, 0.1), transparent 45%);
+    background: radial-gradient(circle at 12% 18%, hsla(28, 90%, 55%, 0.15), transparent 52%),
+                radial-gradient(circle at 82% 12%, hsla(188, 84%, 45%, 0.16), transparent 58%),
+                radial-gradient(circle at 45% 85%, hsla(200, 70%, 55%, 0.12), transparent 50%);
     /* Keep background static (no ambient motion) */
   }
   body::after {
-    background-image: linear-gradient(120deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-                      linear-gradient(0deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-    background-size: 220px 220px, 160px 160px;
-    opacity: 0.1;
+    background-image: linear-gradient(120deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+                      linear-gradient(0deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    background-size: 240px 240px, 180px 180px;
+    opacity: 0.08;
     /* Keep background static (no ambient motion) */
   }
   h1, h2, h3, h4, h5, h6 {
@@ -201,17 +201,17 @@
 /* Theme-specific body backgrounds */
 .theme-dark body,
 body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
-  background-image: radial-gradient(at 0% 0%, hsla(215, 60%, 18%, 1) 0px, transparent 50%),
-                    radial-gradient(at 100% 0%, hsla(172, 60%, 12%, 1) 0px, transparent 50%),
-                    radial-gradient(at 100% 100%, hsla(215, 60%, 15%, 1) 0px, transparent 50%),
-                    radial-gradient(at 0% 100%, hsla(172, 60%, 10%, 1) 0px, transparent 50%);
+  background-image: radial-gradient(at 0% 0%, hsla(220, 30%, 12%, 1) 0px, transparent 50%),
+                    radial-gradient(at 100% 0%, hsla(188, 70%, 16%, 1) 0px, transparent 50%),
+                    radial-gradient(at 100% 100%, hsla(220, 30%, 14%, 1) 0px, transparent 50%),
+                    radial-gradient(at 0% 100%, hsla(28, 70%, 14%, 1) 0px, transparent 50%);
 }
 
 .theme-midnight body {
-  background-image: radial-gradient(at 0% 0%, hsla(280, 50%, 15%, 1) 0px, transparent 50%),
-                    radial-gradient(at 100% 0%, hsla(262, 60%, 12%, 1) 0px, transparent 50%),
-                    radial-gradient(at 100% 100%, hsla(270, 50%, 10%, 1) 0px, transparent 50%),
-                    radial-gradient(at 0% 100%, hsla(262, 50%, 8%, 1) 0px, transparent 50%);
+  background-image: radial-gradient(at 0% 0%, hsla(220, 25%, 12%, 1) 0px, transparent 50%),
+                    radial-gradient(at 100% 0%, hsla(210, 40%, 10%, 1) 0px, transparent 50%),
+                    radial-gradient(at 100% 100%, hsla(220, 25%, 8%, 1) 0px, transparent 50%),
+                    radial-gradient(at 0% 100%, hsla(200, 35%, 10%, 1) 0px, transparent 50%);
 }
 
 .theme-ocean body {
@@ -229,7 +229,7 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
 @layer utilities {
   .glass-card {
     background-color: var(--color-card);
-    background-image: linear-gradient(140deg, var(--glass-highlight-strong), transparent 55%);
+    background-image: linear-gradient(145deg, var(--glass-highlight-strong), transparent 58%);
     backdrop-filter: blur(20px) saturate(140%);
     border: 1px solid var(--glass-border);
     box-shadow: var(--glass-shadow);
@@ -252,8 +252,8 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     content: '';
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at 15% 0%, var(--glass-highlight), transparent 60%);
-    opacity: 0.8;
+    background: radial-gradient(circle at 20% 0%, var(--glass-highlight), transparent 60%);
+    opacity: 0.75;
     pointer-events: none;
   }
   .glass-card:hover::before {
@@ -262,7 +262,7 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
   .glass-panel {
     background-color: var(--color-muted);
     background-image: linear-gradient(120deg, var(--glass-highlight), transparent 70%);
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(16px) saturate(140%);
     border: 1px solid var(--glass-border-subtle);
   }
   .hover-elevate {
@@ -306,7 +306,7 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
     box-shadow: 0 6px 18px rgba(59, 130, 246, 0.16);
   }
   .gradient-text {
-    background: linear-gradient(135deg, #3b82f6, #06b6d4, #10b981);
+    background: linear-gradient(135deg, #2dd4bf, #38bdf8, #f59e0b);
     background-size: 200% 200%;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -525,17 +525,17 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
 
 /* Theme-specific preview colors */
 .theme-dark .theme-preview {
-  --preview-bg-1: hsl(215, 28%, 13%);
-  --preview-bg-2: hsl(215, 28%, 17%);
-  --preview-accent-1: hsl(210, 100%, 50%);
-  --preview-accent-2: hsl(170, 60%, 45%);
+  --preview-bg-1: hsl(220, 24%, 10%);
+  --preview-bg-2: hsl(220, 22%, 14%);
+  --preview-accent-1: hsl(188, 84%, 45%);
+  --preview-accent-2: hsl(28, 90%, 55%);
 }
 
 .theme-midnight .theme-preview {
-  --preview-bg-1: hsl(260, 30%, 8%);
-  --preview-bg-2: hsl(260, 30%, 12%);
-  --preview-accent-1: hsl(262, 83%, 58%);
-  --preview-accent-2: hsl(280, 65%, 60%);
+  --preview-bg-1: hsl(220, 25%, 8%);
+  --preview-bg-2: hsl(220, 25%, 12%);
+  --preview-accent-1: hsl(200, 70%, 50%);
+  --preview-accent-2: hsl(28, 90%, 55%);
 }
 
 .theme-ocean .theme-preview {
@@ -554,11 +554,11 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
 
 /* Glass effect variables per theme */
 :root {
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-border-subtle: rgba(255, 255, 255, 0.05);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  --glass-highlight: rgba(255, 255, 255, 0.08);
-  --glass-highlight-strong: rgba(255, 255, 255, 0.12);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-border-subtle: rgba(255, 255, 255, 0.06);
+  --glass-shadow: 0 18px 40px rgba(8, 12, 20, 0.5);
+  --glass-highlight: rgba(255, 255, 255, 0.09);
+  --glass-highlight-strong: rgba(255, 255, 255, 0.16);
 }
 
 .theme-light {
@@ -570,9 +570,9 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
 }
 
 .theme-midnight {
-  --glass-border: rgba(180, 140, 255, 0.15);
-  --glass-border-subtle: rgba(180, 140, 255, 0.08);
-  --glass-shadow: 0 8px 32px rgba(80, 40, 120, 0.3);
+  --glass-border: rgba(120, 170, 255, 0.16);
+  --glass-border-subtle: rgba(120, 170, 255, 0.08);
+  --glass-shadow: 0 10px 34px rgba(12, 18, 30, 0.5);
 }
 
 .theme-ocean {
@@ -583,36 +583,36 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
 
 /* Theme: Midnight - Deep purple tones */
 .theme-midnight {
-  --color-primary: hsl(262 83% 58%);
+  --color-primary: hsl(200 70% 50%);
   --color-primary-foreground: hsl(0 0% 100%);
-  --color-secondary: hsl(280 65% 60%);
+  --color-secondary: hsl(28 90% 55%);
   --color-secondary-foreground: hsl(0 0% 100%);
-  --color-background: hsl(260 30% 8%);
-  --color-foreground: hsl(260 20% 98%);
-  --color-card: hsl(260 30% 12% / 0.6);
-  --color-card-foreground: hsl(260 20% 98%);
-  --color-popover: hsl(260 30% 12% / 0.9);
-  --color-popover-foreground: hsl(260 20% 98%);
-  --color-muted: hsl(260 30% 20% / 0.5);
-  --color-muted-foreground: hsl(260 20% 70%);
-  --color-accent: hsl(262 83% 58% / 0.15);
-  --color-accent-foreground: hsl(262 83% 70%);
-  --color-border: hsl(260 30% 25% / 0.5);
-  --color-input: hsl(260 30% 25% / 0.5);
-  --color-ring: hsl(262 83% 58%);
-  --color-primary-border: hsl(262 83% 45% / 0.55);
-  --color-secondary-border: hsl(280 65% 45% / 0.55);
+  --color-background: hsl(220 25% 7%);
+  --color-foreground: hsl(210 20% 98%);
+  --color-card: hsl(220 25% 12% / 0.7);
+  --color-card-foreground: hsl(210 20% 98%);
+  --color-popover: hsl(220 25% 12% / 0.9);
+  --color-popover-foreground: hsl(210 20% 98%);
+  --color-muted: hsl(220 22% 18% / 0.6);
+  --color-muted-foreground: hsl(220 16% 70%);
+  --color-accent: hsl(200 70% 50% / 0.14);
+  --color-accent-foreground: hsl(200 70% 70%);
+  --color-border: hsl(220 20% 22% / 0.6);
+  --color-input: hsl(220 20% 22% / 0.6);
+  --color-ring: hsl(200 70% 50%);
+  --color-primary-border: hsl(200 70% 42% / 0.6);
+  --color-secondary-border: hsl(28 90% 45% / 0.6);
   --color-destructive-border: hsl(0 84% 45% / 0.55);
-  --button-outline: hsl(260 30% 30% / 0.6);
-  --badge-outline: hsl(260 30% 35% / 0.6);
-  --color-sidebar: hsl(260 30% 6% / 0.8);
-  --color-sidebar-foreground: hsl(260 20% 90%);
-  --color-sidebar-primary: hsl(262 83% 58%);
+  --button-outline: hsl(220 18% 28% / 0.6);
+  --badge-outline: hsl(220 18% 32% / 0.6);
+  --color-sidebar: hsl(220 25% 6% / 0.9);
+  --color-sidebar-foreground: hsl(210 20% 90%);
+  --color-sidebar-primary: hsl(200 70% 50%);
   --color-sidebar-primary-foreground: hsl(0 0% 100%);
-  --color-sidebar-accent: hsl(260 30% 15%);
-  --color-sidebar-accent-foreground: hsl(260 20% 98%);
-  --color-sidebar-border: hsl(260 30% 15% / 0.5);
-  --color-sidebar-ring: hsl(262 83% 58%);
+  --color-sidebar-accent: hsl(220 25% 12%);
+  --color-sidebar-accent-foreground: hsl(210 20% 98%);
+  --color-sidebar-border: hsl(220 25% 12% / 0.6);
+  --color-sidebar-ring: hsl(200 70% 50%);
 }
 
 /* Theme: Ocean - Blue-green palette */
