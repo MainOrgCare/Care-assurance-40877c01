@@ -379,6 +379,182 @@ function normalizeInitials(name: string | undefined | null): string {
   return 'N.N.';
 }
 
+const extractJsonObject = (content: string): string | null => {
+  const start = content.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < content.length; i++) {
+    const char = content[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (char === "\\" && inString) {
+      escape = true;
+      continue;
+    }
+    if (char === "\"") {
+      inString = !inString;
+      continue;
+    }
+    if (!inString) {
+      if (char === "{") depth += 1;
+      if (char === "}") {
+        depth -= 1;
+        if (depth === 0) return content.slice(start, i + 1);
+      }
+    }
+  }
+  return null;
+};
+
+const parseJsonFromContent = (content: string): any | null => {
+  const jsonText = extractJsonObject(content);
+  if (!jsonText) return null;
+  try {
+    return JSON.parse(jsonText);
+  } catch {
+    const cleaned = jsonText.replace(/,\s*([}\]])/g, "$1");
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      return null;
+    }
+  }
+};
+
+const normalizeAssessmentName = (name: string) =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/\s+/g, " ");
+
+const buildAssessmentRecommendations = (analysis: {
+  medicalConditions?: string[];
+  careActivities?: string[];
+  concerns?: string[];
+}): { name: string; isMandatory: boolean; reason: string }[] => {
+  const toLowerList = (values: string[] = []) =>
+    values
+      .map((value) => String(value || "").toLowerCase())
+      .filter(Boolean);
+
+  const conditions = toLowerList(analysis.medicalConditions);
+  const activities = toLowerList(analysis.careActivities);
+  const concerns = toLowerList(analysis.concerns);
+  const combined = [...conditions, ...activities, ...concerns];
+
+  const includesAny = (source: string[], terms: string[]) =>
+    source.some((value) => terms.some((term) => value.includes(term)));
+
+  const findMatch = (terms: string[]) =>
+    combined.find((value) => terms.some((term) => value.includes(term))) || "";
+
+  const recommendations: { name: string; isMandatory: boolean; reason: string }[] = [];
+  const add = (name: string, reason: string) => {
+    recommendations.push({ name, isMandatory: true, reason });
+  };
+
+  if (includesAny(conditions, ["diabet"])) {
+    add("Diabetes Management", `Document notes diabetes (${findMatch(["diabet"]) || "diabetes"}).`);
+  }
+  if (includesAny(conditions, ["epilep", "seizure"])) {
+    add("Epilepsy Management", `Document notes epilepsy or seizures (${findMatch(["epilep", "seizure"]) || "epilepsy"}).`);
+  }
+  if (includesAny(combined, ["medication", "medicine", "tablet", "drug"])) {
+    add("Medication Administration", "Document indicates medication support is required.");
+  }
+  if (includesAny(combined, ["nutrition", "feed", "meal", "diet", "hydration", "swallow"])) {
+    add("Nutrition", "Document indicates nutrition or hydration support.");
+  }
+  if (includesAny(combined, ["mobility", "transfer", "moving", "handling", "hoist", "wheelchair"])) {
+    add("Mobility & Moving and Handling", "Document indicates mobility or transfer support.");
+  }
+  if (includesAny(combined, ["personal care", "wash", "bathing", "shower", "toilet", "dressing", "groom"])) {
+    add("Personal Care", "Document indicates personal care support.");
+  }
+  if (includesAny(combined, ["skin", "pressure", "ulcer", "wound"])) {
+    add("Skin Integrity", "Document indicates skin integrity or pressure area concerns.");
+  }
+  if (includesAny(combined, ["fall", "falls", "unsteady"])) {
+    add("Falls Prevention", "Document indicates fall risk or poor mobility.");
+  }
+  if (includesAny(combined, ["continence", "incontinence", "catheter"])) {
+    add("Continence Care", "Document indicates continence support.");
+  }
+  if (includesAny(conditions, ["dementia", "cognit", "alzheimer"])) {
+    add("Dementia Care", "Document indicates cognitive impairment.");
+  }
+  if (includesAny(conditions, ["mental health", "depress", "anxiety", "bipolar", "psych"])) {
+    add("Mental Health", "Document indicates mental health support.");
+  }
+  if (includesAny(combined, ["communication", "speech", "hearing", "vision", "aphasia"])) {
+    add("Communication", "Document indicates communication or sensory support.");
+  }
+  if (includesAny(combined, ["behaviour", "behavior", "challenging", "aggression"])) {
+    add("Behavior Support", "Document indicates behaviour support needs.");
+  }
+  if (includesAny(combined, ["palliative", "end of life", "terminal"])) {
+    add("End of Life Care", "Document indicates end of life or palliative care.");
+  }
+  if (includesAny(combined, ["infection", "wound", "catheter", "mrsa"])) {
+    add("Infection Control", "Document indicates infection control considerations.");
+  }
+  if (includesAny(combined, ["fire", "smoking", "smoke alarm"])) {
+    add("Fire Safety", "Document indicates fire safety considerations.");
+  }
+  if (includesAny(combined, ["environment", "hazard", "trip", "clutter"])) {
+    add("Environmental Safety", "Document indicates environmental hazards.");
+  }
+  if (includesAny(combined, ["lone working", "single carer", "alone"])) {
+    add("Lone Working", "Document indicates lone working considerations.");
+  }
+  if (includesAny(combined, ["safeguard", "abuse", "neglect"])) {
+    add("Safeguarding", "Document indicates safeguarding concerns.");
+  }
+  if (includesAny(combined, ["coshh", "chemical", "cleaning"])) {
+    add("COSHH", "Document indicates chemical or cleaning product handling.");
+  }
+
+  return recommendations;
+};
+
+const mergeAssessmentRecommendations = (
+  existing: Array<{ name: string; isMandatory?: boolean; reason?: string }> = [],
+  derived: Array<{ name: string; isMandatory?: boolean; reason?: string }> = []
+) => {
+  const merged = new Map<string, { name: string; isMandatory: boolean; reason: string }>();
+  const apply = (item: { name: string; isMandatory?: boolean; reason?: string }) => {
+    if (!item?.name) return;
+    const key = normalizeAssessmentName(item.name);
+    if (!key) return;
+    const normalized = {
+      name: item.name.trim(),
+      isMandatory: Boolean(item.isMandatory),
+      reason: item.reason?.trim() || "Document indicates this assessment is required.",
+    };
+    const current = merged.get(key);
+    if (!current) {
+      merged.set(key, normalized);
+      return;
+    }
+    current.isMandatory = current.isMandatory || normalized.isMandatory;
+    if (!current.reason && normalized.reason) current.reason = normalized.reason;
+  };
+
+  derived.forEach(apply);
+  existing.forEach(apply);
+
+  return Array.from(merged.values()).sort((a, b) => {
+    if (a.isMandatory !== b.isMandatory) return a.isMandatory ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+};
+
 // Drug interaction type definition
 interface DrugInteraction {
   drug1: string;
@@ -6756,50 +6932,8 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
   };
 
   const parseVisitAuditResult = (content: string) => {
-    const extractJsonObject = (text: string) => {
-      const start = text.indexOf("{");
-      if (start === -1) return null;
-      let depth = 0;
-      let inString = false;
-      let escape = false;
-      for (let i = start; i < text.length; i++) {
-        const char = text[i];
-        if (escape) {
-          escape = false;
-          continue;
-        }
-        if (char === "\\" && inString) {
-          escape = true;
-          continue;
-        }
-        if (char === "\"") {
-          inString = !inString;
-          continue;
-        }
-        if (!inString) {
-          if (char === "{") depth += 1;
-          if (char === "}") {
-            depth -= 1;
-            if (depth === 0) return text.slice(start, i + 1);
-          }
-        }
-      }
-      return null;
-    };
-
-    const jsonText = extractJsonObject(content);
-    if (!jsonText) return null;
-    let parsed: any;
-    try {
-      parsed = JSON.parse(jsonText);
-    } catch {
-      const cleaned = jsonText.replace(/,\s*([}\]])/g, "$1");
-      try {
-        parsed = JSON.parse(cleaned);
-      } catch {
-        return null;
-      }
-    }
+    const parsed = parseJsonFromContent(content);
+    if (!parsed) return null;
     if (parsed.discrepancies && Array.isArray(parsed.discrepancies)) {
       parsed.discrepancies = parsed.discrepancies.filter((d: any) => {
         const name = d.careWorkerName?.toLowerCase?.() || '';
@@ -7579,30 +7713,39 @@ Respond ONLY with valid JSON in this exact format:
           { role: "user", content: `Analyze these documents for risk assessment needs:\n\n${documentContent}` }
         ],
         max_completion_tokens: 4000,
+        temperature: 0,
+        seed: 42,
+        response_format: { type: "json_object" },
       }, "risk_analysis", aiUserContext);
 
       clearInterval(progressInterval);
       sendProgress(80, "Processing results...", "processing");
 
       const content = response.choices[0]?.message?.content || "";
-      
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        let result = JSON.parse(jsonMatch[0]);
-        // Apply PII scrubbing - normalize initials and remove any DOBs
-        if (result.serviceUser) {
-          result.serviceUser.initials = normalizeInitials(result.serviceUser.initials);
-        }
-        result = scrubPII(result);
-        sendProgress(100, "Complete!", "complete");
-        sendEvent('result', result);
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        return res.end();
-      } else {
+      const parsed = parseJsonFromContent(content);
+      if (!parsed) {
         sendEvent('error', { message: "Failed to parse AI response" });
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       }
+
+      const result = {
+        serviceUser: { initials: normalizeInitials(parsed?.serviceUser?.initials) },
+        medicalConditions: Array.isArray(parsed?.medicalConditions) ? parsed.medicalConditions : [],
+        careActivities: Array.isArray(parsed?.careActivities) ? parsed.careActivities : [],
+        concerns: Array.isArray(parsed?.concerns) ? parsed.concerns : [],
+        recommendedAssessments: Array.isArray(parsed?.recommendedAssessments) ? parsed.recommendedAssessments : [],
+        documentSummary: typeof parsed?.documentSummary === "string" ? parsed.documentSummary : "Information not found in documents",
+      };
+
+      const derivedRecommendations = buildAssessmentRecommendations(result);
+      result.recommendedAssessments = mergeAssessmentRecommendations(result.recommendedAssessments, derivedRecommendations);
+
+      const scrubbedResult = scrubPII(result);
+      sendProgress(100, "Complete!", "complete");
+      sendEvent('result', scrubbedResult);
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      return res.end();
     } catch (error: any) {
       console.error("Risk Analysis AI Error:", error);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -7666,7 +7809,24 @@ Respond ONLY with valid JSON in this exact format:
 
       sendProgress(10, "Analyzing documents...", "analyzing");
 
+      const riskAssessmentPolicies = await storage.getPolicyDocumentsByCategory("risk_assessment");
+      const initialAssessmentPolicies = await storage.getPolicyDocumentsByCategory("initial_assessment");
+      const scopeOfPracticePolicies = await storage.getPolicyDocumentsByCategory("scope_of_practice");
+
+      let policyContext = "";
+      const allPolicies = [...riskAssessmentPolicies, ...initialAssessmentPolicies, ...scopeOfPracticePolicies];
+      if (allPolicies.length > 0) {
+        policyContext = `
+=== POLICY DOCUMENTS - FOLLOW THESE AS REFERENCE ===
+${riskAssessmentPolicies.map(p => `--- RISK ASSESSMENT TEMPLATE: ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+${initialAssessmentPolicies.map(p => `--- INITIAL ASSESSMENT TEMPLATE: ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+=== END POLICY DOCUMENTS ===
+`;
+      }
+
       const systemPrompt = `You are an expert care risk assessor for a UK care facility. Generate a detailed risk assessment for the specified category.
+${policyContext}
 
 FORMATTING RULES - MUST FOLLOW:
 - Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas instead.
@@ -7724,19 +7884,19 @@ Respond ONLY with valid JSON in this exact format:
         temperature: 0,
         seed: 42,
         max_completion_tokens: 4000,
+        response_format: { type: "json_object" },
       }, "risk_assessment", aiUserContext);
 
       sendProgress(70, "Processing results...", "processing");
 
       const content = response.choices[0]?.message?.content || "";
-      
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        let result = JSON.parse(jsonMatch[0]);
+      const parsed = parseJsonFromContent(content);
+      if (parsed) {
+        let result = parsed;
         
         // Preserve fields that should NOT be scrubbed (they contain expected values)
         const preservedFields = {
-          assessmentDate: result.assessmentDate,
+          assessmentDate: result.assessmentDate || new Date().toLocaleDateString("en-GB"),
           signedBy: result.signedBy || performedBy || 'Staff member',
           jobTitle: result.jobTitle || performedByJobTitle || 'Care Staff',
           category: result.category,
@@ -7745,6 +7905,19 @@ Respond ONLY with valid JSON in this exact format:
         // Apply PII scrubbing to the rest (risks, notes, etc.)
         result.serviceUserInitials = normalizeInitials(result.serviceUserInitials);
         result = scrubPII(result);
+
+        if (!Array.isArray(result.risks) || result.risks.length === 0) {
+          result.risks = [
+            {
+              riskDefinition: "Information not found in documents",
+              initialRating: "Low",
+              howItsARisk: "Relevant detail was not found in the provided documents.",
+              whoWillBeHarmed: "Service user",
+              controlMeasures: "Confirm details with the service user or commissioning team.",
+              ratingAfterControls: "Low",
+            },
+          ];
+        }
         
         // Restore preserved fields (override any scrubbed values)
         result.assessmentDate = preservedFields.assessmentDate;
@@ -7905,7 +8078,7 @@ OUTPUT: Return ONLY valid JSON matching this structure:
 
         try {
           const sectionResponse = await createChatCompletionWithLogging({
-            model: "gpt-4.1-mini",
+            model: getPreferredModel(),
             messages: [
               { role: "system", content: baseSystemPrompt },
               { role: "user", content: `Generate the "${section.title}" section (priority: ${section.priority}).
@@ -7917,15 +8090,16 @@ ${documentContent}
 
 Remember: Write as if I am the service user speaking about my own needs. Return ONLY valid JSON.` }
             ],
-            temperature: 0.3,
+            temperature: 0.2,
             max_completion_tokens: 1500,
+            seed: 42,
+            response_format: { type: "json_object" },
           }, "care_plan_section", aiUserContext);
 
           const sectionContent = sectionResponse.choices[0]?.message?.content || "";
-          const jsonMatch = sectionContent.match(/\{[\s\S]*\}/);
+          const parsed = parseJsonFromContent(sectionContent);
           
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed) {
             let enhancedContent = parsed.content || "";
             
             // Ensure first-person perspective
@@ -7985,7 +8159,7 @@ Remember: Write as if I am the service user speaking about my own needs. Return 
       // Extract emergency contacts and GP details from first successful section response
       try {
         const metaResponse = await createChatCompletionWithLogging({
-          model: "gpt-4.1-mini",
+          model: getPreferredModel(),
           messages: [
             { role: "system", content: "Extract contact information from the documents. Return JSON only." },
             { role: "user", content: `From these documents, extract:
@@ -8000,12 +8174,13 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
           ],
           temperature: 0,
           max_completion_tokens: 500,
+          seed: 42,
+          response_format: { type: "json_object" },
         }, "care_plan_meta", aiUserContext);
         
         const metaContent = metaResponse.choices[0]?.message?.content || "";
-        const metaMatch = metaContent.match(/\{[\s\S]*\}/);
-        if (metaMatch) {
-          const meta = JSON.parse(metaMatch[0]);
+        const meta = parseJsonFromContent(metaContent);
+        if (meta) {
           // Ensure all fields are strings, not objects
           const extractedEmergency = meta.emergencyContacts || emergencyContacts;
           const extractedGp = meta.gpDetails || gpDetails;
@@ -8118,7 +8293,24 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
       const rawContent = existingPlanContent || documentContent;
       const contentToEnhance = typeof rawContent === 'string' ? scrubPII(rawContent) : rawContent;
 
+      const carePlanPolicies = await storage.getPolicyDocumentsByCategory("care_plan");
+      const initialAssessmentPolicies = await storage.getPolicyDocumentsByCategory("initial_assessment");
+      const scopeOfPracticePolicies = await storage.getPolicyDocumentsByCategory("scope_of_practice");
+
+      let policyContext = "";
+      const allPolicies = [...carePlanPolicies, ...initialAssessmentPolicies, ...scopeOfPracticePolicies];
+      if (allPolicies.length > 0) {
+        policyContext = `
+=== POLICY DOCUMENTS - FOLLOW THESE AS REFERENCE ===
+${initialAssessmentPolicies.map(p => `--- INITIAL ASSESSMENT TEMPLATE: ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+${carePlanPolicies.map(p => `--- CARE PLAN TEMPLATE: ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+=== END POLICY DOCUMENTS ===
+`;
+      }
+
       const systemPrompt = `You are an expert care plan writer for a UK care facility following CQC standards.
+${policyContext}
 Analyze the uploaded documents and generate content for a COMPLETE Initial Assessment/Care Plan template.
 
 PRIVACY RULES - CRITICAL:
@@ -8366,16 +8558,15 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
         temperature: 0,
         seed: 42,
         max_completion_tokens: 12000,
+        response_format: { type: "json_object" },
       }, "plan_enhancer", aiUserContext);
 
       clearInterval(progressInterval);
       sendProgress(75, "Processing results...", "processing");
 
       const content = response.choices[0]?.message?.content || "";
-      
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const result = JSON.parse(jsonMatch[0]);
+      const result = parseJsonFromContent(content);
+      if (result) {
         
         // Apply PII scrubbing
         const scrubbedResult = scrubPII(result);
