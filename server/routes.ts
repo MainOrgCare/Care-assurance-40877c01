@@ -6510,6 +6510,8 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       // User context for AI cost tracking
       const user = await storage.getUser(req.session.userId!);
       const aiUserContext: AiUserContext = { userId: user?.id || null, username: user?.username || null };
+      const visitAuditModel = process.env.VISIT_AUDIT_MODEL || "gpt-4o-mini";
+      const visitAuditValidationModel = process.env.VISIT_AUDIT_VALIDATION_MODEL || visitAuditModel;
       
       sendProgress(5, "Loading policies...", "init");
       
@@ -6608,7 +6610,7 @@ Respond ONLY with valid JSON in this exact format:
       sendProgress(30, "Running AI analysis...", "ai_analysis");
       
       const response = await createChatCompletionWithLogging({
-        model: getPreferredModel(),
+        model: visitAuditModel,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Analyze these visit logs:\n\n${documentContent}` }
@@ -6674,9 +6676,9 @@ Return JSON with indices that are VALID. Include ALL unless you're CERTAIN one i
           let pass2Success = false;
           try {
             sendProgress(65, "Running validation pass 2...", "validation_pass2");
-            // Use GPT-5.1 for deterministic validation
+            // Use visit-audit validation model for deterministic validation
             const pass2Response = await createChatCompletionWithLogging({
-              model: getPreferredModel(),
+              model: visitAuditValidationModel,
               messages: [
                 { role: "system", content: pass2Prompt },
                 { role: "user", content: "Review discrepancies. Be conservative - when in doubt, keep." }
@@ -6726,9 +6728,9 @@ Return JSON - include ALL by default:
 
             try {
               sendProgress(80, "Running validation pass 3...", "validation_pass3");
-              // Use GPT-5.1 for deterministic validation
+              // Use visit-audit validation model for deterministic validation
               const pass3Response = await createChatCompletionWithLogging({
-                model: getPreferredModel(),
+                model: visitAuditValidationModel,
                 messages: [
                   { role: "system", content: pass3Prompt },
                   { role: "user", content: "Confirm and provide evidence. Keep discrepancies even without explicit text." }

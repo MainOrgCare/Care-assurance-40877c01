@@ -65,6 +65,23 @@ const CODE_PATTERN_SINGLE = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|S\s*\/\s*A|S\s*
 const TIME_PATTERN = /\d{1,2}:\d{2}/g;
 const INITIALS_PATTERN = /\b[A-Z]{2,3}\b/g;
 const CODE_INITIALS = new Set(["AD", "AS", "MU", "NH", "SA", "FA", "PRN", "NA"]);
+const CODE_PRIORITY: Record<string, number> = {
+  "PRN-R": 100,
+  "R": 100,
+  "MISSED": 95,
+  "MU": 90,
+  "NH": 90,
+  "SA": 88,
+  "FA": 88,
+  "PRN-AD": 82,
+  "PRN-AS": 82,
+  "PRN": 80,
+  "AD": 65,
+  "AS": 65,
+  "P": 60,
+  "N/A": 10,
+  "BLANK": 0,
+};
 
 const extractCareWorkerInitials = (content: string): string => {
   if (!content) return "";
@@ -90,6 +107,20 @@ const normalizeGridCode = (raw: string): string => {
   if (normalized === "PRNAS" || normalized === "PRN-AS") return "PRN-AS";
 
   return normalized;
+};
+
+const pickBestCode = (codes: string[]): string => {
+  let best = "BLANK";
+  let bestScore = -1;
+  for (const raw of codes) {
+    const normalized = normalizeGridCode(raw);
+    const score = CODE_PRIORITY[normalized] ?? (normalized ? 50 : 0);
+    if (score > bestScore) {
+      bestScore = score;
+      best = normalized;
+    }
+  }
+  return best;
 };
 
 export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
@@ -1097,18 +1128,10 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
               );
 
               const content = cellItems.map(i => i.str).join(" ");
-              const contentUpper = content.toUpperCase();
-
-              let code = "BLANK";
-              const codeMatch = contentUpper.match(CODE_PATTERN_SINGLE);
-              if (codeMatch) code = normalizeGridCode(codeMatch[1]);
-
-              const careWorker = extractCareWorkerInitials(content);
-
-              let time = "";
-              const timeMatch = content.match(/\d{1,2}:\d{2}/);
-              // Avoid confusing time slots with an actual administered time
-              if (timeMatch && !TIME_SLOT_PATTERN.test(content)) time = timeMatch[0];
+              const extracted = extractCodesFromCell(content);
+              const code = extracted.code;
+              const careWorker = extracted.careWorker;
+              const time = extracted.time;
 
               transposedPageCells.push({
                 medication: med.name,
@@ -1150,23 +1173,11 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
             item.y < (med.timeSlots.length > 0 ? ts.yEnd : med.yEnd)
           );
         
-          let code = "BLANK";
-          let careWorker = "";
-          let time = "";
-          let content = cellItems.map(i => i.str).join(" ");
-        
-          const contentUpper = content.toUpperCase();
-          const codeMatch = contentUpper.match(CODE_PATTERN_SINGLE);
-          if (codeMatch) {
-            code = normalizeGridCode(codeMatch[1]);
-          }
-        
-          careWorker = extractCareWorkerInitials(content);
-        
-          const timeMatch = content.match(/\d{1,2}:\d{2}/);
-          if (timeMatch && !content.includes("-")) {
-            time = timeMatch[0];
-          }
+          const content = cellItems.map(i => i.str).join(" ");
+          const extracted = extractCodesFromCell(content);
+          const code = extracted.code;
+          const careWorker = extracted.careWorker;
+          const time = extracted.time;
         
           cells.push({
             medication: med.name,
@@ -1313,13 +1324,15 @@ export function extractCodesFromCell(content: string): { code: string; careWorke
   let time = "";
   
   const upperContent = content.toUpperCase();
-  const codeMatch = upperContent.match(CODE_PATTERN_SINGLE);
-  if (codeMatch) {
-    foundCode = normalizeGridCode(codeMatch[1]);
+  const codeRegex = new RegExp(CODE_PATTERN.source, "gi");
+  const matches = Array.from(upperContent.matchAll(codeRegex)).map((match) => normalizeGridCode(match[1]));
+
+  if (matches.length > 0) {
+    foundCode = pickBestCode(matches);
   } else {
     for (const code of codes) {
       if (upperContent.includes(code)) {
-        foundCode = code;
+        foundCode = normalizeGridCode(code);
         break;
       }
     }
@@ -1328,7 +1341,8 @@ export function extractCodesFromCell(content: string): { code: string; careWorke
   careWorker = extractCareWorkerInitials(content);
   
   const timeMatch = content.match(/(\d{1,2}:\d{2})/);
-  if (timeMatch) {
+  const slotRegex = new RegExp(TIME_SLOT_PATTERN.source, "i");
+  if (timeMatch && !slotRegex.test(content)) {
     time = timeMatch[1];
   }
   
