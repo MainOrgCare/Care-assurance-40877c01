@@ -86,18 +86,33 @@ app.use((req, res, next) => {
   next();
 });
 
+const DEFAULT_ADMIN_USERNAME = "Lewis.barron";
+
 (async () => {
-  // Auto-seed admin user in all environments
+  // Admin bootstrap (development or explicit production bootstrap only)
   try {
-    const existingAdmin = await storage.getUserByUsername("Lewis.barron");
-    if (!existingAdmin) {
-      await storage.createUser({
-        username: "Lewis.barron",
-        password: "testtest",
-        role: "admin",
-        status: "active",
-      });
-      log("Created admin user (username: Lewis.barron)");
+    const bootstrapUsername = process.env.ADMIN_BOOTSTRAP_USERNAME || DEFAULT_ADMIN_USERNAME;
+    const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD;
+    const shouldSeedAdmin =
+      process.env.NODE_ENV !== "production" || Boolean(process.env.ADMIN_BOOTSTRAP_PASSWORD);
+
+    if (!shouldSeedAdmin) {
+      log("Admin bootstrap skipped (set ADMIN_BOOTSTRAP_USERNAME and ADMIN_BOOTSTRAP_PASSWORD to seed in production).");
+    } else {
+      const existingAdmin = await storage.getUserByUsername(bootstrapUsername);
+      if (!existingAdmin) {
+        if (process.env.NODE_ENV === "production" && !bootstrapPassword) {
+          log("Admin bootstrap skipped: ADMIN_BOOTSTRAP_PASSWORD not provided in production.");
+        } else {
+          await storage.createUser({
+            username: bootstrapUsername,
+            password: bootstrapPassword || "testtest",
+            role: "admin",
+            status: "active",
+          });
+          log(`Created admin user (username: ${bootstrapUsername})`);
+        }
+      }
     }
   } catch (error) {
     log("Note: Could not check/create admin user - database may not be ready yet");

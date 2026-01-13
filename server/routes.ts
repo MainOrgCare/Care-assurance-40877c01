@@ -711,6 +711,14 @@ export async function registerRoutes(
     }, FORCE_LOGOUT_WARNING_SECONDS * 1000);
   };
 
+  const DEFAULT_SESSION_SECRET = "carecompli-secret-key-change-in-prod";
+  if (
+    process.env.NODE_ENV === "production" &&
+    (!process.env.SESSION_SECRET || process.env.SESSION_SECRET === DEFAULT_SESSION_SECRET)
+  ) {
+    throw new Error("SESSION_SECRET must be set to a strong value in production.");
+  }
+
   // Session store: prefer Postgres when available, fall back to in-memory for local dev
   if (hasDatabaseUrl) {
     const PgSession = connectPgSimple(session);
@@ -784,7 +792,7 @@ export async function registerRoutes(
     
     // Check if session is still valid in active_sessions
     const activeSession = await storage.getActiveSessionBySessionId(req.sessionID);
-    if (!activeSession) {
+    if (!activeSession || String(activeSession.userId) !== String(req.session.userId)) {
       req.session.destroy(() => {});
       return res.status(401).json({ message: "Session expired" });
     }
@@ -892,7 +900,15 @@ export async function registerRoutes(
         }
       }
 
+      await new Promise<void>((resolve, reject) => {
+        req.session.regenerate((err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
       req.session.userId = user.id;
+      req.session.isDemo = false;
       
       // Explicitly save session before responding
       await new Promise<void>((resolve, reject) => {
@@ -970,6 +986,13 @@ export async function registerRoutes(
         };
 
         // Store demo session info
+        await new Promise<void>((resolve, reject) => {
+          req.session.regenerate((err: any) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+
         req.session.userId = demoUser.id;
         req.session.isDemo = true;
 
@@ -1007,7 +1030,7 @@ export async function registerRoutes(
 
       const user = await storage.createUser({
         ...validatedData,
-        role: validatedData.role || "staff",
+        role: "staff",
         status: "pending",
       });
 
@@ -3545,9 +3568,6 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
           metadata.medications = mergedGridMeds as any[];
           if (gridBaseline.dates?.length) metadata.dates = gridBaseline.dates;
           if (gridBaseline.timeSlots?.length) metadata.timeSlots = gridBaseline.timeSlots;
-          if (!metadata.serviceUserInitials && gridBaseline.serviceUserName) {
-            metadata.serviceUserInitials = gridBaseline.serviceUserName;
-          }
 
           extractedMedicationCount = metadata.medications.length;
           agreedMedicationCount = metadata.medications.length;
@@ -3558,7 +3578,12 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         }
       }
       
-      metadata.serviceUserInitials = normalizeInitials(metadata.serviceUserInitials);
+      const gridServiceUserInitials = gridBaseline?.serviceUserName
+        ? normalizeInitials(gridBaseline.serviceUserName)
+        : "N.N.";
+      const aiServiceUserInitials = normalizeInitials(metadata.serviceUserInitials);
+      metadata.serviceUserInitials =
+        gridServiceUserInitials !== "N.N." ? gridServiceUserInitials : aiServiceUserInitials;
 
       sendProgress(25, "Count validation complete...", "count_complete");
 

@@ -75,6 +75,8 @@ function AICostSection() {
   const [logs, setLogs] = useState<AiUsageLog[]>([]);
   const [stats, setStats] = useState<AiUsageStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [logSearch, setLogSearch] = useState("");
+  const [providerFilter, setProviderFilter] = useState("all");
 
   useEffect(() => {
     fetchAiUsage();
@@ -126,9 +128,47 @@ function AICostSection() {
     return "bg-gray-500/20 text-gray-400";
   };
 
+  const totalCost = stats?.totalCost ?? 0;
+  const totalCalls = stats?.totalCalls ?? 0;
+  const totalTokens = stats
+    ? Object.values(stats.byFeature).reduce((sum, feature) => sum + (feature.tokens || 0), 0)
+    : 0;
+  const avgCostPerCall = totalCalls > 0 ? totalCost / totalCalls : 0;
+  const avgTokensPerCall = totalCalls > 0 ? totalTokens / totalCalls : 0;
+  const costPerThousandTokens = totalTokens > 0 ? (totalCost / totalTokens) * 1000 : 0;
+
+  const featureEntries = stats
+    ? Object.entries(stats.byFeature).sort((a, b) => b[1].cost - a[1].cost)
+    : [];
+  const topFeature = featureEntries[0];
+
+  const providerSummary = logs.reduce<Record<string, { calls: number; cost: number; tokens: number }>>(
+    (acc, log) => {
+      const key = log.provider || "unknown";
+      if (!acc[key]) acc[key] = { calls: 0, cost: 0, tokens: 0 };
+      acc[key].calls += 1;
+      acc[key].cost += log.costMicroDollars || 0;
+      acc[key].tokens += log.totalTokens || 0;
+      return acc;
+    },
+    {}
+  );
+  const providerEntries = Object.entries(providerSummary).sort((a, b) => b[1].cost - a[1].cost);
+
+  const filteredLogs = logs.filter((log) => {
+    const searchValue = logSearch.toLowerCase().trim();
+    const matchesSearch =
+      !searchValue ||
+      log.username?.toLowerCase().includes(searchValue) ||
+      log.featureName?.toLowerCase().includes(searchValue) ||
+      log.model?.toLowerCase().includes(searchValue);
+    const matchesProvider = providerFilter === "all" || log.provider === providerFilter;
+    return matchesSearch && matchesProvider;
+  });
+
   return (
     <div className="space-y-6">
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card className="bg-card border-white/5 backdrop-blur-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
@@ -136,7 +176,7 @@ function AICostSection() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-400">{stats ? formatCost(stats.totalCost) : "$0.00"}</div>
+            <div className="text-2xl font-bold text-green-400">{stats ? formatCost(totalCost) : "$0.00"}</div>
             <p className="text-xs text-muted-foreground">All time AI costs</p>
           </CardContent>
         </Card>
@@ -148,7 +188,7 @@ function AICostSection() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-400">{stats?.totalCalls || 0}</div>
+            <div className="text-2xl font-bold text-blue-400">{totalCalls}</div>
             <p className="text-xs text-muted-foreground">Total AI requests</p>
           </CardContent>
         </Card>
@@ -162,6 +202,90 @@ function AICostSection() {
           <CardContent>
             <div className="text-2xl font-bold text-purple-400">{stats ? Object.keys(stats.byFeature).length : 0}</div>
             <p className="text-xs text-muted-foreground">Unique AI features</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-white/5 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <Activity size={14} className="text-amber-500" /> Avg Cost / Call
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-400">{formatCost(avgCostPerCall)}</div>
+            <p className="text-xs text-muted-foreground">{avgTokensPerCall.toFixed(0)} tokens per call</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card className="bg-card border-white/5 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <Cpu size={14} className="text-sky-400" /> Cost Efficiency
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Cost per 1k tokens</span>
+              <span className="font-semibold text-foreground">{formatCost(costPerThousandTokens)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Total tokens processed</span>
+              <span className="font-semibold text-foreground">{totalTokens.toLocaleString()}</span>
+            </div>
+            {providerEntries.length > 0 && (
+              <div className="pt-2 border-t border-white/5 space-y-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Provider Mix</p>
+                <div className="flex flex-wrap gap-2">
+                  {providerEntries.map(([provider, data]) => (
+                    <Badge
+                      key={provider}
+                      variant="outline"
+                      className={provider === "replit"
+                        ? "border-indigo-500/40 text-indigo-300 bg-indigo-500/10"
+                        : provider === "openai"
+                          ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/10"
+                          : "border-white/10 text-muted-foreground bg-white/5"
+                      }
+                    >
+                      {provider === "replit" ? "Replit AI" : provider === "openai" ? "OpenAI" : provider} · {formatCost(data.cost)}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-white/5 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <TrendingUp size={14} className="text-emerald-400" /> Top Cost Driver
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {topFeature ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <Badge variant="secondary" className={getFeatureColor(topFeature[0])}>
+                    {topFeature[0].replace(/_/g, " ")}
+                  </Badge>
+                  <span className="font-semibold text-foreground">{formatCost(topFeature[1].cost)}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {topFeature[1].calls} calls · {topFeature[1].tokens.toLocaleString()} tokens
+                </div>
+                <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-400/70"
+                    style={{ width: `${Math.max(6, Math.min(100, totalCost > 0 ? (topFeature[1].cost / totalCost) * 100 : 0))}%` }}
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">No AI usage yet.</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -179,22 +303,39 @@ function AICostSection() {
           </CardHeader>
           <CardContent className="p-4">
             <div className="space-y-3">
-              {Object.entries(stats.byFeature)
-                .sort((a, b) => b[1].cost - a[1].cost)
-                .map(([feature, data]) => (
-                  <div key={feature} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5">
-                    <div className="flex items-center gap-3">
-                      <Badge variant="secondary" className={getFeatureColor(feature)}>
-                        {feature.replace(/_/g, " ")}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">{data.calls} calls</span>
+              {featureEntries.map(([feature, data]) => {
+                const share = totalCost > 0 ? (data.cost / totalCost) * 100 : 0;
+                const avgCost = data.calls > 0 ? data.cost / data.calls : 0;
+                const avgTokens = data.calls > 0 ? data.tokens / data.calls : 0;
+
+                return (
+                  <div key={feature} className="p-3 rounded-lg bg-white/5 border border-white/5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Badge variant="secondary" className={getFeatureColor(feature)}>
+                          {feature.replace(/_/g, " ")}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {data.calls} calls · {avgTokens.toFixed(0)} tokens/call
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold text-foreground">{formatCost(data.cost)}</div>
+                        <div className="text-xs text-muted-foreground">{formatCost(avgCost)} per call</div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-foreground">{formatCost(data.cost)}</div>
-                      <div className="text-xs text-muted-foreground">{data.tokens.toLocaleString()} tokens</div>
+                    <div className="flex items-center gap-3">
+                      <div className="h-2 flex-1 rounded-full bg-white/5 overflow-hidden">
+                        <div
+                          className="h-full bg-white/20"
+                          style={{ width: `${Math.max(6, Math.min(100, share))}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground">{share.toFixed(1)}%</span>
                     </div>
                   </div>
-                ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -202,13 +343,39 @@ function AICostSection() {
 
       <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
         <CardHeader className="border-b border-white/5 bg-black/20">
-          <CardTitle className="flex items-center gap-2 text-foreground text-base">
-            <Activity size={18} className="text-blue-400" />
-            Recent AI Calls
-          </CardTitle>
-          <CardDescription className="text-muted-foreground text-sm">
-            Last 100 AI API requests with user and cost info
-          </CardDescription>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-foreground text-base">
+                <Activity size={18} className="text-blue-400" />
+                Recent AI Calls
+              </CardTitle>
+              <CardDescription className="text-muted-foreground text-sm">
+                Last 100 AI API requests with user and cost info
+              </CardDescription>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={logSearch}
+                  onChange={(e) => setLogSearch(e.target.value)}
+                  placeholder="Search user, feature, model..."
+                  className="pl-9 bg-muted border-border text-foreground placeholder:text-muted-foreground w-[220px]"
+                  data-testid="input-ai-usage-search"
+                />
+              </div>
+              <Select value={providerFilter} onValueChange={setProviderFilter}>
+                <SelectTrigger className="bg-muted border-border text-foreground w-[160px]" data-testid="select-ai-provider">
+                  <SelectValue placeholder="All providers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All providers</SelectItem>
+                  <SelectItem value="openai">OpenAI</SelectItem>
+                  <SelectItem value="replit">Replit AI</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -226,7 +393,7 @@ function AICostSection() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {logs.map((log) => (
+                {filteredLogs.map((log) => (
                   <TableRow key={log.id} className="border-white/5" data-testid={`ai-log-${log.id}`}>
                     <TableCell className="text-muted-foreground text-xs">
                       {new Date(log.createdAt).toLocaleString()}
@@ -264,7 +431,7 @@ function AICostSection() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {logs.length === 0 && (
+                {filteredLogs.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No AI usage recorded yet. Run an EMAR analysis or generate a care plan to see data here.
