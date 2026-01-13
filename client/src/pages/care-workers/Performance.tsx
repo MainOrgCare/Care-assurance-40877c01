@@ -102,7 +102,7 @@ export default function Performance() {
   const trainingRecommendations = getTrainingRecommendations();
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="page-shell">
       <div>
         <h2 className="text-3xl font-heading font-bold text-foreground">Staff Performance</h2>
         <p className="text-muted-foreground mt-2">

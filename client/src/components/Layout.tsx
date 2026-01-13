@@ -280,24 +280,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex h-screen w-full overflow-hidden bg-background">
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-muted/30 to-background" />
-        <div className="absolute -top-32 left-[18%] h-80 w-80 rounded-full bg-amber-500/12 blur-3xl" />
-        <div className="absolute bottom-[-20%] right-[18%] h-96 w-96 rounded-full bg-teal-500/12 blur-3xl" />
+        <div className="absolute inset-0 bg-gradient-to-br from-background via-muted/40 to-background" />
+        <div className="absolute -top-32 left-[12%] h-72 w-72 rounded-full bg-secondary/12 blur-3xl" />
+        <div className="absolute bottom-[-25%] right-[14%] h-[26rem] w-[26rem] rounded-full bg-primary/12 blur-3xl" />
         <div
-          className="absolute inset-0 opacity-[0.015]"
+          className="absolute inset-0 opacity-[0.025]"
           style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='84' height='84' viewBox='0 0 84 84' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.7'%3E%3Ccircle cx='1' cy='1' r='1'/%3E%3C/g%3E%3C/svg%3E")`,
           }}
         />
       </div>
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-64 flex-shrink-0 bg-sidebar/80 backdrop-blur-xl border-r border-sidebar-border flex-col z-10">
+      <aside className="hidden md:flex w-64 flex-shrink-0 bg-sidebar/85 backdrop-blur-xl border-r border-sidebar-border flex-col z-10 shadow-lg">
         <SidebarContent location={location} handleSecretClick={handleSecretClick} logout={logout} />
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto flex flex-col w-full relative z-10">
-        <header className="h-16 border-b border-border/50 bg-background/70 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+        <header className="h-16 border-b border-border/60 bg-background/65 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between sticky top-0 z-20 shadow-sm">
           <div className="flex items-center gap-3">
             {/* Mobile Menu Trigger */}
             <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -313,21 +313,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </Sheet>
 
             <div className="hidden md:flex flex-col">
-              <span className="text-[11px] uppercase tracking-[0.45em] text-muted-foreground/70">
-                Operational Command
+              <span className="text-[10px] uppercase tracking-[0.5em] text-muted-foreground/70">
+                Operations Console
               </span>
               <span className="text-sm font-heading text-foreground">
                 Orchestrate confident care decisions
               </span>
             </div>
-            <div className="md:hidden text-[11px] uppercase tracking-[0.35em] text-muted-foreground/70">
+            <div className="md:hidden text-[10px] uppercase tracking-[0.4em] text-muted-foreground/70">
               Ops Console
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-             <Badge variant="outline" className="hidden sm:inline-flex bg-primary/15 text-primary border-primary/25 uppercase tracking-tight text-[11px]">
-               Live Preview
+             <Badge variant="outline" className="hidden sm:inline-flex bg-primary/10 text-primary border-primary/25 uppercase tracking-[0.2em] text-[10px]">
+               Secure Workspace
              </Badge>
              <div className="flex items-center gap-3">
                 <div className="text-right hidden sm:block">
@@ -338,7 +338,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   </p>
                   <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
                 </div>
-                <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold uppercase text-sm">
+                <div className="h-9 w-9 rounded-full bg-primary/15 text-primary flex items-center justify-center font-bold uppercase text-sm ring-1 ring-primary/20">
                   {user?.firstName ? user.firstName.substring(0,1) : user?.username?.substring(0,1) || '?'}
                   {user?.lastName ? user.lastName.substring(0,1) : ''}
                 </div>

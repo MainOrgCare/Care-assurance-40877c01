@@ -429,7 +429,7 @@ export default function VisitAudit() {
     : `${user?.username} (${user?.role === 'admin' ? 'Admin' : 'Staff'})`;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="page-shell">
       <div>
         <h2 className="text-3xl font-heading font-bold text-foreground">Visit Audit</h2>
         <p className="text-muted-foreground mt-2">

@@ -328,7 +328,7 @@ export default function CareWorkerRotas() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="page-shell-compact">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-primary">Admin Library</p>

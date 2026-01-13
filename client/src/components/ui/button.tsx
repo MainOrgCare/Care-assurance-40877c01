@@ -5,15 +5,15 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
            // @replit: no hover, and add primary border
-           "bg-primary text-primary-foreground border border-primary-border shadow-sm hover:shadow-md hover:brightness-105 active:brightness-95",
+           "bg-primary text-primary-foreground border border-primary-border shadow-sm shadow-primary/20 hover:border-primary/70 hover:shadow-primary/30 hover:brightness-105 active:brightness-95",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-sm border-destructive-border hover:shadow-md active:brightness-95",
+          "bg-destructive text-destructive-foreground shadow-sm border-destructive-border hover:shadow-lg hover:shadow-destructive/25 active:brightness-95",
         outline:
           // @replit Shows the background color of whatever card / sidebar / accent background it is inside of.
           // Inherits the current text color. Uses shadow-xs. no shadow on active
@@ -21,9 +21,9 @@ const buttonVariants = cva(
           "border [border-color:var(--button-outline)] bg-transparent text-foreground hover:bg-accent/60 hover:text-foreground shadow-xs active:shadow-none",
         secondary:
           // @replit border, no hover, no shadow, secondary border.
-          "border bg-secondary text-secondary-foreground border-secondary-border shadow-sm hover:brightness-105 active:brightness-95",
+          "border bg-secondary text-secondary-foreground border-secondary-border shadow-sm shadow-secondary/20 hover:shadow-secondary/30 hover:brightness-105 active:brightness-95",
         // @replit no hover, transparent border
-        ghost: "border border-transparent text-foreground hover:bg-accent/50",
+        ghost: "border border-transparent text-foreground/85 hover:bg-accent/50 hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

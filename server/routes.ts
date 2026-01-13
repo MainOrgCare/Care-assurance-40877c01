@@ -3167,6 +3167,8 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       const normalizeMedicationKey = (name: string): string =>
         (name || "")
           .toLowerCase()
+          .replace(/([a-z])(\d)/g, "$1 $2")
+          .replace(/(\d)([a-z])/g, "$1 $2")
           .replace(/[^a-z0-9]+/g, " ")
           .replace(/\s+/g, " ")
           .trim();
@@ -3647,13 +3649,15 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         const hasTime = hasExplicitTimeInCell(cell);
         const hasInitials = Boolean(cell.careWorker && cell.careWorker.trim());
 
-        if (normalized === "PRN" && prnMedicationIds.has(medId) && !hasTime) {
+        const looksPrn = normalized.startsWith("PRN");
+
+        if (looksPrn && !hasTime) {
           return "PRN-R";
         }
         if (normalized && normalized !== "BLANK" && normalized !== "N/A") return normalized;
 
         if (hasTime || hasInitials) {
-          return prnMedicationIds.has(medId) ? "PRN" : "AD";
+          return prnMedicationIds.has(medId) || looksPrn ? "PRN" : "AD";
         }
         return normalized || "BLANK";
       };
@@ -3709,17 +3713,86 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         return JSON.stringify(normalized);
       };
       
+      const normalizeSlotKey = (entry: any): string => {
+        const medId = Number(entry.medicationId) || 0;
+        const date = String(entry.date || "")
+          .trim()
+          .toUpperCase()
+          .replace(/\s+/g, " ");
+        let timeSlot = String(entry.timeSlot || "").trim().toUpperCase();
+        timeSlot = timeSlot.replace(/\s*-\s*/g, "-").replace(/\s+/g, " ");
+        return `${medId}|${date}|${timeSlot}`;
+      };
+
+      // Prefer refusals/verification codes when de-duplicating slot entries.
+      const codePriority: Record<string, number> = {
+        "PRN-R": 100,
+        "R": 100,
+        "MISSED": 95,
+        "MU": 90,
+        "NH": 90,
+        "SA": 88,
+        "FA": 88,
+        "PRN-AD": 82,
+        "PRN-AS": 82,
+        "PRN": 80,
+        "AD": 65,
+        "AS": 65,
+        "P": 60,
+        "N/A": 10,
+        "BLANK": 0
+      };
+
+      const computeEntryScore = (entry: any): number => {
+        const code = normalizeEmarCode(entry.code || "");
+        let score = codePriority[code] ?? (code ? 60 : 0);
+        if (computeHasTime(entry)) score += 5;
+        const initials = String(entry.careWorkerInitials || "").toUpperCase().trim();
+        if (initials && initials !== "MANUAL") score += 3;
+        if (String(entry.time || "").trim()) score += 1;
+        return score;
+      };
+
+      const shouldReplaceEntry = (current: any, candidate: any): boolean => {
+        const currentScore = computeEntryScore(current);
+        const candidateScore = computeEntryScore(candidate);
+        if (candidateScore !== currentScore) return candidateScore > currentScore;
+
+        const currentHasTime = computeHasTime(current);
+        const candidateHasTime = computeHasTime(candidate);
+        if (currentHasTime !== candidateHasTime) return candidateHasTime;
+
+        const currentInitials = String(current.careWorkerInitials || "").toUpperCase().trim();
+        const candidateInitials = String(candidate.careWorkerInitials || "").toUpperCase().trim();
+        if (currentInitials !== candidateInitials) {
+          if (candidateInitials && candidateInitials !== "MANUAL") return true;
+          if (currentInitials && !candidateInitials) return false;
+        }
+
+        const currentCode = normalizeEmarCode(current.code || "");
+        const candidateCode = normalizeEmarCode(candidate.code || "");
+        if (candidateCode !== currentCode) {
+          return candidateCode.length > currentCode.length;
+        }
+
+        return false;
+      };
+
       // Helper function to deduplicate entries
       const deduplicateEntries = (entries: any[]): any[] => {
-        const seenKeys = new Set<string>();
-        return entries.filter((entry: any) => {
-          const key = `${entry.medicationId}-${entry.date}-${entry.timeSlot}`;
-          if (seenKeys.has(key)) {
-            return false;
+        const bestByKey = new Map<string, any>();
+        for (const entry of entries) {
+          const key = normalizeSlotKey(entry);
+          if (!bestByKey.has(key)) {
+            bestByKey.set(key, entry);
+            continue;
           }
-          seenKeys.add(key);
-          return true;
-        });
+          const existing = bestByKey.get(key);
+          if (shouldReplaceEntry(existing, entry)) {
+            bestByKey.set(key, entry);
+          }
+        }
+        return Array.from(bestByKey.values());
       };
 
       // Function to run one complete extraction pass using text extraction
@@ -4434,14 +4507,19 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       let prnRefusalCount = 0;
       let prnAdminRemapCount = 0;
       extractedEntries = extractedEntries.map((entry: any) => {
-        const code = (entry.code || "").toUpperCase();
-        const isPrnMed = prnMedicationIds.has(entry.medicationId) || inferredPrnMedicationIds.has(entry.medicationId);
+        const normalizedCode = normalizeEmarCode(entry.code || "");
+        const codeLooksPrn = normalizedCode.startsWith("PRN");
+        const isPrnMed =
+          prnMedicationIds.has(entry.medicationId) ||
+          inferredPrnMedicationIds.has(entry.medicationId) ||
+          codeLooksPrn;
 
         // Use computeHasTime for deterministic detection (same logic used in consensus)
         const hasTime = computeHasTime(entry);
 
         if (!isPrnMed) return entry;
 
+        const code = normalizedCode;
         if (!hasTime) {
           if (code !== "PRN-R") {
             prnRefusalCount++;
@@ -4588,7 +4666,7 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       // Map AI-extracted entries to the format expected by validation logic
       // Replace initials with full names where possible, track unknown ones
       // Use medicationId to resolve medication name deterministically
-      const allEntries = (extractedData.entries || []).map((entry: any) => {
+      let allEntries = (extractedData.entries || []).map((entry: any) => {
         const initials = (entry.careWorkerInitials || "").toUpperCase();
         let careWorkerValue = initials;
         
@@ -4644,10 +4722,10 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       
       // Helper to normalize medication names for comparison
       const normalizeMedName = (name: string): string => {
-        return (name || "")
-          .toLowerCase()
-          .trim()
-          .replace(/\s+/g, " "); // collapse multiple spaces
+        return normalizeMedicationKey(name || "")
+          .replace(/\b(tablets?|tabs?|capsules?|caps?)\b/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
       };
       
       // Group medications by normalized name, keeping first occurrence as canonical
@@ -4702,6 +4780,25 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
           isPRN: med.isPRN || false,
         });
       });
+
+      const preEntryDedupCount = allEntries.length;
+      allEntries = deduplicateEntries(allEntries);
+      if (allEntries.length !== preEntryDedupCount) {
+        console.log(
+          `DEBUG: Entry deduplication - reduced from ${preEntryDedupCount} to ${allEntries.length} unique slot entries`
+        );
+      }
+
+      const canonicalPrnMedicationIds = new Set<number>();
+      for (const id of prnMedicationIds) {
+        const canonical = oldIdToCanonicalId.get(id) ?? id;
+        canonicalPrnMedicationIds.add(canonical);
+      }
+      const canonicalInferredPrnMedicationIds = new Set<number>();
+      for (const id of inferredPrnMedicationIds) {
+        const canonical = oldIdToCanonicalId.get(id) ?? id;
+        canonicalInferredPrnMedicationIds.add(canonical);
+      }
       
       console.log("DEBUG: Extracted", allEntries.length, "entries,", allDates.length, "dates,", timeSlots.length, "time slots,", medications.length, "unique medications");
       sendProgress(75, "Detecting discrepancies...", "discrepancy_detection");
@@ -5122,67 +5219,115 @@ If no equivalences found, return: {"equivalences": []}`
           return code;
         };
 
-        const normalizeMedKey = (s: unknown) => {
-          const base = normalizeLoose(s)
-            .replace(/[^a-z0-9]+/g, " ")
-            .replace(/\b(mg|mcg|g|ml|iu|units?|unit|tablet|tablets|tab|tabs|capsule|capsules|cap|caps|patch|spray|drop|drops)\b/g, " ")
+        const normalizeMedKeyStrict = (s: unknown) =>
+          normalizeMedicationKey(String(s || ""))
+            .replace(/\b(tablets?|tabs?|capsules?|caps|cap|patch|spray|drop|drops)\b/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        const normalizeMedKeyLoose = (s: unknown) =>
+          normalizeMedKeyStrict(s)
+            .replace(/\b(mg|mcg|g|ml|iu|units?|unit)\b/g, " ")
             .replace(/\b\d+(?:\.\d+)?\b/g, " ")
             .replace(/\s+/g, " ")
             .trim();
-          return base;
-        };
+
+        const buildMedKey = (name: string) => ({
+          strictKey: normalizeMedKeyStrict(name),
+          looseKey: normalizeMedKeyLoose(name)
+        });
 
         // Build AI extraction index by (med/date/timeSlot)
-        const aiMedKeys: Array<{ key: string; name: string }> = (medications || [])
-          .map((m: any) => ({ key: normalizeMedKey(m?.name), name: m?.name }))
-          .filter((m: any) => m.key);
+        const aiMedKeys: Array<{ name: string; strictKey: string; looseKey: string }> = (medications || [])
+          .map((m: any) => ({ ...buildMedKey(m?.name || ""), name: m?.name }))
+          .filter((m: any) => m.strictKey || m.looseKey);
 
-        const findBestAiMedKey = (gridMed: string): { key: string; name: string } | null => {
-          const g = normalizeMedKey(gridMed);
-          if (!g) return null;
+        const findBestAiMedKey = (
+          gridMed: string
+        ): { name: string; strictKey: string; looseKey: string; matchKey: string; matchMode: "strict" | "loose" } | null => {
+          const gridKeys = buildMedKey(gridMed || "");
+          if (!gridKeys.strictKey && !gridKeys.looseKey) return null;
 
-          // Exact match first
-          const exact = aiMedKeys.find((m) => m.key === g);
-          if (exact) return exact;
+          if (gridKeys.strictKey) {
+            const exactMatches = aiMedKeys.filter((m) => m.strictKey === gridKeys.strictKey);
+            if (exactMatches.length === 1) {
+              const match = exactMatches[0];
+              return { ...match, matchKey: match.strictKey, matchMode: "strict" };
+            }
+            if (exactMatches.length > 1) {
+              return null; // ambiguous strict match
+            }
 
-          // Substring match with longest overlap
-          let best: { key: string; name: string } | null = null;
+            let bestStrict: { name: string; strictKey: string; looseKey: string } | null = null;
+            let bestStrictScore = 0;
+            for (const m of aiMedKeys) {
+              if (!m.strictKey) continue;
+              const hit = m.strictKey.includes(gridKeys.strictKey) || gridKeys.strictKey.includes(m.strictKey);
+              if (!hit) continue;
+              const score = Math.min(m.strictKey.length, gridKeys.strictKey.length);
+              if (score > bestStrictScore) {
+                bestStrictScore = score;
+                bestStrict = m;
+              }
+            }
+            if (bestStrictScore >= 8 && bestStrict) {
+              return { ...bestStrict, matchKey: bestStrict.strictKey, matchMode: "strict" };
+            }
+          }
+
+          if (!gridKeys.looseKey) return null;
+
+          let best: { name: string; strictKey: string; looseKey: string } | null = null;
           let bestScore = 0;
           for (const m of aiMedKeys) {
-            if (!m.key) continue;
-            const a = m.key;
-            const hit = a.includes(g) || g.includes(a);
+            if (!m.looseKey) continue;
+            const hit = m.looseKey.includes(gridKeys.looseKey) || gridKeys.looseKey.includes(m.looseKey);
             if (!hit) continue;
-            const score = Math.min(a.length, g.length);
+            const score = Math.min(m.looseKey.length, gridKeys.looseKey.length);
             if (score > bestScore) {
               bestScore = score;
               best = m;
             }
           }
-          return bestScore >= 6 ? best : null;
+          return bestScore >= 5 && best
+            ? { ...best, matchKey: best.looseKey, matchMode: "loose" }
+            : null;
         };
 
         const slotKey = (medKey: string, date: unknown, timeSlot: unknown) =>
           `${medKey}|${normalizeDateKey(date)}|${normalizeTimeSlotKey(timeSlot)}`;
 
-        const aiCodesBySlot = new Map<string, Set<string>>();
+        const aiCodesByStrictSlot = new Map<string, Set<string>>();
+        const aiCodesByLooseSlot = new Map<string, Set<string>>();
         for (const entry of allEntries) {
           const med = medications.find((m: any) => m.medicationId === entry.medicationId);
-          const medKey = normalizeMedKey(med?.name || entry.medication);
-          if (!medKey) continue;
-          const key = slotKey(medKey, entry.date, entry.timeSlot);
+          const medKeys = buildMedKey(med?.name || entry.medication);
           const code = normalizeCodeLoose(entry.code);
-          if (!aiCodesBySlot.has(key)) aiCodesBySlot.set(key, new Set());
-          if (code) aiCodesBySlot.get(key)!.add(code);
+          if (medKeys.strictKey) {
+            const key = slotKey(medKeys.strictKey, entry.date, entry.timeSlot);
+            if (!aiCodesByStrictSlot.has(key)) aiCodesByStrictSlot.set(key, new Set());
+            if (code) aiCodesByStrictSlot.get(key)!.add(code);
+          }
+          if (medKeys.looseKey) {
+            const key = slotKey(medKeys.looseKey, entry.date, entry.timeSlot);
+            if (!aiCodesByLooseSlot.has(key)) aiCodesByLooseSlot.set(key, new Set());
+            if (code) aiCodesByLooseSlot.get(key)!.add(code);
+          }
         }
 
         // Dedupe against existing discrepancies (by med/date/timeSlot/code)
         const existingDiscKeys = new Set<string>();
         for (const d of discrepancies) {
-          const medKey = normalizeMedKey(d.medication);
-          if (!medKey) continue;
-          const key = slotKey(medKey, d.date, d.timeSlot) + `|${normalizeCodeLoose(d.code)}`;
-          existingDiscKeys.add(key);
+          const medKeys = buildMedKey(d.medication || "");
+          const codeKey = `|${normalizeCodeLoose(d.code)}`;
+          if (medKeys.strictKey) {
+            const key = slotKey(medKeys.strictKey, d.date, d.timeSlot) + codeKey;
+            existingDiscKeys.add(key);
+          }
+          if (medKeys.looseKey) {
+            const key = slotKey(medKeys.looseKey, d.date, d.timeSlot) + codeKey;
+            existingDiscKeys.add(key);
+          }
         }
 
         const IMPORTANT_CODES = new Set(["R", "PRN-R", "MU", "NH", "SA", "FA", "MISSED"]);
@@ -5212,6 +5357,17 @@ If no equivalences found, return: {"equivalences": []}`
             note,
           });
         };
+        const baselineVerificationKeys = new Set<string>();
+        const pushBaselineVerification = (
+          code: string,
+          context: { careWorkerName: string; date: string; medication: string; note?: string },
+          slotKeyValue: string
+        ) => {
+          const key = `${slotKeyValue}|${code}`;
+          if (baselineVerificationKeys.has(key)) return;
+          baselineVerificationKeys.add(key);
+          pushVerificationItem(code, context);
+        };
         let missingImportant = 0;
         let mismatchImportant = 0;
         let scannedImportant = 0;
@@ -5223,10 +5379,29 @@ If no equivalences found, return: {"equivalences": []}`
           scannedImportant++;
 
           const medMatch = findBestAiMedKey(cell.medication);
-          if (!medMatch) continue;
+          const fallbackSlotKey = slotKey(
+            normalizeMedKeyLoose(cell.medication || "") || cell.medication || "unknown",
+            cell.date,
+            cell.timeSlot
+          );
 
-          const sKey = slotKey(medMatch.key, cell.date, cell.timeSlot);
-          const codes = aiCodesBySlot.get(sKey);
+          if (!medMatch) {
+            const careWorkerName = cell.careWorker || "Unknown";
+            const medicationName = cell.medication || "Unknown medication";
+            pushBaselineVerification(code, {
+              careWorkerName,
+              date: cell.date,
+              medication: medicationName,
+              note: "Grid scan detected this code but medication matching was ambiguous."
+            }, fallbackSlotKey);
+            missingImportant++;
+            continue;
+          }
+
+          const sKey = slotKey(medMatch.matchKey, cell.date, cell.timeSlot);
+          const codes = medMatch.matchMode === "strict"
+            ? aiCodesByStrictSlot.get(sKey)
+            : aiCodesByLooseSlot.get(sKey);
 
           const discKey = sKey + `|${code}`;
           if (existingDiscKeys.has(discKey)) continue;
@@ -5242,11 +5417,11 @@ If no equivalences found, return: {"equivalences": []}`
             missingImportant++;
 
             if (isRefusal) {
-              pushVerificationItem(code, { careWorkerName, date: cell.date, medication: medicationName });
+              pushBaselineVerification(code, { careWorkerName, date: cell.date, medication: medicationName }, sKey);
             } else if (isMissed) {
-              pushVerificationItem(code, { careWorkerName, date: cell.date, medication: medicationName });
+              pushBaselineVerification(code, { careWorkerName, date: cell.date, medication: medicationName }, sKey);
             } else if (needsVerification) {
-              pushVerificationItem(code, { careWorkerName, date: cell.date, medication: medicationName });
+              pushBaselineVerification(code, { careWorkerName, date: cell.date, medication: medicationName }, sKey);
             }
             continue;
           }
@@ -5257,26 +5432,26 @@ If no equivalences found, return: {"equivalences": []}`
             const mismatchNote = `(grid shows "${code}" but extraction captured "${extractedCodes}")`;
 
             if (isRefusal) {
-              pushVerificationItem(code, {
+              pushBaselineVerification(code, {
                 careWorkerName,
                 date: cell.date,
                 medication: medicationName,
                 note: mismatchNote,
-              });
+              }, sKey);
             } else if (isMissed) {
-              pushVerificationItem(code, {
+              pushBaselineVerification(code, {
                 careWorkerName,
                 date: cell.date,
                 medication: medicationName,
                 note: mismatchNote,
-              });
+              }, sKey);
             } else if (needsVerification) {
-              pushVerificationItem(code, {
+              pushBaselineVerification(code, {
                 careWorkerName,
                 date: cell.date,
                 medication: medicationName,
                 note: mismatchNote,
-              });
+              }, sKey);
             }
           }
         }
@@ -5301,7 +5476,12 @@ If no equivalences found, return: {"equivalences": []}`
         const date = entry.date || "";
         const timeSlot = entry.timeSlot || "";
         const medication = entry.medication || "";
-        const isPRN = prnMeds.has(medication);
+        const entryMedId = Number(entry.medicationId) || 0;
+        const isPrnById =
+          canonicalPrnMedicationIds.has(entryMedId) ||
+          canonicalInferredPrnMedicationIds.has(entryMedId);
+        const isPrnByCode = code.startsWith("PRN");
+        const isPRN = prnMeds.has(medication) || isPrnById || isPrnByCode;
 
         // CHECK 5a: R (Refused) or PRN-R (PRN Refused) - verification only
         if (code === "R" || code === "PRN-R") {
@@ -5823,10 +6003,14 @@ Return JSON with indices that are VALID (keep these). Include ALL indices unless
             
             // Only filter if we got a valid array with at least some indices
             if (Array.isArray(validIndices) && validIndices.length > 0) {
-              const validSet = new Set(validIndices);
-              validatedDiscrepancies = discrepancies.filter((_, i) => validSet.has(i + 1));
               pass2Success = true;
-              console.log(`DEBUG: Pass 2 validation - ${discrepancies.length} -> ${validatedDiscrepancies.length} discrepancies`);
+              if (validIndices.length === discrepancies.length) {
+                console.log(`DEBUG: Pass 2 validation - ${discrepancies.length} discrepancies retained`);
+              } else {
+                console.log(
+                  `DEBUG: Pass 2 returned ${validIndices.length}/${discrepancies.length} valid indices - keeping all discrepancies to avoid false negatives`
+                );
+              }
             } else {
               // If no valid indices returned, keep all (fail safe)
               console.log(`DEBUG: Pass 2 returned empty validIndices - keeping all discrepancies`);
@@ -5892,17 +6076,19 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
               
               // Only filter if we got valid indices; otherwise keep all
               if (Array.isArray(confirmedIndices) && confirmedIndices.length > 0) {
-                const confirmedSet = new Set(confirmedIndices);
-                const beforeCount = validatedDiscrepancies.length;
-                validatedDiscrepancies = validatedDiscrepancies.filter((_, i) => confirmedSet.has(i + 1));
-                
-                // Store evidence for confirmed discrepancies
                 if (pass3Data.evidence) {
                   validationEvidence = pass3Data.evidence;
                 }
-                
-                validationStatus = "completed";
-                console.log(`DEBUG: Pass 3 confirmation - ${beforeCount} -> ${validatedDiscrepancies.length} discrepancies`);
+
+                if (confirmedIndices.length < validatedDiscrepancies.length) {
+                  validationStatus = "partial";
+                  console.log(
+                    `DEBUG: Pass 3 returned ${confirmedIndices.length}/${validatedDiscrepancies.length} confirmed - keeping all discrepancies`
+                  );
+                } else {
+                  validationStatus = "completed";
+                  console.log(`DEBUG: Pass 3 confirmation - kept ${validatedDiscrepancies.length} discrepancies`);
+                }
               } else {
                 // Keep all if no confirmedIndices returned
                 validationStatus = "partial";

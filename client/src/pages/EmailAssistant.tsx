@@ -67,7 +67,7 @@ export default function EmailAssistant() {
   };
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto animate-in fade-in duration-500">
+    <div className="page-shell max-w-5xl mx-auto">
       <div className="flex flex-col gap-2">
         <h2 className="text-3xl font-heading font-bold text-foreground">Email Professionalizer</h2>
         <p className="text-muted-foreground">Turn rough notes into polished, professional correspondence instantly.</p>

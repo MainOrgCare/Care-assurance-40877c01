@@ -3456,7 +3456,7 @@ export default function TestingFeatures() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="page-shell">
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-primary">
           <FlaskConical className="h-5 w-5" />

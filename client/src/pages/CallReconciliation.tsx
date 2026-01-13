@@ -89,7 +89,7 @@ export default function CallReconciliation() {
   };
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-500">
+    <div className="page-shell max-w-6xl mx-auto">
       <div className="flex flex-col gap-2">
         <h2 className="text-3xl font-heading font-bold text-foreground">Call Monitoring Reconciliation</h2>
         <p className="text-muted-foreground">Upload your ECM data file to process cancellation reasons and generate variation codes.</p>
