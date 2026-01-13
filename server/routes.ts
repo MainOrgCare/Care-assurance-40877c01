@@ -3387,6 +3387,46 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       );
 
       const TIME_RANGE_PATTERN = /\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g;
+      const CODE_TOKEN_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|S\s*\/\s*A|S\s*[-–]\s*A|F\s*\/\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRNAD|PRNAS|PRNR|PRN|MISSED|N\/?A)\b/i;
+
+      const normalizeCellCode = (raw: unknown): string => {
+        if (typeof raw !== "string") return "";
+        let code = raw
+          .toUpperCase()
+          .trim()
+          .replace(/[()\[\]{}]/g, "")
+          .replace(/[–—]/g, "-")
+          .replace(/\s+/g, "");
+
+        if (!code) return "";
+
+        if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
+        if (code === "S/A" || code === "S-A") return "SA";
+        if (code === "PRNAD" || code === "PRN-AD") return "PRN-AD";
+        if (code === "PRNAS" || code === "PRN-AS") return "PRN-AS";
+        if (code === "PRNR" || code === "PRN-R" || code === "PRNREFUSED" || code === "PRNREFUS") return "PRN-R";
+        if (code === "PRNRF" || code === "PRNREF") return "PRN-R";
+        if (code === "PRN" + "R") return "PRN-R";
+        if (code === "NOTHOME" || code === "NH") return "NH";
+        if (code === "SELADMIN" || code === "SELFADMIN" || code === "SA") return "SA";
+        if (code === "MEDUNAV" || code === "MEDUNAVAILABLE" || code === "UNAVAILABLE" || code === "MU") return "MU";
+        if (code === "REFUSED" || code === "REFUSE" || code === "REF") return "R";
+        if (code === "NA") return "N/A";
+
+        // Restore dash form for PRN-R if written as PRN-R but stripped
+        if (code === "PRN-R") return "PRN-R";
+        if (code === "PRNR") return "PRN-R";
+
+        return code;
+      };
+
+      const extractCellCode = (value: unknown): string => {
+        const text = String(value || "");
+        if (!text.trim()) return "";
+        const match = text.toUpperCase().match(CODE_TOKEN_PATTERN);
+        if (!match) return "";
+        return normalizeCellCode(match[1]);
+      };
       const hasExplicitTimeInCell = (cell: ParsedEMAR["cells"][number]) => {
         if (cell.time && cell.time.trim()) return true;
         const content = String(cell.content || "").replace(TIME_RANGE_PATTERN, " ");
@@ -3394,8 +3434,10 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       };
 
       gridNonBlankCount = gridBaseline?.cells?.reduce((count, cell) => {
-        const code = String(cell.code || "").toUpperCase().trim();
+        const code = normalizeCellCode(cell.code);
         if (code && code !== "BLANK" && code !== "N/A") return count + 1;
+        const contentCode = extractCellCode(cell.content);
+        if (contentCode && contentCode !== "N/A") return count + 1;
         const hasTime = hasExplicitTimeInCell(cell);
         const hasInitials = Boolean(cell.careWorker && cell.careWorker.trim());
         if (hasTime || hasInitials) return count + 1;
@@ -3408,14 +3450,15 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         for (const cell of gridBaseline.cells) {
           const key = normalizeMedicationKey(cell.medication || "");
           if (!key) continue;
-          const raw = String(cell.code || "").toUpperCase().replace(/\s+/g, "");
-          if (raw) {
+          const raw = normalizeCellCode(cell.code);
+          const code = raw && raw !== "BLANK" && raw !== "N/A" ? raw : extractCellCode(cell.content);
+          if (code) {
             if (!gridPrnStats.has(key)) gridPrnStats.set(key, { prnCount: 0, nonBlankCount: 0 });
             const stats = gridPrnStats.get(key)!;
-            if (raw !== "BLANK" && raw !== "N/A") {
+            if (code !== "N/A") {
               stats.nonBlankCount += 1;
             }
-            if (raw.startsWith("PRN")) {
+            if (code.startsWith("PRN")) {
               stats.prnCount += 1;
               gridPrnKeys.add(key);
             }
@@ -3614,37 +3657,17 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         return !!tokenMatch;
       };
 
-      const normalizeEmarCode = (raw: unknown): string => {
-        if (typeof raw !== "string") return "";
-        let code = raw
-          .toUpperCase()
-          .trim()
-          .replace(/[()\[\]{}]/g, "")
-          .replace(/[–—]/g, "-")
-          .replace(/\s+/g, "");
-
-        // Common variants
-        if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
-        if (code === "PRNAD" || code === "PRN-AD") return "PRN-AD";
-        if (code === "PRNAS" || code === "PRN-AS") return "PRN-AS";
-        if (code === "PRNR" || code === "PRN-R" || code === "PRNREFUSED" || code === "PRNREFUS") return "PRN-R";
-        if (code === "PRNRF" || code === "PRNREF") return "PRN-R";
-        if (code === "PRN" + "R") return "PRN-R";
-        if (code === "NOTHOME" || code === "NH") return "NH";
-        if (code === "SELADMIN" || code === "SELFADMIN" || code === "SA") return "SA";
-        if (code === "MEDUNAV" || code === "MEDUNAVAILABLE" || code === "UNAVAILABLE" || code === "MU") return "MU";
-        if (code === "REFUSED" || code === "REFUSE") return "R";
-
-        // Restore dash form for PRN-R if written as PRN-R but stripped
-        if (code === "PRN-R") return "PRN-R";
-        if (code === "PRNR") return "PRN-R";
-
-        return code;
-      };
+      const normalizeEmarCode = (raw: unknown): string => normalizeCellCode(raw);
 
       const inferGridCode = (cell: ParsedEMAR["cells"][number], medId: number): string => {
         const rawCode = String(cell.code || "").toUpperCase().trim();
-        const normalized = normalizeEmarCode(rawCode);
+        let normalized = normalizeEmarCode(rawCode);
+        if (!normalized || normalized === "BLANK" || normalized === "N/A") {
+          const contentCode = extractCellCode(cell.content);
+          if (contentCode) {
+            normalized = normalizeEmarCode(contentCode);
+          }
+        }
 
         const hasTime = hasExplicitTimeInCell(cell);
         const hasInitials = Boolean(cell.careWorker && cell.careWorker.trim());
@@ -3831,7 +3854,7 @@ Return JSON with entries ONLY for the medications listed above:
 {
   "entries": [
     {"medicationId": ${exampleMedicationId}, "date": "Sat, 06 Dec", "timeSlot": "08:00-09:00", "code": "AD", "careWorkerInitials": "RK", "time": "08:30", "hasTime": true, "isOfficeClosed": false},
-    {"medicationId": ${exampleMedicationId}, "date": "Sun, 07 Dec", "timeSlot": "08:00-09:00", "code": "AS", "careWorkerInitials": "MANUAL", "time": "", "hasTime": false, "isOfficeClosed": true}
+    {"medicationId": ${exampleMedicationId}, "date": "Sun, 07 Dec", "timeSlot": "08:00-09:00", "code": "AS", "careWorkerInitials": "", "time": "", "hasTime": false, "isOfficeClosed": false}
   ]
 }
 
@@ -3872,13 +3895,10 @@ OTHER CRITICAL RULES:
 4. Skip only truly blank/empty cells - but capture ALL cells with any code or initials
     5. For PRN meds: if PRN has no time recorded, treat it as PRN-R. For non-PRN meds, use R for refusals.
 
-MANUAL CODE ENTRY DETECTION (CRITICAL):
-- If a cell contains ONLY a code (AS, AD, P, R, etc.) with NO time and NO other initials, this is a MANUALLY ENTERED CODE by office staff
-- In this case:
-  1. Set careWorkerInitials to "MANUAL" (not the code itself!)
-  2. Set isOfficeClosed to true
-- Example: Cell shows just "AS" → code: "AS", careWorkerInitials: "MANUAL", hasTime: false, isOfficeClosed: true
-- Example: Cell shows "JH 08:41 AS" → code: "AS", careWorkerInitials: "JH", time: "08:41", hasTime: true, isOfficeClosed: false
+CARE WORKER INITIALS (IMPORTANT):
+- If no initials are present in the cell, leave careWorkerInitials as an empty string.
+- Do NOT infer office-closed/manual entries unless the document explicitly says so.
+- isOfficeClosed should be false unless explicitly indicated in the document.
 - DO NOT confuse medication codes (AS, AD, P, R, MU, NH, SA, FA, PRN) for care worker initials - MEDICATION CODES ARE NEVER INITIALS!`;
 
           const chunkPromises = legacyTextChunks.map(async (chunkText, chunkIndex) => {
@@ -3950,7 +3970,7 @@ Return JSON with entries ONLY for the medications listed above:
 {
   "entries": [
     {"medicationId": ${batch[0].medicationId}, "date": "Sat, 06 Dec", "timeSlot": "08:00-09:00", "code": "AD", "careWorkerInitials": "RK", "time": "08:30", "hasTime": true, "isOfficeClosed": false},
-    {"medicationId": ${batch[0].medicationId}, "date": "Sun, 07 Dec", "timeSlot": "08:00-09:00", "code": "AS", "careWorkerInitials": "MANUAL", "time": "", "hasTime": false, "isOfficeClosed": true}
+    {"medicationId": ${batch[0].medicationId}, "date": "Sun, 07 Dec", "timeSlot": "08:00-09:00", "code": "AS", "careWorkerInitials": "", "time": "", "hasTime": false, "isOfficeClosed": false}
   ]
 }
 
@@ -3991,13 +4011,10 @@ OTHER CRITICAL RULES:
 4. Skip only truly blank/empty cells - but capture ALL cells with any code or initials
 5. For PRN meds: if PRN has no time recorded, treat it as PRN-R. For non-PRN meds, use R for refusals.
 
-MANUAL CODE ENTRY DETECTION (CRITICAL):
-- If a cell contains ONLY a code (AS, AD, P, R, etc.) with NO time and NO other initials, this is a MANUALLY ENTERED CODE by office staff
-- In this case:
-  1. Set careWorkerInitials to "MANUAL" (not the code itself!)
-  2. Set isOfficeClosed to true
-- Example: Cell shows just "AS" → code: "AS", careWorkerInitials: "MANUAL", hasTime: false, isOfficeClosed: true
-- Example: Cell shows "JH 08:41 AS" → code: "AS", careWorkerInitials: "JH", time: "08:41", hasTime: true, isOfficeClosed: false
+CARE WORKER INITIALS (IMPORTANT):
+- If no initials are present in the cell, leave careWorkerInitials as an empty string.
+- Do NOT infer office-closed/manual entries unless the document explicitly says so.
+- isOfficeClosed should be false unless explicitly indicated in the document.
 - DO NOT confuse medication codes (AS, AD, P, R, MU, NH, SA, FA, PRN) for care worker initials - MEDICATION CODES ARE NEVER INITIALS!`;
           
           try {
@@ -4103,12 +4120,6 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
             isOfficeClosed: false
           };
           entry.hasTime = computeHasTime(entry);
-          const isPrnCode = String(entry.code || "").toUpperCase().startsWith("PRN");
-          const isPrnMed = prnMedicationIds.has(medId);
-          if (!entry.careWorkerInitials && !entry.hasTime && !isPrnCode && !isPrnMed) {
-            entry.careWorkerInitials = "MANUAL";
-            entry.isOfficeClosed = true;
-          }
           entries.push(entry);
         }
         return deduplicateEntries(entries);
@@ -4434,20 +4445,16 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
               isOfficeClosed: false
           };
           entry.hasTime = computeHasTime(entry);
-          const isPrnCode = String(entry.code || "").toUpperCase().startsWith("PRN");
-          const isPrnMed = prnMedicationIds.has(medId);
-          if (!entry.careWorkerInitials && !entry.hasTime && !isPrnCode && !isPrnMed) {
-            entry.careWorkerInitials = "MANUAL";
-            entry.isOfficeClosed = true;
-          }
             entries.push(entry);
           }
           return deduplicateEntries(entries);
         };
 
         const gridNonBlankCount = gridBaseline.cells.reduce((count, cell) => {
-          const code = String(cell.code || "").toUpperCase().trim();
+          const code = normalizeCellCode(cell.code);
           if (code && code !== "BLANK" && code !== "N/A") return count + 1;
+          const contentCode = extractCellCode(cell.content);
+          if (contentCode && contentCode !== "N/A") return count + 1;
           const hasTime = hasExplicitTimeInCell(cell);
           const hasInitials = Boolean(cell.careWorker && cell.careWorker.trim());
           if (hasTime || hasInitials) return count + 1;
@@ -4667,14 +4674,11 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
       // Replace initials with full names where possible, track unknown ones
       // Use medicationId to resolve medication name deterministically
       let allEntries = (extractedData.entries || []).map((entry: any) => {
-        const initials = (entry.careWorkerInitials || "").toUpperCase();
+        const rawInitials = (entry.careWorkerInitials || "").toUpperCase();
+        const initials = rawInitials === "MANUAL" ? "" : rawInitials;
         let careWorkerValue = initials;
         
-        // Handle "MANUAL" entries - these are manually entered codes without a care worker
-        // They should be marked as such, not tracked as unknown initials
-        if (initials === "MANUAL") {
-          careWorkerValue = "Manual Entry";
-        } else if (initials && initials.length > 0) {
+        if (initials && initials.length > 0) {
           const fullName = initialsToName.get(initials);
           if (fullName) {
             careWorkerValue = fullName;
@@ -4699,7 +4703,7 @@ MANUAL CODE ENTRY DETECTION (CRITICAL):
           careWorker: careWorkerValue,
           careWorkerInitials: initials,
           hasTime: typeof entry.hasTime === "boolean" ? entry.hasTime : computeHasTime(entry),
-          isOfficeClosed: Boolean(entry.isOfficeClosed)
+          isOfficeClosed: false
         };
       });
       
@@ -5209,6 +5213,7 @@ If no equivalences found, return: {"equivalences": []}`
 
           // Common variants
           if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
+          if (code === "S/A" || code === "S-A") return "SA";
           if (code === "PRNR" || code === "PRNREFUSED" || code === "PRNREFUS" || code === "PRNREF" || code === "PRNRF") return "PRN-R";
           if (code === "NOTHOME") return "NH";
           if (code === "SELADMIN" || code === "SELFADMIN") return "SA";
@@ -5373,7 +5378,11 @@ If no equivalences found, return: {"equivalences": []}`
         let scannedImportant = 0;
 
         for (const cell of gridBaseline.cells) {
-          const rawCode = normalizeCodeLoose(cell.code || cell.content);
+          const rawCode = (() => {
+            const primary = normalizeCodeLoose(cell.code);
+            if (primary && primary !== "BLANK" && primary !== "N/A") return primary;
+            return normalizeCodeLoose(extractCellCode(cell.content));
+          })();
           const code = rawCode === "PRN" && !hasExplicitTimeInCell(cell) ? "PRN-R" : rawCode;
           if (!code || !IMPORTANT_CODES.has(code)) continue;
           scannedImportant++;
@@ -5471,7 +5480,8 @@ If no equivalences found, return: {"equivalences": []}`
       // CHECK 6: VALIDATE EXTRACTED ENTRIES (for codes like R, MU, NH, SA)
       // =====================================================================
       allEntries.forEach((entry: any) => {
-        const code = (entry.code || "").toUpperCase();
+        const normalizedCode = normalizeEmarCode(entry.code || "");
+        const code = normalizedCode || (entry.code || "").toUpperCase();
         const careWorker = entry.careWorker || "";
         const date = entry.date || "";
         const timeSlot = entry.timeSlot || "";
@@ -6122,6 +6132,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         const input = String(raw || "").toUpperCase().trim();
         if (!input) return "";
         if (input === "F" || input === "F/A") return "FA";
+        if (input === "S/A" || input === "S-A") return "SA";
         if (input === "PRNR") return "PRN-R";
         return input;
       };
@@ -6177,6 +6188,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         const input = String(raw || "").toUpperCase().trim();
         if (!input) return "";
         if (input === "F" || input === "F/A") return "FA";
+        if (input === "S/A" || input === "S-A") return "SA";
         if (input === "PRNR") return "PRN-R";
         return input;
       };

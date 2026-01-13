@@ -60,8 +60,8 @@ const DATE_PATTERNS = [
   /\d{1,2}-\d{1,2}-\d{2,4}/g,
 ];
 const TIME_SLOT_PATTERN = /\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}/g;
-const CODE_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/gi;
-const CODE_PATTERN_SINGLE = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/i;
+const CODE_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–]\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/gi;
+const CODE_PATTERN_SINGLE = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–]\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/i;
 const TIME_PATTERN = /\d{1,2}:\d{2}/g;
 const INITIALS_PATTERN = /\b[A-Z]{2,3}\b/g;
 const CODE_INITIALS = new Set(["AD", "AS", "MU", "NH", "SA", "FA", "PRN", "NA"]);
@@ -84,6 +84,7 @@ const normalizeGridCode = (raw: string): string => {
 
   if (normalized === "N/A" || normalized === "NA") return "N/A";
   if (normalized === "F/A" || normalized === "FA") return "FA";
+  if (normalized === "S/A" || normalized === "S-A") return "SA";
   if (normalized === "PRNR" || normalized === "PRN-R") return "PRN-R";
   if (normalized === "PRNAD" || normalized === "PRN-AD") return "PRN-AD";
   if (normalized === "PRNAS" || normalized === "PRN-AS") return "PRN-AS";
@@ -394,7 +395,9 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   const medicationPattern = /\d+\s*(mg|mcg|ml|%|g|units?|iu)/i;
 
   // Some EMARs include medicines without strength units on the same line as forms/instructions.
-  const medicationPatternLoose = /\b(\d+\s*(mg|mcg|ml|%|g|units?|iu)|tablets?|capsules?|gel|patch|spray|drops?|cream|ointment|lotion|powder)\b/i;
+  const medicationPatternLoose = /\b(\d+\s*(mg|mcg|ml|%|g|units?|iu)|tablets?|capsules?|gel|patch|spray|drops?|cream|ointment|lotion|powder|inhaler)\b/i;
+
+  const blockedMedCandidatePattern = /\b(case id|case-|printed|date of birth|mar chart|service user|resident|patient|title|allerg(?:y|ies)|key)\b/i;
 
   interface SlotColumn {
     slot: string;
@@ -699,11 +702,16 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       }
 
       const segments = splitRowIntoSegments(row, 45);
+      const rowHasRouteLabel = segments.some((segment) => {
+        const segmentText = segment.items.map(i => i.str).join(" ").replace(/\s+/g, " ").trim();
+        return /\broute\b/i.test(segmentText);
+      });
       for (const segment of segments) {
         // Focus on the left content region for medication labels.
         if (segment.xMin > 520) continue;
         const text = segment.items.map(i => i.str).join(" ").replace(/\s+/g, " ").trim();
         if (!text) continue;
+        if (/^\s*route\s*$/i.test(text)) continue;
         if (isLikelyDateLabel(text)) continue;
         const slotHeaderRegex = new RegExp(TIME_SLOT_PATTERN.source, "i");
         if (slotHeaderRegex.test(text)) continue;
@@ -725,9 +733,23 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
           }
         }
 
+        const trimmedCandidate = candidateName.trim();
+        const isInstructionOnly = /^\d/.test(trimmedCandidate) && /\btake\b/i.test(trimmedCandidate);
+        const isBlocked = blockedMedCandidatePattern.test(trimmedCandidate);
+        const upperCandidate = trimmedCandidate.toUpperCase();
+        if (isInstructionOnly || isBlocked) continue;
+        if (upperCandidate === "KEY" || upperCandidate === "ROUTE") continue;
+
+        const routeDerived =
+          rowHasRouteLabel &&
+          /[a-zA-Z]/.test(trimmedCandidate) &&
+          trimmedCandidate.length >= 3 &&
+          !isBlocked;
+
         const validCandidate =
           matchesMed ||
-          (candidateName !== cleaned && /[a-zA-Z]/.test(candidateName) && candidateName.length >= 3);
+          routeDerived ||
+          (candidateName !== cleaned && /[a-zA-Z]/.test(trimmedCandidate) && trimmedCandidate.length >= 3);
         if (!validCandidate) continue;
 
         const xCenter = (segment.xMin + segment.xMax) / 2;
@@ -1285,7 +1307,7 @@ function groupByY(items: TextItem[], tolerance: number): TextItem[][] {
 }
 
 export function extractCodesFromCell(content: string): { code: string; careWorker: string; time: string } {
-  const codes = ["AD", "AS", "P", "R", "MU", "NH", "SA", "FA", "PRN", "PRN-R", "PRN-AD", "PRN-AS", "MISSED", "N/A"];
+  const codes = ["AD", "AS", "P", "R", "MU", "NH", "SA", "S/A", "S-A", "FA", "PRN", "PRN-R", "PRN-AD", "PRN-AS", "MISSED", "N/A"];
   let foundCode = "BLANK";
   let careWorker = "";
   let time = "";
