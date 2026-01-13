@@ -6014,7 +6014,7 @@ Return JSON with indices that are VALID (keep these). Include ALL indices unless
 
         let pass2Success = false;
         try {
-          // Use GPT-4o-mini for validation passes - 33x cheaper than GPT-5.1
+          // Use GPT-4o-mini for validation passes - cheaper than GPT-4.1-mini
           const pass2Response = await createChatCompletionWithLogging({
             model: emarValidationModel,
             messages: [
@@ -6087,7 +6087,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
 {"confirmedIndices": [1, 2, 3], "evidence": {"1": "Code 'R' visible in image", "2": "Detection appears valid"}}`;
 
           try {
-            // Use GPT-4o-mini for validation passes - 33x cheaper than GPT-5.1
+            // Use GPT-4o-mini for validation passes - cheaper than GPT-4.1-mini
             const pass3Response = await createChatCompletionWithLogging({
               model: emarValidationModel,
               messages: [
@@ -6458,12 +6458,576 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
     }
   });
 
+  const VISIT_MAX_TOKENS = 90000;
+  const VISIT_CHARS_PER_TOKEN = 2;
+
+  const estimateTokens = (text: string) => Math.ceil(text.length / VISIT_CHARS_PER_TOKEN);
+
+  const normalizeHeaderKey = (value: unknown) =>
+    String(value ?? "")
+      .toLowerCase()
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const VISIT_SERVICE_USER_KEYS = [
+    "service user",
+    "service user name",
+    "customer name",
+    "client name",
+    "service location name",
+    "service location",
+    "resident",
+    "patient",
+  ];
+  const VISIT_PLANNED_START_KEYS = [
+    "planned start date and time",
+    "planned start time",
+    "planned start",
+  ];
+  const VISIT_PLANNED_DURATION_KEYS = [
+    "planned duration",
+    "scheduled duration",
+    "planned time",
+  ];
+  const VISIT_ACTUAL_START_KEYS = [
+    "actual start date and time",
+    "actual start time",
+    "actual start",
+  ];
+  const VISIT_ACTUAL_DURATION_KEYS = [
+    "actual duration",
+    "delivered duration",
+    "actual time",
+  ];
+  const VISIT_SERVICE_REQ_START_KEYS = [
+    "service requirement start date and time",
+    "service requirement start time",
+    "service requirement time",
+  ];
+  const VISIT_SERVICE_REQ_DURATION_KEYS = [
+    "service requirement duration",
+  ];
+  const VISIT_ACTUAL_WORKER_KEYS = [
+    "actual employee name",
+    "actual employee",
+    "actual worker",
+    "actual carer",
+    "delivered worker",
+  ];
+  const VISIT_LOCATION_KEYS = [
+    "actual location analysis",
+    "planned location analysis",
+    "service requirement location analysis",
+    "location analysis",
+  ];
+  const VISIT_NOTES_KEYS = [
+    "notes",
+    "timesheet notes",
+    "service duty notes",
+    "service duty timesheet notes",
+    "actual booked on notes",
+    "actual booked off notes",
+  ];
+
+  const findColumnIndex = (headers: string[], keywords: string[]) => {
+    if (!headers.length || !keywords.length) return -1;
+    for (let i = 0; i < headers.length; i++) {
+      const header = headers[i];
+      if (!header) continue;
+      if (keywords.some((keyword) => header.includes(keyword))) return i;
+    }
+    return -1;
+  };
+
+  const sanitizeCellValue = (value: unknown) => {
+    if (value === null || value === undefined) return "";
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      const day = String(value.getDate()).padStart(2, "0");
+      const month = String(value.getMonth() + 1).padStart(2, "0");
+      const hours = String(value.getHours()).padStart(2, "0");
+      const minutes = String(value.getMinutes()).padStart(2, "0");
+      return `${day}/${month}@${hours}:${minutes}`.trim();
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const parsed = (XLSX as any).SSF?.parse_date_code?.(value);
+      if (parsed) {
+        const day = String(parsed.d ?? parsed.D ?? "").padStart(2, "0");
+        const month = String(parsed.m ?? parsed.M ?? "").padStart(2, "0");
+        const hours = String(parsed.H ?? parsed.h ?? 0).padStart(2, "0");
+        const minutes = String(parsed.M ?? parsed.m ?? 0).padStart(2, "0");
+        if (day && month) return `${day}/${month}@${hours}:${minutes}`.trim();
+      }
+      return String(value);
+    }
+    const text = String(value).replace(/\s+/g, " ").trim();
+    if (!text) return "";
+    const lower = text.toLowerCase();
+    if (lower === "true" || lower === "yes") return "Y";
+    if (lower === "false" || lower === "no") return "N";
+    const dateTimeMatch = text.match(/(\d{1,2})[\\/\\-](\d{1,2})[\\/\\-](\d{2,4}).*?(\\d{1,2}:\\d{2})/);
+    if (dateTimeMatch) {
+      const day = dateTimeMatch[1].padStart(2, "0");
+      const month = dateTimeMatch[2].padStart(2, "0");
+      return `${day}/${month}@${dateTimeMatch[4]}`;
+    }
+    const dateMatch = text.match(/(\d{1,2})[\\/\\-](\d{1,2})[\\/\\-](\d{2,4})/);
+    if (dateMatch) {
+      const day = dateMatch[1].padStart(2, "0");
+      const month = dateMatch[2].padStart(2, "0");
+      return `${day}/${month}`;
+    }
+    const timeMatch = text.match(/\b\d{1,2}:\d{2}\b/);
+    if (timeMatch) return timeMatch[0];
+    return text;
+  };
+
+  const toInitials = (value: unknown) => {
+    const text = sanitizeCellValue(value).replace(/[^A-Za-z\\s,'-]/g, " ").trim();
+    if (!text) return "";
+    const parts = text.includes(",")
+      ? text.split(",").map((part) => part.trim()).filter(Boolean)
+      : text.split(/\s+/).filter(Boolean);
+    const ordered = parts.length >= 2 && text.includes(",") ? [parts[1], parts[0]] : parts;
+    const initials = ordered.map((part) => part[0]?.toUpperCase()).filter(Boolean).join(".");
+    return initials ? `${initials}.` : "";
+  };
+
+  const toInitialLast = (value: unknown) => {
+    const text = sanitizeCellValue(value).replace(/[^A-Za-z\\s,'-]/g, " ").trim();
+    if (!text) return "";
+    if (text.includes(",")) {
+      const [last, first] = text.split(",").map((part) => part.trim());
+      if (first && last) return `${first[0].toUpperCase()}.${last}`;
+    }
+    const parts = text.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      const first = parts[0];
+      const last = parts[parts.length - 1];
+      return `${first[0].toUpperCase()}.${last}`;
+    }
+    return text;
+  };
+
+  const compactVisitDocument = (documentContent: string) => {
+    const raw = String(documentContent || "").trim();
+    if (!raw) return { text: "", method: "empty", truncated: false };
+    const tokenEstimate = estimateTokens(raw);
+    if (tokenEstimate <= VISIT_MAX_TOKENS) {
+      return { text: raw, method: "raw", truncated: false };
+    }
+    console.log(`[Visit Audit] Raw input ${raw.length} chars (~${tokenEstimate} tokens). Compacting...`);
+
+    let workbook;
+    try {
+      workbook = XLSX.read(raw, { type: "string", cellDates: true });
+    } catch {
+      const truncated = raw.slice(0, VISIT_MAX_TOKENS * VISIT_CHARS_PER_TOKEN);
+      return { text: truncated, method: "raw-truncate", truncated: true };
+    }
+
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
+
+    if (!data.length) {
+      const truncated = raw.slice(0, VISIT_MAX_TOKENS * VISIT_CHARS_PER_TOKEN);
+      return { text: truncated, method: "empty-sheet", truncated: true };
+    }
+
+    const headers = data[0].map((cell) => normalizeHeaderKey(cell));
+    const columns = {
+      serviceUser: findColumnIndex(headers, VISIT_SERVICE_USER_KEYS),
+      plannedStart: findColumnIndex(headers, VISIT_PLANNED_START_KEYS),
+      plannedDuration: findColumnIndex(headers, VISIT_PLANNED_DURATION_KEYS),
+      actualStart: findColumnIndex(headers, VISIT_ACTUAL_START_KEYS),
+      actualDuration: findColumnIndex(headers, VISIT_ACTUAL_DURATION_KEYS),
+      serviceReqStart: findColumnIndex(headers, VISIT_SERVICE_REQ_START_KEYS),
+      serviceReqDuration: findColumnIndex(headers, VISIT_SERVICE_REQ_DURATION_KEYS),
+      actualWorker: findColumnIndex(headers, VISIT_ACTUAL_WORKER_KEYS),
+      location: findColumnIndex(headers, VISIT_LOCATION_KEYS),
+      notes: findColumnIndex(headers, VISIT_NOTES_KEYS),
+    };
+
+    const buildLines = (includeNotes: boolean) => {
+      const baseColumns: Array<{ label: string; value: (row: any[]) => string }> = [];
+
+      if (columns.serviceUser >= 0) {
+        baseColumns.push({ label: "SU", value: (row) => toInitials(row[columns.serviceUser]) });
+      }
+      if (columns.actualWorker >= 0) {
+        baseColumns.push({ label: "CWa", value: (row) => toInitialLast(row[columns.actualWorker]) });
+      }
+      baseColumns.push({
+        label: "Date",
+        value: (row) => {
+          const candidates = [
+            columns.actualStart,
+            columns.serviceReqStart,
+            columns.plannedStart,
+          ].filter((index) => index >= 0);
+          for (const index of candidates) {
+            const value = sanitizeCellValue(row[index]);
+            if (value) return value.split("@")[0];
+          }
+          return "";
+        },
+      });
+      if (columns.serviceReqDuration >= 0 || columns.plannedDuration >= 0) {
+        baseColumns.push({
+          label: "ExpDur",
+          value: (row) => {
+            const primary = columns.serviceReqDuration >= 0 ? sanitizeCellValue(row[columns.serviceReqDuration]) : "";
+            if (primary) return primary;
+            return columns.plannedDuration >= 0 ? sanitizeCellValue(row[columns.plannedDuration]) : "";
+          },
+        });
+      }
+      if (columns.actualDuration >= 0) {
+        baseColumns.push({ label: "ActDur", value: (row) => sanitizeCellValue(row[columns.actualDuration]) });
+      }
+      if (columns.location >= 0) {
+        baseColumns.push({ label: "Loc", value: (row) => sanitizeCellValue(row[columns.location]) });
+      }
+
+      const columnDefs = includeNotes && columns.notes >= 0
+        ? [
+            ...baseColumns,
+            {
+              label: "Notes",
+              value: (row: any[]) => {
+                let value = sanitizeCellValue(row[columns.notes]);
+                if (value.length > 80) value = `${value.slice(0, 77)}...`;
+                return value;
+              },
+            },
+          ]
+        : baseColumns;
+
+      const lines: string[] = [];
+      lines.push(`Columns:${columnDefs.map((col) => col.label).join("|")}`);
+
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i] || [];
+        const values = columnDefs.map((col) => col.value(row));
+        const hasContent = values.some((value) => value && String(value).trim().length > 0);
+        if (!hasContent) continue;
+        lines.push(values.map((value) => value || "").join("|"));
+      }
+      return lines;
+    };
+
+    let compactLines = buildLines(true);
+    let method = "compact-with-notes";
+    let compact = compactLines.join("\n");
+
+    if (estimateTokens(compact) > VISIT_MAX_TOKENS) {
+      compactLines = buildLines(false);
+      method = "compact-no-notes";
+      compact = compactLines.join("\n");
+    }
+
+    const needsChunking = estimateTokens(compact) > VISIT_MAX_TOKENS;
+    return { text: compact, method, truncated: false, needsChunking, lines: compactLines };
+  };
+
+  const splitVisitContent = (lines: string[], maxTokens: number) => {
+    if (lines.length <= 1) return [lines.join("\n")];
+    const header = lines[0];
+    const chunks: string[] = [];
+    let current: string[] = [header];
+    let currentTokens = estimateTokens(header);
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      const lineTokens = estimateTokens(line) + 1;
+      if (currentTokens + lineTokens > maxTokens && current.length > 1) {
+        chunks.push(current.join("\n"));
+        current = [header, line];
+        currentTokens = estimateTokens(header) + lineTokens;
+      } else {
+        current.push(line);
+        currentTokens += lineTokens;
+      }
+    }
+
+    if (current.length > 1) chunks.push(current.join("\n"));
+    return chunks.length ? chunks : [lines.join("\n")];
+  };
+
+  const parseVisitAuditResult = (content: string) => {
+    const extractJsonObject = (text: string) => {
+      const start = text.indexOf("{");
+      if (start === -1) return null;
+      let depth = 0;
+      let inString = false;
+      let escape = false;
+      for (let i = start; i < text.length; i++) {
+        const char = text[i];
+        if (escape) {
+          escape = false;
+          continue;
+        }
+        if (char === "\\" && inString) {
+          escape = true;
+          continue;
+        }
+        if (char === "\"") {
+          inString = !inString;
+          continue;
+        }
+        if (!inString) {
+          if (char === "{") depth += 1;
+          if (char === "}") {
+            depth -= 1;
+            if (depth === 0) return text.slice(start, i + 1);
+          }
+        }
+      }
+      return null;
+    };
+
+    const jsonText = extractJsonObject(content);
+    if (!jsonText) return null;
+    let parsed: any;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      const cleaned = jsonText.replace(/,\s*([}\]])/g, "$1");
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch {
+        return null;
+      }
+    }
+    if (parsed.discrepancies && Array.isArray(parsed.discrepancies)) {
+      parsed.discrepancies = parsed.discrepancies.filter((d: any) => {
+        const name = d.careWorkerName?.toLowerCase?.() || '';
+        return name && name !== 'n/a' && name !== 'unknown' && name !== 'not applicable' && name.trim() !== '';
+      });
+    }
+    return parsed;
+  };
+
+  const parseAuditDate = (value: string) => {
+    if (!value) return null;
+    const match = value.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+    if (!match) return null;
+    const day = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const year = match[3] ? Number(match[3]) : new Date().getFullYear();
+    const date = new Date(year, month, day);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const formatAuditDate = (date: Date) => {
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    return `${day}/${month}/${date.getFullYear()}`;
+  };
+
+  const mergeVisitAuditResults = (results: any[]) => {
+    const combined: any = {
+      serviceUserName: "",
+      auditPeriodStart: "",
+      auditPeriodEnd: "",
+      hasDiscrepancies: false,
+      careCalls: [],
+      discrepancies: [],
+      themesAndTrends: "",
+      gapsInKnowledge: "",
+    };
+    const serviceUsers = new Set<string>();
+    const themes = new Set<string>();
+    const gaps = new Set<string>();
+    let startDate: Date | null = null;
+    let endDate: Date | null = null;
+
+    for (const result of results) {
+      if (result?.serviceUserName) serviceUsers.add(String(result.serviceUserName).trim());
+      if (Array.isArray(result?.careCalls)) combined.careCalls.push(...result.careCalls);
+      if (Array.isArray(result?.discrepancies)) combined.discrepancies.push(...result.discrepancies);
+      if (result?.hasDiscrepancies) combined.hasDiscrepancies = true;
+      if (result?.themesAndTrends) themes.add(String(result.themesAndTrends).trim());
+      if (result?.gapsInKnowledge) gaps.add(String(result.gapsInKnowledge).trim());
+
+      const start = parseAuditDate(result?.auditPeriodStart || "");
+      const end = parseAuditDate(result?.auditPeriodEnd || "");
+      if (start && (!startDate || start < startDate)) startDate = start;
+      if (end && (!endDate || end > endDate)) endDate = end;
+    }
+
+    combined.hasDiscrepancies = combined.hasDiscrepancies || combined.discrepancies.length > 0;
+    combined.serviceUserName = serviceUsers.size === 1 ? Array.from(serviceUsers)[0] : "Multiple";
+    if (startDate) combined.auditPeriodStart = formatAuditDate(startDate);
+    if (endDate) combined.auditPeriodEnd = formatAuditDate(endDate);
+    if (!combined.auditPeriodStart) combined.auditPeriodStart = results[0]?.auditPeriodStart || "";
+    if (!combined.auditPeriodEnd) combined.auditPeriodEnd = results[0]?.auditPeriodEnd || "";
+    combined.themesAndTrends = Array.from(themes).filter(Boolean).join(" | ") || "No significant themes identified.";
+    combined.gapsInKnowledge = Array.from(gaps).filter(Boolean).join(" | ") || "No significant gaps identified.";
+    return combined;
+  };
+
+  const parseDurationMinutes = (value: string) => {
+    if (!value) return null;
+    const numeric = Number(value);
+    if (!Number.isNaN(numeric)) {
+      if (numeric <= 24) return Math.round(numeric * 60);
+      if (numeric <= 24 * 60) return Math.round(numeric);
+      return Math.round(numeric);
+    }
+    const timeMatch = value.match(/(\d{1,2}):(\d{2})/);
+    if (timeMatch) {
+      return Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
+    }
+    return null;
+  };
+
+  const parseCompactVisitRows = (lines: string[]) => {
+    if (!lines.length) return [];
+    const headerLine = lines[0];
+    if (!headerLine.startsWith("Columns:")) return [];
+    const headers = headerLine.replace("Columns:", "").split("|").map((h) => h.trim());
+    const rows: Array<Record<string, string>> = [];
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split("|");
+      const row: Record<string, string> = {};
+      headers.forEach((key, index) => {
+        row[key] = values[index] || "";
+      });
+      rows.push(row);
+    }
+    return rows;
+  };
+
+  const buildDeterministicVisitAudit = (lines: string[]) => {
+    const rows = parseCompactVisitRows(lines);
+    const careCalls: any[] = [];
+    const discrepancies: any[] = [];
+    const serviceUsers = new Set<string>();
+    const dateValues: Date[] = [];
+    let locationIssues = 0;
+    let durationIssues = 0;
+
+    const justificationKeywords = [
+      "hospital",
+      "family",
+      "refused",
+      "declined",
+      "requested",
+      "no access",
+      "emergency",
+      "not home",
+      "cancelled",
+      "canceled",
+      "service user",
+      "client",
+    ];
+
+    for (const row of rows) {
+      const serviceUser = row.SU || "Unknown";
+      const careWorker = row.CWa || "Unknown";
+      const date = row.Date || "NA";
+      const expectedMinutes = parseDurationMinutes(row.ExpDur || "");
+      const actualMinutes = parseDurationMinutes(row.ActDur || "");
+      const locationValue = (row.Loc || "").toLowerCase();
+      const notes = row.Notes || "";
+
+      serviceUsers.add(serviceUser);
+
+      const locationOK = locationValue
+        ? ["y", "yes", "within", "compliant", "ok", "true"].some((token) => locationValue.includes(token))
+        : true;
+
+      const hasJustification = notes
+        ? justificationKeywords.some((keyword) => notes.toLowerCase().includes(keyword))
+        : false;
+
+      const percentageStayed = expectedMinutes && actualMinutes
+        ? Math.round((actualMinutes / expectedMinutes) * 100)
+        : 100;
+      const durationOK = expectedMinutes ? percentageStayed >= 70 : true;
+      const compliant = locationOK && (durationOK || hasJustification);
+
+      if (date && date.includes("/")) {
+        const dateMatch = date.match(/(\d{1,2})\/(\d{1,2})/);
+        if (dateMatch) {
+          const day = Number(dateMatch[1]);
+          const month = Number(dateMatch[2]) - 1;
+          const dateObj = new Date(new Date().getFullYear(), month, day);
+          if (!Number.isNaN(dateObj.getTime())) dateValues.push(dateObj);
+        }
+      }
+
+      careCalls.push({
+        careWorkerName: careWorker,
+        date,
+        locationOK,
+        expectedTime: expectedMinutes ? `${expectedMinutes}m` : "NA",
+        actualTime: actualMinutes ? `${actualMinutes}m` : "NA",
+        percentageStayed,
+        compliant,
+        justification: hasJustification ? "Justified - see notes" : "NA",
+        comment: compliant ? "NA" : "Performance discrepancy",
+      });
+
+      if (!locationOK && !hasJustification) {
+        locationIssues += 1;
+        discrepancies.push({
+          careWorkerName: careWorker,
+          date,
+          issue: "Location non-compliant (outside 200m)",
+          actions: { performanceNote: true, meeting: "phone", referToManager: false },
+        });
+      }
+
+      if (!durationOK && !hasJustification) {
+        durationIssues += 1;
+        discrepancies.push({
+          careWorkerName: careWorker,
+          date,
+          issue: "Stayed less than 70% of expected time",
+          actions: { performanceNote: true, meeting: "phone", referToManager: false },
+        });
+      }
+    }
+
+    const auditPeriodStart = dateValues.length
+      ? formatAuditDate(new Date(Math.min(...dateValues.map((d) => d.getTime()))))
+      : "";
+    const auditPeriodEnd = dateValues.length
+      ? formatAuditDate(new Date(Math.max(...dateValues.map((d) => d.getTime()))))
+      : "";
+
+    const themes: string[] = [];
+    if (locationIssues > 0) themes.push(`Location compliance issues: ${locationIssues}`);
+    if (durationIssues > 0) themes.push(`Short visits (<70%): ${durationIssues}`);
+
+    const gaps: string[] = [];
+    if (durationIssues > 0) gaps.push("Meeting expected visit durations");
+    if (locationIssues > 0) gaps.push("Location check compliance");
+
+    return {
+      serviceUserName: serviceUsers.size === 1 ? Array.from(serviceUsers)[0] : "Multiple",
+      auditPeriodStart,
+      auditPeriodEnd,
+      hasDiscrepancies: discrepancies.length > 0,
+      careCalls,
+      discrepancies,
+      themesAndTrends: themes.length ? themes.join("; ") : "No significant patterns found.",
+      gapsInKnowledge: gaps.length ? gaps.join("; ") : "No significant gaps identified.",
+    };
+  };
+
   // Analyze Visit Notes with SSE streaming progress
   app.post("/api/ai/analyze-visit", requireAuth, async (req, res) => {
     const { documentContent } = req.body;
     
     if (!documentContent) {
       return res.status(400).json({ message: "Document content required" });
+    }
+    if (typeof documentContent === "string") {
+      console.log(`[Visit Audit] Incoming content length=${documentContent.length}`);
     }
 
     // Set up SSE streaming response headers
@@ -6513,8 +7077,29 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       const visitAuditModel = process.env.VISIT_AUDIT_MODEL || "gpt-4o-mini";
       const visitAuditValidationModel = process.env.VISIT_AUDIT_VALIDATION_MODEL || visitAuditModel;
       
-      sendProgress(5, "Loading policies...", "init");
-      
+      sendProgress(5, "Preparing visit logs...", "init");
+
+      const preprocessing = compactVisitDocument(documentContent);
+      const analysisContent = preprocessing.text;
+      if (!analysisContent) {
+        sendEvent('error', { message: "Visit log content could not be processed." });
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+      console.log(`[Visit Audit] Prepared content length=${analysisContent.length} (~${estimateTokens(analysisContent)} tokens), method=${preprocessing.method}, chunking=${preprocessing.needsChunking}`);
+      if (preprocessing.method !== "raw") {
+        console.log(`[Visit Audit] Input optimized via ${preprocessing.method} (chunking=${preprocessing.needsChunking})`);
+        sendProgress(8, "Optimizing visit log size...", "preprocess");
+      }
+      if (preprocessing.needsChunking && Array.isArray(preprocessing.lines)) {
+        sendProgress(20, "Large dataset detected. Running optimized audit locally...", "local_audit");
+        const localResult = buildDeterministicVisitAudit(preprocessing.lines);
+        sendProgress(100, "Analysis complete!", "complete");
+        sendEvent('result', localResult);
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+
       // Fetch ALL relevant policy documents for visit audits
       const visitPolicies = await storage.getPolicyDocumentsByCategory("visit_audit");
       const scopeOfPracticePolicies = await storage.getPolicyDocumentsByCategory("scope_of_practice");
@@ -6607,35 +7192,51 @@ Respond ONLY with valid JSON in this exact format:
       // Fixed seed ensures deterministic output - running same input gives same results
       const DETERMINISTIC_SEED = 42;
       
-      sendProgress(30, "Running AI analysis...", "ai_analysis");
-      
-      const response = await createChatCompletionWithLogging({
-        model: visitAuditModel,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Analyze these visit logs:\n\n${documentContent}` }
-        ],
-        max_completion_tokens: 4000,
-        temperature: 0,
-        seed: DETERMINISTIC_SEED,
-      }, "visit_audit", aiUserContext);
+      const chunkTokenLimit = Math.min(VISIT_MAX_TOKENS, 90000);
+      const chunks = preprocessing.needsChunking && Array.isArray(preprocessing.lines)
+        ? splitVisitContent(preprocessing.lines, chunkTokenLimit)
+        : [analysisContent];
+
+      if (chunks.length > 1) {
+        sendProgress(20, `Large document detected. Processing ${chunks.length} batches...`, "chunking");
+      }
+
+      const chunkResults: any[] = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const label = chunks.length > 1 ? ` (${i + 1}/${chunks.length})` : "";
+        sendProgress(30, `Running AI analysis${label}...`, "ai_analysis");
+
+        const response = await createChatCompletionWithLogging({
+          model: visitAuditModel,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Analyze these visit logs:\n\n${chunks[i]}` }
+          ],
+          max_completion_tokens: 4000,
+          temperature: 0,
+          seed: DETERMINISTIC_SEED,
+          response_format: { type: "json_object" },
+        }, "visit_audit", aiUserContext);
+
+        const content = response.choices[0]?.message?.content || "";
+        const parsed = parseVisitAuditResult(content);
+        if (parsed) {
+          chunkResults.push(parsed);
+        } else {
+          const hasBrace = content.includes("{");
+          console.warn(`[Visit Audit] Chunk ${i + 1} returned unparsable JSON output (length=${content.length}, hasBrace=${hasBrace}).`);
+        }
+      }
+
+      if (chunkResults.length === 0) {
+        throw new Error("No result received from analysis");
+      }
+
+      const result = chunkResults.length === 1
+        ? chunkResults[0]
+        : mergeVisitAuditResults(chunkResults);
 
       sendProgress(50, "Processing initial results...", "parsing_results");
-
-      const content = response.choices[0]?.message?.content || "";
-      
-      // Try to parse JSON from response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const result = JSON.parse(jsonMatch[0]);
-        
-        // Filter out any discrepancies with invalid care worker names
-        if (result.discrepancies && Array.isArray(result.discrepancies)) {
-          result.discrepancies = result.discrepancies.filter((d: any) => {
-            const name = d.careWorkerName?.toLowerCase?.() || '';
-            return name && name !== 'n/a' && name !== 'unknown' && name !== 'not applicable' && name.trim() !== '';
-          });
-        }
         
         // =====================================================================
         // TRIPLE-CHECK VALIDATION FOR VISIT AUDIT
@@ -6651,7 +7252,7 @@ Respond ONLY with valid JSON in this exact format:
           console.log(`DEBUG Visit Audit: Starting triple-check on ${validatedDiscrepancies.length} discrepancies`);
           
           // Use more document context
-          const docContext = documentContent.substring(0, 30000);
+          const docContext = analysisContent.substring(0, 30000);
           
           // PASS 2: Review for false positives - BE CONSERVATIVE
           const pass2Prompt = `You are a quality assurance reviewer for care visit audits. Review these detected discrepancies and filter out ONLY OBVIOUS FALSE POSITIVES.
@@ -6686,6 +7287,7 @@ Return JSON with indices that are VALID. Include ALL unless you're CERTAIN one i
               max_completion_tokens: 2000,
               temperature: 0,
               seed: DETERMINISTIC_SEED,
+              response_format: { type: "json_object" },
             }, "visit_audit_validation_pass2", aiUserContext);
             
             const pass2Content = pass2Response.choices[0]?.message?.content || "";
@@ -6738,6 +7340,7 @@ Return JSON - include ALL by default:
                 max_completion_tokens: 2000,
                 temperature: 0,
                 seed: DETERMINISTIC_SEED,
+                response_format: { type: "json_object" },
               }, "visit_audit_validation_pass3", aiUserContext);
               
               const pass3Content = pass3Response.choices[0]?.message?.content || "";
@@ -6783,11 +7386,6 @@ Return JSON - include ALL by default:
         sendEvent('result', result);
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
-      } else {
-        sendEvent('error', { message: "Failed to parse AI response" });
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        return res.end();
-      }
     } catch (error: any) {
       console.error("Visit AI Error:", error);
       sendEvent('error', { message: error.message || "AI analysis failed" });
@@ -8383,7 +8981,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   });
 
   // NOTE: AI model selection removed - now uses tiered approach automatically:
-  // - GPT-5.1 for core EMAR extraction (accuracy critical)
+  // - GPT-4.1-mini for core EMAR extraction (accuracy critical)
   // - GPT-4o-mini for auxiliary tasks (count validation, equivalence, drug interactions, validation passes)
 
   // Get AI usage logs and stats (admin-only)

@@ -610,7 +610,7 @@ function AIProviderSection() {
             <div className="font-medium text-foreground mb-2">Optimized Tiered Approach</div>
             <div className="text-xs text-muted-foreground space-y-2">
               <div className="flex items-start gap-2">
-                <Badge variant="secondary" className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 shrink-0">GPT-5.1</Badge>
+                <Badge variant="secondary" className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 shrink-0">GPT-4.1-mini</Badge>
                 <span>Core EMAR extraction (accuracy critical)</span>
               </div>
               <div className="flex items-start gap-2">

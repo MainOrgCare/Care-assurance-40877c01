@@ -14,8 +14,8 @@ export type AiProvider = "openai";
 // Admin-configurable preferred AI provider (OpenAI only).
 let preferredProvider: AiProvider = "openai";
 
-// Admin-configurable preferred AI model (defaults to gpt-5.1)
-let preferredModel: AvailableModel = "gpt-5.1";
+// Admin-configurable preferred AI model (defaults to gpt-4.1-mini)
+let preferredModel: AvailableModel = "gpt-4.1-mini";
 
 export function getPreferredProvider(): AiProvider {
   return preferredProvider;

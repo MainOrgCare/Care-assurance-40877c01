@@ -6,12 +6,6 @@ export const AI_PRICING: Record<string, { input: number; output: number }> = {
   // GPT-5.2 - $1.75/1M input, $14.00/1M output (coding/agentic)
   "gpt-5.2": { input: 1750, output: 14000 },
   
-  // GPT-5.1 - $1.25/1M input, $10.00/1M output (flagship model)
-  "gpt-5.1": { input: 1250, output: 10000 },
-  "gpt-5.1-chat-latest": { input: 1250, output: 10000 },
-  "gpt-5.1-codex": { input: 1250, output: 10000 },
-  "gpt-5.1-codex-max": { input: 1250, output: 10000 },
-  
   // GPT-5 - $1.25/1M input, $10.00/1M output
   "gpt-5": { input: 1250, output: 10000 },
   "gpt-5-chat-latest": { input: 1250, output: 10000 },
@@ -19,7 +13,6 @@ export const AI_PRICING: Record<string, { input: number; output: number }> = {
   
   // GPT-5-mini - $0.25/1M input, $2.00/1M output (cost-efficient)
   "gpt-5-mini": { input: 250, output: 2000 },
-  "gpt-5.1-codex-mini": { input: 250, output: 2000 },
   
   // GPT-5-nano - $0.05/1M input, $0.40/1M output (ultra-efficient)
   "gpt-5-nano": { input: 50, output: 400 },
@@ -70,7 +63,6 @@ export const AI_PRICING: Record<string, { input: number; output: number }> = {
 // Reasoning models like o1/o3/o4-series are excluded as they don't support temperature
 export const AVAILABLE_MODELS = [
   { id: "gpt-5.2", name: "GPT-5.2", description: "Coding/agentic - most capable", inputCost: "$1.75/1M", outputCost: "$14.00/1M" },
-  { id: "gpt-5.1", name: "GPT-5.1", description: "Flagship model - best quality", inputCost: "$1.25/1M", outputCost: "$10.00/1M" },
   { id: "gpt-5", name: "GPT-5", description: "High quality", inputCost: "$1.25/1M", outputCost: "$10.00/1M" },
   { id: "gpt-4.1", name: "GPT-4.1", description: "Balanced performance", inputCost: "$2.00/1M", outputCost: "$8.00/1M" },
   { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", description: "Cost-efficient", inputCost: "$0.40/1M", outputCost: "$1.60/1M" },

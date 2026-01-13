@@ -60,7 +60,7 @@ function buildCoreXml(nowIso) {
   xmlns:dcmitype="http://purl.org/dc/dcmitype/"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 >
-  <dc:title>Microsoft Copilot vs GPT-5.1</dc:title>
+  <dc:title>Microsoft Copilot vs GPT-4.1-mini</dc:title>
   <dc:creator>CareAssurance</dc:creator>
   <cp:lastModifiedBy>CareAssurance</cp:lastModifiedBy>
   <dcterms:created xsi:type="dcterms:W3CDTF">${nowIso}</dcterms:created>
@@ -812,4 +812,3 @@ const slides = [
 const out = resolve(process.cwd(), process.argv[2] ?? "COPILOT_VS_GPT51_PRESENTATION.pptx");
 await generatePptx(slides, out);
 console.log(`Generated ${out}`);
-

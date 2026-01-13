@@ -33,7 +33,7 @@ CareAssurance is an AI-powered healthcare compliance management application desi
 ### Key Principles
 
 1. **Privacy First**: Only service user initials stored, PII scrubbing on all text, no full names or DOBs
-2. **Cost Optimization**: Tiered AI model approach - GPT-5.1 for accuracy-critical tasks, GPT-4.1-mini for auxiliary tasks
+2. **Cost Optimization**: Tiered AI model approach - GPT-4.1-mini for accuracy-critical tasks, GPT-4.1-mini for auxiliary tasks
 3. **Real-time Processing**: Server-Sent Events (SSE) for streaming AI responses
 4. **Role-based Access**: Admin and Staff roles with approval workflow
 5. **Demo Mode**: Read-only exploration without registration
@@ -70,7 +70,7 @@ WebSocket:        ws library for real-time notifications
 ### AI/External APIs
 ```
 Primary AI:       OpenAI API (via Replit AI integration or direct)
-Models Used:      GPT-5.1 (core extraction), GPT-4.1-mini (auxiliary tasks)
+Models Used:      GPT-4.1-mini (core extraction), GPT-4.1-mini (auxiliary tasks)
 Virus Scanning:   Cloudmersive Virus Scan API
 ```
 
@@ -585,7 +585,7 @@ app.post("/api/blocked-ips", requireAuth, requireAdmin, ...);
 
 ```typescript
 // Core extraction tasks - accuracy critical
-const CORE_MODEL = "gpt-5.1";  // $1.25/1M input, $10.00/1M output
+const CORE_MODEL = "gpt-4.1-mini";  // $0.40/1M input, $1.60/1M output
 
 // Auxiliary tasks - cost efficient with temperature support
 const AUX_MODEL = "gpt-4.1-mini";  // $0.40/1M input, $1.60/1M output
@@ -595,15 +595,15 @@ const AUX_MODEL = "gpt-4.1-mini";  // $0.40/1M input, $1.60/1M output
 
 | Task | Model | Reason |
 |------|-------|--------|
-| EMAR metadata extraction | GPT-5.1 | Accuracy critical |
-| EMAR entry extraction | GPT-5.1 | Accuracy critical |
+| EMAR metadata extraction | GPT-4.1-mini | Accuracy critical |
+| EMAR entry extraction | GPT-4.1-mini | Accuracy critical |
 | Count validation | GPT-4.1-mini | Simple verification |
 | Equivalence checks | GPT-4.1-mini | Pattern matching |
 | Drug interactions | GPT-4.1-mini | Lookup-based |
 | Validation passes 2/3 | GPT-4.1-mini | Confirmation only |
-| Care plan enhancement | GPT-5.1 | Quality content |
-| Risk assessment | GPT-5.1 | Safety critical |
-| PRN protocol generation | GPT-5.1 | Clinical accuracy |
+| Care plan enhancement | GPT-4.1-mini | Quality content |
+| Risk assessment | GPT-4.1-mini | Safety critical |
+| PRN protocol generation | GPT-4.1-mini | Clinical accuracy |
 
 ### AI Client Implementation
 
@@ -681,7 +681,7 @@ async function createChatCompletionWithLogging(params, featureName, userContext)
 // server/config/aiPricing.ts
 
 export const AI_PRICING = {
-  "gpt-5.1": { input: 1250, output: 10000 },     // $1.25/$10.00 per 1M
+  "gpt-4.1-mini": { input: 400, output: 1600 },     // $0.40/$1.60 per 1M
   "gpt-4.1-mini": { input: 400, output: 1600 },  // $0.40/$1.60 per 1M
   "gpt-4o": { input: 2500, output: 10000 },      // $2.50/$10.00 per 1M
   "gpt-4o-mini": { input: 150, output: 600 },    // $0.15/$0.60 per 1M
