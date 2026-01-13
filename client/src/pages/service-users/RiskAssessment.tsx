@@ -16,6 +16,7 @@ interface RecommendedAssessment {
   name: string;
   isMandatory: boolean;
   reason: string;
+  evidence?: string;
 }
 
 interface RiskAnalysis {
@@ -533,6 +534,11 @@ export default function RiskAssessment() {
                       )}
                     </Label>
                     <p className="text-xs text-muted-foreground mt-1">{assessment.reason}</p>
+                    {assessment.evidence && (
+                      <p className="text-xs text-muted-foreground/80 mt-1">
+                        Evidence: {assessment.evidence}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}

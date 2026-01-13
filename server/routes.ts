@@ -433,102 +433,107 @@ const normalizeAssessmentName = (name: string) =>
     .replace(/&/g, "and")
     .replace(/\s+/g, " ");
 
+const ASSESSMENT_EVIDENCE_TERMS: Record<string, string[]> = {
+  "nutrition": ["nutrition", "feed", "meal", "diet", "hydration", "swallow", "appetite"],
+  "diabetes management": ["diabet"],
+  "epilepsy management": ["epilep", "seizure"],
+  "medication administration": ["medication", "medicine", "tablet", "drug", "prescription", "inhaler", "drops", "cream"],
+  "mobility and moving and handling": ["mobility", "transfer", "moving", "handling", "hoist", "wheelchair", "frame", "walk"],
+  "personal care": ["personal care", "wash", "bathing", "shower", "toilet", "dressing", "groom", "oral care"],
+  "skin integrity": ["skin", "pressure", "ulcer", "wound"],
+  "falls prevention": ["fall", "falls", "unsteady", "trip"],
+  "continence care": ["continence", "incontinence", "catheter"],
+  "dementia care": ["dementia", "cognit", "alzheimer"],
+  "mental health": ["mental health", "depress", "anxiety", "bipolar", "psych"],
+  "communication": ["communication", "speech", "hearing", "vision", "aphasia"],
+  "behavior support": ["behaviour", "behavior", "challenging", "aggression"],
+  "end of life care": ["palliative", "end of life", "terminal"],
+  "infection control": ["infection", "wound", "catheter", "mrsa"],
+  "fire safety": ["fire", "smoking", "smoke alarm"],
+  "environmental safety": ["environment", "hazard", "trip", "clutter"],
+  "lone working": ["lone working", "single carer", "alone"],
+  "safeguarding": ["safeguard", "abuse", "neglect"],
+  "coshh": ["coshh", "chemical", "cleaning"],
+};
+
+const collectAssessmentEvidence = (
+  analysis: { medicalConditions?: string[]; careActivities?: string[]; concerns?: string[] },
+  terms: string[]
+) => {
+  const sources = [
+    ...(analysis.medicalConditions || []),
+    ...(analysis.careActivities || []),
+    ...(analysis.concerns || []),
+  ];
+  const seen = new Set<string>();
+  const matches: string[] = [];
+
+  for (const item of sources) {
+    if (!item) continue;
+    const lower = item.toLowerCase();
+    if (terms.some((term) => lower.includes(term))) {
+      const key = item.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        matches.push(item);
+        if (matches.length >= 2) break;
+      }
+    }
+  }
+  return matches;
+};
+
+const truncateEvidence = (text: string, maxLength = 160) => {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 3)}...`;
+};
+
 const buildAssessmentRecommendations = (analysis: {
   medicalConditions?: string[];
   careActivities?: string[];
   concerns?: string[];
-}): { name: string; isMandatory: boolean; reason: string }[] => {
-  const toLowerList = (values: string[] = []) =>
-    values
-      .map((value) => String(value || "").toLowerCase())
-      .filter(Boolean);
-
-  const conditions = toLowerList(analysis.medicalConditions);
-  const activities = toLowerList(analysis.careActivities);
-  const concerns = toLowerList(analysis.concerns);
-  const combined = [...conditions, ...activities, ...concerns];
-
-  const includesAny = (source: string[], terms: string[]) =>
-    source.some((value) => terms.some((term) => value.includes(term)));
-
-  const findMatch = (terms: string[]) =>
-    combined.find((value) => terms.some((term) => value.includes(term))) || "";
-
-  const recommendations: { name: string; isMandatory: boolean; reason: string }[] = [];
-  const add = (name: string, reason: string) => {
-    recommendations.push({ name, isMandatory: true, reason });
+}): { name: string; isMandatory: boolean; reason: string; evidence?: string }[] => {
+  const recommendations: { name: string; isMandatory: boolean; reason: string; evidence?: string }[] = [];
+  const add = (name: string, reason: string, evidence?: string) => {
+    recommendations.push({ name, isMandatory: true, reason, evidence });
   };
 
-  if (includesAny(conditions, ["diabet"])) {
-    add("Diabetes Management", `Document notes diabetes (${findMatch(["diabet"]) || "diabetes"}).`);
-  }
-  if (includesAny(conditions, ["epilep", "seizure"])) {
-    add("Epilepsy Management", `Document notes epilepsy or seizures (${findMatch(["epilep", "seizure"]) || "epilepsy"}).`);
-  }
-  if (includesAny(combined, ["medication", "medicine", "tablet", "drug"])) {
-    add("Medication Administration", "Document indicates medication support is required.");
-  }
-  if (includesAny(combined, ["nutrition", "feed", "meal", "diet", "hydration", "swallow"])) {
-    add("Nutrition", "Document indicates nutrition or hydration support.");
-  }
-  if (includesAny(combined, ["mobility", "transfer", "moving", "handling", "hoist", "wheelchair"])) {
-    add("Mobility & Moving and Handling", "Document indicates mobility or transfer support.");
-  }
-  if (includesAny(combined, ["personal care", "wash", "bathing", "shower", "toilet", "dressing", "groom"])) {
-    add("Personal Care", "Document indicates personal care support.");
-  }
-  if (includesAny(combined, ["skin", "pressure", "ulcer", "wound"])) {
-    add("Skin Integrity", "Document indicates skin integrity or pressure area concerns.");
-  }
-  if (includesAny(combined, ["fall", "falls", "unsteady"])) {
-    add("Falls Prevention", "Document indicates fall risk or poor mobility.");
-  }
-  if (includesAny(combined, ["continence", "incontinence", "catheter"])) {
-    add("Continence Care", "Document indicates continence support.");
-  }
-  if (includesAny(conditions, ["dementia", "cognit", "alzheimer"])) {
-    add("Dementia Care", "Document indicates cognitive impairment.");
-  }
-  if (includesAny(conditions, ["mental health", "depress", "anxiety", "bipolar", "psych"])) {
-    add("Mental Health", "Document indicates mental health support.");
-  }
-  if (includesAny(combined, ["communication", "speech", "hearing", "vision", "aphasia"])) {
-    add("Communication", "Document indicates communication or sensory support.");
-  }
-  if (includesAny(combined, ["behaviour", "behavior", "challenging", "aggression"])) {
-    add("Behavior Support", "Document indicates behaviour support needs.");
-  }
-  if (includesAny(combined, ["palliative", "end of life", "terminal"])) {
-    add("End of Life Care", "Document indicates end of life or palliative care.");
-  }
-  if (includesAny(combined, ["infection", "wound", "catheter", "mrsa"])) {
-    add("Infection Control", "Document indicates infection control considerations.");
-  }
-  if (includesAny(combined, ["fire", "smoking", "smoke alarm"])) {
-    add("Fire Safety", "Document indicates fire safety considerations.");
-  }
-  if (includesAny(combined, ["environment", "hazard", "trip", "clutter"])) {
-    add("Environmental Safety", "Document indicates environmental hazards.");
-  }
-  if (includesAny(combined, ["lone working", "single carer", "alone"])) {
-    add("Lone Working", "Document indicates lone working considerations.");
-  }
-  if (includesAny(combined, ["safeguard", "abuse", "neglect"])) {
-    add("Safeguarding", "Document indicates safeguarding concerns.");
-  }
-  if (includesAny(combined, ["coshh", "chemical", "cleaning"])) {
-    add("COSHH", "Document indicates chemical or cleaning product handling.");
-  }
+  const addIfEvidence = (name: string, terms: string[], reason: string) => {
+    const evidenceMatches = collectAssessmentEvidence(analysis, terms);
+    if (evidenceMatches.length === 0) return;
+    add(name, reason, truncateEvidence(evidenceMatches.join("; ")));
+  };
+
+  addIfEvidence("Diabetes Management", ASSESSMENT_EVIDENCE_TERMS["diabetes management"], "Document notes diabetes.");
+  addIfEvidence("Epilepsy Management", ASSESSMENT_EVIDENCE_TERMS["epilepsy management"], "Document notes epilepsy or seizures.");
+  addIfEvidence("Medication Administration", ASSESSMENT_EVIDENCE_TERMS["medication administration"], "Document indicates medication support is required.");
+  addIfEvidence("Nutrition", ASSESSMENT_EVIDENCE_TERMS["nutrition"], "Document indicates nutrition or hydration support.");
+  addIfEvidence("Mobility & Moving and Handling", ASSESSMENT_EVIDENCE_TERMS["mobility and moving and handling"], "Document indicates mobility or transfer support.");
+  addIfEvidence("Personal Care", ASSESSMENT_EVIDENCE_TERMS["personal care"], "Document indicates personal care support.");
+  addIfEvidence("Skin Integrity", ASSESSMENT_EVIDENCE_TERMS["skin integrity"], "Document indicates skin integrity or pressure area concerns.");
+  addIfEvidence("Falls Prevention", ASSESSMENT_EVIDENCE_TERMS["falls prevention"], "Document indicates fall risk or poor mobility.");
+  addIfEvidence("Continence Care", ASSESSMENT_EVIDENCE_TERMS["continence care"], "Document indicates continence support.");
+  addIfEvidence("Dementia Care", ASSESSMENT_EVIDENCE_TERMS["dementia care"], "Document indicates cognitive impairment.");
+  addIfEvidence("Mental Health", ASSESSMENT_EVIDENCE_TERMS["mental health"], "Document indicates mental health support.");
+  addIfEvidence("Communication", ASSESSMENT_EVIDENCE_TERMS["communication"], "Document indicates communication or sensory support.");
+  addIfEvidence("Behavior Support", ASSESSMENT_EVIDENCE_TERMS["behavior support"], "Document indicates behaviour support needs.");
+  addIfEvidence("End of Life Care", ASSESSMENT_EVIDENCE_TERMS["end of life care"], "Document indicates end of life or palliative care.");
+  addIfEvidence("Infection Control", ASSESSMENT_EVIDENCE_TERMS["infection control"], "Document indicates infection control considerations.");
+  addIfEvidence("Fire Safety", ASSESSMENT_EVIDENCE_TERMS["fire safety"], "Document indicates fire safety considerations.");
+  addIfEvidence("Environmental Safety", ASSESSMENT_EVIDENCE_TERMS["environmental safety"], "Document indicates environmental hazards.");
+  addIfEvidence("Lone Working", ASSESSMENT_EVIDENCE_TERMS["lone working"], "Document indicates lone working considerations.");
+  addIfEvidence("Safeguarding", ASSESSMENT_EVIDENCE_TERMS["safeguarding"], "Document indicates safeguarding concerns.");
+  addIfEvidence("COSHH", ASSESSMENT_EVIDENCE_TERMS["coshh"], "Document indicates chemical or cleaning product handling.");
 
   return recommendations;
 };
 
 const mergeAssessmentRecommendations = (
-  existing: Array<{ name: string; isMandatory?: boolean; reason?: string }> = [],
-  derived: Array<{ name: string; isMandatory?: boolean; reason?: string }> = []
+  existing: Array<{ name: string; isMandatory?: boolean; reason?: string; evidence?: string }> = [],
+  derived: Array<{ name: string; isMandatory?: boolean; reason?: string; evidence?: string }> = []
 ) => {
-  const merged = new Map<string, { name: string; isMandatory: boolean; reason: string }>();
-  const apply = (item: { name: string; isMandatory?: boolean; reason?: string }) => {
+  const merged = new Map<string, { name: string; isMandatory: boolean; reason: string; evidence?: string }>();
+  const apply = (item: { name: string; isMandatory?: boolean; reason?: string; evidence?: string }) => {
     if (!item?.name) return;
     const key = normalizeAssessmentName(item.name);
     if (!key) return;
@@ -536,6 +541,7 @@ const mergeAssessmentRecommendations = (
       name: item.name.trim(),
       isMandatory: Boolean(item.isMandatory),
       reason: item.reason?.trim() || "Document indicates this assessment is required.",
+      evidence: item.evidence?.trim() || "",
     };
     const current = merged.get(key);
     if (!current) {
@@ -544,6 +550,11 @@ const mergeAssessmentRecommendations = (
     }
     current.isMandatory = current.isMandatory || normalized.isMandatory;
     if (!current.reason && normalized.reason) current.reason = normalized.reason;
+    if (!current.evidence && normalized.evidence) current.evidence = normalized.evidence;
+    if (current.evidence && normalized.evidence && current.evidence !== normalized.evidence) {
+      const combinedEvidence = `${current.evidence}; ${normalized.evidence}`;
+      current.evidence = truncateEvidence(combinedEvidence);
+    }
   };
 
   derived.forEach(apply);
@@ -554,6 +565,46 @@ const mergeAssessmentRecommendations = (
     return a.name.localeCompare(b.name);
   });
 };
+
+const extractSummaryEvidence = (summary: string, terms: string[]) => {
+  if (!summary) return "";
+  const summaryLower = summary.toLowerCase();
+  for (const term of terms) {
+    const index = summaryLower.indexOf(term);
+    if (index >= 0) {
+      const start = Math.max(0, index - 50);
+      const end = Math.min(summary.length, index + term.length + 50);
+      return truncateEvidence(summary.slice(start, end).trim());
+    }
+  }
+  return "";
+};
+
+const attachAssessmentEvidence = (
+  recommendations: Array<{ name: string; isMandatory?: boolean; reason?: string; evidence?: string }>,
+  analysis: { medicalConditions?: string[]; careActivities?: string[]; concerns?: string[]; documentSummary?: string }
+) =>
+  recommendations.map((item) => {
+    const evidenceTerms = ASSESSMENT_EVIDENCE_TERMS[normalizeAssessmentName(item.name)] || [];
+    if (item.evidence && item.evidence.trim()) {
+      return item;
+    }
+    if (evidenceTerms.length === 0) return item;
+    const evidenceMatches = collectAssessmentEvidence(analysis, evidenceTerms);
+    if (evidenceMatches.length > 0) {
+      return {
+        ...item,
+        evidence: truncateEvidence(evidenceMatches.join("; ")),
+      };
+    }
+    const summary = analysis.documentSummary || "";
+    const summaryEvidence = extractSummaryEvidence(summary, evidenceTerms);
+    if (!summaryEvidence) return item;
+    return {
+      ...item,
+      evidence: summaryEvidence,
+    };
+  });
 
 // Drug interaction type definition
 interface DrugInteraction {
@@ -7740,6 +7791,7 @@ Respond ONLY with valid JSON in this exact format:
 
       const derivedRecommendations = buildAssessmentRecommendations(result);
       result.recommendedAssessments = mergeAssessmentRecommendations(result.recommendedAssessments, derivedRecommendations);
+      result.recommendedAssessments = attachAssessmentEvidence(result.recommendedAssessments, result);
 
       const scrubbedResult = scrubPII(result);
       sendProgress(100, "Complete!", "complete");
