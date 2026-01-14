@@ -59,10 +59,10 @@ const DATE_PATTERNS = [
   /\d{1,2}\/\d{1,2}/g,
   /\d{1,2}-\d{1,2}-\d{2,4}/g,
 ];
-const TIME_SLOT_PATTERN = /\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}/g;
+const TIME_SLOT_PATTERN = /\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g;
 const CODE_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–]\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/gi;
 const CODE_PATTERN_SINGLE = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–]\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/i;
-const TIME_PATTERN = /\d{1,2}:\d{2}/g;
+const TIME_PATTERN = /\d{1,2}[:.]\d{2}/g;
 const INITIALS_PATTERN = /\b[A-Z]{2,3}\b/g;
 const CODE_INITIALS = new Set(["AD", "AS", "MU", "NH", "SA", "FA", "PRN", "NA"]);
 const CODE_PRIORITY: Record<string, number> = {
@@ -83,6 +83,23 @@ const CODE_PRIORITY: Record<string, number> = {
   "BLANK": 0,
 };
 
+const normalizeCodeText = (value: string): string => {
+  if (!value) return "";
+  return value
+    .toUpperCase()
+    .replace(/\bP\s*R\s*N\s*[-–]?\s*R\b/g, "PRN-R")
+    .replace(/\bP\s*R\s*N\s*[-–]?\s*A\s*D\b/g, "PRN-AD")
+    .replace(/\bP\s*R\s*N\s*[-–]?\s*A\s*S\b/g, "PRN-AS")
+    .replace(/\bP\s*R\s*N\b/g, "PRN")
+    .replace(/\bS\s*[-–\/]?\s*A\b/g, "SA")
+    .replace(/\bF\s*[-–\/]?\s*A\b/g, "FA")
+    .replace(/\bN\s*H\b/g, "NH")
+    .replace(/\bM\s*U\b/g, "MU")
+    .replace(/\bA\s*D\b/g, "AD")
+    .replace(/\bA\s*S\b/g, "AS")
+    .replace(/\bF\b/g, "FA");
+};
+
 const extractCareWorkerInitials = (content: string): string => {
   if (!content) return "";
   const matches = content.match(INITIALS_PATTERN) || [];
@@ -101,10 +118,15 @@ const normalizeGridCode = (raw: string): string => {
 
   if (normalized === "N/A" || normalized === "NA") return "N/A";
   if (normalized === "F/A" || normalized === "FA") return "FA";
+  if (normalized === "F") return "FA";
   if (normalized === "S/A" || normalized === "S-A") return "SA";
   if (normalized === "PRNR" || normalized === "PRN-R") return "PRN-R";
   if (normalized === "PRNAD" || normalized === "PRN-AD") return "PRN-AD";
   if (normalized === "PRNAS" || normalized === "PRN-AS") return "PRN-AS";
+  if (normalized === "REFUSED" || normalized === "REFUSE" || normalized === "REF") return "R";
+  if (normalized === "NOTHOME") return "NH";
+  if (normalized === "SELADMIN" || normalized === "SELFADMIN") return "SA";
+  if (normalized === "MEDUNAV" || normalized === "MEDUNAVAILABLE" || normalized === "UNAVAILABLE") return "MU";
 
   return normalized;
 };
@@ -465,6 +487,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     (value || "")
       .trim()
       .replace(/[–—]/g, "-")
+      .replace(/\./g, ":")
       .replace(/\s*-\s*/g, "-")
       .replace(/\s+/g, " ");
 
@@ -892,8 +915,13 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       const leftItems = row.filter(item => item.x < 250);
       const leftText = leftItems.map(item => item.str).join(" ");
 
-      if (medicationPattern.test(leftText)) {
-        const medName = leftText.substring(0, 120).trim();
+      const trimmedLeft = leftText.replace(/\s+/g, " ").trim();
+      const routeIndex = trimmedLeft.toLowerCase().indexOf("route");
+      const cleanedLeft = (routeIndex > 0 ? trimmedLeft.slice(0, routeIndex) : trimmedLeft).trim();
+      const matchesMed = medicationPattern.test(cleanedLeft) || medicationPatternLoose.test(cleanedLeft);
+      const blocked = blockedMedCandidatePattern.test(cleanedLeft);
+      if (matchesMed && !blocked) {
+        const medName = cleanedLeft.substring(0, 120).trim();
         const avgY = row.reduce((sum, item) => sum + item.y, 0) / row.length;
         medsOnPage.push({
           name: medName,
@@ -1324,14 +1352,15 @@ export function extractCodesFromCell(content: string): { code: string; careWorke
   let time = "";
   
   const upperContent = content.toUpperCase();
+  const normalizedContent = normalizeCodeText(upperContent);
   const codeRegex = new RegExp(CODE_PATTERN.source, "gi");
-  const matches = Array.from(upperContent.matchAll(codeRegex)).map((match) => normalizeGridCode(match[1]));
+  const matches = Array.from(normalizedContent.matchAll(codeRegex)).map((match) => normalizeGridCode(match[1]));
 
   if (matches.length > 0) {
     foundCode = pickBestCode(matches);
   } else {
     for (const code of codes) {
-      if (upperContent.includes(code)) {
+      if (normalizedContent.includes(code)) {
         foundCode = normalizeGridCode(code);
         break;
       }
@@ -1340,10 +1369,10 @@ export function extractCodesFromCell(content: string): { code: string; careWorke
   
   careWorker = extractCareWorkerInitials(content);
   
-  const timeMatch = content.match(/(\d{1,2}:\d{2})/);
+  const timeMatch = content.match(/(\d{1,2}[:.]\d{2})/);
   const slotRegex = new RegExp(TIME_SLOT_PATTERN.source, "i");
   if (timeMatch && !slotRegex.test(content)) {
-    time = timeMatch[1];
+    time = timeMatch[1].replace(".", ":");
   }
   
   return { code: foundCode, careWorker, time };

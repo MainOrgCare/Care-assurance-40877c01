@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import nodemailer, { type Transporter } from "nodemailer";
 import { storage } from "./storage";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -57,6 +58,39 @@ const uploadExcel = multer({
 
 const MAX_NON_ADMIN_SESSIONS = 2;
 const FORCE_LOGOUT_WARNING_SECONDS = 30;
+const CONTACT_EMAIL = process.env.CONTACT_EMAIL || "";
+const CONTACT_FROM = process.env.CONTACT_FROM || "CareAssurance <no-reply@careassurance.uk>";
+let contactTransporter: Transporter | null = null;
+
+const getContactTransporter = () => {
+  if (contactTransporter) return contactTransporter;
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
+  const secure = process.env.SMTP_SECURE === "true" || port === 465;
+
+  if (!host || !user || !pass) return null;
+
+  contactTransporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+  });
+  return contactTransporter;
+};
+
+const contactMessageSchema = z.object({
+  name: z.string().min(2).max(120),
+  email: z.string().email().max(200),
+  company: z.string().max(160).optional(),
+  role: z.string().max(120).optional(),
+  topic: z.string().max(160).optional(),
+  phone: z.string().max(80).optional(),
+  message: z.string().min(10).max(2000),
+  website: z.string().max(200).optional(),
+});
 
 const getStandardFontDataUrl = (): string => {
   const fontsPath = path.resolve(process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts");
@@ -698,6 +732,8 @@ interface DrugInteraction {
   description: string;
 }
 
+const drugInteractionCache = new Map<string, DrugInteraction[]>();
+
 function getDrugInteractionCacheKey(medications: Array<{ name: string; genericName?: string }>): string {
   // Create deterministic key from sorted medication names
   const medNames = medications
@@ -706,6 +742,233 @@ function getDrugInteractionCacheKey(medications: Array<{ name: string; genericNa
     .join('::');
   return medNames;
 }
+
+const buildDrugTokenString = (value: string): string =>
+  (value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const normalizeDrugKeyword = (value: string): string => buildDrugTokenString(value);
+
+const detectRuleBasedInteractions = (
+  medications: Array<{ name: string; genericName?: string }>
+): DrugInteraction[] => {
+  if (medications.length < 2) return [];
+
+  const meds = medications.map((m) => {
+    const name = m.name || "";
+    const genericName = m.genericName || "";
+    const tokens = buildDrugTokenString(`${name} ${genericName}`);
+    return { name, genericName, tokens };
+  });
+
+  const matchMeds = (keywords: string[]) => {
+    const normalized = keywords.map(normalizeDrugKeyword);
+    return meds.filter((m) => normalized.some((kw) => kw && m.tokens.includes(kw)));
+  };
+
+  const interactions: DrugInteraction[] = [];
+  const seen = new Set<string>();
+  const pushInteraction = (
+    drug1: string,
+    drug2: string,
+    severity: DrugInteraction["severity"],
+    description: string
+  ) => {
+    if (!drug1 || !drug2) return;
+    if (drug1.toLowerCase() === drug2.toLowerCase()) return;
+    const key = [drug1.toLowerCase(), drug2.toLowerCase()].sort().join("|");
+    if (seen.has(key)) return;
+    seen.add(key);
+    interactions.push({ drug1, drug2, severity, description });
+  };
+
+  const bloodThinners = matchMeds([
+    "warfarin",
+    "apixaban",
+    "rivaroxaban",
+    "dabigatran",
+    "edoxaban",
+    "heparin",
+    "enoxaparin",
+    "dalteparin",
+    "tinzaparin",
+    "clopidogrel",
+    "ticagrelor",
+  ]);
+  const nsaids = matchMeds([
+    "ibuprofen",
+    "naproxen",
+    "diclofenac",
+    "ketoprofen",
+    "indomethacin",
+    "mefenamic",
+    "celecoxib",
+    "etoricoxib",
+    "meloxicam",
+    "piroxicam",
+    "ketorolac",
+    "aspirin",
+    "nurofen",
+  ]);
+  const opioids = matchMeds([
+    "morphine",
+    "oxycodone",
+    "fentanyl",
+    "buprenorphine",
+    "codeine",
+    "dihydrocodeine",
+    "tramadol",
+    "hydromorphone",
+    "methadone",
+    "diamorphine",
+    "tapentadol",
+    "oxynorm",
+    "oxycontin",
+    "oromorph",
+  ]);
+  const sedatives = matchMeds([
+    "diazepam",
+    "lorazepam",
+    "temazepam",
+    "clonazepam",
+    "alprazolam",
+    "midazolam",
+    "nitrazepam",
+    "chlordiazepoxide",
+    "oxazepam",
+    "zopiclone",
+    "zolpidem",
+  ]);
+  const aceInhibitors = matchMeds([
+    "ramipril",
+    "lisinopril",
+    "enalapril",
+    "captopril",
+    "perindopril",
+    "quinapril",
+    "benazepril",
+    "fosinopril",
+    "trandolapril",
+  ]);
+  const potassiumSparing = matchMeds([
+    "spironolactone",
+    "eplerenone",
+    "amiloride",
+    "triamterene",
+  ]);
+  const methotrexate = matchMeds(["methotrexate"]);
+  const ssris = matchMeds([
+    "sertraline",
+    "citalopram",
+    "escitalopram",
+    "fluoxetine",
+    "paroxetine",
+    "fluvoxamine",
+  ]);
+  const maois = matchMeds([
+    "phenelzine",
+    "isocarboxazid",
+    "tranylcypromine",
+    "moclobemide",
+    "selegiline",
+    "linezolid",
+  ]);
+  const tramadol = matchMeds(["tramadol"]);
+  const digoxin = matchMeds(["digoxin"]);
+  const amiodarone = matchMeds(["amiodarone"]);
+  const verapamil = matchMeds(["verapamil"]);
+
+  for (const bt of bloodThinners) {
+    for (const nsaid of nsaids) {
+      pushInteraction(
+        bt.name,
+        nsaid.name,
+        "high",
+        "Increased bleeding risk when anticoagulants or antiplatelets are combined with NSAIDs/aspirin."
+      );
+    }
+  }
+
+  for (const opioid of opioids) {
+    for (const sedative of sedatives) {
+      pushInteraction(
+        opioid.name,
+        sedative.name,
+        "high",
+        "Risk of respiratory depression and oversedation when opioids are combined with benzodiazepines or sedatives."
+      );
+    }
+  }
+
+  for (const ace of aceInhibitors) {
+    for (const k of potassiumSparing) {
+      pushInteraction(
+        ace.name,
+        k.name,
+        "moderate",
+        "Risk of hyperkalemia when ACE inhibitors are combined with potassium-sparing diuretics."
+      );
+    }
+  }
+
+  for (const mt of methotrexate) {
+    for (const nsaid of nsaids) {
+      pushInteraction(
+        mt.name,
+        nsaid.name,
+        "high",
+        "Risk of methotrexate toxicity increased by NSAIDs."
+      );
+    }
+  }
+
+  for (const ssri of ssris) {
+    for (const maoi of maois) {
+      pushInteraction(
+        ssri.name,
+        maoi.name,
+        "high",
+        "Risk of serotonin syndrome when SSRIs are combined with MAO inhibitors."
+      );
+    }
+  }
+
+  for (const ssri of ssris) {
+    for (const tram of tramadol) {
+      pushInteraction(
+        ssri.name,
+        tram.name,
+        "high",
+        "Risk of serotonin syndrome when SSRIs are combined with tramadol."
+      );
+    }
+  }
+
+  for (const dig of digoxin) {
+    for (const amio of amiodarone) {
+      pushInteraction(
+        dig.name,
+        amio.name,
+        "high",
+        "Amiodarone can increase digoxin levels and toxicity risk."
+      );
+    }
+    for (const vera of verapamil) {
+      pushInteraction(
+        dig.name,
+        vera.name,
+        "high",
+        "Verapamil can increase digoxin levels and toxicity risk."
+      );
+    }
+  }
+
+  return interactions;
+};
 
 // Check for potentially dangerous drug-drug interactions
 async function checkDrugInteractions(
@@ -718,10 +981,15 @@ async function checkDrugInteractions(
 
   // Normalize and de-duplicate medication list
   const normalizedMeds = (medications || [])
-    .map((m) => ({
-      name: typeof m?.name === "string" ? m.name.trim() : "",
-      genericName: typeof m?.genericName === "string" ? m.genericName.trim() : undefined,
-    }))
+    .map((m) => {
+      const name = typeof m?.name === "string" ? m.name.trim() : "";
+      const generic = typeof m?.genericName === "string" ? m.genericName.trim() : "";
+      const inferred = !generic ? inferGenericNameFromMedicationLabel(name) : "";
+      return {
+        name,
+        genericName: generic || inferred || undefined,
+      };
+    })
     .filter((m) => m.name.length > 0);
 
   // Avoid spending tokens on duplicate meds
@@ -743,6 +1011,19 @@ async function checkDrugInteractions(
   const medList = uniqueMeds
     .map((m) => (m.genericName ? `${m.name} (generic: ${m.genericName})` : m.name))
     .join(", ");
+
+  const cacheKey = getDrugInteractionCacheKey(uniqueMeds);
+  const ruleBasedInteractions = detectRuleBasedInteractions(uniqueMeds);
+  const cached = drugInteractionCache.get(cacheKey);
+  if (cached) {
+    const combined = [...ruleBasedInteractions, ...cached];
+    const uniqueCombined = new Map<string, DrugInteraction>();
+    for (const entry of combined) {
+      const key = [entry.drug1.toLowerCase(), entry.drug2.toLowerCase()].sort().join("|");
+      if (!uniqueCombined.has(key)) uniqueCombined.set(key, entry);
+    }
+    return Array.from(uniqueCombined.values());
+  }
 
   const parseInteractions = (raw: string): DrugInteraction[] => {
     const tryParse = (text: string): any | null => {
@@ -821,6 +1102,7 @@ If none found: {"interactions": []}`
 
     const content = response.choices[0]?.message?.content || "";
     const result = parseInteractions(content)
+      .concat(ruleBasedInteractions)
       .sort((a, b) => {
         const severityRank = (s: DrugInteraction["severity"]) => (s === "high" ? 0 : s === "moderate" ? 1 : 2);
         const rank = severityRank(a.severity) - severityRank(b.severity);
@@ -829,10 +1111,17 @@ If none found: {"interactions": []}`
         const bKey = [b.drug1.toLowerCase(), b.drug2.toLowerCase()].sort().join("|");
         return aKey.localeCompare(bKey);
       });
-    return result;
+    const deduped = new Map<string, DrugInteraction>();
+    for (const entry of result) {
+      const key = [entry.drug1.toLowerCase(), entry.drug2.toLowerCase()].sort().join("|");
+      if (!deduped.has(key)) deduped.set(key, entry);
+    }
+    const finalResult = Array.from(deduped.values());
+    drugInteractionCache.set(cacheKey, finalResult);
+    return finalResult;
   } catch (error: any) {
     console.error("[Drug Interactions] Check failed:", error.message);
-    return [];
+    return ruleBasedInteractions;
   }
 }
 
@@ -1130,6 +1419,105 @@ export async function registerRoutes(
     }
     next();
   };
+
+  // ===== PUBLIC CONTACT ROUTE =====
+  app.post("/api/contact", async (req, res) => {
+    const parsed = contactMessageSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Invalid contact request." });
+    }
+
+    const {
+      name,
+      email,
+      company,
+      role,
+      topic,
+      phone,
+      message,
+      website,
+    } = parsed.data;
+
+    if (website && website.trim()) {
+      return res.json({ ok: true });
+    }
+
+    if (!CONTACT_EMAIL) {
+      return res.status(503).json({
+        message: "Contact destination is not configured. Please try again later.",
+      });
+    }
+
+    const transporter = getContactTransporter();
+    if (!transporter) {
+      return res.status(503).json({
+        message: "Contact service is not configured. Please try again later.",
+      });
+    }
+
+    const normalizeLine = (value: string | undefined) =>
+      (value || "").replace(/\s+/g, " ").trim();
+    const escapeHtml = (value: string) =>
+      value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+    const safeName = normalizeLine(name);
+    const safeCompany = normalizeLine(company);
+    const safeRole = normalizeLine(role);
+    const safeTopic = normalizeLine(topic);
+    const safePhone = normalizeLine(phone);
+    const safeEmail = normalizeLine(email);
+    const safeMessage = String(message || "").replace(/\r/g, "").trim();
+
+    const subject = `CareAssurance contact request from ${safeName}`;
+    const plainText = [
+      "New contact request",
+      "",
+      `Name: ${safeName}`,
+      `Email: ${safeEmail}`,
+      `Company: ${safeCompany || "Not provided"}`,
+      `Role: ${safeRole || "Not provided"}`,
+      `Topic: ${safeTopic || "Not provided"}`,
+      `Phone: ${safePhone || "Not provided"}`,
+      "",
+      "Message:",
+      safeMessage,
+    ].join("\n");
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; font-size: 14px; color: #0f172a;">
+        <h2 style="margin: 0 0 12px;">New contact request</h2>
+        <p><strong>Name:</strong> ${escapeHtml(safeName)}</p>
+        <p><strong>Email:</strong> ${escapeHtml(safeEmail)}</p>
+        <p><strong>Company:</strong> ${escapeHtml(safeCompany || "Not provided")}</p>
+        <p><strong>Role:</strong> ${escapeHtml(safeRole || "Not provided")}</p>
+        <p><strong>Topic:</strong> ${escapeHtml(safeTopic || "Not provided")}</p>
+        <p><strong>Phone:</strong> ${escapeHtml(safePhone || "Not provided")}</p>
+        <p><strong>Message:</strong></p>
+        <p style="white-space: pre-line;">${escapeHtml(safeMessage)}</p>
+      </div>
+    `;
+
+    try {
+      await transporter.sendMail({
+        to: CONTACT_EMAIL,
+        from: CONTACT_FROM,
+        replyTo: safeEmail,
+        subject,
+        text: plainText,
+        html,
+      });
+
+      return res.json({ ok: true });
+    } catch (error: any) {
+      console.error("Contact form email error:", error);
+      return res.status(500).json({ message: "Failed to send message." });
+    }
+  });
 
   // ===== AUTH ROUTES =====
   
@@ -3813,7 +4201,24 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       );
 
       const TIME_RANGE_PATTERN = /\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g;
-      const CODE_TOKEN_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|S\s*\/\s*A|S\s*[-–]\s*A|F\s*\/\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRNAD|PRNAS|PRNR|PRN|MISSED|N\/?A)\b/i;
+      const CODE_TOKEN_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|F|S\s*\/\s*A|S\s*[-–]\s*A|F\s*\/\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRNAD|PRNAS|PRNR|PRN|MISSED|N\/?A)\b/i;
+
+      const normalizeCodeText = (value: string): string => {
+        if (!value) return "";
+        return value
+          .toUpperCase()
+          .replace(/\bP\s*R\s*N\s*[-–]?\s*R\b/g, "PRN-R")
+          .replace(/\bP\s*R\s*N\s*[-–]?\s*A\s*D\b/g, "PRN-AD")
+          .replace(/\bP\s*R\s*N\s*[-–]?\s*A\s*S\b/g, "PRN-AS")
+          .replace(/\bP\s*R\s*N\b/g, "PRN")
+          .replace(/\bS\s*[-–\/]?\s*A\b/g, "SA")
+          .replace(/\bF\s*[-–\/]?\s*A\b/g, "FA")
+          .replace(/\bN\s*H\b/g, "NH")
+          .replace(/\bM\s*U\b/g, "MU")
+          .replace(/\bA\s*D\b/g, "AD")
+          .replace(/\bA\s*S\b/g, "AS")
+          .replace(/\bF\b/g, "FA");
+      };
 
       const normalizeCellCode = (raw: unknown): string => {
         if (typeof raw !== "string") return "";
@@ -3849,7 +4254,8 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       const extractCellCode = (value: unknown): string => {
         const text = String(value || "");
         if (!text.trim()) return "";
-        const match = text.toUpperCase().match(CODE_TOKEN_PATTERN);
+        const normalizedText = normalizeCodeText(text);
+        const match = normalizedText.match(CODE_TOKEN_PATTERN);
         if (!match) return "";
         return normalizeCellCode(match[1]);
       };
@@ -4011,14 +4417,25 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         });
       }
 
+      if (Array.isArray(metadata.medications)) {
+        metadata.medications = metadata.medications.map((med: any) => {
+          const name = typeof med?.name === "string" ? med.name : "";
+          const genericName = typeof med?.genericName === "string" ? med.genericName : "";
+          return {
+            ...med,
+            genericName: genericName || inferGenericNameFromMedicationLabel(name),
+          };
+        });
+      }
+
       // =====================================================================
       // DRUG INTERACTION CHECK (post-reconciliation)
       // =====================================================================
-      if (!gridPrimaryEnabled) {
+      if (Array.isArray(metadata.medications) && metadata.medications.length >= 2) {
         sendProgress(26, "Checking for drug interactions...", "drug_interaction_check");
         drugInteractions = await checkDrugInteractions(metadata.medications, aiUserContext);
       } else {
-        sendProgress(26, "Skipping drug interaction check (grid mode)...", "drug_interaction_check");
+        sendProgress(26, "Skipping drug interaction check (insufficient meds)...", "drug_interaction_check");
       }
       if (drugInteractions.length > 0) {
         console.log(`DEBUG: Found ${drugInteractions.length} potential drug interactions`);

@@ -5,8 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { 
@@ -36,7 +38,9 @@ import {
   AlertTriangle,
   HeartHandshake,
   Calculator,
-  PoundSterling
+  PoundSterling,
+  Mail,
+  MessageSquare
 } from "lucide-react";
 
 const HOURLY_RATE = 14.5;
@@ -307,6 +311,28 @@ const calculateROI = (users: number) => {
   return { manualHours, aiHours, hoursSaved, moneySaved };
 };
 
+type ContactFormState = {
+  name: string;
+  email: string;
+  company: string;
+  role: string;
+  topic: string;
+  phone: string;
+  message: string;
+  website: string;
+};
+
+const CONTACT_FORM_DEFAULT: ContactFormState = {
+  name: "",
+  email: "",
+  company: "",
+  role: "",
+  topic: "",
+  phone: "",
+  message: "",
+  website: "",
+};
+
 const generateParticleStyles = () =>
   Array.from({ length: PARTICLE_COUNT }, () => ({
     left: `${Math.random() * 100}%`,
@@ -323,6 +349,9 @@ export default function Homepage() {
   const [loading, setLoading] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [serviceUsers, setServiceUsers] = useState(20);
+  const [contactForm, setContactForm] = useState<ContactFormState>(CONTACT_FORM_DEFAULT);
+  const [contactStatus, setContactStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [contactError, setContactError] = useState("");
   const prefersReducedMotion = useReducedMotion();
 
   const roi = useMemo(() => calculateROI(serviceUsers), [serviceUsers]);
@@ -384,6 +413,45 @@ export default function Homepage() {
     setServiceUsers(value[0]);
   }, []);
 
+  const handleContactChange = useCallback(
+    (field: keyof ContactFormState) =>
+      (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const value = event.target.value;
+        setContactForm((prev) => ({ ...prev, [field]: value }));
+        if (contactStatus !== "idle") {
+          setContactStatus("idle");
+          setContactError("");
+        }
+      },
+    [contactStatus]
+  );
+
+  const handleContactSubmit = useCallback(async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (contactStatus === "sending") return;
+    setContactStatus("sending");
+    setContactError("");
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(contactForm),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.message || "Unable to send message right now.");
+      }
+
+      setContactStatus("sent");
+      setContactForm(CONTACT_FORM_DEFAULT);
+    } catch (error: any) {
+      setContactStatus("error");
+      setContactError(error?.message || "Unable to send message right now.");
+    }
+  }, [contactForm, contactStatus]);
+
   return (
     <div className="min-h-screen flex flex-col relative overflow-x-hidden bg-background">
       {/* Animated Gradient Background */}
@@ -427,7 +495,7 @@ export default function Homepage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-4">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-teal-500/20">
+              <div className="h-9 w-9 rounded-lg bg-primary/90 flex items-center justify-center shadow-lg shadow-black/25">
                 <ShieldCheck className="h-5 w-5 text-white" />
               </div>
               <span className="text-xl text-foreground">
@@ -436,10 +504,17 @@ export default function Homepage() {
             </div>
 
             <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                className="hidden sm:inline-flex"
+                onClick={() => document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" })}
+              >
+                Contact
+              </Button>
               <Popover open={loginOpen} onOpenChange={setLoginOpen}>
                 <PopoverTrigger asChild>
-                  <Button 
-                    className="bg-gradient-to-r from-amber-500 to-teal-500 hover:opacity-95 text-white font-medium shadow-lg shadow-black/25 transition-opacity"
+                  <Button
+                    className="shadow-lg shadow-black/25"
                     data-testid="button-header-login"
                   >
                     Login
@@ -449,7 +524,7 @@ export default function Homepage() {
                 <PopoverContent className="w-80 p-0 border-border/50 bg-card/95 backdrop-blur-xl" align="end">
                   <div className="p-4 border-b border-border/50">
                     <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center">
+                      <div className="h-8 w-8 rounded-lg bg-primary/90 flex items-center justify-center">
                         <ShieldCheck className="h-4 w-4 text-white" />
                       </div>
                       <div>
@@ -494,7 +569,7 @@ export default function Homepage() {
                     </div>
                     <Button 
                       type="submit"
-                      className="w-full bg-gradient-to-r from-amber-500 to-teal-500 hover:opacity-95 text-white font-medium transition-opacity"
+                      className="w-full"
                       disabled={loading}
                       data-testid="button-dropdown-submit"
                     >
@@ -523,7 +598,7 @@ export default function Homepage() {
           <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="text-center lg:text-left">
               <motion.div {...getRevealProps()}>
-                <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-xs uppercase tracking-[0.3em] bg-teal-500/10 text-teal-300 border-teal-500/20">
+                <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-xs uppercase tracking-[0.3em] bg-primary/10 text-primary border-primary/20">
                   <Sparkles className="h-3 w-3 mr-2" />
                   AI Compliance Copilot
                 </Badge>
@@ -551,15 +626,15 @@ export default function Homepage() {
                 className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-10"
                 {...getRevealProps(0.25)}
               >
-                <Badge variant="outline" className="text-xs px-3 py-1 border-emerald-500/30 text-emerald-300 bg-emerald-500/10">
+                <Badge variant="outline" className="text-xs px-3 py-1 border-primary/30 text-primary bg-primary/10">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
                   Built for UK Care
                 </Badge>
-                <Badge variant="outline" className="text-xs px-3 py-1 border-sky-500/30 text-sky-300 bg-sky-500/10">
+                <Badge variant="outline" className="text-xs px-3 py-1 border-border/60 text-muted-foreground bg-muted/40">
                   <Lock className="h-3 w-3 mr-1" />
                   Privacy-First Processing
                 </Badge>
-                <Badge variant="outline" className="text-xs px-3 py-1 border-amber-500/30 text-amber-200 bg-amber-500/10">
+                <Badge variant="outline" className="text-xs px-3 py-1 border-secondary/30 text-secondary bg-secondary/10">
                   <ShieldCheck className="h-3 w-3 mr-1" />
                   Audit-Ready Trails
                 </Badge>
@@ -571,7 +646,7 @@ export default function Homepage() {
               >
                 <Button 
                   size="lg"
-                  className="bg-gradient-to-r from-amber-500 to-teal-500 hover:opacity-95 text-white font-semibold shadow-xl shadow-black/30 px-8 h-12 text-base relative overflow-hidden group transition-opacity"
+                  className="shadow-lg shadow-black/25 px-8 h-12 text-base relative overflow-hidden group"
                   data-testid="button-hero-login"
                   onClick={() => setLoginOpen(true)}
                 >
@@ -724,7 +799,7 @@ export default function Homepage() {
                   key={i}
                   className="flex items-center gap-2 rounded-full border border-border/40 bg-background/40 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70 transition-colors hover:text-foreground"
                 >
-                  <CheckCircle2 className="h-4 w-4 text-teal-300" />
+                  <CheckCircle2 className="h-4 w-4 text-primary" />
                   <span>{feature}</span>
                 </div>
               ))}
@@ -1309,44 +1384,225 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* Final CTA Section */}
-      <section className="relative z-10 py-20 sm:py-28 px-4">
-        <div className="max-w-4xl mx-auto">
-          <motion.div
-            {...getInViewProps()}
-          >
-            <Card className="border border-border/50 bg-gradient-to-br from-amber-500/10 via-card/50 to-teal-500/10 backdrop-blur-xl overflow-hidden">
-              <CardContent className="p-8 sm:p-12 text-center relative">
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-teal-400 to-sky-400" />
-                
-                <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-4">
-                  Ready to See What You Might Be Missing?
-                </h2>
-                <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-                  CareAssurance helps surface potential compliance issues in your records. 
-                  Sign in to explore the platform and see how it can support your team.
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
-                  <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-300 bg-emerald-500/10">
-                    EMAR audits
-                  </Badge>
-                  <Badge variant="outline" className="text-xs border-sky-500/30 text-sky-300 bg-sky-500/10">
-                    Care plans
-                  </Badge>
-                  <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-300 bg-amber-500/10">
-                    Risk insights
-                  </Badge>
+      {/* Connect Section */}
+      <section id="contact" className="relative z-10 py-20 sm:py-28 px-4">
+        <div className="max-w-5xl mx-auto">
+          <motion.div {...getInViewProps()}>
+            <Card className="glass-card">
+              <CardContent className="p-8 sm:p-12">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <Badge variant="secondary" className="mb-3 px-3 py-1 text-xs bg-muted/50 text-muted-foreground border-border/60">
+                      Start a conversation
+                    </Badge>
+                    <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
+                      Speak with CareAssurance
+                    </h2>
+                    <p className="text-muted-foreground max-w-2xl">
+                      Ask questions, share your requirements, or request a walkthrough. We reply quickly and keep it private.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/60 px-3 py-1.5">
+                      <Mail className="h-3.5 w-3.5 text-primary" />
+                      Private response within 1 business day
+                    </div>
+                    <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/60 px-3 py-1.5">
+                      <MessageSquare className="h-3.5 w-3.5 text-secondary" />
+                      Share goals, challenges, or timelines
+                    </div>
+                  </div>
                 </div>
-                
-                <Button 
-                  size="lg"
-                  className="bg-gradient-to-r from-amber-500 to-teal-500 hover:opacity-95 text-white font-semibold shadow-xl shadow-black/30 px-8 h-12 transition-opacity"
-                  data-testid="button-cta-login"
-                  onClick={() => setLoginOpen(true)}
-                >
-                  Sign In
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
+
+                <Tabs defaultValue="signin" className="mt-8">
+                  <TabsList className="grid w-full sm:w-[320px] grid-cols-2 rounded-full bg-muted/40 p-1">
+                    <TabsTrigger value="signin" className="rounded-full">Sign In</TabsTrigger>
+                    <TabsTrigger value="contact" className="rounded-full">Contact</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="signin" className="mt-6">
+                    <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] items-center">
+                      <div>
+                        <h3 className="text-lg font-semibold text-foreground mb-2">
+                          Ready to explore the platform?
+                        </h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Sign in to see live EMAR audits, care plan drafting, and compliance reporting in action.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline" className="text-xs border-primary/30 text-primary bg-primary/10">
+                            EMAR audits
+                          </Badge>
+                          <Badge variant="outline" className="text-xs border-border/60 text-muted-foreground bg-muted/40">
+                            Care plans
+                          </Badge>
+                          <Badge variant="outline" className="text-xs border-secondary/30 text-secondary bg-secondary/10">
+                            Risk insights
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
+                        <Button
+                          size="lg"
+                          className="px-8"
+                          data-testid="button-cta-login"
+                          onClick={() => setLoginOpen(true)}
+                        >
+                          Sign In
+                          <ArrowRight className="ml-2 h-5 w-5" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          onClick={() => document.getElementById("roi-calculator")?.scrollIntoView({ behavior: "smooth" })}
+                        >
+                          View ROI
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="contact" className="mt-6">
+                    {contactStatus === "sent" ? (
+                      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
+                        <div className="flex items-center gap-2 text-emerald-200">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span className="text-sm font-semibold">Message sent</span>
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Thanks for reaching out. We will review your message and respond shortly.
+                        </p>
+                        <Button
+                          variant="outline"
+                          className="mt-4"
+                          onClick={() => setContactStatus("idle")}
+                        >
+                          Send another message
+                        </Button>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleContactSubmit}>
+                        <fieldset disabled={contactStatus === "sending"} className="grid gap-4">
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="contact-name">Full name</Label>
+                              <Input
+                                id="contact-name"
+                                value={contactForm.name}
+                                onChange={handleContactChange("name")}
+                                placeholder="Your name"
+                                autoComplete="name"
+                                required
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="contact-email">Work email</Label>
+                              <Input
+                                id="contact-email"
+                                type="email"
+                                value={contactForm.email}
+                                onChange={handleContactChange("email")}
+                                placeholder="you@company.com"
+                                autoComplete="email"
+                                required
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="contact-company">Organisation</Label>
+                              <Input
+                                id="contact-company"
+                                value={contactForm.company}
+                                onChange={handleContactChange("company")}
+                                placeholder="Care provider or organisation"
+                                autoComplete="organization"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="contact-role">Role (optional)</Label>
+                              <Input
+                                id="contact-role"
+                                value={contactForm.role}
+                                onChange={handleContactChange("role")}
+                                placeholder="Your role"
+                                autoComplete="organization-title"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="contact-phone">Phone (optional)</Label>
+                              <Input
+                                id="contact-phone"
+                                value={contactForm.phone}
+                                onChange={handleContactChange("phone")}
+                                placeholder="+44..."
+                                autoComplete="tel"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="contact-topic">Preferred focus</Label>
+                              <Input
+                                id="contact-topic"
+                                value={contactForm.topic}
+                                onChange={handleContactChange("topic")}
+                                placeholder="EMAR, audits, care planning..."
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="contact-message">Message</Label>
+                            <Textarea
+                              id="contact-message"
+                              value={contactForm.message}
+                              onChange={handleContactChange("message")}
+                              placeholder="Tell us what you want to achieve..."
+                              rows={5}
+                              minLength={10}
+                              required
+                            />
+                          </div>
+
+                          <input
+                            type="text"
+                            tabIndex={-1}
+                            autoComplete="off"
+                            className="hidden"
+                            value={contactForm.website}
+                            onChange={handleContactChange("website")}
+                            aria-hidden="true"
+                          />
+
+                          {contactStatus === "error" && (
+                            <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive-foreground">
+                              {contactError}
+                            </div>
+                          )}
+
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-xs text-muted-foreground">
+                              We use your details only to respond to this message.
+                            </p>
+                            <Button type="submit" size="lg">
+                              {contactStatus === "sending" ? (
+                                <span className="flex items-center gap-2">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Sending...
+                                </span>
+                              ) : (
+                                "Send message"
+                              )}
+                            </Button>
+                          </div>
+                        </fieldset>
+                      </form>
+                    )}
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
           </motion.div>
@@ -1358,7 +1614,7 @@ export default function Homepage() {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-lg bg-primary/90 flex items-center justify-center">
                 <ShieldCheck className="h-4 w-4 text-white" />
               </div>
               <div>
