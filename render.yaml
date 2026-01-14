@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: care-assurance
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Optional override; defaults in code if not set.
+      - key: CONTACT_EMAIL
+        value: lewisbarron@careassurance.uk
+      - key: CONTACT_FROM
+        value: "CareAssurance <no-reply@careassurance.uk>"
+      # Set these in the Render dashboard (do not commit secrets):
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      # If you use Postgres, set DATABASE_URL in the dashboard.
+      - key: DATABASE_URL
+        sync: false
