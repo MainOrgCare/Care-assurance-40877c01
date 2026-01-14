@@ -4,7 +4,6 @@ import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import nodemailer, { type Transporter } from "nodemailer";
 import { storage } from "./storage";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -58,39 +57,6 @@ const uploadExcel = multer({
 
 const MAX_NON_ADMIN_SESSIONS = 2;
 const FORCE_LOGOUT_WARNING_SECONDS = 30;
-const CONTACT_EMAIL = process.env.CONTACT_EMAIL || "lewisbarron@careassurance.uk";
-const CONTACT_FROM = process.env.CONTACT_FROM || "CareAssurance <no-reply@careassurance.uk>";
-let contactTransporter: Transporter | null = null;
-
-const getContactTransporter = () => {
-  if (contactTransporter) return contactTransporter;
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
-  const secure = process.env.SMTP_SECURE === "true" || port === 465;
-
-  if (!host || !user || !pass) return null;
-
-  contactTransporter = nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
-  });
-  return contactTransporter;
-};
-
-const contactMessageSchema = z.object({
-  name: z.string().min(2).max(120),
-  email: z.string().email().max(200),
-  company: z.string().max(160).optional(),
-  role: z.string().max(120).optional(),
-  topic: z.string().max(160).optional(),
-  phone: z.string().max(80).optional(),
-  message: z.string().min(10).max(2000),
-  website: z.string().max(200).optional(),
-});
 
 const getStandardFontDataUrl = (): string => {
   const fontsPath = path.resolve(process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts");
@@ -1419,105 +1385,6 @@ export async function registerRoutes(
     }
     next();
   };
-
-  // ===== PUBLIC CONTACT ROUTE =====
-  app.post("/api/contact", async (req, res) => {
-    const parsed = contactMessageSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ message: "Invalid contact request." });
-    }
-
-    const {
-      name,
-      email,
-      company,
-      role,
-      topic,
-      phone,
-      message,
-      website,
-    } = parsed.data;
-
-    if (website && website.trim()) {
-      return res.json({ ok: true });
-    }
-
-    if (!CONTACT_EMAIL) {
-      return res.status(503).json({
-        message: "Contact destination is not configured. Please try again later.",
-      });
-    }
-
-    const transporter = getContactTransporter();
-    if (!transporter) {
-      return res.status(503).json({
-        message: "Contact service is not configured. Please try again later.",
-      });
-    }
-
-    const normalizeLine = (value: string | undefined) =>
-      (value || "").replace(/\s+/g, " ").trim();
-    const escapeHtml = (value: string) =>
-      value
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-
-    const safeName = normalizeLine(name);
-    const safeCompany = normalizeLine(company);
-    const safeRole = normalizeLine(role);
-    const safeTopic = normalizeLine(topic);
-    const safePhone = normalizeLine(phone);
-    const safeEmail = normalizeLine(email);
-    const safeMessage = String(message || "").replace(/\r/g, "").trim();
-
-    const subject = `CareAssurance contact request from ${safeName}`;
-    const plainText = [
-      "New contact request",
-      "",
-      `Name: ${safeName}`,
-      `Email: ${safeEmail}`,
-      `Company: ${safeCompany || "Not provided"}`,
-      `Role: ${safeRole || "Not provided"}`,
-      `Topic: ${safeTopic || "Not provided"}`,
-      `Phone: ${safePhone || "Not provided"}`,
-      "",
-      "Message:",
-      safeMessage,
-    ].join("\n");
-
-    const html = `
-      <div style="font-family: Arial, sans-serif; font-size: 14px; color: #0f172a;">
-        <h2 style="margin: 0 0 12px;">New contact request</h2>
-        <p><strong>Name:</strong> ${escapeHtml(safeName)}</p>
-        <p><strong>Email:</strong> ${escapeHtml(safeEmail)}</p>
-        <p><strong>Company:</strong> ${escapeHtml(safeCompany || "Not provided")}</p>
-        <p><strong>Role:</strong> ${escapeHtml(safeRole || "Not provided")}</p>
-        <p><strong>Topic:</strong> ${escapeHtml(safeTopic || "Not provided")}</p>
-        <p><strong>Phone:</strong> ${escapeHtml(safePhone || "Not provided")}</p>
-        <p><strong>Message:</strong></p>
-        <p style="white-space: pre-line;">${escapeHtml(safeMessage)}</p>
-      </div>
-    `;
-
-    try {
-      await transporter.sendMail({
-        to: CONTACT_EMAIL,
-        from: CONTACT_FROM,
-        replyTo: safeEmail,
-        subject,
-        text: plainText,
-        html,
-      });
-
-      return res.json({ ok: true });
-    } catch (error: any) {
-      console.error("Contact form email error:", error);
-      return res.status(500).json({ message: "Failed to send message." });
-    }
-  });
 
   // ===== AUTH ROUTES =====
   
