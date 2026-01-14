@@ -1374,7 +1374,6 @@ export async function registerRoutes(
   app.set("trust proxy", 1);
 
   // Session middleware (skip for Vite HMR WebSocket)
-  const isReplit = !!process.env.REPL_ID;
   const sessionMiddleware = session({
     ...(sessionStore ? { store: sessionStore } : {}),
     secret: process.env.SESSION_SECRET || "carecompli-secret-key-change-in-prod",
@@ -1382,14 +1381,11 @@ export async function registerRoutes(
     saveUninitialized: false,
     proxy: true,
     cookie: {
-      // SameSite=None requires Secure=true. Replit proxy uses HTTPS, so this works.
-      // partitioned: true enables CHIPS (Cookies Having Independent Partitioned State) for iframe contexts
-      secure: isReplit || process.env.NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production",
       httpOnly: true,
-      sameSite: isReplit ? "none" : "lax",
+      sameSite: "lax",
       maxAge: 1000 * 60 * 30, // 30 minutes - auto logout on inactivity
-      partitioned: isReplit, // Required for third-party cookie access in Chrome's privacy sandbox
-    } as any, // Type assertion needed for partitioned attribute
+    },
     rolling: true, // Reset cookie expiration on each request (keeps session alive while active)
   });
   
@@ -9786,7 +9782,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   app.get("/api/admin/ai-provider", requireAuth, requireAdmin, async (req, res) => {
     try {
       const provider = getPreferredProvider();
-      const hasOpenAIKey = !!process.env.OPENAI_FALLBACK_API_KEY;
+      const hasOpenAIKey = !!(process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY);
       return res.json({ provider, hasOpenAIKey });
     } catch (error: any) {
       console.error("AI provider fetch error:", error);
@@ -9798,13 +9794,13 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   app.post("/api/admin/ai-provider", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       const { provider } = req.body;
-      if (provider !== "replit" && provider !== "openai") {
-        return res.status(400).json({ message: "Invalid provider. Must be 'replit' or 'openai'" });
+      if (provider !== "openai") {
+        return res.status(400).json({ message: "Invalid provider. Must be 'openai'." });
       }
       
       // Check if OpenAI key is configured before allowing switch
-      if (provider === "openai" && !process.env.OPENAI_FALLBACK_API_KEY) {
-        return res.status(400).json({ message: "OpenAI API key not configured. Set OPENAI_FALLBACK_API_KEY secret." });
+      if (!process.env.OPENAI_FALLBACK_API_KEY && !process.env.OPENAI_API_KEY) {
+        return res.status(400).json({ message: "OpenAI API key not configured. Set OPENAI_API_KEY or OPENAI_FALLBACK_API_KEY." });
       }
       
       setPreferredProvider(provider as AiProvider);

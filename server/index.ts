@@ -14,14 +14,12 @@ declare module "http" {
   }
 }
 
-// Domain redirect middleware - redirect Replit domain to custom domain in production
-const CUSTOM_DOMAIN = "careassurance.uk";
+// Domain redirect middleware - redirect non-canonical hosts to the custom domain in production
+const CANONICAL_DOMAIN = "careassurance.uk";
 app.use((req, res, next) => {
-  const host = req.get("host") || "";
-  // Only redirect in production and if accessing via Replit domain
-  if (process.env.NODE_ENV === "production" && 
-      (host.includes(".replit.app") || host.includes(".replit.dev"))) {
-    const redirectUrl = `https://${CUSTOM_DOMAIN}${req.originalUrl}`;
+  const host = (req.get("host") || "").split(":")[0];
+  if (process.env.NODE_ENV === "production" && host && host !== CANONICAL_DOMAIN) {
+    const redirectUrl = `https://${CANONICAL_DOMAIN}${req.originalUrl}`;
     return res.redirect(301, redirectUrl);
   }
   next();

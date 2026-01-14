@@ -9,19 +9,11 @@ import { nanoid } from "nanoid";
 const viteLogger = createLogger();
 
 export async function setupVite(server: Server, app: Express) {
-  // Get Replit domain for HMR WebSocket connection
-  const replitDomain = process.env.REPLIT_DEV_DOMAIN || process.env.REPL_SLUG + "." + process.env.REPL_OWNER + ".repl.co";
-  
   const serverOptions = {
     middlewareMode: true,
-    hmr: { 
-      server, 
+    hmr: {
+      server,
       path: "/vite-hmr",
-      // Configure HMR to use WSS through Replit's proxy
-      protocol: "wss",
-      host: replitDomain,
-      port: 443,
-      clientPort: 443,
     },
     allowedHosts: true as const,
   };

@@ -59,7 +59,7 @@ Icons:            Lucide React
 Runtime:          Node.js
 Framework:        Express.js
 Language:         TypeScript (ES modules)
-Database:         PostgreSQL (Neon-backed on Replit)
+Database:         PostgreSQL (Neon-backed)
 ORM:              Drizzle ORM with drizzle-zod validation
 Session Store:    connect-pg-simple (PostgreSQL-backed sessions)
 File Upload:      Multer (memory storage)
@@ -69,7 +69,7 @@ WebSocket:        ws library for real-time notifications
 
 ### AI/External APIs
 ```
-Primary AI:       OpenAI API (via Replit AI integration or direct)
+Primary AI:       OpenAI API (direct)
 Models Used:      GPT-4.1-mini (core extraction), GPT-4.1-mini (auxiliary tasks)
 Virus Scanning:   Cloudmersive Virus Scan API
 ```
@@ -325,8 +325,8 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
   username: text("username"),
   featureName: text("feature").notNull(),
   model: text("model").notNull(),
-  billingSource: text("billing_source").notNull().default("replit"),
-  provider: text("provider").notNull().default("replit"),
+  billingSource: text("billing_source").notNull().default("openai"),
+  provider: text("provider").notNull().default("openai"),
   inputTokens: integer("input_tokens").notNull().default(0),
   outputTokens: integer("output_tokens").notNull().default(0),
   totalTokens: integer("total_tokens").notNull().default(0),
@@ -610,38 +610,24 @@ const AUX_MODEL = "gpt-4.1-mini";  // $0.40/1M input, $1.60/1M output
 ```typescript
 // server/services/aiClient.ts
 
-const replitClient = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+function getOpenAIClient() {
+  const apiKey = process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  return new OpenAI({
+    apiKey,
+    baseURL: process.env.OPENAI_FALLBACK_BASE_URL || "https://api.openai.com/v1",
+  });
+}
 
-// Provider preference with automatic failover
-let preferredProvider: "replit" | "openai" = "replit";
+// Provider is fixed to OpenAI for this deployment
+let preferredProvider: "openai" = "openai";
 
 async function createChatCompletionWithProvider(params) {
-  const openai = getOpenAIClient(); // Fallback client
-  
-  // Try preferred provider first
-  if (preferredProvider === "openai" && openai) {
-    try {
-      return { completion: await openai.chat.completions.create(params), provider: "openai" };
-    } catch (error) {
-      if (shouldFallback(error)) {
-        return { completion: await replitClient.chat.completions.create(params), provider: "replit" };
-      }
-      throw error;
-    }
+  const openai = getOpenAIClient();
+  if (!openai) {
+    throw new Error("OpenAI is not configured. Set OPENAI_API_KEY or OPENAI_FALLBACK_API_KEY.");
   }
-  
-  // Default: Replit with OpenAI fallback
-  try {
-    return { completion: await replitClient.chat.completions.create(params), provider: "replit" };
-  } catch (error) {
-    if (shouldFallback(error) && openai) {
-      return { completion: await openai.chat.completions.create(params), provider: "openai" };
-    }
-    throw error;
-  }
+  return { completion: await openai.chat.completions.create(params), provider: "openai" };
 }
 
 // Logging wrapper - tracks all AI usage
@@ -1074,11 +1060,10 @@ DATABASE_URL=postgresql://user:password@host:port/database
 # Session
 SESSION_SECRET=your-secure-random-string
 
-# AI (Replit integration - auto-provided)
-AI_INTEGRATIONS_OPENAI_API_KEY=...
-AI_INTEGRATIONS_OPENAI_BASE_URL=...
+# AI
+OPENAI_API_KEY=sk-...
 
-# AI (Direct OpenAI fallback - optional)
+# AI (optional fallback/base URL overrides)
 OPENAI_FALLBACK_API_KEY=sk-...
 OPENAI_FALLBACK_BASE_URL=https://api.openai.com/v1
 
@@ -1102,7 +1087,7 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 5000,
-    allowedHosts: true, // Critical for Replit proxy
+    allowedHosts: true,
   },
 });
 ```
@@ -1125,11 +1110,11 @@ export default {
 
 ## Deployment
 
-### Replit Deployment
+### Deployment
 
 1. **Development**: `npm run dev` - Runs Express + Vite on port 5000
-2. **Production**: Configure autoscale deployment
-3. **Database**: Use Replit's built-in PostgreSQL (Neon-backed)
+2. **Production**: Build with `npm run build`, then run `npm run start`
+3. **Database**: Provide `DATABASE_URL` for PostgreSQL
 
 ### Database Migrations
 
@@ -1169,7 +1154,7 @@ OpenAI automatically caches static system prompts (50% discount, 5-10 min TTL). 
 AI responses use Server-Sent Events for real-time display. Frontend uses `EventSource` API or fetch with readable streams.
 
 ### 4. Session Cookies
-Uses `SameSite=None; Secure; Partitioned` for cross-origin iframe compatibility on Replit.
+Uses `SameSite=None; Secure; Partitioned` for cross-origin iframe compatibility when required.
 
 ### 5. File Scanning
 All uploads go through Cloudmersive virus scan. Results are cached by file hash. Threats block upload immediately.

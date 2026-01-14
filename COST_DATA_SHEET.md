@@ -89,7 +89,7 @@ Protects all file uploads from malware threats.
 
 ---
 
-## 4. Database (Neon PostgreSQL via Replit)
+## 4. Database (Neon PostgreSQL)
 
 | Resource | Free Allowance |
 |----------|---------------|
@@ -108,7 +108,7 @@ Protects all file uploads from malware threats.
 
 ---
 
-## 5. Hosting & Deployment (Replit)
+## 5. Hosting & Deployment (Managed Hosting)
 
 ### Deployment Options
 
@@ -126,7 +126,7 @@ Protects all file uploads from malware threats.
 | Medium (5-20 users) | Autoscale or Shared VM | £4-20/month |
 | Large (20+ users) | Reserved VM | £32-63/month |
 
-### Replit Plan Credits
+### Platform Plan Credits
 
 | Plan | Monthly Credits | Notes |
 |------|-----------------|-------|

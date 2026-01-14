@@ -7,9 +7,8 @@ The application is configured to deploy to the custom domain **careassurance.uk*
 ### Key Configuration Files
 
 1. **server/index.ts** (lines 17-28)
-   - Implements automatic redirect from Replit domains to the custom domain
-   - Redirects `.replit.app` and `.replit.dev` domains to `https://careassurance.uk` in production
-   - Ensures consistent URL across all users
+   - Implements automatic redirect from non-canonical hosts to the custom domain
+   - Ensures consistent URL across all users in production
 
 2. **vite-plugin-meta-images.ts** (lines 58-68)
    - Configures Open Graph and Twitter meta tags to use the custom domain
@@ -19,14 +18,6 @@ The application is configured to deploy to the custom domain **careassurance.uk*
 3. **vite.config.ts**
    - Configured with `allowedHosts: true` to accept requests from custom domains
    - Server runs on `0.0.0.0` to accept connections from any interface
-
-### Replit Deployment Settings
-
-The `.replit` file contains the deployment configuration:
-- **Deployment Target**: autoscale
-- **Build Command**: `npm run build`
-- **Run Command**: `npm run start`
-- **Port Configuration**: Internal port 5000 maps to external port 80
 
 ### Render Deployment (Web Service)
 
@@ -49,18 +40,6 @@ If you are using Render **Docker** instead of Node:
 
 - Ensure your Docker build runs `npm ci --omit=dev` (or `npm ci`) in the final runtime stage.
 - Do not copy only `dist/` without also installing runtime dependencies.
-
-### Domain Configuration in Replit
-
-To complete the deployment to your custom domain:
-
-1. Go to your Replit project
-2. Navigate to the "Deployments" tab
-3. Click on your deployment
-4. Under "Custom Domains", add `careassurance.uk`
-5. Follow Replit's instructions to configure DNS records:
-   - Add a CNAME record pointing to your Replit deployment URL
-   - Or add A records pointing to Replit's IP addresses
 
 ### Testing
 

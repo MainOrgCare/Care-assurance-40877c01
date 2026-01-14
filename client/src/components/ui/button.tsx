@@ -10,24 +10,17 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-           // @replit: no hover, and add primary border
            "bg-primary text-primary-foreground border border-primary-border shadow-[0_6px_18px_rgba(0,0,0,0.22)] hover:shadow-[0_8px_22px_rgba(0,0,0,0.26)] active:shadow-[0_4px_12px_rgba(0,0,0,0.18)]",
         destructive:
           "bg-destructive text-destructive-foreground border border-destructive-border shadow-[0_6px_18px_rgba(0,0,0,0.22)] hover:shadow-[0_8px_22px_rgba(0,0,0,0.26)] active:shadow-[0_4px_12px_rgba(0,0,0,0.18)]",
         outline:
-          // @replit Shows the background color of whatever card / sidebar / accent background it is inside of.
-          // Inherits the current text color. Uses shadow-xs. no shadow on active
-          // No hover state
           "border [border-color:var(--button-outline)] bg-transparent text-foreground/90 hover:bg-muted/50 hover:text-foreground shadow-xs active:shadow-none",
         secondary:
-          // @replit border, no hover, no shadow, secondary border.
           "border bg-secondary text-secondary-foreground border-secondary-border shadow-[0_6px_18px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_22px_rgba(0,0,0,0.24)] active:shadow-[0_4px_12px_rgba(0,0,0,0.16)]",
-        // @replit no hover, transparent border
         ghost: "border border-transparent text-foreground/85 hover:bg-muted/60 hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        // @replit changed sizes
         default: "min-h-9 px-4 py-2",
         sm: "min-h-8 rounded-md px-3 text-xs",
         lg: "min-h-10 rounded-md px-8",

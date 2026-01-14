@@ -161,6 +161,18 @@ function AICostSection() {
   );
   const providerEntries = Object.entries(providerSummary).sort((a, b) => b[1].cost - a[1].cost);
 
+  const formatProviderLabel = (value: string): string => {
+    if (!value || value === "unknown") return "Unknown";
+    if (value === "openai") return "OpenAI";
+    return "Other Provider";
+  };
+
+  const providerBadgeClass = (value: string): string => (
+    value === "openai"
+      ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/10"
+      : "border-white/10 text-muted-foreground bg-white/5"
+  );
+
   const filteredLogs = logs.filter((log) => {
     const searchValue = logSearch.toLowerCase().trim();
     const matchesSearch =
@@ -168,7 +180,10 @@ function AICostSection() {
       log.username?.toLowerCase().includes(searchValue) ||
       log.featureName?.toLowerCase().includes(searchValue) ||
       log.model?.toLowerCase().includes(searchValue);
-    const matchesProvider = providerFilter === "all" || log.provider === providerFilter;
+    const matchesProvider =
+      providerFilter === "all" ||
+      (providerFilter === "openai" && log.provider === "openai") ||
+      (providerFilter === "other" && log.provider !== "openai");
     return matchesSearch && matchesProvider;
   });
 
@@ -248,14 +263,9 @@ function AICostSection() {
                     <Badge
                       key={provider}
                       variant="outline"
-                      className={provider === "replit"
-                        ? "border-indigo-500/40 text-indigo-300 bg-indigo-500/10"
-                        : provider === "openai"
-                          ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/10"
-                          : "border-white/10 text-muted-foreground bg-white/5"
-                      }
+                      className={providerBadgeClass(provider)}
                     >
-                      {provider === "replit" ? "Replit AI" : provider === "openai" ? "OpenAI" : provider} · {formatCost(data.cost)}
+                      {formatProviderLabel(provider)} · {formatCost(data.cost)}
                     </Badge>
                   ))}
                 </div>
@@ -377,7 +387,7 @@ function AICostSection() {
                 <SelectContent>
                   <SelectItem value="all">All providers</SelectItem>
                   <SelectItem value="openai">OpenAI</SelectItem>
-                  <SelectItem value="replit">Replit AI</SelectItem>
+                  <SelectItem value="other">Other providers</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -415,12 +425,9 @@ function AICostSection() {
                     <TableCell>
                       <Badge 
                         variant="outline" 
-                        className={log.provider === "replit" 
-                          ? "border-indigo-500/50 text-indigo-300 bg-indigo-500/10" 
-                          : "border-emerald-500/50 text-emerald-300 bg-emerald-500/10"
-                        }
+                        className={providerBadgeClass(log.provider)}
                       >
-                        {log.provider === "replit" ? "Replit AI" : "OpenAI"}
+                        {formatProviderLabel(log.provider)}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground font-mono text-xs">
@@ -454,11 +461,8 @@ function AICostSection() {
 }
 
 function AIProviderSection() {
-  const [provider, setProvider] = useState<"replit" | "openai">("replit");
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [switching, setSwitching] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
     fetchSettings();
@@ -470,51 +474,12 @@ function AIProviderSection() {
       
       if (providerRes.ok) {
         const data = await providerRes.json();
-        setProvider(data.provider);
-        setHasOpenAIKey(data.hasOpenAIKey);
+        setHasOpenAIKey(Boolean(data.hasOpenAIKey));
       }
     } catch (error) {
       console.error("Failed to fetch AI settings:", error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSwitchProvider = async (newProvider: "replit" | "openai") => {
-    if (newProvider === provider) return;
-    
-    setSwitching(true);
-    try {
-      const response = await fetch("/api/admin/ai-provider", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: newProvider }),
-      });
-      
-      if (response.ok) {
-        setProvider(newProvider);
-        toast({
-          title: "AI Provider Updated",
-          description: `Now using ${newProvider === "replit" ? "Replit AI" : "OpenAI"} as the primary provider.`,
-        });
-      } else {
-        const data = await response.json();
-        toast({
-          title: "Failed to switch provider",
-          description: data.message || "Unknown error occurred",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("Failed to switch AI provider:", error);
-      toast({
-        title: "Error",
-        description: "Failed to switch AI provider. Check console for details.",
-        variant: "destructive",
-      });
-    } finally {
-      setSwitching(false);
     }
   };
 
@@ -536,77 +501,34 @@ function AIProviderSection() {
           AI Configuration
         </CardTitle>
         <CardDescription className="text-muted-foreground text-sm">
-          Configure billing provider. Model selection uses optimized tiered approach automatically.
+          Billing provider is fixed to OpenAI. Model selection uses an optimized tiered approach.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-6 space-y-6">
         <div>
           <h4 className="text-sm font-medium text-foreground mb-3">Billing Provider</h4>
-          <div className="flex flex-col md:flex-row gap-4">
-            <button
-              onClick={() => handleSwitchProvider("replit")}
-              disabled={switching || provider === "replit"}
-              className={`flex-1 p-4 rounded-lg border-2 transition-all ${
-                provider === "replit"
-                  ? "border-indigo-500 bg-indigo-500/10"
-                  : "border-white/10 hover:border-white/20 bg-white/5"
-              } ${switching ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-              data-testid="button-provider-replit"
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  provider === "replit" ? "bg-indigo-500/20" : "bg-white/10"
-                }`}>
-                  <Cpu size={20} className={provider === "replit" ? "text-indigo-400" : "text-muted-foreground"} />
-                </div>
-                <div className="text-left">
-                  <div className="font-medium text-foreground">Replit AI</div>
-                  <div className="text-xs text-muted-foreground">Uses your Replit AI credits</div>
-                </div>
-                {provider === "replit" && (
-                  <Badge variant="secondary" className="ml-auto bg-indigo-500/20 text-indigo-300 border-indigo-500/30">
-                    Active
-                  </Badge>
-                )}
+          <div className="p-4 rounded-lg border-2 border-white/10 bg-white/5">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                hasOpenAIKey ? "bg-emerald-500/20" : "bg-white/10"
+              }`}>
+                <Cpu size={20} className={hasOpenAIKey ? "text-emerald-400" : "text-muted-foreground"} />
               </div>
-            </button>
-
-            <button
-              onClick={() => handleSwitchProvider("openai")}
-              disabled={switching || provider === "openai" || !hasOpenAIKey}
-              className={`flex-1 p-4 rounded-lg border-2 transition-all ${
-                provider === "openai"
-                  ? "border-emerald-500 bg-emerald-500/10"
-                  : hasOpenAIKey
-                    ? "border-white/10 hover:border-white/20 bg-white/5"
-                    : "border-white/5 bg-white/5 opacity-50"
-              } ${switching || !hasOpenAIKey ? "cursor-not-allowed" : "cursor-pointer"}`}
-              data-testid="button-provider-openai"
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  provider === "openai" ? "bg-emerald-500/20" : "bg-white/10"
-                }`}>
-                  <TrendingUp size={20} className={provider === "openai" ? "text-emerald-400" : "text-muted-foreground"} />
+              <div className="text-left">
+                <div className="font-medium text-foreground">OpenAI</div>
+                <div className="text-xs text-muted-foreground">
+                  {hasOpenAIKey ? "OpenAI API key configured" : "OpenAI API key not configured"}
                 </div>
-                <div className="text-left">
-                  <div className="font-medium text-foreground">OpenAI</div>
-                  <div className="text-xs text-muted-foreground">
-                    {hasOpenAIKey ? "Uses your OpenAI API key" : "OPENAI_FALLBACK_API_KEY not set"}
-                  </div>
-                </div>
-                {provider === "openai" && (
-                  <Badge variant="secondary" className="ml-auto bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-                    Active
-                  </Badge>
-                )}
-                {!hasOpenAIKey && (
-                  <Badge variant="outline" className="ml-auto border-yellow-500/50 text-yellow-400">
-                    Key Missing
-                  </Badge>
-                )}
               </div>
-            </button>
+              <Badge
+                variant={hasOpenAIKey ? "secondary" : "outline"}
+                className={hasOpenAIKey
+                  ? "ml-auto bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                  : "ml-auto border-yellow-500/50 text-yellow-400"}
+              >
+                {hasOpenAIKey ? "Active" : "Key Missing"}
+              </Badge>
+            </div>
           </div>
         </div>
 
@@ -630,7 +552,7 @@ function AIProviderSection() {
         <div className="p-3 bg-black/20 rounded-lg border border-white/5 text-xs text-muted-foreground">
           <strong className="text-foreground">Note:</strong> AI models are automatically selected based on task complexity. 
           Drug interaction checks are computed on each run to avoid reusing previous responses.
-          If the primary provider fails, the system will automatically try the other provider.
+          Provider is fixed to OpenAI for this deployment.
         </div>
       </CardContent>
     </Card>
