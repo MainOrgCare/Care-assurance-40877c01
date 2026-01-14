@@ -24,11 +24,9 @@ The application is configured to deploy to the custom domain **careassurance.uk*
 
 The `.replit` file contains the deployment configuration:
 - **Deployment Target**: autoscale
-- **Build Command**: `npm ci && npm run build`
+- **Build Command**: `npm run build`
 - **Run Command**: `npm run start`
 - **Port Configuration**: Internal port 5000 maps to external port 80
-
-Note: The server build externalises npm packages (see `package.json` script `build:server`). This means production must have runtime dependencies installed (including `nodemailer` for the contact form).
 
 ### Render Deployment (Web Service)
 
@@ -37,6 +35,7 @@ This repo is a single Node.js web service that serves both the API and the built
 In Render, create a **Web Service** (Environment: **Node**) pointing at this repository.
 
 - **Build Command**: `npm ci && npm run build`
+- **Build Command**: `npm run build`
 - **Start Command**: `npm run start`
 - **Node version**: use Node 20 (already declared via `package.json` `engines.node = 20.x`).
 - **Environment variables**:
@@ -44,26 +43,12 @@ In Render, create a **Web Service** (Environment: **Node**) pointing at this rep
    - `DATABASE_URL` (if using Postgres)
    - Contact form SMTP vars (see below)
 
-Important: The server build uses `esbuild --packages=external`, so `dist/index.cjs` requires installed runtime dependencies at start-up. If Render is configured to start without running an install step (or you deploy only `dist/`), you'll see errors like `Cannot find module 'nodemailer'`.
+Important: The server build uses `esbuild --packages=external`, so `dist/index.cjs` requires installed runtime dependencies at start-up.
 
 If you are using Render **Docker** instead of Node:
 
 - Ensure your Docker build runs `npm ci --omit=dev` (or `npm ci`) in the final runtime stage.
 - Do not copy only `dist/` without also installing runtime dependencies.
-
-### Contact Form (Email)
-
-The homepage contact form posts to `/api/contact`. Email delivery uses SMTP via `nodemailer`.
-
-Set these environment variables in production:
-
-- `CONTACT_EMAIL` (optional): Destination email address. Defaults to `lewisbarron@careassurance.uk`.
-- `CONTACT_FROM` (optional): From header. Defaults to `CareAssurance <no-reply@careassurance.uk>`.
-- `SMTP_HOST` (required to enable sending)
-- `SMTP_PORT` (optional, default `587`)
-- `SMTP_SECURE` (optional, `true` for port `465`)
-- `SMTP_USER` (required to enable sending)
-- `SMTP_PASS` (required to enable sending)
 
 ### Domain Configuration in Replit
 

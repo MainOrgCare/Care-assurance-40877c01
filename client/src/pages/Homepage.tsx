@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
 import { motion, useReducedMotion } from "framer-motion";
@@ -310,28 +309,6 @@ const calculateROI = (users: number) => {
   return { manualHours, aiHours, hoursSaved, moneySaved };
 };
 
-type ContactFormState = {
-  name: string;
-  email: string;
-  company: string;
-  role: string;
-  topic: string;
-  phone: string;
-  message: string;
-  website: string;
-};
-
-const CONTACT_FORM_DEFAULT: ContactFormState = {
-  name: "",
-  email: "",
-  company: "",
-  role: "",
-  topic: "",
-  phone: "",
-  message: "",
-  website: "",
-};
-
 const generateParticleStyles = () =>
   Array.from({ length: PARTICLE_COUNT }, () => ({
     left: `${Math.random() * 100}%`,
@@ -348,9 +325,6 @@ export default function Homepage() {
   const [loading, setLoading] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [serviceUsers, setServiceUsers] = useState(20);
-  const [contactForm, setContactForm] = useState<ContactFormState>(CONTACT_FORM_DEFAULT);
-  const [contactStatus, setContactStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  const [contactError, setContactError] = useState("");
   const prefersReducedMotion = useReducedMotion();
 
   const roi = useMemo(() => calculateROI(serviceUsers), [serviceUsers]);
@@ -412,57 +386,14 @@ export default function Homepage() {
     setServiceUsers(value[0]);
   }, []);
 
-  const focusContactForm = useCallback(() => {
+  const scrollToContact = useCallback(() => {
     document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" });
-    window.setTimeout(() => {
-      const contactName = document.getElementById("contact-name") as HTMLInputElement | null;
-      contactName?.focus();
-    }, 450);
   }, []);
 
   const openLoginFromCTA = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
     window.setTimeout(() => setLoginOpen(true), 250);
   }, [setLoginOpen]);
-
-  const handleContactChange = useCallback(
-    (field: keyof ContactFormState) =>
-      (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const value = event.target.value;
-        setContactForm((prev) => ({ ...prev, [field]: value }));
-        if (contactStatus !== "idle") {
-          setContactStatus("idle");
-          setContactError("");
-        }
-      },
-    [contactStatus]
-  );
-
-  const handleContactSubmit = useCallback(async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (contactStatus === "sending") return;
-    setContactStatus("sending");
-    setContactError("");
-
-    try {
-      const response = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(contactForm),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data?.message || "Unable to send message right now.");
-      }
-
-      setContactStatus("sent");
-      setContactForm(CONTACT_FORM_DEFAULT);
-    } catch (error: any) {
-      setContactStatus("error");
-      setContactError(error?.message || "Unable to send message right now.");
-    }
-  }, [contactForm, contactStatus]);
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-x-hidden bg-background">
@@ -519,7 +450,7 @@ export default function Homepage() {
               <Button
                 variant="outline"
                 className="hidden sm:inline-flex"
-                onClick={() => document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" })}
+                onClick={scrollToContact}
               >
                 Contact
               </Button>
@@ -1454,144 +1385,19 @@ export default function Homepage() {
                   </div>
 
                   <div>
-                    {contactStatus === "sent" ? (
-                      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
-                        <div className="flex items-center gap-2 text-emerald-200">
-                          <CheckCircle2 className="h-4 w-4" />
-                          <span className="text-sm font-semibold">Message sent</span>
-                        </div>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          Thanks for reaching out. We will review your message and respond shortly.
-                        </p>
-                        <Button
-                          variant="outline"
-                          className="mt-4"
-                          onClick={() => setContactStatus("idle")}
-                        >
-                          Send another message
-                        </Button>
+                    <div className="rounded-2xl border border-border/50 bg-background/40 p-6">
+                      <div className="flex items-center gap-2 text-foreground">
+                        <AlertTriangle className="h-4 w-4 text-amber-300" />
+                        <span className="text-sm font-semibold">Contact form disabled</span>
                       </div>
-                    ) : (
-                      <form onSubmit={handleContactSubmit}>
-                        <fieldset disabled={contactStatus === "sending"} className="grid gap-4">
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="space-y-2">
-                              <Label htmlFor="contact-name">Full name</Label>
-                              <Input
-                                id="contact-name"
-                                value={contactForm.name}
-                                onChange={handleContactChange("name")}
-                                placeholder="Your name"
-                                autoComplete="name"
-                                required
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="contact-email">Work email</Label>
-                              <Input
-                                id="contact-email"
-                                type="email"
-                                value={contactForm.email}
-                                onChange={handleContactChange("email")}
-                                placeholder="you@company.com"
-                                autoComplete="email"
-                                required
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="space-y-2">
-                              <Label htmlFor="contact-company">Organisation</Label>
-                              <Input
-                                id="contact-company"
-                                value={contactForm.company}
-                                onChange={handleContactChange("company")}
-                                placeholder="Care provider or organisation"
-                                autoComplete="organization"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="contact-role">Role (optional)</Label>
-                              <Input
-                                id="contact-role"
-                                value={contactForm.role}
-                                onChange={handleContactChange("role")}
-                                placeholder="Your role"
-                                autoComplete="organization-title"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="space-y-2">
-                              <Label htmlFor="contact-phone">Phone (optional)</Label>
-                              <Input
-                                id="contact-phone"
-                                value={contactForm.phone}
-                                onChange={handleContactChange("phone")}
-                                placeholder="+44..."
-                                autoComplete="tel"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="contact-topic">Preferred focus</Label>
-                              <Input
-                                id="contact-topic"
-                                value={contactForm.topic}
-                                onChange={handleContactChange("topic")}
-                                placeholder="EMAR, audits, care planning..."
-                              />
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="contact-message">Message</Label>
-                            <Textarea
-                              id="contact-message"
-                              value={contactForm.message}
-                              onChange={handleContactChange("message")}
-                              placeholder="Tell us what you want to achieve..."
-                              rows={5}
-                              minLength={10}
-                              required
-                            />
-                          </div>
-
-                          <input
-                            type="text"
-                            tabIndex={-1}
-                            autoComplete="off"
-                            className="hidden"
-                            value={contactForm.website}
-                            onChange={handleContactChange("website")}
-                            aria-hidden="true"
-                          />
-
-                          {contactStatus === "error" && (
-                            <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive-foreground">
-                              {contactError}
-                            </div>
-                          )}
-
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="text-xs text-muted-foreground">
-                              We use your details only to respond to this message.
-                            </p>
-                            <Button type="submit" size="lg">
-                              {contactStatus === "sending" ? (
-                                <span className="flex items-center gap-2">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  Sending...
-                                </span>
-                              ) : (
-                                "Send message"
-                              )}
-                            </Button>
-                          </div>
-                        </fieldset>
-                      </form>
-                    )}
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        This site currently does not accept messages via email. If you already have access, please sign in.
+                      </p>
+                      <Button className="mt-4 w-full justify-between" onClick={openLoginFromCTA}>
+                        Login
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -1621,7 +1427,7 @@ export default function Homepage() {
                   <Button
                     variant="outline"
                     className="mt-4 w-full justify-between"
-                    onClick={focusContactForm}
+                    onClick={scrollToContact}
                   >
                     Open contact form
                     <ChevronRight className="h-4 w-4" />
@@ -1701,7 +1507,7 @@ export default function Homepage() {
               <button
                 type="button"
                 className="hover:text-foreground transition-colors"
-                onClick={focusContactForm}
+                onClick={scrollToContact}
                 data-testid="link-footer-contact"
               >
                 Contact
