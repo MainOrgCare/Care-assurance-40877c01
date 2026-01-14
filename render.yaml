@@ -3,17 +3,17 @@ services:
     name: care-assurance
     runtime: node
     plan: starter
-    buildCommand: npm ci && npm run build
+    buildCommand: npm run build
     startCommand: npm run start
     autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
-      # Optional override; defaults in code if not set.
+      # Optional overrides; defaults exist in code. Prefer setting in Render dashboard.
       - key: CONTACT_EMAIL
-        value: lewisbarron@careassurance.uk
+        sync: false
       - key: CONTACT_FROM
-        value: "CareAssurance <no-reply@careassurance.uk>"
+        sync: false
       # Set these in the Render dashboard (do not commit secrets):
       - key: SMTP_HOST
         sync: false
