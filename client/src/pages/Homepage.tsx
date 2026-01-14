@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { 
@@ -412,6 +411,19 @@ export default function Homepage() {
   const handleServiceUsersChange = useCallback((value: number[]) => {
     setServiceUsers(value[0]);
   }, []);
+
+  const focusContactForm = useCallback(() => {
+    document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" });
+    window.setTimeout(() => {
+      const contactName = document.getElementById("contact-name") as HTMLInputElement | null;
+      contactName?.focus();
+    }, 450);
+  }, []);
+
+  const openLoginFromCTA = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.setTimeout(() => setLoginOpen(true), 250);
+  }, [setLoginOpen]);
 
   const handleContactChange = useCallback(
     (field: keyof ContactFormState) =>
@@ -910,8 +922,8 @@ export default function Homepage() {
                   {...getInViewProps(index * 0.1)}
                 >
                   <Card className="glass-card h-full overflow-visible">
-                    <CardContent className="p-6 pt-8">
-                      <div className="absolute -top-4 left-6">
+                    <CardContent className="p-6 pt-12">
+                      <div className="absolute top-6 left-6">
                         <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-amber-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-black/25">
                           {item.step}
                         </div>
@@ -1414,55 +1426,34 @@ export default function Homepage() {
                   </div>
                 </div>
 
-                <Tabs defaultValue="signin" className="mt-8">
-                  <TabsList className="grid w-full sm:w-[320px] grid-cols-2 rounded-full bg-muted/40 p-1">
-                    <TabsTrigger value="signin" className="rounded-full">Sign In</TabsTrigger>
-                    <TabsTrigger value="contact" className="rounded-full">Contact</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="signin" className="mt-6">
-                    <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] items-center">
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground mb-2">
-                          Ready to explore the platform?
-                        </h3>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          Sign in to see live EMAR audits, care plan drafting, and compliance reporting in action.
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <Badge variant="outline" className="text-xs border-primary/30 text-primary bg-primary/10">
-                            EMAR audits
-                          </Badge>
-                          <Badge variant="outline" className="text-xs border-border/60 text-muted-foreground bg-muted/40">
-                            Care plans
-                          </Badge>
-                          <Badge variant="outline" className="text-xs border-secondary/30 text-secondary bg-secondary/10">
-                            Risk insights
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
-                        <Button
-                          size="lg"
-                          className="px-8"
-                          data-testid="button-cta-login"
-                          onClick={() => setLoginOpen(true)}
-                        >
-                          Sign In
-                          <ArrowRight className="ml-2 h-5 w-5" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="lg"
-                          onClick={() => document.getElementById("roi-calculator")?.scrollIntoView({ behavior: "smooth" })}
-                        >
-                          View ROI
-                        </Button>
-                      </div>
+                <div className="mt-8 grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+                  <div className="space-y-4 rounded-2xl border border-border/50 bg-background/40 p-6">
+                    <h3 className="text-lg font-semibold text-foreground">
+                      What to include
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      The more context you share, the faster we can respond with a tailored walkthrough.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline" className="text-xs border-primary/30 text-primary bg-primary/10">
+                        EMAR audits
+                      </Badge>
+                      <Badge variant="outline" className="text-xs border-border/60 text-muted-foreground bg-muted/40">
+                        Care plans
+                      </Badge>
+                      <Badge variant="outline" className="text-xs border-secondary/30 text-secondary bg-secondary/10">
+                        Risk insights
+                      </Badge>
+                      <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-300 bg-emerald-500/10">
+                        Compliance goals
+                      </Badge>
                     </div>
-                  </TabsContent>
+                    <div className="rounded-xl border border-border/50 bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
+                      Prefer to explore on your own? Use the Login button in the header to access the platform.
+                    </div>
+                  </div>
 
-                  <TabsContent value="contact" className="mt-6">
+                  <div>
                     {contactStatus === "sent" ? (
                       <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
                         <div className="flex items-center gap-2 text-emerald-200">
@@ -1601,10 +1592,91 @@ export default function Homepage() {
                         </fieldset>
                       </form>
                     )}
-                  </TabsContent>
-                </Tabs>
+                  </div>
+                </div>
               </CardContent>
             </Card>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Extra Contact Section */}
+      <section aria-label="Contact options" className="relative z-10 pb-16 sm:pb-24 px-4">
+        <div className="max-w-5xl mx-auto">
+          <motion.div {...getInViewProps(0.05)}>
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card className="glass-card">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                      <Sparkles className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">Request a walkthrough</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Tell us what you're trying to improve and we'll tailor a quick demo.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="mt-4 w-full justify-between"
+                    onClick={focusContactForm}
+                  >
+                    Open contact form
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="glass-card">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-secondary/10 border border-secondary/20 flex items-center justify-center">
+                      <KeyRound className="h-5 w-5 text-secondary" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">Already have access?</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Sign in and explore the dashboard, tools, and reports.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    className="mt-4 w-full justify-between"
+                    onClick={openLoginFromCTA}
+                    data-testid="button-homepage-login-cta"
+                  >
+                    Login
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="glass-card">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                      <ShieldCheck className="h-5 w-5 text-emerald-300" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">Privacy & terms</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Review how data is handled and the platform terms.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <Button variant="outline" className="w-full" asChild data-testid="button-homepage-privacy">
+                      <a href="/privacy">Privacy</a>
+                    </Button>
+                    <Button variant="outline" className="w-full" asChild data-testid="button-homepage-terms">
+                      <a href="/terms">Terms</a>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </motion.div>
         </div>
       </section>
@@ -1626,6 +1698,14 @@ export default function Homepage() {
             </div>
             
             <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+              <button
+                type="button"
+                className="hover:text-foreground transition-colors"
+                onClick={focusContactForm}
+                data-testid="link-footer-contact"
+              >
+                Contact
+              </button>
               <Link href="/terms" className="hover:text-foreground transition-colors" data-testid="link-footer-terms">
                 Terms & Conditions
               </Link>

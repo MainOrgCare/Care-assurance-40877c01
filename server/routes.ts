@@ -58,7 +58,7 @@ const uploadExcel = multer({
 
 const MAX_NON_ADMIN_SESSIONS = 2;
 const FORCE_LOGOUT_WARNING_SECONDS = 30;
-const CONTACT_EMAIL = process.env.CONTACT_EMAIL || "";
+const CONTACT_EMAIL = process.env.CONTACT_EMAIL || "lewisbarron@careassurance.uk";
 const CONTACT_FROM = process.env.CONTACT_FROM || "CareAssurance <no-reply@careassurance.uk>";
 let contactTransporter: Transporter | null = null;
 
