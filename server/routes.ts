@@ -343,6 +343,70 @@ function scrubPII(data: any): any {
   return data;
 }
 
+const toFirstPerson = (text: string): string => {
+  if (!text) return text;
+  let updated = text;
+  updated = updated.replace(/\b(the|this)\s+(service user|client|resident|patient)\b/gi, "I");
+  updated = updated.replace(/\bthe service user's\b/gi, "my");
+  updated = updated.replace(/\bthe client's\b/gi, "my");
+  updated = updated.replace(/\bthe resident's\b/gi, "my");
+  updated = updated.replace(/\bthe patient's\b/gi, "my");
+  return updated;
+};
+
+const sanitizeNarrativeText = (text: string): string => {
+  if (!text) return text;
+  let cleaned = text;
+
+  cleaned = cleaned.replace(/\[(service user)\]/gi, "I");
+  cleaned = cleaned.replace(/\[(redacted)\]/gi, "on file");
+
+  cleaned = cleaned.replace(/\b(DOB|Date of birth)\s*[:\-]?\s*\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}\b/gi, "$1 on file");
+
+  cleaned = cleaned.replace(
+    /\b(Emergency contact|Next of kin|Contact)\s*[:\-]?\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/g,
+    "$1 on file"
+  );
+
+  cleaned = cleaned.replace(
+    /\b(Mr|Mrs|Ms|Miss|Dr)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/g,
+    (match, title) => {
+      const lower = String(title || "").toLowerCase();
+      if (lower === "dr") return "my doctor";
+      return "someone";
+    }
+  );
+
+  cleaned = cleaned.replace(
+    /\b(my)\s+(mother|father|son|daughter|husband|wife|partner|brother|sister|family member|next of kin|friend)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/gi,
+    (_match, prefix, relation) => `${prefix} ${relation}`
+  );
+
+  cleaned = cleaned.replace(
+    /\b(care worker|carer|support worker|nurse|doctor|gp|social worker|physio|ot|therapist|care manager|care coordinator)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/gi,
+    (_match, role) => role
+  );
+
+  return cleaned;
+};
+
+const sanitizeNarrativePII = (data: any): any => {
+  if (typeof data === "string") {
+    return sanitizeNarrativeText(data);
+  }
+  if (Array.isArray(data)) {
+    return data.map((item) => sanitizeNarrativePII(item));
+  }
+  if (typeof data === "object" && data !== null) {
+    const scrubbed: Record<string, any> = {};
+    for (const key of Object.keys(data)) {
+      scrubbed[key] = sanitizeNarrativePII(data[key]);
+    }
+    return scrubbed;
+  }
+  return data;
+};
+
 // Validate and normalize service user initials
 function normalizeInitials(name: string | undefined | null): string {
   if (!name) return 'N.N.';
@@ -7797,6 +7861,9 @@ IMPORTANT RULES:
 1. ONLY use information explicitly stated in the documents. Never make assumptions.
 2. If you cannot find specific information, state "Information not found in documents"
 3. Be very careful to extract the correct service user details
+4. Write narrative fields in FIRST PERSON using "I" and "my"
+5. Do NOT include any person names. Use role terms (my carer, my GP, my family member)
+6. Keep place names and locations as written. Do not redact places.
 
 EXTRACT FROM DOCUMENTS:
 - Service user initials ONLY (format: "F.O." - first letter of first name + "." + first letter of last name + ".")
@@ -7873,7 +7940,7 @@ Respond ONLY with valid JSON in this exact format:
         model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Analyze these documents for risk assessment needs:\n\n${documentContent}` }
+          { role: "user", content: `Analyze these documents for risk assessment needs:\n\n${sanitizeNarrativePII(documentContent)}` }
         ],
         max_completion_tokens: 4000,
         temperature: 0,
@@ -7901,11 +7968,17 @@ Respond ONLY with valid JSON in this exact format:
         documentSummary: typeof parsed?.documentSummary === "string" ? parsed.documentSummary : "Information not found in documents",
       };
 
+      result.documentSummary = toFirstPerson(result.documentSummary);
+      result.recommendedAssessments = result.recommendedAssessments.map((assessment: any) => ({
+        ...assessment,
+        reason: typeof assessment?.reason === "string" ? toFirstPerson(assessment.reason) : assessment?.reason
+      }));
+
       const derivedRecommendations = buildAssessmentRecommendations(result);
       result.recommendedAssessments = mergeAssessmentRecommendations(result.recommendedAssessments, derivedRecommendations);
       result.recommendedAssessments = attachAssessmentEvidence(result.recommendedAssessments, result);
 
-      const scrubbedResult = scrubPII(result);
+      const scrubbedResult = sanitizeNarrativePII(result);
       sendProgress(100, "Complete!", "complete");
       sendEvent('result', scrubbedResult);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -8001,6 +8074,9 @@ IMPORTANT RULES:
 2. If something isn't in the documents, say "I'm not aware of this information based on the documents provided"
 3. Use professional but clear language suitable for care documentation
 4. Follow CQC (Care Quality Commission) standards
+5. Write narrative fields in FIRST PERSON using "I" and "my"
+6. Do NOT include any person names. Use role terms (my carer, my GP, my family member)
+7. Keep place names and locations as written. Do not redact places.
 
 SERVICE USER DETAILS:
 - Service User Initials: ${serviceUserInitials || 'N.N.'}
@@ -8043,7 +8119,7 @@ Respond ONLY with valid JSON in this exact format:
         model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a ${assessmentCategory} risk assessment based on these documents:\n\n${documentContent}` }
+          { role: "user", content: `Generate a ${assessmentCategory} risk assessment based on these documents:\n\n${sanitizeNarrativePII(documentContent)}` }
         ],
         temperature: 0,
         seed: 42,
@@ -8068,7 +8144,6 @@ Respond ONLY with valid JSON in this exact format:
         
         // Apply PII scrubbing to the rest (risks, notes, etc.)
         result.serviceUserInitials = normalizeInitials(result.serviceUserInitials);
-        result = scrubPII(result);
 
         if (!Array.isArray(result.risks) || result.risks.length === 0) {
           result.risks = [
@@ -8085,9 +8160,22 @@ Respond ONLY with valid JSON in this exact format:
         
         // Restore preserved fields (override any scrubbed values)
         result.assessmentDate = preservedFields.assessmentDate;
-        result.signedBy = preservedFields.signedBy;
+        result.signedBy = performedByJobTitle || preservedFields.jobTitle || "Care Staff";
         result.jobTitle = preservedFields.jobTitle;
         result.category = preservedFields.category;
+
+        if (Array.isArray(result.risks)) {
+          result.risks = result.risks.map((risk: any) => ({
+            ...risk,
+            riskDefinition: typeof risk?.riskDefinition === "string" ? toFirstPerson(risk.riskDefinition) : risk?.riskDefinition,
+            howItsARisk: typeof risk?.howItsARisk === "string" ? toFirstPerson(risk.howItsARisk) : risk?.howItsARisk,
+            controlMeasures: typeof risk?.controlMeasures === "string" ? toFirstPerson(risk.controlMeasures) : risk?.controlMeasures
+          }));
+        }
+        if (typeof result.additionalNotes === "string") {
+          result.additionalNotes = toFirstPerson(result.additionalNotes);
+        }
+        result = sanitizeNarrativePII(result);
         
         sendProgress(100, "Complete!", "complete");
         sendEvent('result', result);
@@ -8214,6 +8302,8 @@ RULES:
 - Never use Oxford commas.
 - Be detailed and specific with times, preferences, routines.
 - Only include information found in the documents. If no info, say "Please ask me about my preferences."
+- Do NOT include any person names. Use role terms (my carer, my GP, my family member).
+- Keep place names and locations as written. Do not redact places.
 
 OUTPUT: Return ONLY valid JSON matching this structure:
 {
@@ -8250,7 +8340,7 @@ OUTPUT: Return ONLY valid JSON matching this structure:
 FOCUS ON: ${section.focus}
 
 Service user documents:
-${documentContent}
+${sanitizeNarrativePII(documentContent)}
 
 Remember: Write as if I am the service user speaking about my own needs. Return ONLY valid JSON.` }
             ],
@@ -8275,15 +8365,15 @@ Remember: Write as if I am the service user speaking about my own needs. Return 
             const completedSection = {
               title: section.title,
               priority: section.priority,
-              content: scrubPII(enhancedContent),
+              content: sanitizeNarrativePII(enhancedContent),
               steps: (Array.isArray(parsed.steps) && parsed.steps.length > 0 
                 ? parsed.steps 
                 : ["Please refer to my preferences above", "Check my care notes", "Ask me if unsure"])
-                .map((s: any) => typeof s === 'string' ? scrubPII(s) : String(s)),
+                .map((s: any) => typeof s === 'string' ? sanitizeNarrativePII(s) : String(s)),
               risks: (Array.isArray(parsed.risks) ? parsed.risks : [])
-                .map((r: any) => typeof r === 'string' ? scrubPII(r) : String(r)),
+                .map((r: any) => typeof r === 'string' ? sanitizeNarrativePII(r) : String(r)),
               equipment: (Array.isArray(parsed.equipment) ? parsed.equipment : [])
-                .map((e: any) => typeof e === 'string' ? scrubPII(e) : String(e)),
+                .map((e: any) => typeof e === 'string' ? sanitizeNarrativePII(e) : String(e)),
             };
             
             completedSections.push(completedSection);
@@ -8332,7 +8422,7 @@ Remember: Write as if I am the service user speaking about my own needs. Return 
 3. Any additional important notes
 
 Documents:
-${documentContent.substring(0, 3000)}
+${sanitizeNarrativePII(documentContent).substring(0, 3000)}
 
 Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes": "..."}` }
           ],
@@ -8358,9 +8448,9 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
           const notesStr = typeof extractedNotes === 'string' ? extractedNotes : 
                            extractedNotes ? JSON.stringify(extractedNotes) : additionalNotes;
           
-          emergencyContacts = scrubPII(emergencyStr);
-          gpDetails = scrubPII(gpStr);
-          additionalNotes = scrubPII(notesStr);
+          emergencyContacts = sanitizeNarrativePII(emergencyStr);
+          gpDetails = sanitizeNarrativePII(gpStr);
+          additionalNotes = sanitizeNarrativePII(notesStr);
         }
       } catch (e) {
         console.log("[CarePlan] Could not extract meta info, using defaults");
@@ -8455,7 +8545,7 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
       sendProgress(10, "Preparing documents...", "preparing");
 
       const rawContent = existingPlanContent || documentContent;
-      const contentToEnhance = typeof rawContent === 'string' ? scrubPII(rawContent) : rawContent;
+      const contentToEnhance = typeof rawContent === 'string' ? sanitizeNarrativePII(rawContent) : rawContent;
 
       const carePlanPolicies = await storage.getPolicyDocumentsByCategory("care_plan");
       const initialAssessmentPolicies = await storage.getPolicyDocumentsByCategory("initial_assessment");
@@ -8480,7 +8570,8 @@ Analyze the uploaded documents and generate content for a COMPLETE Initial Asses
 PRIVACY RULES - CRITICAL:
 - Replace any service user names with "I" (first person perspective)
 - NEVER include dates of birth
-- Use initials format "F.O." if referring to the service user by name
+- Do NOT include any person names. Use role terms (my carer, my GP, my family member).
+- Keep place names and locations as written. Do not redact places.
 
 FORMATTING RULES:
 - Never use m-dashes or en-dashes. Use hyphens (-) or commas instead.
@@ -8731,12 +8822,10 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
       const content = response.choices[0]?.message?.content || "";
       const result = parseJsonFromContent(content);
       if (result) {
-        
-        // Apply PII scrubbing
-        const scrubbedResult = scrubPII(result);
+        const sanitizedResult = sanitizeNarrativePII(result);
         
         sendProgress(100, "Complete!", "complete");
-        sendEvent('result', scrubbedResult);
+        sendEvent('result', sanitizedResult);
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       } else {
