@@ -633,7 +633,7 @@ export default function Homepage() {
               {...getRevealProps(0.45)}
             >
               <div className="absolute -inset-6 rounded-[32px] bg-gradient-to-br from-amber-500/25 via-teal-500/12 to-sky-500/18 blur-3xl opacity-70" />
-              <Card className="relative border border-border/60 bg-card/40 backdrop-blur-xl">
+              <Card className="glass-card">
                 <CardContent className="p-6 sm:p-7">
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -785,7 +785,7 @@ export default function Homepage() {
                 key={index}
                 {...getInViewProps(index * 0.1)}
               >
-                <Card className="relative h-full overflow-hidden border border-border/50 bg-card/30 backdrop-blur-xl">
+                <Card className="glass-card h-full">
                   <div className={`absolute inset-0 bg-gradient-to-br ${WHY_STYLES[index % WHY_STYLES.length].accent} opacity-60`} />
                   <div className="absolute -right-16 -top-16 h-32 w-32 rounded-full bg-white/5 blur-2xl" />
                   <CardContent className="relative z-10 p-6">
@@ -834,7 +834,7 @@ export default function Homepage() {
                   className="relative"
                   {...getInViewProps(index * 0.1)}
                 >
-                  <Card className="h-full border border-border/50 bg-card/30 backdrop-blur-xl overflow-visible">
+                  <Card className="glass-card h-full overflow-visible">
                     <CardContent className="p-6 pt-8">
                       <div className="absolute -top-4 left-6">
                         <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-amber-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-black/25">
@@ -883,7 +883,7 @@ export default function Homepage() {
 
           <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
             <motion.div {...getInViewProps(0.1)} className="space-y-6">
-              <Card className="border border-border/50 bg-card/30 backdrop-blur-xl">
+              <Card className="glass-card">
                 <CardContent className="p-6">
                   <h3 className="text-lg font-semibold text-foreground mb-4">What you gain</h3>
                   <div className="space-y-4">
@@ -902,7 +902,7 @@ export default function Homepage() {
                 </CardContent>
               </Card>
 
-              <Card className="border border-border/50 bg-card/30 backdrop-blur-xl">
+              <Card className="glass-card">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div>
@@ -929,7 +929,7 @@ export default function Homepage() {
             </motion.div>
 
             <motion.div {...getInViewProps(0.15)} className="space-y-6">
-              <Card className="border border-border/50 bg-card/30 backdrop-blur-xl">
+              <Card className="glass-card">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
@@ -963,7 +963,7 @@ export default function Homepage() {
                 </CardContent>
               </Card>
 
-              <Card className="border border-border/50 bg-card/30 backdrop-blur-xl">
+              <Card className="glass-card">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div>
@@ -1027,7 +1027,7 @@ export default function Homepage() {
           >
             {FEATURES.map((feature, index) => (
               <motion.div key={index} variants={FADE_IN_UP}>
-                <Card className="relative h-full overflow-hidden border border-border/50 bg-card/30 backdrop-blur-xl group transition-all duration-300 hover:border-teal-500/30">
+                <Card className="glass-card h-full group transition-all duration-300 hover:border-primary/40">
                   <div className={`absolute inset-0 bg-gradient-to-br ${FEATURE_STYLES[index % FEATURE_STYLES.length].accent} opacity-0 transition-opacity duration-300 group-hover:opacity-100`} />
                   <CardContent className="p-6 relative z-10">
                     <div className="flex items-start justify-between gap-3 mb-4">
@@ -1087,7 +1087,7 @@ export default function Homepage() {
           </motion.div>
 
           <motion.div {...getInViewProps(0.15)}>
-            <Card className="relative border border-border/60 bg-card/40 backdrop-blur-xl">
+            <Card className="glass-card">
               <CardContent className="p-6 sm:p-8 space-y-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -1183,7 +1183,7 @@ export default function Homepage() {
           <motion.div
             {...getInViewProps(0.1)}
           >
-            <Card className="border border-border/50 bg-card/30 backdrop-blur-xl">
+            <Card className="glass-card">
               <CardContent className="p-8">
                 {/* Slider Section */}
                 <div className="mb-10">

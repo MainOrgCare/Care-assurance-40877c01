@@ -6,19 +6,19 @@ import { cn } from "@/lib/utils"
 const badgeVariants = cva(
   // @replit
   // Whitespace-nowrap: Badges should never wrap.
-  "whitespace-nowrap inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors focus:outline-none focus:ring-2 focus:ring-ring/60 focus:ring-offset-2 backdrop-blur",
+  "whitespace-nowrap inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors focus:outline-none focus:ring-2 focus:ring-ring/60 focus:ring-offset-2 backdrop-blur",
   {
     variants: {
       variant: {
         default:
           // @replit shadow-xs instead of shadow, no hover because we use hover-elevate
-          "border-transparent bg-primary/20 text-primary-foreground shadow-xs ring-1 ring-primary/15",
+          "border-transparent bg-primary/18 text-primary shadow-xs ring-1 ring-primary/20",
         secondary:
           // @replit no hover because we use hover-elevate
-          "border-transparent bg-secondary/20 text-secondary-foreground ring-1 ring-secondary/15",
+          "border-transparent bg-secondary/18 text-secondary ring-1 ring-secondary/20",
         destructive:
           // @replit shadow-xs instead of shadow, no hover because we use hover-elevate
-          "border-transparent bg-destructive/20 text-destructive-foreground shadow-xs ring-1 ring-destructive/20",
+          "border-transparent bg-destructive/20 text-destructive-foreground shadow-xs ring-1 ring-destructive/25",
           // @replit shadow-xs" - use badge outline variable
         outline: "text-foreground border [border-color:var(--badge-outline)] bg-transparent",
       },

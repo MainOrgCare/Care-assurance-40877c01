@@ -429,7 +429,7 @@ export default function Dashboard() {
       </div>
 
       {/* Theme Selector */}
-      <Card className="glass-card glow-on-hover" data-testid="card-theme-selector">
+      <Card className="glass-card" data-testid="card-theme-selector">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Palette className="h-5 w-5 text-muted-foreground" />
@@ -495,12 +495,12 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {QUICK_ACTIONS.map((action, index) => (
             <Link key={index} href={action.href}>
-              <Card className="liquid-card matrix-bg hover:bg-card/80 transition-all duration-300 cursor-pointer group h-full quantum-button energy-border" data-testid={`card-quick-action-${index}`}>
+              <Card className="glass-card hover:border-primary/40 transition-all duration-300 cursor-pointer group h-full" data-testid={`card-quick-action-${index}`}>
                 <CardContent className="p-4 relative z-10">
-                  <div className={`h-10 w-10 rounded-lg bg-gradient-to-r ${action.color} flex items-center justify-center mb-3 group-hover:scale-110 transition-all duration-300 shadow-lg hologram-effect energy-border`}>
+                  <div className={`h-10 w-10 rounded-lg bg-gradient-to-r ${action.color} flex items-center justify-center mb-3 group-hover:scale-105 transition-all duration-300 shadow-lg`}>
                     <action.icon className="h-5 w-5 text-white" />
                   </div>
-                  <h4 className="font-medium mb-1 group-hover:text-primary transition-colors cyber-text neon-text">{action.label}</h4>
+                  <h4 className="font-medium mb-1 group-hover:text-primary transition-colors">{action.label}</h4>
                   <p className="text-xs text-muted-foreground">{action.description}</p>
                   <div className="flex items-center gap-1 mt-2 text-xs text-primary opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-0 group-hover:translate-x-1">
                     <span>Get started</span>

@@ -123,6 +123,77 @@
   }
 }
 
+@layer components {
+  .app-surface {
+    @apply relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-[0_20px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl;
+  }
+  .app-surface::before {
+    content: "";
+    position: absolute;
+    inset: -40%;
+    background: conic-gradient(from 120deg at 50% 50%, hsla(188,78%,50%,0.12), hsla(28,88%,58%,0.08), hsla(220,26%,9%,0.06), hsla(188,78%,50%,0.12));
+    filter: blur(48px);
+    opacity: 0.7;
+    z-index: 0;
+  }
+  .app-surface::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(0deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+    mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.4) 12%, rgba(0,0,0,0.6) 60%, transparent 100%);
+    opacity: 0.4;
+    z-index: 0;
+  }
+  .app-surface > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .glass-card {
+    @apply relative overflow-hidden rounded-2xl border border-border/60 bg-card/80 backdrop-blur-xl shadow-[0_14px_44px_rgba(0,0,0,0.28)] transition-shadow;
+  }
+  .glass-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(140deg, rgba(255,255,255,0.06), transparent 42%);
+    opacity: 0.7;
+    pointer-events: none;
+  }
+  .glass-card::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, hsla(188,78%,50%,0.4), transparent);
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  .glass-card:hover {
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.34);
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase;
+  }
+
+  .pill-primary {
+    @apply pill bg-primary/15 text-primary border border-primary/25;
+  }
+
+  .pill-muted {
+    @apply pill bg-muted/50 text-muted-foreground border border-border/60;
+  }
+
+  .subtle-divider {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-border/60 to-transparent;
+  }
+}
+
 @keyframes float {
   0%, 100% { transform: translateY(0px) rotate(0deg); }
   33% { transform: translateY(-10px) rotate(1deg); }

@@ -426,6 +426,26 @@ const parseJsonFromContent = (content: string): any | null => {
   }
 };
 
+const getLowCostModel = () => "gpt-4o-mini";
+const getAccurateModel = () => getPreferredModel();
+
+const inferGenericNameFromMedicationLabel = (name: string): string => {
+  if (!name) return "";
+  const cleaned = name
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\b\d+(?:\.\d+)?\s*(mg|mcg|g|ml|iu|units?)\b/g, " ")
+    .replace(/\b\d+(?:\.\d+)?\s*(micrograms?|milligrams?|grams?|millilitres?)\b/g, " ")
+    .replace(/\b(tablets?|capsules?|caps?|tab|cap|patches?|sprays?|drops?|solution|syrup|suspension|ointment|cream|gel|inhaler|injection|ampoules?|nebules?|puffs?)\b/g, " ")
+    .replace(/\b(oral|topical|subcutaneous|intravenous|iv|im|pr|sc)\b/g, " ")
+    .replace(/[^a-z\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return "";
+  const tokens = cleaned.split(" ").filter(token => token.length >= 3);
+  return tokens[0] || "";
+};
+
 const normalizeAssessmentName = (name: string) =>
   name
     .trim()
@@ -706,10 +726,10 @@ async function checkDrugInteractions(
   };
 
   try {
-    // Use GPT-4.1-mini for drug interactions - cost-efficient with temperature support
+    // Use preferred accurate model for drug interactions
     const deterministicSeed = 42;
     const response = await createChatCompletionWithLogging({
-      model: "gpt-4.1-mini",
+      model: getAccurateModel(),
       messages: [
         {
           role: "system",
@@ -2309,10 +2329,10 @@ export async function registerRoutes(
       userId: user?.id != null ? String(user.id) : null,
       username: user?.username != null ? String(user.username) : null,
     };
-    const emarPrimaryModel = process.env.EMAR_AI_MODEL || "gpt-4o-mini";
-    const emarMetadataModel = process.env.EMAR_METADATA_MODEL || emarPrimaryModel;
-    const emarExtractionModel = process.env.EMAR_EXTRACTION_MODEL || emarPrimaryModel;
-    const emarValidationModel = process.env.EMAR_VALIDATION_MODEL || "gpt-4o-mini";
+    const emarPrimaryModel = getAccurateModel();
+    const emarMetadataModel = emarPrimaryModel;
+    const emarExtractionModel = emarPrimaryModel;
+    const emarValidationModel = emarPrimaryModel;
     
     // Set up SSE streaming response headers (after file is validated)
     res.setHeader('Content-Type', 'text/event-stream');
@@ -3191,6 +3211,64 @@ This document appears to be a ${tableStructure.tableType.toUpperCase()} format E
 Use this layout information to correctly parse the grid structure.
 `
         : '';
+
+      const buildMetadataFromGrid = (grid: ParsedEMAR) => {
+        const meds = (grid.medications || [])
+          .map((med) => {
+            const name = typeof med?.name === "string" ? med.name.trim() : "";
+            if (!name) return null;
+            const inferredGeneric = inferGenericNameFromMedicationLabel(name);
+            const scheduledSlots = Array.isArray(med?.timeSlots) && med.timeSlots.length > 0
+              ? med.timeSlots
+              : Array.isArray(grid.timeSlots) ? grid.timeSlots : [];
+            return {
+              name,
+              genericName: inferredGeneric,
+              isPRN: false,
+              instructions: typeof med?.instructions === "string" ? med.instructions : "",
+              requiredGapHours: 4,
+              scheduledTimeSlots: scheduledSlots,
+              timeSlots: scheduledSlots
+            };
+          })
+          .filter(Boolean) as any[];
+
+        return {
+          serviceUserInitials: normalizeInitials(grid.serviceUserName || ""),
+          allergies: grid.allergies || "No known allergies",
+          medications: meds,
+          dates: Array.isArray(grid.dates) ? grid.dates : [],
+          timeSlots: Array.isArray(grid.timeSlots) ? grid.timeSlots : []
+        };
+      };
+
+      const gridNonBlankCountEarly = gridBaseline?.cells?.reduce((count, cell) => {
+        const code = String(cell.code || "").trim();
+        if (code && code !== "BLANK" && code !== "N/A") return count + 1;
+        const content = String(cell.content || "");
+        if (/\b(AD|AS|P|R|MU|NH|SA|FA|PRN|MISSED)\b/i.test(content)) return count + 1;
+        if (cell.time && cell.time.trim()) return count + 1;
+        if (cell.careWorker && cell.careWorker.trim()) return count + 1;
+        return count;
+      }, 0) || 0;
+
+      const gridMetadataCandidate = gridBaseline ? buildMetadataFromGrid(gridBaseline) : null;
+      const gridLooksStrong = Boolean(
+        gridMetadataCandidate &&
+          gridMetadataCandidate.medications.length >= 2 &&
+          gridMetadataCandidate.dates.length >= 1 &&
+          gridMetadataCandidate.timeSlots.length >= 1 &&
+          gridNonBlankCountEarly > 0
+      );
+      let metadataFromGrid = false;
+      let metadata = {
+        serviceUserInitials: "",
+        allergies: "",
+        medications: [] as any[],
+        dates: [] as string[],
+        timeSlots: [] as string[]
+      };
+      let drugInteractions: DrugInteraction[] = [];
       
       const metadataPrompt = `You are an EMAR (Electronic Medication Administration Record) data extractor analyzing EMAR document text.
 This tool works with ANY EMAR system from ANY provider (e.g., CMM, CarePlanner, MedPass, PCS, etc.).
@@ -3282,39 +3360,48 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         return metadataResponse.choices[0]?.message?.content || "{}";
       };
 
-      // Legacy: if chunked, extract metadata across ALL chunks and merge.
-      const metadataContents: string[] = [];
-      if (emarMode === "legacy" && Array.isArray(legacyTextChunks) && legacyTextChunks.length > 1) {
-        for (let i = 0; i < legacyTextChunks.length; i++) {
-          sendProgress(10, `Extracting metadata (chunk ${i + 1}/${legacyTextChunks.length})...`, "metadata_running");
-          metadataContents.push(await extractMetadataForText(legacyTextChunks[i]));
-        }
+      if (gridLooksStrong && gridMetadataCandidate) {
+        metadata = gridMetadataCandidate;
+        metadataFromGrid = true;
+        console.log(
+          "DEBUG: Using grid metadata -",
+          metadata.medications?.length,
+          "medications,",
+          metadata.dates?.length,
+          "dates,",
+          metadata.timeSlots?.length,
+          "timeSlots"
+        );
+        sendProgress(15, `Found ${metadata.medications?.length || 0} medications (grid)...`, "metadata_complete");
       } else {
-        metadataContents.push(await extractMetadataForText(analysisText));
-      }
-      
-      let metadata = {
-        serviceUserInitials: "",
-        allergies: "",
-        medications: [] as any[],
-        dates: [] as string[],
-        timeSlots: [] as string[]
-      };
-      let drugInteractions: DrugInteraction[] = [];
-      
-      try {
-        for (const content of metadataContents) {
-          const parsed = JSON.parse(content);
-          metadata = mergeMetadata(metadata, parsed);
+        // Legacy: if chunked, extract metadata across ALL chunks and merge.
+        const metadataContents: string[] = [];
+        if (emarMode === "legacy" && Array.isArray(legacyTextChunks) && legacyTextChunks.length > 1) {
+          for (let i = 0; i < legacyTextChunks.length; i++) {
+            sendProgress(10, `Extracting metadata (chunk ${i + 1}/${legacyTextChunks.length})...`, "metadata_running");
+            metadataContents.push(await extractMetadataForText(legacyTextChunks[i]));
+          }
+        } else {
+          metadataContents.push(await extractMetadataForText(analysisText));
         }
-        console.log("DEBUG: Metadata extracted -", metadata.medications?.length, "medications,", metadata.dates?.length, "dates,", metadata.timeSlots?.length, "timeSlots");
-        sendProgress(15, `Found ${metadata.medications?.length || 0} medications...`, "metadata_complete");
-      } catch (e) {
-        console.error("Failed to parse metadata JSON:", e);
-        console.error("Raw metadata content:", metadataContents[0]);
-        sendEvent('error', { message: "Failed to parse medication data from document" });
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        return res.end();
+        
+        try {
+          for (const content of metadataContents) {
+            const parsed = parseJsonFromContent(content);
+            if (!parsed) {
+              throw new Error("Unable to parse metadata JSON");
+            }
+            metadata = mergeMetadata(metadata, parsed);
+          }
+          console.log("DEBUG: Metadata extracted -", metadata.medications?.length, "medications,", metadata.dates?.length, "dates,", metadata.timeSlots?.length, "timeSlots");
+          sendProgress(15, `Found ${metadata.medications?.length || 0} medications...`, "metadata_complete");
+        } catch (e) {
+          console.error("Failed to parse metadata JSON:", e);
+          console.error("Raw metadata content:", metadataContents[0]);
+          sendEvent('error', { message: "Failed to parse medication data from document" });
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+          return res.end();
+        }
       }
       
       // Validate that we actually found medications
@@ -3323,6 +3410,17 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         sendEvent('error', { message: "No medications found in the document. Please check the PDF contains medication records." });
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
+      }
+
+      if (Array.isArray(metadata.medications)) {
+        metadata.medications = metadata.medications.map((med: any) => {
+          const name = typeof med?.name === "string" ? med.name : "";
+          const genericName = typeof med?.genericName === "string" ? med.genericName : "";
+          return {
+            ...med,
+            genericName: genericName || inferGenericNameFromMedicationLabel(name)
+          };
+        });
       }
       
       // =====================================================================
@@ -3524,32 +3622,46 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
       // COST OPTIMIZATION: Single pass for count, only run consensus if mismatch
       const initialExtractedMedicationCount = metadata.medications?.length || 0;
       let extractedMedicationCount = initialExtractedMedicationCount;
-      const firstList = await countMedications();
-      const firstCount = firstList.count;
-      let combinedMedicationList = new Map(firstList.medsByKey);
-      let agreedMedicationCount = firstCount;
+      let combinedMedicationList = new Map<string, string>();
+      let agreedMedicationCount = initialExtractedMedicationCount;
       let medicationCountConsensus = true;
-      
-      if (firstCount !== initialExtractedMedicationCount) {
-        // Mismatch - run one more pass to confirm
-        const secondList = await countMedications();
-        const secondCount = secondList.count;
-        mergeMedicationMaps(combinedMedicationList, secondList.medsByKey);
-        if (secondCount === firstCount) {
-          agreedMedicationCount = firstCount;
-          console.log(`DEBUG: Medication count confirmed: ${agreedMedicationCount} (2 passes agreed)`);
-        } else if (secondCount === initialExtractedMedicationCount) {
-          agreedMedicationCount = initialExtractedMedicationCount;
-          console.log(`DEBUG: Medication count matches metadata: ${agreedMedicationCount}`);
+
+      if (!metadataFromGrid) {
+        const firstList = await countMedications();
+        const firstCount = firstList.count;
+        combinedMedicationList = new Map(firstList.medsByKey);
+        agreedMedicationCount = firstCount;
+        
+        if (firstCount !== initialExtractedMedicationCount) {
+          // Mismatch - run one more pass to confirm
+          const secondList = await countMedications();
+          const secondCount = secondList.count;
+          mergeMedicationMaps(combinedMedicationList, secondList.medsByKey);
+          if (secondCount === firstCount) {
+            agreedMedicationCount = firstCount;
+            console.log(`DEBUG: Medication count confirmed: ${agreedMedicationCount} (2 passes agreed)`);
+          } else if (secondCount === initialExtractedMedicationCount) {
+            agreedMedicationCount = initialExtractedMedicationCount;
+            console.log(`DEBUG: Medication count matches metadata: ${agreedMedicationCount}`);
+          } else {
+            // Still mismatch, trust metadata
+            agreedMedicationCount = initialExtractedMedicationCount;
+            medicationCountConsensus = false;
+            forceMultiPass = true;
+            console.warn(`DEBUG: Medication count mismatch - using metadata: ${initialExtractedMedicationCount}`);
+          }
         } else {
-          // Still mismatch, trust metadata
-          agreedMedicationCount = initialExtractedMedicationCount;
-          medicationCountConsensus = false;
-          forceMultiPass = true;
-          console.warn(`DEBUG: Medication count mismatch - using metadata: ${initialExtractedMedicationCount}`);
+          console.log(`DEBUG: Medication count validated on first pass: ${agreedMedicationCount}`);
         }
       } else {
-        console.log(`DEBUG: Medication count validated on first pass: ${agreedMedicationCount}`);
+        for (const med of metadata.medications || []) {
+          const name = typeof med?.name === "string" ? med.name.trim() : "";
+          if (!name || !isLikelyMedicationLabel(name)) continue;
+          const key = normalizeMedicationKey(name);
+          if (!key) continue;
+          combinedMedicationList.set(key, name);
+        }
+        console.log("DEBUG: Skipping AI medication count validation (grid metadata)");
       }
 
       // Merge deterministic grid-derived medication labels for reconciliation (if available)
@@ -3751,7 +3863,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         });
       }
 
-      if (shouldUseGridMetadata && gridBaseline) {
+      if (shouldUseGridMetadata && gridBaseline && !metadataFromGrid) {
         const aiMedByKey = new Map<string, any>();
         for (const med of metadata.medications || []) {
           const key = normalizeMedicationKey(med?.name || "");
@@ -4175,7 +4287,7 @@ CARE WORKER INITIALS (IMPORTANT):
               );
 
               const content = response.choices[0]?.message?.content || '{"entries":[]}';
-              const data = JSON.parse(content);
+              const data = parseJsonFromContent(content) || { entries: [] };
               const chunkEntries = data.entries || [];
               console.log(
                 `DEBUG: Pass ${passNumber} Chunk ${chunkIndex + 1}/${legacyTextChunks.length} extracted ${chunkEntries.length} entries`
@@ -4283,7 +4395,7 @@ CARE WORKER INITIALS (IMPORTANT):
             }, "emar_extraction", aiUserContext);
             
             const content = response.choices[0]?.message?.content || '{"entries":[]}';
-            const data = JSON.parse(content);
+            const data = parseJsonFromContent(content) || { entries: [] };
             const batchEntries = data.entries || [];
             console.log(`DEBUG: Pass ${passNumber} Batch ${batchIndex + 1} extracted ${batchEntries.length} entries`);
             return batchEntries;
@@ -5301,7 +5413,7 @@ If no equivalences found, return: {"equivalences": []}`
           }, "emar_equivalence", aiUserContext);
 
           const equivalenceContent = equivalenceResponse.choices[0]?.message?.content || "{}";
-          const equivalenceData = JSON.parse(equivalenceContent);
+          const equivalenceData = parseJsonFromContent(equivalenceContent) || { equivalences: [] };
 
           if (equivalenceData.equivalences && Array.isArray(equivalenceData.equivalences)) {
             equivalenceData.equivalences.forEach((eq: any) => {
@@ -7259,8 +7371,8 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       // User context for AI cost tracking
       const user = await storage.getUser(req.session.userId!);
       const aiUserContext: AiUserContext = { userId: user?.id || null, username: user?.username || null };
-      const visitAuditModel = process.env.VISIT_AUDIT_MODEL || "gpt-4o-mini";
-      const visitAuditValidationModel = process.env.VISIT_AUDIT_VALIDATION_MODEL || visitAuditModel;
+      const visitAuditModel = getAccurateModel();
+      const visitAuditValidationModel = visitAuditModel;
       
       sendProgress(5, "Preparing visit logs...", "init");
 
@@ -7758,7 +7870,7 @@ Respond ONLY with valid JSON in this exact format:
       }, 3000);
 
       const response = await createChatCompletionWithLogging({
-        model: getPreferredModel(),
+        model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Analyze these documents for risk assessment needs:\n\n${documentContent}` }
@@ -7928,7 +8040,7 @@ Respond ONLY with valid JSON in this exact format:
       sendProgress(30, "Generating risk assessment...", "ai_generation");
 
       const response = await createChatCompletionWithLogging({
-        model: getPreferredModel(),
+        model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Generate a ${assessmentCategory} risk assessment based on these documents:\n\n${documentContent}` }
@@ -8130,7 +8242,7 @@ OUTPUT: Return ONLY valid JSON matching this structure:
 
         try {
           const sectionResponse = await createChatCompletionWithLogging({
-            model: getPreferredModel(),
+            model: getAccurateModel(),
             messages: [
               { role: "system", content: baseSystemPrompt },
               { role: "user", content: `Generate the "${section.title}" section (priority: ${section.priority}).
@@ -8211,7 +8323,7 @@ Remember: Write as if I am the service user speaking about my own needs. Return 
       // Extract emergency contacts and GP details from first successful section response
       try {
         const metaResponse = await createChatCompletionWithLogging({
-          model: getPreferredModel(),
+          model: getAccurateModel(),
           messages: [
             { role: "system", content: "Extract contact information from the documents. Return JSON only." },
             { role: "user", content: `From these documents, extract:
@@ -8602,7 +8714,7 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
       }, 3000);
 
       const response = await createChatCompletionWithLogging({
-        model: getPreferredModel(),
+        model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Analyze this document and generate a complete care plan template. Extract all relevant information and write detailed first-person content for each section:\n\n${contentToEnhance}` }
@@ -8943,12 +9055,14 @@ RULES:
 Return ONLY the email text, nothing else.`;
 
       const response = await createChatCompletionWithLogging({
-        model: getPreferredModel(),
+        model: getLowCostModel(),
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: inputText }
         ],
         max_completion_tokens: 1000,
+        temperature: 0.2,
+        seed: 42,
       }, "email_assistant", aiUserContext);
 
       const rewrittenEmail = response.choices[0]?.message?.content;
@@ -9001,28 +9115,29 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         : `Generate a complete PRN protocol for: ${medicationName}`;
 
       const response = await createChatCompletionWithLogging({
-        model: getPreferredModel(),
+        model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
         max_completion_tokens: 1500,
+        temperature: 0,
+        seed: 42,
         response_format: { type: "json_object" },
       }, "prn_protocol", aiUserContext);
 
-      const content = response.choices[0]?.message?.content;
+      const content = response.choices[0]?.message?.content || "";
       
       if (!content) {
         return res.status(500).json({ message: "Failed to generate PRN protocol" });
       }
 
-      try {
-        const protocol = JSON.parse(content);
-        return res.json({ protocol });
-      } catch (parseError) {
-        console.error("Failed to parse PRN protocol response:", parseError);
+      const protocol = parseJsonFromContent(content);
+      if (!protocol) {
+        console.error("Failed to parse PRN protocol response");
         return res.status(500).json({ message: "Failed to parse generated protocol" });
       }
+      return res.json({ protocol });
     } catch (error: any) {
       console.error("PRN protocol generation error:", error);
       return res.status(500).json({ message: error.message || "Failed to generate PRN protocol" });

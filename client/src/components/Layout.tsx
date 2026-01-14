@@ -291,13 +291,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         />
       </div>
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-64 flex-shrink-0 bg-sidebar/85 backdrop-blur-xl border-r border-sidebar-border flex-col z-10 shadow-lg">
+      <aside className="hidden md:flex w-64 flex-shrink-0 bg-sidebar/90 backdrop-blur-xl border-r border-sidebar-border flex-col z-10 shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
         <SidebarContent location={location} handleSecretClick={handleSecretClick} logout={logout} />
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto flex flex-col w-full relative z-10">
-        <header className="h-16 border-b border-border/60 bg-background/65 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+        <header className="h-16 border-b border-border/60 bg-background/70 backdrop-blur-xl px-4 md:px-8 flex items-center justify-between sticky top-0 z-20 shadow-[0_10px_30px_rgba(0,0,0,0.22)]">
           <div className="flex items-center gap-3">
             {/* Mobile Menu Trigger */}
             <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -345,8 +345,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
              </div>
           </div>
         </header>
-        <div className="p-4 md:p-8 max-w-7xl mx-auto w-full flex-1">
-          {children}
+        <div className="p-4 md:p-8 max-w-7xl mx-auto w-full flex-1 space-y-6">
+          <div className="app-surface p-5 md:p-8">
+            <div className="flex flex-wrap items-center gap-3 justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <div className="h-10 w-10 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center text-primary font-semibold">
+                  CA
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground uppercase tracking-[0.3em]">Care Assurance</p>
+                  <p className="text-lg font-heading text-foreground">Operational Intelligence Workspace</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="pill-primary">Live</span>
+                <span className="pill-muted">Secure</span>
+              </div>
+            </div>
+            <div className="subtle-divider mb-6" />
+            {children}
+          </div>
         </div>
         
         {/* Persistent Footer with Legal Links */}
