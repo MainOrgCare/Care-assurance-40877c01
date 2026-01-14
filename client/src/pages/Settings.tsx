@@ -22,6 +22,12 @@ const fontSizeOptions: { value: FontSize; label: string }[] = [
   { value: "large", label: "Large" },
 ];
 
+const PASSWORD_RULES_TEXT = "Password must be at least 8 characters and include a letter and a number.";
+const isValidPassword = (value: string): boolean => {
+  if (!value || value.length < 8) return false;
+  return /[A-Za-z]/.test(value) && /\d/.test(value);
+};
+
 export default function Settings() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -52,8 +58,8 @@ export default function Settings() {
       toast({ title: "Error", description: "New passwords do not match", variant: "destructive" });
       return;
     }
-    if (newPassword.length < 4) {
-      toast({ title: "Error", description: "Password must be at least 4 characters", variant: "destructive" });
+    if (!isValidPassword(newPassword)) {
+      toast({ title: "Error", description: PASSWORD_RULES_TEXT, variant: "destructive" });
       return;
     }
 
@@ -130,6 +136,7 @@ export default function Settings() {
               className="bg-muted border-border"
               data-testid="input-confirm-password"
             />
+            <p className="text-xs text-muted-foreground">{PASSWORD_RULES_TEXT}</p>
             <Button
               onClick={handleChangePassword}
               disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}

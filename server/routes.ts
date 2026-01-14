@@ -57,6 +57,79 @@ const uploadExcel = multer({
 
 const MAX_NON_ADMIN_SESSIONS = 2;
 const FORCE_LOGOUT_WARNING_SECONDS = 30;
+const MIN_PASSWORD_LENGTH = 8;
+const PASSWORD_COMPLEXITY_REGEX = /^(?=.*[A-Za-z])(?=.*\d).+$/;
+const LOGIN_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_BLOCK_DURATION_MS = 15 * 60 * 1000;
+const MAX_LOGIN_ATTEMPTS = 5;
+
+type LoginAttempt = {
+  count: number;
+  firstAttemptAt: number;
+  lastAttemptAt: number;
+  blockedUntil?: number;
+};
+
+const loginAttempts = new Map<string, LoginAttempt>();
+
+const validatePassword = (password: string): string | null => {
+  if (!password || typeof password !== "string") {
+    return "Password is required.";
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+  }
+  if (!PASSWORD_COMPLEXITY_REGEX.test(password)) {
+    return "Password must include at least one letter and one number.";
+  }
+  return null;
+};
+
+const getLoginAttemptKey = (ip: string | null, username?: string): string => {
+  if (ip && ip !== "unknown") return `ip:${ip}`;
+  if (username) return `user:${username.toLowerCase()}`;
+  return "unknown";
+};
+
+const pruneLoginAttempts = (): void => {
+  const now = Date.now();
+  for (const [key, attempt] of loginAttempts.entries()) {
+    const expired = now - attempt.lastAttemptAt > LOGIN_ATTEMPT_WINDOW_MS;
+    const blockExpired = !attempt.blockedUntil || attempt.blockedUntil <= now;
+    if (expired && blockExpired) {
+      loginAttempts.delete(key);
+    }
+  }
+};
+
+const getBlockedSeconds = (key: string): number => {
+  const attempt = loginAttempts.get(key);
+  if (!attempt || !attempt.blockedUntil) return 0;
+  const remainingMs = attempt.blockedUntil - Date.now();
+  if (remainingMs <= 0) {
+    loginAttempts.delete(key);
+    return 0;
+  }
+  return Math.ceil(remainingMs / 1000);
+};
+
+const recordLoginFailure = (key: string): void => {
+  const now = Date.now();
+  const attempt = loginAttempts.get(key);
+  if (!attempt || now - attempt.firstAttemptAt > LOGIN_ATTEMPT_WINDOW_MS) {
+    loginAttempts.set(key, { count: 1, firstAttemptAt: now, lastAttemptAt: now });
+    return;
+  }
+  attempt.count += 1;
+  attempt.lastAttemptAt = now;
+  if (attempt.count >= MAX_LOGIN_ATTEMPTS) {
+    attempt.blockedUntil = now + LOGIN_BLOCK_DURATION_MS;
+  }
+};
+
+const clearLoginFailures = (key: string): void => {
+  loginAttempts.delete(key);
+};
 
 const getStandardFontDataUrl = (): string => {
   const fontsPath = path.resolve(process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts");
@@ -1408,6 +1481,15 @@ export async function registerRoutes(
 
       const { username, password } = req.body;
       const clientIp = getClientIp(req);
+      const usernameValue = typeof username === "string" ? username : undefined;
+      const attemptKey = getLoginAttemptKey(clientIp, usernameValue);
+      pruneLoginAttempts();
+      const blockedSeconds = getBlockedSeconds(attemptKey);
+      if (blockedSeconds > 0) {
+        return res.status(429).json({
+          message: `Too many login attempts. Try again in ${blockedSeconds} seconds.`,
+        });
+      }
       
       // Check if IP is blocked
       if (clientIp && clientIp !== 'unknown') {
@@ -1417,28 +1499,33 @@ export async function registerRoutes(
         }
       }
       
-      if (!username || !password) {
+      if (!usernameValue || !password || typeof password !== "string") {
+        recordLoginFailure(attemptKey);
         return res.status(400).json({ message: "Username and password required" });
       }
 
-      const user = await storage.getUserByUsername(username);
+      const user = await storage.getUserByUsername(usernameValue);
       
       if (!user) {
+        recordLoginFailure(attemptKey);
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
       const isValidPassword = await storage.verifyPassword(password, user.password);
       if (!isValidPassword) {
+        recordLoginFailure(attemptKey);
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
       if (user.status !== "active") {
+        recordLoginFailure(attemptKey);
         return res.status(403).json({ message: "Account pending approval" });
       }
 
       // Check if user is suspended
       if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) {
         const minutesLeft = Math.ceil((new Date(user.suspendedUntil).getTime() - Date.now()) / 60000);
+        recordLoginFailure(attemptKey);
         return res.status(403).json({ 
           message: `Account suspended. Please try again in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''}.`
         });
@@ -1483,6 +1570,8 @@ export async function registerRoutes(
           else resolve();
         });
       });
+
+      clearLoginFailures(attemptKey);
       
       // Create active session record with IP address
       await storage.createActiveSession({
@@ -1587,6 +1676,10 @@ export async function registerRoutes(
       }
 
       const validatedData = insertUserSchema.parse(req.body);
+      const passwordError = validatePassword(validatedData.password);
+      if (passwordError) {
+        return res.status(400).json({ message: passwordError });
+      }
       
       // Check if user already exists
       const existingUser = await storage.getUserByUsername(validatedData.username);
@@ -1756,6 +1849,10 @@ export async function registerRoutes(
   app.post("/api/users", requireAuth, requireAdmin, async (req, res) => {
     try {
       const validatedData = insertUserSchema.parse(req.body);
+      const passwordError = validatePassword(validatedData.password);
+      if (passwordError) {
+        return res.status(400).json({ message: passwordError });
+      }
       
       const existingUser = await storage.getUserByUsername(validatedData.username);
       if (existingUser) {
@@ -1951,8 +2048,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Current and new password required" });
       }
       
-      if (newPassword.length < 4) {
-        return res.status(400).json({ message: "New password must be at least 4 characters" });
+      const passwordError = validatePassword(newPassword);
+      if (passwordError) {
+        return res.status(400).json({ message: passwordError });
       }
       
       const user = await storage.getUser(req.user.id);
@@ -1975,19 +2073,28 @@ export async function registerRoutes(
     }
   });
 
-  // Admin reset user password to 'test'
+  // Admin reset user password
   app.post("/api/admin/users/:id/reset-password", requireAuth, requireAdmin, async (req, res) => {
     try {
+      const { newPassword } = req.body;
+      if (!newPassword || typeof newPassword !== "string") {
+        return res.status(400).json({ message: "New password required" });
+      }
+      const passwordError = validatePassword(newPassword);
+      if (passwordError) {
+        return res.status(400).json({ message: passwordError });
+      }
+
       const user = await storage.getUser(req.params.id);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
       
       const bcrypt = await import("bcrypt");
-      const hashedPassword = await bcrypt.default.hash("test", 10);
+      const hashedPassword = await bcrypt.default.hash(newPassword, 10);
       await storage.updateUserPassword(req.params.id, hashedPassword);
       
-      return res.json({ message: `Password reset to 'test' for user ${user.username}` });
+      return res.json({ message: `Password reset for user ${user.username}` });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
     }

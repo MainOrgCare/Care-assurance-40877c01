@@ -138,13 +138,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             variant: "destructive"
           });
           logAction("Login Attempt", "System", "Blocked", "Account Pending");
-        } else {
+        } else if (response.status === 401) {
           toast({
             title: "Invalid Credentials",
             description: data.message || "Please check your username and password.",
             variant: "destructive"
           });
           logAction("Login Attempt", "System", "Blocked", "Invalid Credentials");
+        } else if (response.status === 429) {
+          toast({
+            title: "Too Many Attempts",
+            description: data.message || "Please wait before trying again.",
+            variant: "destructive"
+          });
+          logAction("Login Attempt", "System", "Blocked", "Rate Limited");
+        } else if (response.status === 503) {
+          toast({
+            title: "Service Unavailable",
+            description: data.message || "Authentication is temporarily unavailable.",
+            variant: "destructive"
+          });
+          logAction("Login Attempt", "System", "System", "Auth Unavailable");
+        } else {
+          toast({
+            title: "Login Failed",
+            description: data.message || "An error occurred during login. Please try again.",
+            variant: "destructive"
+          });
+          logAction("Login Attempt", "System", "Blocked", "Login Failed");
         }
         return false;
       }

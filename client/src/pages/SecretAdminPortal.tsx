@@ -71,6 +71,12 @@ function formatCost(microDollars: number): string {
   }
 }
 
+const PASSWORD_RULES_TEXT = "Password must be at least 8 characters and include a letter and a number.";
+const isValidPassword = (value: string): boolean => {
+  if (!value || value.length < 8) return false;
+  return /[A-Za-z]/.test(value) && /\d/.test(value);
+};
+
 function AICostSection() {
   const [logs, setLogs] = useState<AiUsageLog[]>([]);
   const [stats, setStats] = useState<AiUsageStats | null>(null);
@@ -2116,6 +2122,9 @@ export default function SecretAdminPortal() {
   const [userStatusFilter, setUserStatusFilter] = useState<string>("all");
   const [editingUser, setEditingUser] = useState<EditingUser | null>(null);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<string | null>(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState<{ id: string; username: string } | null>(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState("");
 
   // System Log Dialog State
   const [systemLogDialogOpen, setSystemLogDialogOpen] = useState(false);
@@ -2184,6 +2193,14 @@ export default function SecretAdminPortal() {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserUsername || !newUserPassword) return;
+    if (!isValidPassword(newUserPassword)) {
+      toast({
+        title: "Password Too Weak",
+        description: PASSWORD_RULES_TEXT,
+        variant: "destructive",
+      });
+      return;
+    }
     
     try {
       const response = await fetch("/api/users", {
@@ -2330,6 +2347,43 @@ export default function SecretAdminPortal() {
         description: "Failed to update user.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordUser) return;
+    if (!resetPasswordValue || !resetPasswordConfirm) {
+      toast({ title: "Missing Password", description: "Enter and confirm the new password.", variant: "destructive" });
+      return;
+    }
+    if (resetPasswordValue !== resetPasswordConfirm) {
+      toast({ title: "Password Mismatch", description: "Passwords do not match.", variant: "destructive" });
+      return;
+    }
+    if (!isValidPassword(resetPasswordValue)) {
+      toast({ title: "Password Too Weak", description: PASSWORD_RULES_TEXT, variant: "destructive" });
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/users/${resetPasswordUser.id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: resetPasswordValue }),
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: "Password Reset", description: data.message || "Password reset successfully." });
+        setResetPasswordUser(null);
+        setResetPasswordValue("");
+        setResetPasswordConfirm("");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: "Error", description: data.message || "Failed to reset password", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to reset password", variant: "destructive" });
     }
   };
 
@@ -2670,6 +2724,7 @@ export default function SecretAdminPortal() {
                           className="bg-card border-border text-foreground" 
                           data-testid="input-new-password"
                         />
+                        <p className="text-[11px] text-muted-foreground">{PASSWORD_RULES_TEXT}</p>
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-4">
@@ -2877,23 +2932,12 @@ export default function SecretAdminPortal() {
                                 size="sm" 
                                 variant="ghost" 
                                 className="h-7 w-7 p-0 text-amber-400 hover:text-amber-300 hover:bg-amber-950/30"
-                                onClick={async () => {
-                                  try {
-                                    const res = await fetch(`/api/admin/users/${u.id}/reset-password`, {
-                                      method: "POST",
-                                      credentials: "include"
-                                    });
-                                    if (res.ok) {
-                                      const data = await res.json();
-                                      toast({ title: "Password Reset", description: data.message });
-                                    } else {
-                                      toast({ title: "Error", description: "Failed to reset password", variant: "destructive" });
-                                    }
-                                  } catch {
-                                    toast({ title: "Error", description: "Failed to reset password", variant: "destructive" });
-                                  }
+                                onClick={() => {
+                                  setResetPasswordUser({ id: u.id, username: u.username });
+                                  setResetPasswordValue("");
+                                  setResetPasswordConfirm("");
                                 }}
-                                title="Reset password to 'test'"
+                                title="Reset user password"
                                 data-testid={`button-reset-password-${u.id}`}
                               >
                                 <FileKey size={14} />
@@ -3110,6 +3154,72 @@ export default function SecretAdminPortal() {
             </Button>
             <Button onClick={handleUpdateUser} className="bg-indigo-600 hover:bg-indigo-500 text-white" data-testid="button-save-user">
               <Save size={16} className="mr-2" /> Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog
+        open={!!resetPasswordUser}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResetPasswordUser(null);
+            setResetPasswordValue("");
+            setResetPasswordConfirm("");
+          }
+        }}
+      >
+        <DialogContent className="bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Reset Password</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Set a new password for {resetPasswordUser?.username || "this user"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">New Password</Label>
+              <Input
+                value={resetPasswordValue}
+                onChange={(e) => setResetPasswordValue(e.target.value)}
+                type="password"
+                placeholder="Enter new password"
+                className="bg-muted border-border text-foreground"
+                data-testid="input-reset-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Confirm Password</Label>
+              <Input
+                value={resetPasswordConfirm}
+                onChange={(e) => setResetPasswordConfirm(e.target.value)}
+                type="password"
+                placeholder="Confirm new password"
+                className="bg-muted border-border text-foreground"
+                data-testid="input-reset-password-confirm"
+              />
+              <p className="text-xs text-muted-foreground">{PASSWORD_RULES_TEXT}</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResetPasswordUser(null);
+                setResetPasswordValue("");
+                setResetPasswordConfirm("");
+              }}
+              className="border-border text-foreground"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleResetPassword}
+              className="bg-amber-600 hover:bg-amber-500 text-white"
+              data-testid="button-confirm-reset-password"
+            >
+              <FileKey size={16} className="mr-2" /> Reset Password
             </Button>
           </DialogFooter>
         </DialogContent>

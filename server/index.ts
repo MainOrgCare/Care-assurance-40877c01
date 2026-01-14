@@ -60,6 +60,16 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+const safeStringify = (payload: unknown, maxLength = 1500): string => {
+  try {
+    const json = JSON.stringify(payload);
+    if (json.length <= maxLength) return json;
+    return `${json.slice(0, maxLength)}... [truncated]`;
+  } catch {
+    return "[unserializable]";
+  }
+};
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -75,8 +85,8 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      if (capturedJsonResponse && process.env.NODE_ENV !== "production") {
+        logLine += ` :: ${safeStringify(capturedJsonResponse)}`;
       }
 
       log(logLine);
@@ -121,11 +131,18 @@ const DEFAULT_ADMIN_USERNAME = "Lewis.barron";
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    if (res.headersSent) {
+      return _next(err);
+    }
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
-    throw err;
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[API Error]", err);
+    } else {
+      console.error(`[API Error] ${message}`);
+    }
   });
 
   // importantly only setup vite in development and after
