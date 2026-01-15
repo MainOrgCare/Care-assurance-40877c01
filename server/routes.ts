@@ -18,7 +18,8 @@ import mammoth from "mammoth";
 import { scanFile, computeFileHash, getCachedScan } from "./services/fileScan";
 import * as XLSX from "xlsx";
 import { convertPdfToImages } from "./services/pdfToImages";
-import { getDocument } from "pdfjs-dist";
+// Use legacy build for Node.js (no DOM APIs required)
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
 import nodemailer from "nodemailer";
 // Vision-based extraction for improved EMAR accuracy

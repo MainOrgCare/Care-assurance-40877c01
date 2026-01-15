@@ -1,4 +1,4 @@
-declare module "pdfjs-dist" {
+declare module "pdfjs-dist/legacy/build/pdf.mjs" {
   export interface DocumentInitParameters {
     data?: ArrayBuffer | Uint8Array | number[];
     url?: string;
