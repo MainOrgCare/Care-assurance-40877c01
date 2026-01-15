@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
+import { Textarea } from "@/components/ui/textarea";
 import { motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { 
@@ -38,7 +39,8 @@ import {
   Calculator,
   PoundSterling,
   Mail,
-  MessageSquare
+  MessageSquare,
+  Send
 } from "lucide-react";
 
 const HOURLY_RATE = 14.5;
@@ -326,6 +328,59 @@ export default function Homepage() {
   const [loginOpen, setLoginOpen] = useState(false);
   const [serviceUsers, setServiceUsers] = useState(20);
   const prefersReducedMotion = useReducedMotion();
+
+  // Contact form state
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactOrg, setContactOrg] = useState("");
+  const [contactMessage, setContactMessage] = useState("");
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactSuccess, setContactSuccess] = useState(false);
+  const [contactError, setContactError] = useState("");
+  const [contactEnabled, setContactEnabled] = useState(false);
+
+  // Check if contact form is enabled on mount
+  useEffect(() => {
+    fetch("/api/contact/status")
+      .then((res) => res.json())
+      .then((data) => setContactEnabled(data.enabled))
+      .catch(() => setContactEnabled(false));
+  }, []);
+
+  const handleContactSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setContactLoading(true);
+    setContactError("");
+    
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: contactName,
+          email: contactEmail,
+          organisation: contactOrg,
+          message: contactMessage,
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        setContactError(data.message || "Failed to send message");
+      } else {
+        setContactSuccess(true);
+        setContactName("");
+        setContactEmail("");
+        setContactOrg("");
+        setContactMessage("");
+      }
+    } catch (err) {
+      setContactError("Failed to send message. Please try again.");
+    } finally {
+      setContactLoading(false);
+    }
+  }, [contactName, contactEmail, contactOrg, contactMessage]);
 
   const roi = useMemo(() => calculateROI(serviceUsers), [serviceUsers]);
   const savingsPercent = useMemo(() => {
@@ -1385,19 +1440,111 @@ export default function Homepage() {
                   </div>
 
                   <div>
-                    <div className="rounded-2xl border border-border/50 bg-background/40 p-6">
-                      <div className="flex items-center gap-2 text-foreground">
-                        <AlertTriangle className="h-4 w-4 text-amber-300" />
-                        <span className="text-sm font-semibold">Contact form disabled</span>
+                    {contactSuccess ? (
+                      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
+                        <div className="flex items-center gap-2 text-emerald-300">
+                          <CheckCircle2 className="h-5 w-5" />
+                          <span className="font-semibold">Message sent!</span>
+                        </div>
+                        <p className="mt-2 text-sm text-emerald-200/80">
+                          Thank you for getting in touch. We'll respond within 1 business day.
+                        </p>
+                        <Button 
+                          variant="outline" 
+                          className="mt-4 w-full border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                          onClick={() => setContactSuccess(false)}
+                        >
+                          Send another message
+                        </Button>
                       </div>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        This site currently does not accept messages via email. If you already have access, please sign in.
-                      </p>
-                      <Button className="mt-4 w-full justify-between" onClick={openLoginFromCTA}>
-                        Login
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    ) : contactEnabled ? (
+                      <form onSubmit={handleContactSubmit} className="rounded-2xl border border-border/50 bg-background/40 p-6 space-y-4">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="contact-name" className="text-sm text-foreground">Name *</Label>
+                            <Input
+                              id="contact-name"
+                              placeholder="Your name"
+                              value={contactName}
+                              onChange={(e) => setContactName(e.target.value)}
+                              required
+                              className="bg-background/60"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="contact-email" className="text-sm text-foreground">Email *</Label>
+                            <Input
+                              id="contact-email"
+                              type="email"
+                              placeholder="you@example.com"
+                              value={contactEmail}
+                              onChange={(e) => setContactEmail(e.target.value)}
+                              required
+                              className="bg-background/60"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="contact-org" className="text-sm text-foreground">Organisation</Label>
+                          <Input
+                            id="contact-org"
+                            placeholder="Your care facility or company"
+                            value={contactOrg}
+                            onChange={(e) => setContactOrg(e.target.value)}
+                            className="bg-background/60"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="contact-message" className="text-sm text-foreground">Message *</Label>
+                          <Textarea
+                            id="contact-message"
+                            placeholder="Tell us what you're looking for — EMAR audits, care plan generation, compliance goals, or something else..."
+                            value={contactMessage}
+                            onChange={(e) => setContactMessage(e.target.value)}
+                            required
+                            rows={4}
+                            className="bg-background/60 resize-none"
+                          />
+                        </div>
+                        {contactError && (
+                          <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-300">
+                            {contactError}
+                          </div>
+                        )}
+                        <Button 
+                          type="submit" 
+                          className="w-full justify-between"
+                          disabled={contactLoading}
+                        >
+                          {contactLoading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="h-4 w-4" />
+                              Send message
+                              <ChevronRight className="h-4 w-4" />
+                            </>
+                          )}
+                        </Button>
+                      </form>
+                    ) : (
+                      <div className="rounded-2xl border border-border/50 bg-background/40 p-6">
+                        <div className="flex items-center gap-2 text-foreground">
+                          <AlertTriangle className="h-4 w-4 text-amber-300" />
+                          <span className="text-sm font-semibold">Contact form disabled</span>
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          This site currently does not accept messages via email. If you already have access, please sign in.
+                        </p>
+                        <Button className="mt-4 w-full justify-between" onClick={openLoginFromCTA}>
+                          Login
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>

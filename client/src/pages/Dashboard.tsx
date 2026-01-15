@@ -3,16 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { AlertCircle, CheckCircle2, FileText, Activity, RefreshCw, Loader2, Settings, GripVertical, Pill, ClipboardList, Shield, Users, Palette, Moon, Sun, Waves, Sparkles, ArrowRight, Upload, Brain, TrendingUp, Clock, Zap, Play, Info, type LucideIcon } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileText, Activity, RefreshCw, Loader2, Settings, GripVertical, Pill, ClipboardList, Shield, Users, Palette, Moon, Sun, Waves, Sparkles, ArrowRight, Upload, Brain, TrendingUp, Clock, Zap, Play, Info, ChevronDown, type LucideIcon } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useSettings, Theme } from "@/context/SettingsContext";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 interface DashboardStats {
   auditsCompleted: number;
@@ -107,6 +108,7 @@ export default function Dashboard() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeWidgets, setActiveWidgets] = useState<string[]>(DEFAULT_WIDGETS);
   const [widgetOrder, setWidgetOrder] = useState<string[]>(ALL_WIDGETS.map(w => w.id));
+  const [, navigate] = useLocation();
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -448,7 +450,55 @@ export default function Dashboard() {
             {isRefetching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Refresh
           </Button>
-          <Button data-testid="button-new-analysis">New Analysis</Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button data-testid="button-new-analysis">
+                <Brain className="h-4 w-4 mr-2" />
+                New Analysis
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Start New Analysis</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate("/care-workers/emar-audit")} className="cursor-pointer">
+                <Pill className="h-4 w-4 mr-2 text-blue-500" />
+                <div className="flex flex-col">
+                  <span>EMAR Audit</span>
+                  <span className="text-xs text-muted-foreground">Analyze medication records</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/service-users/upload")} className="cursor-pointer">
+                <FileText className="h-4 w-4 mr-2 text-violet-500" />
+                <div className="flex flex-col">
+                  <span>Care Plan</span>
+                  <span className="text-xs text-muted-foreground">Generate AI care plans</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/service-users/risk-assessment")} className="cursor-pointer">
+                <Shield className="h-4 w-4 mr-2 text-amber-500" />
+                <div className="flex flex-col">
+                  <span>Risk Assessment</span>
+                  <span className="text-xs text-muted-foreground">Create risk assessments</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/care-plan-enhancer")} className="cursor-pointer">
+                <Sparkles className="h-4 w-4 mr-2 text-emerald-500" />
+                <div className="flex flex-col">
+                  <span>Plan Enhancer</span>
+                  <span className="text-xs text-muted-foreground">Enhance existing plans</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate("/care-workers/visit-audit")} className="cursor-pointer">
+                <ClipboardList className="h-4 w-4 mr-2 text-cyan-500" />
+                <div className="flex flex-col">
+                  <span>Visit Audit</span>
+                  <span className="text-xs text-muted-foreground">Audit care visits</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

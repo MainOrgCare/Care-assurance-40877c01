@@ -20,6 +20,7 @@ import * as XLSX from "xlsx";
 import { convertPdfToImages } from "./services/pdfToImages";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
+import nodemailer from "nodemailer";
 // Vision-based extraction for improved EMAR accuracy
 
 const upload = multer({ 
@@ -10011,6 +10012,151 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     } catch (error: any) {
       console.error("Reconciliation error:", error);
       return res.status(500).json({ message: error.message || "Failed to process Excel file" });
+    }
+  });
+
+  // =====================================================================
+  // CONTACT FORM - Email sending via SMTP
+  // =====================================================================
+
+  // Check if SMTP is configured
+  app.get("/api/contact/status", async (req, res) => {
+    const isConfigured = Boolean(
+      process.env.SMTP_HOST &&
+      process.env.SMTP_USER &&
+      process.env.SMTP_PASS
+    );
+    return res.json({ enabled: isConfigured });
+  });
+
+  // Send contact form message
+  app.post("/api/contact", async (req, res) => {
+    try {
+      const { name, email, organisation, message } = req.body;
+
+      // Validation
+      if (!name || typeof name !== "string" || name.trim().length < 2) {
+        return res.status(400).json({ message: "Please enter your name" });
+      }
+      if (!email || typeof email !== "string" || !email.includes("@")) {
+        return res.status(400).json({ message: "Please enter a valid email address" });
+      }
+      if (!message || typeof message !== "string" || message.trim().length < 10) {
+        return res.status(400).json({ message: "Please enter a message (at least 10 characters)" });
+      }
+
+      // Check SMTP configuration
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpPort = parseInt(process.env.SMTP_PORT || "587", 10);
+      const smtpSecure = process.env.SMTP_SECURE === "true";
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
+      const contactEmail = process.env.CONTACT_EMAIL || smtpUser;
+      const contactFrom = process.env.CONTACT_FROM || smtpUser;
+
+      if (!smtpHost || !smtpUser || !smtpPass) {
+        console.error("[Contact] SMTP not configured - missing SMTP_HOST, SMTP_USER, or SMTP_PASS");
+        return res.status(503).json({ 
+          message: "Contact form is not available at this time. Please try again later." 
+        });
+      }
+
+      // Create nodemailer transporter for Office 365
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+        tls: {
+          ciphers: "SSLv3",
+          rejectUnauthorized: false,
+        },
+      });
+
+      // Sanitize inputs for email
+      const sanitizedName = name.trim().slice(0, 100);
+      const sanitizedEmail = email.trim().slice(0, 100);
+      const sanitizedOrg = organisation ? String(organisation).trim().slice(0, 100) : "Not specified";
+      const sanitizedMessage = message.trim().slice(0, 5000);
+
+      // Email content
+      const emailSubject = `CareAssurance Contact: ${sanitizedName}`;
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #0f172a; border-bottom: 2px solid #3bb4c8; padding-bottom: 10px;">
+            New Contact Form Submission
+          </h2>
+          
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <tr>
+              <td style="padding: 10px; background: #f1f5f9; font-weight: bold; width: 140px;">Name:</td>
+              <td style="padding: 10px; background: #f8fafc;">${sanitizedName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px; background: #f1f5f9; font-weight: bold;">Email:</td>
+              <td style="padding: 10px; background: #f8fafc;">
+                <a href="mailto:${sanitizedEmail}" style="color: #3bb4c8;">${sanitizedEmail}</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 10px; background: #f1f5f9; font-weight: bold;">Organisation:</td>
+              <td style="padding: 10px; background: #f8fafc;">${sanitizedOrg}</td>
+            </tr>
+          </table>
+          
+          <h3 style="color: #334155; margin-top: 30px;">Message:</h3>
+          <div style="background: #f8fafc; padding: 20px; border-radius: 8px; border-left: 4px solid #3bb4c8;">
+            <p style="white-space: pre-wrap; margin: 0; color: #475569; line-height: 1.6;">
+${sanitizedMessage}
+            </p>
+          </div>
+          
+          <hr style="margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;" />
+          <p style="font-size: 12px; color: #94a3b8;">
+            This message was sent via the CareAssurance contact form at ${new Date().toLocaleString("en-GB", { timeZone: "Europe/London" })}.
+          </p>
+        </div>
+      `;
+
+      const emailText = `
+New Contact Form Submission
+===========================
+
+Name: ${sanitizedName}
+Email: ${sanitizedEmail}
+Organisation: ${sanitizedOrg}
+
+Message:
+${sanitizedMessage}
+
+---
+Sent via CareAssurance contact form at ${new Date().toLocaleString("en-GB", { timeZone: "Europe/London" })}
+      `.trim();
+
+      // Send the email
+      await transporter.sendMail({
+        from: `"CareAssurance Contact" <${contactFrom}>`,
+        to: contactEmail,
+        replyTo: sanitizedEmail,
+        subject: emailSubject,
+        text: emailText,
+        html: emailHtml,
+      });
+
+      console.log(`[Contact] Email sent successfully from ${sanitizedEmail} (${sanitizedName})`);
+
+      return res.json({ 
+        success: true, 
+        message: "Thank you for your message. We'll respond within 1 business day." 
+      });
+    } catch (error: any) {
+      console.error("[Contact] Email send failed:", error);
+      return res.status(500).json({ 
+        message: "Failed to send message. Please try again or email us directly." 
+      });
     }
   });
 
