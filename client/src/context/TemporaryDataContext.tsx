@@ -12,13 +12,17 @@ interface FileData {
   parseError?: string;
 }
 
+type UploadSection = "socialWork" | "initialAssessment" | "carePlan";
+
+type ServiceUserDataState = {
+  socialWork?: FileData;
+  initialAssessment?: FileData;
+  carePlan?: FileData;
+};
+
 interface TemporaryDataContextType {
-  serviceUserData: {
-    socialWork?: FileData;
-    initialAssessment?: FileData;
-    carePlan?: FileData;
-  };
-  uploadFile: (section: "socialWork" | "initialAssessment" | "carePlan", file: File) => Promise<void>;
+  serviceUserData: ServiceUserDataState;
+  uploadFile: (section: UploadSection, file: File) => Promise<void>;
   clearServiceUserData: () => void;
   timeLeft: number | null; // Time left in seconds
   startTimer: () => void;
@@ -31,15 +35,21 @@ interface TemporaryDataContextType {
 const TemporaryDataContext = createContext<TemporaryDataContextType | undefined>(undefined);
 
 export function TemporaryDataProvider({ children }: { children: ReactNode }) {
-  const [serviceUserData, setServiceUserData] = useState<{
-    socialWork?: FileData;
-    initialAssessment?: FileData;
-    carePlan?: FileData;
-  }>({});
+  const [serviceUserData, setServiceUserData] = useState<ServiceUserDataState>({});
   
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [location] = useLocation();
   const demoDataLoadedRef = useRef(false);
+  const uploadTokensRef = useRef<Record<UploadSection, symbol>>({
+    socialWork: Symbol("socialWork"),
+    initialAssessment: Symbol("initialAssessment"),
+    carePlan: Symbol("carePlan"),
+  });
+  const uploadAbortControllersRef = useRef<Record<UploadSection, AbortController | null>>({
+    socialWork: null,
+    initialAssessment: null,
+    carePlan: null,
+  });
 
   // Handle timer countdown
   // Demo mode: timer does not clear data - session persists for demo duration
@@ -73,7 +83,31 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     }
   }, [location]);
 
-  const uploadFile = async (section: "socialWork" | "initialAssessment" | "carePlan", file: File) => {
+  const resetUploadTracking = () => {
+    Object.values(uploadAbortControllersRef.current).forEach((controller) => controller?.abort());
+    uploadAbortControllersRef.current = {
+      socialWork: null,
+      initialAssessment: null,
+      carePlan: null,
+    };
+    uploadTokensRef.current = {
+      socialWork: Symbol("socialWork"),
+      initialAssessment: Symbol("initialAssessment"),
+      carePlan: Symbol("carePlan"),
+    };
+  };
+
+  const uploadFile = async (section: UploadSection, file: File) => {
+    const token = Symbol(section);
+    uploadTokensRef.current[section] = token;
+
+    const existingController = uploadAbortControllersRef.current[section];
+    if (existingController) {
+      existingController.abort();
+    }
+    const controller = new AbortController();
+    uploadAbortControllersRef.current[section] = controller;
+
     // Create initial entry with parsing status
     const newFile: FileData = {
       name: file.name,
@@ -96,6 +130,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: formData,
         credentials: "include",
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -103,6 +138,10 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
       }
 
       const data = await response.json();
+
+      if (uploadTokensRef.current[section] !== token) {
+        return;
+      }
       
       setServiceUserData(prev => ({
         ...prev,
@@ -113,6 +152,12 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
         },
       }));
     } catch (error: any) {
+      if (error?.name === "AbortError") {
+        return;
+      }
+      if (uploadTokensRef.current[section] !== token) {
+        return;
+      }
       console.error("PDF parsing error:", error);
       setServiceUserData(prev => ({
         ...prev,
@@ -127,6 +172,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
   };
 
   const clearServiceUserData = () => {
+    resetUploadTracking();
     setServiceUserData({});
     setTimeLeft(null);
     demoDataLoadedRef.current = false;
@@ -170,6 +216,8 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
       return;
     }
     demoDataLoadedRef.current = true;
+
+    resetUploadTracking();
     
     setServiceUserData({
       socialWork: {

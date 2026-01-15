@@ -1529,18 +1529,19 @@ export async function registerRoutes(
 
       // Check session limits for non-admin users
       const isAdmin = user.role === "admin";
+      const existingSession = await storage.getActiveSessionByUserId(user.id);
       const nonAdminCount = await storage.getNonAdminSessionCount();
       
       let forcingLogout = false;
       
-      if (!isAdmin && nonAdminCount >= MAX_NON_ADMIN_SESSIONS) {
+      if (!isAdmin && nonAdminCount >= MAX_NON_ADMIN_SESSIONS && !existingSession) {
         return res.status(503).json({ 
           message: `System is at capacity (${MAX_NON_ADMIN_SESSIONS} users). Please try again later.` 
         });
       }
       
       // Admin priority: if admin logs in and all slots are full, force logout oldest non-admin
-      if (isAdmin && nonAdminCount >= MAX_NON_ADMIN_SESSIONS) {
+      if (isAdmin && nonAdminCount >= MAX_NON_ADMIN_SESSIONS && !existingSession) {
         const nonAdminSessions = await storage.getNonAdminActiveSessions();
         if (nonAdminSessions.length > 0) {
           const oldestSession = nonAdminSessions[0];
