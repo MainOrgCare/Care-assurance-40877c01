@@ -111,32 +111,32 @@ const PROJECT_TILES = [
   {
     title: "EMAR Audit Reports",
     subtitle: "Medication compliance snapshots",
-    accent: "from-[#f0e7db] to-[#d8c7b1]",
+    accent: "from-[hsl(220_60%_96%)] to-[hsl(220_50%_88%)]",
   },
   {
     title: "Care Plan Generator",
     subtitle: "11-section drafts in minutes",
-    accent: "from-[#f3efe7] to-[#d4ddda]",
+    accent: "from-[hsl(200_50%_95%)] to-[hsl(200_45%_85%)]",
   },
   {
     title: "Visit Audit Review",
     subtitle: "Planned vs actual insights",
-    accent: "from-[#e8ecf0] to-[#c9d3dc]",
+    accent: "from-[hsl(210_45%_95%)] to-[hsl(210_40%_87%)]",
   },
   {
     title: "Staff Performance",
     subtitle: "Coaching-ready patterns",
-    accent: "from-[#f1e9e0] to-[#d5c3b1]",
+    accent: "from-[hsl(230_50%_96%)] to-[hsl(230_45%_88%)]",
   },
   {
     title: "Risk Assessment",
     subtitle: "Structured, consistent scoring",
-    accent: "from-[#edf0ea] to-[#ccd6c6]",
+    accent: "from-[hsl(190_45%_94%)] to-[hsl(190_40%_84%)]",
   },
   {
     title: "Call Reconciliation",
     subtitle: "Variance summaries for billing",
-    accent: "from-[#f0ebe6] to-[#d6cfc4]",
+    accent: "from-[hsl(215_50%_95%)] to-[hsl(215_45%_87%)]",
   },
 ] as const;
 
@@ -281,40 +281,40 @@ export default function Homepage() {
       <header className="relative z-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-2xl bg-foreground text-background flex items-center justify-center shadow-[0_12px_24px_rgba(22,20,18,0.18)]">
+            <div className="h-10 w-10 rounded-xl bg-[hsl(220_70%_50%)] text-white flex items-center justify-center shadow-sm">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-lg font-heading font-semibold text-foreground">CareAssurance</div>
-              <div className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Compliance Platform</div>
+              <div className="text-base font-bold text-foreground">CareAssurance</div>
+              <div className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-medium">Compliance Platform</div>
             </div>
           </div>
 
-          <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
+          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
             <button
               type="button"
-              className="bg-transparent p-0 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="bg-transparent p-0 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
               onClick={() => scrollToSection("platform")}
             >
               Platform
             </button>
             <button
               type="button"
-              className="bg-transparent p-0 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="bg-transparent p-0 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
               onClick={() => scrollToSection("compliance")}
             >
               Compliance
             </button>
             <button
               type="button"
-              className="bg-transparent p-0 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="bg-transparent p-0 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
               onClick={() => scrollToSection("roi")}
             >
               Savings
             </button>
             <button
               type="button"
-              className="bg-transparent p-0 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="bg-transparent p-0 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
               onClick={() => scrollToSection("contact")}
             >
               Contact
@@ -331,9 +331,9 @@ export default function Homepage() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-80 p-0" align="end">
-                <div className="p-4 border-b border-border/70">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-xl bg-foreground text-background flex items-center justify-center">
+                <div className="p-4 border-b border-border">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-[hsl(220_70%_50%)] text-white flex items-center justify-center">
                       <ShieldCheck className="h-4 w-4" />
                     </div>
                     <div>
@@ -394,10 +394,10 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
             <motion.div {...reveal()} className="text-center lg:text-left">
               <span className="home-eyebrow">Operational Assurance for UK Care</span>
-              <h1 className="mt-4 text-4xl sm:text-5xl lg:text-6xl font-heading text-foreground">
+              <h1 className="mt-5 text-4xl sm:text-5xl lg:text-[3.25rem] font-heading font-bold text-foreground leading-[1.1]">
                 Compliance reporting that feels calm, clear, and prepared.
               </h1>
-              <p className="mt-5 text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0">
+              <p className="mt-6 text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0 leading-relaxed">
                 CareAssurance streamlines EMAR audits, care plans, and visit reviews into one
                 structured workspace. Detect risks earlier, document decisions faster, and walk
                 into inspections with confidence.
@@ -419,12 +419,12 @@ export default function Homepage() {
               <div className="mt-10 grid grid-cols-2 gap-4">
                 {HERO_STATS.map((stat) => (
                   <div key={stat.label} className="home-card-soft p-4 text-left">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <stat.icon className="h-4 w-4" />
+                    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                      <stat.icon className="h-4 w-4 text-foreground/70" />
                       {stat.label}
                     </div>
-                    <div className="mt-2 text-lg font-semibold text-foreground">{stat.value}</div>
-                    <div className="text-[11px] text-muted-foreground">{stat.detail}</div>
+                    <div className="mt-2 text-xl font-bold text-foreground">{stat.value}</div>
+                    <div className="text-xs font-medium text-muted-foreground mt-0.5">{stat.detail}</div>
                   </div>
                 ))}
               </div>
@@ -462,18 +462,18 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[0.95fr_1.05fr] items-center">
             <motion.div {...reveal()}>
               <span className="home-eyebrow">Platform overview</span>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading text-foreground">
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold text-foreground leading-tight">
                 One workspace for audits, plans, and care delivery checks.
               </h2>
-              <p className="mt-4 text-muted-foreground">
+              <p className="mt-4 text-base text-muted-foreground leading-relaxed">
                 Replace scattered spreadsheets with a structured flow for every document.
                 CareAssurance unifies analysis, notes, and follow-up actions so teams can move fast.
               </p>
               <div className="mt-6 space-y-3">
                 {OVERVIEW_BULLETS.map((bullet) => (
-                  <div key={bullet} className="flex items-start gap-3 text-sm text-muted-foreground">
-                    <span className="mt-1 h-6 w-6 rounded-full border border-border flex items-center justify-center">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-foreground" />
+                  <div key={bullet} className="flex items-start gap-3 text-sm text-foreground/80">
+                    <span className="mt-0.5 h-5 w-5 rounded-full bg-[hsl(220_70%_50%/0.1)] border border-[hsl(220_70%_50%/0.2)] flex items-center justify-center flex-shrink-0">
+                      <CheckCircle2 className="h-3 w-3 text-[hsl(220_70%_50%)]" />
                     </span>
                     <span>{bullet}</span>
                   </div>
@@ -519,22 +519,22 @@ export default function Homepage() {
         <section id="compliance" className="home-band">
           <div className="max-w-6xl mx-auto px-4 py-16">
             <motion.div {...reveal()} className="text-center">
-              <p className="home-eyebrow text-white/60">Compliance foundations</p>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading text-white">
+              <p className="home-eyebrow text-white/70">Compliance foundations</p>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold text-white leading-tight">
                 Evidence you can stand behind.
               </h2>
-              <p className="mt-3 text-white/70 max-w-2xl mx-auto">
+              <p className="mt-4 text-white/80 max-w-2xl mx-auto leading-relaxed">
                 Built for regulated care environments with clear governance controls and consistent reporting.
               </p>
             </motion.div>
             <div className="mt-10 grid gap-6 md:grid-cols-3">
               {CERTIFICATIONS.map((item) => (
-                <motion.div key={item.title} {...reveal(0.1)} className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                  <div className="h-11 w-11 rounded-2xl bg-white/10 flex items-center justify-center">
+                <motion.div key={item.title} {...reveal(0.1)} className="rounded-2xl border border-white/15 bg-white/[0.07] backdrop-blur-sm p-6">
+                  <div className="h-11 w-11 rounded-xl bg-white/10 flex items-center justify-center">
                     <item.icon className="h-5 w-5 text-white" />
                   </div>
                   <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
-                  <p className="mt-2 text-sm text-white/70">{item.description}</p>
+                  <p className="mt-2 text-sm text-white/75 leading-relaxed">{item.description}</p>
                 </motion.div>
               ))}
             </div>
@@ -549,22 +549,24 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Platform highlights</span>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading text-foreground">
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold text-foreground leading-tight">
                 Every workflow your compliance team needs.
               </h2>
-              <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
+              <p className="mt-4 text-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
                 Designed for UK care operations, from medication audits to staff performance monitoring.
               </p>
             </motion.div>
-            <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {PRIMARY_FEATURES.map((feature) => (
                 <motion.div key={feature.title} {...reveal(0.05)} className="home-card p-6">
                   <div className="flex items-center justify-between">
-                    <feature.icon className="h-6 w-6 text-foreground" />
+                    <div className="h-10 w-10 rounded-xl bg-[hsl(220_70%_50%/0.1)] flex items-center justify-center">
+                      <feature.icon className="h-5 w-5 text-[hsl(220_70%_50%)]" />
+                    </div>
                     <span className="home-pill">{feature.tag}</span>
                   </div>
                   <h3 className="mt-4 text-lg font-semibold text-foreground">{feature.title}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">{feature.description}</p>
+                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
                 </motion.div>
               ))}
             </div>
@@ -575,7 +577,7 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Recent projects</span>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading text-foreground">
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold text-foreground leading-tight">
                 Compliance outputs that teams can act on.
               </h2>
             </motion.div>
@@ -584,16 +586,16 @@ export default function Homepage() {
                 <motion.div
                   key={tile.title}
                   {...reveal(0.05)}
-                  className="home-card overflow-hidden transition-transform duration-300 hover:-translate-y-1"
+                  className="home-card overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
                 >
                   <div className={`relative aspect-[4/3] bg-gradient-to-br ${tile.accent}`}>
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.55),transparent_55%)] opacity-60" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_70%,rgba(0,0,0,0.10),transparent_55%)] opacity-50" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.6),transparent_55%)] opacity-60" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_70%,rgba(0,0,0,0.05),transparent_55%)] opacity-50" />
                   </div>
-                  <div className="p-6">
-                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Case study</p>
-                    <h3 className="mt-3 text-lg font-semibold text-foreground">{tile.title}</h3>
-                    <p className="mt-2 text-sm text-muted-foreground">{tile.subtitle}</p>
+                  <div className="p-5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(220_70%_50%)]" >Case study</p>
+                    <h3 className="mt-2 text-lg font-semibold text-foreground">{tile.title}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{tile.subtitle}</p>
                   </div>
                 </motion.div>
               ))}
@@ -605,20 +607,20 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Savings estimator</span>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading text-foreground">
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold text-foreground leading-tight">
                 Model time savings in minutes.
               </h2>
-              <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
+              <p className="mt-4 text-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
                 Estimate the annual hours recovered when audits and plans are streamlined.
               </p>
             </motion.div>
 
             <motion.div {...reveal(0.1)} className="home-card p-8 mt-10">
               <div className="flex items-center justify-between mb-4">
-                <Label className="text-lg font-medium text-foreground">Number of Service Users</Label>
+                <Label className="text-base font-semibold text-foreground">Number of Service Users</Label>
                 <div className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-foreground" />
-                  <span className="text-2xl font-semibold text-foreground" data-testid="text-service-users-count">
+                  <Users className="h-5 w-5 text-[hsl(220_70%_50%)]" />
+                  <span className="text-2xl font-bold text-foreground" data-testid="text-service-users-count">
                     {serviceUsers}
                   </span>
                 </div>
@@ -642,43 +644,43 @@ export default function Homepage() {
 
               <div className="mt-8 grid gap-4 md:grid-cols-4">
                 <div className="home-card-soft p-4">
-                  <p className="text-xs text-muted-foreground">Manual time</p>
-                  <p className="text-2xl font-semibold text-foreground" data-testid="text-manual-hours">
+                  <p className="text-xs font-medium text-muted-foreground">Manual time</p>
+                  <p className="text-2xl font-bold text-foreground" data-testid="text-manual-hours">
                     {roi.manualHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
-                  <p className="text-xs text-muted-foreground">per year</p>
+                  <p className="text-xs font-medium text-muted-foreground">per year</p>
                 </div>
                 <div className="home-card-soft p-4">
-                  <p className="text-xs text-muted-foreground">With CareAssurance</p>
-                  <p className="text-2xl font-semibold text-foreground" data-testid="text-ai-hours">
+                  <p className="text-xs font-medium text-muted-foreground">With CareAssurance</p>
+                  <p className="text-2xl font-bold text-foreground" data-testid="text-ai-hours">
                     {roi.aiHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
-                  <p className="text-xs text-muted-foreground">per year</p>
+                  <p className="text-xs font-medium text-muted-foreground">per year</p>
                 </div>
                 <div className="home-card-soft p-4">
-                  <p className="text-xs text-muted-foreground">Time saved</p>
-                  <p className="text-2xl font-semibold text-foreground" data-testid="text-hours-saved">
+                  <p className="text-xs font-medium text-muted-foreground">Time saved</p>
+                  <p className="text-2xl font-bold text-[hsl(152_55%_40%)]" data-testid="text-hours-saved">
                     {roi.hoursSaved.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
-                  <p className="text-xs text-muted-foreground">per year</p>
+                  <p className="text-xs font-medium text-muted-foreground">per year</p>
                 </div>
                 <div className="home-card-soft p-4">
-                  <p className="text-xs text-muted-foreground">Money saved</p>
-                  <p className="text-2xl font-semibold text-foreground" data-testid="text-money-saved">
+                  <p className="text-xs font-medium text-muted-foreground">Money saved</p>
+                  <p className="text-2xl font-bold text-[hsl(152_55%_40%)]" data-testid="text-money-saved">
                     £{roi.moneySaved.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
-                  <p className="text-xs text-muted-foreground">per year at £14.50/hr*</p>
+                  <p className="text-xs font-medium text-muted-foreground">per year at £14.50/hr*</p>
                 </div>
               </div>
 
               <div className="mt-6">
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>Efficiency gain</span>
-                  <span className="text-foreground font-semibold">{savingsPercent}% faster</span>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-muted-foreground">Efficiency gain</span>
+                  <span className="text-[hsl(152_55%_40%)] font-bold">{savingsPercent}% faster</span>
                 </div>
-                <div className="mt-3 h-2 rounded-full bg-muted/60 overflow-hidden">
+                <div className="mt-3 h-2.5 rounded-full bg-muted/50 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-foreground"
+                    className="h-full rounded-full bg-gradient-to-r from-[hsl(220_70%_50%)] to-[hsl(152_55%_40%)] transition-all duration-500"
                     style={{ width: `${savingsPercent}%` }}
                   />
                 </div>
@@ -696,23 +698,23 @@ export default function Homepage() {
               <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
                 <div>
                   <span className="home-eyebrow">Contact</span>
-                  <h2 className="mt-4 text-3xl sm:text-4xl font-heading text-foreground">
+                  <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold text-foreground leading-tight">
                     Speak with the CareAssurance team.
                   </h2>
-                  <p className="mt-3 text-muted-foreground">
+                  <p className="mt-4 text-base text-muted-foreground leading-relaxed">
                     Share your compliance priorities and we will respond with a tailored walkthrough.
                   </p>
-                  <div className="mt-6 space-y-3 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-foreground" />
+                  <div className="mt-6 space-y-3 text-sm text-foreground/80">
+                    <div className="flex items-center gap-3">
+                      <Mail className="h-4 w-4 text-[hsl(220_70%_50%)]" />
                       Private response within 1 business day.
                     </div>
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4 text-foreground" />
+                    <div className="flex items-center gap-3">
+                      <MessageSquare className="h-4 w-4 text-[hsl(220_70%_50%)]" />
                       Share audit goals, EMAR challenges, or care plan needs.
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-foreground" />
+                    <div className="flex items-center gap-3">
+                      <Building2 className="h-4 w-4 text-[hsl(220_70%_50%)]" />
                       UK-based support for care facilities.
                     </div>
                   </div>
@@ -822,10 +824,10 @@ export default function Homepage() {
         </section>
       </main>
 
-      <footer className="relative z-10 border-t border-border/70">
-        <div className="max-w-6xl mx-auto px-4 py-10 flex flex-col md:flex-row items-center justify-between gap-6 text-sm text-muted-foreground">
+      <footer className="relative z-10 border-t border-border">
+        <div className="max-w-6xl mx-auto px-4 py-10 flex flex-col md:flex-row items-center justify-between gap-6 text-sm">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-2xl bg-foreground text-background flex items-center justify-center">
+            <div className="h-9 w-9 rounded-xl bg-[hsl(220_70%_50%)] text-white flex items-center justify-center">
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div>
@@ -833,18 +835,18 @@ export default function Homepage() {
               <span className="ml-2 text-muted-foreground">careassurance.uk</span>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-6">
+          <div className="flex flex-wrap items-center gap-6 text-muted-foreground">
             <button
               type="button"
-              className="bg-transparent p-0 text-muted-foreground hover:text-foreground transition-colors"
+              className="bg-transparent p-0 font-medium hover:text-foreground transition-colors"
               onClick={() => scrollToSection("contact")}
             >
               Contact
             </button>
-            <Link href="/terms" className="hover:text-foreground transition-colors">
+            <Link href="/terms" className="font-medium hover:text-foreground transition-colors">
               Terms & Conditions
             </Link>
-            <Link href="/privacy" className="hover:text-foreground transition-colors">
+            <Link href="/privacy" className="font-medium hover:text-foreground transition-colors">
               Privacy Policy
             </Link>
           </div>

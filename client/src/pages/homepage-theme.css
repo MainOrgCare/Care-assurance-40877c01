@@ -1,55 +1,57 @@
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap");
 
 .homepage-theme {
-  --color-background: hsl(36 33% 96%);
-  --color-foreground: hsl(26 17% 12%);
-  --color-muted: hsl(34 24% 90%);
-  --color-muted-foreground: hsl(30 12% 28%);
+  --color-background: hsl(210 20% 98%);
+  --color-foreground: hsl(220 25% 10%);
+  --color-muted: hsl(220 14% 92%);
+  --color-muted-foreground: hsl(220 10% 40%);
   --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(26 17% 12%);
+  --color-card-foreground: hsl(220 25% 10%);
   --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(26 17% 12%);
-  --color-border: hsl(35 18% 82%);
-  --color-input: hsl(35 18% 82%);
-  --color-ring: hsl(32 40% 45%);
-  --color-primary: hsl(32 44% 44%);
+  --color-popover-foreground: hsl(220 25% 10%);
+  --color-border: hsl(220 13% 86%);
+  --color-input: hsl(220 13% 86%);
+  --color-ring: hsl(220 70% 50%);
+  --color-primary: hsl(220 70% 50%);
   --color-primary-foreground: hsl(0 0% 100%);
-  --color-primary-border: hsl(32 44% 34% / 0.6);
-  --color-secondary: hsl(210 12% 22%);
+  --color-primary-border: hsl(220 70% 40% / 0.6);
+  --color-secondary: hsl(220 15% 20%);
   --color-secondary-foreground: hsl(0 0% 100%);
-  --color-secondary-border: hsl(210 12% 18% / 0.5);
-  --color-accent: hsl(32 44% 44% / 0.12);
-  --color-accent-foreground: hsl(32 44% 30%);
-  --color-success: hsl(152 38% 35%);
+  --color-secondary-border: hsl(220 15% 15% / 0.5);
+  --color-accent: hsl(220 70% 50% / 0.1);
+  --color-accent-foreground: hsl(220 70% 45%);
+  --color-success: hsl(152 55% 40%);
   --color-success-foreground: hsl(0 0% 100%);
-  --button-outline: hsl(35 18% 86% / 0.8);
-  --badge-outline: hsl(35 18% 86% / 0.8);
-  --font-sans: "Work Sans", sans-serif;
-  --font-heading: "Fraunces", serif;
+  --button-outline: hsl(220 13% 88%);
+  --badge-outline: hsl(220 13% 88%);
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: "Plus Jakarta Sans", "Inter", sans-serif;
   color: var(--color-foreground);
   font-family: var(--font-sans);
   background-color: var(--color-background);
   background-image:
-    radial-gradient(900px 600px at 12% -10%, rgba(176, 141, 87, 0.18), transparent 60%),
-    radial-gradient(900px 600px at 90% 0%, rgba(22, 20, 17, 0.08), transparent 55%);
+    radial-gradient(900px 600px at 12% -10%, rgba(59, 130, 246, 0.06), transparent 60%),
+    radial-gradient(900px 600px at 90% 0%, rgba(15, 23, 42, 0.04), transparent 55%);
 }
 
 .homepage-theme .home-pattern {
-  background-image: radial-gradient(rgba(29, 27, 23, 0.05) 1px, transparent 1px);
-  background-size: 44px 44px;
+  background-image: radial-gradient(rgba(15, 23, 42, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 .homepage-theme .home-card {
   border: 1px solid var(--color-border);
-  background-color: rgba(255, 255, 255, 0.98);
-  border-radius: 24px;
-  box-shadow: 0 24px 50px rgba(22, 20, 18, 0.08);
+  background-color: rgba(255, 255, 255, 1);
+  border-radius: 16px;
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 8px 32px rgba(15, 23, 42, 0.08);
 }
 
 .homepage-theme .home-card-soft {
   border: 1px solid var(--color-border);
-  background-color: rgba(255, 255, 255, 0.85);
-  border-radius: 20px;
+  background-color: hsl(220 20% 97%);
+  border-radius: 12px;
 }
 
 .homepage-theme .home-pill {
@@ -57,49 +59,63 @@
   align-items: center;
   gap: 0.4rem;
   border-radius: 999px;
-  border: 1px solid var(--color-border);
-  padding: 0.3rem 0.65rem;
-  font-size: 0.65rem;
+  border: 1px solid hsl(220 70% 50% / 0.2);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--color-muted-foreground);
-  background-color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.06em;
+  color: hsl(220 70% 45%);
+  background-color: hsl(220 70% 50% / 0.08);
 }
 
 .homepage-theme .home-eyebrow {
+  display: inline-block;
   text-transform: uppercase;
-  letter-spacing: 0.35em;
-  font-size: 0.68rem;
-  color: hsl(30 12% 32%);
+  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(220 70% 50%);
 }
 
 .homepage-theme .home-cta {
-  border-radius: 999px;
-  background-color: var(--color-foreground);
-  background-image: none;
-  color: var(--color-background);
-  border: 1px solid rgba(22, 20, 18, 0.1);
-  box-shadow: 0 14px 30px rgba(22, 20, 18, 0.18);
+  border-radius: 10px;
+  background-color: hsl(220 70% 50%);
+  background-image: linear-gradient(135deg, hsl(220 70% 55%), hsl(220 70% 45%));
+  color: white;
+  border: none;
+  font-weight: 600;
+  box-shadow: 
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 4px 12px hsl(220 70% 50% / 0.25);
+  transition: all 0.2s ease;
 }
 
 .homepage-theme .home-cta:hover {
-  filter: brightness(1.05);
+  background-image: linear-gradient(135deg, hsl(220 70% 58%), hsl(220 70% 48%));
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.06),
+    0 8px 20px hsl(220 70% 50% / 0.3);
+  transform: translateY(-1px);
 }
 
 .homepage-theme .home-outline {
-  border-radius: 999px;
+  border-radius: 10px;
   border: 1px solid var(--color-border);
   color: var(--color-foreground);
-  background-color: rgba(255, 255, 255, 0.7);
-  background-image: none;
+  background-color: white;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
 .homepage-theme .home-outline:hover {
-  background-color: rgba(255, 255, 255, 0.95);
+  background-color: hsl(220 20% 97%);
+  border-color: hsl(220 13% 78%);
 }
 
 .homepage-theme .home-band {
-  background-color: #1f1b16;
+  background-color: hsl(220 25% 12%);
+  background-image: linear-gradient(135deg, hsl(220 25% 14%), hsl(220 25% 10%));
 }
 
 .homepage-theme .home-band-pill {
@@ -107,15 +123,47 @@
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 0.35rem 0.85rem;
-  font-size: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.4rem 1rem;
+  font-size: 0.7rem;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: rgba(255, 255, 255, 0.7);
-  background-color: rgba(255, 255, 255, 0.08);
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.85);
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .homepage-theme [class*="text-muted-foreground"] {
   color: var(--color-muted-foreground);
+}
+
+/* Typography improvements */
+.homepage-theme h1,
+.homepage-theme h2,
+.homepage-theme h3 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.homepage-theme p {
+  line-height: 1.7;
+}
+
+/* Better text contrast for descriptions */
+.homepage-theme .text-lg.text-muted-foreground {
+  color: hsl(220 10% 35%);
+  font-size: 1.125rem;
+  line-height: 1.75;
+}
+
+/* Improved stat cards */
+.homepage-theme .home-card-soft .text-xs.text-muted-foreground {
+  color: hsl(220 10% 50%);
+  font-weight: 500;
+}
+
+.homepage-theme .home-card-soft .text-lg.font-semibold {
+  color: hsl(220 25% 15%);
 }
