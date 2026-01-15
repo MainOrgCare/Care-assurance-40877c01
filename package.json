@@ -6,7 +6,7 @@
   "scripts": {
     "dev:client": "vite dev --port 5173",
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "vite build && npm run build:server",
+    "build": "npm ci && vite build && npm run build:server",
     "build:server": "esbuild server/index.ts --bundle --platform=node --packages=external --format=cjs --outfile=dist/index.cjs --external:./vite.config --external:./vite",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
