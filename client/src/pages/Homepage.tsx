@@ -1,7 +1,8 @@
+import "./homepage-theme.css";
+
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,37 +11,27 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
-import { 
-  ShieldCheck, 
-  FileSearch, 
-  Brain, 
-  ClipboardCheck, 
-  Users, 
-  TrendingUp,
+import {
+  ShieldCheck,
   Lock,
+  ClipboardCheck,
   ArrowRight,
   CheckCircle2,
-  Zap,
-  Clock,
-  Award,
-  Sparkles,
-  ChevronRight,
-  BarChart3,
-  FileText,
-  User,
-  KeyRound,
-  Loader2,
-  Building2,
-  Activity,
+  Users,
   Timer,
-  Target,
-  AlertTriangle,
-  HeartHandshake,
-  Calculator,
-  PoundSterling,
+  FileText,
+  BarChart3,
+  FileSearch,
+  Brain,
+  ClipboardList,
+  LayoutGrid,
+  LineChart,
   Mail,
   MessageSquare,
-  Send
+  Send,
+  ChevronRight,
+  Loader2,
+  Building2,
 } from "lucide-react";
 
 const HOURLY_RATE = 14.5;
@@ -53,246 +44,108 @@ const TASKS = {
   visitAudit: { name: "Visit Audits", manualMins: 30, aiSecs: 30, perYear: 48 },
 } as const;
 
-const FEATURES = [
-  {
-    icon: FileSearch,
-    title: "EMAR Auditing",
-    description: "Surface medication discrepancies you might not spot manually. Our AI helps analyse EMAR records, flagging potential issues and refusals for your review.",
-    highlight: "AI-Assisted",
-    benefit: "Faster record reviews",
-  },
-  {
-    icon: Brain,
-    title: "AI Care Plan Generator",
-    description: "Generate draft care plans in minutes rather than hours. Our AI creates person-centred documentation across 11 sections for your review and approval.",
-    highlight: "AI-Powered",
-    benefit: "Streamlined documentation",
-  },
-  {
-    icon: ClipboardCheck,
-    title: "Compliance Dashboard",
-    description: "Keep track of your compliance status in one place. Monitor key metrics and identify areas that may need attention before your next inspection.",
-    highlight: "Centralised View",
-    benefit: "Better visibility",
-  },
-  {
-    icon: Users,
-    title: "Staff Performance Analytics",
-    description: "Track care worker metrics and identify potential training opportunities. Review performance patterns to support your team more effectively.",
-    highlight: "Real-Time Insights",
-    benefit: "Data-driven decisions",
-  },
-  {
-    icon: TrendingUp,
-    title: "Time Savings Calculator",
-    description: "Estimate potential time savings based on your facility size. See how AI-assisted workflows may reduce administrative burden.",
-    highlight: "Estimated Savings",
-    benefit: "Plan your efficiency",
-  },
-  {
-    icon: Lock,
-    title: "Security Features",
-    description: "Built with data protection in mind. Features include encryption, automatic PII handling, and audit trails to support your data governance.",
-    highlight: "Privacy-Focused",
-    benefit: "Data protection support",
-  },
-] as const;
-
-const STATS = [
-  { value: "Minutes", label: "Not Hours Per Audit", icon: Clock },
-  { value: "11", label: "Care Plan Sections", icon: FileText },
-  { value: "UK", label: "Care-Focused Design", icon: Building2 },
-  { value: "24/7", label: "Access Anytime", icon: ShieldCheck },
-] as const;
-
-const WHY_CHOOSE = [
-  {
-    icon: Target,
-    title: "Designed for UK Care",
-    description: "Built with UK care facility workflows in mind. Features are shaped around the practical challenges care teams face with documentation and record-keeping.",
-  },
-  {
-    icon: Brain,
-    title: "AI-Assisted Analysis",
-    description: "Our multi-pass AI system helps surface potential discrepancies that may be difficult to spot when reviewing records manually.",
-  },
-  {
-    icon: Timer,
-    title: "Quick to Get Started",
-    description: "No lengthy setup required. Upload your first document and start exploring insights. Most users are up and running within a single session.",
-  },
-  {
-    icon: HeartHandshake,
-    title: "UK-Based Support",
-    description: "Our team understands the UK care sector. We provide hands-on support from people who know the challenges you face.",
-  },
-] as const;
-
-const HOW_IT_WORKS = [
-  {
-    step: "01",
-    title: "Upload Your Records",
-    description: "Simply drag and drop your EMAR sheets, care plans, or documentation. We support PDFs, images, and spreadsheets.",
-    icon: FileSearch,
-  },
-  {
-    step: "02",
-    title: "AI-Assisted Analysis",
-    description: "Our multi-pass AI reviews records and flags potential discrepancies for your attention, helping you focus on what matters.",
-    icon: Brain,
-  },
-  {
-    step: "03",
-    title: "Review and Act",
-    description: "Review prioritised findings with severity ratings. Export reports and address issues with greater confidence.",
-    icon: ClipboardCheck,
-  },
-] as const;
-
-const FEATURE_STYLES = [
-  {
-    accent: "from-emerald-500/20 via-emerald-500/5 to-transparent",
-    icon: "text-emerald-300",
-    badge: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
-  },
-  {
-    accent: "from-sky-500/20 via-sky-500/5 to-transparent",
-    icon: "text-sky-300",
-    badge: "bg-sky-500/10 text-sky-300 border-sky-500/20",
-  },
-  {
-    accent: "from-amber-500/20 via-amber-500/5 to-transparent",
-    icon: "text-amber-300",
-    badge: "bg-amber-500/10 text-amber-300 border-amber-500/20",
-  },
-  {
-    accent: "from-teal-500/20 via-teal-500/5 to-transparent",
-    icon: "text-teal-300",
-    badge: "bg-teal-500/10 text-teal-300 border-teal-500/20",
-  },
-  {
-    accent: "from-cyan-500/20 via-cyan-500/5 to-transparent",
-    icon: "text-cyan-300",
-    badge: "bg-cyan-500/10 text-cyan-300 border-cyan-500/20",
-  },
-  {
-    accent: "from-rose-500/20 via-rose-500/5 to-transparent",
-    icon: "text-rose-300",
-    badge: "bg-rose-500/10 text-rose-300 border-rose-500/20",
-  },
-] as const;
-
-const WHY_STYLES = [
-  {
-    accent: "from-emerald-500/20 via-emerald-500/5 to-transparent",
-    icon: "text-emerald-300",
-    iconBg: "from-emerald-500/20 to-emerald-500/10",
-  },
-  {
-    accent: "from-sky-500/20 via-sky-500/5 to-transparent",
-    icon: "text-sky-300",
-    iconBg: "from-sky-500/20 to-sky-500/10",
-  },
-  {
-    accent: "from-amber-500/20 via-amber-500/5 to-transparent",
-    icon: "text-amber-300",
-    iconBg: "from-amber-500/20 to-amber-500/10",
-  },
-  {
-    accent: "from-teal-500/20 via-teal-500/5 to-transparent",
-    icon: "text-teal-300",
-    iconBg: "from-teal-500/20 to-teal-500/10",
-  },
-] as const;
-
-const FADE_IN_UP = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.5 },
-} as const;
-
-const STAGGER_CONTAINER = {
-  animate: {
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-} as const;
-
-const TRUSTED_FEATURES = [
-  "EMAR Analysis",
-  "Care Plan Drafting",
-  "Risk Assessments",
-  "Visit Audits",
-  "Staff Analytics",
-] as const;
-
-const HERO_METRICS = [
+const HERO_STATS = [
   { label: "Avg audit time", value: "6 min", detail: "from 45 min", icon: Timer },
   { label: "Care plan sections", value: "11", detail: "auto-drafted", icon: FileText },
   { label: "Records parsed", value: "98%", detail: "structured capture", icon: BarChart3 },
   { label: "UK-ready", value: "CQC focus", detail: "audit trails", icon: ShieldCheck },
 ] as const;
 
-const AUDIT_SIGNALS = [
-  { label: "Missed doses", value: "2", tone: "rose", icon: AlertTriangle },
-  { label: "PRN refusals", value: "1", tone: "amber", icon: Activity },
-  { label: "Late entries", value: "3", tone: "sky", icon: Clock },
-] as const;
-
-const AUDIT_FINDINGS = [
-  { title: "Lansoprazole", detail: "Thu 04 Dec • 08:00", severity: "high" },
-  { title: "Paracetamol PRN", detail: "Wed 03 Dec • 20:30", severity: "medium" },
-  { title: "Amlodipine", detail: "Tue 02 Dec • 08:00", severity: "low" },
-] as const;
-
-const INSIGHT_BULLETS = [
+const PRIMARY_FEATURES = [
   {
-    title: "Auto-prioritised risks",
-    description: "Surface refusals, omissions, and PRN patterns with severity scoring.",
-    icon: AlertTriangle,
+    icon: FileSearch,
+    title: "EMAR Auditing",
+    description: "Surface missed doses, PRN refusals, and non-administration codes fast.",
+    tag: "Medication integrity",
   },
   {
-    title: "Inspection-ready evidence",
-    description: "Export clear audit trails with timestamps, staff initials, and notes.",
+    icon: Brain,
+    title: "AI Care Plans",
+    description: "Draft person-centred plans across 11 sections, ready for review.",
+    tag: "Documentation speed",
+  },
+  {
     icon: ClipboardCheck,
+    title: "Compliance Dashboard",
+    description: "Track inspection readiness with live risk indicators and action queues.",
+    tag: "Operational clarity",
   },
   {
-    title: "Trend monitoring",
-    description: "Track recurring issues and spot areas that need coaching.",
-    icon: BarChart3,
+    icon: ClipboardList,
+    title: "Visit Audits",
+    description: "Match planned and actual call data to detect drift and missed visits.",
+    tag: "Service assurance",
+  },
+  {
+    icon: LineChart,
+    title: "Staff Analytics",
+    description: "Spot patterns, coach teams, and document actions with evidence.",
+    tag: "Performance insights",
+  },
+  {
+    icon: LayoutGrid,
+    title: "Call Reconciliation",
+    description: "Process ECM call exports into clear variance summaries.",
+    tag: "Finance-ready",
   },
 ] as const;
 
-const READINESS_TREND = [68, 74, 71, 80, 86, 92] as const;
-const READINESS_SCORE = 92;
-
-const RISK_BREAKDOWN = [
-  { label: "High", value: 2, tone: "rose" },
-  { label: "Medium", value: 4, tone: "amber" },
-  { label: "Low", value: 7, tone: "emerald" },
+const CERTIFICATIONS = [
+  {
+    icon: ShieldCheck,
+    title: "CQC Compliant",
+    description: "Workflows aligned to inspection priorities and audit-ready reporting.",
+  },
+  {
+    icon: Lock,
+    title: "GDPR Certified",
+    description: "Data minimisation, sealing, and role-based access built in.",
+  },
+  {
+    icon: ClipboardCheck,
+    title: "Audit Trails",
+    description: "Every change is logged with time, user, and document context.",
+  },
 ] as const;
 
-const ACTION_QUEUE = [
-  { title: "PRN refusal follow-up", detail: "Paracetamol • Tue 02 Dec", severity: "medium" },
-  { title: "Missed morning dose", detail: "Lisinopril • Thu 04 Dec", severity: "high" },
-  { title: "Late entry review", detail: "Amlodipine • Wed 03 Dec", severity: "low" },
+const PROJECT_TILES = [
+  {
+    title: "EMAR Audit Reports",
+    subtitle: "Medication compliance snapshots",
+    accent: "from-[#f0e7db] to-[#d8c7b1]",
+  },
+  {
+    title: "Care Plan Generator",
+    subtitle: "11-section drafts in minutes",
+    accent: "from-[#f3efe7] to-[#d4ddda]",
+  },
+  {
+    title: "Visit Audit Review",
+    subtitle: "Planned vs actual insights",
+    accent: "from-[#e8ecf0] to-[#c9d3dc]",
+  },
+  {
+    title: "Staff Performance",
+    subtitle: "Coaching-ready patterns",
+    accent: "from-[#f1e9e0] to-[#d5c3b1]",
+  },
+  {
+    title: "Risk Assessment",
+    subtitle: "Structured, consistent scoring",
+    accent: "from-[#edf0ea] to-[#ccd6c6]",
+  },
+  {
+    title: "Call Reconciliation",
+    subtitle: "Variance summaries for billing",
+    accent: "from-[#f0ebe6] to-[#d6cfc4]",
+  },
 ] as const;
 
-const SIGNAL_TONE_STYLES = {
-  rose: "border-rose-500/30 bg-rose-500/10 text-rose-300",
-  amber: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  sky: "border-sky-500/30 bg-sky-500/10 text-sky-300",
-  emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-} as const;
-
-const FINDING_STYLES = {
-  high: "border-rose-500/30 bg-rose-500/10 text-rose-200",
-  medium: "border-amber-500/30 bg-amber-500/10 text-amber-200",
-  low: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-} as const;
-
-const PARTICLE_COUNT = 16;
+const OVERVIEW_BULLETS = [
+  "Unified record review for EMARs, care plans, and audits.",
+  "Automated checks highlight issues before inspections.",
+  "Clear reports for managers, auditors, and care teams.",
+] as const;
 
 const calculateROI = (users: number) => {
   let totalManualMins = 0;
@@ -311,14 +164,6 @@ const calculateROI = (users: number) => {
   return { manualHours, aiHours, hoursSaved, moneySaved };
 };
 
-const generateParticleStyles = () =>
-  Array.from({ length: PARTICLE_COUNT }, () => ({
-    left: `${Math.random() * 100}%`,
-    top: `${Math.random() * 100}%`,
-    animationDelay: `${Math.random() * 20}s`,
-    animationDuration: `${10 + Math.random() * 15}s`,
-  }));
-
 export default function Homepage() {
   const [, setLocation] = useLocation();
   const { login } = useAuth();
@@ -329,7 +174,6 @@ export default function Homepage() {
   const [serviceUsers, setServiceUsers] = useState(20);
   const prefersReducedMotion = useReducedMotion();
 
-  // Contact form state
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactOrg, setContactOrg] = useState("");
@@ -339,7 +183,6 @@ export default function Homepage() {
   const [contactError, setContactError] = useState("");
   const [contactEnabled, setContactEnabled] = useState(false);
 
-  // Check if contact form is enabled on mount
   useEffect(() => {
     fetch("/api/contact/status")
       .then((res) => res.json())
@@ -347,40 +190,70 @@ export default function Homepage() {
       .catch(() => setContactEnabled(false));
   }, []);
 
-  const handleContactSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setContactLoading(true);
-    setContactError("");
-    
-    try {
-      const res = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: contactName,
-          email: contactEmail,
-          organisation: contactOrg,
-          message: contactMessage,
-        }),
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        setContactError(data.message || "Failed to send message");
-      } else {
-        setContactSuccess(true);
-        setContactName("");
-        setContactEmail("");
-        setContactOrg("");
-        setContactMessage("");
+  const handleContactSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setContactLoading(true);
+      setContactError("");
+
+      try {
+        const res = await fetch("/api/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: contactName,
+            email: contactEmail,
+            organisation: contactOrg,
+            message: contactMessage,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          setContactError(data.message || "Failed to send message");
+        } else {
+          setContactSuccess(true);
+          setContactName("");
+          setContactEmail("");
+          setContactOrg("");
+          setContactMessage("");
+        }
+      } catch (err) {
+        setContactError("Failed to send message. Please try again.");
+      } finally {
+        setContactLoading(false);
       }
-    } catch (err) {
-      setContactError("Failed to send message. Please try again.");
-    } finally {
-      setContactLoading(false);
-    }
-  }, [contactName, contactEmail, contactOrg, contactMessage]);
+    },
+    [contactName, contactEmail, contactMessage, contactOrg]
+  );
+
+  const handleLogin = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setLoading(true);
+      const success = await login(username, password);
+      setLoading(false);
+      if (success) {
+        setLoginOpen(false);
+        setLocation("/dashboard");
+      }
+    },
+    [login, password, setLocation, username]
+  );
+
+  const handleServiceUsersChange = useCallback((value: number[]) => {
+    setServiceUsers(value[0]);
+  }, []);
+
+  const scrollToSection = useCallback((id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  const openLoginFromCTA = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.setTimeout(() => setLoginOpen(true), 250);
+  }, []);
 
   const roi = useMemo(() => calculateROI(serviceUsers), [serviceUsers]);
   const savingsPercent = useMemo(() => {
@@ -388,1298 +261,552 @@ export default function Homepage() {
     const percent = (roi.hoursSaved / roi.manualHours) * 100;
     return Math.min(100, Math.max(0, Math.round(percent)));
   }, [roi]);
-  const particleStyles = useMemo(
-    () => (prefersReducedMotion ? [] : generateParticleStyles()),
-    [prefersReducedMotion]
-  );
 
-  const getRevealProps = useCallback(
+  const reveal = useCallback(
     (delay = 0) =>
       prefersReducedMotion
         ? {}
         : {
-            initial: { opacity: 0, y: 30 },
-            animate: { opacity: 1, y: 0 },
+            initial: { opacity: 0, y: 20 },
+            whileInView: { opacity: 1, y: 0 },
+            viewport: { once: true },
             transition: { duration: 0.6, delay },
           },
     [prefersReducedMotion]
   );
 
-  const getInViewProps = useCallback(
-    (delay = 0, offset = 20) =>
-      prefersReducedMotion
-        ? {}
-        : {
-            initial: { opacity: 0, y: offset },
-            whileInView: { opacity: 1, y: 0 },
-            viewport: { once: true },
-            transition: { duration: 0.5, delay },
-          },
-    [prefersReducedMotion]
-  );
-
-  const listMotionConfig = useMemo(
-    () =>
-      prefersReducedMotion
-        ? {}
-        : { initial: "initial", whileInView: "animate", viewport: { once: true } },
-    [prefersReducedMotion]
-  );
-
-  const handleLogin = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const success = await login(username, password);
-    setLoading(false);
-    if (success) {
-      setLoginOpen(false);
-      setLocation("/dashboard");
-    }
-  }, [login, password, setLocation, username]);
-
-  const handleServiceUsersChange = useCallback((value: number[]) => {
-    setServiceUsers(value[0]);
-  }, []);
-
-  const scrollToContact = useCallback(() => {
-    document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
-  const openLoginFromCTA = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    window.setTimeout(() => setLoginOpen(true), 250);
-  }, [setLoginOpen]);
-
   return (
-    <div className="min-h-screen flex flex-col relative overflow-x-hidden bg-background">
-      {/* Animated Gradient Background */}
-      <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-muted/30 to-background" />
-        <motion.div 
-          className="hidden sm:block absolute top-10 left-[18%] w-[420px] h-[420px] bg-amber-500/14 rounded-full blur-3xl"
-          animate={prefersReducedMotion ? undefined : { 
-            x: [0, 24, 0],
-            y: [0, 18, 0]
-          }}
-          transition={prefersReducedMotion ? undefined : { duration: 28, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div 
-          className="hidden sm:block absolute bottom-10 right-[12%] w-[360px] h-[360px] bg-teal-500/12 rounded-full blur-3xl"
-          animate={prefersReducedMotion ? undefined : { 
-            x: [0, -20, 0],
-            y: [0, -18, 0]
-          }}
-          transition={prefersReducedMotion ? undefined : { duration: 30, repeat: Infinity, ease: "easeInOut" }}
-        />
-      </div>
+    <div className="homepage-theme min-h-screen">
+      <div className="home-pattern fixed inset-0 pointer-events-none opacity-40" />
 
-      {/* Grid Pattern Overlay */}
-      <div 
-        className="fixed inset-0 z-0 opacity-[0.015] pointer-events-none"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-        }}
-      />
-
-      {/* Floating Particles */}
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden hidden md:block">
-        {particleStyles.map((style, i) => (
-          <div key={i} className="particle-field" style={style} />
-        ))}
-      </div>
-
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-border/50 backdrop-blur-xl bg-background/70">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 gap-4">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-primary/90 flex items-center justify-center shadow-lg shadow-black/25">
-                <ShieldCheck className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl text-foreground">
-                <span className="font-bold">Care</span><span className="font-normal">Assurance</span>
-              </span>
+      <header className="relative z-20">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-2xl bg-foreground text-background flex items-center justify-center shadow-[0_12px_24px_rgba(22,20,18,0.18)]">
+              <ShieldCheck className="h-5 w-5" />
             </div>
+            <div>
+              <div className="text-lg font-heading font-semibold text-foreground">CareAssurance</div>
+              <div className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Compliance Platform</div>
+            </div>
+          </div>
 
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                className="hidden sm:inline-flex"
-                onClick={scrollToContact}
-              >
-                Contact
-              </Button>
-              <Popover open={loginOpen} onOpenChange={setLoginOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    className="shadow-lg shadow-black/25"
-                    data-testid="button-header-login"
-                  >
-                    Login
-                    <ChevronRight className="ml-1 h-4 w-4" />
+          <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
+            <button type="button" onClick={() => scrollToSection("platform")}>
+              Platform
+            </button>
+            <button type="button" onClick={() => scrollToSection("compliance")}>
+              Compliance
+            </button>
+            <button type="button" onClick={() => scrollToSection("roi")}>Savings</button>
+            <button type="button" onClick={() => scrollToSection("contact")}>
+              Contact
+            </button>
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="home-outline" onClick={() => scrollToSection("contact")}>Contact</Button>
+            <Popover open={loginOpen} onOpenChange={setLoginOpen}>
+              <PopoverTrigger asChild>
+                <Button className="home-cta" data-testid="button-header-login">
+                  Login
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="end">
+                <div className="p-4 border-b border-border/70">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-xl bg-foreground text-background flex items-center justify-center">
+                      <ShieldCheck className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-foreground">Welcome Back</h3>
+                      <p className="text-xs text-muted-foreground">Sign in to your account</p>
+                    </div>
+                  </div>
+                </div>
+                <form onSubmit={handleLogin} className="p-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-username" className="text-sm text-muted-foreground">Username</Label>
+                    <Input
+                      id="login-username"
+                      placeholder="Enter username"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      required
+                      autoComplete="username"
+                      className="bg-background"
+                      data-testid="input-dropdown-username"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password" className="text-sm text-muted-foreground">Password</Label>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="Enter password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      autoComplete="current-password"
+                      className="bg-background"
+                      data-testid="input-dropdown-password"
+                    />
+                  </div>
+                  <Button type="submit" className="home-cta w-full" disabled={loading}>
+                    {loading ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="animate-spin h-4 w-4" /> Signing in...
+                      </span>
+                    ) : (
+                      "Sign In"
+                    )}
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80 p-0 border-border/50 bg-card/95 backdrop-blur-xl" align="end">
-                  <div className="p-4 border-b border-border/50">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-primary/90 flex items-center justify-center">
-                        <ShieldCheck className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">Welcome Back</h3>
-                        <p className="text-xs text-muted-foreground">Sign in to your account</p>
-                      </div>
-                    </div>
-                  </div>
-                  <form onSubmit={handleLogin} className="p-4 space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="login-username" className="text-sm text-muted-foreground">Username</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                          id="login-username"
-                          placeholder="Enter username"
-                          value={username}
-                          onChange={(e) => setUsername(e.target.value)}
-                          required
-                          autoComplete="username"
-                          className="pl-10 bg-muted/50 border-border/50"
-                          data-testid="input-dropdown-username"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="login-password" className="text-sm text-muted-foreground">Password</Label>
-                      <div className="relative">
-                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                          id="login-password"
-                          type="password"
-                          placeholder="Enter password"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          required
-                          autoComplete="current-password"
-                          className="pl-10 bg-muted/50 border-border/50"
-                          data-testid="input-dropdown-password"
-                        />
-                      </div>
-                    </div>
-                    <Button 
-                      type="submit"
-                      className="w-full"
-                      disabled={loading}
-                      data-testid="button-dropdown-submit"
-                    >
-                      {loading ? (
-                        <span className="flex items-center gap-2">
-                          <Loader2 className="animate-spin h-4 w-4" /> Signing in...
-                        </span>
-                      ) : "Sign In"}
-                    </Button>
-                  </form>
-                  <div className="px-4 pb-4 text-center">
-                    <p className="text-xs text-muted-foreground">
-                      Need access? Contact your administrator
-                    </p>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
+                </form>
+                <div className="px-4 pb-4 text-center">
+                  <p className="text-xs text-muted-foreground">Need access? Contact your administrator</p>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative z-10 px-4 pt-16 pb-20 sm:pt-24 sm:pb-28">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="text-center lg:text-left">
-              <motion.div {...getRevealProps()}>
-                <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-xs uppercase tracking-[0.3em] bg-primary/10 text-primary border-primary/20">
-                  <Sparkles className="h-3 w-3 mr-2" />
-                  AI Compliance Copilot
-                </Badge>
-              </motion.div>
-
-              <motion.h1 
-                className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-foreground mb-6 leading-[1.05] tracking-tight"
-                {...getRevealProps(0.1)}
-              >
-                Spot Compliance Risks{" "}
-                <span className="gradient-text">
-                  Before They Escalate
-                </span>
-              </motion.h1>
-
-              <motion.p 
-                className="text-lg sm:text-xl text-muted-foreground mb-6 max-w-2xl lg:max-w-none leading-relaxed"
-                {...getRevealProps(0.2)}
-              >
-                CareAssurance brings your EMARs, care plans, and audits into one intelligent flow.
-                See high-risk patterns sooner, respond faster, and walk into inspections prepared.
-              </motion.p>
-
-              <motion.div 
-                className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-10"
-                {...getRevealProps(0.25)}
-              >
-                <Badge variant="outline" className="text-xs px-3 py-1 border-primary/30 text-primary bg-primary/10">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Built for UK Care
-                </Badge>
-                <Badge variant="outline" className="text-xs px-3 py-1 border-border/60 text-muted-foreground bg-muted/40">
-                  <Lock className="h-3 w-3 mr-1" />
-                  Privacy-First Processing
-                </Badge>
-                <Badge variant="outline" className="text-xs px-3 py-1 border-secondary/30 text-secondary bg-secondary/10">
-                  <ShieldCheck className="h-3 w-3 mr-1" />
-                  Audit-Ready Trails
-                </Badge>
-              </motion.div>
-
-              <motion.div 
-                className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-4"
-                {...getRevealProps(0.3)}
-              >
-                <Button 
-                  size="lg"
-                  className="shadow-lg shadow-black/25 px-8 h-12 text-base relative overflow-hidden group"
-                  data-testid="button-hero-login"
-                  onClick={() => setLoginOpen(true)}
-                >
-                  <span className="relative z-10">Login</span>
-                  <ArrowRight className="ml-2 h-5 w-5 relative z-10 group-hover:translate-x-1 transition-transform" />
+      <main className="relative z-10">
+        <section className="px-4 pt-8 pb-16 sm:pt-12 sm:pb-20">
+          <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
+            <motion.div {...reveal()}>
+              <span className="home-eyebrow">Operational Assurance for UK Care</span>
+              <h1 className="mt-4 text-4xl sm:text-5xl lg:text-6xl font-heading text-foreground">
+                Compliance reporting that feels calm, clear, and prepared.
+              </h1>
+              <p className="mt-5 text-lg text-muted-foreground max-w-xl">
+                CareAssurance streamlines EMAR audits, care plans, and visit reviews into one
+                structured workspace. Detect risks earlier, document decisions faster, and walk
+                into inspections with confidence.
+              </p>
+              <div className="mt-8 flex flex-col sm:flex-row gap-3">
+                <Button className="home-cta" size="lg" onClick={() => setLoginOpen(true)}>
+                  Login to platform
+                  <ArrowRight className="h-4 w-4" />
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="lg"
-                  className="h-12 px-6 text-base border-border/50 bg-background/50 backdrop-blur-sm hover:bg-background/80 transition-all duration-300"
-                  onClick={() => document.getElementById('roi-calculator')?.scrollIntoView({ behavior: 'smooth' })}
-                  data-testid="button-hero-roi"
-                >
-                  <TrendingUp className="mr-2 h-5 w-5" />
-                  Calculate Your ROI
+                <Button variant="outline" size="lg" className="home-outline" onClick={() => scrollToSection("roi")}> 
+                  Estimate savings
                 </Button>
-              </motion.div>
-
-              <motion.div
-                className="flex flex-wrap items-center justify-center lg:justify-start gap-3 text-xs text-muted-foreground mb-8"
-                {...getRevealProps(0.35)}
-              >
-                <Link
-                  href="/terms"
-                  className="hover:text-foreground transition-colors"
-                  data-testid="link-hero-terms"
-                >
-                  Terms & Conditions
-                </Link>
-                <span className="text-muted-foreground/60">•</span>
-                <Link
-                  href="/privacy"
-                  className="hover:text-foreground transition-colors"
-                  data-testid="link-hero-privacy"
-                >
-                  Privacy Policy
-                </Link>
-              </motion.div>
-
-              <motion.div 
-                className="grid grid-cols-2 gap-4 sm:grid-cols-4"
-                {...getRevealProps(0.4)}
-              >
-                {HERO_METRICS.map((metric) => (
-                  <div key={metric.label} className="rounded-xl border border-border/50 bg-card/40 px-4 py-3 text-left">
+              </div>
+              <div className="mt-10 grid grid-cols-2 gap-4">
+                {HERO_STATS.map((stat) => (
+                  <div key={stat.label} className="home-card-soft p-4">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <metric.icon className="h-4 w-4 text-teal-300" />
-                      {metric.label}
+                      <stat.icon className="h-4 w-4" />
+                      {stat.label}
                     </div>
-                    <div className="mt-2 text-lg font-semibold text-foreground">{metric.value}</div>
-                    <div className="text-[11px] text-muted-foreground/80">{metric.detail}</div>
+                    <div className="mt-2 text-lg font-semibold text-foreground">{stat.value}</div>
+                    <div className="text-[11px] text-muted-foreground">{stat.detail}</div>
                   </div>
                 ))}
-              </motion.div>
-            </div>
+              </div>
+            </motion.div>
 
-            <motion.div 
-              className="relative"
-              {...getRevealProps(0.45)}
-            >
-              <div className="absolute -inset-6 rounded-[32px] bg-gradient-to-br from-amber-500/25 via-teal-500/12 to-sky-500/18 blur-3xl opacity-70" />
-              <Card className="glass-card">
-                <CardContent className="p-6 sm:p-7">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.35em] text-muted-foreground">Live Audit</p>
-                      <h3 className="mt-2 text-xl font-semibold text-foreground">Live Audit Snapshot</h3>
-                      <p className="text-xs text-muted-foreground">7-day snapshot • Week 48</p>
-                    </div>
-                    <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
-                      Live
-                    </Badge>
+            <motion.div {...reveal(0.1)} className="relative">
+              <div className="home-card p-4">
+                <img
+                  src="/opengraph.jpg"
+                  alt="CareAssurance platform preview"
+                  className="w-full rounded-2xl border border-border object-cover"
+                />
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="home-card-soft p-3">
+                    <p className="text-xs text-muted-foreground">Live audits reviewed</p>
+                    <p className="text-lg font-semibold text-foreground">248</p>
                   </div>
-
-                  <div className="mt-6 grid grid-cols-3 gap-3">
-                    {AUDIT_SIGNALS.map((signal) => (
-                      <div
-                        key={signal.label}
-                        className={`rounded-lg border px-3 py-3 text-center ${SIGNAL_TONE_STYLES[signal.tone]}`}
-                      >
-                        <signal.icon className="mx-auto mb-2 h-4 w-4" />
-                        <div className="text-lg font-semibold">{signal.value}</div>
-                        <div className="text-[11px] text-muted-foreground/80">{signal.label}</div>
-                      </div>
-                    ))}
+                  <div className="home-card-soft p-3">
+                    <p className="text-xs text-muted-foreground">Open issues flagged</p>
+                    <p className="text-lg font-semibold text-foreground">7</p>
                   </div>
-
-                  <div className="mt-6 space-y-3">
-                    {AUDIT_FINDINGS.map((finding) => (
-                      <div
-                        key={finding.title}
-                        className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/40 px-3 py-2.5"
-                      >
-                        <div className={`h-2 w-2 rounded-full ${finding.severity === "high" ? "bg-rose-300 shadow-[0_0_12px_rgba(251,113,133,0.5)]" : finding.severity === "medium" ? "bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.5)]" : "bg-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.5)]"}`} />
-                        <div>
-                          <div className="text-sm font-medium text-foreground">{finding.title}</div>
-                          <div className="text-xs text-muted-foreground">{finding.detail}</div>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={`ml-auto text-[10px] uppercase tracking-wide ${FINDING_STYLES[finding.severity]}`}
-                        >
-                          {finding.severity}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.6)]" />
-                      Updated 2 mins ago
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <Activity className="h-3.5 w-3.5 text-teal-300" />
-                      Auto-triage enabled
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-lg border border-border/50 bg-background/40 px-4 py-3">
-                  <div className="text-xs text-muted-foreground">Compliance Score</div>
-                  <div className="mt-1 text-lg font-semibold text-foreground">92%</div>
                 </div>
-                <div className="rounded-lg border border-border/50 bg-background/40 px-4 py-3">
-                  <div className="text-xs text-muted-foreground">Next Review</div>
-                  <div className="mt-1 text-lg font-semibold text-foreground">21 days</div>
+              </div>
+              <div className="absolute -bottom-8 -left-6 hidden lg:block">
+                <div className="home-card px-4 py-3">
+                  <p className="text-xs text-muted-foreground">Average start drift</p>
+                  <p className="text-lg font-semibold text-foreground">+12 min</p>
                 </div>
               </div>
             </motion.div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Trusted By Section */}
-      <section className="relative z-10 py-8 px-4 border-y border-border/30 bg-muted/10 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto">
-          <motion.div
-            className="text-center"
-            {...getInViewProps(0, 0)}
-          >
-            <p className="text-sm text-muted-foreground mb-6">
-              Key features designed for UK care facilities
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12">
-              {TRUSTED_FEATURES.map((feature, i) => (
-                <div 
-                  key={i}
-                  className="flex items-center gap-2 rounded-full border border-border/40 bg-background/40 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70 transition-colors hover:text-foreground"
-                >
-                  <CheckCircle2 className="h-4 w-4 text-primary" />
-                  <span>{feature}</span>
+        <section id="platform" className="px-4 py-16">
+          <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[0.95fr_1.05fr] items-center">
+            <motion.div {...reveal()}>
+              <span className="home-eyebrow">Platform overview</span>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading text-foreground">
+                One workspace for audits, plans, and care delivery checks.
+              </h2>
+              <p className="mt-4 text-muted-foreground">
+                Replace scattered spreadsheets with a structured flow for every document.
+                CareAssurance unifies analysis, notes, and follow-up actions so teams can move fast.
+              </p>
+              <div className="mt-6 space-y-3">
+                {OVERVIEW_BULLETS.map((bullet) => (
+                  <div key={bullet} className="flex items-start gap-3 text-sm text-muted-foreground">
+                    <span className="mt-1 h-6 w-6 rounded-full border border-border flex items-center justify-center">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-foreground" />
+                    </span>
+                    <span>{bullet}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            <motion.div {...reveal(0.1)} className="grid gap-4">
+              <div className="home-card p-5">
+                <p className="home-eyebrow">Audit snapshot</p>
+                <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Service users</p>
+                    <p className="text-2xl font-semibold text-foreground">52</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Flagged calls</p>
+                    <p className="text-2xl font-semibold text-foreground">13</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Avg start drift</p>
+                    <p className="text-2xl font-semibold text-foreground">+1h 3m</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Avg duration</p>
+                    <p className="text-2xl font-semibold text-foreground">122%</p>
+                  </div>
                 </div>
+              </div>
+              <div className="home-card-soft p-5">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Included modules</p>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-foreground">
+                  <span>EMAR audits</span>
+                  <span>Care plan drafts</span>
+                  <span>Visit audits</span>
+                  <span>Risk assessments</span>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        <section id="compliance" className="home-band">
+          <div className="max-w-6xl mx-auto px-4 py-16">
+            <motion.div {...reveal()} className="text-center">
+              <p className="home-eyebrow text-white/60">Compliance foundations</p>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading text-white">
+                Evidence you can stand behind.
+              </h2>
+              <p className="mt-3 text-white/70 max-w-2xl mx-auto">
+                Built for regulated care environments with clear governance controls and consistent reporting.
+              </p>
+            </motion.div>
+            <div className="mt-10 grid gap-6 md:grid-cols-3">
+              {CERTIFICATIONS.map((item) => (
+                <motion.div key={item.title} {...reveal(0.1)} className="rounded-2xl border border-white/10 bg-white/5 p-6">
+                  <div className="h-11 w-11 rounded-2xl bg-white/10 flex items-center justify-center">
+                    <item.icon className="h-5 w-5 text-white" />
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
+                  <p className="mt-2 text-sm text-white/70">{item.description}</p>
+                </motion.div>
               ))}
             </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="relative z-10 py-16 px-4 bg-muted/20 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto">
-          <motion.div 
-            className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8"
-            variants={STAGGER_CONTAINER}
-            {...listMotionConfig}
-          >
-            {STATS.map((stat, index) => (
-              <motion.div 
-                key={index}
-                className="rounded-2xl border border-border/50 bg-card/40 p-6 text-center backdrop-blur-xl shadow-[0_20px_60px_rgba(10,20,40,0.25)]"
-                variants={FADE_IN_UP}
-              >
-                <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-teal-500/20 mb-4">
-                  <stat.icon className="h-6 w-6 text-teal-300" />
-                </div>
-                <div className="text-3xl sm:text-4xl font-bold text-foreground mb-1 bg-gradient-to-r from-amber-400 to-teal-400 bg-clip-text text-transparent">
-                  {stat.value}
-                </div>
-                <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">{stat.label}</div>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Why Choose Section */}
-      <section className="relative z-10 py-20 sm:py-28 px-4">
-        <div className="max-w-6xl mx-auto">
-          <motion.div 
-            className="text-center mb-16"
-            {...getInViewProps()}
-          >
-            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs bg-sky-500/10 text-sky-300 border-sky-500/20">
-              <Award className="h-3 w-3 mr-1" />
-              Why Choose Us
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Built Different. Built Better.
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Purpose-built for UK care homes, CareAssurance keeps documentation, audits, and follow-ups in sync.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {WHY_CHOOSE.map((item, index) => (
-              <motion.div 
-                key={index}
-                {...getInViewProps(index * 0.1)}
-              >
-                <Card className="glass-card h-full">
-                  <div className={`absolute inset-0 bg-gradient-to-br ${WHY_STYLES[index % WHY_STYLES.length].accent} opacity-60`} />
-                  <div className="absolute -right-16 -top-16 h-32 w-32 rounded-full bg-white/5 blur-2xl" />
-                  <CardContent className="relative z-10 p-6">
-                    <div className="flex items-start gap-4">
-                      <div className={`h-12 w-12 rounded-2xl bg-gradient-to-br ${WHY_STYLES[index % WHY_STYLES.length].iconBg} flex items-center justify-center flex-shrink-0`}>
-                        <item.icon className={`h-6 w-6 ${WHY_STYLES[index % WHY_STYLES.length].icon}`} />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground mb-2">{item.title}</h3>
-                        <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <span className="home-band-pill">CQC Compliant</span>
+              <span className="home-band-pill">GDPR Certified</span>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* How It Works Section */}
-      <section className="relative z-10 py-20 sm:py-28 px-4 bg-muted/10">
-        <div className="max-w-6xl mx-auto">
-          <motion.div 
-            className="text-center mb-16"
-            {...getInViewProps()}
-          >
-            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20">
-              <Zap className="h-3 w-3 mr-1" />
-              Quick Start
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Up and Running in Minutes
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              No complex setup. No lengthy training. Start seeing results from day one.
-            </p>
-          </motion.div>
-
-          <div className="relative">
-            <div className="pointer-events-none absolute left-6 right-6 top-1/2 hidden h-px -translate-y-1/2 bg-gradient-to-r from-transparent via-border/60 to-transparent md:block" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-              {HOW_IT_WORKS.map((item, index) => (
-                <motion.div 
-                  key={index}
-                  className="relative"
-                  {...getInViewProps(index * 0.1)}
-                >
-                  <Card className="glass-card h-full overflow-visible">
-                    <CardContent className="p-6 pt-12">
-                      <div className="absolute top-6 left-6">
-                        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-amber-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-black/25">
-                          {item.step}
-                        </div>
-                      </div>
-                      <div className="mt-4">
-                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-amber-500/10 to-teal-500/10 flex items-center justify-center mb-4">
-                          <item.icon className="h-6 w-6 text-teal-300" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-foreground mb-2">{item.title}</h3>
-                        <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  {index < HOW_IT_WORKS.length - 1 && (
-                    <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2 z-10">
-                      <ChevronRight className="h-6 w-6 text-border" />
-                    </div>
-                  )}
+        <section className="px-4 py-16">
+          <div className="max-w-6xl mx-auto">
+            <motion.div {...reveal()} className="text-center">
+              <span className="home-eyebrow">Platform highlights</span>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading text-foreground">
+                Every workflow your compliance team needs.
+              </h2>
+              <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
+                Designed for UK care operations, from medication audits to staff performance monitoring.
+              </p>
+            </motion.div>
+            <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {PRIMARY_FEATURES.map((feature) => (
+                <motion.div key={feature.title} {...reveal(0.05)} className="home-card p-6">
+                  <div className="flex items-center justify-between">
+                    <feature.icon className="h-6 w-6 text-foreground" />
+                    <Badge variant="outline" className="text-[10px]">{feature.tag}</Badge>
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold text-foreground">{feature.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">{feature.description}</p>
                 </motion.div>
               ))}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Operational Readiness Section */}
-      <section className="relative z-10 py-20 sm:py-28 px-4">
-        <div className="max-w-6xl mx-auto">
-          <motion.div 
-            className="text-center mb-14"
-            {...getInViewProps()}
-          >
-            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
-              <ClipboardCheck className="h-3 w-3 mr-1" />
-              Operational Readiness
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Turn Records Into Inspection-Ready Evidence
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Get a live view of compliance risk, action queues, and trends without manual checks.
-            </p>
-          </motion.div>
-
-          <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-            <motion.div {...getInViewProps(0.1)} className="space-y-6">
-              <Card className="glass-card">
-                <CardContent className="p-6">
-                  <h3 className="text-lg font-semibold text-foreground mb-4">What you gain</h3>
-                  <div className="space-y-4">
-                    {INSIGHT_BULLETS.map((bullet) => (
-                      <div key={bullet.title} className="flex items-start gap-3">
-                        <div className="mt-1 h-7 w-7 rounded-full border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-center">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{bullet.title}</p>
-                          <p className="text-sm text-muted-foreground">{bullet.description}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="glass-card">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Risk Breakdown</p>
-                      <h3 className="text-lg font-semibold text-foreground">Open issues</h3>
-                    </div>
-                    <Badge variant="outline" className="text-[10px] border-border/50 text-muted-foreground">
-                      Last 7 days
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    {RISK_BREAKDOWN.map((risk) => (
-                      <div
-                        key={risk.label}
-                        className={`rounded-xl border px-3 py-3 text-center ${SIGNAL_TONE_STYLES[risk.tone]}`}
-                      >
-                        <div className="text-lg font-semibold">{risk.value}</div>
-                        <div className="text-[11px] text-muted-foreground/80">{risk.label}</div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+        <section className="px-4 py-16">
+          <div className="max-w-6xl mx-auto">
+            <motion.div {...reveal()} className="text-center">
+              <span className="home-eyebrow">Recent projects</span>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading text-foreground">
+                Compliance outputs that teams can act on.
+              </h2>
             </motion.div>
-
-            <motion.div {...getInViewProps(0.15)} className="space-y-6">
-              <Card className="glass-card">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Readiness Trend</p>
-                      <h3 className="text-lg font-semibold text-foreground">Compliance score</h3>
-                    </div>
-                    <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
-                      +14% this week
-                    </Badge>
-                  </div>
-                  <div className="mt-6 flex items-end gap-3 h-28">
-                    {READINESS_TREND.map((value, index) => (
-                      <div key={`${value}-${index}`} className="flex-1">
-                        <div className="h-full rounded-full bg-muted/30 flex items-end">
-                          <div
-                            className="w-full rounded-full bg-gradient-to-t from-teal-400/80 to-sky-400/80"
-                            style={{ height: `${value}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Mon</span>
-                    <span>Tue</span>
-                    <span>Wed</span>
-                    <span>Thu</span>
-                    <span>Fri</span>
-                    <span>Sat</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="glass-card">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Action Queue</p>
-                      <h3 className="text-lg font-semibold text-foreground">Next steps</h3>
-                    </div>
-                    <Badge variant="outline" className="text-[10px] border-border/50 text-muted-foreground">
-                      3 tasks
-                    </Badge>
-                  </div>
-                  <div className="space-y-3">
-                    {ACTION_QUEUE.map((item) => (
-                      <div
-                        key={item.title}
-                        className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/40 px-3 py-2.5"
-                      >
-                        <div className="h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_12px_rgba(45,212,191,0.6)]" />
-                        <div>
-                          <div className="text-sm font-medium text-foreground">{item.title}</div>
-                          <div className="text-xs text-muted-foreground">{item.detail}</div>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={`ml-auto text-[10px] uppercase tracking-wide ${FINDING_STYLES[item.severity]}`}
-                        >
-                          {item.severity}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="relative z-10 py-20 sm:py-28 px-4">
-        <div className="max-w-7xl mx-auto">
-          <motion.div 
-            className="text-center mb-16"
-            {...getInViewProps()}
-          >
-            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs bg-teal-500/10 text-teal-400 border-teal-500/20">
-              <BarChart3 className="h-3 w-3 mr-1" />
-              Complete Platform
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Everything Your Team Needs in One Place
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Bring auditing, care planning, and staff insights together so your team spends less time on paperwork.
-            </p>
-          </motion.div>
-
-          <motion.div 
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-            variants={STAGGER_CONTAINER}
-            {...listMotionConfig}
-          >
-            {FEATURES.map((feature, index) => (
-              <motion.div key={index} variants={FADE_IN_UP}>
-                <Card className="glass-card h-full group transition-all duration-300 hover:border-primary/40">
-                  <div className={`absolute inset-0 bg-gradient-to-br ${FEATURE_STYLES[index % FEATURE_STYLES.length].accent} opacity-0 transition-opacity duration-300 group-hover:opacity-100`} />
-                  <CardContent className="p-6 relative z-10">
-                    <div className="flex items-start justify-between gap-3 mb-4">
-                      <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-amber-500/10 to-teal-500/10 flex items-center justify-center transition-opacity duration-200 flex-shrink-0">
-                        <feature.icon className={`h-6 w-6 ${FEATURE_STYLES[index % FEATURE_STYLES.length].icon} transition-colors`} />
-                      </div>
-                      <Badge variant="secondary" className={`text-[10px] ${FEATURE_STYLES[index % FEATURE_STYLES.length].badge}`}>
-                        {feature.highlight}
-                      </Badge>
-                    </div>
-                    <h3 className="text-lg font-semibold text-foreground mb-2 group-hover:text-teal-200 transition-colors">{feature.title}</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed mb-3">{feature.description}</p>
-                    <div className="flex items-center gap-1 text-xs text-teal-400 group-hover:text-teal-300 transition-colors">
-                      <CheckCircle2 className="h-3 w-3" />
-                      <span>{feature.benefit}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Inspection Snapshot Section */}
-      <section className="relative z-10 py-20 sm:py-28 px-4 bg-muted/5">
-        <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[0.95fr_1.05fr] items-center">
-          <motion.div {...getInViewProps()}>
-            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
-              <ShieldCheck className="h-3 w-3 mr-1" />
-              Inspection Snapshot
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Stay audit-ready without the scramble.
-            </h2>
-            <p className="text-muted-foreground max-w-xl">
-              A clear, weekly readiness view that makes it easier to explain decisions,
-              resolve issues quickly, and keep staff aligned.
-            </p>
-
-            <div className="mt-8 space-y-4">
-              {INSIGHT_BULLETS.map((bullet) => (
-                <div
-                  key={bullet.title}
-                  className="flex gap-4 rounded-2xl border border-border/50 bg-card/30 p-4 backdrop-blur-xl"
-                >
-                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-500/10 to-teal-500/10 flex items-center justify-center">
-                    <bullet.icon className="h-5 w-5 text-teal-300" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-foreground">{bullet.title}</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{bullet.description}</p>
-                  </div>
-                </div>
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {PROJECT_TILES.map((tile) => (
+                <motion.div key={tile.title} {...reveal(0.05)} className={`home-card p-6 bg-gradient-to-br ${tile.accent}`}>
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Case study</p>
+                  <h3 className="mt-3 text-lg font-semibold text-foreground">{tile.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">{tile.subtitle}</p>
+                </motion.div>
               ))}
             </div>
-          </motion.div>
+          </div>
+        </section>
 
-          <motion.div {...getInViewProps(0.15)}>
-            <Card className="glass-card">
-              <CardContent className="p-6 sm:p-8 space-y-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Readiness Report</p>
-                    <h3 className="mt-2 text-xl font-semibold text-foreground">Week 48 Overview</h3>
-                    <p className="text-xs text-muted-foreground">7 days • 14 medications</p>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-300 bg-emerald-500/10">
-                    Updated today
-                  </Badge>
+        <section id="roi" className="px-4 py-16">
+          <div className="max-w-6xl mx-auto">
+            <motion.div {...reveal()} className="text-center">
+              <span className="home-eyebrow">Savings estimator</span>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading text-foreground">
+                Model time savings in minutes.
+              </h2>
+              <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
+                Estimate the annual hours recovered when audits and plans are streamlined.
+              </p>
+            </motion.div>
+
+            <motion.div {...reveal(0.1)} className="home-card p-8 mt-10">
+              <div className="flex items-center justify-between mb-4">
+                <Label className="text-lg font-medium text-foreground">Number of Service Users</Label>
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-foreground" />
+                  <span className="text-2xl font-semibold text-foreground" data-testid="text-service-users-count">
+                    {serviceUsers}
+                  </span>
                 </div>
+              </div>
+              <Slider
+                value={[serviceUsers]}
+                onValueChange={handleServiceUsersChange}
+                min={1}
+                max={200}
+                step={1}
+                className="w-full"
+                data-testid="slider-service-users"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                <span>1</span>
+                <span>50</span>
+                <span>100</span>
+                <span>150</span>
+                <span>200</span>
+              </div>
 
-                <div className="rounded-2xl border border-border/50 bg-background/40 p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Readiness score</span>
-                    <span className="text-xl font-semibold text-foreground">{READINESS_SCORE}%</span>
-                  </div>
-                  <div className="mt-3 h-2 rounded-full bg-muted/40 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-400 transition-all duration-500"
-                      style={{ width: `${READINESS_SCORE}%` }}
-                    />
-                  </div>
-                  <div className="mt-3 flex items-end gap-2">
-                    {READINESS_TREND.map((value, index) => (
-                      <div
-                        key={`${value}-${index}`}
-                        className="flex-1 rounded-sm bg-emerald-500/20"
-                        style={{ height: `${value}%` }}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  {RISK_BREAKDOWN.map((item) => (
-                    <div
-                      key={item.label}
-                      className={`rounded-xl border px-3 py-3 text-center ${SIGNAL_TONE_STYLES[item.tone]}`}
-                    >
-                      <div className="text-lg font-semibold">{item.value}</div>
-                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">{item.label}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-3">
-                  {ACTION_QUEUE.map((item) => (
-                    <div
-                      key={item.title}
-                      className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/40 px-3 py-2.5"
-                    >
-                      <div className="h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_12px_rgba(45,212,191,0.6)]" />
-                      <div>
-                        <div className="text-sm font-medium text-foreground">{item.title}</div>
-                        <div className="text-xs text-muted-foreground">{item.detail}</div>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className={`ml-auto text-[10px] uppercase tracking-wide ${FINDING_STYLES[item.severity]}`}
-                      >
-                        {item.severity}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </section>
-
-
-      {/* ROI Calculator Section */}
-      <section id="roi-calculator" className="relative z-10 py-20 sm:py-28 px-4">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            className="text-center mb-12"
-            {...getInViewProps()}
-          >
-            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs bg-green-500/10 text-green-400 border-green-500/20">
-              <Calculator className="h-3 w-3 mr-1" />
-              Savings Estimator
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Estimate Your Potential Savings
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              See estimated time savings based on typical task durations. Actual results may vary.
-            </p>
-          </motion.div>
-
-          <motion.div
-            {...getInViewProps(0.1)}
-          >
-            <Card className="glass-card">
-              <CardContent className="p-8">
-                {/* Slider Section */}
-                <div className="mb-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <Label className="text-lg font-medium text-foreground">Number of Service Users</Label>
-                    <div className="flex items-center gap-2">
-                      <Users className="h-5 w-5 text-teal-400" />
-                      <span className="text-2xl font-bold text-teal-400" data-testid="text-service-users-count">{serviceUsers}</span>
-                    </div>
-                  </div>
-                  <Slider
-                    value={[serviceUsers]}
-                    onValueChange={handleServiceUsersChange}
-                    min={1}
-                    max={200}
-                    step={1}
-                    className="w-full"
-                    data-testid="slider-service-users"
-                  />
-                  <div className="flex justify-between text-sm text-muted-foreground mt-2">
-                    <span>1</span>
-                    <span>50</span>
-                    <span>100</span>
-                    <span>150</span>
-                    <span>200</span>
-                  </div>
-                </div>
-
-                {/* Results Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                  <div className="p-5 rounded-lg bg-red-500/10 border border-red-500/20">
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock className="h-4 w-4 text-red-400" />
-                  <span className="text-sm text-red-300">Manual Time</span>
-                    </div>
-                    <div className="text-2xl font-bold text-foreground" data-testid="text-manual-hours">
-                      {roi.manualHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
-                    </div>
-                <div className="text-xs text-muted-foreground/80">per year</div>
-                  </div>
-
-                  <div className="p-5 rounded-lg bg-teal-500/10 border border-teal-500/20">
-                <div className="flex items-center gap-2 mb-2">
-                  <Zap className="h-4 w-4 text-teal-300" />
-                  <span className="text-sm text-teal-300">With CareAssurance</span>
-                    </div>
-                    <div className="text-2xl font-bold text-foreground" data-testid="text-ai-hours">
-                      {roi.aiHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
-                    </div>
-                <div className="text-xs text-muted-foreground/80">per year</div>
-                  </div>
-
-                  <div className="p-5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                <div className="flex items-center gap-2 mb-2">
-                  <Timer className="h-4 w-4 text-amber-300" />
-                  <span className="text-sm text-amber-300">Time Saved</span>
-                    </div>
-                    <div className="text-2xl font-bold text-foreground" data-testid="text-hours-saved">
-                      {roi.hoursSaved.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
-                    </div>
-                <div className="text-xs text-muted-foreground/80">per year</div>
-                  </div>
-
-                  <div className="p-5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/10 border border-green-500/30">
-                <div className="flex items-center gap-2 mb-2">
-                  <PoundSterling className="h-4 w-4 text-green-300" />
-                  <span className="text-sm text-green-300">Money Saved</span>
-                    </div>
-                    <div className="text-2xl font-bold text-green-400" data-testid="text-money-saved">
-                      £{roi.moneySaved.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    </div>
-                <div className="text-xs text-muted-foreground/80">per year at £14.50/hr*</div>
-                  </div>
-                </div>
-
-                <div className="mb-8 rounded-2xl border border-border/50 bg-background/40 p-5">
-                  <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>Efficiency gain</span>
-                    <span className="text-foreground font-semibold">{savingsPercent}% faster</span>
-                  </div>
-                  <div className="mt-3 h-2 rounded-full bg-muted/40 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-400 transition-all duration-500"
-                      style={{ width: `${savingsPercent}%` }}
-                    />
-                  </div>
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    Based on typical admin tasks across your selected service user count.
-                  </div>
-                </div>
-
-                {/* Task Breakdown */}
-                <div className="border-t border-border/50 pt-6">
-                  <h4 className="text-sm font-medium text-muted-foreground mb-4">Estimated Annual Task Breakdown (per service user)</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                    {Object.entries(TASKS).map(([key, task]) => (
-                      <div key={key} className="p-3 rounded-lg bg-background/50 border border-border/30">
-                        <div className="text-xs text-muted-foreground mb-1">{task.name}</div>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-sm font-medium text-foreground">{task.perYear}x</span>
-                          <span className="text-xs text-muted-foreground">/year</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1 text-xs">
-                          <span className="text-red-400">{task.manualMins}m</span>
-                          <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-teal-400">{task.aiSecs}s</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                {/* Disclaimer */}
-                <div className="border-t border-border/50 pt-4 mt-6">
-                  <p className="text-xs text-muted-foreground/70">
-                    *Estimates are based on typical task durations and may vary depending on facility size, complexity of records, and other factors. 
-                    The figures shown are for illustrative purposes only and do not constitute a guarantee of savings.
+              <div className="mt-8 grid gap-4 md:grid-cols-4">
+                <div className="home-card-soft p-4">
+                  <p className="text-xs text-muted-foreground">Manual time</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-manual-hours">
+                    {roi.manualHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
+                  <p className="text-xs text-muted-foreground">per year</p>
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </section>
+                <div className="home-card-soft p-4">
+                  <p className="text-xs text-muted-foreground">With CareAssurance</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-ai-hours">
+                    {roi.aiHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
+                  </p>
+                  <p className="text-xs text-muted-foreground">per year</p>
+                </div>
+                <div className="home-card-soft p-4">
+                  <p className="text-xs text-muted-foreground">Time saved</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-hours-saved">
+                    {roi.hoursSaved.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
+                  </p>
+                  <p className="text-xs text-muted-foreground">per year</p>
+                </div>
+                <div className="home-card-soft p-4">
+                  <p className="text-xs text-muted-foreground">Money saved</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-money-saved">
+                    £{roi.moneySaved.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">per year at £14.50/hr*</p>
+                </div>
+              </div>
 
-      {/* Connect Section */}
-      <section id="contact" className="relative z-10 py-20 sm:py-28 px-4">
-        <div className="max-w-5xl mx-auto">
-          <motion.div {...getInViewProps()}>
-            <Card className="glass-card">
-              <CardContent className="p-8 sm:p-12">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <Badge variant="secondary" className="mb-3 px-3 py-1 text-xs bg-muted/50 text-muted-foreground border-border/60">
-                      Start a conversation
-                    </Badge>
-                    <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
-                      Speak with CareAssurance
-                    </h2>
-                    <p className="text-muted-foreground max-w-2xl">
-                      Ask questions, share your requirements, or request a walkthrough. We reply quickly and keep it private.
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-2 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/60 px-3 py-1.5">
-                      <Mail className="h-3.5 w-3.5 text-primary" />
-                      Private response within 1 business day
+              <div className="mt-6">
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>Efficiency gain</span>
+                  <span className="text-foreground font-semibold">{savingsPercent}% faster</span>
+                </div>
+                <div className="mt-3 h-2 rounded-full bg-muted/60 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-foreground"
+                    style={{ width: `${savingsPercent}%` }}
+                  />
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  *Estimates are based on typical task durations and may vary.
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        <section id="contact" className="px-4 pb-20">
+          <div className="max-w-6xl mx-auto">
+            <motion.div {...reveal()} className="home-card p-8 sm:p-10">
+              <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+                <div>
+                  <span className="home-eyebrow">Contact</span>
+                  <h2 className="mt-4 text-3xl sm:text-4xl font-heading text-foreground">
+                    Speak with the CareAssurance team.
+                  </h2>
+                  <p className="mt-3 text-muted-foreground">
+                    Share your compliance priorities and we will respond with a tailored walkthrough.
+                  </p>
+                  <div className="mt-6 space-y-3 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-foreground" />
+                      Private response within 1 business day.
                     </div>
-                    <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/60 px-3 py-1.5">
-                      <MessageSquare className="h-3.5 w-3.5 text-secondary" />
-                      Share goals, challenges, or timelines
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-foreground" />
+                      Share audit goals, EMAR challenges, or care plan needs.
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-foreground" />
+                      UK-based support for care facilities.
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-8 grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-                  <div className="space-y-4 rounded-2xl border border-border/50 bg-background/40 p-6">
-                    <h3 className="text-lg font-semibold text-foreground">
-                      What to include
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      The more context you share, the faster we can respond with a tailored walkthrough.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline" className="text-xs border-primary/30 text-primary bg-primary/10">
-                        EMAR audits
-                      </Badge>
-                      <Badge variant="outline" className="text-xs border-border/60 text-muted-foreground bg-muted/40">
-                        Care plans
-                      </Badge>
-                      <Badge variant="outline" className="text-xs border-secondary/30 text-secondary bg-secondary/10">
-                        Risk insights
-                      </Badge>
-                      <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-300 bg-emerald-500/10">
-                        Compliance goals
-                      </Badge>
-                    </div>
-                    <div className="rounded-xl border border-border/50 bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
-                      Prefer to explore on your own? Use the Login button in the header to access the platform.
-                    </div>
-                  </div>
-
-                  <div>
-                    {contactSuccess ? (
-                      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
-                        <div className="flex items-center gap-2 text-emerald-300">
-                          <CheckCircle2 className="h-5 w-5" />
-                          <span className="font-semibold">Message sent!</span>
-                        </div>
-                        <p className="mt-2 text-sm text-emerald-200/80">
-                          Thank you for getting in touch. We'll respond within 1 business day.
-                        </p>
-                        <Button 
-                          variant="outline" 
-                          className="mt-4 w-full border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
-                          onClick={() => setContactSuccess(false)}
-                        >
-                          Send another message
-                        </Button>
+                <div>
+                  {contactSuccess ? (
+                    <div className="home-card-soft p-6">
+                      <div className="flex items-center gap-2 text-foreground">
+                        <CheckCircle2 className="h-5 w-5" />
+                        <span className="font-semibold">Message sent</span>
                       </div>
-                    ) : contactEnabled ? (
-                      <form onSubmit={handleContactSubmit} className="rounded-2xl border border-border/50 bg-background/40 p-6 space-y-4">
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label htmlFor="contact-name" className="text-sm text-foreground">Name *</Label>
-                            <Input
-                              id="contact-name"
-                              placeholder="Your name"
-                              value={contactName}
-                              onChange={(e) => setContactName(e.target.value)}
-                              required
-                              className="bg-background/60"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="contact-email" className="text-sm text-foreground">Email *</Label>
-                            <Input
-                              id="contact-email"
-                              type="email"
-                              placeholder="you@example.com"
-                              value={contactEmail}
-                              onChange={(e) => setContactEmail(e.target.value)}
-                              required
-                              className="bg-background/60"
-                            />
-                          </div>
-                        </div>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Thank you for getting in touch. We will respond within 1 business day.
+                      </p>
+                      <Button variant="outline" className="home-outline mt-4 w-full" onClick={() => setContactSuccess(false)}>
+                        Send another message
+                      </Button>
+                    </div>
+                  ) : contactEnabled ? (
+                    <form onSubmit={handleContactSubmit} className="space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor="contact-org" className="text-sm text-foreground">Organisation</Label>
+                          <Label htmlFor="contact-name" className="text-sm text-foreground">Name *</Label>
                           <Input
-                            id="contact-org"
-                            placeholder="Your care facility or company"
-                            value={contactOrg}
-                            onChange={(e) => setContactOrg(e.target.value)}
-                            className="bg-background/60"
+                            id="contact-name"
+                            placeholder="Your name"
+                            value={contactName}
+                            onChange={(e) => setContactName(e.target.value)}
+                            required
+                            className="bg-background"
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="contact-message" className="text-sm text-foreground">Message *</Label>
-                          <Textarea
-                            id="contact-message"
-                            placeholder="Tell us what you're looking for — EMAR audits, care plan generation, compliance goals, or something else..."
-                            value={contactMessage}
-                            onChange={(e) => setContactMessage(e.target.value)}
+                          <Label htmlFor="contact-email" className="text-sm text-foreground">Email *</Label>
+                          <Input
+                            id="contact-email"
+                            type="email"
+                            placeholder="you@example.com"
+                            value={contactEmail}
+                            onChange={(e) => setContactEmail(e.target.value)}
                             required
-                            rows={4}
-                            className="bg-background/60 resize-none"
+                            className="bg-background"
                           />
                         </div>
-                        {contactError && (
-                          <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-300">
-                            {contactError}
-                          </div>
-                        )}
-                        <Button 
-                          type="submit" 
-                          className="w-full justify-between"
-                          disabled={contactLoading}
-                        >
-                          {contactLoading ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Sending...
-                            </>
-                          ) : (
-                            <>
-                              <Send className="h-4 w-4" />
-                              Send message
-                              <ChevronRight className="h-4 w-4" />
-                            </>
-                          )}
-                        </Button>
-                      </form>
-                    ) : (
-                      <div className="rounded-2xl border border-border/50 bg-background/40 p-6">
-                        <div className="flex items-center gap-2 text-foreground">
-                          <AlertTriangle className="h-4 w-4 text-amber-300" />
-                          <span className="text-sm font-semibold">Contact form disabled</span>
-                        </div>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          This site currently does not accept messages via email. If you already have access, please sign in.
-                        </p>
-                        <Button className="mt-4 w-full justify-between" onClick={openLoginFromCTA}>
-                          Login
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
                       </div>
-                    )}
-                  </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="contact-org" className="text-sm text-foreground">Organisation</Label>
+                        <Input
+                          id="contact-org"
+                          placeholder="Your care facility or company"
+                          value={contactOrg}
+                          onChange={(e) => setContactOrg(e.target.value)}
+                          className="bg-background"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="contact-message" className="text-sm text-foreground">Message *</Label>
+                        <Textarea
+                          id="contact-message"
+                          placeholder="Tell us what you are looking for..."
+                          value={contactMessage}
+                          onChange={(e) => setContactMessage(e.target.value)}
+                          required
+                          rows={4}
+                          className="bg-background resize-none"
+                        />
+                      </div>
+                      {contactError && (
+                        <div className="rounded-lg border border-red-400/40 bg-red-100/60 px-4 py-2 text-sm text-red-600">
+                          {contactError}
+                        </div>
+                      )}
+                      <Button type="submit" className="home-cta w-full" disabled={contactLoading}>
+                        {contactLoading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4" />
+                            Send message
+                          </>
+                        )}
+                      </Button>
+                    </form>
+                  ) : (
+                    <div className="home-card-soft p-6">
+                      <div className="flex items-center gap-2 text-foreground">
+                        <ClipboardCheck className="h-4 w-4" />
+                        <span className="text-sm font-semibold">Contact form disabled</span>
+                      </div>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        This site currently does not accept messages via email. If you already have access, please sign in.
+                      </p>
+                      <Button className="home-cta mt-4 w-full" onClick={openLoginFromCTA}>
+                        Login
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Extra Contact Section */}
-      <section aria-label="Contact options" className="relative z-10 pb-16 sm:pb-24 px-4">
-        <div className="max-w-5xl mx-auto">
-          <motion.div {...getInViewProps(0.05)}>
-            <div className="grid gap-4 md:grid-cols-3">
-              <Card className="glass-card">
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                      <Sparkles className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-semibold text-foreground">Request a walkthrough</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Tell us what you're trying to improve and we'll tailor a quick demo.
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="mt-4 w-full justify-between"
-                    onClick={scrollToContact}
-                  >
-                    Open contact form
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="glass-card">
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-secondary/10 border border-secondary/20 flex items-center justify-center">
-                      <KeyRound className="h-5 w-5 text-secondary" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-semibold text-foreground">Already have access?</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Sign in and explore the dashboard, tools, and reports.
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    className="mt-4 w-full justify-between"
-                    onClick={openLoginFromCTA}
-                    data-testid="button-homepage-login-cta"
-                  >
-                    Login
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="glass-card">
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                      <ShieldCheck className="h-5 w-5 text-emerald-300" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-semibold text-foreground">Privacy & terms</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Review how data is handled and the platform terms.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <Button variant="outline" className="w-full" asChild data-testid="button-homepage-privacy">
-                      <a href="/privacy">Privacy</a>
-                    </Button>
-                    <Button variant="outline" className="w-full" asChild data-testid="button-homepage-terms">
-                      <a href="/terms">Terms</a>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-border/50 py-10 px-4 backdrop-blur-sm bg-background/50">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-primary/90 flex items-center justify-center">
-                <ShieldCheck className="h-4 w-4 text-white" />
               </div>
-              <div>
-                <span className="text-foreground font-medium">
-                  <span className="font-bold">Care</span>Assurance
-                </span>
-                <span className="text-muted-foreground text-sm ml-2">careassurance.uk</span>
-              </div>
+            </motion.div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="relative z-10 border-t border-border/70">
+        <div className="max-w-6xl mx-auto px-4 py-10 flex flex-col md:flex-row items-center justify-between gap-6 text-sm text-muted-foreground">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-2xl bg-foreground text-background flex items-center justify-center">
+              <ShieldCheck className="h-4 w-4" />
             </div>
-            
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-              <button
-                type="button"
-                className="hover:text-foreground transition-colors"
-                onClick={scrollToContact}
-                data-testid="link-footer-contact"
-              >
-                Contact
-              </button>
-              <Link href="/terms" className="hover:text-foreground transition-colors" data-testid="link-footer-terms">
-                Terms & Conditions
-              </Link>
-              <Link href="/privacy" className="hover:text-foreground transition-colors" data-testid="link-footer-privacy">
-                Privacy Policy
-              </Link>
+            <div>
+              <span className="text-foreground font-semibold">CareAssurance</span>
+              <span className="ml-2 text-muted-foreground">careassurance.uk</span>
             </div>
           </div>
-          
-          <div className="mt-8 pt-6 border-t border-border/30 flex flex-col sm:flex-row items-center justify-center gap-4 text-xs text-muted-foreground">
-            <span>2026 CareAssurance Software. All rights reserved.</span>
-            <div className="flex items-center gap-4">
-              <Badge variant="outline" className="text-[10px] border-green-500/30 text-green-400">
-                <Lock className="h-2.5 w-2.5 mr-1" />
-                256-bit SSL Secured
-              </Badge>
-              <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-300">
-                <ShieldCheck className="h-2.5 w-2.5 mr-1" />
-                Privacy-Focused
-              </Badge>
-            </div>
+          <div className="flex flex-wrap items-center gap-6">
+            <button type="button" onClick={() => scrollToSection("contact")}>
+              Contact
+            </button>
+            <Link href="/terms">Terms & Conditions</Link>
+            <Link href="/privacy">Privacy Policy</Link>
           </div>
         </div>
       </footer>
