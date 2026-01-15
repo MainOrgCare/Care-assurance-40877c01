@@ -232,8 +232,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", actualTheme);
-    document.documentElement.classList.remove("theme-dark", "theme-light", "theme-midnight", "theme-ocean");
+    document.documentElement.classList.remove("dark", "theme-dark", "theme-light", "theme-midnight", "theme-ocean");
     document.documentElement.classList.add(`theme-${actualTheme}`);
+    
+    // Add 'dark' class for dark-based themes (dark, midnight, ocean) for Tailwind dark: variant
+    if (actualTheme !== "light") {
+      document.documentElement.classList.add("dark");
+    }
     
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     const colors = { dark: '#181E28', midnight: '#0F0D14', ocean: '#111A1F', light: '#F5F7FA' };

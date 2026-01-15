@@ -2,7 +2,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/* Dark variant works with .dark class OR any dark theme */
+@custom-variant dark (&:is(.dark *, .theme-dark *, .theme-midnight *, .theme-ocean *));
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -490,30 +491,42 @@
 
 /* Theme-specific body backgrounds */
 .theme-dark body,
-body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
+html:not(.theme-light):not(.theme-midnight):not(.theme-ocean) body {
   background-image: radial-gradient(ellipse 80% 60% at 0% 0%, hsla(222, 20%, 12%, 1) 0px, transparent 50%),
                     radial-gradient(ellipse 60% 50% at 100% 5%, hsla(192, 50%, 14%, 1) 0px, transparent 45%),
                     radial-gradient(ellipse 70% 60% at 100% 100%, hsla(222, 20%, 10%, 1) 0px, transparent 50%),
                     radial-gradient(ellipse 50% 50% at 0% 100%, hsla(32, 50%, 12%, 1) 0px, transparent 50%);
 }
 
-.theme-midnight body {
+html.theme-midnight body {
   background-image: radial-gradient(ellipse 70% 60% at 0% 0%, hsla(240, 22%, 10%, 1) 0px, transparent 50%),
                     radial-gradient(ellipse 60% 50% at 100% 5%, hsla(220, 35%, 10%, 1) 0px, transparent 45%),
                     radial-gradient(ellipse 60% 60% at 100% 100%, hsla(235, 22%, 8%, 1) 0px, transparent 50%),
                     radial-gradient(ellipse 50% 50% at 0% 100%, hsla(260, 30%, 10%, 1) 0px, transparent 50%);
 }
 
-.theme-ocean body {
+html.theme-ocean body {
   background-image: radial-gradient(ellipse 70% 60% at 0% 0%, hsla(200, 45%, 12%, 1) 0px, transparent 50%),
                     radial-gradient(ellipse 60% 50% at 100% 5%, hsla(168, 45%, 10%, 1) 0px, transparent 45%),
                     radial-gradient(ellipse 60% 60% at 100% 100%, hsla(190, 38%, 8%, 1) 0px, transparent 50%),
                     radial-gradient(ellipse 50% 50% at 0% 100%, hsla(168, 38%, 8%, 1) 0px, transparent 50%);
 }
 
-.theme-light body {
+html.theme-light body {
   background-image: none;
-  background-color: hsl(220 25% 97%);
+  background-color: hsl(220 20% 97%);
+}
+
+html.theme-light body::before {
+  background: radial-gradient(ellipse 80% 60% at 8% 15%, hsla(220, 85%, 50%, 0.04), transparent 50%),
+              radial-gradient(ellipse 60% 50% at 90% 10%, hsla(160, 60%, 38%, 0.03), transparent 45%),
+              radial-gradient(ellipse 70% 70% at 50% 95%, hsla(220, 50%, 50%, 0.02), transparent 55%);
+}
+
+html.theme-light body::after {
+  background-image: radial-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.3;
 }
 
 @layer utilities {
@@ -797,28 +810,28 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
 }
 
 /* Theme-specific preview colors */
-.theme-dark .theme-preview {
+html.theme-dark .theme-preview {
   --preview-bg-1: hsl(220, 24%, 10%);
   --preview-bg-2: hsl(220, 22%, 14%);
   --preview-accent-1: hsl(188, 84%, 45%);
   --preview-accent-2: hsl(28, 90%, 55%);
 }
 
-.theme-midnight .theme-preview {
+html.theme-midnight .theme-preview {
   --preview-bg-1: hsl(220, 25%, 8%);
   --preview-bg-2: hsl(220, 25%, 12%);
   --preview-accent-1: hsl(200, 70%, 50%);
   --preview-accent-2: hsl(28, 90%, 55%);
 }
 
-.theme-ocean .theme-preview {
+html.theme-ocean .theme-preview {
   --preview-bg-1: hsl(200, 35%, 10%);
   --preview-bg-2: hsl(200, 35%, 14%);
   --preview-accent-1: hsl(168, 76%, 42%);
   --preview-accent-2: hsl(199, 89%, 48%);
 }
 
-.theme-light .theme-preview {
+html.theme-light .theme-preview {
   --preview-bg-1: hsl(220, 20%, 97%);
   --preview-bg-2: hsl(0, 0%, 100%);
   --preview-accent-1: hsl(220, 85%, 50%);
@@ -826,7 +839,7 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
 }
 
 /* Glass effect variables per theme */
-:root {
+:root, html.theme-dark {
   --glass-border: rgba(255, 255, 255, 0.1);
   --glass-border-subtle: rgba(255, 255, 255, 0.05);
   --glass-shadow: var(--shadow-medium);
@@ -835,23 +848,23 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
   --surface-glow: rgba(59, 180, 200, 0.03);
 }
 
-.theme-light {
-  --glass-border: rgba(0, 0, 0, 0.06);
-  --glass-border-subtle: rgba(0, 0, 0, 0.04);
-  --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
-  --glass-highlight: rgba(0, 0, 0, 0.03);
-  --glass-highlight-strong: rgba(0, 0, 0, 0.06);
-  --surface-glow: rgba(59, 130, 246, 0.02);
+html.theme-light {
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-border-subtle: rgba(0, 0, 0, 0.05);
+  --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --glass-highlight: rgba(255, 255, 255, 0.8);
+  --glass-highlight-strong: rgba(255, 255, 255, 0.95);
+  --surface-glow: rgba(59, 130, 246, 0.04);
 }
 
-.theme-midnight {
+html.theme-midnight {
   --glass-border: rgba(130, 160, 255, 0.12);
   --glass-border-subtle: rgba(130, 160, 255, 0.06);
   --glass-shadow: 0 12px 40px rgba(10, 16, 30, 0.45);
   --surface-glow: rgba(130, 160, 255, 0.03);
 }
 
-.theme-ocean {
+html.theme-ocean {
   --glass-border: rgba(80, 200, 180, 0.12);
   --glass-border-subtle: rgba(80, 200, 180, 0.06);
   --glass-shadow: 0 10px 36px rgba(16, 60, 80, 0.35);
@@ -859,7 +872,7 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
 }
 
 /* Theme: Midnight - Deep purple tones */
-.theme-midnight {
+html.theme-midnight {
   --color-primary: hsl(200 70% 50%);
   --color-primary-foreground: hsl(0 0% 100%);
   --color-secondary: hsl(28 90% 55%);
@@ -893,7 +906,7 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
 }
 
 /* Theme: Ocean - Blue-green palette */
-.theme-ocean {
+html.theme-ocean {
   --color-primary: hsl(168 76% 42%);
   --color-primary-foreground: hsl(0 0% 100%);
   --color-secondary: hsl(199 89% 48%);
@@ -927,7 +940,8 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
 }
 
 /* Theme: Light - Clean professional light mode */
-.theme-light {
+html.theme-light {
+  color-scheme: light;
   --color-primary: hsl(220 85% 50%);
   --color-primary-foreground: hsl(0 0% 100%);
   --color-secondary: hsl(160 60% 38%);
@@ -944,6 +958,8 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
   --color-accent-foreground: hsl(220 85% 45%);
   --color-destructive: hsl(0 72% 50%);
   --color-destructive-foreground: hsl(0 0% 100%);
+  --color-success: hsl(152 68% 35%);
+  --color-success-foreground: hsl(0 0% 100%);
   --color-border: hsl(220 15% 85%);
   --color-input: hsl(220 15% 85%);
   --color-ring: hsl(220 85% 50%);
@@ -965,6 +981,15 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
   --color-chart-3: hsl(0 72% 50%);
   --color-chart-4: hsl(35 90% 50%);
   --color-chart-5: hsl(280 60% 55%);
+  /* Light mode shadows - softer */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-medium: 0 8px 24px rgba(0, 0, 0, 0.10);
+  --shadow-strong: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.08);
+  --surface-highlight: hsl(220 85% 50% / 0.05);
+  --surface-glow: hsl(220 85% 50% / 0.03);
 }
 
 /* Font size adjustments */
@@ -1064,34 +1089,34 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
   background: hsl(200 35% 30%);
 }
 
-.theme-dark ::-webkit-scrollbar-thumb:hover {
+html.theme-dark ::-webkit-scrollbar-thumb:hover {
   background: hsl(200 35% 40%);
 }
 
 /* Midnight theme scrollbar */
-.theme-midnight ::-webkit-scrollbar-thumb {
+html.theme-midnight ::-webkit-scrollbar-thumb {
   background: hsl(270 30% 25%);
 }
 
-.theme-midnight ::-webkit-scrollbar-thumb:hover {
+html.theme-midnight ::-webkit-scrollbar-thumb:hover {
   background: hsl(270 30% 35%);
 }
 
 /* Ocean theme scrollbar */
-.theme-ocean ::-webkit-scrollbar-thumb {
+html.theme-ocean ::-webkit-scrollbar-thumb {
   background: hsl(168 76% 25%);
 }
 
-.theme-ocean ::-webkit-scrollbar-thumb:hover {
+html.theme-ocean ::-webkit-scrollbar-thumb:hover {
   background: hsl(168 76% 35%);
 }
 
 /* Light theme scrollbar */
-.theme-light ::-webkit-scrollbar-thumb {
+html.theme-light ::-webkit-scrollbar-thumb {
   background: hsl(215 20% 70%);
 }
 
-.theme-light ::-webkit-scrollbar-thumb:hover {
+html.theme-light ::-webkit-scrollbar-thumb:hover {
   background: hsl(215 20% 60%);
 }
 
@@ -1101,15 +1126,15 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
   scrollbar-width: thin;
 }
 
-.theme-light {
+html.theme-light {
   scrollbar-color: hsl(215 20% 70%) transparent;
 }
 
-.theme-midnight {
+html.theme-midnight {
   scrollbar-color: hsl(270 30% 25%) transparent;
 }
 
-.theme-ocean {
+html.theme-ocean {
   scrollbar-color: hsl(168 76% 25%) transparent;
 }
 
@@ -1119,117 +1144,199 @@ body:not(.theme-light):not(.theme-midnight):not(.theme-ocean) {
    ======================================== */
 
 /* Hardcoded slate backgrounds → theme-aware */
-.theme-light .bg-slate-900,
-.theme-light .bg-slate-900\/50,
-.theme-light .bg-slate-900\/40,
-.theme-light .bg-slate-800,
-.theme-light .bg-slate-800\/50 {
+html.theme-light .bg-slate-900,
+html.theme-light .bg-slate-900\/50,
+html.theme-light .bg-slate-900\/40,
+html.theme-light .bg-slate-800,
+html.theme-light .bg-slate-800\/50 {
   background-color: var(--color-card) !important;
 }
 
-.theme-light .bg-black\/20,
-.theme-light .bg-black\/10 {
+html.theme-light .bg-black\/20,
+html.theme-light .bg-black\/10 {
   background-color: var(--color-muted) !important;
 }
 
 /* Hardcoded slate text → theme-aware */
-.theme-light .text-white {
+html.theme-light .text-white {
   color: var(--color-foreground) !important;
 }
 
-.theme-light .text-slate-100,
-.theme-light .text-slate-200 {
+html.theme-light .text-slate-100,
+html.theme-light .text-slate-200 {
   color: var(--color-foreground) !important;
 }
 
-.theme-light .text-slate-300,
-.theme-light .text-slate-400 {
+html.theme-light .text-slate-300,
+html.theme-light .text-slate-400 {
   color: var(--color-muted-foreground) !important;
 }
 
 /* Hardcoded borders → theme-aware */
-.theme-light .border-slate-700,
-.theme-light .border-slate-700\/50,
-.theme-light .border-slate-600,
-.theme-light .border-white\/10,
-.theme-light .border-white\/5 {
+html.theme-light .border-slate-700,
+html.theme-light .border-slate-700\/50,
+html.theme-light .border-slate-600,
+html.theme-light .border-white\/10,
+html.theme-light .border-white\/5 {
   border-color: var(--color-border) !important;
 }
 
 /* Button text should stay white on colored buttons */
-.theme-light button.bg-gradient-to-r .text-white,
-.theme-light .bg-gradient-to-r.text-white,
-.theme-light [class*="bg-blue-"] .text-white,
-.theme-light [class*="bg-teal-"] .text-white,
-.theme-light [class*="bg-green-"] .text-white,
-.theme-light [class*="bg-red-"] .text-white,
-.theme-light [class*="bg-amber-"] .text-white,
-.theme-light [class*="bg-indigo-"] .text-white,
-.theme-light [class*="bg-purple-"] .text-white {
+html.theme-light button.bg-gradient-to-r .text-white,
+html.theme-light .bg-gradient-to-r.text-white,
+html.theme-light [class*="bg-blue-"] .text-white,
+html.theme-light [class*="bg-teal-"] .text-white,
+html.theme-light [class*="bg-green-"] .text-white,
+html.theme-light [class*="bg-red-"] .text-white,
+html.theme-light [class*="bg-amber-"] .text-white,
+html.theme-light [class*="bg-indigo-"] .text-white,
+html.theme-light [class*="bg-purple-"] .text-white {
   color: white !important;
 }
 
 /* Gradient button backgrounds - keep them vibrant */
-.theme-light .from-blue-600,
-.theme-light .from-blue-500 {
+html.theme-light .from-blue-600,
+html.theme-light .from-blue-500 {
   --tw-gradient-from: hsl(220 85% 50%);
 }
 
-.theme-light .to-teal-500,
-.theme-light .to-teal-400 {
+html.theme-light .to-teal-500,
+html.theme-light .to-teal-400 {
   --tw-gradient-to: hsl(168 76% 42%);
 }
 
 /* Accent blur circles in login - make them subtle for light mode */
-.theme-light .bg-blue-600\/10 {
+html.theme-light .bg-blue-600\/10 {
   background-color: hsl(220 85% 50% / 0.05) !important;
 }
 
-.theme-light .bg-violet-500\/10 {
+html.theme-light .bg-violet-500\/10 {
   background-color: hsl(280 60% 55% / 0.05) !important;
 }
 
+/* Light theme glass card improvements */
+html.theme-light .glass-card {
+  background-color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+html.theme-light .glass-card::before {
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.5), transparent 50%);
+}
+
+html.theme-light .glass-card::after {
+  background: none;
+}
+
+html.theme-light .glass-card:hover {
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* Light theme app surface */
+html.theme-light .app-surface {
+  background-color: rgba(255, 255, 255, 0.98);
+  border-color: rgba(0, 0, 0, 0.06);
+  box-shadow: 
+    0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+html.theme-light .app-surface::before {
+  background: radial-gradient(ellipse at 25% 20%, rgba(59, 130, 246, 0.03), transparent 50%);
+}
+
+/* Light theme pill badges */
+html.theme-light .pill-primary {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.2);
+  color: hsl(220 85% 45%);
+}
+
+html.theme-light .pill-secondary {
+  background-color: rgba(52, 211, 153, 0.1);
+  border-color: rgba(52, 211, 153, 0.2);
+  color: hsl(160 60% 35%);
+}
+
+html.theme-light .pill-success {
+  background-color: rgba(52, 211, 153, 0.1);
+  border-color: rgba(52, 211, 153, 0.2);
+  color: hsl(152 68% 35%);
+}
+
+html.theme-light .pill-muted {
+  background-color: hsl(220 15% 93%);
+  border-color: hsl(220 15% 85%);
+  color: hsl(220 10% 45%);
+}
+
+/* Light theme stat card */
+html.theme-light .stat-card {
+  background-color: rgba(255, 255, 255, 0.98);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+html.theme-light .stat-card-value {
+  background: linear-gradient(135deg, hsl(220 85% 50%), hsl(220 85% 40%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Light theme gradient text */
+html.theme-light .gradient-text {
+  background: linear-gradient(135deg, hsl(220 85% 50%), hsl(220 85% 40%), hsl(160 60% 38%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 /* Midnight theme hardcoded color overrides */
-.theme-midnight .bg-slate-900,
-.theme-midnight .bg-slate-900\/50,
-.theme-midnight .bg-slate-900\/40,
-.theme-midnight .bg-slate-800,
-.theme-midnight .bg-slate-800\/50 {
+html.theme-midnight .bg-slate-900,
+html.theme-midnight .bg-slate-900\/50,
+html.theme-midnight .bg-slate-900\/40,
+html.theme-midnight .bg-slate-800,
+html.theme-midnight .bg-slate-800\/50 {
   background-color: var(--color-card) !important;
 }
 
-.theme-midnight .border-white\/10,
-.theme-midnight .border-white\/5 {
+html.theme-midnight .border-white\/10,
+html.theme-midnight .border-white\/5 {
   border-color: var(--glass-border) !important;
 }
 
 /* Ocean theme hardcoded color overrides */
-.theme-ocean .bg-slate-900,
-.theme-ocean .bg-slate-900\/50,
-.theme-ocean .bg-slate-900\/40,
-.theme-ocean .bg-slate-800,
-.theme-ocean .bg-slate-800\/50 {
+html.theme-ocean .bg-slate-900,
+html.theme-ocean .bg-slate-900\/50,
+html.theme-ocean .bg-slate-900\/40,
+html.theme-ocean .bg-slate-800,
+html.theme-ocean .bg-slate-800\/50 {
   background-color: var(--color-card) !important;
 }
 
-.theme-ocean .border-white\/10,
-.theme-ocean .border-white\/5 {
+html.theme-ocean .border-white\/10,
+html.theme-ocean .border-white\/5 {
   border-color: var(--glass-border) !important;
 }
 
 /* Theme-specific accent blurs for login page */
-.theme-midnight .bg-blue-600\/10 {
+html.theme-midnight .bg-blue-600\/10 {
   background-color: hsl(262 83% 58% / 0.15) !important;
 }
 
-.theme-midnight .bg-violet-500\/10 {
+html.theme-midnight .bg-violet-500\/10 {
   background-color: hsl(280 65% 60% / 0.15) !important;
 }
 
-.theme-ocean .bg-blue-600\/10 {
+html.theme-ocean .bg-blue-600\/10 {
   background-color: hsl(168 76% 42% / 0.15) !important;
 }
 
-.theme-ocean .bg-violet-500\/10 {
+html.theme-ocean .bg-violet-500\/10 {
   background-color: hsl(199 89% 48% / 0.15) !important;
 }
