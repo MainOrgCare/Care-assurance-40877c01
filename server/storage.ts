@@ -36,6 +36,8 @@ import {
   type InsertEmarCorrection,
   type AiUsageLog,
   type InsertAiUsageLog,
+  type ContactMessage,
+  type InsertContactMessage,
   users,
   careWorkers,
   discrepancies,
@@ -52,6 +54,7 @@ import {
   fileScanLogs,
   emarCorrections,
   aiUsageLogs,
+  contactMessages,
 } from "@shared/schema";
 
 const SALT_ROUNDS = 10;
@@ -174,6 +177,14 @@ export interface IStorage {
   createAiUsageLog(log: InsertAiUsageLog): Promise<AiUsageLog>;
   getAiUsageLogs(options?: { limit?: number; startDate?: Date; endDate?: Date }): Promise<AiUsageLog[]>;
   getAiUsageStats(): Promise<{ totalCost: number; totalCalls: number; byFeature: Record<string, { calls: number; cost: number; tokens: number }> }>;
+
+  // Contact Message operations
+  createContactMessage(message: InsertContactMessage): Promise<ContactMessage>;
+  getContactMessages(includeArchived?: boolean): Promise<ContactMessage[]>;
+  markContactMessageRead(id: string, readBy: string): Promise<ContactMessage | undefined>;
+  archiveContactMessage(id: string): Promise<ContactMessage | undefined>;
+  deleteContactMessage(id: string): Promise<void>;
+  getUnreadContactMessageCount(): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -912,6 +923,48 @@ export class DatabaseStorage implements IStorage {
     }
     
     return { totalCost, totalCalls, byFeature };
+  }
+
+  // Contact Message operations
+  async createContactMessage(message: InsertContactMessage): Promise<ContactMessage> {
+    const result = await this.db.insert(contactMessages).values(message).returning();
+    return result[0];
+  }
+
+  async getContactMessages(includeArchived = false): Promise<ContactMessage[]> {
+    if (includeArchived) {
+      return await this.db.select().from(contactMessages).orderBy(desc(contactMessages.createdAt));
+    }
+    return await this.db.select().from(contactMessages)
+      .where(eq(contactMessages.isArchived, false))
+      .orderBy(desc(contactMessages.createdAt));
+  }
+
+  async markContactMessageRead(id: string, readBy: string): Promise<ContactMessage | undefined> {
+    const result = await this.db.update(contactMessages)
+      .set({ isRead: true, readBy, readAt: new Date() })
+      .where(eq(contactMessages.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async archiveContactMessage(id: string): Promise<ContactMessage | undefined> {
+    const result = await this.db.update(contactMessages)
+      .set({ isArchived: true })
+      .where(eq(contactMessages.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteContactMessage(id: string): Promise<void> {
+    await this.db.delete(contactMessages).where(eq(contactMessages.id, id));
+  }
+
+  async getUnreadContactMessageCount(): Promise<number> {
+    const result = await this.db.select({ count: sql<number>`count(*)` })
+      .from(contactMessages)
+      .where(and(eq(contactMessages.isRead, false), eq(contactMessages.isArchived, false)));
+    return Number(result[0]?.count || 0);
   }
 }
 

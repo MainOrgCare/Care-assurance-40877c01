@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Eye, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, UserMinus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp } from "lucide-react";
+import { Shield, Eye, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, UserMinus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink } from "lucide-react";
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
@@ -58,6 +58,19 @@ interface AiUsageStats {
   totalCost: number;
   totalCalls: number;
   byFeature: Record<string, { calls: number; cost: number; tokens: number }>;
+}
+
+interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  organisation: string | null;
+  message: string;
+  isRead: boolean;
+  isArchived: boolean;
+  readBy: string | null;
+  readAt: string | null;
+  createdAt: string;
 }
 
 function formatCost(microDollars: number): string {
@@ -2009,6 +2022,307 @@ function PolicyDocumentsSection() {
   );
 }
 
+function ContactMessagesSection() {
+  const [messages, setMessages] = useState<ContactMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchMessages();
+  }, [showArchived]);
+
+  const fetchMessages = async () => {
+    try {
+      const response = await fetch(`/api/contact/messages?includeArchived=${showArchived}`, {
+        credentials: "include",
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setMessages(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch contact messages:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkRead = async (id: string) => {
+    try {
+      const response = await fetch(`/api/contact/messages/${id}/read`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      if (response.ok) {
+        setMessages(messages.map(m => 
+          m.id === id ? { ...m, isRead: true } : m
+        ));
+        if (selectedMessage?.id === id) {
+          setSelectedMessage({ ...selectedMessage, isRead: true });
+        }
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to mark message as read", variant: "destructive" });
+    }
+  };
+
+  const handleArchive = async (id: string) => {
+    try {
+      const response = await fetch(`/api/contact/messages/${id}/archive`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      if (response.ok) {
+        toast({ title: "Archived", description: "Message has been archived" });
+        setMessages(messages.filter(m => m.id !== id));
+        setSelectedMessage(null);
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to archive message", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await fetch(`/api/contact/messages/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (response.ok) {
+        toast({ title: "Deleted", description: "Message has been deleted" });
+        setMessages(messages.filter(m => m.id !== id));
+        setSelectedMessage(null);
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete message", variant: "destructive" });
+    }
+  };
+
+  const unreadCount = messages.filter(m => !m.isRead).length;
+
+  if (loading) {
+    return (
+      <Card className="bg-card border-white/5 backdrop-blur-sm">
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Stats */}
+      <div className="grid md:grid-cols-3 gap-4">
+        <Card className="bg-card border-white/5 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <Mail size={14} className="text-blue-500" /> Total Messages
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-400">{messages.length}</div>
+            <p className="text-xs text-muted-foreground">Contact form submissions</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-white/5 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <MailOpen size={14} className="text-amber-500" /> Unread
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-400">{unreadCount}</div>
+            <p className="text-xs text-muted-foreground">Awaiting review</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-white/5 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <Archive size={14} className="text-gray-500" /> View
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={showArchived}
+                onCheckedChange={setShowArchived}
+              />
+              <span className="text-sm text-muted-foreground">
+                {showArchived ? "Including archived" : "Active only"}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Messages List */}
+      <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
+        <CardHeader className="border-b border-white/5 bg-black/20">
+          <CardTitle className="flex items-center gap-2 text-foreground text-base">
+            <Mail size={18} className="text-teal-400" />
+            Contact Form Messages
+          </CardTitle>
+          <CardDescription className="text-muted-foreground text-sm">
+            Messages from the public contact form on the homepage.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {messages.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Mail className="h-12 w-12 mx-auto mb-4 opacity-20" />
+              <p>No messages yet</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`p-4 cursor-pointer hover:bg-white/5 transition-colors ${
+                    !msg.isRead ? "bg-blue-500/5 border-l-2 border-blue-500" : ""
+                  } ${selectedMessage?.id === msg.id ? "bg-white/10" : ""}`}
+                  onClick={() => {
+                    setSelectedMessage(msg);
+                    if (!msg.isRead) handleMarkRead(msg.id);
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        {!msg.isRead && (
+                          <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                        )}
+                        <span className="font-medium text-foreground">{msg.name}</span>
+                        {msg.organisation && (
+                          <Badge variant="outline" className="text-xs border-white/20">
+                            {msg.organisation}
+                          </Badge>
+                        )}
+                        {msg.isArchived && (
+                          <Badge variant="secondary" className="text-xs bg-gray-500/20 text-gray-400">
+                            Archived
+                          </Badge>
+                        )}
+                      </div>
+                      <a
+                        href={`mailto:${msg.email}`}
+                        className="text-sm text-teal-400 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {msg.email}
+                      </a>
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                        {msg.message}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(msg.createdAt).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(msg.createdAt).toLocaleTimeString("en-GB", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Message Detail Dialog */}
+      <Dialog open={!!selectedMessage} onOpenChange={() => setSelectedMessage(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail size={20} />
+              Message from {selectedMessage?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Received {selectedMessage && new Date(selectedMessage.createdAt).toLocaleString("en-GB")}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedMessage && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Name</Label>
+                  <p className="font-medium">{selectedMessage.name}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Email</Label>
+                  <a href={`mailto:${selectedMessage.email}`} className="font-medium text-teal-400 hover:underline flex items-center gap-1">
+                    {selectedMessage.email}
+                    <ExternalLink size={12} />
+                  </a>
+                </div>
+                {selectedMessage.organisation && (
+                  <div className="col-span-2">
+                    <Label className="text-xs text-muted-foreground">Organisation</Label>
+                    <p className="font-medium">{selectedMessage.organisation}</p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground mb-2 block">Message</Label>
+                <div className="p-4 bg-muted/20 rounded-lg border border-white/5">
+                  <p className="whitespace-pre-wrap text-foreground">{selectedMessage.message}</p>
+                </div>
+              </div>
+
+              {selectedMessage.readBy && (
+                <p className="text-xs text-muted-foreground">
+                  Read by {selectedMessage.readBy} on {selectedMessage.readAt && new Date(selectedMessage.readAt).toLocaleString("en-GB")}
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => selectedMessage && handleArchive(selectedMessage.id)}
+              className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+            >
+              <Archive size={14} className="mr-2" />
+              Archive
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => selectedMessage && handleDelete(selectedMessage.id)}
+              className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+            >
+              <Trash2 size={14} className="mr-2" />
+              Delete
+            </Button>
+            <Button
+              variant="default"
+              onClick={() => selectedMessage && window.open(`mailto:${selectedMessage.email}?subject=Re: Your CareAssurance Inquiry`, "_blank")}
+            >
+              <Mail size={14} className="mr-2" />
+              Reply via Email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 interface EditingUser {
   id: string;
   username: string;
@@ -2490,6 +2804,10 @@ export default function SecretAdminPortal() {
               <TabsTrigger value="presence" className="rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground">
                 Active Presence
               </TabsTrigger>
+              <TabsTrigger value="messages" className="rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                <Mail size={14} className="mr-1.5 inline-block" />
+                Messages
+              </TabsTrigger>
               <TabsTrigger value="policies" className="rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground">
                 <FileText size={14} className="mr-1.5 inline-block" />
                 Policy Documents
@@ -2898,6 +3216,10 @@ export default function SecretAdminPortal() {
 
             <TabsContent value="policies" className="space-y-6">
               <PolicyDocumentsSection />
+            </TabsContent>
+
+            <TabsContent value="messages" className="space-y-6">
+              <ContactMessagesSection />
             </TabsContent>
 
             <TabsContent value="ai-costs" className="space-y-6">

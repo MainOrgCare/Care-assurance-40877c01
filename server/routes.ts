@@ -10,7 +10,7 @@ import connectPgSimple from "connect-pg-simple";
 import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
-import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema } from "@shared/schema";
+import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema } from "@shared/schema";
 import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { emarAgent } from "./services/emarAgent";
 import multer from "multer";
@@ -21,7 +21,6 @@ import { convertPdfToImages } from "./services/pdfToImages";
 // Use legacy build for Node.js (no DOM APIs required)
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
-import nodemailer from "nodemailer";
 // Vision-based extraction for improved EMAR accuracy
 
 const upload = multer({ 
@@ -10017,20 +10016,15 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   });
 
   // =====================================================================
-  // CONTACT FORM - Email sending via SMTP
+  // CONTACT FORM - Stores messages for admin review
   // =====================================================================
 
-  // Check if SMTP is configured
+  // Contact form is always enabled (no SMTP required)
   app.get("/api/contact/status", async (req, res) => {
-    const isConfigured = Boolean(
-      process.env.SMTP_HOST &&
-      process.env.SMTP_USER &&
-      process.env.SMTP_PASS
-    );
-    return res.json({ enabled: isConfigured });
+    return res.json({ enabled: true });
   });
 
-  // Send contact form message
+  // Submit contact form message (public endpoint)
   app.post("/api/contact", async (req, res) => {
     try {
       const { name, email, organisation, message } = req.body;
@@ -10046,118 +10040,107 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         return res.status(400).json({ message: "Please enter a message (at least 10 characters)" });
       }
 
-      // Check SMTP configuration
-      const smtpHost = process.env.SMTP_HOST;
-      const smtpPort = parseInt(process.env.SMTP_PORT || "587", 10);
-      const smtpSecure = process.env.SMTP_SECURE === "true";
-      const smtpUser = process.env.SMTP_USER;
-      const smtpPass = process.env.SMTP_PASS;
-      const contactEmail = process.env.CONTACT_EMAIL || smtpUser;
-      const contactFrom = process.env.CONTACT_FROM || smtpUser;
-
-      if (!smtpHost || !smtpUser || !smtpPass) {
-        console.error("[Contact] SMTP not configured - missing SMTP_HOST, SMTP_USER, or SMTP_PASS");
-        return res.status(503).json({ 
-          message: "Contact form is not available at this time. Please try again later." 
-        });
-      }
-
-      // Create nodemailer transporter for Office 365
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpSecure,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-        tls: {
-          ciphers: "SSLv3",
-          rejectUnauthorized: false,
-        },
-      });
-
-      // Sanitize inputs for email
+      // Sanitize inputs
       const sanitizedName = name.trim().slice(0, 100);
       const sanitizedEmail = email.trim().slice(0, 100);
-      const sanitizedOrg = organisation ? String(organisation).trim().slice(0, 100) : "Not specified";
+      const sanitizedOrg = organisation ? String(organisation).trim().slice(0, 100) : null;
       const sanitizedMessage = message.trim().slice(0, 5000);
 
-      // Email content
-      const emailSubject = `CareAssurance Contact: ${sanitizedName}`;
-      const emailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #0f172a; border-bottom: 2px solid #3bb4c8; padding-bottom: 10px;">
-            New Contact Form Submission
-          </h2>
-          
-          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-            <tr>
-              <td style="padding: 10px; background: #f1f5f9; font-weight: bold; width: 140px;">Name:</td>
-              <td style="padding: 10px; background: #f8fafc;">${sanitizedName}</td>
-            </tr>
-            <tr>
-              <td style="padding: 10px; background: #f1f5f9; font-weight: bold;">Email:</td>
-              <td style="padding: 10px; background: #f8fafc;">
-                <a href="mailto:${sanitizedEmail}" style="color: #3bb4c8;">${sanitizedEmail}</a>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding: 10px; background: #f1f5f9; font-weight: bold;">Organisation:</td>
-              <td style="padding: 10px; background: #f8fafc;">${sanitizedOrg}</td>
-            </tr>
-          </table>
-          
-          <h3 style="color: #334155; margin-top: 30px;">Message:</h3>
-          <div style="background: #f8fafc; padding: 20px; border-radius: 8px; border-left: 4px solid #3bb4c8;">
-            <p style="white-space: pre-wrap; margin: 0; color: #475569; line-height: 1.6;">
-${sanitizedMessage}
-            </p>
-          </div>
-          
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;" />
-          <p style="font-size: 12px; color: #94a3b8;">
-            This message was sent via the CareAssurance contact form at ${new Date().toLocaleString("en-GB", { timeZone: "Europe/London" })}.
-          </p>
-        </div>
-      `;
-
-      const emailText = `
-New Contact Form Submission
-===========================
-
-Name: ${sanitizedName}
-Email: ${sanitizedEmail}
-Organisation: ${sanitizedOrg}
-
-Message:
-${sanitizedMessage}
-
----
-Sent via CareAssurance contact form at ${new Date().toLocaleString("en-GB", { timeZone: "Europe/London" })}
-      `.trim();
-
-      // Send the email
-      await transporter.sendMail({
-        from: `"CareAssurance Contact" <${contactFrom}>`,
-        to: contactEmail,
-        replyTo: sanitizedEmail,
-        subject: emailSubject,
-        text: emailText,
-        html: emailHtml,
+      // Save to database
+      await storage.createContactMessage({
+        name: sanitizedName,
+        email: sanitizedEmail,
+        organisation: sanitizedOrg,
+        message: sanitizedMessage,
       });
 
-      console.log(`[Contact] Email sent successfully from ${sanitizedEmail} (${sanitizedName})`);
+      console.log(`[Contact] Message saved from ${sanitizedEmail} (${sanitizedName})`);
 
       return res.json({ 
         success: true, 
         message: "Thank you for your message. We'll respond within 1 business day." 
       });
     } catch (error: any) {
-      console.error("[Contact] Email send failed:", error);
+      console.error("[Contact] Failed to save message:", error);
       return res.status(500).json({ 
-        message: "Failed to send message. Please try again or email us directly." 
+        message: "Failed to send message. Please try again later." 
       });
+    }
+  });
+
+  // Get all contact messages (admin only)
+  app.get("/api/contact/messages", async (req: any, res: any) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+
+    try {
+      const includeArchived = req.query.includeArchived === "true";
+      const messages = await storage.getContactMessages(includeArchived);
+      return res.json(messages);
+    } catch (error: any) {
+      console.error("[Contact] Failed to fetch messages:", error);
+      return res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  // Mark message as read (admin only)
+  app.patch("/api/contact/messages/:id/read", async (req: any, res: any) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+
+    try {
+      const { id } = req.params;
+      await storage.markContactMessageRead(id, req.user.username);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Contact] Failed to mark message as read:", error);
+      return res.status(500).json({ message: "Failed to update message" });
+    }
+  });
+
+  // Archive message (admin only)
+  app.patch("/api/contact/messages/:id/archive", async (req: any, res: any) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+
+    try {
+      const { id } = req.params;
+      await storage.archiveContactMessage(id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Contact] Failed to archive message:", error);
+      return res.status(500).json({ message: "Failed to archive message" });
+    }
+  });
+
+  // Delete message (admin only)
+  app.delete("/api/contact/messages/:id", async (req: any, res: any) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+
+    try {
+      const { id } = req.params;
+      await storage.deleteContactMessage(id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Contact] Failed to delete message:", error);
+      return res.status(500).json({ message: "Failed to delete message" });
     }
   });
 
