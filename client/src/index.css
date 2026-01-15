@@ -518,9 +518,9 @@ html.theme-light body {
 }
 
 html.theme-light body::before {
-  background: radial-gradient(ellipse 80% 60% at 8% 15%, hsla(220, 85%, 50%, 0.04), transparent 50%),
-              radial-gradient(ellipse 60% 50% at 90% 10%, hsla(160, 60%, 38%, 0.03), transparent 45%),
-              radial-gradient(ellipse 70% 70% at 50% 95%, hsla(220, 50%, 50%, 0.02), transparent 55%);
+  background: radial-gradient(ellipse 80% 60% at 8% 15%, hsla(217, 91%, 60%, 0.06), transparent 50%),
+              radial-gradient(ellipse 60% 50% at 90% 10%, hsla(142, 76%, 36%, 0.04), transparent 45%),
+              radial-gradient(ellipse 70% 70% at 50% 95%, hsla(217, 50%, 50%, 0.03), transparent 55%);
 }
 
 html.theme-light body::after {
@@ -939,45 +939,59 @@ html.theme-ocean {
   --color-sidebar-ring: hsl(168 76% 42%);
 }
 
-/* Theme: Light - Clean professional light mode */
+/* Theme: Light - Clean professional light mode matching homepage */
 html.theme-light {
   color-scheme: light;
-  --color-primary: hsl(220 85% 50%);
+  /* Primary: Professional Blue matching homepage #3b82f6 */
+  --color-primary: hsl(217 91% 60%);
   --color-primary-foreground: hsl(0 0% 100%);
-  --color-secondary: hsl(160 60% 38%);
+  /* Secondary: Success Green matching homepage #16a34a */
+  --color-secondary: hsl(142 76% 36%);
   --color-secondary-foreground: hsl(0 0% 100%);
-  --color-background: hsl(220 20% 97%);
-  --color-foreground: hsl(220 25% 18%);
+  /* Backgrounds - matching homepage #f8fafc */
+  --color-background: hsl(210 40% 98%);
+  /* Foreground - matching homepage #0f172a */
+  --color-foreground: hsl(222 47% 11%);
+  /* Card - clean white */
   --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(220 25% 18%);
+  --color-card-foreground: hsl(222 47% 11%);
+  /* Popover */
   --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(220 25% 18%);
-  --color-muted: hsl(220 15% 93%);
-  --color-muted-foreground: hsl(220 10% 45%);
-  --color-accent: hsl(220 85% 50% / 0.08);
-  --color-accent-foreground: hsl(220 85% 45%);
+  --color-popover-foreground: hsl(222 47% 11%);
+  /* Muted - matching homepage #f1f5f9 for soft backgrounds */
+  --color-muted: hsl(210 40% 96%);
+  /* Muted foreground - matching homepage #64748b */
+  --color-muted-foreground: hsl(215 16% 47%);
+  /* Accent */
+  --color-accent: hsl(217 91% 60% / 0.08);
+  --color-accent-foreground: hsl(217 91% 50%);
+  /* Destructive */
   --color-destructive: hsl(0 72% 50%);
   --color-destructive-foreground: hsl(0 0% 100%);
-  --color-success: hsl(152 68% 35%);
+  /* Success */
+  --color-success: hsl(142 76% 36%);
   --color-success-foreground: hsl(0 0% 100%);
-  --color-border: hsl(220 15% 85%);
-  --color-input: hsl(220 15% 85%);
-  --color-ring: hsl(220 85% 50%);
-  --color-primary-border: hsl(220 85% 42% / 0.45);
-  --color-secondary-border: hsl(160 60% 30% / 0.45);
+  /* Borders - subtle gray matching homepage feel */
+  --color-border: hsl(214 32% 91%);
+  --color-input: hsl(214 32% 91%);
+  --color-ring: hsl(217 91% 60%);
+  --color-primary-border: hsl(217 91% 50% / 0.45);
+  --color-secondary-border: hsl(142 76% 30% / 0.45);
   --color-destructive-border: hsl(0 72% 45% / 0.45);
-  --button-outline: hsl(220 15% 75% / 0.7);
-  --badge-outline: hsl(220 15% 70% / 0.7);
-  --color-sidebar: hsl(220 20% 98%);
-  --color-sidebar-foreground: hsl(220 25% 25%);
-  --color-sidebar-primary: hsl(220 85% 50%);
+  --button-outline: hsl(214 32% 80% / 0.7);
+  --badge-outline: hsl(214 32% 75% / 0.7);
+  /* Sidebar - light gray matching homepage */
+  --color-sidebar: hsl(210 40% 98%);
+  --color-sidebar-foreground: hsl(222 47% 11%);
+  --color-sidebar-primary: hsl(217 91% 60%);
   --color-sidebar-primary-foreground: hsl(0 0% 100%);
-  --color-sidebar-accent: hsl(220 15% 92%);
-  --color-sidebar-accent-foreground: hsl(220 25% 18%);
-  --color-sidebar-border: hsl(220 15% 88%);
-  --color-sidebar-ring: hsl(220 85% 50%);
-  --color-chart-1: hsl(220 85% 50%);
-  --color-chart-2: hsl(160 60% 38%);
+  --color-sidebar-accent: hsl(210 40% 96%);
+  --color-sidebar-accent-foreground: hsl(222 47% 11%);
+  --color-sidebar-border: hsl(214 32% 91%);
+  --color-sidebar-ring: hsl(217 91% 60%);
+  /* Chart colors */
+  --color-chart-1: hsl(217 91% 60%);
+  --color-chart-2: hsl(142 76% 36%);
   --color-chart-3: hsl(0 72% 50%);
   --color-chart-4: hsl(35 90% 50%);
   --color-chart-5: hsl(280 60% 55%);
@@ -988,8 +1002,8 @@ html.theme-light {
   --shadow-medium: 0 8px 24px rgba(0, 0, 0, 0.10);
   --shadow-strong: 0 12px 32px rgba(0, 0, 0, 0.12);
   --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.08);
-  --surface-highlight: hsl(220 85% 50% / 0.05);
-  --surface-glow: hsl(220 85% 50% / 0.03);
+  --surface-highlight: hsl(217 91% 60% / 0.05);
+  --surface-glow: hsl(217 91% 60% / 0.03);
 }
 
 /* Font size adjustments */
@@ -1216,7 +1230,7 @@ html.theme-light .bg-violet-500\/10 {
 
 /* Light theme glass card improvements */
 html.theme-light .glass-card {
-  background-color: rgba(255, 255, 255, 0.95);
+  background-color: rgba(255, 255, 255, 0.98);
   border-color: rgba(0, 0, 0, 0.08);
   box-shadow: 
     0 1px 3px rgba(0, 0, 0, 0.04),
@@ -1232,7 +1246,7 @@ html.theme-light .glass-card::after {
 }
 
 html.theme-light .glass-card:hover {
-  border-color: rgba(0, 0, 0, 0.12);
+  border-color: rgba(59, 130, 246, 0.2);
   box-shadow: 
     0 2px 4px rgba(0, 0, 0, 0.04),
     0 8px 24px rgba(0, 0, 0, 0.08);
@@ -1248,6 +1262,25 @@ html.theme-light .app-surface {
 
 html.theme-light .app-surface::before {
   background: radial-gradient(ellipse at 25% 20%, rgba(59, 130, 246, 0.03), transparent 50%);
+}
+
+/* Light theme sidebar styling */
+html.theme-light aside {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 1px 0 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Light theme header */
+html.theme-light header {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Light theme footer */
+html.theme-light footer {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  border-color: #e2e8f0 !important;
 }
 
 /* Light theme pill badges */

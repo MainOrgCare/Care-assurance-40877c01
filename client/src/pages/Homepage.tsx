@@ -281,40 +281,44 @@ export default function Homepage() {
       <header className="relative z-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-[hsl(220_70%_50%)] text-white flex items-center justify-center shadow-sm">
+            <div className="h-10 w-10 rounded-xl bg-[#3b82f6] text-white flex items-center justify-center shadow-sm">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-base font-bold text-foreground">CareAssurance</div>
-              <div className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-medium">Compliance Platform</div>
+              <div className="text-base font-bold" style={{ color: '#0f172a' }}>CareAssurance</div>
+              <div className="text-[11px] uppercase tracking-[0.15em] font-medium" style={{ color: '#64748b' }}>Compliance Platform</div>
             </div>
           </div>
 
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
+          <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
             <button
               type="button"
-              className="bg-transparent p-0 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className="bg-transparent p-0 text-sm font-medium transition-colors"
+              style={{ color: '#64748b' }}
               onClick={() => scrollToSection("platform")}
             >
               Platform
             </button>
             <button
               type="button"
-              className="bg-transparent p-0 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className="bg-transparent p-0 text-sm font-medium transition-colors"
+              style={{ color: '#64748b' }}
               onClick={() => scrollToSection("compliance")}
             >
               Compliance
             </button>
             <button
               type="button"
-              className="bg-transparent p-0 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className="bg-transparent p-0 text-sm font-medium transition-colors"
+              style={{ color: '#64748b' }}
               onClick={() => scrollToSection("roi")}
             >
               Savings
             </button>
             <button
               type="button"
-              className="bg-transparent p-0 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className="bg-transparent p-0 text-sm font-medium transition-colors"
+              style={{ color: '#64748b' }}
               onClick={() => scrollToSection("contact")}
             >
               Contact
@@ -330,21 +334,21 @@ export default function Homepage() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-0" align="end">
-                <div className="p-4 border-b border-border">
+              <PopoverContent className="w-80 p-0" align="end" style={{ backgroundColor: '#ffffff' }}>
+                <div className="p-4" style={{ borderBottom: '1px solid #e2e8f0' }}>
                   <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-xl bg-[hsl(220_70%_50%)] text-white flex items-center justify-center">
+                    <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
                       <ShieldCheck className="h-4 w-4" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-foreground">Welcome Back</h3>
-                      <p className="text-xs text-muted-foreground">Sign in to your account</p>
+                      <h3 className="font-semibold" style={{ color: '#0f172a' }}>Welcome Back</h3>
+                      <p className="text-xs" style={{ color: '#64748b' }}>Sign in to your account</p>
                     </div>
                   </div>
                 </div>
                 <form onSubmit={handleLogin} className="p-4 space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-username" className="text-sm text-muted-foreground">Username</Label>
+                    <Label htmlFor="login-username" className="text-sm" style={{ color: '#475569' }}>Username</Label>
                     <Input
                       id="login-username"
                       placeholder="Enter username"
@@ -352,12 +356,12 @@ export default function Homepage() {
                       onChange={(e) => setUsername(e.target.value)}
                       required
                       autoComplete="username"
-                      className="bg-background"
+                      style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}
                       data-testid="input-dropdown-username"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="login-password" className="text-sm text-muted-foreground">Password</Label>
+                    <Label htmlFor="login-password" className="text-sm" style={{ color: '#475569' }}>Password</Label>
                     <Input
                       id="login-password"
                       type="password"
@@ -366,7 +370,7 @@ export default function Homepage() {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       autoComplete="current-password"
-                      className="bg-background"
+                      style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}
                       data-testid="input-dropdown-password"
                     />
                   </div>
@@ -381,7 +385,7 @@ export default function Homepage() {
                   </Button>
                 </form>
                 <div className="px-4 pb-4 text-center">
-                  <p className="text-xs text-muted-foreground">Need access? Contact your administrator</p>
+                  <p className="text-xs" style={{ color: '#64748b' }}>Need access? Contact your administrator</p>
                 </div>
               </PopoverContent>
             </Popover>
@@ -394,10 +398,10 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
             <motion.div {...reveal()} className="text-center lg:text-left">
               <span className="home-eyebrow">Operational Assurance for UK Care</span>
-              <h1 className="mt-5 text-4xl sm:text-5xl lg:text-[3.25rem] font-heading font-bold text-foreground leading-[1.1]">
+              <h1 className="mt-5 text-4xl sm:text-5xl lg:text-[3.25rem] font-heading font-bold leading-[1.1]" style={{ color: 'hsl(220, 25%, 10%)' }}>
                 Compliance reporting that feels calm, clear, and prepared.
               </h1>
-              <p className="mt-6 text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0 leading-relaxed">
+              <p className="mt-6 text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed" style={{ color: 'hsl(220, 10%, 35%)' }}>
                 CareAssurance streamlines EMAR audits, care plans, and visit reviews into one
                 structured workspace. Detect risks earlier, document decisions faster, and walk
                 into inspections with confidence.
@@ -419,12 +423,12 @@ export default function Homepage() {
               <div className="mt-10 grid grid-cols-2 gap-4">
                 {HERO_STATS.map((stat) => (
                   <div key={stat.label} className="home-card-soft p-4 text-left">
-                    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                      <stat.icon className="h-4 w-4 text-foreground/70" />
+                    <div className="flex items-center gap-2 text-xs font-medium" style={{ color: 'hsl(220, 10%, 50%)' }}>
+                      <stat.icon className="h-4 w-4" style={{ color: 'hsl(220, 25%, 30%)' }} />
                       {stat.label}
                     </div>
-                    <div className="mt-2 text-xl font-bold text-foreground">{stat.value}</div>
-                    <div className="text-xs font-medium text-muted-foreground mt-0.5">{stat.detail}</div>
+                    <div className="mt-2 text-xl font-bold" style={{ color: 'hsl(220, 25%, 10%)' }}>{stat.value}</div>
+                    <div className="text-xs font-medium mt-0.5" style={{ color: 'hsl(220, 10%, 50%)' }}>{stat.detail}</div>
                   </div>
                 ))}
               </div>
@@ -432,26 +436,30 @@ export default function Homepage() {
 
             <motion.div {...reveal(0.1)} className="relative">
               <div className="home-card p-4">
-                <img
-                  src="/opengraph.jpg"
-                  alt="CareAssurance platform preview"
-                  className="w-full rounded-2xl border border-border object-cover"
-                />
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="home-card-soft p-3">
-                    <p className="text-xs text-muted-foreground">Live audits reviewed</p>
-                    <p className="text-lg font-semibold text-foreground">248</p>
-                  </div>
-                  <div className="home-card-soft p-3">
-                    <p className="text-xs text-muted-foreground">Open issues flagged</p>
-                    <p className="text-lg font-semibold text-foreground">7</p>
+                <div 
+                  className="w-full rounded-2xl aspect-video flex items-center justify-center"
+                  style={{ 
+                    background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+                    border: '1px solid #475569'
+                  }}
+                >
+                  <div className="text-center p-8">
+                    <div className="h-12 w-12 rounded-xl mx-auto flex items-center justify-center" style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)' }}>
+                      <ShieldCheck className="h-6 w-6" style={{ color: '#60a5fa' }} />
+                    </div>
+                    <p className="mt-4 text-lg font-semibold" style={{ color: '#f1f5f9' }}>CareAssurance</p>
+                    <p className="mt-1 text-sm" style={{ color: '#94a3b8' }}>Compliance Dashboard Preview</p>
                   </div>
                 </div>
-              </div>
-              <div className="absolute -bottom-6 left-6 hidden lg:block">
-                <div className="home-card px-4 py-3">
-                  <p className="text-xs text-muted-foreground">Average start drift</p>
-                  <p className="text-lg font-semibold text-foreground">+12 min</p>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="home-card-soft p-3">
+                    <p className="text-xs" style={{ color: '#64748b' }}>Live audits reviewed</p>
+                    <p className="text-lg font-semibold" style={{ color: '#0f172a' }}>248</p>
+                  </div>
+                  <div className="home-card-soft p-3">
+                    <p className="text-xs" style={{ color: '#64748b' }}>Open issues flagged</p>
+                    <p className="text-lg font-semibold" style={{ color: '#0f172a' }}>7</p>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -462,20 +470,20 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[0.95fr_1.05fr] items-center">
             <motion.div {...reveal()}>
               <span className="home-eyebrow">Platform overview</span>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold text-foreground leading-tight">
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: 'hsl(220, 25%, 10%)' }}>
                 One workspace for audits, plans, and care delivery checks.
               </h2>
-              <p className="mt-4 text-base text-muted-foreground leading-relaxed">
+              <p className="mt-4 text-base leading-relaxed" style={{ color: 'hsl(220, 10%, 35%)' }}>
                 Replace scattered spreadsheets with a structured flow for every document.
                 CareAssurance unifies analysis, notes, and follow-up actions so teams can move fast.
               </p>
               <div className="mt-6 space-y-3">
                 {OVERVIEW_BULLETS.map((bullet) => (
-                  <div key={bullet} className="flex items-start gap-3 text-sm text-foreground/80">
-                    <span className="mt-0.5 h-5 w-5 rounded-full bg-[hsl(220_70%_50%/0.1)] border border-[hsl(220_70%_50%/0.2)] flex items-center justify-center flex-shrink-0">
-                      <CheckCircle2 className="h-3 w-3 text-[hsl(220_70%_50%)]" />
+                  <div key={bullet} className="flex items-start gap-3 text-sm">
+                    <span className="mt-0.5 h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                      <CheckCircle2 className="h-3 w-3" style={{ color: '#3b82f6' }} />
                     </span>
-                    <span>{bullet}</span>
+                    <span style={{ color: '#334155' }}>{bullet}</span>
                   </div>
                 ))}
               </div>
@@ -486,26 +494,26 @@ export default function Homepage() {
                 <p className="home-eyebrow">Audit snapshot</p>
                 <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-muted-foreground">Service users</p>
-                    <p className="text-2xl font-semibold text-foreground">52</p>
+                    <p style={{ color: '#64748b' }}>Service users</p>
+                    <p className="text-2xl font-semibold" style={{ color: '#0f172a' }}>52</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Flagged calls</p>
-                    <p className="text-2xl font-semibold text-foreground">13</p>
+                    <p style={{ color: '#64748b' }}>Flagged calls</p>
+                    <p className="text-2xl font-semibold" style={{ color: '#0f172a' }}>13</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Avg start drift</p>
-                    <p className="text-2xl font-semibold text-foreground">+1h 3m</p>
+                    <p style={{ color: '#64748b' }}>Avg start drift</p>
+                    <p className="text-2xl font-semibold" style={{ color: '#0f172a' }}>+1h 3m</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Avg duration</p>
-                    <p className="text-2xl font-semibold text-foreground">122%</p>
+                    <p style={{ color: '#64748b' }}>Avg duration</p>
+                    <p className="text-2xl font-semibold" style={{ color: '#0f172a' }}>122%</p>
                   </div>
                 </div>
               </div>
               <div className="home-card-soft p-5">
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Included modules</p>
-                <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-foreground">
+                <p className="text-xs uppercase tracking-[0.2em]" style={{ color: '#64748b' }}>Included modules</p>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm" style={{ color: '#0f172a' }}>
                   <span>EMAR audits</span>
                   <span>Care plan drafts</span>
                   <span>Visit audits</span>
@@ -519,11 +527,11 @@ export default function Homepage() {
         <section id="compliance" className="home-band">
           <div className="max-w-6xl mx-auto px-4 py-16">
             <motion.div {...reveal()} className="text-center">
-              <p className="home-eyebrow text-white/70">Compliance foundations</p>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold text-white leading-tight">
+              <p className="home-eyebrow" style={{ color: 'rgba(255,255,255,0.7)' }}>Compliance foundations</p>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: '#ffffff' }}>
                 Evidence you can stand behind.
               </h2>
-              <p className="mt-4 text-white/80 max-w-2xl mx-auto leading-relaxed">
+              <p className="mt-4 max-w-2xl mx-auto leading-relaxed" style={{ color: 'rgba(255,255,255,0.8)' }}>
                 Built for regulated care environments with clear governance controls and consistent reporting.
               </p>
             </motion.div>
@@ -533,8 +541,8 @@ export default function Homepage() {
                   <div className="h-11 w-11 rounded-xl bg-white/10 flex items-center justify-center">
                     <item.icon className="h-5 w-5 text-white" />
                   </div>
-                  <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
-                  <p className="mt-2 text-sm text-white/75 leading-relaxed">{item.description}</p>
+                  <h3 className="mt-4 text-lg font-semibold" style={{ color: '#ffffff' }}>{item.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.75)' }}>{item.description}</p>
                 </motion.div>
               ))}
             </div>
@@ -549,10 +557,10 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Platform highlights</span>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold text-foreground leading-tight">
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: 'hsl(220, 25%, 10%)' }}>
                 Every workflow your compliance team needs.
               </h2>
-              <p className="mt-4 text-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed" style={{ color: 'hsl(220, 10%, 35%)' }}>
                 Designed for UK care operations, from medication audits to staff performance monitoring.
               </p>
             </motion.div>
@@ -560,13 +568,13 @@ export default function Homepage() {
               {PRIMARY_FEATURES.map((feature) => (
                 <motion.div key={feature.title} {...reveal(0.05)} className="home-card p-6">
                   <div className="flex items-center justify-between">
-                    <div className="h-10 w-10 rounded-xl bg-[hsl(220_70%_50%/0.1)] flex items-center justify-center">
-                      <feature.icon className="h-5 w-5 text-[hsl(220_70%_50%)]" />
+                    <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}>
+                      <feature.icon className="h-5 w-5" style={{ color: '#3b82f6' }} />
                     </div>
                     <span className="home-pill">{feature.tag}</span>
                   </div>
-                  <h3 className="mt-4 text-lg font-semibold text-foreground">{feature.title}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
+                  <h3 className="mt-4 text-lg font-semibold" style={{ color: '#0f172a' }}>{feature.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed" style={{ color: '#475569' }}>{feature.description}</p>
                 </motion.div>
               ))}
             </div>
@@ -577,7 +585,7 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Recent projects</span>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold text-foreground leading-tight">
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: 'hsl(220, 25%, 10%)' }}>
                 Compliance outputs that teams can act on.
               </h2>
             </motion.div>
@@ -593,9 +601,9 @@ export default function Homepage() {
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_70%,rgba(0,0,0,0.05),transparent_55%)] opacity-50" />
                   </div>
                   <div className="p-5">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(220_70%_50%)]" >Case study</p>
-                    <h3 className="mt-2 text-lg font-semibold text-foreground">{tile.title}</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">{tile.subtitle}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#3b82f6' }}>Case study</p>
+                    <h3 className="mt-2 text-lg font-semibold" style={{ color: '#0f172a' }}>{tile.title}</h3>
+                    <p className="mt-1 text-sm" style={{ color: '#64748b' }}>{tile.subtitle}</p>
                   </div>
                 </motion.div>
               ))}
@@ -607,20 +615,20 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Savings estimator</span>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold text-foreground leading-tight">
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: 'hsl(220, 25%, 10%)' }}>
                 Model time savings in minutes.
               </h2>
-              <p className="mt-4 text-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed" style={{ color: 'hsl(220, 10%, 35%)' }}>
                 Estimate the annual hours recovered when audits and plans are streamlined.
               </p>
             </motion.div>
 
             <motion.div {...reveal(0.1)} className="home-card p-8 mt-10">
               <div className="flex items-center justify-between mb-4">
-                <Label className="text-base font-semibold text-foreground">Number of Service Users</Label>
+                <Label className="text-base font-semibold" style={{ color: '#0f172a' }}>Number of Service Users</Label>
                 <div className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-[hsl(220_70%_50%)]" />
-                  <span className="text-2xl font-bold text-foreground" data-testid="text-service-users-count">
+                  <Users className="h-5 w-5" style={{ color: '#3b82f6' }} />
+                  <span className="text-2xl font-bold" style={{ color: '#0f172a' }} data-testid="text-service-users-count">
                     {serviceUsers}
                   </span>
                 </div>
@@ -634,7 +642,7 @@ export default function Homepage() {
                 className="w-full"
                 data-testid="slider-service-users"
               />
-              <div className="flex justify-between text-xs text-muted-foreground mt-2">
+              <div className="flex justify-between text-xs mt-2" style={{ color: '#64748b' }}>
                 <span>1</span>
                 <span>50</span>
                 <span>100</span>
@@ -644,47 +652,47 @@ export default function Homepage() {
 
               <div className="mt-8 grid gap-4 md:grid-cols-4">
                 <div className="home-card-soft p-4">
-                  <p className="text-xs font-medium text-muted-foreground">Manual time</p>
-                  <p className="text-2xl font-bold text-foreground" data-testid="text-manual-hours">
+                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>Manual time</p>
+                  <p className="text-2xl font-bold" style={{ color: '#0f172a' }} data-testid="text-manual-hours">
                     {roi.manualHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
-                  <p className="text-xs font-medium text-muted-foreground">per year</p>
+                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>per year</p>
                 </div>
                 <div className="home-card-soft p-4">
-                  <p className="text-xs font-medium text-muted-foreground">With CareAssurance</p>
-                  <p className="text-2xl font-bold text-foreground" data-testid="text-ai-hours">
+                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>With CareAssurance</p>
+                  <p className="text-2xl font-bold" style={{ color: '#0f172a' }} data-testid="text-ai-hours">
                     {roi.aiHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
-                  <p className="text-xs font-medium text-muted-foreground">per year</p>
+                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>per year</p>
                 </div>
                 <div className="home-card-soft p-4">
-                  <p className="text-xs font-medium text-muted-foreground">Time saved</p>
-                  <p className="text-2xl font-bold text-[hsl(152_55%_40%)]" data-testid="text-hours-saved">
+                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>Time saved</p>
+                  <p className="text-2xl font-bold" style={{ color: '#16a34a' }} data-testid="text-hours-saved">
                     {roi.hoursSaved.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
-                  <p className="text-xs font-medium text-muted-foreground">per year</p>
+                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>per year</p>
                 </div>
                 <div className="home-card-soft p-4">
-                  <p className="text-xs font-medium text-muted-foreground">Money saved</p>
-                  <p className="text-2xl font-bold text-[hsl(152_55%_40%)]" data-testid="text-money-saved">
+                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>Money saved</p>
+                  <p className="text-2xl font-bold" style={{ color: '#16a34a' }} data-testid="text-money-saved">
                     £{roi.moneySaved.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
-                  <p className="text-xs font-medium text-muted-foreground">per year at £14.50/hr*</p>
+                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>per year at £14.50/hr*</p>
                 </div>
               </div>
 
               <div className="mt-6">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-muted-foreground">Efficiency gain</span>
-                  <span className="text-[hsl(152_55%_40%)] font-bold">{savingsPercent}% faster</span>
+                  <span className="font-medium" style={{ color: '#64748b' }}>Efficiency gain</span>
+                  <span className="font-bold" style={{ color: '#16a34a' }}>{savingsPercent}% faster</span>
                 </div>
-                <div className="mt-3 h-2.5 rounded-full bg-muted/50 overflow-hidden">
+                <div className="mt-3 h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: '#e2e8f0' }}>
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-[hsl(220_70%_50%)] to-[hsl(152_55%_40%)] transition-all duration-500"
-                    style={{ width: `${savingsPercent}%` }}
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${savingsPercent}%`, background: 'linear-gradient(90deg, #3b82f6, #16a34a)' }}
                   />
                 </div>
-                <p className="mt-3 text-xs text-muted-foreground">
+                <p className="mt-3 text-xs" style={{ color: '#64748b' }}>
                   *Estimates are based on typical task durations and may vary.
                 </p>
               </div>
@@ -698,23 +706,23 @@ export default function Homepage() {
               <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
                 <div>
                   <span className="home-eyebrow">Contact</span>
-                  <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold text-foreground leading-tight">
+                  <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: 'hsl(220, 25%, 10%)' }}>
                     Speak with the CareAssurance team.
                   </h2>
-                  <p className="mt-4 text-base text-muted-foreground leading-relaxed">
+                  <p className="mt-4 text-base leading-relaxed" style={{ color: 'hsl(220, 10%, 35%)' }}>
                     Share your compliance priorities and we will respond with a tailored walkthrough.
                   </p>
-                  <div className="mt-6 space-y-3 text-sm text-foreground/80">
+                  <div className="mt-6 space-y-3 text-sm" style={{ color: '#334155' }}>
                     <div className="flex items-center gap-3">
-                      <Mail className="h-4 w-4 text-[hsl(220_70%_50%)]" />
+                      <Mail className="h-4 w-4" style={{ color: '#3b82f6' }} />
                       Private response within 1 business day.
                     </div>
                     <div className="flex items-center gap-3">
-                      <MessageSquare className="h-4 w-4 text-[hsl(220_70%_50%)]" />
+                      <MessageSquare className="h-4 w-4" style={{ color: '#3b82f6' }} />
                       Share audit goals, EMAR challenges, or care plan needs.
                     </div>
                     <div className="flex items-center gap-3">
-                      <Building2 className="h-4 w-4 text-[hsl(220_70%_50%)]" />
+                      <Building2 className="h-4 w-4" style={{ color: '#3b82f6' }} />
                       UK-based support for care facilities.
                     </div>
                   </div>
@@ -723,11 +731,11 @@ export default function Homepage() {
                 <div>
                   {contactSuccess ? (
                     <div className="home-card-soft p-6">
-                      <div className="flex items-center gap-2 text-foreground">
-                        <CheckCircle2 className="h-5 w-5" />
+                      <div className="flex items-center gap-2" style={{ color: '#0f172a' }}>
+                        <CheckCircle2 className="h-5 w-5" style={{ color: '#16a34a' }} />
                         <span className="font-semibold">Message sent</span>
                       </div>
-                      <p className="mt-2 text-sm text-muted-foreground">
+                      <p className="mt-2 text-sm" style={{ color: '#64748b' }}>
                         Thank you for getting in touch. We will respond within 1 business day.
                       </p>
                       <Button variant="outline" className="home-outline mt-4 w-full" onClick={() => setContactSuccess(false)}>
@@ -738,18 +746,18 @@ export default function Homepage() {
                     <form onSubmit={handleContactSubmit} className="space-y-4">
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor="contact-name" className="text-sm text-foreground">Name *</Label>
+                          <Label htmlFor="contact-name" className="text-sm" style={{ color: '#0f172a' }}>Name *</Label>
                           <Input
                             id="contact-name"
                             placeholder="Your name"
                             value={contactName}
                             onChange={(e) => setContactName(e.target.value)}
                             required
-                            className="bg-background"
+                            style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="contact-email" className="text-sm text-foreground">Email *</Label>
+                          <Label htmlFor="contact-email" className="text-sm" style={{ color: '#0f172a' }}>Email *</Label>
                           <Input
                             id="contact-email"
                             type="email"
@@ -757,22 +765,22 @@ export default function Homepage() {
                             value={contactEmail}
                             onChange={(e) => setContactEmail(e.target.value)}
                             required
-                            className="bg-background"
+                            style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}
                           />
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="contact-org" className="text-sm text-foreground">Organisation</Label>
+                        <Label htmlFor="contact-org" className="text-sm" style={{ color: '#0f172a' }}>Organisation</Label>
                         <Input
                           id="contact-org"
                           placeholder="Your care facility or company"
                           value={contactOrg}
                           onChange={(e) => setContactOrg(e.target.value)}
-                          className="bg-background"
+                          style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="contact-message" className="text-sm text-foreground">Message *</Label>
+                        <Label htmlFor="contact-message" className="text-sm" style={{ color: '#0f172a' }}>Message *</Label>
                         <Textarea
                           id="contact-message"
                           placeholder="Tell us what you are looking for..."
@@ -780,7 +788,7 @@ export default function Homepage() {
                           onChange={(e) => setContactMessage(e.target.value)}
                           required
                           rows={4}
-                          className="bg-background resize-none"
+                          style={{ backgroundColor: '#f8fafc', color: '#0f172a', resize: 'none' }}
                         />
                       </div>
                       {contactError && (
@@ -804,11 +812,11 @@ export default function Homepage() {
                     </form>
                   ) : (
                     <div className="home-card-soft p-6">
-                      <div className="flex items-center gap-2 text-foreground">
-                        <ClipboardCheck className="h-4 w-4" />
+                      <div className="flex items-center gap-2" style={{ color: '#0f172a' }}>
+                        <ClipboardCheck className="h-4 w-4" style={{ color: '#3b82f6' }} />
                         <span className="text-sm font-semibold">Contact form disabled</span>
                       </div>
-                      <p className="mt-2 text-sm text-muted-foreground">
+                      <p className="mt-2 text-sm" style={{ color: '#64748b' }}>
                         This site currently does not accept messages via email. If you already have access, please sign in.
                       </p>
                       <Button className="home-cta mt-4 w-full" onClick={openLoginFromCTA}>
@@ -824,29 +832,29 @@ export default function Homepage() {
         </section>
       </main>
 
-      <footer className="relative z-10 border-t border-border">
+      <footer className="relative z-10" style={{ borderTop: '1px solid #e2e8f0' }}>
         <div className="max-w-6xl mx-auto px-4 py-10 flex flex-col md:flex-row items-center justify-between gap-6 text-sm">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-[hsl(220_70%_50%)] text-white flex items-center justify-center">
+            <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div>
-              <span className="text-foreground font-semibold">CareAssurance</span>
-              <span className="ml-2 text-muted-foreground">careassurance.uk</span>
+              <span className="font-semibold" style={{ color: '#0f172a' }}>CareAssurance</span>
+              <span className="ml-2" style={{ color: '#64748b' }}>careassurance.uk</span>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-6 text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-6" style={{ color: '#64748b' }}>
             <button
               type="button"
-              className="bg-transparent p-0 font-medium hover:text-foreground transition-colors"
+              className="bg-transparent p-0 font-medium hover:text-[#0f172a] transition-colors"
               onClick={() => scrollToSection("contact")}
             >
               Contact
             </button>
-            <Link href="/terms" className="font-medium hover:text-foreground transition-colors">
+            <Link href="/terms" className="font-medium hover:text-[#0f172a] transition-colors">
               Terms & Conditions
             </Link>
-            <Link href="/privacy" className="font-medium hover:text-foreground transition-colors">
+            <Link href="/privacy" className="font-medium hover:text-[#0f172a] transition-colors">
               Privacy Policy
             </Link>
           </div>
