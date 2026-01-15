@@ -10069,14 +10069,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   });
 
   // Get all contact messages (admin only)
-  app.get("/api/contact/messages", async (req: any, res: any) => {
-    if (!req.user) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Admin access required" });
-    }
-
+  app.get("/api/contact/messages", requireAuth, requireAdmin, async (req: any, res: any) => {
     try {
       const includeArchived = req.query.includeArchived === "true";
       const messages = await storage.getContactMessages(includeArchived);
@@ -10088,14 +10081,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   });
 
   // Mark message as read (admin only)
-  app.patch("/api/contact/messages/:id/read", async (req: any, res: any) => {
-    if (!req.user) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Admin access required" });
-    }
-
+  app.patch("/api/contact/messages/:id/read", requireAuth, requireAdmin, async (req: any, res: any) => {
     try {
       const { id } = req.params;
       await storage.markContactMessageRead(id, req.user.username);
@@ -10107,14 +10093,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   });
 
   // Archive message (admin only)
-  app.patch("/api/contact/messages/:id/archive", async (req: any, res: any) => {
-    if (!req.user) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Admin access required" });
-    }
-
+  app.patch("/api/contact/messages/:id/archive", requireAuth, requireAdmin, async (req: any, res: any) => {
     try {
       const { id } = req.params;
       await storage.archiveContactMessage(id);
@@ -10126,14 +10105,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   });
 
   // Delete message (admin only)
-  app.delete("/api/contact/messages/:id", async (req: any, res: any) => {
-    if (!req.user) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Admin access required" });
-    }
-
+  app.delete("/api/contact/messages/:id", requireAuth, requireAdmin, async (req: any, res: any) => {
     try {
       const { id } = req.params;
       await storage.deleteContactMessage(id);
