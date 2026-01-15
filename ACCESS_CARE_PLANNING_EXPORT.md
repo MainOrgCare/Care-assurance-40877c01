@@ -8,7 +8,7 @@ Provide a consistent, authorized way to export EMAR data for auditing.
 - Follow your organization’s data protection policy (e.g., approved devices, storage, and retention rules).
 
 ## EMAR Export Steps
-1. Open Access Care Planning and sign in with your authorized account.
+1. Open Access care Planning and sign in with your authorized account.
 2. In the top search bar, search for the service user you want to audit.
 3. Open the service user’s dashboard.
 4. In the left-side menu, select **Visits**.
