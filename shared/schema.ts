@@ -405,6 +405,10 @@ export const contactMessages = pgTable("contact_messages", {
 
 export const insertContactMessageSchema = createInsertSchema(contactMessages).omit({
   id: true,
+  isRead: true,
+  isArchived: true,
+  readBy: true,
+  readAt: true,
   createdAt: true,
 });
 
