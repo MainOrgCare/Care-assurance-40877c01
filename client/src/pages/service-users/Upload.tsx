@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, FileText, CheckCircle, Shield, AlertCircle, Loader2, CloudUpload, File, Check } from "lucide-react";
@@ -6,10 +6,27 @@ import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useToast } from "@/hooks/use-toast";
 import UploadDisclaimer from "@/components/UploadDisclaimer";
 
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(1)} MB`;
+};
+
+const formatTimestamp = (timestamp: number) =>
+  new Date(timestamp).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
 export default function ServiceUserUpload() {
   const { uploadFile, serviceUserData } = useTemporaryData();
   const { toast } = useToast();
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const initialAssessmentInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleUpload = (section: "socialWork" | "initialAssessment" | "carePlan", e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -152,6 +169,15 @@ export default function ServiceUserUpload() {
             <CardDescription className="text-xs text-muted-foreground/70">Upload initial risk and needs assessment.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center py-6 text-center space-y-3">
+             <input
+               ref={initialAssessmentInputRef}
+               id="upload-assess"
+               type="file"
+               accept=".pdf,.docx"
+               className="hidden"
+               onChange={(e) => handleUpload("initialAssessment", e)}
+               data-testid="input-upload-assessment"
+             />
              {serviceUserData.initialAssessment ? (
                <div className="text-sm w-full">
                  <div className="flex items-center justify-center gap-2 mb-2">
@@ -171,6 +197,31 @@ export default function ServiceUserUpload() {
                  ) : (
                    <p className="text-[11px] text-emerald-500/70">Ready for processing</p>
                  )}
+                 <div className="mt-3 space-y-1 text-[11px] text-muted-foreground/70">
+                   <div className="flex items-center justify-between">
+                     <span>File size</span>
+                     <span className="text-foreground/80">{formatBytes(serviceUserData.initialAssessment.size)}</span>
+                   </div>
+                   <div className="flex items-center justify-between">
+                     <span>Uploaded</span>
+                     <span className="text-foreground/80">{formatTimestamp(serviceUserData.initialAssessment.timestamp)}</span>
+                   </div>
+                   {serviceUserData.initialAssessment.content && !serviceUserData.initialAssessment.isParsing && !serviceUserData.initialAssessment.parseError && (
+                     <div className="flex items-center justify-between">
+                       <span>Extracted text</span>
+                       <span className="text-foreground/80">{serviceUserData.initialAssessment.content.length.toLocaleString()} chars</span>
+                     </div>
+                   )}
+                 </div>
+                 <Button
+                   variant="outline"
+                   size="sm"
+                   className="mt-3 w-full"
+                   onClick={() => initialAssessmentInputRef.current?.click()}
+                   data-testid="button-replace-initial-assessment"
+                 >
+                   Replace Initial Assessment
+                 </Button>
                </div>
              ) : (
                <div className="w-full">
@@ -180,7 +231,17 @@ export default function ServiceUserUpload() {
                     </div>
                     <span className="text-xs text-muted-foreground/70 group-hover:text-foreground/70 transition-colors">Drop file here or click to browse</span>
                  </label>
-                 <input id="upload-assess" type="file" accept=".pdf" className="hidden" onChange={(e) => handleUpload("initialAssessment", e)} data-testid="input-upload-assessment" />
+                 <div className="mt-4 rounded-lg border border-border/60 bg-muted/40 p-3 text-left text-[11px] text-muted-foreground/80">
+                   <p className="text-foreground text-xs font-medium">What to include</p>
+                   <ul className="mt-2 space-y-1">
+                     <li>- Mobility, transfers, falls history</li>
+                     <li>- Nutrition, allergies, swallowing risks</li>
+                     <li>- Cognition, communication, capacity</li>
+                   </ul>
+                   <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground/70">
+                     Formats: PDF or DOCX
+                   </p>
+                 </div>
                </div>
              )}
           </CardContent>

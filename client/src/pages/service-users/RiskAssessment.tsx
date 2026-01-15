@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { ShieldAlert, ArrowRight, Loader2, AlertTriangle, CheckCircle, FileText, Info } from "lucide-react";
+import { ShieldAlert, ArrowRight, Loader2, AlertTriangle, CheckCircle, FileText, Info, Search, Copy, Check } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 
@@ -63,9 +65,87 @@ export default function RiskAssessment() {
   const [step, setStep] = useState<"upload" | "analyze" | "select" | "generate" | "view">("upload");
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [assessmentFilter, setAssessmentFilter] = useState<"all" | "mandatory" | "optional">("all");
+  const [sortMode, setSortMode] = useState<"default" | "mandatory">("default");
+  const [copiedAssessment, setCopiedAssessment] = useState<number | null>(null);
 
   const hasData = serviceUserData.initialAssessment || serviceUserData.socialWork || serviceUserData.carePlan;
   const hasAllParsed = hasData && !isAnyParsing();
+  const parseErrors = [
+    serviceUserData.socialWork?.parseError
+      ? { label: "Social Work", message: serviceUserData.socialWork.parseError }
+      : null,
+    serviceUserData.initialAssessment?.parseError
+      ? { label: "Initial Assessment", message: serviceUserData.initialAssessment.parseError }
+      : null,
+    serviceUserData.carePlan?.parseError
+      ? { label: "Care Plan", message: serviceUserData.carePlan.parseError }
+      : null,
+  ].filter(Boolean) as { label: string; message: string }[];
+
+  const assessmentOptions = useMemo(() => {
+    if (!analysis) return [];
+    return analysis.recommendedAssessments.map((assessment, index) => ({
+      assessment,
+      index,
+    }));
+  }, [analysis]);
+  const filteredAssessments = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    let filtered = assessmentOptions.filter(({ assessment }) => {
+      if (assessmentFilter === "mandatory" && !assessment.isMandatory) return false;
+      if (assessmentFilter === "optional" && assessment.isMandatory) return false;
+      if (!query) return true;
+      const haystack = [assessment.name, assessment.reason, assessment.evidence]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+
+    if (sortMode === "mandatory") {
+      filtered = [...filtered].sort((a, b) => {
+        const rankA = a.assessment.isMandatory ? 0 : 1;
+        const rankB = b.assessment.isMandatory ? 0 : 1;
+        if (rankA !== rankB) return rankA - rankB;
+        return a.assessment.name.localeCompare(b.assessment.name);
+      });
+    }
+
+    return filtered;
+  }, [assessmentOptions, assessmentFilter, searchQuery, sortMode]);
+  const selectionStats = useMemo(() => {
+    if (!analysis) {
+      return {
+        total: 0,
+        mandatory: 0,
+        optional: 0,
+        selected: 0,
+        mandatorySelected: 0,
+      };
+    }
+    const mandatoryNames = analysis.recommendedAssessments
+      .filter((assessment) => assessment.isMandatory)
+      .map((assessment) => assessment.name);
+    const mandatorySet = new Set(mandatoryNames);
+    let mandatorySelected = 0;
+    selectedAssessments.forEach((name) => {
+      if (mandatorySet.has(name)) mandatorySelected += 1;
+    });
+
+    return {
+      total: analysis.recommendedAssessments.length,
+      mandatory: mandatoryNames.length,
+      optional: analysis.recommendedAssessments.length - mandatoryNames.length,
+      selected: selectedAssessments.size,
+      mandatorySelected,
+    };
+  }, [analysis, selectedAssessments]);
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    assessmentFilter !== "all" ||
+    sortMode !== "default";
 
   useEffect(() => {
     if (hasAllParsed && step === "upload") {
@@ -141,6 +221,9 @@ export default function RiskAssessment() {
 
       setProgress(100);
       setProgressStatus("Complete!");
+      setSearchQuery("");
+      setAssessmentFilter("all");
+      setSortMode("default");
       setAnalysis(result);
       setStep("select");
       
@@ -184,6 +267,17 @@ export default function RiskAssessment() {
 
   const deselectAll = () => {
     setSelectedAssessments(new Set());
+  };
+
+  const selectMandatory = () => {
+    if (analysis) {
+      const mandatory = new Set(
+        analysis.recommendedAssessments
+          .filter((assessment) => assessment.isMandatory)
+          .map((assessment) => assessment.name)
+      );
+      setSelectedAssessments(mandatory);
+    }
   };
 
   const getMandatoryNotSelected = (): string[] => {
@@ -314,6 +408,59 @@ export default function RiskAssessment() {
     }
   };
 
+  const formatAssessmentForCopy = (assessment: GeneratedAssessment) => {
+    const lines: string[] = [
+      `Risk Assessment: ${assessment.category}`,
+      `Date: ${assessment.assessmentDate}`,
+      `Service User: ${assessment.serviceUserInitials}`,
+      "",
+    ];
+
+    assessment.risks.forEach((risk, index) => {
+      lines.push(`Risk ${index + 1}: ${risk.riskDefinition}`);
+      lines.push(`Initial Rating: ${risk.initialRating}`);
+      lines.push(`Who Will Be Harmed: ${risk.whoWillBeHarmed}`);
+      lines.push(`How It's a Risk: ${risk.howItsARisk}`);
+      lines.push(`Control Measures: ${risk.controlMeasures}`);
+      lines.push(`Rating After Controls: ${risk.ratingAfterControls}`);
+      lines.push("");
+    });
+
+    if (
+      assessment.additionalNotes &&
+      assessment.additionalNotes !== "I'm not aware of additional information based on the documents provided"
+    ) {
+      lines.push("Additional Notes:");
+      lines.push(assessment.additionalNotes);
+      lines.push("");
+    }
+
+    lines.push(`Signed By: ${assessment.signedBy}`);
+    lines.push(`Job Title: ${assessment.jobTitle}`);
+
+    return lines.join("\n").trim();
+  };
+
+  const copyAssessment = async (assessment: GeneratedAssessment, index: number) => {
+    await navigator.clipboard.writeText(formatAssessmentForCopy(assessment));
+    setCopiedAssessment(index);
+    toast({
+      title: "Copied",
+      description: `${assessment.category} copied to clipboard`,
+    });
+    setTimeout(() => setCopiedAssessment(null), 2000);
+  };
+
+  const copyAllAssessments = async () => {
+    if (generatedAssessments.length === 0) return;
+    const combined = generatedAssessments.map(formatAssessmentForCopy).join("\n\n---\n\n");
+    await navigator.clipboard.writeText(combined);
+    toast({
+      title: "Copied",
+      description: "All risk assessments copied to clipboard",
+    });
+  };
+
   // Step 1: No data uploaded
   if (!hasData) {
     return (
@@ -376,23 +523,54 @@ export default function RiskAssessment() {
             <div className="grid gap-2">
               {serviceUserData.socialWork && (
                 <div className="flex items-center gap-2 text-sm">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  {serviceUserData.socialWork.parseError ? (
+                    <AlertTriangle className="h-4 w-4 text-red-400" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                  )}
                   <span className="text-muted-foreground">{serviceUserData.socialWork.name}</span>
+                  {serviceUserData.socialWork.parseError && (
+                    <Badge variant="destructive" className="text-[10px]">Parsing failed</Badge>
+                  )}
                 </div>
               )}
               {serviceUserData.initialAssessment && (
                 <div className="flex items-center gap-2 text-sm">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  {serviceUserData.initialAssessment.parseError ? (
+                    <AlertTriangle className="h-4 w-4 text-red-400" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                  )}
                   <span className="text-muted-foreground">{serviceUserData.initialAssessment.name}</span>
+                  {serviceUserData.initialAssessment.parseError && (
+                    <Badge variant="destructive" className="text-[10px]">Parsing failed</Badge>
+                  )}
                 </div>
               )}
               {serviceUserData.carePlan && (
                 <div className="flex items-center gap-2 text-sm">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  {serviceUserData.carePlan.parseError ? (
+                    <AlertTriangle className="h-4 w-4 text-red-400" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                  )}
                   <span className="text-muted-foreground">{serviceUserData.carePlan.name}</span>
+                  {serviceUserData.carePlan.parseError && (
+                    <Badge variant="destructive" className="text-[10px]">Parsing failed</Badge>
+                  )}
                 </div>
               )}
             </div>
+
+            {parseErrors.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Parsing issues detected</AlertTitle>
+                <AlertDescription>
+                  Some documents could not be fully parsed. The analysis will use only the content that was successfully extracted.
+                </AlertDescription>
+              </Alert>
+            )}
 
             <Alert>
               <Info className="h-4 w-4" />
@@ -453,6 +631,23 @@ export default function RiskAssessment() {
           </p>
         </div>
 
+        {parseErrors.length > 0 && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Some documents failed to parse</AlertTitle>
+            <AlertDescription>
+              Results are based on the content that was successfully extracted.
+              <ul className="mt-2 space-y-1">
+                {parseErrors.map((error) => (
+                  <li key={error.label} className="text-xs text-destructive/80">
+                    {error.label}: {error.message}
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Service User Info */}
         <Card className="bg-card border-border">
           <CardHeader>
@@ -486,63 +681,172 @@ export default function RiskAssessment() {
           </CardContent>
         </Card>
 
+        {(analysis.documentSummary || analysis.concerns.length > 0) && (
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>Document Summary</CardTitle>
+              <CardDescription>
+                Highlights detected in the uploaded documents.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {analysis.documentSummary && (
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {analysis.documentSummary}
+                </p>
+              )}
+              {analysis.concerns.length > 0 && (
+                <div>
+                  <Label className="text-muted-foreground">Key Concerns</Label>
+                  <ul className="mt-2 space-y-1">
+                    {analysis.concerns.map((concern, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <AlertTriangle size={12} className="mt-0.5 text-amber-400 flex-shrink-0" />
+                        <span>{concern}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Assessment Selection */}
         <Card className="bg-card border-border">
-          <CardHeader>
-            <div className="flex items-center justify-between">
+          <CardHeader className="space-y-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <CardTitle>Recommended Risk Assessments</CardTitle>
                 <CardDescription>
                   Select the assessments to generate. Mandatory assessments are pre-selected.
                 </CardDescription>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={selectAll} data-testid="button-select-all">
-                  Select All
-                </Button>
-                <Button variant="ghost" size="sm" onClick={deselectAll} data-testid="button-deselect-all">
-                  Deselect All
-                </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">Total {selectionStats.total}</Badge>
+                <Badge variant="destructive">Mandatory {selectionStats.mandatory}</Badge>
+                <Badge variant="muted">Optional {selectionStats.optional}</Badge>
+                <Badge variant="success">Selected {selectionStats.selected}</Badge>
               </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {analysis.recommendedAssessments.map((assessment, i) => (
-                <div
-                  key={i}
-                  className={`flex items-start space-x-3 p-3 rounded-lg border transition-colors ${
-                    selectedAssessments.has(assessment.name)
-                      ? "bg-blue-500/10 border-blue-500/30"
-                      : "bg-muted border-border hover:border-muted-foreground/30"
-                  }`}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={selectAll} data-testid="button-select-all">
+                Select All
+              </Button>
+              <Button variant="outline" size="sm" onClick={selectMandatory} data-testid="button-select-mandatory">
+                Mandatory Only
+              </Button>
+              <Button variant="ghost" size="sm" onClick={deselectAll} data-testid="button-deselect-all">
+                Clear All
+              </Button>
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setAssessmentFilter("all");
+                    setSortMode("default");
+                  }}
                 >
-                  <Checkbox
-                    id={`assessment-${i}`}
-                    checked={selectedAssessments.has(assessment.name)}
-                    onCheckedChange={() => toggleAssessment(assessment.name)}
-                    data-testid={`checkbox-assessment-${i}`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <Label
-                      htmlFor={`assessment-${i}`}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <span className="text-foreground font-medium">{assessment.name}</span>
-                      {assessment.isMandatory && (
-                        <Badge variant="destructive" className="text-xs">Mandatory</Badge>
-                      )}
-                    </Label>
-                    <p className="text-xs text-muted-foreground mt-1">{assessment.reason}</p>
-                    {assessment.evidence && (
-                      <p className="text-xs text-muted-foreground/80 mt-1">
-                        Evidence: {assessment.evidence}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
+                  Reset Filters
+                </Button>
+              )}
             </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search assessments, reasons, or evidence..."
+                  className="pl-9"
+                  data-testid="input-assessment-search"
+                />
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Filter</span>
+                <ToggleGroup
+                  type="single"
+                  value={assessmentFilter}
+                  onValueChange={(value) =>
+                    setAssessmentFilter((value as "all" | "mandatory" | "optional") || "all")
+                  }
+                  variant="outline"
+                  size="sm"
+                  className="flex-wrap justify-start sm:justify-end"
+                >
+                  <ToggleGroupItem value="all">All</ToggleGroupItem>
+                  <ToggleGroupItem value="mandatory">Mandatory</ToggleGroupItem>
+                  <ToggleGroupItem value="optional">Optional</ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Sort</span>
+                <ToggleGroup
+                  type="single"
+                  value={sortMode}
+                  onValueChange={(value) =>
+                    setSortMode((value as "default" | "mandatory") || "default")
+                  }
+                  variant="outline"
+                  size="sm"
+                >
+                  <ToggleGroupItem value="default">Original</ToggleGroupItem>
+                  <ToggleGroupItem value="mandatory">Mandatory First</ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                Showing {filteredAssessments.length} of {selectionStats.total}
+              </span>
+            </div>
+
+            {filteredAssessments.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                No assessments match your filters.
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredAssessments.map(({ assessment, index }) => (
+                  <div
+                    key={assessment.name}
+                    className={`flex items-start space-x-3 p-3 rounded-lg border transition-colors ${
+                      selectedAssessments.has(assessment.name)
+                        ? "bg-blue-500/10 border-blue-500/30"
+                        : "bg-muted border-border hover:border-muted-foreground/30"
+                    }`}
+                  >
+                    <Checkbox
+                      id={`assessment-${index}`}
+                      checked={selectedAssessments.has(assessment.name)}
+                      onCheckedChange={() => toggleAssessment(assessment.name)}
+                      data-testid={`checkbox-assessment-${index}`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <Label
+                        htmlFor={`assessment-${index}`}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <span className="text-foreground font-medium">{assessment.name}</span>
+                        {assessment.isMandatory && (
+                          <Badge variant="destructive" className="text-xs">Mandatory</Badge>
+                        )}
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-1">{assessment.reason}</p>
+                      {assessment.evidence && (
+                        <p className="text-xs text-muted-foreground/80 mt-1">
+                          Evidence: {assessment.evidence}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Warnings for skipped mandatory */}
             {showWarnings && mandatorySkipped.length > 0 && (
@@ -573,7 +877,7 @@ export default function RiskAssessment() {
             </div>
 
             <p className="text-xs text-muted-foreground mt-3 text-center">
-              Selected: {selectedAssessments.size} of {analysis.recommendedAssessments.length} assessments
+              Selected: {selectionStats.selected} of {selectionStats.total} assessments. Mandatory selected: {selectionStats.mandatorySelected} of {selectionStats.mandatory}.
             </p>
           </CardContent>
         </Card>
@@ -619,29 +923,46 @@ export default function RiskAssessment() {
               Generated {generatedAssessments.length} risk assessment{generatedAssessments.length !== 1 ? "s" : ""} for {analysis?.serviceUser.initials}
             </p>
           </div>
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              setStep("select");
-              setGeneratedAssessments([]);
-            }}
-            data-testid="button-back-to-select"
-          >
-            Generate More
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={copyAllAssessments} data-testid="button-copy-all-assessments">
+              <Copy size={16} /> Copy All
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setStep("select");
+                setGeneratedAssessments([]);
+                setCopiedAssessment(null);
+              }}
+              data-testid="button-back-to-select"
+            >
+              Generate More
+            </Button>
+          </div>
         </div>
 
         {generatedAssessments.map((assessment, idx) => (
           <Card key={idx} className="bg-card border-border print:bg-white print:text-black">
             <CardHeader className="border-b border-border">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="text-xl">{assessment.category}</CardTitle>
                   <CardDescription>Risk Assessment</CardDescription>
                 </div>
-                <Badge variant="outline" className="text-lg">
-                  {assessment.assessmentDate}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-sm">
+                    {assessment.assessmentDate}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyAssessment(assessment, idx)}
+                    data-testid={`button-copy-assessment-${idx}`}
+                  >
+                    {copiedAssessment === idx ? <Check size={14} /> : <Copy size={14} />}
+                    Copy
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="pt-4">

@@ -3154,6 +3154,34 @@ export default function TestingFeatures() {
       return sections;
     })();
 
+    const allRows = orderedSections.flatMap((section) => section.groups.flatMap((group) => group.rows));
+    const totalCalls = allRows.length;
+    const flaggedCalls = allRows.filter(
+      (row) => row.scheduleFlag || row.durationFlag || row.durationOverrunFlag
+    ).length;
+    const timeCriticalCalls = allRows.filter((row) => row.isTimeCritical).length;
+    const mismatchedWorkers = allRows.filter((row) => row.workersMatch === false).length;
+    const scheduleOffsets = allRows
+      .map((row) => row.scheduleDeltaMinutes)
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    const avgScheduleOffset = scheduleOffsets.length
+      ? scheduleOffsets.reduce((acc, value) => acc + value, 0) / scheduleOffsets.length
+      : null;
+    const durationPercents = allRows
+      .map((row) => row.durationMatchPercent)
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    const avgDurationPercent = durationPercents.length
+      ? durationPercents.reduce((acc, value) => acc + value, 0) / durationPercents.length
+      : null;
+    const dateKeys = allRows
+      .map((row) => row.plannedDateKey)
+      .filter((value): value is string => Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value)))
+      .sort();
+    const dateRangeLabel =
+      dateKeys.length > 0
+        ? `${formatDateForPdf(dateKeys[0]) || dateKeys[0]} - ${formatDateForPdf(dateKeys[dateKeys.length - 1]) || dateKeys[dateKeys.length - 1]}`
+        : "—";
+
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -3168,6 +3196,47 @@ export default function TestingFeatures() {
     doc.setFontSize(11);
     doc.setTextColor(80);
     doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, 170, { align: "center" });
+    doc.setTextColor(0);
+
+    doc.setFontSize(12);
+    doc.text("Summary", 40, 210);
+    const summaryRows = [
+      ["Workbook", fileMeta ? `${fileMeta.name} (${formatBytes(fileMeta.size)})` : "Unknown"],
+      ["Rows analyzed", fileMeta?.totalRows ? fileMeta.totalRows.toLocaleString() : totalCalls.toLocaleString()],
+      ["Service users", orderedSections.length.toLocaleString()],
+      ["Call groups", callGroups.length.toLocaleString()],
+      ["Total calls", totalCalls.toLocaleString()],
+      ["Flagged calls", flaggedCalls.toLocaleString()],
+      ["Time-critical calls", timeCriticalCalls.toLocaleString()],
+      ["Mismatched workers", mismatchedWorkers.toLocaleString()],
+      ["Duplicate slots", duplicateClusters.length.toLocaleString()],
+      ["Avg start drift", avgScheduleOffset !== null ? formatSignedMinutes(avgScheduleOffset) : "—"],
+      ["Avg duration", avgDurationPercent !== null ? `${avgDurationPercent.toFixed(0)}%` : "—"],
+      ["Date range", dateRangeLabel],
+    ];
+
+    autoTable(doc, {
+      startY: 226,
+      head: [["Metric", "Value"]],
+      body: summaryRows,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [15, 23, 42], textColor: 255 },
+      margin: { left: 40, right: 40 },
+      columnStyles: {
+        0: { cellWidth: 150 },
+        1: { cellWidth: pageWidth - 230 },
+      },
+    });
+
+    const summaryEndY = (doc as any).lastAutoTable?.finalY ?? 226;
+    doc.setFontSize(9);
+    doc.setTextColor(90);
+    const settingsText = `Export settings: cancelled calls ${includeCancelledCalls ? "included" : "excluded"}, mismatched workers ${includeMismatchedWorkers ? "included" : "excluded"}, duplicate slots deduped${duplicateClusters.length ? " (review section appended)" : ""}.`;
+    const legendText = "Flags legend: duplicate slot, >2h drift, <80% duration, >120% duration.";
+    const settingsLines = doc.splitTextToSize(settingsText, pageWidth - 80);
+    doc.text(settingsLines, 40, summaryEndY + 18);
+    const legendLines = doc.splitTextToSize(legendText, pageWidth - 80);
+    doc.text(legendLines, 40, summaryEndY + 18 + settingsLines.length * 12 + 4);
     doc.setTextColor(0);
 
     // Index pages (count is estimated up-front so content page numbers remain stable)
@@ -3214,6 +3283,62 @@ export default function TestingFeatures() {
         doc.setTextColor(0);
         duplicateNoteWritten = true;
       }
+
+      const sectionRows = section.groups.flatMap((group) => group.rows);
+      const sectionFlagged = sectionRows.filter(
+        (row) => row.scheduleFlag || row.durationFlag || row.durationOverrunFlag
+      ).length;
+      const sectionTimeCritical = sectionRows.filter((row) => row.isTimeCritical).length;
+      const sectionScheduleOffsets = sectionRows
+        .map((row) => row.scheduleDeltaMinutes)
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+      const sectionAvgScheduleOffset = sectionScheduleOffsets.length
+        ? sectionScheduleOffsets.reduce((acc, value) => acc + value, 0) / sectionScheduleOffsets.length
+        : null;
+      const sectionDurations = sectionRows
+        .map((row) => row.durationMatchPercent)
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+      const sectionAvgDuration = sectionDurations.length
+        ? sectionDurations.reduce((acc, value) => acc + value, 0) / sectionDurations.length
+        : null;
+      const sectionDays = new Set(
+        sectionRows
+          .map((row) => row.plannedDateKey || row.plannedDateLabel || String(row.rowNumber))
+          .filter(Boolean)
+      );
+      const sectionWorkers = new Set(
+        sectionRows
+          .map((row) => row.actualWorker || row.plannedWorker || undefined)
+          .filter((value): value is string => Boolean(value))
+      );
+
+      if (currentY > pageHeight - 180) {
+        doc.addPage();
+        currentY = 48;
+      }
+
+      const summaryCells = [
+        `Total calls: ${sectionRows.length}`,
+        `Call groups: ${section.groups.length}`,
+        `Unique days: ${sectionDays.size}`,
+        `Flagged: ${sectionFlagged}`,
+        `Time-critical: ${sectionTimeCritical}`,
+        `Care workers: ${sectionWorkers.size}`,
+        `Avg start Δ: ${sectionAvgScheduleOffset !== null ? formatSignedMinutes(sectionAvgScheduleOffset) : "—"}`,
+        `Avg duration: ${sectionAvgDuration !== null ? `${sectionAvgDuration.toFixed(0)}%` : "—"}`,
+      ];
+
+      autoTable(doc, {
+        startY: currentY,
+        body: [summaryCells.slice(0, 4), summaryCells.slice(4)],
+        theme: "plain",
+        styles: { fontSize: 9, textColor: 80, cellPadding: 2 },
+        margin: { left: 40, right: 40 },
+        tableWidth: pageWidth - 80,
+      });
+
+      const summaryEndY = (doc as any).lastAutoTable?.finalY ?? currentY;
+      currentY = summaryEndY + 12;
 
       type RequirementSection = { key: string; label: string; rows: RowAnalysis[] };
       const sectionUserKey =
@@ -3279,6 +3404,31 @@ export default function TestingFeatures() {
         doc.text(`Service requirement: ${req.label}`, 40, currentY);
         currentY += 14;
 
+        const requirementFlagged = req.rows.filter(
+          (row) => row.scheduleFlag || row.durationFlag || row.durationOverrunFlag
+        ).length;
+        const requirementOffsets = req.rows
+          .map((row) => row.scheduleDeltaMinutes)
+          .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+        const requirementAvgOffset = requirementOffsets.length
+          ? requirementOffsets.reduce((acc, value) => acc + value, 0) / requirementOffsets.length
+          : null;
+        const requirementDurations = req.rows
+          .map((row) => row.durationMatchPercent)
+          .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+        const requirementAvgDuration = requirementDurations.length
+          ? requirementDurations.reduce((acc, value) => acc + value, 0) / requirementDurations.length
+          : null;
+        const requirementSummary = `Calls: ${req.rows.length} • Flagged: ${requirementFlagged} • Avg start Δ: ${
+          requirementAvgOffset !== null ? formatSignedMinutes(requirementAvgOffset) : "—"
+        } • Avg duration: ${requirementAvgDuration !== null ? `${requirementAvgDuration.toFixed(0)}%` : "—"}`;
+        doc.setFontSize(9);
+        doc.setTextColor(80);
+        const summaryLines = doc.splitTextToSize(requirementSummary, pageWidth - 80);
+        doc.text(summaryLines, 40, currentY);
+        currentY += summaryLines.length * 12 + 6;
+        doc.setTextColor(0);
+
         const slotTrendKey = buildCallTypeTrendKey(sectionUserKey, req.label);
         const slotTrendInsight = slotTrendKey ? slotTrendMap.get(slotTrendKey) : undefined;
         const durationPercents = req.rows
@@ -3322,9 +3472,36 @@ export default function TestingFeatures() {
           startY: currentY,
           head: [["Date", "Planned", "Actual", "Call Type", "Care Worker", "Schedule Δ", "Duration %", "Flags"]],
           body: rows,
-          styles: { fontSize: 9 },
-          headStyles: { fillColor: [15, 23, 42] },
+          theme: "striped",
+          styles: { fontSize: 8.5, cellPadding: 3 },
+          headStyles: { fillColor: [15, 23, 42], textColor: 255, fontSize: 9 },
+          alternateRowStyles: { fillColor: [246, 248, 251] },
+          columnStyles: {
+            0: { cellWidth: 60 },
+            1: { cellWidth: 40 },
+            2: { cellWidth: 40 },
+            3: { cellWidth: 90 },
+            4: { cellWidth: 90 },
+            5: { cellWidth: 55 },
+            6: { cellWidth: 55 },
+            7: { cellWidth: 85 },
+          },
           margin: { left: 40, right: 40, bottom: 60 },
+          didParseCell: (data) => {
+            if (data.section !== "body") return;
+            if (data.column.index !== 7) return;
+            const rowData = req.rows[data.row.index];
+            if (!rowData) return;
+            const hasFlags =
+              rowData.isDuplicateSlotRow ||
+              rowData.scheduleFlag ||
+              rowData.durationFlag ||
+              rowData.durationOverrunFlag;
+            data.cell.styles.textColor = hasFlags ? [185, 28, 28] : [120, 120, 120];
+            if (hasFlags) {
+              data.cell.styles.fontStyle = "bold";
+            }
+          },
         });
 
         const finalY = (doc as any).lastAutoTable?.finalY ?? currentY;
@@ -3343,6 +3520,7 @@ export default function TestingFeatures() {
       doc.setFontSize(10);
       doc.setTextColor(90);
       doc.text("Service user", 40, 58);
+      doc.text("Calls", pageWidth - 110, 58, { align: "right" });
       doc.text("Page", pageWidth - 60, 58, { align: "right" });
       doc.setTextColor(0);
 
@@ -3353,8 +3531,10 @@ export default function TestingFeatures() {
         const section = orderedSections[j];
         const label = (section.name || "Unknown").toString().trim();
         const page = serviceUserStartPages.get(section.key) ?? contentStartPage;
+        const callCount = section.groups.reduce((acc, group) => acc + group.rows.length, 0);
         doc.setFontSize(10);
-        doc.text(label, 40, y, { maxWidth: pageWidth - 120 });
+        doc.text(label, 40, y, { maxWidth: pageWidth - 170 });
+        doc.text(callCount.toLocaleString(), pageWidth - 110, y, { align: "right" });
         doc.text(String(page), pageWidth - 60, y, { align: "right" });
         y += indexLineHeight;
       }
@@ -3436,8 +3616,15 @@ export default function TestingFeatures() {
     }
     doc.setTextColor(0);
 
-    doc.save("service-user-calls.pdf");
-  }, [callGroups, duplicateClusters, isAdmin, slotTrends, toast]);
+    const exportDateStamp = new Date().toISOString().slice(0, 10);
+    const baseName = fileMeta?.name ? fileMeta.name.replace(/\.[^/.]+$/, "") : "service-user-calls";
+    const safeBaseName = baseName
+      .replace(/[^A-Za-z0-9-_]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+    const fileLabel = safeBaseName || "service-user-calls";
+    doc.save(`${fileLabel}-report-${exportDateStamp}.pdf`);
+  }, [callGroups, duplicateClusters, fileMeta, includeCancelledCalls, includeMismatchedWorkers, isAdmin, slotTrends, toast]);
 
   if (user?.role !== "admin") {
     return (
