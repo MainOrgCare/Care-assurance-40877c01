@@ -18,7 +18,7 @@ import mammoth from "mammoth";
 import { scanFile, computeFileHash, getCachedScan } from "./services/fileScan";
 import * as XLSX from "xlsx";
 import { convertPdfToImages } from "./services/pdfToImages";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import { getDocument } from "pdfjs-dist";
 import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
 import nodemailer from "nodemailer";
 // Vision-based extraction for improved EMAR accuracy
@@ -139,7 +139,7 @@ const getStandardFontDataUrl = (): string => {
 
 async function extractPdfTextWithPdfjs(pdfBuffer: Buffer): Promise<{ text: string; pageCount: number; pageCharCounts: number[]; pageTexts: string[] }> {
   const uint8Array = new Uint8Array(pdfBuffer);
-  const loadingTask = pdfjsLib.getDocument({
+  const loadingTask = getDocument({
     data: uint8Array,
     disableWorker: true,
     standardFontDataUrl: getStandardFontDataUrl(),
