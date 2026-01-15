@@ -3180,7 +3180,7 @@ export default function TestingFeatures() {
     const dateRangeLabel =
       dateKeys.length > 0
         ? `${formatDateForPdf(dateKeys[0]) || dateKeys[0]} - ${formatDateForPdf(dateKeys[dateKeys.length - 1]) || dateKeys[dateKeys.length - 1]}`
-        : "—";
+        : "-";
 
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -3210,8 +3210,8 @@ export default function TestingFeatures() {
       ["Time-critical calls", timeCriticalCalls.toLocaleString()],
       ["Mismatched workers", mismatchedWorkers.toLocaleString()],
       ["Duplicate slots", duplicateClusters.length.toLocaleString()],
-      ["Avg start drift", avgScheduleOffset !== null ? formatSignedMinutes(avgScheduleOffset) : "—"],
-      ["Avg duration", avgDurationPercent !== null ? `${avgDurationPercent.toFixed(0)}%` : "—"],
+      ["Avg start drift", avgScheduleOffset !== null ? formatSignedMinutes(avgScheduleOffset) : "-"],
+      ["Avg duration", avgDurationPercent !== null ? `${avgDurationPercent.toFixed(0)}%` : "-"],
       ["Date range", dateRangeLabel],
     ];
 
@@ -3324,8 +3324,8 @@ export default function TestingFeatures() {
         `Flagged: ${sectionFlagged}`,
         `Time-critical: ${sectionTimeCritical}`,
         `Care workers: ${sectionWorkers.size}`,
-        `Avg start Δ: ${sectionAvgScheduleOffset !== null ? formatSignedMinutes(sectionAvgScheduleOffset) : "—"}`,
-        `Avg duration: ${sectionAvgDuration !== null ? `${sectionAvgDuration.toFixed(0)}%` : "—"}`,
+        `Avg start drift: ${sectionAvgScheduleOffset !== null ? formatSignedMinutes(sectionAvgScheduleOffset) : "-"}`,
+        `Avg duration: ${sectionAvgDuration !== null ? `${sectionAvgDuration.toFixed(0)}%` : "-"}`,
       ];
 
       autoTable(doc, {
@@ -3419,9 +3419,9 @@ export default function TestingFeatures() {
         const requirementAvgDuration = requirementDurations.length
           ? requirementDurations.reduce((acc, value) => acc + value, 0) / requirementDurations.length
           : null;
-        const requirementSummary = `Calls: ${req.rows.length} • Flagged: ${requirementFlagged} • Avg start Δ: ${
-          requirementAvgOffset !== null ? formatSignedMinutes(requirementAvgOffset) : "—"
-        } • Avg duration: ${requirementAvgDuration !== null ? `${requirementAvgDuration.toFixed(0)}%` : "—"}`;
+        const requirementSummary = `Calls: ${req.rows.length} | Flagged: ${requirementFlagged} | Avg start drift: ${
+          requirementAvgOffset !== null ? formatSignedMinutes(requirementAvgOffset) : "-"
+        } | Avg duration: ${requirementAvgDuration !== null ? `${requirementAvgDuration.toFixed(0)}%` : "-"}`;
         doc.setFontSize(9);
         doc.setTextColor(80);
         const summaryLines = doc.splitTextToSize(requirementSummary, pageWidth - 80);
@@ -3458,19 +3458,19 @@ export default function TestingFeatures() {
         }
 
         const rows = req.rows.map((row) => [
-          formatDateForPdf(row.plannedDateKey || row.plannedDateLabel) || "—",
-          row.plannedTimeLabel || "—",
-          row.actualTimeLabel || "—",
-          row.callTypeLabel || "—",
-          row.actualWorker || row.plannedWorker || "—",
-          typeof row.scheduleDeltaMinutes === "number" ? formatSignedMinutes(row.scheduleDeltaMinutes) : "—",
-          row.durationMatchPercent !== null ? `${row.durationMatchPercent.toFixed(0)}%` : "—",
+          formatDateForPdf(row.plannedDateKey || row.plannedDateLabel) || "-",
+          row.plannedTimeLabel || "-",
+          row.actualTimeLabel || "-",
+          row.callTypeLabel || "-",
+          row.actualWorker || row.plannedWorker || "-",
+          typeof row.scheduleDeltaMinutes === "number" ? formatSignedMinutes(row.scheduleDeltaMinutes) : "-",
+          row.durationMatchPercent !== null ? `${row.durationMatchPercent.toFixed(0)}%` : "-",
           buildCallFlagsText(row),
         ]);
 
         autoTable(doc, {
           startY: currentY,
-          head: [["Date", "Planned", "Actual", "Call Type", "Care Worker", "Schedule Δ", "Duration %", "Flags"]],
+          head: [["Date", "Planned", "Actual", "Call Type", "Care Worker", "Schedule drift", "Duration %", "Flags"]],
           body: rows,
           theme: "striped",
           styles: { fontSize: 8.5, cellPadding: 3 },
@@ -3566,13 +3566,13 @@ export default function TestingFeatures() {
 
         doc.setFontSize(11);
         const headingDate = formatDateForPdf(cluster.plannedDateLabel) || cluster.plannedDateLabel || "Unknown date";
-        const heading = `${clusterIndex + 1}. ${cluster.serviceUserName || "Unknown"} — ${headingDate} at ${cluster.plannedTimeLabel || "Unknown time"}`;
+        const heading = `${clusterIndex + 1}. ${cluster.serviceUserName || "Unknown"} - ${headingDate} at ${cluster.plannedTimeLabel || "Unknown time"}`;
         const headingLines = doc.splitTextToSize(heading, pageWidth - 80);
         doc.text(headingLines, 40, cursorY);
         cursorY += headingLines.length * 12;
 
         doc.setFontSize(9);
-        const location = `Area: ${(cluster.serviceUserArea || "Area unavailable").toString()} • Address: ${cluster.serviceUserAddress || "Address unavailable"}`;
+        const location = `Area: ${(cluster.serviceUserArea || "Area unavailable").toString()} | Address: ${cluster.serviceUserAddress || "Address unavailable"}`;
         const locationLines = doc.splitTextToSize(location, pageWidth - 80);
         doc.text(locationLines, 40, cursorY);
         cursorY += locationLines.length * 12 + 6;
@@ -3588,7 +3588,7 @@ export default function TestingFeatures() {
           }
 
           const worker = row.actualWorker || row.plannedWorker || "Care worker unavailable";
-          const detail = `Row #${row.rowNumber} • ${worker} • Planned ${row.plannedTimeLabel || "—"} → Actual ${row.actualTimeLabel || "—"} • ${row.isDuplicateSlotRow ? "Ignored duplicate" : "Counted"}`;
+          const detail = `Row #${row.rowNumber} | ${worker} | Planned ${row.plannedTimeLabel || "-"} -> Actual ${row.actualTimeLabel || "-"} | ${row.isDuplicateSlotRow ? "Ignored duplicate" : "Counted"}`;
           const detailLines = doc.splitTextToSize(detail, pageWidth - 96);
           doc.text(detailLines, 48, cursorY);
           cursorY += detailLines.length * 12;
