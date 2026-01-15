@@ -3,7 +3,6 @@ import "./homepage-theme.css";
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -276,8 +275,8 @@ export default function Homepage() {
   );
 
   return (
-    <div className="homepage-theme min-h-screen">
-      <div className="home-pattern fixed inset-0 pointer-events-none opacity-40" />
+    <div className="homepage-theme min-h-screen overflow-x-hidden">
+      <div className="home-pattern fixed inset-0 pointer-events-none opacity-25" />
 
       <header className="relative z-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between gap-6">
@@ -292,14 +291,32 @@ export default function Homepage() {
           </div>
 
           <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
-            <button type="button" onClick={() => scrollToSection("platform")}>
+            <button
+              type="button"
+              className="bg-transparent p-0 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => scrollToSection("platform")}
+            >
               Platform
             </button>
-            <button type="button" onClick={() => scrollToSection("compliance")}>
+            <button
+              type="button"
+              className="bg-transparent p-0 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => scrollToSection("compliance")}
+            >
               Compliance
             </button>
-            <button type="button" onClick={() => scrollToSection("roi")}>Savings</button>
-            <button type="button" onClick={() => scrollToSection("contact")}>
+            <button
+              type="button"
+              className="bg-transparent p-0 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => scrollToSection("roi")}
+            >
+              Savings
+            </button>
+            <button
+              type="button"
+              className="bg-transparent p-0 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => scrollToSection("contact")}
+            >
               Contact
             </button>
           </nav>
@@ -375,28 +392,33 @@ export default function Homepage() {
       <main className="relative z-10">
         <section className="px-4 pt-8 pb-16 sm:pt-12 sm:pb-20">
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
-            <motion.div {...reveal()}>
+            <motion.div {...reveal()} className="text-center lg:text-left">
               <span className="home-eyebrow">Operational Assurance for UK Care</span>
               <h1 className="mt-4 text-4xl sm:text-5xl lg:text-6xl font-heading text-foreground">
                 Compliance reporting that feels calm, clear, and prepared.
               </h1>
-              <p className="mt-5 text-lg text-muted-foreground max-w-xl">
+              <p className="mt-5 text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0">
                 CareAssurance streamlines EMAR audits, care plans, and visit reviews into one
                 structured workspace. Detect risks earlier, document decisions faster, and walk
                 into inspections with confidence.
               </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <Button className="home-cta" size="lg" onClick={() => setLoginOpen(true)}>
+              <div className="mt-8 flex flex-col sm:flex-row gap-3 sm:justify-center lg:justify-start">
+                <Button className="home-cta w-full sm:w-auto" size="lg" onClick={() => setLoginOpen(true)}>
                   Login to platform
                   <ArrowRight className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="lg" className="home-outline" onClick={() => scrollToSection("roi")}> 
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="home-outline w-full sm:w-auto"
+                  onClick={() => scrollToSection("roi")}
+                >
                   Estimate savings
                 </Button>
               </div>
               <div className="mt-10 grid grid-cols-2 gap-4">
                 {HERO_STATS.map((stat) => (
-                  <div key={stat.label} className="home-card-soft p-4">
+                  <div key={stat.label} className="home-card-soft p-4 text-left">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <stat.icon className="h-4 w-4" />
                       {stat.label}
@@ -426,7 +448,7 @@ export default function Homepage() {
                   </div>
                 </div>
               </div>
-              <div className="absolute -bottom-8 -left-6 hidden lg:block">
+              <div className="absolute -bottom-6 left-6 hidden lg:block">
                 <div className="home-card px-4 py-3">
                   <p className="text-xs text-muted-foreground">Average start drift</p>
                   <p className="text-lg font-semibold text-foreground">+12 min</p>
@@ -539,7 +561,7 @@ export default function Homepage() {
                 <motion.div key={feature.title} {...reveal(0.05)} className="home-card p-6">
                   <div className="flex items-center justify-between">
                     <feature.icon className="h-6 w-6 text-foreground" />
-                    <Badge variant="outline" className="text-[10px]">{feature.tag}</Badge>
+                    <span className="home-pill">{feature.tag}</span>
                   </div>
                   <h3 className="mt-4 text-lg font-semibold text-foreground">{feature.title}</h3>
                   <p className="mt-2 text-sm text-muted-foreground">{feature.description}</p>
@@ -559,10 +581,20 @@ export default function Homepage() {
             </motion.div>
             <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {PROJECT_TILES.map((tile) => (
-                <motion.div key={tile.title} {...reveal(0.05)} className={`home-card p-6 bg-gradient-to-br ${tile.accent}`}>
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Case study</p>
-                  <h3 className="mt-3 text-lg font-semibold text-foreground">{tile.title}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">{tile.subtitle}</p>
+                <motion.div
+                  key={tile.title}
+                  {...reveal(0.05)}
+                  className="home-card overflow-hidden transition-transform duration-300 hover:-translate-y-1"
+                >
+                  <div className={`relative aspect-[4/3] bg-gradient-to-br ${tile.accent}`}>
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.55),transparent_55%)] opacity-60" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_70%,rgba(0,0,0,0.10),transparent_55%)] opacity-50" />
+                  </div>
+                  <div className="p-6">
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Case study</p>
+                    <h3 className="mt-3 text-lg font-semibold text-foreground">{tile.title}</h3>
+                    <p className="mt-2 text-sm text-muted-foreground">{tile.subtitle}</p>
+                  </div>
                 </motion.div>
               ))}
             </div>
@@ -802,11 +834,19 @@ export default function Homepage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-6">
-            <button type="button" onClick={() => scrollToSection("contact")}>
+            <button
+              type="button"
+              className="bg-transparent p-0 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => scrollToSection("contact")}
+            >
               Contact
             </button>
-            <Link href="/terms">Terms & Conditions</Link>
-            <Link href="/privacy">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-foreground transition-colors">
+              Terms & Conditions
+            </Link>
+            <Link href="/privacy" className="hover:text-foreground transition-colors">
+              Privacy Policy
+            </Link>
           </div>
         </div>
       </footer>
