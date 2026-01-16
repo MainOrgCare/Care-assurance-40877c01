@@ -25,8 +25,7 @@ This repo is a single Node.js web service that serves both the API and the built
 
 In Render, create a **Web Service** (Environment: **Node**) pointing at this repository.
 
-- **Build Command**: `npm ci && npm run build`
-- **Build Command**: `npm run build`
+- **Build Command**: `npm run build` (runs `npm ci --include=dev` internally for a clean install)
 - **Start Command**: `npm run start`
 - **Node version**: use Node 20 (already declared via `package.json` `engines.node = 20.x`).
 - **Environment variables**:
