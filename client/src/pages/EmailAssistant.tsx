@@ -69,33 +69,34 @@ export default function EmailAssistant() {
   return (
     <div className="page-shell max-w-5xl mx-auto">
       <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-heading font-bold text-foreground">Email Professionalizer</h2>
-        <p className="text-muted-foreground">Turn rough notes into polished, professional correspondence instantly.</p>
+        <h2 className="text-3xl font-heading font-bold" style={{ color: '#0f172a' }}>Email Professionalizer</h2>
+        <p style={{ color: '#64748b' }}>Turn rough notes into polished, professional correspondence instantly.</p>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-8 h-full">
         {/* Input Section */}
-        <Card className="flex flex-col h-full border-muted-foreground/20 shadow-sm">
+        <Card className="flex flex-col h-full shadow-sm" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
           <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2">
-              <span className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">1</span>
+            <CardTitle className="flex items-center gap-2" style={{ color: '#0f172a' }}>
+              <span className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#f1f5f9', color: '#64748b' }}>1</span>
               Draft Your Message
             </CardTitle>
-            <CardDescription>
+            <CardDescription style={{ color: '#64748b' }}>
               Enter your bullet points, rough notes, or draft text here.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-1 min-h-[300px]">
             <Textarea 
               placeholder="e.g. need to tell sarah about the missing med logs. she needs to fix it by friday or we are in trouble with cqc. also ask how her holiday was."
-              className="h-full resize-none p-4 text-base bg-muted/10 border-muted-foreground/10 focus-visible:ring-primary/20"
+              className="h-full resize-none p-4 text-base"
+              style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', color: '#0f172a' }}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
             />
           </CardContent>
-          <CardFooter className="flex flex-col sm:flex-row gap-4 border-t bg-muted/5 p-4">
+          <CardFooter className="flex flex-col sm:flex-row gap-4 p-4" style={{ borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
              <div className="flex items-center gap-2 w-full">
-               <Label className="text-xs text-muted-foreground whitespace-nowrap">Tone:</Label>
+               <Label className="text-xs whitespace-nowrap" style={{ color: '#64748b' }}>Tone:</Label>
                <Tabs defaultValue="professional" value={tone} onValueChange={setTone} className="w-full">
                 <TabsList className="w-full grid grid-cols-3">
                   <TabsTrigger value="professional">Professional</TabsTrigger>
@@ -115,14 +116,14 @@ export default function EmailAssistant() {
               </Button>
            </div>
            
-           <Card className={`flex flex-col h-full border-primary/20 shadow-md transition-all duration-500 ${outputText ? 'bg-card' : 'bg-muted/5'}`}>
-            <CardHeader className="pb-4 bg-primary/5 border-b border-primary/10">
+           <Card className="flex flex-col h-full shadow-md transition-all duration-500" style={{ backgroundColor: outputText ? '#ffffff' : '#f8fafc', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+            <CardHeader className="pb-4" style={{ backgroundColor: 'rgba(59, 130, 246, 0.05)', borderBottom: '1px solid rgba(59, 130, 246, 0.1)' }}>
               <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-primary">
+                <CardTitle className="flex items-center gap-2" style={{ color: '#3b82f6' }}>
                   <Sparkles size={18} /> Polished Output
                 </CardTitle>
                 {outputText && (
-                  <Badge variant="outline" className="bg-background text-primary border-primary/20">
+                  <Badge variant="outline" style={{ backgroundColor: '#ffffff', color: '#3b82f6', borderColor: 'rgba(59, 130, 246, 0.2)' }}>
                     Ready to Send
                   </Badge>
                 )}
@@ -130,29 +131,31 @@ export default function EmailAssistant() {
             </CardHeader>
             <CardContent className="flex-1 p-0 relative">
               {isProcessing ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/50 backdrop-blur-sm z-10">
-                  <RefreshCw className="h-8 w-8 text-primary animate-spin mb-4" />
-                  <p className="text-sm font-medium text-muted-foreground animate-pulse">Refining language...</p>
+                <div className="absolute inset-0 flex flex-col items-center justify-center backdrop-blur-sm z-10" style={{ backgroundColor: 'rgba(255, 255, 255, 0.5)' }}>
+                  <RefreshCw className="h-8 w-8 animate-spin mb-4" style={{ color: '#3b82f6' }} />
+                  <p className="text-sm font-medium animate-pulse" style={{ color: '#64748b' }}>Refining language...</p>
                 </div>
               ) : null}
               
               <Textarea 
                 readOnly
                 className="h-full w-full resize-none border-0 focus-visible:ring-0 p-6 text-base leading-relaxed bg-transparent"
+                style={{ color: '#0f172a' }}
                 placeholder={isProcessing ? "" : "Your polished email will appear here..."}
                 value={outputText}
               />
             </CardContent>
-            <CardFooter className="border-t bg-card p-4 flex gap-3">
+            <CardFooter className="p-4 flex gap-3" style={{ borderTop: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
               <Button 
                 onClick={handleRewrite} 
-                className="flex-1" 
+                className="flex-1 text-white" 
+                style={{ backgroundColor: '#3b82f6' }}
                 disabled={isProcessing}
               >
                 {outputText ? <><RefreshCw className="mr-2 h-4 w-4"/> Try Again</> : <><Sparkles className="mr-2 h-4 w-4"/> Rewrite Magic</>}
               </Button>
               {outputText && (
-                <Button variant="outline" onClick={copyToClipboard}>
+                <Button variant="outline" onClick={copyToClipboard} style={{ borderColor: '#e2e8f0', color: '#334155' }}>
                   <Copy className="mr-2 h-4 w-4" /> Copy
                 </Button>
               )}

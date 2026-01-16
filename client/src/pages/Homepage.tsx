@@ -92,12 +92,12 @@ const PRIMARY_FEATURES = [
 const CERTIFICATIONS = [
   {
     icon: ShieldCheck,
-    title: "CQC Compliant",
-    description: "Workflows aligned to inspection priorities and audit-ready reporting.",
+    title: "CQC-Aligned",
+    description: "Workflows designed around inspection priorities and audit-ready reporting.",
   },
   {
     icon: Lock,
-    title: "GDPR Certified",
+    title: "Privacy Focused",
     description: "Data minimisation, sealing, and role-based access built in.",
   },
   {
@@ -107,36 +107,24 @@ const CERTIFICATIONS = [
   },
 ] as const;
 
-const PROJECT_TILES = [
+const WORKFLOW_STEPS = [
   {
-    title: "EMAR Audit Reports",
-    subtitle: "Medication compliance snapshots",
-    accent: "from-[hsl(220_60%_96%)] to-[hsl(220_50%_88%)]",
+    step: "01",
+    title: "Upload Records",
+    description: "Drag and drop EMAR sheets, care plans, or visit logs. Supports PDF, CSV, and common care system exports.",
+    icon: FileText,
   },
   {
-    title: "Care Plan Generator",
-    subtitle: "11-section drafts in minutes",
-    accent: "from-[hsl(200_50%_95%)] to-[hsl(200_45%_85%)]",
+    step: "02",
+    title: "AI Analysis",
+    description: "Our system parses documents, detects discrepancies, and highlights compliance risks automatically.",
+    icon: Brain,
   },
   {
-    title: "Visit Audit Review",
-    subtitle: "Planned vs actual insights",
-    accent: "from-[hsl(210_45%_95%)] to-[hsl(210_40%_87%)]",
-  },
-  {
-    title: "Staff Performance",
-    subtitle: "Coaching-ready patterns",
-    accent: "from-[hsl(230_50%_96%)] to-[hsl(230_45%_88%)]",
-  },
-  {
-    title: "Risk Assessment",
-    subtitle: "Structured, consistent scoring",
-    accent: "from-[hsl(190_45%_94%)] to-[hsl(190_40%_84%)]",
-  },
-  {
-    title: "Call Reconciliation",
-    subtitle: "Variance summaries for billing",
-    accent: "from-[hsl(215_50%_95%)] to-[hsl(215_45%_87%)]",
+    step: "03",
+    title: "Review & Action",
+    description: "Clear summaries show what needs attention. Export reports or generate corrective action plans instantly.",
+    icon: ClipboardCheck,
   },
 ] as const;
 
@@ -435,20 +423,34 @@ export default function Homepage() {
             </motion.div>
 
             <motion.div {...reveal(0.1)} className="relative">
-              <div className="home-card p-4">
-                <div 
-                  className="w-full rounded-2xl aspect-video flex items-center justify-center"
-                  style={{ 
-                    background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
-                    border: '1px solid #475569'
-                  }}
-                >
-                  <div className="text-center p-8">
-                    <div className="h-12 w-12 rounded-xl mx-auto flex items-center justify-center" style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)' }}>
-                      <ShieldCheck className="h-6 w-6" style={{ color: '#60a5fa' }} />
+              <div className="home-card p-6">
+                <div className="space-y-4">
+                  <div className="flex items-start gap-4 p-4 rounded-lg" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                    <div className="h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#dcfce7' }}>
+                      <CheckCircle2 className="h-5 w-5" style={{ color: '#16a34a' }} />
                     </div>
-                    <p className="mt-4 text-lg font-semibold" style={{ color: '#f1f5f9' }}>CareAssurance</p>
-                    <p className="mt-1 text-sm" style={{ color: '#94a3b8' }}>Compliance Dashboard Preview</p>
+                    <div>
+                      <p className="font-semibold text-sm" style={{ color: '#0f172a' }}>EMAR compliance audit</p>
+                      <p className="text-xs mt-1" style={{ color: '#64748b' }}>12 medication records reviewed • 0 discrepancies</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4 p-4 rounded-lg" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                    <div className="h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#dcfce7' }}>
+                      <FileText className="h-5 w-5" style={{ color: '#16a34a' }} />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm" style={{ color: '#0f172a' }}>Care plan generated</p>
+                      <p className="text-xs mt-1" style={{ color: '#64748b' }}>11 sections • inspection-ready format</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4 p-4 rounded-lg" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                    <div className="h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#dbeafe' }}>
+                      <ClipboardCheck className="h-5 w-5" style={{ color: '#3b82f6' }} />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm" style={{ color: '#0f172a' }}>Visit reconciliation</p>
+                      <p className="text-xs mt-1" style={{ color: '#64748b' }}>Analysing 48 visits • 2 variances flagged</p>
+                    </div>
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3">
@@ -547,8 +549,8 @@ export default function Homepage() {
               ))}
             </div>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <span className="home-band-pill">CQC Compliant</span>
-              <span className="home-band-pill">GDPR Certified</span>
+              <span className="home-band-pill">CQC-Aligned</span>
+              <span className="home-band-pill">Privacy Focused</span>
             </div>
           </div>
         </section>
@@ -581,30 +583,36 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section className="px-4 py-16">
+        <section className="px-4 py-16" style={{ backgroundColor: '#ffffff' }}>
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
-              <span className="home-eyebrow">Recent projects</span>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: 'hsl(220, 25%, 10%)' }}>
-                Compliance outputs that teams can act on.
+              <span className="home-eyebrow">How it works</span>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: '#0f172a' }}>
+                Three steps to audit-ready compliance.
               </h2>
+              <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed" style={{ color: '#64748b' }}>
+                No complex setup. Upload your existing documents and get actionable insights within minutes.
+              </p>
             </motion.div>
-            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {PROJECT_TILES.map((tile) => (
+            <div className="mt-12 grid gap-8 md:grid-cols-3">
+              {WORKFLOW_STEPS.map((step) => (
                 <motion.div
-                  key={tile.title}
-                  {...reveal(0.05)}
-                  className="home-card overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+                  key={step.step}
+                  {...reveal(0.1)}
+                  className="relative p-6 rounded-xl border"
+                  style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }}
                 >
-                  <div className={`relative aspect-[4/3] bg-gradient-to-br ${tile.accent}`}>
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.6),transparent_55%)] opacity-60" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_70%,rgba(0,0,0,0.05),transparent_55%)] opacity-50" />
+                  <div className="flex items-center gap-4 mb-4">
+                    <span 
+                      className="text-4xl font-bold"
+                      style={{ color: '#e2e8f0' }}
+                    >
+                      {step.step}
+                    </span>
+                    <step.icon className="h-8 w-8" style={{ color: '#3b82f6' }} />
                   </div>
-                  <div className="p-5">
-                    <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#3b82f6' }}>Case study</p>
-                    <h3 className="mt-2 text-lg font-semibold" style={{ color: '#0f172a' }}>{tile.title}</h3>
-                    <p className="mt-1 text-sm" style={{ color: '#64748b' }}>{tile.subtitle}</p>
-                  </div>
+                  <h3 className="text-lg font-semibold mb-2" style={{ color: '#0f172a' }}>{step.title}</h3>
+                  <p className="text-sm leading-relaxed" style={{ color: '#64748b' }}>{step.description}</p>
                 </motion.div>
               ))}
             </div>
