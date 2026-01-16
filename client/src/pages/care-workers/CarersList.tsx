@@ -199,7 +199,8 @@ export default function CarersList() {
                               {worker.discrepancies.map((disc, idx) => (
                                 <div 
                                   key={idx} 
-                                  className="p-3 rounded bg-white/5 border border-white/5 text-sm"
+                                  className="p-3 rounded text-sm"
+                                  style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}
                                   data-testid={`card-discrepancy-${idx}`}
                                 >
                                   <div className="flex justify-between text-muted-foreground text-xs mb-1">

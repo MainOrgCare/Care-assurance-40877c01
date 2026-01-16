@@ -120,7 +120,7 @@ function AICostSection() {
 
   if (loading) {
     return (
-      <Card className="bg-card border-white/5 backdrop-blur-sm">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -129,13 +129,13 @@ function AICostSection() {
   }
 
   const featureColors: Record<string, string> = {
-    "emar_metadata": "bg-blue-500/20 text-blue-400",
-    "emar_entries": "bg-indigo-500/20 text-indigo-400",
-    "emar_pass": "bg-purple-500/20 text-purple-400",
-    "drug_interactions": "bg-red-500/20 text-red-400",
-    "care_plan": "bg-green-500/20 text-green-400",
-    "risk_assessment": "bg-amber-500/20 text-amber-400",
-    "plan_enhancer": "bg-cyan-500/20 text-cyan-400",
+    "emar_metadata": "bg-blue-100 text-blue-600",
+    "emar_entries": "bg-indigo-100 text-indigo-600",
+    "emar_pass": "bg-purple-100 text-purple-600",
+    "drug_interactions": "bg-red-100 text-red-600",
+    "care_plan": "bg-green-100 text-green-600",
+    "risk_assessment": "bg-amber-100 text-amber-600",
+    "plan_enhancer": "bg-cyan-100 text-cyan-600",
   };
 
   const getFeatureColor = (feature: string): string => {
@@ -144,7 +144,7 @@ function AICostSection() {
         return color;
       }
     }
-    return "bg-gray-500/20 text-gray-400";
+    return "bg-gray-100 text-gray-600";
   };
 
   const totalCost = stats?.totalCost ?? 0;
@@ -183,7 +183,7 @@ function AICostSection() {
   const providerBadgeClass = (value: string): string => (
     value === "openai"
       ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/10"
-      : "border-white/10 text-muted-foreground bg-white/5"
+      : "border-white/10 text-muted-foreground bg-slate-50"
   );
 
   const filteredLogs = logs.filter((log) => {
@@ -203,74 +203,74 @@ function AICostSection() {
   return (
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Card className="bg-card border-white/5 backdrop-blur-sm">
+        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <DollarSign size={14} className="text-green-500" /> Total Spend
+            <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2" style={{ color: '#64748b' }}>
+              <DollarSign size={14} style={{ color: '#22c55e' }} /> Total Spend
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-400">{stats ? formatCost(totalCost) : "$0.00"}</div>
-            <p className="text-xs text-muted-foreground">All time AI costs</p>
+            <div className="text-2xl font-bold" style={{ color: '#16a34a' }}>{stats ? formatCost(totalCost) : "$0.00"}</div>
+            <p className="text-xs" style={{ color: '#64748b' }}>All time AI costs</p>
           </CardContent>
         </Card>
         
-        <Card className="bg-card border-white/5 backdrop-blur-sm">
+        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <Cpu size={14} className="text-blue-500" /> API Calls
+            <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2" style={{ color: '#64748b' }}>
+              <Cpu size={14} style={{ color: '#3b82f6' }} /> API Calls
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-400">{totalCalls}</div>
-            <p className="text-xs text-muted-foreground">Total AI requests</p>
+            <div className="text-2xl font-bold" style={{ color: '#2563eb' }}>{totalCalls}</div>
+            <p className="text-xs" style={{ color: '#64748b' }}>Total AI requests</p>
           </CardContent>
         </Card>
         
-        <Card className="bg-card border-white/5 backdrop-blur-sm">
+        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <TrendingUp size={14} className="text-purple-500" /> Features Used
+            <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2" style={{ color: '#64748b' }}>
+              <TrendingUp size={14} style={{ color: '#9333ea' }} /> Features Used
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-400">{stats ? Object.keys(stats.byFeature).length : 0}</div>
-            <p className="text-xs text-muted-foreground">Unique AI features</p>
+            <div className="text-2xl font-bold" style={{ color: '#7c3aed' }}>{stats ? Object.keys(stats.byFeature).length : 0}</div>
+            <p className="text-xs" style={{ color: '#64748b' }}>Unique AI features</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-white/5 backdrop-blur-sm">
+        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <Activity size={14} className="text-amber-500" /> Avg Cost / Call
+            <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2" style={{ color: '#64748b' }}>
+              <Activity size={14} style={{ color: '#f59e0b' }} /> Avg Cost / Call
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-400">{formatCost(avgCostPerCall)}</div>
-            <p className="text-xs text-muted-foreground">{avgTokensPerCall.toFixed(0)} tokens per call</p>
+            <div className="text-2xl font-bold" style={{ color: '#d97706' }}>{formatCost(avgCostPerCall)}</div>
+            <p className="text-xs" style={{ color: '#64748b' }}>{avgTokensPerCall.toFixed(0)} tokens per call</p>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
-        <Card className="bg-card border-white/5 backdrop-blur-sm">
+        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <Cpu size={14} className="text-sky-400" /> Cost Efficiency
+            <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2" style={{ color: '#64748b' }}>
+              <Cpu size={14} style={{ color: '#0ea5e9' }} /> Cost Efficiency
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Cost per 1k tokens</span>
-              <span className="font-semibold text-foreground">{formatCost(costPerThousandTokens)}</span>
+              <span style={{ color: '#64748b' }}>Cost per 1k tokens</span>
+              <span className="font-semibold" style={{ color: '#0f172a' }}>{formatCost(costPerThousandTokens)}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Total tokens processed</span>
-              <span className="font-semibold text-foreground">{totalTokens.toLocaleString()}</span>
+              <span style={{ color: '#64748b' }}>Total tokens processed</span>
+              <span className="font-semibold" style={{ color: '#0f172a' }}>{totalTokens.toLocaleString()}</span>
             </div>
             {providerEntries.length > 0 && (
-              <div className="pt-2 border-t border-white/5 space-y-2">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">Provider Mix</p>
+              <div className="pt-2 space-y-2" style={{ borderTop: '1px solid #e2e8f0' }}>
+                <p className="text-xs uppercase tracking-wider" style={{ color: '#64748b' }}>Provider Mix</p>
                 <div className="flex flex-wrap gap-2">
                   {providerEntries.map(([provider, data]) => (
                     <Badge
@@ -287,10 +287,10 @@ function AICostSection() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-white/5 backdrop-blur-sm">
+        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <TrendingUp size={14} className="text-emerald-400" /> Top Cost Driver
+            <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2" style={{ color: '#64748b' }}>
+              <TrendingUp size={14} style={{ color: '#10b981' }} /> Top Cost Driver
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -305,7 +305,7 @@ function AICostSection() {
                 <div className="text-xs text-muted-foreground">
                   {topFeature[1].calls} calls · {topFeature[1].tokens.toLocaleString()} tokens
                 </div>
-                <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                <div className="h-2 rounded-full bg-slate-50 overflow-hidden">
                   <div
                     className="h-full bg-emerald-400/70"
                     style={{ width: `${Math.max(6, Math.min(100, totalCost > 0 ? (topFeature[1].cost / totalCost) * 100 : 0))}%` }}
@@ -320,8 +320,8 @@ function AICostSection() {
       </div>
 
       {stats && Object.keys(stats.byFeature).length > 0 && (
-        <Card className="bg-card border-white/5 backdrop-blur-sm">
-          <CardHeader className="border-b border-white/5 bg-black/20">
+        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
+          <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
               <DollarSign size={18} className="text-green-400" />
               Cost Breakdown by Feature
@@ -338,7 +338,7 @@ function AICostSection() {
                 const avgTokens = data.calls > 0 ? data.tokens / data.calls : 0;
 
                 return (
-                  <div key={feature} className="p-3 rounded-lg bg-white/5 border border-white/5 space-y-2">
+                  <div key={feature} className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <Badge variant="secondary" className={getFeatureColor(feature)}>
@@ -354,7 +354,7 @@ function AICostSection() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="h-2 flex-1 rounded-full bg-white/5 overflow-hidden">
+                      <div className="h-2 flex-1 rounded-full bg-slate-50 overflow-hidden">
                         <div
                           className="h-full bg-white/20"
                           style={{ width: `${Math.max(6, Math.min(100, share))}%` }}
@@ -370,8 +370,8 @@ function AICostSection() {
         </Card>
       )}
 
-      <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
-        <CardHeader className="border-b border-white/5 bg-black/20">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+        <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <CardTitle className="flex items-center gap-2 text-foreground text-base">
@@ -410,7 +410,7 @@ function AICostSection() {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="border-white/5 hover:bg-transparent">
+                <TableRow className="border-slate-200 hover:bg-transparent">
                   <TableHead className="text-muted-foreground">Time</TableHead>
                   <TableHead className="text-muted-foreground">User</TableHead>
                   <TableHead className="text-muted-foreground">Feature</TableHead>
@@ -423,7 +423,7 @@ function AICostSection() {
               </TableHeader>
               <TableBody>
                 {filteredLogs.map((log) => (
-                  <TableRow key={log.id} className="border-white/5" data-testid={`ai-log-${log.id}`}>
+                  <TableRow key={log.id} className="border-slate-200" data-testid={`ai-log-${log.id}`}>
                     <TableCell className="text-muted-foreground text-xs">
                       {new Date(log.createdAt).toLocaleString()}
                     </TableCell>
@@ -498,7 +498,7 @@ function AIProviderSection() {
 
   if (loading) {
     return (
-      <Card className="bg-card border-white/5 backdrop-blur-sm">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardContent className="flex items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </CardContent>
@@ -507,8 +507,8 @@ function AIProviderSection() {
   }
 
   return (
-    <Card className="bg-card border-white/5 backdrop-blur-sm">
-      <CardHeader className="border-b border-white/5 bg-black/20">
+    <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
+      <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
         <CardTitle className="flex items-center gap-2 text-foreground text-base">
           <Cpu size={18} className="text-purple-400" />
           AI Configuration
@@ -520,7 +520,7 @@ function AIProviderSection() {
       <CardContent className="p-6 space-y-6">
         <div>
           <h4 className="text-sm font-medium text-foreground mb-3">Billing Provider</h4>
-          <div className="p-4 rounded-lg border-2 border-white/10 bg-white/5">
+          <div className="p-4 rounded-lg border-2 border-white/10 bg-slate-50">
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                 hasOpenAIKey ? "bg-emerald-500/20" : "bg-white/10"
@@ -545,7 +545,7 @@ function AIProviderSection() {
           </div>
         </div>
 
-        <div className="border-t border-white/5 pt-6">
+        <div className="border-t border-slate-200 pt-6">
           <h4 className="text-sm font-medium text-foreground mb-3">AI Model Strategy</h4>
           <div className="p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
             <div className="font-medium text-foreground mb-2">Optimized Tiered Approach</div>
@@ -562,7 +562,7 @@ function AIProviderSection() {
           </div>
         </div>
 
-        <div className="p-3 bg-black/20 rounded-lg border border-white/5 text-xs text-muted-foreground">
+        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-muted-foreground">
           <strong className="text-foreground">Note:</strong> AI models are automatically selected based on task complexity. 
           Drug interaction checks are computed on each run to avoid reusing previous responses.
           Provider is fixed to OpenAI for this deployment.
@@ -604,7 +604,7 @@ function RiskAssessmentLogsSection() {
 
   if (loading) {
     return (
-      <Card className="bg-card border-white/5 backdrop-blur-sm">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -613,8 +613,8 @@ function RiskAssessmentLogsSection() {
   }
 
   return (
-    <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
-      <CardHeader className="border-b border-white/5 bg-black/20">
+    <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+      <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
@@ -641,7 +641,7 @@ function RiskAssessmentLogsSection() {
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="border-white/5 hover:bg-transparent">
+              <TableRow className="border-slate-200 hover:bg-transparent">
                 <TableHead className="text-muted-foreground font-medium">Date</TableHead>
                 <TableHead className="text-muted-foreground font-medium">Service User</TableHead>
                 <TableHead className="text-muted-foreground font-medium">Performed By</TableHead>
@@ -652,7 +652,7 @@ function RiskAssessmentLogsSection() {
             </TableHeader>
             <TableBody>
               {filteredLogs.map((log) => (
-                <TableRow key={log.id} className="border-white/5 hover:bg-white/5 transition-colors" data-testid={`row-risk-log-${log.id}`}>
+                <TableRow key={log.id} className="border-slate-200 hover:bg-slate-50 transition-colors" data-testid={`row-risk-log-${log.id}`}>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {new Date(log.createdAt).toLocaleDateString("en-GB", { 
                       day: "2-digit", 
@@ -709,7 +709,7 @@ function RiskAssessmentLogsSection() {
           </Table>
         </div>
       </CardContent>
-      <CardFooter className="border-t border-white/5 bg-black/20 py-3">
+      <CardFooter className="border-t" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }} className="py-3">
         <p className="text-xs text-muted-foreground">Showing {filteredLogs.length} of {logs.length} log entries</p>
       </CardFooter>
     </Card>
@@ -929,7 +929,7 @@ function ActivePresenceSection() {
 
   if (loading) {
     return (
-      <Card className="bg-card border-white/5 backdrop-blur-sm">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -942,8 +942,8 @@ function ActivePresenceSection() {
 
   return (
     <div className="space-y-6">
-      <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
-        <CardHeader className="border-b border-white/5 bg-black/20">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+        <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
             <Activity size={18} className="text-green-400" />
             Online Users ({onlineUsers.length})
@@ -1052,8 +1052,8 @@ function ActivePresenceSection() {
         </CardContent>
       </Card>
 
-      <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
-        <CardHeader className="border-b border-white/5 bg-black/20">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+        <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
             <EyeOff size={18} className="text-muted-foreground" />
             Offline Staff ({offlineUsers.length})
@@ -1062,7 +1062,7 @@ function ActivePresenceSection() {
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="border-white/5 hover:bg-transparent">
+              <TableRow className="border-slate-200 hover:bg-transparent">
                 <TableHead className="text-muted-foreground font-medium">User</TableHead>
                 <TableHead className="text-muted-foreground font-medium">Status</TableHead>
                 <TableHead className="text-muted-foreground font-medium">Last Online</TableHead>
@@ -1070,7 +1070,7 @@ function ActivePresenceSection() {
             </TableHeader>
             <TableBody>
               {offlineUsers.slice(0, 10).map((user) => (
-                <TableRow key={user.id} className="border-white/5 hover:bg-white/5">
+                <TableRow key={user.id} className="border-slate-200 hover:bg-slate-50">
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-2 rounded-full bg-muted-foreground" />
@@ -1198,7 +1198,7 @@ function BlockedIpsSection() {
 
   if (loading) {
     return (
-      <Card className="bg-card border-white/5 backdrop-blur-sm">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -1207,8 +1207,8 @@ function BlockedIpsSection() {
   }
 
   return (
-    <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
-      <CardHeader className="border-b border-white/5 bg-black/20">
+    <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+      <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
         <CardTitle className="flex items-center gap-2 text-foreground text-base">
           <Shield size={18} className="text-red-400" />
           Blocked IP Addresses ({blockedIps.length})
@@ -1220,7 +1220,7 @@ function BlockedIpsSection() {
       <CardContent className="p-0">
         <Table>
           <TableHeader>
-            <TableRow className="border-white/5 hover:bg-transparent">
+            <TableRow className="border-slate-200 hover:bg-transparent">
               <TableHead className="text-muted-foreground font-medium">IP Address</TableHead>
               <TableHead className="text-muted-foreground font-medium">Associated User</TableHead>
               <TableHead className="text-muted-foreground font-medium">Blocked By</TableHead>
@@ -1231,7 +1231,7 @@ function BlockedIpsSection() {
           </TableHeader>
           <TableBody>
             {blockedIps.map((blocked) => (
-              <TableRow key={blocked.id} className="border-white/5 hover:bg-white/5" data-testid={`row-blocked-ip-${blocked.id}`}>
+              <TableRow key={blocked.id} className="border-slate-200 hover:bg-slate-50" data-testid={`row-blocked-ip-${blocked.id}`}>
                 <TableCell className="font-mono text-foreground">{blocked.ipAddress}</TableCell>
                 <TableCell className="text-muted-foreground">{blocked.username || "-"}</TableCell>
                 <TableCell className="text-muted-foreground">{blocked.blockedBy}</TableCell>
@@ -1292,7 +1292,7 @@ function AuditTrailSection() {
 
   if (loading) {
     return (
-      <Card className="bg-card border-white/5 backdrop-blur-sm">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -1322,8 +1322,8 @@ function AuditTrailSection() {
       </div>
 
       {activeTab === "discrepancies" && (
-        <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
-          <CardHeader className="border-b border-white/5 bg-black/20">
+        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+          <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
               <AlertTriangle size={18} className="text-amber-400" />
               Care Worker Discrepancies ({data.discrepancies.length})
@@ -1333,7 +1333,7 @@ function AuditTrailSection() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-white/5">
+                  <TableRow className="border-slate-200">
                     <TableHead className="text-muted-foreground">Date</TableHead>
                     <TableHead className="text-muted-foreground">Care Worker</TableHead>
                     <TableHead className="text-muted-foreground">Type</TableHead>
@@ -1344,7 +1344,7 @@ function AuditTrailSection() {
                 </TableHeader>
                 <TableBody>
                   {data.discrepancies.filter(d => d.careWorker.name.toLowerCase().includes(search.toLowerCase()) || d.description.toLowerCase().includes(search.toLowerCase())).slice(0, 20).map((d) => (
-                    <TableRow key={d.id} className="border-white/5 hover:bg-white/5">
+                    <TableRow key={d.id} className="border-slate-200 hover:bg-slate-50">
                       <TableCell className="text-muted-foreground text-xs font-mono">{d.date}</TableCell>
                       <TableCell className="text-foreground">{d.careWorker.name}</TableCell>
                       <TableCell><Badge variant="outline" className="text-xs">{d.type}</Badge></TableCell>
@@ -1367,8 +1367,8 @@ function AuditTrailSection() {
       )}
 
       {activeTab === "suspensions" && (
-        <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
-          <CardHeader className="border-b border-white/5 bg-black/20">
+        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+          <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
               <Lock size={18} className="text-red-400" />
               Suspension Logs ({data.suspensions.length})
@@ -1377,7 +1377,7 @@ function AuditTrailSection() {
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow className="border-white/5">
+                <TableRow className="border-slate-200">
                   <TableHead className="text-muted-foreground">Date</TableHead>
                   <TableHead className="text-muted-foreground">User</TableHead>
                   <TableHead className="text-muted-foreground">Admin</TableHead>
@@ -1388,7 +1388,7 @@ function AuditTrailSection() {
               </TableHeader>
               <TableBody>
                 {data.suspensions.filter(s => s.username.toLowerCase().includes(search.toLowerCase())).map((s) => (
-                  <TableRow key={s.id} className="border-white/5 hover:bg-white/5">
+                  <TableRow key={s.id} className="border-slate-200 hover:bg-slate-50">
                     <TableCell className="text-muted-foreground text-xs font-mono">{new Date(s.startsAt).toLocaleString()}</TableCell>
                     <TableCell className="text-foreground">{s.username}</TableCell>
                     <TableCell className="text-muted-foreground">{s.adminUsername}</TableCell>
@@ -1412,8 +1412,8 @@ function AuditTrailSection() {
       )}
 
       {activeTab === "sessions" && (
-        <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
-          <CardHeader className="border-b border-white/5 bg-black/20">
+        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+          <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
               <Activity size={18} className="text-blue-400" />
               Session History ({data.sessionHistory.length})
@@ -1422,7 +1422,7 @@ function AuditTrailSection() {
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow className="border-white/5">
+                <TableRow className="border-slate-200">
                   <TableHead className="text-muted-foreground">Login Time</TableHead>
                   <TableHead className="text-muted-foreground">User</TableHead>
                   <TableHead className="text-muted-foreground">Logout Time</TableHead>
@@ -1432,7 +1432,7 @@ function AuditTrailSection() {
               </TableHeader>
               <TableBody>
                 {data.sessionHistory.filter(s => s.username.toLowerCase().includes(search.toLowerCase())).slice(0, 30).map((s) => (
-                  <TableRow key={s.id} className="border-white/5 hover:bg-white/5">
+                  <TableRow key={s.id} className="border-slate-200 hover:bg-slate-50">
                     <TableCell className="text-muted-foreground text-xs font-mono">{new Date(s.loggedInAt).toLocaleString()}</TableCell>
                     <TableCell className="text-foreground">{s.username}</TableCell>
                     <TableCell className="text-muted-foreground text-xs font-mono">{s.loggedOutAt ? new Date(s.loggedOutAt).toLocaleString() : "-"}</TableCell>
@@ -1516,7 +1516,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
 
   if (loading) {
     return (
-      <Card className="bg-card border-white/5 backdrop-blur-sm">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -1525,8 +1525,8 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
   }
 
   return (
-    <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
-      <CardHeader className="border-b border-white/5 bg-black/20">
+    <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+      <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
@@ -1581,7 +1581,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
         {logCategory === "activity" && (
           <Table>
             <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-white/5 hover:bg-transparent">
+              <TableRow className="border-slate-200 hover:bg-transparent">
                 <TableHead className="text-muted-foreground w-[100px]">Time</TableHead>
                 <TableHead className="text-muted-foreground">User</TableHead>
                 <TableHead className="text-muted-foreground">Action</TableHead>
@@ -1591,7 +1591,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
             </TableHeader>
             <TableBody>
               {filteredLogs.map((log) => (
-                <TableRow key={log.id} className="border-white/5 hover:bg-white/5 transition-colors" data-testid={`row-log-${log.id}`}>
+                <TableRow key={log.id} className="border-slate-200 hover:bg-slate-50 transition-colors" data-testid={`row-log-${log.id}`}>
                   <TableCell className="font-mono text-xs text-muted-foreground">{log.time}</TableCell>
                   <TableCell className="font-medium text-foreground">{log.user}</TableCell>
                   <TableCell className="text-muted-foreground">{log.action}</TableCell>
@@ -1617,7 +1617,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
         {logCategory === "discrepancies" && auditData && (
           <Table>
             <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-white/5">
+              <TableRow className="border-slate-200">
                 <TableHead className="text-muted-foreground">Date</TableHead>
                 <TableHead className="text-muted-foreground">Care Worker</TableHead>
                 <TableHead className="text-muted-foreground">Type</TableHead>
@@ -1628,7 +1628,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
             </TableHeader>
             <TableBody>
               {auditData.discrepancies.filter(d => d.careWorker.name.toLowerCase().includes(logSearch.toLowerCase()) || d.description.toLowerCase().includes(logSearch.toLowerCase())).slice(0, 30).map((d) => (
-                <TableRow key={d.id} className="border-white/5 hover:bg-white/5">
+                <TableRow key={d.id} className="border-slate-200 hover:bg-slate-50">
                   <TableCell className="text-muted-foreground text-xs font-mono">{d.date}</TableCell>
                   <TableCell className="text-foreground">{d.careWorker.name}</TableCell>
                   <TableCell><Badge variant="outline" className="text-xs">{d.type}</Badge></TableCell>
@@ -1653,7 +1653,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
         {logCategory === "suspensions" && auditData && (
           <Table>
             <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-white/5">
+              <TableRow className="border-slate-200">
                 <TableHead className="text-muted-foreground">Date</TableHead>
                 <TableHead className="text-muted-foreground">User</TableHead>
                 <TableHead className="text-muted-foreground">Admin</TableHead>
@@ -1664,7 +1664,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
             </TableHeader>
             <TableBody>
               {auditData.suspensions.filter(s => s.username.toLowerCase().includes(logSearch.toLowerCase())).map((s) => (
-                <TableRow key={s.id} className="border-white/5 hover:bg-white/5">
+                <TableRow key={s.id} className="border-slate-200 hover:bg-slate-50">
                   <TableCell className="text-muted-foreground text-xs font-mono">{new Date(s.startsAt).toLocaleString()}</TableCell>
                   <TableCell className="text-foreground">{s.username}</TableCell>
                   <TableCell className="text-muted-foreground">{s.adminUsername}</TableCell>
@@ -1691,7 +1691,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
         {logCategory === "sessions" && auditData && (
           <Table>
             <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-white/5">
+              <TableRow className="border-slate-200">
                 <TableHead className="text-muted-foreground">Login Time</TableHead>
                 <TableHead className="text-muted-foreground">User</TableHead>
                 <TableHead className="text-muted-foreground">Logout Time</TableHead>
@@ -1701,7 +1701,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
             </TableHeader>
             <TableBody>
               {auditData.sessionHistory.filter(s => s.username.toLowerCase().includes(logSearch.toLowerCase())).slice(0, 30).map((s) => (
-                <TableRow key={s.id} className="border-white/5 hover:bg-white/5">
+                <TableRow key={s.id} className="border-slate-200 hover:bg-slate-50">
                   <TableCell className="text-muted-foreground text-xs font-mono">{new Date(s.loggedInAt).toLocaleString()}</TableCell>
                   <TableCell className="text-foreground">{s.username}</TableCell>
                   <TableCell className="text-muted-foreground text-xs font-mono">{s.loggedOutAt ? new Date(s.loggedOutAt).toLocaleString() : "-"}</TableCell>
@@ -1719,7 +1719,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
         {logCategory === "risk" && (
           <Table>
             <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-white/5 hover:bg-transparent">
+              <TableRow className="border-slate-200 hover:bg-transparent">
                 <TableHead className="text-muted-foreground">Date</TableHead>
                 <TableHead className="text-muted-foreground">Service User</TableHead>
                 <TableHead className="text-muted-foreground">Performed By</TableHead>
@@ -1730,7 +1730,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
             </TableHeader>
             <TableBody>
               {riskLogs.filter(log => log.serviceUserName.toLowerCase().includes(logSearch.toLowerCase()) || log.performedBy.toLowerCase().includes(logSearch.toLowerCase())).map((log) => (
-                <TableRow key={log.id} className="border-white/5 hover:bg-white/5 transition-colors" data-testid={`row-risk-log-${log.id}`}>
+                <TableRow key={log.id} className="border-slate-200 hover:bg-slate-50 transition-colors" data-testid={`row-risk-log-${log.id}`}>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {new Date(log.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </TableCell>
@@ -1767,7 +1767,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
           </Table>
         )}
       </div>
-      <CardFooter className="border-t border-white/5 bg-black/20 py-3">
+      <CardFooter className="border-t" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }} className="py-3">
         <p className="text-xs text-muted-foreground">
           Viewing {getCategoryLabel(logCategory)} • {getCategoryCount(logCategory)} entries
         </p>
@@ -1886,7 +1886,7 @@ function PolicyDocumentsSection() {
 
   if (loading) {
     return (
-      <Card className="bg-card border-white/5 backdrop-blur-sm">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -1896,8 +1896,8 @@ function PolicyDocumentsSection() {
 
   return (
     <div className="space-y-6">
-      <Card className="bg-card border-white/5 backdrop-blur-sm">
-        <CardHeader className="border-b border-white/5 bg-black/20">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
+        <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
             <Upload size={18} className="text-blue-400" />
             Upload Policy Document
@@ -1954,8 +1954,8 @@ function PolicyDocumentsSection() {
         </CardContent>
       </Card>
 
-      <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
-        <CardHeader className="border-b border-white/5 bg-black/20">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+        <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
             <FileText size={18} className="text-emerald-400" />
             Uploaded Policy Documents
@@ -1967,7 +1967,7 @@ function PolicyDocumentsSection() {
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="border-white/5 hover:bg-transparent">
+              <TableRow className="border-slate-200 hover:bg-transparent">
                 <TableHead className="text-muted-foreground font-medium">Name</TableHead>
                 <TableHead className="text-muted-foreground font-medium">Category</TableHead>
                 <TableHead className="text-muted-foreground font-medium">Version</TableHead>
@@ -1978,7 +1978,7 @@ function PolicyDocumentsSection() {
             </TableHeader>
             <TableBody>
               {documents.map((doc) => (
-                <TableRow key={doc.id} className="border-white/5 hover:bg-white/5 transition-colors" data-testid={`row-policy-${doc.id}`}>
+                <TableRow key={doc.id} className="border-slate-200 hover:bg-slate-50 transition-colors" data-testid={`row-policy-${doc.id}`}>
                   <TableCell className="font-medium text-foreground">{doc.name}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="bg-blue-900/30 text-blue-300 border-blue-700/50">
@@ -2104,7 +2104,7 @@ function ContactMessagesSection() {
 
   if (loading) {
     return (
-      <Card className="bg-card border-white/5 backdrop-blur-sm">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -2116,7 +2116,7 @@ function ContactMessagesSection() {
     <div className="space-y-6">
       {/* Stats */}
       <div className="grid md:grid-cols-3 gap-4">
-        <Card className="bg-card border-white/5 backdrop-blur-sm">
+        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
               <Mail size={14} className="text-blue-500" /> Total Messages
@@ -2128,7 +2128,7 @@ function ContactMessagesSection() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-white/5 backdrop-blur-sm">
+        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
               <MailOpen size={14} className="text-amber-500" /> Unread
@@ -2140,7 +2140,7 @@ function ContactMessagesSection() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-white/5 backdrop-blur-sm">
+        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
               <Archive size={14} className="text-gray-500" /> View
@@ -2161,8 +2161,8 @@ function ContactMessagesSection() {
       </div>
 
       {/* Messages List */}
-      <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
-        <CardHeader className="border-b border-white/5 bg-black/20">
+      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+        <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
             <Mail size={18} className="text-teal-400" />
             Contact Form Messages
@@ -2182,7 +2182,7 @@ function ContactMessagesSection() {
               {messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`p-4 cursor-pointer hover:bg-white/5 transition-colors ${
+                  className={`p-4 cursor-pointer hover:bg-slate-50 transition-colors ${
                     !msg.isRead ? "bg-blue-500/5 border-l-2 border-blue-500" : ""
                   } ${selectedMessage?.id === msg.id ? "bg-white/10" : ""}`}
                   onClick={() => {
@@ -2279,7 +2279,7 @@ function ContactMessagesSection() {
 
               <div>
                 <Label className="text-xs text-muted-foreground mb-2 block">Message</Label>
-                <div className="p-4 bg-muted/20 rounded-lg border border-white/5">
+                <div className="p-4 bg-muted/20 rounded-lg border border-slate-200">
                   <p className="whitespace-pre-wrap text-foreground">{selectedMessage.message}</p>
                 </div>
               </div>
@@ -2726,28 +2726,27 @@ export default function SecretAdminPortal() {
   const activeUsers = users.filter(u => u.status === "active");
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 p-2 md:p-8">
-      {/* Header - Softer, friendlier design */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-background via-card to-indigo-900/30 border border-white/10 p-8 shadow-2xl">
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-5"></div>
+    <div className="space-y-8 animate-in fade-in duration-700 p-2 md:p-8" style={{ backgroundColor: '#f8fafc' }}>
+      {/* Header - Clean light design */}
+      <div className="relative overflow-hidden rounded-2xl border p-8 shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 ring-1 ring-white/20">
-              <Shield size={32} className="text-white" />
+            <div className="h-14 w-14 rounded-xl flex items-center justify-center shadow-sm" style={{ backgroundColor: '#3b82f6' }}>
+              <Shield size={28} className="text-white" />
             </div>
             <div>
-              <h2 className="text-3xl font-heading font-bold text-foreground tracking-tight">Administrator Controls</h2>
+              <h2 className="text-2xl font-heading font-bold tracking-tight" style={{ color: '#0f172a' }}>Administrator Controls</h2>
               <div className="flex items-center gap-2 mt-1">
-                <Badge variant="outline" className="border-indigo-500/50 text-indigo-300 bg-indigo-950/30">Level 0 Access</Badge>
-                <span className="text-muted-foreground text-sm font-mono">•</span>
-                <p className="text-muted-foreground text-sm">Owner Access Only</p>
+                <Badge variant="outline" style={{ borderColor: '#3b82f6', color: '#3b82f6', backgroundColor: '#eff6ff' }}>Level 0 Access</Badge>
+                <span className="text-sm" style={{ color: '#64748b' }}>•</span>
+                <p className="text-sm" style={{ color: '#64748b' }}>Owner Access Only</p>
               </div>
             </div>
           </div>
           
-          <div className="flex items-center gap-3 bg-black/20 backdrop-blur-md px-4 py-2 rounded-full border border-indigo-500/30">
-            <div className="h-2 w-2 rounded-full bg-green-400" />
-            <span className="text-xs font-medium text-foreground uppercase tracking-wider">System Active</span>
+          <div className="flex items-center gap-3 px-4 py-2 rounded-full border" style={{ backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }}>
+            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
+            <span className="text-xs font-medium uppercase tracking-wider" style={{ color: '#16a34a' }}>System Active</span>
           </div>
         </div>
       </div>
@@ -2761,58 +2760,60 @@ export default function SecretAdminPortal() {
           {/* Critical Tools Section */}
           <div className="grid md:grid-cols-2 gap-4">
             <Link href="/call-reconciliation">
-              <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-900/40 to-card border border-blue-500/20 p-6 transition-all hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 cursor-pointer">
-                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <ArrowRightLeft size={80} />
+              <div className="group relative overflow-hidden rounded-xl border p-6 transition-all hover:shadow-md cursor-pointer" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
+                <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+                  <ArrowRightLeft size={80} style={{ color: '#64748b' }} />
                 </div>
                 <div className="relative z-10">
-                  <div className="h-10 w-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400 mb-4 group-hover:bg-blue-500/30 transition-colors">
-                    <ArrowRightLeft size={20} />
+                  <div className="h-10 w-10 rounded-lg flex items-center justify-center mb-4" style={{ backgroundColor: '#dbeafe' }}>
+                    <ArrowRightLeft size={20} style={{ color: '#3b82f6' }} />
                   </div>
-                  <h3 className="text-lg font-semibold text-foreground mb-1">Call Reconciliation</h3>
-                  <p className="text-sm text-muted-foreground">ECM matching interface for admin use only.</p>
+                  <h3 className="text-lg font-semibold mb-1" style={{ color: '#0f172a' }}>Call Reconciliation</h3>
+                  <p className="text-sm" style={{ color: '#64748b' }}>ECM matching interface for admin use only.</p>
                 </div>
               </div>
             </Link>
 
             <Button 
-              className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-600 to-purple-800 border border-purple-500/30 p-6 h-auto transition-all hover:opacity-95 hover:border-purple-400/50 hover:shadow-lg hover:shadow-purple-500/20 cursor-pointer w-full text-left flex flex-col items-start"
+              className="group relative overflow-hidden rounded-xl border p-6 h-auto transition-all hover:shadow-md cursor-pointer w-full text-left flex flex-col items-start"
+              style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}
               onClick={handleOpenSystemLogDialog}
               data-testid="button-system-log"
+              variant="ghost"
             >
-              <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Terminal size={80} />
+              <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+                <Terminal size={80} style={{ color: '#64748b' }} />
               </div>
               <div className="relative z-10 w-full">
-                <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center text-white mb-4">
-                  <Terminal size={20} />
+                <div className="h-10 w-10 rounded-lg flex items-center justify-center mb-4" style={{ backgroundColor: '#f3e8ff' }}>
+                  <Terminal size={20} style={{ color: '#9333ea' }} />
                 </div>
-                <h3 className="text-lg font-semibold text-foreground mb-1">System Log</h3>
-                <p className="text-sm text-purple-200/80">View audit completion records.</p>
+                <h3 className="text-lg font-semibold mb-1" style={{ color: '#0f172a' }}>System Log</h3>
+                <p className="text-sm" style={{ color: '#64748b' }}>View audit completion records.</p>
               </div>
             </Button>
           </div>
 
           {/* Admin Tabs */}
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="bg-card/50 border border-white/5 p-1 rounded-xl mb-6 flex-wrap">
-              <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground">Overview</TabsTrigger>
-              <TabsTrigger value="users" className="rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground relative">
+            <TabsList className="border p-1 rounded-xl mb-6 flex-wrap" style={{ backgroundColor: '#f1f5f9', borderColor: '#e2e8f0' }}>
+              <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm" style={{ color: '#475569' }}>Overview</TabsTrigger>
+              <TabsTrigger value="users" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm relative" style={{ color: '#475569' }}>
                 User Management
                 {pendingUsers.length > 0 && <span className="absolute -top-1 -right-1 h-2 w-2 bg-amber-500 rounded-full animate-pulse" />}
               </TabsTrigger>
-              <TabsTrigger value="presence" className="rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground">
+              <TabsTrigger value="presence" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm" style={{ color: '#475569' }}>
                 Active Presence
               </TabsTrigger>
-              <TabsTrigger value="messages" className="rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground">
+              <TabsTrigger value="messages" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm" style={{ color: '#475569' }}>
                 <Mail size={14} className="mr-1.5 inline-block" />
                 Messages
               </TabsTrigger>
-              <TabsTrigger value="policies" className="rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground">
+              <TabsTrigger value="policies" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm" style={{ color: '#475569' }}>
                 <FileText size={14} className="mr-1.5 inline-block" />
                 Policy Documents
               </TabsTrigger>
-              <TabsTrigger value="ai-costs" className="rounded-lg data-[state=active]:bg-muted data-[state=active]:text-foreground">
+              <TabsTrigger value="ai-costs" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm" style={{ color: '#475569' }}>
                 <DollarSign size={14} className="mr-1.5 inline-block" />
                 AI Costs
               </TabsTrigger>
@@ -2857,47 +2858,54 @@ export default function SecretAdminPortal() {
 
               <div className="grid md:grid-cols-3 gap-4">
                 {[
-                  { label: "Active Users", value: activeUsers.length.toString(), sub: "Currently approved", color: "text-green-500", icon: ShieldCheck },
-                  { label: "Pending Approvals", value: pendingUsers.length.toString(), sub: "Awaiting review", color: "text-amber-500", icon: Clock },
-                  { label: "Total Logs", value: systemLogs.length.toString(), sub: "Session activity", color: "text-blue-500", icon: Activity }
+                  { label: "Active Users", value: activeUsers.length.toString(), sub: "Currently approved", color: "#22c55e", bgColor: "#f0fdf4", icon: ShieldCheck },
+                  { label: "Pending Approvals", value: pendingUsers.length.toString(), sub: "Awaiting review", color: "#f59e0b", bgColor: "#fffbeb", icon: Clock },
+                  { label: "Total Logs", value: systemLogs.length.toString(), sub: "Session activity", color: "#3b82f6", bgColor: "#eff6ff", icon: Activity }
                 ].map((stat, i) => (
-                  <Card key={i} className="bg-card border-white/5 backdrop-blur-sm">
+                  <Card key={i} className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                        <stat.icon size={14} className={stat.color} /> {stat.label}
+                      <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2" style={{ color: '#64748b' }}>
+                        <div className="h-6 w-6 rounded flex items-center justify-center" style={{ backgroundColor: stat.bgColor }}>
+                          <stat.icon size={14} style={{ color: stat.color }} />
+                        </div>
+                        {stat.label}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold text-foreground">{stat.value}</div>
-                      <p className="text-xs text-muted-foreground">{stat.sub}</p>
+                      <div className="text-2xl font-bold" style={{ color: '#0f172a' }}>{stat.value}</div>
+                      <p className="text-xs" style={{ color: '#64748b' }}>{stat.sub}</p>
                     </CardContent>
                   </Card>
                 ))}
               </div>
 
               {/* Quick User List */}
-              <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
-                <CardHeader className="border-b border-white/5 bg-black/20">
-                  <CardTitle className="flex items-center gap-2 text-foreground text-base">
-                    <UserPlus size={18} className="text-muted-foreground"/> Active Team Members
+              <Card className="border shadow-sm overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
+                <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
+                  <CardTitle className="flex items-center gap-2 text-base" style={{ color: '#0f172a' }}>
+                    <UserPlus size={18} style={{ color: '#64748b' }}/> Active Team Members
                   </CardTitle>
                 </CardHeader>
                 <div className="max-h-[250px] overflow-auto">
                   <Table>
-                    <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-                      <TableRow className="border-white/5 hover:bg-transparent">
-                        <TableHead className="text-muted-foreground">Username</TableHead>
-                        <TableHead className="text-muted-foreground">Job Title</TableHead>
-                        <TableHead className="text-muted-foreground">Role</TableHead>
+                    <TableHeader className="sticky top-0 z-10" style={{ backgroundColor: '#f8fafc' }}>
+                      <TableRow style={{ borderColor: '#e2e8f0' }}>
+                        <TableHead style={{ color: '#64748b' }}>Username</TableHead>
+                        <TableHead style={{ color: '#64748b' }}>Job Title</TableHead>
+                        <TableHead style={{ color: '#64748b' }}>Role</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {activeUsers.slice(0, 5).map((u) => (
-                        <TableRow key={u.id} className="border-white/5 hover:bg-white/5 transition-colors">
-                          <TableCell className="font-medium text-foreground">{u.username}</TableCell>
-                          <TableCell className="text-muted-foreground">{u.jobTitle || "-"}</TableCell>
+                        <TableRow key={u.id} className="hover:bg-slate-50 transition-colors" style={{ borderColor: '#e2e8f0' }}>
+                          <TableCell className="font-medium" style={{ color: '#0f172a' }}>{u.username}</TableCell>
+                          <TableCell style={{ color: '#64748b' }}>{u.jobTitle || "-"}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={u.role === "admin" ? "border-indigo-500/50 text-indigo-300" : "border-border text-foreground"}>
+                            <Badge variant="outline" style={{ 
+                              borderColor: u.role === "admin" ? '#3b82f6' : '#e2e8f0', 
+                              color: u.role === "admin" ? '#3b82f6' : '#475569',
+                              backgroundColor: u.role === "admin" ? '#eff6ff' : '#f8fafc'
+                            }}>
                               {u.role}
                             </Badge>
                           </TableCell>
@@ -2911,8 +2919,8 @@ export default function SecretAdminPortal() {
 
             <TabsContent value="users" className="space-y-6">
               {/* Add New User */}
-              <Card className="bg-card border-white/5 backdrop-blur-sm">
-                <CardHeader className="border-b border-white/5 bg-black/20">
+              <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
+                <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-foreground text-base">Add New User</CardTitle>
@@ -3003,7 +3011,7 @@ export default function SecretAdminPortal() {
               {/* Pending Approvals */}
               {pendingUsers.length > 0 && (
                 <Card className="bg-amber-950/20 border-amber-900/30 backdrop-blur-sm">
-                  <CardHeader className="border-b border-amber-900/30 bg-black/20">
+                  <CardHeader className="border-b border-amber-900/30 bg-slate-50">
                     <CardTitle className="text-amber-400 text-base flex items-center gap-2">
                       <Clock size={18} /> Pending Approvals
                       <Badge className="bg-amber-600 text-foreground ml-2">{pendingUsers.length}</Badge>
@@ -3012,7 +3020,7 @@ export default function SecretAdminPortal() {
                   <CardContent className="p-4">
                     <div className="space-y-2">
                       {pendingUsers.map((u) => (
-                        <div key={u.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+                        <div key={u.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
                           <div className="flex items-center gap-3">
                             <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-foreground">
                               {u.username.substring(0,2).toUpperCase()}
@@ -3038,8 +3046,8 @@ export default function SecretAdminPortal() {
               )}
 
               {/* All Users Table */}
-              <Card className="bg-card border-white/5 backdrop-blur-sm overflow-hidden">
-                <CardHeader className="border-b border-white/5 bg-black/20">
+              <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+                <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                       <CardTitle className="text-foreground text-base">All Users</CardTitle>
@@ -3082,7 +3090,7 @@ export default function SecretAdminPortal() {
                 <div className="max-h-[400px] overflow-auto">
                   <Table>
                     <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-                      <TableRow className="border-white/5 hover:bg-transparent">
+                      <TableRow className="border-slate-200 hover:bg-transparent">
                         <TableHead className="text-muted-foreground">Username</TableHead>
                         <TableHead className="text-muted-foreground hidden sm:table-cell">Job Title</TableHead>
                         <TableHead className="text-muted-foreground hidden sm:table-cell">Role</TableHead>
@@ -3093,7 +3101,7 @@ export default function SecretAdminPortal() {
                     </TableHeader>
                     <TableBody>
                       {filteredUsers.map((u) => (
-                        <TableRow key={u.id} className="border-white/5 hover:bg-white/5 transition-colors" data-testid={`row-user-${u.id}`}>
+                        <TableRow key={u.id} className="border-slate-200 hover:bg-slate-50 transition-colors" data-testid={`row-user-${u.id}`}>
                           <TableCell className="font-medium text-foreground" data-testid={`text-username-${u.id}`}>
                             <div>{u.username}</div>
                             <div className="sm:hidden text-xs text-muted-foreground mt-1">
@@ -3231,66 +3239,63 @@ export default function SecretAdminPortal() {
 
         {/* Right Column: Status & Info */}
         <div className="lg:col-span-4 space-y-6">
-          <Card className="bg-indigo-950/20 border-indigo-900/30 backdrop-blur-sm overflow-hidden">
-             <div className="absolute top-0 right-0 p-4 opacity-5">
-                <Shield size={120} />
-             </div>
-             <CardHeader>
-                <CardTitle className="text-indigo-300 flex items-center gap-2">
-                   <Shield size={18} /> Access Level
+          <Card className="border shadow-sm overflow-hidden\" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
+             <CardHeader style={{ borderBottom: '1px solid #e2e8f0' }}>
+                <CardTitle className="flex items-center gap-2 text-sm" style={{ color: '#0f172a' }}>
+                   <Shield size={18} style={{ color: '#3b82f6' }} /> Access Level
                 </CardTitle>
              </CardHeader>
-             <CardContent className="space-y-4">
+             <CardContent className="space-y-4 pt-4">
                 <div className="flex items-center justify-between text-sm">
-                   <span className="text-muted-foreground">Access Type</span>
-                   <span className="text-indigo-300 font-mono">Level 0 (Owner)</span>
+                   <span style={{ color: '#64748b' }}>Access Type</span>
+                   <span className="font-mono" style={{ color: '#3b82f6' }}>Level 0 (Owner)</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                   <span className="text-muted-foreground">Session Status</span>
-                   <span className="text-green-400 font-mono">ACTIVE</span>
+                   <span style={{ color: '#64748b' }}>Session Status</span>
+                   <span className="font-mono" style={{ color: '#22c55e' }}>ACTIVE</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                   <span className="text-muted-foreground">Session Timeout</span>
-                   <span className="text-foreground font-mono">30 minutes</span>
+                   <span style={{ color: '#64748b' }}>Session Timeout</span>
+                   <span className="font-mono" style={{ color: '#0f172a' }}>30 minutes</span>
                 </div>
-                <div className="mt-4 p-3 bg-indigo-950/30 rounded-lg border border-indigo-900/30 text-xs text-indigo-200 leading-relaxed">
+                <div className="mt-4 p-3 rounded-lg text-xs leading-relaxed" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af' }}>
                    <strong>Note:</strong> This console provides full administrative access. All actions are logged for your records.
                 </div>
              </CardContent>
           </Card>
 
-          <Card className="bg-card border-white/5 backdrop-blur-sm">
-             <CardHeader>
-                <CardTitle className="text-foreground text-sm flex items-center gap-2">
-                   <Activity size={16} className="text-muted-foreground" /> Quick Stats
+          <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
+             <CardHeader style={{ borderBottom: '1px solid #e2e8f0' }}>
+                <CardTitle className="text-sm flex items-center gap-2" style={{ color: '#0f172a' }}>
+                   <Activity size={16} style={{ color: '#64748b' }} /> Quick Stats
                 </CardTitle>
              </CardHeader>
-             <CardContent>
+             <CardContent className="pt-4">
                 <div className="space-y-3">
-                   <div className="flex items-center justify-between p-2 rounded bg-white/5 border border-white/5">
-                      <span className="text-xs text-muted-foreground">Total Users</span>
-                      <span className="text-sm font-bold text-foreground">{users.length}</span>
+                   <div className="flex items-center justify-between p-2 rounded" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                      <span className="text-xs" style={{ color: '#64748b' }}>Total Users</span>
+                      <span className="text-sm font-bold" style={{ color: '#0f172a' }}>{users.length}</span>
                    </div>
-                   <div className="flex items-center justify-between p-2 rounded bg-white/5 border border-white/5">
-                      <span className="text-xs text-muted-foreground">Admins</span>
-                      <span className="text-sm font-bold text-indigo-300">{users.filter(u => u.role === 'admin').length}</span>
+                   <div className="flex items-center justify-between p-2 rounded" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                      <span className="text-xs" style={{ color: '#64748b' }}>Admins</span>
+                      <span className="text-sm font-bold" style={{ color: '#3b82f6' }}>{users.filter(u => u.role === 'admin').length}</span>
                    </div>
-                   <div className="flex items-center justify-between p-2 rounded bg-white/5 border border-white/5">
-                      <span className="text-xs text-muted-foreground">Staff</span>
-                      <span className="text-sm font-bold text-foreground">{users.filter(u => u.role === 'staff').length}</span>
+                   <div className="flex items-center justify-between p-2 rounded" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                      <span className="text-xs" style={{ color: '#64748b' }}>Staff</span>
+                      <span className="text-sm font-bold" style={{ color: '#0f172a' }}>{users.filter(u => u.role === 'staff').length}</span>
                    </div>
                 </div>
              </CardContent>
           </Card>
 
-          <Card className="bg-red-950/20 border-red-900/30 backdrop-blur-sm">
-             <CardHeader>
-                <CardTitle className="text-red-300 text-sm flex items-center gap-2">
+          <Card className="border shadow-sm" style={{ backgroundColor: '#fef2f2', borderColor: '#fecaca' }}>
+             <CardHeader style={{ borderBottom: '1px solid #fecaca' }}>
+                <CardTitle className="text-sm flex items-center gap-2" style={{ color: '#dc2626' }}>
                    <Trash2 size={16} /> Data Management
                 </CardTitle>
              </CardHeader>
-             <CardContent className="space-y-3">
-                <p className="text-xs text-muted-foreground">Clear all care worker performance data, discrepancies, audits and alerts.</p>
+             <CardContent className="space-y-3 pt-4">
+                <p className="text-xs" style={{ color: '#64748b' }}>Clear all care worker performance data, discrepancies, audits and alerts.</p>
                 <Button 
                   variant="destructive" 
                   size="sm" 
@@ -3507,7 +3512,7 @@ export default function SecretAdminPortal() {
           <div className="max-h-[50vh] overflow-auto">
             <Table>
               <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-                <TableRow className="border-white/5 hover:bg-transparent">
+                <TableRow className="border-slate-200 hover:bg-transparent">
                   <TableHead className="text-muted-foreground">Date</TableHead>
                   <TableHead className="text-muted-foreground">Audit Type</TableHead>
                   <TableHead className="text-muted-foreground">Service User</TableHead>
@@ -3517,7 +3522,7 @@ export default function SecretAdminPortal() {
               </TableHeader>
               <TableBody>
                 {auditCompletionLogs.map((log) => (
-                  <TableRow key={log.id} className="border-white/5 hover:bg-white/5 transition-colors" data-testid={`row-audit-log-${log.id}`}>
+                  <TableRow key={log.id} className="border-slate-200 hover:bg-slate-50 transition-colors" data-testid={`row-audit-log-${log.id}`}>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {new Date(log.createdAt).toLocaleDateString("en-GB", { 
                         day: "2-digit", 
