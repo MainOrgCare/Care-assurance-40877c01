@@ -273,8 +273,8 @@ export default function Homepage() {
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-base font-bold" style={{ color: '#0f172a' }}>CareAssurance</div>
-              <div className="text-[11px] uppercase tracking-[0.15em] font-medium" style={{ color: '#64748b' }}>Compliance Platform</div>
+              <div className="text-base font-bold" style={{ color: '#0f172a', fontFamily: '"Plus Jakarta Sans", sans-serif' }}>CareAssurance</div>
+              <div className="text-[11px] tracking-wide font-medium" style={{ color: '#64748b' }}>Compliance Platform</div>
             </div>
           </div>
 
@@ -605,7 +605,7 @@ export default function Homepage() {
                   <div className="flex items-center gap-4 mb-4">
                     <span 
                       className="text-4xl font-bold"
-                      style={{ color: '#e2e8f0' }}
+                      style={{ color: '#cbd5e1' }}
                     >
                       {step.step}
                     </span>
