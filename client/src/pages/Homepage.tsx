@@ -238,6 +238,11 @@ export default function Homepage() {
     [username, password, login, setLocation]
   );
 
+  const openLoginFromCTA = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.setTimeout(() => setLoginOpen(true), 250);
+  }, []);
+
   const roi = useMemo(() => calculateROI(serviceUsers), [serviceUsers]);
   const savingsPercent = useMemo(() => {
     if (roi.manualHours <= 0) return 0;
