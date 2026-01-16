@@ -17,6 +17,9 @@ export default defineConfig({
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
     },
   },
+  optimizeDeps: {
+    include: ["pako"],
+  },
   css: {
     postcss: {
       plugins: [],
@@ -28,8 +31,10 @@ export default defineConfig({
     emptyOutDir: true,
     minify: true,
     sourcemap: false,
-    // Increase limit (in KB) to reduce noisy warnings for intentionally-large bundles.
     chunkSizeWarningLimit: 1500,
+    commonjsOptions: {
+      include: [/pako/, /node_modules/],
+    },
   },
   server: {
     host: "0.0.0.0",
