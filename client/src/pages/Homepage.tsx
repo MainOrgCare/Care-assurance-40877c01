@@ -152,12 +152,6 @@ const calculateROI = (users: number) => {
 };
 
 export default function Homepage() {
-  const [, setLocation] = useLocation();
-  const { login } = useAuth();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [loginOpen, setLoginOpen] = useState(false);
   const [serviceUsers, setServiceUsers] = useState(20);
   const prefersReducedMotion = useReducedMotion();
 
@@ -215,6 +209,21 @@ export default function Homepage() {
     [contactName, contactEmail, contactMessage, contactOrg]
   );
 
+  const handleServiceUsersChange = useCallback((value: number[]) => {
+    setServiceUsers(value[0]);
+  }, []);
+
+  const scrollToSection = useCallback((id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  const [, setLocation] = useLocation();
+  const { login } = useAuth();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
+
   const handleLogin = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -226,21 +235,8 @@ export default function Homepage() {
         setLocation("/dashboard");
       }
     },
-    [login, password, setLocation, username]
+    [username, password, login, setLocation]
   );
-
-  const handleServiceUsersChange = useCallback((value: number[]) => {
-    setServiceUsers(value[0]);
-  }, []);
-
-  const scrollToSection = useCallback((id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
-  const openLoginFromCTA = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    window.setTimeout(() => setLoginOpen(true), 250);
-  }, []);
 
   const roi = useMemo(() => calculateROI(serviceUsers), [serviceUsers]);
   const savingsPercent = useMemo(() => {
@@ -329,7 +325,7 @@ export default function Homepage() {
                       <ShieldCheck className="h-4 w-4" />
                     </div>
                     <div>
-                      <h3 className="font-semibold" style={{ color: '#0f172a' }}>Welcome Back</h3>
+                      <h3 className="font-semibold" style={{ color: '#0f172a', fontFamily: 'Inter, sans-serif' }}>Welcome Back</h3>
                       <p className="text-xs" style={{ color: '#64748b' }}>Sign in to your account</p>
                     </div>
                   </div>

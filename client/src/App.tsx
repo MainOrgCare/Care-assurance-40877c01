@@ -6,7 +6,6 @@ import NotFound from "@/pages/not-found";
 import Layout from "@/components/Layout";
 import Homepage from "@/pages/Homepage";
 import Dashboard from "@/pages/Dashboard";
-import Login from "@/pages/Login";
 import SecretAdminPortal from "@/pages/SecretAdminPortal";
 import CallReconciliation from "@/pages/CallReconciliation";
 import EmailAssistant from "@/pages/EmailAssistant";
@@ -48,7 +47,6 @@ function HomeRoute() {
 function Router() {
   return (
     <Switch>
-      <Route path="/login" component={Login} />
       <Route path="/terms" component={TermsConditions} />
       <Route path="/privacy" component={PrivacyPolicy} />
       <ProtectedRoute path="/dashboard" component={Dashboard} />
