@@ -520,6 +520,7 @@ export default function TestingFeatures() {
   const [showDuplicateRows, setShowDuplicateRows] = useState(false);
   const [includeCancelledCalls, setIncludeCancelledCalls] = useState(false);
   const [includeMismatchedWorkers, setIncludeMismatchedWorkers] = useState(false);
+  const [excludeOfficeStaffFromPdf, setExcludeOfficeStaffFromPdf] = useState(false);
   const [callGroupSearch, setCallGroupSearch] = useState("");
   const [careWorkerSearch, setCareWorkerSearch] = useState("");
   const [rosterCallSearch, setRosterCallSearch] = useState("");
@@ -2018,13 +2019,16 @@ export default function TestingFeatures() {
 
   const rosterRows = useMemo(() => {
     if (!analysisResults.length) return [];
+    const hasActualAssignments = analysisResults.some((row) => Boolean(row.actualWorker));
     const seenWorkerSlots = new Set<string>();
     return analysisResults.filter((row) => {
       if (row.isExcludedServiceDutyClass || row.isAdhocCall) return false;
       if (row.isShiftBar) return false;
       const isMismatch = row.workersMatch === false && !row.templateWorker;
       if (!includeMismatchedWorkers && isMismatch) return false;
-      const isCancelled = !row.actualWorker && !row.templateWorker;
+      const isCancelled = hasActualAssignments
+        ? !row.actualWorker && !row.templateWorker
+        : !row.actualWorker && !row.templateWorker && !row.plannedWorker;
       if (!includeCancelledCalls && isCancelled) return false;
 
       // Keep double-up calls (same slot, different carers) by deduping per worker+slot.
@@ -2199,12 +2203,12 @@ export default function TestingFeatures() {
             rows: RowAnalysis[];
           }
         >();
+        const usesTemplateAssignments = worker.callRows.some((row) => Boolean(row.templateWorker));
 
         worker.callRows.forEach((row) => {
           if (row.normalizedServiceUserKey) serviceUserSet.add(row.normalizedServiceUserKey);
           if (row.plannedDateKey) daySet.add(row.plannedDateKey);
-          const requirementMinutes =
-            typeof row.serviceRequirementTimeMinutes === "number" ? row.serviceRequirementTimeMinutes : null;
+          const requirementMinutes = getRequirementMinutes(row);
           if (requirementMinutes === null) missingRequirementTimes += 1;
 
           if (!row.normalizedServiceUserKey) return;
@@ -2251,7 +2255,8 @@ export default function TestingFeatures() {
           }
           if (row.plannedDateKey) group.dayKeys.add(row.plannedDateKey);
           if (row.isTimeCritical) group.isTimeCritical = true;
-          if (row.templateWorker) {
+          const isTemplateAssignment = Boolean(row.templateWorker) || !usesTemplateAssignments;
+          if (isTemplateAssignment) {
             const templateDate = parseDateKeyToLocalDate(row.plannedDateKey ?? null);
             if (templateDate) {
               const templateKey = buildTemplateWeekdayKey(
@@ -2882,6 +2887,7 @@ export default function TestingFeatures() {
     setShowDuplicateRows(false);
     setIncludeCancelledCalls(false);
     setIncludeMismatchedWorkers(false);
+    setExcludeOfficeStaffFromPdf(false);
     setVisibleCount(INITIAL_VISIBLE_ROWS);
     setProgress(0);
     setProcessingState("idle");
@@ -3077,6 +3083,33 @@ export default function TestingFeatures() {
       return;
     }
 
+    const shouldIncludeRow = (row: RowAnalysis) =>
+      !excludeOfficeStaffFromPdf || !row.isAdminStaffRow;
+    const pdfCallGroups = excludeOfficeStaffFromPdf
+      ? callGroups
+          .map((group) => ({
+            ...group,
+            rows: group.rows.filter(shouldIncludeRow),
+          }))
+          .filter((group) => group.rows.length > 0)
+      : callGroups;
+    if (!pdfCallGroups.length) {
+      toast({
+        title: "No data to export",
+        description: "All rows are filtered out of the PDF export.",
+      });
+      return;
+    }
+
+    const pdfDuplicateClusters = excludeOfficeStaffFromPdf
+      ? duplicateClusters
+          .map((cluster) => ({
+            ...cluster,
+            rows: cluster.rows.filter(shouldIncludeRow),
+          }))
+          .filter((cluster) => cluster.rows.length > 1)
+      : duplicateClusters;
+
     const getPrimaryCallTypeForGroup = (group: CallGroup): string | null => {
       const counts = new Map<string, number>();
       group.rows.forEach((row) => {
@@ -3106,7 +3139,7 @@ export default function TestingFeatures() {
 
     const orderedSections: ServiceUserSection[] = (() => {
       const map = new Map<string, ServiceUserSection>();
-      callGroups.forEach((group, index) => {
+      pdfCallGroups.forEach((group, index) => {
         const key = group.normalizedServiceUserKey || group.serviceUserName || `unknown-${index}`;
         if (!map.has(key)) {
           map.set(key, {
@@ -3187,8 +3220,8 @@ export default function TestingFeatures() {
     const pageHeight = doc.internal.pageSize.getHeight();
     const slotTrendMap = new Map<string, SlotTrendSummary>();
     slotTrends.forEach((trend) => slotTrendMap.set(trend.key, trend));
-    const duplicateNote = duplicateClusters.length
-      ? `Note: Found ${duplicateClusters.length} planned slot${duplicateClusters.length === 1 ? "" : "s"} with multiple carers. Only the first row counted toward metrics. A duplicate review section is included at the end of this report.`
+    const duplicateNote = pdfDuplicateClusters.length
+      ? `Note: Found ${pdfDuplicateClusters.length} planned slot${pdfDuplicateClusters.length === 1 ? "" : "s"} with multiple carers. Only the first row counted toward metrics. A duplicate review section is included at the end of this report.`
       : null;
     // Front page
     doc.setFontSize(20);
@@ -3204,12 +3237,12 @@ export default function TestingFeatures() {
       ["Workbook", fileMeta ? `${fileMeta.name} (${formatBytes(fileMeta.size)})` : "Unknown"],
       ["Rows analyzed", fileMeta?.totalRows ? fileMeta.totalRows.toLocaleString() : totalCalls.toLocaleString()],
       ["Service users", orderedSections.length.toLocaleString()],
-      ["Call groups", callGroups.length.toLocaleString()],
+      ["Call groups", pdfCallGroups.length.toLocaleString()],
       ["Total calls", totalCalls.toLocaleString()],
       ["Flagged calls", flaggedCalls.toLocaleString()],
       ["Time-critical calls", timeCriticalCalls.toLocaleString()],
       ["Mismatched workers", mismatchedWorkers.toLocaleString()],
-      ["Duplicate slots", duplicateClusters.length.toLocaleString()],
+      ["Duplicate slots", pdfDuplicateClusters.length.toLocaleString()],
       ["Avg start drift", avgScheduleOffset !== null ? formatSignedMinutes(avgScheduleOffset) : "-"],
       ["Avg duration", avgDurationPercent !== null ? `${avgDurationPercent.toFixed(0)}%` : "-"],
       ["Date range", dateRangeLabel],
@@ -3231,7 +3264,7 @@ export default function TestingFeatures() {
     const summaryEndY = (doc as any).lastAutoTable?.finalY ?? 226;
     doc.setFontSize(9);
     doc.setTextColor(90);
-    const settingsText = `Export settings: cancelled calls ${includeCancelledCalls ? "included" : "excluded"}, mismatched workers ${includeMismatchedWorkers ? "included" : "excluded"}, duplicate slots deduped${duplicateClusters.length ? " (review section appended)" : ""}.`;
+    const settingsText = `Export settings: cancelled calls ${includeCancelledCalls ? "included" : "excluded"}, mismatched workers ${includeMismatchedWorkers ? "included" : "excluded"}, office staff ${excludeOfficeStaffFromPdf ? "excluded" : "included"}, duplicate slots deduped${pdfDuplicateClusters.length ? " (review section appended)" : ""}.`;
     const legendText = "Flags legend: duplicate slot, >2h drift, <80% duration, >120% duration.";
     const settingsLines = doc.splitTextToSize(settingsText, pageWidth - 80);
     doc.text(settingsLines, 40, summaryEndY + 18);
@@ -3540,7 +3573,7 @@ export default function TestingFeatures() {
       }
     }
 
-    if (duplicateClusters.length) {
+    if (pdfDuplicateClusters.length) {
       doc.addPage();
       let cursorY = 48;
       doc.setFontSize(14);
@@ -3554,7 +3587,7 @@ export default function TestingFeatures() {
       doc.text(intro, 40, cursorY);
       cursorY += intro.length * 12 + 10;
 
-      duplicateClusters.forEach((cluster, clusterIndex) => {
+      pdfDuplicateClusters.forEach((cluster, clusterIndex) => {
         if (cursorY > pageHeight - 140) {
           doc.addPage();
           cursorY = 48;
@@ -3624,7 +3657,7 @@ export default function TestingFeatures() {
       .replace(/^-|-$/g, "");
     const fileLabel = safeBaseName || "service-user-calls";
     doc.save(`${fileLabel}-report-${exportDateStamp}.pdf`);
-  }, [callGroups, duplicateClusters, fileMeta, includeCancelledCalls, includeMismatchedWorkers, isAdmin, slotTrends, toast]);
+  }, [callGroups, duplicateClusters, excludeOfficeStaffFromPdf, fileMeta, includeCancelledCalls, includeMismatchedWorkers, isAdmin, slotTrends, toast]);
 
   if (user?.role !== "admin") {
     return (
@@ -4414,7 +4447,7 @@ export default function TestingFeatures() {
                                     <AlertCircle className="h-4 w-4" />
                                     <AlertTitle>Missing service requirement times</AlertTitle>
                                     <AlertDescription>
-                                      {selectedCareWorker.missingRequirementTimes} calls have no service requirement time and are excluded from routing.
+                                      {selectedCareWorker.missingRequirementTimes} calls have no requirement or planned time and are excluded from routing.
                                     </AlertDescription>
                                   </Alert>
                                 )}
@@ -5292,6 +5325,16 @@ export default function TestingFeatures() {
                           placeholder="Search service users"
                           className="pl-9"
                         />
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Switch
+                          id="toggle-office-staff-pdf"
+                          checked={excludeOfficeStaffFromPdf}
+                          onCheckedChange={setExcludeOfficeStaffFromPdf}
+                        />
+                        <label htmlFor="toggle-office-staff-pdf" className="font-medium">
+                          Exclude office staff from PDF
+                        </label>
                       </div>
                       <Button
                         type="button"
@@ -6542,6 +6585,13 @@ function buildDuplicateSlotKey(row: RowAnalysis): string | null {
 
 function getRowAssignedWorkerName(row: RowAnalysis): string | null {
   return row.templateWorker || row.actualWorker || row.plannedWorker || null;
+}
+
+function getRequirementMinutes(row: RowAnalysis): number | null {
+  if (typeof row.serviceRequirementTimeMinutes === "number") return row.serviceRequirementTimeMinutes;
+  if (typeof row.plannedTimeMinutes === "number") return row.plannedTimeMinutes;
+  if (typeof row.actualTimeMinutes === "number") return row.actualTimeMinutes;
+  return null;
 }
 
 function getRowSlotMinutes(row: RowAnalysis): number | null {
