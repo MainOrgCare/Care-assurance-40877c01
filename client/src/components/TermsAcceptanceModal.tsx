@@ -92,7 +92,7 @@ export function TermsAcceptanceModal({ open, onAccept, onDecline }: TermsAccepta
           <div className="flex items-start gap-2">
             <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
             <p className="text-sm text-amber-200">
-              By accepting these terms, you agree to a legally binding contract including confidentiality, non-disclosure, and intellectual property protection clauses.
+              Please review the key points below. The platform is assistive; keep data safe, respect IP, and verify outputs before acting.
             </p>
           </div>
         </div>
@@ -138,7 +138,7 @@ export function TermsAcceptanceModal({ open, onAccept, onDecline }: TermsAccepta
             <section>
               <h3 className="font-semibold text-foreground mb-2">5. Consequences of Violation</h3>
               <p className="text-muted-foreground">
-                Any violation may result in immediate legal action, including injunctive relief, compensatory damages, disgorgement of profits, legal costs, and any other remedies available at law or in equity. Lewis Barron reserves the right to pursue all available legal remedies.
+                Serious breaches (for example, misuse of data, unauthorised copying, or security risks) may lead to suspension and, if required, proportionate legal action. If you think an action was taken in error, please contact the Owner to review.
               </p>
             </section>
 
@@ -152,7 +152,7 @@ export function TermsAcceptanceModal({ open, onAccept, onDecline }: TermsAccepta
             <section>
               <h3 className="font-semibold text-foreground mb-2">7. Termination Rights</h3>
               <p className="text-muted-foreground">
-                Lewis Barron reserves the absolute right to terminate, suspend, or revoke your access at any time, for any reason, without prior notice or liability. Access is a privilege, not a right.
+                Access may be suspended or revoked for breach, security, or compliance risks. Where possible, notice will be given and issues can be discussed; urgent risks may require immediate action.
               </p>
             </section>
 

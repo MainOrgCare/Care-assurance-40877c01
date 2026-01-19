@@ -2464,6 +2464,20 @@ export async function registerRoutes(
     overrides: z.record(rotaOverrideSchema).default({}),
   });
 
+  const templateRecommendationQuerySchema = z.object({
+    workerKey: z.string().min(1),
+    templateWeek: z.enum(["week1", "week2"]),
+    templateDay: rotaWeekdayEnum,
+  });
+
+  const templateRecommendationSchema = templateRecommendationQuerySchema.extend({
+    groupKey: z.string().min(1),
+  });
+
+  const templateRecommendationDeleteSchema = templateRecommendationQuerySchema.extend({
+    groupKeys: z.array(z.string()).default([]),
+  });
+
   const sortKeysDeep = (value: any): any => {
     if (Array.isArray(value)) {
       return value.map(sortKeysDeep);
@@ -2579,6 +2593,56 @@ export async function registerRoutes(
       const rotas = await storage.getCareWorkerRotas({ search });
       return res.json(rotas);
     } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ===== ROSTERING TEMPLATE RECOMMENDATIONS =====
+
+  app.get("/api/admin/rostering-recommendations", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const query = {
+        workerKey: typeof req.query.workerKey === "string" ? req.query.workerKey : "",
+        templateWeek: typeof req.query.templateWeek === "string" ? req.query.templateWeek : "",
+        templateDay: typeof req.query.templateDay === "string" ? req.query.templateDay : "",
+      };
+      const parsed = templateRecommendationQuerySchema.parse(query);
+      const recommendations = await storage.getRosteringTemplateRecommendations(parsed);
+      return res.json({ groupKeys: recommendations.map((rec) => rec.groupKey) });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/rostering-recommendations", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const payload = templateRecommendationSchema.parse(req.body);
+      const recommendation = await storage.upsertRosteringTemplateRecommendation({
+        ...payload,
+        createdBy: req.user?.id ?? null,
+        createdByUsername: req.user?.username ?? null,
+      });
+      return res.status(201).json({ recommendation, deduped: !recommendation });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/rostering-recommendations", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      const payload = templateRecommendationDeleteSchema.parse(req.body);
+      const deletedCount = await storage.deleteRosteringTemplateRecommendations(payload);
+      return res.json({ deletedCount });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
       return res.status(500).json({ message: error.message });
     }
   });
@@ -4185,6 +4249,10 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
           .replace(/\bP\s*R\s*N\b/g, "PRN")
           .replace(/\bS\s*[-–\/]?\s*A\b/g, "SA")
           .replace(/\bF\s*[-–\/]?\s*A\b/g, "FA")
+          .replace(/\bN\s*\/\s*H\b/g, "NH")
+          .replace(/\bM\s*\/\s*U\b/g, "MU")
+          .replace(/\bA\s*\/\s*D\b/g, "AD")
+          .replace(/\bA\s*\/\s*S\b/g, "AS")
           .replace(/\bN\s*H\b/g, "NH")
           .replace(/\bM\s*U\b/g, "MU")
           .replace(/\bA\s*D\b/g, "AD")
@@ -4205,6 +4273,10 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
 
         if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
         if (code === "S/A" || code === "S-A") return "SA";
+        if (code === "M/U" || code === "MU") return "MU";
+        if (code === "N/H" || code === "NH") return "NH";
+        if (code === "A/D") return "AD";
+        if (code === "A/S") return "AS";
         if (code === "PRNAD" || code === "PRN-AD") return "PRN-AD";
         if (code === "PRNAS" || code === "PRN-AS") return "PRN-AS";
         if (code === "PRNR" || code === "PRN-R" || code === "PRNREFUSED" || code === "PRNREFUS") return "PRN-R";
@@ -6031,6 +6103,10 @@ If no equivalences found, return: {"equivalences": []}`
           // Common variants
           if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
           if (code === "S/A" || code === "S-A") return "SA";
+          if (code === "M/U" || code === "MU") return "MU";
+          if (code === "N/H" || code === "NH") return "NH";
+          if (code === "A/D") return "AD";
+          if (code === "A/S") return "AS";
           if (code === "PRNR" || code === "PRNREFUSED" || code === "PRNREFUS" || code === "PRNREF" || code === "PRNRF") return "PRN-R";
           if (code === "NOTHOME") return "NH";
           if (code === "SELADMIN" || code === "SELFADMIN") return "SA";

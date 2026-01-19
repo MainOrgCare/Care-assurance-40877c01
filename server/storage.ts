@@ -1,4 +1,4 @@
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
 const { Pool } = pkg;
@@ -14,6 +14,8 @@ import {
   type InsertAudit,
   type CareWorkerRota,
   type InsertCareWorkerRota,
+  type RosteringTemplateRecommendation,
+  type InsertRosteringTemplateRecommendation,
   type AdminAlert,
   type InsertAdminAlert,
   type ActiveSession,
@@ -43,6 +45,7 @@ import {
   discrepancies,
   audits,
   careWorkerRotas,
+  rosteringTemplateRecommendations,
   adminAlerts,
   activeSessions,
   riskAssessmentLogs,
@@ -93,6 +96,22 @@ export interface IStorage {
   upsertCareWorkerRota(rota: InsertCareWorkerRota): Promise<{ rota: CareWorkerRota; deduped: boolean }>;
   getCareWorkerRotaByHash(sourceHash: string): Promise<CareWorkerRota | undefined>;
   getCareWorkerRotas(options?: { search?: string }): Promise<CareWorkerRota[]>;
+
+  // Rostering template recommendation operations
+  upsertRosteringTemplateRecommendation(
+    recommendation: InsertRosteringTemplateRecommendation
+  ): Promise<RosteringTemplateRecommendation | null>;
+  getRosteringTemplateRecommendations(options: {
+    workerKey: string;
+    templateWeek: string;
+    templateDay: string;
+  }): Promise<RosteringTemplateRecommendation[]>;
+  deleteRosteringTemplateRecommendations(options: {
+    workerKey: string;
+    templateWeek: string;
+    templateDay: string;
+    groupKeys: string[];
+  }): Promise<number>;
 
   // Admin Alert operations
   createAdminAlert(alert: InsertAdminAlert): Promise<AdminAlert>;
@@ -411,6 +430,64 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(careWorkerRotas)
       .orderBy(desc(careWorkerRotas.createdAt));
+  }
+
+  // Rostering template recommendation operations
+  async upsertRosteringTemplateRecommendation(
+    recommendation: InsertRosteringTemplateRecommendation
+  ): Promise<RosteringTemplateRecommendation | null> {
+    const inserted = await this.db
+      .insert(rosteringTemplateRecommendations)
+      .values(recommendation)
+      .onConflictDoNothing({
+        target: [
+          rosteringTemplateRecommendations.workerKey,
+          rosteringTemplateRecommendations.templateWeek,
+          rosteringTemplateRecommendations.templateDay,
+          rosteringTemplateRecommendations.groupKey,
+        ],
+      })
+      .returning();
+    return inserted[0] ?? null;
+  }
+
+  async getRosteringTemplateRecommendations(options: {
+    workerKey: string;
+    templateWeek: string;
+    templateDay: string;
+  }): Promise<RosteringTemplateRecommendation[]> {
+    return await this.db
+      .select()
+      .from(rosteringTemplateRecommendations)
+      .where(
+        and(
+          eq(rosteringTemplateRecommendations.workerKey, options.workerKey),
+          eq(rosteringTemplateRecommendations.templateWeek, options.templateWeek),
+          eq(rosteringTemplateRecommendations.templateDay, options.templateDay)
+        )
+      )
+      .orderBy(desc(rosteringTemplateRecommendations.createdAt));
+  }
+
+  async deleteRosteringTemplateRecommendations(options: {
+    workerKey: string;
+    templateWeek: string;
+    templateDay: string;
+    groupKeys: string[];
+  }): Promise<number> {
+    if (!options.groupKeys.length) return 0;
+    const deleted = await this.db
+      .delete(rosteringTemplateRecommendations)
+      .where(
+        and(
+          eq(rosteringTemplateRecommendations.workerKey, options.workerKey),
+          eq(rosteringTemplateRecommendations.templateWeek, options.templateWeek),
+          eq(rosteringTemplateRecommendations.templateDay, options.templateDay),
+          inArray(rosteringTemplateRecommendations.groupKey, options.groupKeys)
+        )
+      )
+      .returning({ id: rosteringTemplateRecommendations.id });
+    return deleted.length;
   }
 
   // Admin Alert operations

@@ -30,9 +30,9 @@ export default function PrivacyPolicy() {
               <div className="flex items-start gap-3">
                 <Shield className="h-6 w-6 flex-shrink-0 mt-0.5" style={{ color: '#3b82f6' }} />
                 <div>
-                  <p className="font-bold text-base mb-2" style={{ color: '#3b82f6' }}>SOFTWARE OWNERSHIP</p>
+                  <p className="font-bold text-base mb-2" style={{ color: '#3b82f6' }}>ABOUT THIS POLICY</p>
                   <p className="text-sm" style={{ color: '#334155' }}>
-                    CareAssurance is proprietary software owned exclusively by <strong>Lewis Barron</strong>. All rights are reserved. This Privacy Policy explains how personal data is collected, used, and protected when using this software. Access to this software is granted at the sole discretion of the Owner and may be revoked at any time.
+                    This Privacy Policy explains how personal data is collected, used, and protected when using CareAssurance, which is proprietary software owned by <strong>Lewis Barron</strong>. The policy focuses on data handling and your rights.
                   </p>
                 </div>
               </div>

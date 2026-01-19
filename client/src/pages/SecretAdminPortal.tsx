@@ -370,7 +370,7 @@ function AICostSection() {
         </Card>
       )}
 
-      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+	      <Card className="border shadow-sm overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -613,7 +613,7 @@ function RiskAssessmentLogsSection() {
   }
 
   return (
-    <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+	    <Card className="border shadow-sm overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
       <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -709,7 +709,7 @@ function RiskAssessmentLogsSection() {
           </Table>
         </div>
       </CardContent>
-      <CardFooter className="border-t" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }} className="py-3">
+	      <CardFooter className="border-t py-3" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
         <p className="text-xs text-muted-foreground">Showing {filteredLogs.length} of {logs.length} log entries</p>
       </CardFooter>
     </Card>
@@ -942,7 +942,7 @@ function ActivePresenceSection() {
 
   return (
     <div className="space-y-6">
-      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+	      <Card className="border shadow-sm overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
             <Activity size={18} className="text-green-400" />
@@ -1052,7 +1052,7 @@ function ActivePresenceSection() {
         </CardContent>
       </Card>
 
-      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+	      <Card className="border shadow-sm overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
             <EyeOff size={18} className="text-muted-foreground" />
@@ -1207,7 +1207,7 @@ function BlockedIpsSection() {
   }
 
   return (
-    <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+	    <Card className="border shadow-sm overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
       <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
         <CardTitle className="flex items-center gap-2 text-foreground text-base">
           <Shield size={18} className="text-red-400" />
@@ -1322,7 +1322,7 @@ function AuditTrailSection() {
       </div>
 
       {activeTab === "discrepancies" && (
-        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+	    <Card className="border shadow-sm overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
           <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
               <AlertTriangle size={18} className="text-amber-400" />
@@ -1367,7 +1367,7 @@ function AuditTrailSection() {
       )}
 
       {activeTab === "suspensions" && (
-        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+	        <Card className="border shadow-sm overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
           <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
               <Lock size={18} className="text-red-400" />
@@ -1412,7 +1412,7 @@ function AuditTrailSection() {
       )}
 
       {activeTab === "sessions" && (
-        <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+	        <Card className="border shadow-sm overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
           <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
               <Activity size={18} className="text-blue-400" />
@@ -1525,7 +1525,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
   }
 
   return (
-    <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+	    <Card className="border shadow-sm overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
       <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -1767,7 +1767,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
           </Table>
         )}
       </div>
-      <CardFooter className="border-t" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }} className="py-3">
+	      <CardFooter className="border-t py-3" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
         <p className="text-xs text-muted-foreground">
           Viewing {getCategoryLabel(logCategory)} • {getCategoryCount(logCategory)} entries
         </p>
@@ -1954,7 +1954,7 @@ function PolicyDocumentsSection() {
         </CardContent>
       </Card>
 
-      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+	      <Card className="border shadow-sm overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
             <FileText size={18} className="text-emerald-400" />
@@ -2161,7 +2161,7 @@ function ContactMessagesSection() {
       </div>
 
       {/* Messages List */}
-      <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+	      <Card className="border shadow-sm overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
         <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
             <Mail size={18} className="text-teal-400" />
@@ -3046,7 +3046,7 @@ export default function SecretAdminPortal() {
               )}
 
               {/* All Users Table */}
-              <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }} className="overflow-hidden">
+	      <Card className="border shadow-sm overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
                 <CardHeader className="border-b" style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>

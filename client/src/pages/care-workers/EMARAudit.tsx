@@ -53,9 +53,10 @@ interface Discrepancy {
 
 interface Warning {
   type: string;
+  severity?: "critical" | "high" | "medium" | "low";
   medication: string;
   description: string;
-  frequency: string;
+  frequency?: string;
   recommendedAction: string;
 }
 
@@ -260,13 +261,43 @@ const CopyableBox = memo(function CopyableBox({ label, value, className = "" }: 
   return (
     <div className={`bg-muted rounded-lg p-4 ${className}`}>
       <div className="flex items-center justify-between mb-1">
-        <p className="text-xs text-muted-foreground uppercase tracking-wider">{label}</p>
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
         <CopyButton text={value} label={label} />
       </div>
       <p className="text-foreground font-medium">{value}</p>
     </div>
   );
 });
+
+const WARNING_SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 } as const;
+const WARNING_SEVERITY_LABELS: Record<string, string> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
+const WARNING_SEVERITY_STYLES: Record<string, { card: string; badge: string; accent: string }> = {
+  critical: {
+    card: "bg-destructive/10 border-destructive/30",
+    badge: "bg-destructive/15 text-destructive",
+    accent: "text-destructive",
+  },
+  high: {
+    card: "bg-destructive/5 border-destructive/20",
+    badge: "bg-destructive/10 text-destructive",
+    accent: "text-destructive",
+  },
+  medium: {
+    card: "bg-amber-500/10 border-amber-500/30",
+    badge: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+    accent: "text-amber-600 dark:text-amber-300",
+  },
+  low: {
+    card: "bg-primary/5 border-primary/20",
+    badge: "bg-primary/10 text-primary",
+    accent: "text-primary",
+  },
+};
 
 export default function EMARAudit() {
   const { user } = useAuth();
@@ -329,6 +360,37 @@ export default function EMARAudit() {
       setPrnProtocolChecks(initialChecks);
     }
   }, [result]);
+
+  const sortedWarnings = useMemo(() => {
+    const warnings = result?.warnings ? [...result.warnings] : [];
+    return warnings.sort((a, b) => {
+      const aRank = WARNING_SEVERITY_ORDER[a.severity ?? "low"];
+      const bRank = WARNING_SEVERITY_ORDER[b.severity ?? "low"];
+      if (aRank !== bRank) return aRank - bRank;
+      return (a.medication || "").localeCompare(b.medication || "");
+    });
+  }, [result?.warnings]);
+
+  const highestWarningSeverity = sortedWarnings.length > 0
+    ? sortedWarnings[0].severity ?? "low"
+    : null;
+  const warningCardClass = highestWarningSeverity
+    ? WARNING_SEVERITY_STYLES[highestWarningSeverity].card
+    : "bg-destructive/5 border-destructive/20";
+  const warningHeaderTextClass = highestWarningSeverity
+    ? WARNING_SEVERITY_STYLES[highestWarningSeverity].accent
+    : "text-destructive";
+
+  useEffect(() => {
+    if (!result?.warnings?.length) {
+      setWarningsOpen(false);
+      return;
+    }
+    const shouldOpen = result.warnings.some(
+      warning => (warning.severity ?? "low") === "critical" || (warning.severity ?? "low") === "high"
+    );
+    setWarningsOpen(shouldOpen);
+  }, [result?.warnings]);
 
 
   useEffect(() => {
@@ -1577,10 +1639,10 @@ ${generatedProtocol.additionalComments}`;
   };
 
   return (
-    <div className="page-shell">
-      <div>
-        <h2 className="text-3xl font-heading font-bold text-foreground">EMAR Audit</h2>
-        <p className="text-muted-foreground mt-2">
+    <div className="page-shell max-w-6xl mx-auto">
+      <div className="space-y-2">
+        <h2 className="page-title">EMAR Audit</h2>
+        <p className="page-subtitle max-w-prose">
           Upload your EMAR PDF and our AI will read and extract medication data from the document. Automated validation checks then verify the results for accuracy before generating your compliance report.
         </p>
       </div>
@@ -1594,11 +1656,11 @@ ${generatedProtocol.additionalComments}`;
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="bg-teal-950/30 border border-teal-900/50 rounded-lg p-4">
-              <p className="text-sm text-teal-300">
-                <strong>How it works:</strong> Upload your EMAR as a PDF file. Our AI reads the document images and extracts all medication entries, then automated checks validate the data for accuracy. The system will identify:
+            <div className="glass-panel border border-border rounded-xl p-5">
+              <p className="text-sm text-foreground leading-relaxed">
+                <span className="font-semibold">How it works:</span> Upload your EMAR as a PDF file. The system extracts medication entries, then runs validation checks before generating your compliance report. It will identify:
               </p>
-              <ul className="mt-2 text-sm text-muted-foreground list-disc list-inside">
+              <ul className="mt-3 text-sm text-muted-foreground list-disc pl-5 space-y-1">
                 <li>Service user name and medication level</li>
                 <li>Date range covered by the audit</li>
                 <li>ALL medication records and discrepancies</li>
@@ -1638,10 +1700,10 @@ ${generatedProtocol.additionalComments}`;
             </div>
             
             {loading && (
-              <div className="space-y-3 p-4 bg-blue-950/20 border border-blue-900/30 rounded-lg" data-testid="progress-container">
+              <div className="space-y-3 p-4 glass-panel border border-border rounded-xl" data-testid="progress-container">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Loader2 size={16} className="animate-spin text-blue-400" />
+                    <Loader2 size={16} className="animate-spin text-primary" />
                     <span className="text-sm text-muted-foreground" data-testid="progress-status">{progressStatus}</span>
                   </div>
                   <span className="text-sm font-medium text-foreground" data-testid="progress-percentage">
@@ -1660,13 +1722,13 @@ ${generatedProtocol.additionalComments}`;
       ) : result && (
         <div className="space-y-6">
           {detectedInitials.length > 0 && !mappingsConfirmed && (
-            <Card className="bg-blue-950/30 border-blue-900/50">
+            <Card className="bg-primary/5 border-primary/20">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-blue-400">
+                <CardTitle className="flex items-center gap-2 text-primary">
                   <Users className="h-5 w-5" />
                   Carer Identification Required
                 </CardTitle>
-                <CardDescription className="text-blue-300/70">
+                <CardDescription className="text-muted-foreground">
                   The following carer names appear as initials only. Please match them to existing carers or create new entries.
                 </CardDescription>
               </CardHeader>
@@ -1676,7 +1738,7 @@ ${generatedProtocol.additionalComments}`;
                   return (
                     <div key={idx} className="bg-card rounded-lg p-4 space-y-3" data-testid={`carer-mapping-${idx}`}>
                       <div className="flex items-center gap-3">
-                        <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded font-mono font-bold">
+                        <span className="px-3 py-1 bg-primary/10 text-primary rounded font-mono font-bold">
                           {mapping.initials}
                         </span>
                         <span className="text-muted-foreground">→</span>
@@ -1713,7 +1775,7 @@ ${generatedProtocol.additionalComments}`;
                                   ))}
                                 </>
                               )}
-                              <SelectItem value="create_new" className="text-teal-400">
+                              <SelectItem value="create_new" className="text-primary">
                                 <span className="flex items-center gap-2">
                                   <UserPlus className="h-4 w-4" />
                                   Create New Carer
@@ -1774,50 +1836,58 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          {(result.warnings && result.warnings.length > 0) && (
+          {sortedWarnings.length > 0 && (
             <Collapsible open={warningsOpen} onOpenChange={setWarningsOpen}>
-              <Card className="bg-red-950/30 border-red-900/50">
+              <Card className={warningCardClass}>
                 <CollapsibleTrigger asChild>
-                  <CardHeader className="cursor-pointer hover:bg-red-950/40 transition-colors">
-                    <CardTitle className="flex items-center justify-between text-red-400">
+                  <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors">
+                    <CardTitle className={`flex items-center justify-between ${warningHeaderTextClass}`}>
                       <div className="flex items-center gap-2">
                         <AlertCircle className="h-5 w-5" />
-                        Warnings ({result.warnings.length})
+                        Warnings ({sortedWarnings.length})
                       </div>
                       {warningsOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                     </CardTitle>
-                    <CardDescription className="text-red-300/70">
-                      Click to {warningsOpen ? 'hide' : 'view'} critical medication issues requiring attention
+                    <CardDescription className="text-muted-foreground">
+                      Click to {warningsOpen ? 'hide' : 'view'} medication issues requiring attention
                     </CardDescription>
                   </CardHeader>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <CardContent className="space-y-3">
-                    {result.warnings.map((warning, idx) => (
-                      <div key={idx} className="bg-red-950/50 border border-red-900/30 rounded-lg p-4" data-testid={`warning-${idx}`}>
-                        <div className="flex items-start gap-3">
-                          <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-                          <div className="space-y-1 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="px-2 py-0.5 bg-red-500/20 text-red-300 rounded text-xs font-medium">
-                                {warning.type.replace(/_/g, ' ').toUpperCase()}
-                              </span>
-                              {warning.medication && (
-                                <span className="text-foreground font-medium">{warning.medication}</span>
-                              )}
-                              {warning.frequency && (
-                                <span className="text-red-300/70 text-sm">({warning.frequency})</span>
-                              )}
-                            </div>
-                            <p className="text-red-200">{warning.description}</p>
-                            <div className="mt-2 p-2 bg-card rounded">
-                              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Recommended Action</p>
-                              <p className="text-yellow-300 text-sm">{warning.recommendedAction}</p>
+                    {sortedWarnings.map((warning, idx) => {
+                      const severity = warning.severity ?? "low";
+                      const styles = WARNING_SEVERITY_STYLES[severity];
+                      const severityLabel = WARNING_SEVERITY_LABELS[severity] || "Low";
+                      return (
+                        <div key={idx} className={`border rounded-lg p-4 ${styles.card}`} data-testid={`warning-${idx}`}>
+                          <div className="flex items-start gap-3">
+                            <AlertTriangle className={`h-5 w-5 shrink-0 mt-0.5 ${styles.accent}`} />
+                            <div className="space-y-1 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${styles.badge}`}>
+                                  {severityLabel}
+                                </span>
+                                <span className="px-2 py-0.5 bg-muted/40 text-muted-foreground rounded text-xs font-medium">
+                                  {warning.type.replace(/_/g, ' ').toUpperCase()}
+                                </span>
+                                {warning.medication && (
+                                  <span className="text-foreground font-medium">{warning.medication}</span>
+                                )}
+                                {warning.frequency && (
+                                  <span className="text-muted-foreground text-sm">({warning.frequency})</span>
+                                )}
+                              </div>
+                              <p className="text-sm text-foreground leading-relaxed">{warning.description}</p>
+                              <div className="mt-2 p-3 bg-background/50 border border-border rounded-lg">
+                                <p className="text-xs font-medium text-muted-foreground mb-1">Recommended action</p>
+                                <p className="text-sm text-foreground">{warning.recommendedAction}</p>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </CardContent>
                 </CollapsibleContent>
               </Card>
@@ -1825,15 +1895,15 @@ ${generatedProtocol.additionalComments}`;
           )}
 
           {result.codeConflictDetected && (
-            <Card className="bg-amber-950/30 border-amber-900/50">
+            <Card className="bg-amber-500/10 border-amber-500/30">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-amber-400">
+                <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
                   <AlertTriangle className="h-5 w-5" />
                   Code Conflict Detected
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-amber-200 mb-4">{result.codeConflictDetails}</p>
+                <p className="text-foreground mb-4">{result.codeConflictDetails}</p>
                 <div className="bg-card p-4 rounded-lg">
                   <p className="text-sm text-muted-foreground mb-3">What is the service user's medication level?</p>
                   <div className="flex items-center gap-3 flex-wrap">
@@ -1989,7 +2059,7 @@ ${generatedProtocol.additionalComments}`;
                     >
                       {/* Summary Header - Always Visible */}
                       <div 
-                        className="bg-red-950/30 p-4 cursor-pointer hover:bg-red-950/40 transition-colors"
+                        className="bg-destructive/5 p-4 cursor-pointer hover:bg-destructive/10 transition-colors"
                         onClick={() => toggleCareWorkerExpand(group.careWorkerName)}
                         data-testid={`toggle-careworker-${idx}`}
                       >
@@ -2014,7 +2084,7 @@ ${generatedProtocol.additionalComments}`;
                               </div>
                               <div>
                                 <span className="text-muted-foreground">Issues: </span>
-                                <span className="text-red-300">{reasonsSummary}{hasMoreReasons ? ` (+${group.reasonsWithDates.length - 3} more)` : ""}</span>
+                                <span className="text-destructive">{reasonsSummary}{hasMoreReasons ? ` (+${group.reasonsWithDates.length - 3} more)` : ""}</span>
                               </div>
                               <div>
                                 <span className="text-muted-foreground">Actions: </span>
@@ -2119,7 +2189,7 @@ ${generatedProtocol.additionalComments}`;
                                         <span className="block text-xs text-yellow-400/70 line-through">{disc.medication}</span>
                                       )}
                                     </TableCell>
-                                    <TableCell className="text-red-300">
+                                    <TableCell className="text-destructive">
                                       {correctedData?.issue || disc.issue}
                                       {isCorrected && correctedData?.issue !== disc.issue && (
                                         <span className="block text-xs text-yellow-400/70 line-through">{disc.issue}</span>

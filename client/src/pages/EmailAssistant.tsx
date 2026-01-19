@@ -87,7 +87,7 @@ export default function EmailAssistant() {
           </CardHeader>
           <CardContent className="flex-1 min-h-[300px]">
             <Textarea 
-              placeholder="e.g. need to tell sarah about the missing med logs. she needs to fix it by friday or we are in trouble with cqc. also ask how her holiday was."
+              placeholder="e.g. update Sarah about missing medication logs, request an update by Friday, and check in on how her holiday went."
               className="h-full resize-none p-4 text-base"
               style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', color: '#0f172a' }}
               value={inputText}

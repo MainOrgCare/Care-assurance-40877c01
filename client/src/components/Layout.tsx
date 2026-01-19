@@ -291,26 +291,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </SheetContent>
             </Sheet>
 
-            <div className="hidden md:flex flex-col">
-              <span className="text-[9px] uppercase tracking-[0.25em] font-medium" style={{ color: '#94a3b8' }}>
-                Operations Console
-              </span>
-              <span className="text-sm font-heading" style={{ color: '#0f172a' }}>
-                Orchestrate confident care decisions
-              </span>
-            </div>
-            <div className="md:hidden text-[9px] uppercase tracking-[0.2em] font-medium" style={{ color: '#94a3b8' }}>
-              Ops Console
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-             <Badge variant="outline" className="hidden sm:inline-flex uppercase tracking-[0.15em] text-[9px] font-medium" style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', color: '#3b82f6', borderColor: 'rgba(59, 130, 246, 0.2)' }}>
-               Secure Workspace
-             </Badge>
-             <div className="flex items-center gap-2.5">
-                <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium leading-tight" style={{ color: '#0f172a' }}>
+	            <div className="flex items-center">
+	              <span className="text-sm font-heading font-semibold" style={{ color: '#0f172a' }}>
+	                CareAssurance
+	              </span>
+	            </div>
+	          </div>
+	
+	          <div className="flex items-center gap-3">
+	             <div className="flex items-center gap-2.5">
+	                <div className="text-right hidden sm:block">
+	                  <p className="text-sm font-medium leading-tight" style={{ color: '#0f172a' }}>
                     {user?.firstName && user?.lastName 
                       ? `${user.firstName} ${user.lastName}` 
                       : user?.username}
@@ -356,14 +347,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         
-        {/* Footer */}
-        <footer className="px-4 py-3 mt-auto" style={{ backgroundColor: '#ffffff', borderTop: '1px solid #e2e8f0' }}>
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px]" style={{ color: '#64748b' }}>
-            <div className="flex items-center gap-1.5 font-medium">
-              <span>&copy; {new Date().getFullYear()} CareAssurance</span>
-              <span className="hidden sm:inline" style={{ color: '#94a3b8' }}>·</span>
-              <span className="hidden sm:inline">Precision tools for high-trust care teams</span>
-            </div>
+	        {/* Footer */}
+	        <footer className="px-4 py-3 mt-auto" style={{ backgroundColor: '#ffffff', borderTop: '1px solid #e2e8f0' }}>
+	          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm" style={{ color: '#64748b' }}>
+	            <div className="flex items-center gap-1.5 font-medium">
+	              <span>{new Date().getFullYear()} CareAssurance</span>
+	              <span className="hidden sm:inline" style={{ color: '#94a3b8' }}>·</span>
+	              <span className="hidden sm:inline">Precision tools for high-trust care teams</span>
+	            </div>
             <div className="flex items-center gap-4">
               <Link href="/terms" className="transition-colors hover:text-gray-900" data-testid="link-footer-terms">
                 Terms & Conditions

@@ -459,6 +459,7 @@ interface CareWorkerRoster {
   shiftBars: ShiftBar[];
   shiftBarsCount: number;
   isAdminStaff: boolean;
+  usesTemplateAssignments: boolean;
   uniqueServiceUsers: number;
   uniqueDays: number;
   callGroups: WorkerCallGroup[];
@@ -533,6 +534,7 @@ export default function TestingFeatures() {
   const [expandedTemplateGroupKeys, setExpandedTemplateGroupKeys] = useState<string[]>([]);
   const [selectedCareWorkerKey, setSelectedCareWorkerKey] = useState<string | null>(null);
   const [selectedWorkerCallKeys, setSelectedWorkerCallKeys] = useState<string[]>([]);
+  const [recommendedTemplates, setRecommendedTemplates] = useState<Record<string, string[]>>({});
   const [isSavingRota, setIsSavingRota] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [rosteringFullscreen, setRosteringFullscreen] = useState(false);
@@ -2317,6 +2319,7 @@ export default function TestingFeatures() {
           shiftBars,
           shiftBarsCount: shiftBars.length,
           isAdminStaff: worker.isAdminStaff,
+          usesTemplateAssignments,
           uniqueServiceUsers: serviceUserSet.size,
           uniqueDays: daySet.size,
           callGroups,
@@ -2362,6 +2365,84 @@ export default function TestingFeatures() {
     };
   }, [careWorkerRosters, careWorkerSearch, rosteringFullscreen]);
 
+  const clearTemplateRecommendations = useCallback(
+    async (workerKey: string, week: TemplateWeekKey, day: WeekdayLabel, groupKeys: string[]) => {
+      if (!groupKeys.length) return;
+      try {
+        const response = await fetch("/api/admin/rostering-recommendations", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            workerKey,
+            templateWeek: week,
+            templateDay: day,
+            groupKeys,
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.message || "Unable to clear template recommendations.");
+        }
+        const storeKey = buildTemplateRecommendationKey(workerKey, week, day);
+        setRecommendedTemplates((prev) => {
+          const existing = prev[storeKey];
+          if (!existing) return prev;
+          const updated = existing.filter((value) => !groupKeys.includes(value));
+          if (!updated.length) {
+            const next = { ...prev };
+            delete next[storeKey];
+            return next;
+          }
+          return {
+            ...prev,
+            [storeKey]: updated,
+          };
+        });
+      } catch (error) {
+        console.warn("Unable to clear template recommendations.", error);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!careWorkerRosters.length) return;
+    const removals = new Map<
+      string,
+      { workerKey: string; week: TemplateWeekKey; day: WeekdayLabel; groupKeys: Set<string> }
+    >();
+    careWorkerRosters.forEach((roster) => {
+      if (!roster.usesTemplateAssignments) return;
+      roster.callGroups.forEach((group) => {
+        group.templatedWeekdayKeys.forEach((templateKey) => {
+          const parsed = parseTemplateWeekdayKey(templateKey);
+          if (!parsed) return;
+          const storeKey = buildTemplateRecommendationKey(roster.key, parsed.week, parsed.day);
+          const entry = removals.get(storeKey) ?? {
+            workerKey: roster.key,
+            week: parsed.week,
+            day: parsed.day,
+            groupKeys: new Set<string>(),
+          };
+          entry.groupKeys.add(group.key);
+          removals.set(storeKey, entry);
+        });
+      });
+    });
+
+    removals.forEach((entry) => {
+      clearTemplateRecommendations(
+        entry.workerKey,
+        entry.week,
+        entry.day,
+        Array.from(entry.groupKeys)
+      );
+    });
+  }, [careWorkerRosters, clearTemplateRecommendations]);
+
   const handleResetRosteringStudio = useCallback(() => {
     setCareWorkerSearch("");
     setRosterCallSearch("");
@@ -2380,6 +2461,57 @@ export default function TestingFeatures() {
     });
   }, [toast]);
 
+  const addTemplateRecommendation = useCallback(
+    async (workerKey: string, week: TemplateWeekKey, day: WeekdayLabel, groupKey: string) => {
+      const storeKey = buildTemplateRecommendationKey(workerKey, week, day);
+      if (recommendedTemplates[storeKey]?.includes(groupKey)) return;
+      setRecommendedTemplates((prev) => ({
+        ...prev,
+        [storeKey]: [...(prev[storeKey] ?? []), groupKey],
+      }));
+
+      try {
+        const response = await fetch("/api/admin/rostering-recommendations", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            workerKey,
+            templateWeek: week,
+            templateDay: day,
+            groupKey,
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.message || "Unable to save template recommendation.");
+        }
+      } catch (error: any) {
+        setRecommendedTemplates((prev) => {
+          const existing = prev[storeKey] ?? [];
+          const updated = existing.filter((value) => value !== groupKey);
+          if (!updated.length) {
+            const next = { ...prev };
+            delete next[storeKey];
+            return next;
+          }
+          return {
+            ...prev,
+            [storeKey]: updated,
+          };
+        });
+        toast({
+          title: "Recommendation failed",
+          description: error?.message || "Unable to save template recommendation.",
+          variant: "destructive",
+        });
+      }
+    },
+    [recommendedTemplates, toast]
+  );
+
   const selectedCareWorker = useMemo(
     () => careWorkerRosters.find((roster) => roster.key === selectedCareWorkerKey) ?? null,
     [careWorkerRosters, selectedCareWorkerKey]
@@ -2389,6 +2521,60 @@ export default function TestingFeatures() {
     () => buildTemplateWeekdayKey(selectedTemplateWeek, selectedTemplateDay),
     [selectedTemplateDay, selectedTemplateWeek]
   );
+
+  const recommendationStoreKey = useMemo(() => {
+    if (!selectedCareWorker) return null;
+    return buildTemplateRecommendationKey(
+      selectedCareWorker.key,
+      selectedTemplateWeek,
+      selectedTemplateDay
+    );
+  }, [selectedCareWorker, selectedTemplateDay, selectedTemplateWeek]);
+
+  const recommendedForSelection = useMemo(() => {
+    if (!recommendationStoreKey) return [];
+    return recommendedTemplates[recommendationStoreKey] ?? [];
+  }, [recommendationStoreKey, recommendedTemplates]);
+
+  const recommendedForSelectionSet = useMemo(
+    () => new Set(recommendedForSelection),
+    [recommendedForSelection]
+  );
+
+  useEffect(() => {
+    if (!selectedCareWorkerKey || !recommendationStoreKey) return;
+    let cancelled = false;
+    const loadRecommendations = async () => {
+      try {
+        const params = new URLSearchParams({
+          workerKey: selectedCareWorkerKey,
+          templateWeek: selectedTemplateWeek,
+          templateDay: selectedTemplateDay,
+        });
+        const response = await fetch(`/api/admin/rostering-recommendations?${params.toString()}`, {
+          credentials: "include",
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.message || "Unable to load template recommendations.");
+        }
+        if (cancelled) return;
+        const groupKeys = Array.isArray(result.groupKeys) ? result.groupKeys : [];
+        setRecommendedTemplates((prev) => ({
+          ...prev,
+          [recommendationStoreKey]: groupKeys,
+        }));
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("Unable to load template recommendations.", error);
+        }
+      }
+    };
+    loadRecommendations();
+    return () => {
+      cancelled = true;
+    };
+  }, [recommendationStoreKey, selectedCareWorkerKey, selectedTemplateDay, selectedTemplateWeek]);
 
   const shiftBarsForSelection = useMemo(() => {
     if (!selectedCareWorker) return [];
@@ -2503,10 +2689,8 @@ export default function TestingFeatures() {
   const selectedWorkerGroups = useMemo(() => {
     if (!resolvedCallGroups.length) return [];
     const selected = new Set(selectedWorkerCallKeys);
-    return resolvedCallGroups.filter(
-      (group) => selected.has(group.key) && group.effectiveTemplateWeekdayKeys.has(templateSelectionKey)
-    );
-  }, [resolvedCallGroups, selectedWorkerCallKeys, templateSelectionKey]);
+    return resolvedCallGroups.filter((group) => selected.has(group.key));
+  }, [resolvedCallGroups, selectedWorkerCallKeys]);
 
   const optimizedRun = useMemo<OptimizedRouteEntry[]>(() => {
     if (!selectedWorkerGroups.length) return [];
@@ -4458,7 +4642,11 @@ export default function TestingFeatures() {
                                       <p className="text-sm font-semibold text-foreground">Call library</p>
                                       <p className="text-xs text-muted-foreground">
                                         {selectedWorkerCallKeys.length} selected • {availableTemplateGroups.length} templated call
-                                        {availableTemplateGroups.length === 1 ? "" : "s"} for {selectedTemplateWeekLabel} • {selectedTemplateDay}.
+                                        {availableTemplateGroups.length === 1 ? "" : "s"} for {selectedTemplateWeekLabel} • {selectedTemplateDay}
+                                        {recommendedForSelection.length
+                                          ? ` • ${recommendedForSelection.length} recommended to template`
+                                          : ""}
+                                        .
                                       </p>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
@@ -4526,10 +4714,11 @@ export default function TestingFeatures() {
                                     <div className="rounded-xl border border-border/60 bg-background/60">
                                       <div className="space-y-3 p-3">
                                         {filteredResolvedCallGroups.map((group) => {
-                                          const isAvailable = group.effectiveTemplateWeekdayKeys.has(templateSelectionKey);
+                                          const isTemplatedForSelection = group.templatedWeekdayKeys.has(templateSelectionKey);
                                           const isSelected = selectedWorkerCallKeys.includes(group.key);
-                                          const isSelectable =
-                                            isAvailable && typeof group.effectiveRequirementStartMinutes === "number";
+                                          const hasRequirementTime = typeof group.effectiveRequirementStartMinutes === "number";
+                                          const isSelectable = hasRequirementTime;
+                                          const isRecommended = recommendedForSelectionSet.has(group.key);
                                           const hasTimeOverride =
                                             group.hasTemplateOverride &&
                                             group.effectiveRequirementStartMinutes !== group.requirementStartMinutes;
@@ -4562,12 +4751,17 @@ export default function TestingFeatures() {
                                                   <Badge variant="outline" className="text-xs font-semibold">
                                                     {group.totalCalls} call{group.totalCalls === 1 ? "" : "s"}
                                                   </Badge>
-                                                  {!isAvailable && (
+                                                  {!isTemplatedForSelection && isRecommended && (
+                                                    <Badge variant="secondary" className="text-xs font-semibold">
+                                                      Recommended to template
+                                                    </Badge>
+                                                  )}
+                                                  {!isTemplatedForSelection && !isRecommended && (
                                                     <Badge variant="outline" className="text-xs font-semibold">
                                                       Not templated
                                                     </Badge>
                                                   )}
-                                                  {!isSelectable && isAvailable && (
+                                                  {!isSelectable && (
                                                     <Badge variant="outline" className="text-xs font-semibold">
                                                       Missing requirement time
                                                     </Badge>
@@ -4761,15 +4955,23 @@ export default function TestingFeatures() {
                                                   </div>
                                                 )}
                                               </div>
-                                              <Switch
-                                                checked={isSelected}
-                                                onCheckedChange={(checked) => {
-                                                  if (!isSelectable) return;
-                                                  setSelectedWorkerCallKeys((prev) =>
-                                                    checked
-                                                      ? prev.includes(group.key)
-                                                        ? prev
-                                                        : [...prev, group.key]
+                                                <Switch
+                                                  checked={isSelected}
+                                                  onCheckedChange={(checked) => {
+                                                    if (!isSelectable) return;
+                                                    if (checked && selectedCareWorker && !isTemplatedForSelection) {
+                                                      addTemplateRecommendation(
+                                                        selectedCareWorker.key,
+                                                        selectedTemplateWeek,
+                                                        selectedTemplateDay,
+                                                        group.key
+                                                      );
+                                                    }
+                                                    setSelectedWorkerCallKeys((prev) =>
+                                                      checked
+                                                        ? prev.includes(group.key)
+                                                          ? prev
+                                                          : [...prev, group.key]
                                                       : prev.filter((key) => key !== group.key)
                                                   );
                                                 }}
@@ -6556,6 +6758,18 @@ function buildTemplateWeekdayKey(week: TemplateWeekKey, day: WeekdayLabel): stri
 
 function buildTemplateOverrideKey(workerKey: string, groupKey: string): string {
   return `${workerKey}::${groupKey}`;
+}
+
+function buildTemplateRecommendationKey(workerKey: string, week: TemplateWeekKey, day: WeekdayLabel): string {
+  return `${workerKey}::${week}::${day}`;
+}
+
+function parseTemplateWeekdayKey(key: string): { week: TemplateWeekKey; day: WeekdayLabel } | null {
+  const [week, day] = key.split("|");
+  if ((week !== "week1" && week !== "week2") || !WEEKDAY_OPTIONS.includes(day as WeekdayLabel)) {
+    return null;
+  }
+  return { week: week as TemplateWeekKey, day: day as WeekdayLabel };
 }
 
 function splitTemplateWeekdayKeys(keys: Set<string>): { week1Days: WeekdayLabel[]; week2Days: WeekdayLabel[] } {

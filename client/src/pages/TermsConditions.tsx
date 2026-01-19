@@ -31,13 +31,13 @@ export default function TermsConditions() {
           </CardHeader>
           <CardContent className="prose prose-sm max-w-none space-y-6" style={{ color: '#334155' }}>
             
-            <div className="rounded-lg p-4 mb-6" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+            <div className="rounded-lg p-4 mb-6" style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
               <div className="flex items-start gap-3">
-                <AlertTriangle className="h-6 w-6 flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
+                <Shield className="h-6 w-6 flex-shrink-0 mt-0.5" style={{ color: '#2563eb' }} />
                 <div>
-                  <p className="font-bold text-base mb-2" style={{ color: '#dc2626' }}>IMPORTANT NOTICE</p>
-                  <p className="text-sm" style={{ color: '#7f1d1d' }}>
-                    CareAssurance is proprietary software owned exclusively by <strong>Lewis Barron</strong>. All rights are reserved. Access to this software is granted at the sole discretion of the owner and may be revoked at any time, for any reason, without prior notice. This software is an <strong>ASSISTIVE TOOL ONLY</strong> and does not replace professional judgment. By using this service, you acknowledge and accept these terms in their entirety.
+                  <p className="font-bold text-base mb-2" style={{ color: '#1d4ed8' }}>ABOUT THESE TERMS</p>
+                  <p className="text-sm" style={{ color: '#334155' }}>
+                    CareAssurance is proprietary software owned by <strong>Lewis Barron</strong> and provided to authorised users under these Terms. The platform is an assistive tool and does not replace professional judgment. By continuing, you confirm you are authorised to use the service and will review all outputs before acting on them.
                   </p>
                 </div>
               </div>
@@ -51,61 +51,33 @@ export default function TermsConditions() {
                   <div>
                     <p className="font-medium mb-2" style={{ color: '#1d4ed8' }}>PROPRIETARY SOFTWARE</p>
                     <p className="text-sm" style={{ color: '#334155' }}>
-                      CareAssurance is proprietary software wholly owned by <strong>Lewis Barron</strong> ("the Owner"). All intellectual property rights, including but not limited to copyright, trademarks, trade secrets, patents, design rights, database rights, and all other proprietary rights in and to the software, its code, algorithms, design, documentation, and all associated materials are exclusively owned by Lewis Barron. All rights not expressly granted herein are reserved.
+                      CareAssurance is proprietary software owned by <strong>Lewis Barron</strong>. All intellectual property rights in the platform, its code, design, and materials are reserved. You receive a limited, non-transferable license to use the service as permitted by these Terms; no ownership is transferred.
                     </p>
                   </div>
                 </div>
               </div>
               <p style={{ color: '#64748b' }}>
-                No ownership rights are transferred to users under any circumstances. Your use of this software constitutes a revocable, non-exclusive, non-transferable license that may be terminated by the Owner at any time.
+                If you have questions about permitted use or need a specific permission, please contact the owner using the channels provided to authorised users.
               </p>
             </section>
 
             <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>1A. Absolute Ownership and Independence</h3>
-              <div className="rounded-lg p-4 mb-4" style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                <div className="flex items-start gap-3">
-                  <Shield className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: '#3b82f6' }} />
-                  <div>
-                    <p className="font-medium mb-2" style={{ color: '#1d4ed8' }}>SOLE OWNERSHIP REGARDLESS OF CIRCUMSTANCES</p>
-                    <p className="text-sm" style={{ color: '#334155' }}>
-                      CareAssurance is the <strong>sole and exclusive property of Lewis Barron</strong>, an individual person, and has <strong>no affiliation whatsoever with any company, corporation, employer, educational institution, or other organization</strong>. Lewis Barron is the sole developer, owner, and rights holder of this software.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <p className="mb-4" style={{ color: '#64748b' }}>
-                <strong>Ownership remains absolute under all circumstances, including but not limited to:</strong>
-              </p>
-              <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
-                <li><strong>Domain Network Development:</strong> If this code was developed on a computer connected to a corporate, educational, or government domain network, Lewis Barron remains the sole owner. No organization acquires any rights to this software by virtue of the development environment.</li>
-                <li><strong>Employer-Provided Equipment:</strong> If this code was developed on equipment owned by, leased by, or provided by an employer or any third party, Lewis Barron remains the sole owner. No equipment provider acquires any rights to this software.</li>
-                <li><strong>Work Hours or Premises:</strong> If any development occurred during work hours, on employer premises, or using employer resources, Lewis Barron remains the sole owner. This software was developed as a personal project and not within the scope of any employment.</li>
-                <li><strong>Acquisition by Improper Means:</strong> If this code is obtained, accessed, copied, or acquired by any party through immoral, unethical, illegal, or improper means (including but not limited to unauthorized access, hacking, social engineering, theft, breach of confidentiality, or any form of misconduct), Lewis Barron remains the sole and absolute owner. No ownership, license, or rights of any kind transfer through such acquisition.</li>
-                <li><strong>Training, Education, or Collaboration:</strong> If any knowledge, skills, or tools used in development were acquired through employment, training, or education, Lewis Barron remains the sole owner. Skills and knowledge do not transfer ownership of original works.</li>
-              </ul>
-              <div className="rounded-lg p-4 mt-4 mb-4" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                <p className="font-medium mb-2" style={{ color: '#dc2626' }}>NO CORPORATE OR INSTITUTIONAL AFFILIATION</p>
-                <p className="text-sm" style={{ color: '#7f1d1d' }}>
-                  CareAssurance is an independent personal project. It is not affiliated with, sponsored by, endorsed by, or connected to any employer, company, institution, government body, or organization. No entity has contributed to, invested in, or acquired any stake in this software. Lewis Barron developed CareAssurance entirely in his personal capacity, and all intellectual property rights vest exclusively in Lewis Barron as an individual.
-                </p>
-              </div>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>1A. Independence</h3>
               <p style={{ color: '#64748b' }}>
-                Any claims by any party asserting ownership, joint ownership, work-for-hire rights, or any other proprietary interest in CareAssurance based on the circumstances of its development are hereby explicitly rejected and void. Lewis Barron's sole ownership is absolute, unconditional, and not subject to dispute.
+                CareAssurance is provided by Lewis Barron in his personal capacity and is not offered on behalf of any employer or other organisation. Use of the platform does not confer any rights to the underlying intellectual property, brand, or design.
               </p>
             </section>
 
             <section>
               <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>2. Authorization and Access</h3>
               <p style={{ color: '#64748b' }}>
-                Access to CareAssurance is granted solely at the discretion of Lewis Barron. By using this software, you acknowledge and agree that:
+                Access is provided to authorised users to support their work. By using this software, you acknowledge and agree that:
               </p>
               <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
-                <li><strong>Access is a privilege, not a right.</strong> The Owner may grant or deny access to any individual or organization at his sole discretion.</li>
-                <li><strong>Termination without cause.</strong> The Owner reserves the absolute right to terminate, suspend, or revoke your access at any time, for any reason or no reason, without prior notice, explanation, or liability.</li>
-                <li><strong>No refunds or compensation.</strong> Upon termination of access, you shall not be entitled to any refund, compensation, or damages of any kind.</li>
-                <li><strong>Immediate effect.</strong> Termination takes effect immediately upon the Owner's decision, and you must cease all use of the software forthwith.</li>
-                <li><strong>No appeals process.</strong> The Owner's decision regarding access is final and not subject to review or appeal.</li>
+                <li>The Owner may suspend or revoke access where misuse, security risk, or breach of these Terms is reasonably suspected.</li>
+                <li>Where practicable, notice will be given before suspension or termination; urgent security or compliance issues may require immediate action.</li>
+                <li>Upon termination, access ends and cached or temporary data will be cleared in line with our retention approach.</li>
+                <li>If you believe access was ended in error, contact the Owner through the usual support channel for review.</li>
               </ul>
             </section>
 
@@ -283,14 +255,14 @@ export default function TermsConditions() {
                 <li><strong>No License Granted:</strong> Nothing contained on this Platform or in these Terms should be construed as granting any license or right to use the CareAssurance name, logo, or design elements without the prior express written permission of Lewis Barron.</li>
                 <li><strong>Design Rights:</strong> The visual design, layout, look and feel, color schemes, iconography, typography, and overall aesthetic of the Platform are proprietary to Lewis Barron.</li>
               </ul>
-              <div className="rounded-lg p-4 mt-4 mb-4" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                <p className="font-medium mb-2" style={{ color: '#dc2626' }}>WAIVER OF CLAIMS</p>
-                <p className="text-sm" style={{ color: '#7f1d1d' }}>
-                  By using this Software, you expressly acknowledge and agree that the name "CareAssurance," all logos, design elements, user interface designs, visual styling, and all other branding associated with this Platform are original works independently created by and belonging exclusively to Lewis Barron. You hereby irrevocably waive, release, and forever discharge any and all claims, actions, demands, suits, or proceedings of any kind whatsoever against Lewis Barron relating to the name, branding, or design of the Platform, including but not limited to any claims of infringement, passing off, unfair competition, or any similar claims. You agree that you shall not bring, support, participate in, or fund any legal action or proceeding against Lewis Barron relating to the Platform's name, branding, or design.
+              <div className="rounded-lg p-4 mt-4 mb-4" style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                <p className="font-medium mb-2" style={{ color: '#1d4ed8' }}>BRANDING AND DESIGN</p>
+                <p className="text-sm" style={{ color: '#334155' }}>
+                  The CareAssurance name, logo, and visual design belong to Lewis Barron. Using the platform does not grant rights to reuse or adapt these elements. If you have questions or concerns about branding or design, please contact the Owner to discuss.
                 </p>
               </div>
               <p style={{ color: '#64748b' }}>
-                This waiver of claims is a material condition of your access to and use of the Platform and shall survive termination of your access indefinitely.
+                Nothing in these Terms limits any rights you may have under applicable law; this section clarifies that branding is reserved to the Owner.
               </p>
             </section>
 
@@ -364,25 +336,14 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>15. Consequences of Violation</h3>
-              <div className="rounded-lg p-4 mb-4" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                <p className="font-medium mb-2" style={{ color: '#dc2626' }}>LEGAL ACTION AND DAMAGES</p>
-                <p className="text-sm" style={{ color: '#7f1d1d' }}>
-                  Any violation of the intellectual property, confidentiality, non-copying, or non-circumvention provisions of these Terms may result in immediate legal action, including but not limited to injunctive relief and claims for substantial damages.
+              <div className="rounded-lg p-4 mb-4" style={{ backgroundColor: 'rgba(248, 250, 252, 0.9)', border: '1px solid #e2e8f0' }}>
+                <p className="font-medium mb-2" style={{ color: '#0f172a' }}>If these Terms are breached</p>
+                <p className="text-sm" style={{ color: '#334155' }}>
+                  Serious breaches (for example, misuse of data, unauthorised copying, or security risks) may result in suspension and, where needed, appropriate legal remedies. Our aim is to resolve issues proportionately while protecting service users, data subjects, and the platform.
                 </p>
               </div>
-              <p className="mb-4" style={{ color: '#64748b' }}>
-                <strong>In the event of violation, you may be liable for:</strong>
-              </p>
-              <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
-                <li><strong>Injunctive Relief:</strong> Immediate court orders to cease infringing activities</li>
-                <li><strong>Compensatory Damages:</strong> Full compensation for all losses suffered by Lewis Barron</li>
-                <li><strong>Disgorgement of Profits:</strong> Surrender of any profits gained from the violation</li>
-                <li><strong>Legal Costs:</strong> All legal fees, court costs, and expenses incurred in enforcement</li>
-                <li><strong>Statutory Damages:</strong> Where applicable under intellectual property laws</li>
-                <li><strong>Additional Remedies:</strong> Any other remedies available at law or in equity</li>
-              </ul>
               <p className="mt-4" style={{ color: '#64748b' }}>
-                Lewis Barron reserves the right to pursue all available legal remedies against any person or entity that violates these Terms, and to report violations to relevant authorities where appropriate.
+                If you believe an action or notice was issued in error, please contact the Owner to discuss a resolution.
               </p>
             </section>
 
@@ -417,30 +378,24 @@ export default function TermsConditions() {
               <p style={{ color: '#64748b' }}>
                 You agree to defend, indemnify, and hold harmless Lewis Barron, his affiliates, licensors, and service providers from and against any claims, liabilities, damages, judgments, awards, losses, costs, expenses, or fees (including reasonable attorneys' fees) arising out of or relating to your violation of these Terms, your use of the Software, your violation of any rights of another party, your violation of any applicable laws or regulations, content or data you upload, decisions or actions taken based on Platform outputs, claims by patients or service users, or regulatory enforcement actions.
               </p>
-              <div className="rounded-lg p-4 mt-4 mb-4" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                <p className="font-medium mb-2" style={{ color: '#dc2626' }}>WAIVER AND RELEASE OF CLAIMS</p>
-                <p className="text-sm" style={{ color: '#7f1d1d' }}>
-                  You irrevocably waive, release, and forever discharge Lewis Barron from any and all claims, demands, actions, suits, or proceedings relating to the CareAssurance name, logo, branding, design, user interface, or any other visual or branding elements of the Platform. You agree not to bring, support, participate in, or fund any legal action against Lewis Barron relating to the Platform's name, branding, or design. This waiver shall survive termination of your access to the Platform and shall remain in full force and effect indefinitely.
-                </p>
-              </div>
-              <p style={{ color: '#64748b' }}>
-                You acknowledge that Lewis Barron has independently created the CareAssurance name, logo, and design elements as original works, and you shall not assert, support, or participate in any claim suggesting otherwise.
+              <p className="mt-4" style={{ color: '#64748b' }}>
+                Branding and design remain with the Owner; nothing in this section changes that. If you have a concern about branding or design, raise it directly so it can be addressed.
               </p>
             </section>
 
             <section>
               <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>19. Termination</h3>
               <div className="rounded-lg p-4 mb-4" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                <p className="font-medium mb-2" style={{ color: '#d97706' }}>OWNER'S ABSOLUTE RIGHT TO TERMINATE</p>
+                <p className="font-medium mb-2" style={{ color: '#d97706' }}>Service Suspension or Termination</p>
                 <p className="text-sm" style={{ color: '#78350f' }}>
-                  Lewis Barron reserves the absolute and unconditional right to terminate, suspend, restrict, or revoke your access to the Software at any time, for any reason or no reason, with or without notice, and without any liability whatsoever. This includes but is not limited to termination for breach of Terms, suspected misuse, business reasons, or at the Owner's sole discretion.
+                  Access may be suspended or ended where there is a breach of these Terms, a security or compliance risk, or where continued use is not commercially viable. We will usually give notice and a chance to address issues unless urgent action is required to protect users or data.
                 </p>
               </div>
               <p style={{ color: '#64748b' }}>
                 <strong>Account Security:</strong> You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.
               </p>
               <p className="mt-4" style={{ color: '#64748b' }}>
-                <strong>Effect of Termination:</strong> Upon termination, you must immediately cease all use of the Software. All provisions of these Terms which by their nature should survive termination shall survive, including ownership provisions, warranty disclaimers, indemnity, and limitations of liability.
+                <strong>Effect of Termination:</strong> When access ends, you must stop using the Software. Provisions that need to continue (for example, intellectual property, limitations, and confidentiality) will survive as usual under applicable law.
               </p>
             </section>
 

@@ -429,10 +429,10 @@ export default function VisitAudit() {
     : `${user?.username} (${user?.role === 'admin' ? 'Admin' : 'Staff'})`;
 
   return (
-    <div className="page-shell">
-      <div>
-        <h2 className="text-3xl font-heading font-bold text-foreground">Visit Audit</h2>
-        <p className="text-muted-foreground mt-2">
+    <div className="page-shell max-w-6xl mx-auto">
+      <div className="space-y-2">
+        <h2 className="page-title">Visit Audit</h2>
+        <p className="page-subtitle max-w-prose">
           Upload your visit logs and the AI will extract all details and check compliance (location 200m, 70% duration).
         </p>
       </div>
@@ -487,10 +487,10 @@ The AI will automatically extract:
             </div>
 
             {loading && (
-              <div className="space-y-3 p-4 bg-blue-950/20 border border-blue-900/30 rounded-lg" data-testid="progress-container">
+              <div className="space-y-3 p-4 glass-panel border border-border rounded-xl" data-testid="progress-container">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Loader2 size={16} className="animate-spin text-blue-400" />
+                    <Loader2 size={16} className="animate-spin text-primary" />
                     <span className="text-sm text-muted-foreground">{progressStatus}</span>
                   </div>
                   <span className="text-sm font-medium text-foreground">{Math.round(progress)}%</span>

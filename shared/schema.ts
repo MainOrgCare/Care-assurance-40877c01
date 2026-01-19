@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, pgView, text, varchar, timestamp, integer, jsonb, json, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -115,6 +115,58 @@ export const insertCareWorkerRotaSchema = createInsertSchema(careWorkerRotas).om
 
 export type InsertCareWorkerRota = z.infer<typeof insertCareWorkerRotaSchema>;
 export type CareWorkerRota = typeof careWorkerRotas.$inferSelect;
+
+// Session store table used by connect-pg-simple
+export const sessions = pgTable(
+  "session",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: json("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => ({
+    expireIdx: index("IDX_session_expire").on(table.expire),
+  })
+);
+
+// Keep extension-managed view in schema so drizzle-kit doesn't try to drop it.
+export const pgStatStatementsInfo = pgView("pg_stat_statements_info", {}).existing();
+export const pgStatStatements = pgView("pg_stat_statements", {}).existing();
+
+// Rostering template recommendations - stores suggested template call groups per worker/week/day
+export const rosteringTemplateRecommendations = pgTable(
+  "rostering_template_recommendations",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    workerKey: text("worker_key").notNull(),
+    templateWeek: text("template_week").notNull(), // week1 / week2
+    templateDay: text("template_day").notNull(), // Monday..Sunday
+    groupKey: text("group_key").notNull(),
+    createdBy: varchar("created_by").references(() => users.id),
+    createdByUsername: text("created_by_username"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueRecommendation: uniqueIndex("rostering_template_recommendations_unique").on(
+      table.workerKey,
+      table.templateWeek,
+      table.templateDay,
+      table.groupKey
+    ),
+  })
+);
+
+export const insertRosteringTemplateRecommendationSchema = createInsertSchema(
+  rosteringTemplateRecommendations
+).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertRosteringTemplateRecommendation = z.infer<
+  typeof insertRosteringTemplateRecommendationSchema
+>;
+export type RosteringTemplateRecommendation = typeof rosteringTemplateRecommendations.$inferSelect;
 
 // Admin Alerts table
 export const adminAlerts = pgTable("admin_alerts", {

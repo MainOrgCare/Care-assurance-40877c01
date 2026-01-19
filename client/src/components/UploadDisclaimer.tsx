@@ -1,4 +1,4 @@
-import { AlertTriangle, Clock, Shield, FileWarning } from "lucide-react";
+import { Clock, Shield } from "lucide-react";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 
 export default function UploadDisclaimer() {
@@ -12,21 +12,21 @@ export default function UploadDisclaimer() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-amber-950/30 border border-amber-900/50 p-4 rounded-xl">
+      <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl">
         <div className="flex items-start gap-3">
           <div className="flex items-center gap-2 shrink-0">
-            <Clock className="text-amber-400" size={18} />
+            <Clock className="text-amber-600 dark:text-amber-300" size={18} />
             {timeLeft !== null && (
-              <span className="px-2 py-1 bg-amber-500/20 text-amber-300 rounded font-mono text-sm font-bold animate-pulse">
+              <span className="px-2 py-1 bg-amber-500/15 text-amber-700 dark:text-amber-200 rounded font-mono text-sm font-bold animate-pulse">
                 {formatTime(timeLeft)}
               </span>
             )}
           </div>
           <div className="space-y-1">
-            <h4 className="text-sm font-medium text-amber-400">Volatile Data Warning</h4>
-            <p className="text-xs text-amber-300/70">
-              All uploaded documents are held in temporary memory only. Your data will be <strong className="text-amber-200">permanently erased</strong> after 30 minutes of inactivity, 
-              when navigating away from Service Users section, or when you log out. <strong className="text-amber-200">No data is saved to any database.</strong>
+            <h4 className="text-sm font-medium text-amber-800 dark:text-amber-200">Temporary Uploads</h4>
+            <p className="text-xs text-foreground/80 leading-relaxed">
+              Uploaded documents are processed in memory and <strong className="text-foreground">not stored</strong> as files in the database. They are <strong className="text-foreground">cleared automatically</strong> after 30 minutes of inactivity or when you log out.
+              Some derived information (for example, audit results) may be saved if you choose to save it.
             </p>
           </div>
         </div>
@@ -34,9 +34,9 @@ export default function UploadDisclaimer() {
 
       <div className="bg-muted/50 border border-border p-4 rounded-xl">
         <div className="flex items-start gap-3">
-          <Shield className="text-blue-400 shrink-0 mt-0.5" size={18} />
+          <Shield className="text-primary shrink-0 mt-0.5" size={18} />
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-blue-400">Legal Authorization Notice</h4>
+            <h4 className="text-sm font-medium text-primary">Legal Authorization Notice</h4>
             <p className="text-xs text-muted-foreground leading-relaxed">
               By uploading documents, you confirm that:
             </p>
@@ -47,7 +47,7 @@ export default function UploadDisclaimer() {
               <li>You understand that AI analysis is provided as assistance only and should be verified by qualified professionals</li>
             </ul>
             <p className="text-xs text-muted-foreground/70 italic mt-2">
-              The operator of this system accepts no liability for unauthorized document uploads or misuse of third-party data.
+              Please only upload data you are authorised to handle. Unauthorised uploads or misuse of third-party data may breach your organisation's policies and applicable law.
             </p>
           </div>
         </div>

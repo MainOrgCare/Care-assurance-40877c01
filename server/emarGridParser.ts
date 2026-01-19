@@ -53,17 +53,25 @@ export interface ParsedEMAR {
 const DATE_PATTERNS = [
   // Day name + day + month (e.g., "Sun, 30 Nov", "Mon 01 Dec")
   /\b(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)[,.]?\s*\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/gi,
+  // Day name + numeric date (e.g., "Mon 01/12", "Tue 1-12-2024")
+  /\b(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)[,.]?\s*\d{1,2}[\/.-]\d{1,2}(?:[\/.-]\d{2,4})?\b/gi,
   // Day + month (e.g., "30 Nov", "01 December")
   /\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/gi,
   /\d{1,2}\/\d{1,2}\/\d{2,4}/g,
   /\d{1,2}\/\d{1,2}/g,
-  /\d{1,2}-\d{1,2}-\d{2,4}/g,
+  /\d{1,2}-\d{1,2}(?:-\d{2,4})?/g,
+  /\d{1,2}\.\d{1,2}(?:\.\d{2,4})?/g,
 ];
-const TIME_SLOT_PATTERN = /\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g;
+const TIME_RANGE_PATTERN = /\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g;
+const TIME_SLOT_PATTERN = TIME_RANGE_PATTERN;
+const TIME_TOKEN_PATTERN = /\b\d{1,2}[:.]\d{2}\b/g;
+const TIME_AMPM_PATTERN = /\b\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)\b/gi;
+const TIME_WORD_PATTERN = /\b(morning|noon|midday|lunch|afternoon|evening|night|bed(?:time)?|tea|breakfast|am|pm)\b/i;
 const CODE_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–]\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/gi;
 const CODE_PATTERN_SINGLE = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–]\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/i;
 const TIME_PATTERN = /\d{1,2}[:.]\d{2}/g;
 const INITIALS_PATTERN = /\b[A-Z]{2,3}\b/g;
+const INITIALS_WITH_DOTS_PATTERN = /\b(?:[A-Z]\.){2,3}\b/g;
 const CODE_INITIALS = new Set(["AD", "AS", "MU", "NH", "SA", "FA", "PRN", "NA"]);
 const CODE_PRIORITY: Record<string, number> = {
   "PRN-R": 100,
@@ -93,6 +101,10 @@ const normalizeCodeText = (value: string): string => {
     .replace(/\bP\s*R\s*N\b/g, "PRN")
     .replace(/\bS\s*[-–\/]?\s*A\b/g, "SA")
     .replace(/\bF\s*[-–\/]?\s*A\b/g, "FA")
+    .replace(/\bN\s*\/\s*H\b/g, "NH")
+    .replace(/\bM\s*\/\s*U\b/g, "MU")
+    .replace(/\bA\s*\/\s*D\b/g, "AD")
+    .replace(/\bA\s*\/\s*S\b/g, "AS")
     .replace(/\bN\s*H\b/g, "NH")
     .replace(/\bM\s*U\b/g, "MU")
     .replace(/\bA\s*D\b/g, "AD")
@@ -102,8 +114,13 @@ const normalizeCodeText = (value: string): string => {
 
 const extractCareWorkerInitials = (content: string): string => {
   if (!content) return "";
-  const matches = content.match(INITIALS_PATTERN) || [];
-  for (const token of matches) {
+  const normalizeToken = (value: string) => value.replace(/\./g, "").toUpperCase();
+  const dottedMatches = (content.match(INITIALS_WITH_DOTS_PATTERN) || []).map(normalizeToken);
+  const plainMatches = (content.match(INITIALS_PATTERN) || []).map(normalizeToken);
+  const seen = new Set<string>();
+  for (const token of [...dottedMatches, ...plainMatches]) {
+    if (!token || seen.has(token)) continue;
+    seen.add(token);
     if (!CODE_INITIALS.has(token)) return token;
   }
   return "";
@@ -120,6 +137,10 @@ const normalizeGridCode = (raw: string): string => {
   if (normalized === "F/A" || normalized === "FA") return "FA";
   if (normalized === "F") return "FA";
   if (normalized === "S/A" || normalized === "S-A") return "SA";
+  if (normalized === "M/U" || normalized === "MU") return "MU";
+  if (normalized === "N/H" || normalized === "NH") return "NH";
+  if (normalized === "A/D") return "AD";
+  if (normalized === "A/S") return "AS";
   if (normalized === "PRNR" || normalized === "PRN-R") return "PRN-R";
   if (normalized === "PRNAD" || normalized === "PRN-AD") return "PRN-AD";
   if (normalized === "PRNAS" || normalized === "PRN-AS") return "PRN-AS";
@@ -491,6 +512,75 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       .replace(/\s*-\s*/g, "-")
       .replace(/\s+/g, " ");
 
+  const normalizeSlotWord = (value: string): string => {
+    const key = value.toLowerCase();
+    const wordMap: Record<string, string> = {
+      morning: "Morning",
+      noon: "Noon",
+      midday: "Midday",
+      lunch: "Lunch",
+      afternoon: "Afternoon",
+      evening: "Evening",
+      night: "Night",
+      bedtime: "Bedtime",
+      tea: "Tea",
+      breakfast: "Breakfast",
+      am: "AM",
+      pm: "PM",
+    };
+    return wordMap[key] || value;
+  };
+
+  const extractSlotLabels = (text: string): string[] => {
+    const cleaned = (text || "").replace(/\s+/g, " ").trim();
+    if (!cleaned) return [];
+
+    const rangeRegex = new RegExp(TIME_RANGE_PATTERN.source, "g");
+    const rangeMatches = Array.from(cleaned.matchAll(rangeRegex)).map((m) => m[0]).filter(Boolean);
+    if (rangeMatches.length > 0) {
+      const leftover = cleaned
+        .replace(rangeRegex, "")
+        .replace(/\b(?:am|pm|hrs?|hours?)\b/gi, "")
+        .replace(/[()]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!leftover) {
+        return rangeMatches.map((slot) => normalizeSlot(slot));
+      }
+    }
+
+    const ampmRegex = new RegExp(TIME_AMPM_PATTERN.source, "gi");
+    const ampmMatches = Array.from(cleaned.matchAll(ampmRegex)).map((m) => m[0]).filter(Boolean);
+    const tokenRegex = new RegExp(TIME_TOKEN_PATTERN.source, "g");
+    const tokenMatches =
+      ampmMatches.length > 0
+        ? ampmMatches
+        : Array.from(cleaned.matchAll(tokenRegex)).map((m) => m[0]).filter(Boolean);
+    if (tokenMatches.length > 0) {
+      const leftover = cleaned
+        .replace(ampmRegex, "")
+        .replace(tokenRegex, "")
+        .replace(/\b(?:am|pm|hrs?|hours?)\b/gi, "")
+        .replace(/[()]/g, " ")
+        .replace(/\s+/g, " ")
+        .replace(/[–-]/g, "")
+        .trim();
+      if (!leftover) {
+        return tokenMatches.map((slot) => normalizeSlot(slot));
+      }
+    }
+
+    const wordMatch = cleaned.match(TIME_WORD_PATTERN);
+    if (wordMatch) {
+      const leftover = cleaned.replace(TIME_WORD_PATTERN, "").trim();
+      if (!leftover) {
+        return [normalizeSlotWord(wordMatch[1])];
+      }
+    }
+
+    return [];
+  };
+
   const normalizeDateLabel = (value: string) =>
     (value || "")
       .trim()
@@ -515,17 +605,18 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     for (const item of pageItems) {
       const text = item.str;
       if (!text) continue;
-      const slotRegex = new RegExp(TIME_SLOT_PATTERN.source, "g");
-      const matches = Array.from(text.matchAll(slotRegex));
-      for (const m of matches) {
-        if (!m[0]) continue;
-        candidates.push({ slot: normalizeSlot(m[0]), x: item.x, y: item.y, width: item.width || 0 });
+      const labels = extractSlotLabels(text);
+      for (const label of labels) {
+        if (!label) continue;
+        candidates.push({ slot: label, x: item.x, y: item.y, width: item.width || 0 });
       }
     }
 
     if (debugTransposed && candidates.length === 0) {
+      const timeTokenRegex = new RegExp(TIME_TOKEN_PATTERN.source, "i");
+      const ampmTokenRegex = new RegExp(TIME_AMPM_PATTERN.source, "i");
       const timeLike = pageItems
-        .filter(i => /\d{1,2}:\d{2}/.test(i.str))
+        .filter(i => timeTokenRegex.test(i.str) || ampmTokenRegex.test(i.str))
         .slice(0, 12)
         .map(i => ({ str: i.str, x: i.x, y: i.y }));
       console.log(`[EMAR GRID DEBUG] page=${page} timeSlotCandidates=0 sampleTimeLike=`, timeLike);
@@ -948,11 +1039,12 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
 
     for (let i = ph.headerRowIndex + 1; i < rows.length; i++) {
       const row = rows[i];
-      const rowText = row.map(item => item.str).join(" ");
-      const timeSlotMatches = Array.from(rowText.matchAll(TIME_SLOT_PATTERN));
+      const leftItems = row.filter(item => item.x < 250);
+      const leftText = leftItems.map(item => item.str).join(" ");
+      const timeSlotMatches = extractSlotLabels(leftText);
 
-      for (const match of timeSlotMatches) {
-        const normalizedSlot = match[0].replace('–', '-');
+      for (const slotLabel of timeSlotMatches) {
+        const normalizedSlot = normalizeSlot(slotLabel);
         const avgY = row.reduce((sum, item) => sum + item.y, 0) / row.length;
 
         if (!allTimeSlots.includes(normalizedSlot)) {
