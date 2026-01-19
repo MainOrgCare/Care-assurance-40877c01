@@ -7,6 +7,17 @@ const getStandardFontDataUrl = () => {
   return pathToFileURL(fontsPath + path.sep).toString();
 };
 
+const EMAR_GRID_DEBUG_FLAG = (process.env.EMAR_GRID_DEBUG || "").toLowerCase();
+const EMAR_GRID_DEBUG_ENABLED =
+  EMAR_GRID_DEBUG_FLAG === "1" ||
+  EMAR_GRID_DEBUG_FLAG === "true" ||
+  EMAR_GRID_DEBUG_FLAG === "yes" ||
+  EMAR_GRID_DEBUG_FLAG === "on";
+
+const debugLog = (...args: unknown[]) => {
+  if (EMAR_GRID_DEBUG_ENABLED) console.log(...args);
+};
+
 interface TextItem {
   str: string;
   x: number;
@@ -31,6 +42,9 @@ export interface ParsedEMAR {
   allergies: string;
   auditPeriodStart: string;
   auditPeriodEnd: string;
+  pageCount: number;
+  pageCharCounts: number[];
+  pageTexts: string[];
   dates: string[];
   timeSlots: string[];
   medications: Array<{
@@ -59,8 +73,10 @@ const DATE_PATTERNS = [
   /\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b/gi,
   /\d{1,2}\/\d{1,2}\/\d{2,4}/g,
   /\d{1,2}\/\d{1,2}/g,
-  /\d{1,2}-\d{1,2}(?:-\d{2,4})?/g,
-  /\d{1,2}\.\d{1,2}(?:\.\d{2,4})?/g,
+  // Strict numeric dates with separators. Guard against false positives inside time ranges like "08:00-09:00"
+  // Require a year for hyphen/dot formats to avoid misclassifying dose frequencies like "4-6 hourly".
+  /(?<!:)\b(?:0?[1-9]|[12][0-9]|3[01])-(?:0?[1-9]|1[0-2])-(?:\d{2,4})\b(?!:)/g,
+  /(?<!:)\b(?:0?[1-9]|[12][0-9]|3[01])\.(?:0?[1-9]|1[0-2])\.(?:\d{2,4})\b(?!:)/g,
 ];
 const TIME_RANGE_PATTERN = /\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g;
 const TIME_SLOT_PATTERN = TIME_RANGE_PATTERN;
@@ -179,6 +195,8 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   
   const allTextItems: TextItem[] = [];
   let rawText = "";
+  const pageTexts: string[] = [];
+  const pageCharCounts: number[] = [];
   
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
@@ -199,12 +217,8 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
           height: (item as any).height || 0,
           page: pageNum
         });
-        
-        rawText += item.str + " ";
       }
     }
-
-    rawText += "\n\n--- PAGE BREAK ---\n\n";
   }
   
   // IMPORTANT: Group by page first. Y coordinates are only meaningful within a page.
@@ -214,6 +228,29 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     if (!itemsByPage.has(item.page)) itemsByPage.set(item.page, []);
     itemsByPage.get(item.page)!.push(item);
   }
+
+  // Build a more readable text extraction (re-using already-parsed PDF items).
+  // This matches the legacy text extractor behavior closely enough for downstream heuristics.
+  const textRowTolerance = 2.5;
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const pageItems = itemsByPage.get(pageNum) || [];
+    const rows = groupByY(pageItems, textRowTolerance);
+    const lines = rows
+      .map((row) =>
+        row
+          .map((segment) => segment.str)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim()
+      )
+      .filter(Boolean);
+    const pageText = lines.join("\n");
+    pageTexts.push(pageText);
+    pageCharCounts.push(pageText.length);
+  }
+
+  rawText = pageTexts.join("\n\n--- PAGE BREAK ---\n\n");
+
   const rowsByPage = new Map<number, TextItem[][]>();
   for (const [page, items] of Array.from(itemsByPage.entries())) {
     rowsByPage.set(page, groupByY(items, yTolerance));
@@ -304,7 +341,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
           }
         }
 
-        console.log(`DEBUG: Found ${dateColumns.length} dates in page ${page} row ${i}:`, dateColumns.map(d => d.date));
+        debugLog(`DEBUG: Found ${dateColumns.length} dates in page ${page} row ${i}:`, dateColumns.map(d => d.date));
         break;
       }
     }
@@ -426,7 +463,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
             }
           }
 
-          console.log(
+          debugLog(
             `DEBUG: Header detected via date-item clustering on page ${page} (row ${headerRowIndex}) with ${dateColumns.length} dates:`
           );
         }
@@ -447,13 +484,13 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   }
   
   if (dateColumns.length === 0) {
-    console.log("DEBUG: No dates found. Trying aggregated row search...");
+    debugLog("DEBUG: No dates found. Trying aggregated row search...");
 
     for (const [page, rows] of Array.from(rowsByPage.entries()).sort((a, b) => a[0] - b[0])) {
       for (let i = 0; i < Math.min(10, rows.length); i++) {
         const row = rows[i];
         const rowText = row.map(item => item.str).join(" ");
-        console.log(`Page ${page} Row ${i}: ${rowText.substring(0, 100)}`);
+        debugLog(`Page ${page} Row ${i}: ${rowText.substring(0, 100)}`);
       }
     }
     
@@ -461,7 +498,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     for (const pattern of DATE_PATTERNS) {
       const matches = Array.from(allText.matchAll(pattern));
       if (matches.length > 0) {
-        console.log(`DEBUG: Found ${matches.length} date matches with pattern ${pattern}:`, matches.slice(0, 10).map(m => m[0]));
+        debugLog(`DEBUG: Found ${matches.length} date matches with pattern ${pattern}:`, matches.slice(0, 10).map(m => m[0]));
       }
     }
   }
@@ -547,6 +584,11 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       if (!leftover) {
         return rangeMatches.map((slot) => normalizeSlot(slot));
       }
+      // Loose mode: allow a single range label even when other tokens are present
+      // (common in MAR rows like "08:00-09:00 63225 HB 09:27 AD ...").
+      if (rangeMatches.length === 1) {
+        return [normalizeSlot(rangeMatches[0])];
+      }
     }
 
     const ampmRegex = new RegExp(TIME_AMPM_PATTERN.source, "gi");
@@ -599,7 +641,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   const extractTimeSlotHeaderClustersForPage = (page: number): Array<{ headerY: number; columns: SlotColumn[] }> => {
     const pageItems = itemsByPage.get(page) || [];
     const debugTransposed = process.env.DEBUG_EMAR_GRID === 'true';
-    type SlotCandidate = { slot: string; x: number; y: number; width: number };
+    type SlotCandidate = { slot: string; x: number; y: number; width: number; isRange: boolean };
     const candidates: SlotCandidate[] = [];
 
     for (const item of pageItems) {
@@ -608,7 +650,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       const labels = extractSlotLabels(text);
       for (const label of labels) {
         if (!label) continue;
-        candidates.push({ slot: label, x: item.x, y: item.y, width: item.width || 0 });
+        candidates.push({ slot: label, x: item.x, y: item.y, width: item.width || 0, isRange: label.includes("-") });
       }
     }
 
@@ -624,8 +666,13 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
 
     if (candidates.length === 0) return [];
 
+    // Prefer explicit time RANGE headers when present to avoid accidentally treating
+    // administration times (single HH:MM tokens inside cells) as slot headers.
+    const rangeCandidates = candidates.filter(c => c.isRange);
+    const candidatesToCluster = rangeCandidates.length >= 2 ? rangeCandidates : candidates;
+
     // Cluster by Y to find the header line containing multiple time slots.
-    const sorted = [...candidates].sort((a, b) => a.y - b.y);
+    const sorted = [...candidatesToCluster].sort((a, b) => a.y - b.y);
     const clusters: SlotCandidate[][] = [];
     let current: SlotCandidate[] = [sorted[0]];
     let currentY = sorted[0].y;
@@ -891,10 +938,21 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
           trimmedCandidate.length >= 3 &&
           !isBlocked;
 
+        const looksLikeMedicationHeader =
+          headerY !== null &&
+          !matchesMed &&
+          /[a-zA-Z]/.test(trimmedCandidate) &&
+          trimmedCandidate.length >= 3 &&
+          trimmedCandidate.length <= 60 &&
+          !/^\d/.test(trimmedCandidate) &&
+          !/\b(take|apply|dissolve|mix|route)\b/i.test(trimmedCandidate) &&
+          !isBlocked;
+
         const validCandidate =
           matchesMed ||
           routeDerived ||
-          (candidateName !== cleaned && /[a-zA-Z]/.test(trimmedCandidate) && trimmedCandidate.length >= 3);
+          (candidateName !== cleaned && /[a-zA-Z]/.test(trimmedCandidate) && trimmedCandidate.length >= 3) ||
+          looksLikeMedicationHeader;
         if (!validCandidate) continue;
 
         const xCenter = (segment.xMin + segment.xMax) / 2;
@@ -1269,7 +1327,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     }
   }
   
-  console.log(`DEBUG: Found ${allTimeSlots.length} time slots:`, allTimeSlots);
+  debugLog(`DEBUG: Found ${allTimeSlots.length} time slots:`, allTimeSlots);
   
   const cells: GridCell[] = [];
 
@@ -1319,7 +1377,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   }
   
   if (cells.length === 0 && medicationBlocks.length > 0 && dateColumns.length === 0) {
-    console.log("DEBUG: No cells generated - grid structure not detected. Falling back to simpler approach.");
+    debugLog("DEBUG: No cells generated - grid structure not detected. Falling back to simpler approach.");
     
     for (const med of medicationBlocks) {
       for (const slot of allTimeSlots.length > 0 ? allTimeSlots : ["Morning", "Noon", "Evening", "Night"]) {
@@ -1380,7 +1438,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   const detectedMedsCount = medicationBlocks.length > 0 ? medicationBlocks.length : transposedMedications.length;
   const parserMode =
     medicationBlocks.length > 0 ? "grid" : transposedMedications.length > 0 ? "transposed" : "unknown";
-  console.log(
+  debugLog(
     `DEBUG: Parser complete (${parserMode}) - ${detectedDatesCount} dates, ${detectedMedsCount} meds, ${cells.length} cells`
   );
   
@@ -1389,6 +1447,9 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     allergies,
     auditPeriodStart: dates[0] || "",
     auditPeriodEnd: dates[dates.length - 1] || "",
+    pageCount: pdf.numPages,
+    pageCharCounts,
+    pageTexts,
     dates,
     timeSlots: allTimeSlots,
     medications: (medicationBlocks.length > 0

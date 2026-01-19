@@ -2961,7 +2961,27 @@ export async function registerRoutes(
       let extracted: Awaited<ReturnType<typeof extractPdfTextWithPdfjs>> | null = null;
       let documentText = "";
       try {
-        extracted = await extractPdfTextWithPdfjs(req.file.buffer);
+        // Reuse text extracted during the grid baseline pass (avoids parsing the PDF twice).
+        if (
+          gridBaseline &&
+          Array.isArray(gridBaseline.pageTexts) &&
+          gridBaseline.pageTexts.length > 0 &&
+          typeof gridBaseline.rawText === "string" &&
+          gridBaseline.rawText.trim().length > 0
+        ) {
+          extracted = {
+            text: gridBaseline.rawText,
+            pageCount: Number(gridBaseline.pageCount) || gridBaseline.pageTexts.length,
+            pageCharCounts:
+              Array.isArray(gridBaseline.pageCharCounts) &&
+              gridBaseline.pageCharCounts.length === gridBaseline.pageTexts.length
+                ? gridBaseline.pageCharCounts
+                : gridBaseline.pageTexts.map((t) => (typeof t === "string" ? t.length : 0)),
+            pageTexts: gridBaseline.pageTexts,
+          };
+        } else {
+          extracted = await extractPdfTextWithPdfjs(req.file.buffer);
+        }
 
         console.log(`DEBUG: PDF has ${extracted.pageCount} pages`);
         extracted.pageCharCounts.forEach((len, idx) => {
@@ -3311,7 +3331,8 @@ ${correctionExamples}
             agentText,
             tableStructure,
             correctionsContext,
-            aiUserContext
+            aiUserContext,
+            { gridBaseline }
           );
           
           console.log(`EMAR Agent completed: ${agentResult.entries.length} entries, ${agentResult.consensusStatus}, validation: ${agentResult.validationPassed}`);
@@ -3365,9 +3386,47 @@ ${correctionExamples}
           
           // Build PRN medication set
           const agentPrnMeds = new Set<string>();
+          const agentPrnMedIds = new Set<number>();
           agentMedications.forEach((m: any) => {
-            if (m.isPRN) agentPrnMeds.add(m.name);
+            if (m.isPRN) {
+              agentPrnMeds.add(m.name);
+              const medId = Number(m.medicationId) || 0;
+              if (medId) agentPrnMedIds.add(medId);
+            }
           });
+
+          const normalizeAgentCode = (raw: unknown): string => {
+            if (!raw) return "";
+            let code = String(raw)
+              .toUpperCase()
+              .trim()
+              .replace(/[()\[\]{}]/g, "")
+              .replace(/[–—]/g, "-")
+              .replace(/\s+/g, "");
+
+            if (!code) return "";
+            if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
+            if (code === "S/A" || code === "S-A") return "SA";
+            if (code === "M/U" || code === "MU") return "MU";
+            if (code === "N/H" || code === "NH") return "NH";
+            if (code === "A/D") return "AD";
+            if (code === "A/S") return "AS";
+            if (code === "PRNAD" || code === "PRN-AD") return "PRN-AD";
+            if (code === "PRNAS" || code === "PRN-AS") return "PRN-AS";
+            if (
+              code === "PRNR" ||
+              code === "PRN-R" ||
+              code === "PRNREFUSED" ||
+              code === "PRNREFUS" ||
+              code === "PRNREF" ||
+              code === "PRNRF"
+            ) {
+              return "PRN-R";
+            }
+            if (code === "REFUSED" || code === "REFUSE" || code === "REF") return "R";
+            if (code === "NA") return "N/A";
+            return code;
+          };
           
           // Build medication scheduled slot counts for time gap detection
           const agentMedScheduledSlots = new Map<string, number>();
@@ -3432,9 +3491,10 @@ ${correctionExamples}
           };
           
           agentEntries.forEach((entry: any) => {
-            const code = (entry.code || '').toUpperCase();
+            const code = normalizeAgentCode(entry.code || "");
             if (reviewCodes.includes(code)) {
-              const isPRN = agentPrnMeds.has(entry.medication) || code.includes('PRN');
+              const medId = Number(entry.medicationId) || 0;
+              const isPRN = agentPrnMedIds.has(medId) || agentPrnMeds.has(entry.medication) || code.includes('PRN');
               const verificationItem = {
                 careWorkerName: entry.careWorkerInitials || 'Unknown',
                 date: entry.date,
@@ -3456,6 +3516,76 @@ ${correctionExamples}
                 prnRefusalDiscrepancies.push(refusalItem);
               } else {
                 mainRefusalDiscrepancies.push(refusalItem);
+              }
+            }
+          });
+
+          // =====================================================================
+          // PRN CODE MISUSE + INVALID CODES (match legacy pipeline CHECK 5d/5e)
+          // =====================================================================
+          const PRN_CODES = ['PRN', 'PRN-AD', 'PRN-AS', 'PRN-R'];
+          const INVALID_PRN_CODES = ['AD', 'AS', 'P'];
+          const VALID_ADMIN_CODES = ['AD', 'SA', 'NH', 'R', 'FA', 'MU'];
+
+          agentEntries.forEach((entry: any) => {
+            const code = normalizeAgentCode(entry.code || "");
+            if (!code) return;
+
+            const careWorker = entry.careWorkerInitials || 'Unknown';
+            const date = entry.date || '';
+            const timeSlot = entry.timeSlot || '';
+            const medication = entry.medication || '';
+
+            const medId = Number(entry.medicationId) || 0;
+            const isPRN = agentPrnMedIds.has(medId) || agentPrnMeds.has(medication);
+
+            // CHECK 5d (1): PRN-style codes on non-PRN meds
+            if (PRN_CODES.includes(code) && !isPRN) {
+              // PRN-R remains a verification item; avoid double-reporting.
+              if (code !== 'PRN-R') {
+                agentDiscrepancies.push({
+                  careWorkerName: careWorker,
+                  date,
+                  timeSlot,
+                  medication,
+                  code,
+                  issue: `PRN code "${code}" used on regular medication - "${medication}" is not prescribed as PRN`,
+                  severity: "high",
+                  actions: { performanceNote: true, meeting: "phone", referToManager: true }
+                });
+              }
+              return;
+            }
+
+            // CHECK 5d (2): AD/AS/P used on PRN meds
+            if (INVALID_PRN_CODES.includes(code) && isPRN) {
+              agentDiscrepancies.push({
+                careWorkerName: careWorker,
+                date,
+                timeSlot,
+                medication,
+                code,
+                issue: `Invalid code "${code}" used on PRN medication - should use PRN codes (PRN, PRN-AD, PRN-AS, PRN-R)`,
+                severity: "high",
+                actions: { performanceNote: true, meeting: "phone", referToManager: false }
+              });
+              return;
+            }
+
+            // CHECK 5e: Invalid codes for administered (non-PRN) meds
+            if (!isPRN && code && !VALID_ADMIN_CODES.includes(code)) {
+              if (PRN_CODES.includes(code)) return; // already handled above
+              if (code !== '' && code !== 'BLANK' && code !== 'EMPTY') {
+                agentDiscrepancies.push({
+                  careWorkerName: careWorker,
+                  date,
+                  timeSlot,
+                  medication,
+                  code,
+                  issue: `Invalid code "${code}" used on administered medication - valid codes are: AD, SA, NH, R, FA, MU`,
+                  severity: "high",
+                  actions: { performanceNote: true, meeting: "phone", referToManager: true }
+                });
               }
             }
           });
@@ -3632,6 +3762,24 @@ ${correctionExamples}
               else if (code === 'R') agentCodeCounts.R++;
             }
           });
+
+          // Code mixing check (non-PRN meds only)
+          const agentUsedLevelCodes: string[] = [];
+          if (agentCodeCounts.AD > 0) agentUsedLevelCodes.push("AD");
+          if (agentCodeCounts.AS > 0) agentUsedLevelCodes.push("AS");
+          if (agentCodeCounts.P > 0) agentUsedLevelCodes.push("P");
+          const agentCodeConflictDetected = agentUsedLevelCodes.length > 1;
+          let agentCodeConflictDetails: string | null = null;
+          if (agentCodeConflictDetected) {
+            agentCodeConflictDetails = `Mixed codes on regular medications: ${agentUsedLevelCodes.join(", ")}. AD=${agentCodeCounts.AD}, AS=${agentCodeCounts.AS}, P=${agentCodeCounts.P}`;
+            agentWarnings.push({
+              type: "code_conflict",
+              severity: "high",
+              medication: "Regular medications (non-PRN)",
+              description: agentCodeConflictDetails + ". Service user should have ONE medication level.",
+              recommendedAction: "Review medication level with pharmacy and update EMAR system"
+            });
+          }
           
           // Determine service user type based on code distribution
           const totalAdminCodes = agentCodeCounts.AD + agentCodeCounts.AS + agentCodeCounts.P;
@@ -3673,8 +3821,8 @@ ${correctionExamples}
             serviceUserType: agentServiceUserType,
             allergies: agentExtractedData.allergies || 'NKDA',
             medicationLevelEvidence: `Code counts (regular): AD=${agentCodeCounts.AD}, AS=${agentCodeCounts.AS}, P=${agentCodeCounts.P}. PRN: PRN=${agentPrnCodeCounts.PRN}, FA=${agentPrnCodeCounts.FA}, MU=${agentPrnCodeCounts.MU}, NH=${agentPrnCodeCounts.NH}, R=${agentPrnCodeCounts.R}. Service level: ${agentServiceUserType.toUpperCase()}.`,
-            codeConflictDetected: false,
-            codeConflictDetails: null,
+            codeConflictDetected: agentCodeConflictDetected,
+            codeConflictDetails: agentCodeConflictDetails,
             auditPeriodStart: agentDates[0] || '',
             auditPeriodEnd: agentDates[agentDates.length - 1] || '',
             warnings: agentWarnings,

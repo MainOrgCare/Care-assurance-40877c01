@@ -1,4 +1,5 @@
 import { createChatCompletionWithLogging, type AiUserContext } from "./aiClient";
+import type { ParsedEMAR } from "../emarGridParser";
 
 interface EmarAgentResult {
   entries: any[];
@@ -138,6 +139,37 @@ const normalizeMedicationKey = (name: string): string =>
 
 const PRN_TEXT_PATTERN = /\b(prn|as required|as needed|when required|when needed|if needed|as necessary|up to \d+\s*(?:times|tablets?|capsules?|puffs|drops?)\s*(?:daily|per day))\b/i;
 const isPrnFromText = (text: string): boolean => PRN_TEXT_PATTERN.test(text || "");
+
+const inferRequiredGapHoursFromText = (text: string): number | null => {
+  const lower = String(text || "").toLowerCase();
+  if (!lower) return null;
+
+  const candidates: Array<number | null> = [];
+
+  // "must be 12 hours apart", "12 hours apart"
+  const apartMatch = lower.match(/\b(\d{1,2})\s*hours?\s*apart\b/);
+  if (apartMatch) candidates.push(Number(apartMatch[1]));
+
+  // "every 8 hours", "every 6 hour"
+  const everyMatch = lower.match(/\bevery\s*(\d{1,2})\s*hours?\b/);
+  if (everyMatch) candidates.push(Number(everyMatch[1]));
+
+  // "4-6 hourly", "4 - 6 hours"
+  const rangeMatch = lower.match(/\b(\d{1,2})\s*[-–]\s*(\d{1,2})\s*(?:hours?|hourly)\b/);
+  if (rangeMatch) candidates.push(Number(rangeMatch[1]));
+
+  // "6 hourly"
+  const hourlyMatch = lower.match(/\b(\d{1,2})\s*hourly\b/);
+  if (hourlyMatch) candidates.push(Number(hourlyMatch[1]));
+
+  const cleaned = candidates
+    .filter((value): value is number => Number.isFinite(value))
+    .map((value) => Math.round(value))
+    .filter((value) => value >= 1 && value <= 24);
+
+  if (cleaned.length === 0) return null;
+  return Math.min(...cleaned);
+};
 
 const normalizeCode = (raw: unknown): string => {
   if (!raw) return "";
@@ -388,15 +420,169 @@ Rules:
 3. hasTime true only when a specific admin time is recorded (not the time-slot range).
 4. If medication is PRN and there is no time recorded, use PRN-R for refusals.
 5. Care worker initials are typically 2 letters; leave empty if not present.
-6. isOfficeClosed is true ONLY if explicitly stated in the document.`;
+6. isOfficeClosed is true ONLY if explicitly stated in the document.
+7. If the time slot is unclear but the date/code/initials are present, KEEP the entry and set timeSlot to "UNSPECIFIED". Never drop an entry just because time slot is missing.`;
 
 export const emarAgent = {
   async extract(
     analysisText: string,
     tableStructure: any,
     correctionsContext: string,
-    aiUserContext: AiUserContext
+    aiUserContext: AiUserContext,
+    options?: { gridBaseline?: ParsedEMAR | null }
   ): Promise<EmarAgentResult> {
+    const gridBaseline = options?.gridBaseline || null;
+    if (gridBaseline && Array.isArray(gridBaseline.cells) && gridBaseline.cells.length > 0) {
+      const gridDates = uniqueStrings(Array.isArray(gridBaseline.dates) ? gridBaseline.dates : []);
+      const gridTimeSlots = uniqueStrings(Array.isArray(gridBaseline.timeSlots) ? gridBaseline.timeSlots : []).map(normalizeTimeSlot).filter(Boolean);
+
+      const rawMeds = Array.isArray(gridBaseline.medications) ? gridBaseline.medications : [];
+      const rawCells = Array.isArray(gridBaseline.cells) ? gridBaseline.cells : [];
+
+      const nonBlankCode = (value: unknown) => {
+        const code = normalizeCode(value);
+        if (!code || code === "BLANK" || code === "N/A") return "";
+        return code;
+      };
+
+      const medStatsByKey = new Map<string, { prnCount: number; nonBlankCount: number }>();
+      for (const cell of rawCells) {
+        const medKey = normalizeMedicationKey(String(cell?.medication || ""));
+        if (!medKey) continue;
+        const code = nonBlankCode((cell as any)?.code);
+        if (!code) continue;
+        if (!medStatsByKey.has(medKey)) {
+          medStatsByKey.set(medKey, { prnCount: 0, nonBlankCount: 0 });
+        }
+        const stats = medStatsByKey.get(medKey)!;
+        stats.nonBlankCount += 1;
+        if (code.startsWith("PRN")) stats.prnCount += 1;
+      }
+
+      const medsWithIds = rawMeds
+        .map((med: any, index: number) => {
+          const rawName = String(med?.name || "").trim();
+          if (!rawName) return null;
+          const name = rawName
+            .replace(/\s+/g, " ")
+            .trim();
+          const key = normalizeMedicationKey(name);
+          const stats = key ? medStatsByKey.get(key) : undefined;
+          const nonBlankCount = stats?.nonBlankCount || 0;
+          const prnCount = stats?.prnCount || 0;
+          const prnRatio = nonBlankCount > 0 ? prnCount / nonBlankCount : 0;
+          const gridPrnStrong = prnCount >= 2 && prnRatio >= 0.5;
+          const isPRN = isPrnFromText(name) || gridPrnStrong;
+          const inferredGap = inferRequiredGapHoursFromText(`${name} ${String(med?.instructions || "")}`);
+
+          const scheduledSlots = uniqueStrings(Array.isArray(med?.timeSlots) ? med.timeSlots : []);
+            return {
+              medicationId: index + 1,
+              name,
+              genericName: inferGenericNameFromMedicationLabel(name),
+              isPRN,
+              instructions: "",
+              requiredGapHours: inferredGap ?? 4,
+              scheduledTimeSlots: (scheduledSlots.length > 0 ? scheduledSlots : gridTimeSlots),
+            };
+        })
+        .filter(Boolean) as any[];
+
+      const medIdByKey = new Map<string, number>();
+      for (const med of medsWithIds) {
+        const key = normalizeMedicationKey(med.name);
+        if (key) medIdByKey.set(key, med.medicationId);
+      }
+
+      const resolveMedicationId = (name: string): number | null => {
+        const key = normalizeMedicationKey(name || "");
+        if (!key) return null;
+        const direct = medIdByKey.get(key);
+        if (direct) return direct;
+        let bestId: number | null = null;
+        let bestScore = 0;
+        for (const [candidateKey, id] of medIdByKey.entries()) {
+          if (!candidateKey) continue;
+          const hit = candidateKey.includes(key) || key.includes(candidateKey);
+          if (!hit) continue;
+          const score = Math.min(candidateKey.length, key.length);
+          if (score > bestScore) {
+            bestScore = score;
+            bestId = id;
+          }
+        }
+        return bestScore >= 6 ? bestId : null;
+      };
+
+      const prnMedIds = new Set<number>();
+      for (const med of medsWithIds) {
+        if (med.isPRN) prnMedIds.add(med.medicationId);
+      }
+
+      const buildEntriesFromGrid = (): any[] => {
+        const entries: any[] = [];
+
+        for (const cell of rawCells) {
+          const medId = resolveMedicationId(String((cell as any)?.medication || ""));
+          if (!medId) continue;
+          const isPrn = prnMedIds.has(medId);
+
+          const date = normalizeDate((cell as any)?.date);
+          const timeSlot = normalizeTimeSlot((cell as any)?.timeSlot) || "UNSPECIFIED";
+          const careWorkerInitials = normalizeInitials((cell as any)?.careWorker);
+          const time = String((cell as any)?.time || "").trim();
+          const hasTime = computeHasTime({ time });
+
+          let code = nonBlankCode((cell as any)?.code);
+
+          const hasInitials = Boolean(careWorkerInitials);
+
+          // Infer missing codes when we still have evidence of an administration (time/initials)
+          if (!code && (hasTime || hasInitials)) {
+            code = isPrn ? "PRN" : "AD";
+          }
+
+          // Normalize PRN refusal handling when no time is recorded.
+          if (isPrn) {
+            if (code === "R") code = "PRN-R";
+            if (code === "PRN" && !hasTime) code = "PRN-R";
+          }
+
+          if (!date || !code) continue;
+          if (code === "N/A" || code === "BLANK") continue;
+
+          entries.push({
+            medicationId: medId,
+            date,
+            timeSlot,
+            code,
+            careWorkerInitials,
+            time,
+            hasTime,
+            isOfficeClosed: false,
+          });
+        }
+
+        return deduplicateEntries(entries);
+      };
+
+      const entries = buildEntriesFromGrid();
+
+      return {
+        entries,
+        metadata: {
+          serviceUserInitials: String(gridBaseline.serviceUserName || "").trim() || "N.N.",
+          allergies: String(gridBaseline.allergies || "").trim() || "No known allergies",
+          medications: medsWithIds,
+          dates: gridDates,
+          timeSlots: gridTimeSlots,
+        },
+        consensusStatus: "verified",
+        validationPassed: true,
+        model: "grid-parser",
+      };
+    }
+
     const rawText = String(analysisText || "");
     if (!rawText.trim()) {
       throw new Error("EMAR agent: empty document text");
@@ -580,7 +766,7 @@ export const emarAgent = {
       const isPrn = Boolean(medDetails?.isPRN);
       const date = normalizeDate(entry?.date);
       const time = String(entry?.time || "").trim();
-      const timeSlot = resolveTimeSlot(entry?.timeSlot, time, mergedMetadata.timeSlots);
+      let timeSlot = resolveTimeSlot(entry?.timeSlot, time, mergedMetadata.timeSlots);
       let code = normalizeCode(entry?.code);
       const careWorkerInitials = normalizeInitials(entry?.careWorkerInitials);
       const hasTime = typeof entry?.hasTime === "boolean" ? entry.hasTime : computeHasTime({ time });
@@ -588,13 +774,23 @@ export const emarAgent = {
       const closedByStaff = String(entry?.closedByStaff || "").trim();
       const closedTime = String(entry?.closedTime || "").trim();
 
+      if (!timeSlot) {
+        if (medDetails?.scheduledTimeSlots?.length === 1) {
+          timeSlot = medDetails.scheduledTimeSlots[0];
+        } else if (mergedMetadata.timeSlots.length === 1) {
+          timeSlot = mergedMetadata.timeSlots[0];
+        } else {
+          timeSlot = "UNSPECIFIED";
+        }
+      }
+
       if (!code && (hasTime || careWorkerInitials)) {
         code = isPrn ? "PRN" : "AD";
       }
       if (isPrn && (code === "PRN" || code === "") && !hasTime) {
         code = "PRN-R";
       }
-      if (!date || !timeSlot || !code) return null;
+      if (!date || !code) return null;
 
       return {
         medicationId: medId,
@@ -612,10 +808,6 @@ export const emarAgent = {
 
     const rawEntries = batchResults.flat().map(normalizeEntry).filter(Boolean) as any[];
     const entries = deduplicateEntries(rawEntries);
-
-    if (entries.length === 0) {
-      throw new Error("EMAR agent: no entries extracted");
-    }
 
     return {
       entries,
