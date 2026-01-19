@@ -2458,6 +2458,8 @@ export async function registerRoutes(
     workerKey: z.string().min(1),
     templateWeek: z.enum(["week1", "week2"]),
     templateDay: rotaWeekdayEnum,
+    workerStartMinutes: z.number().nullable().optional(),
+    workerEndMinutes: z.number().nullable().optional(),
     timeCriticalWindowEnforced: z.boolean().default(false),
     shiftBars: z.array(shiftBarSchema).default([]),
     selectedGroupKeys: z.array(z.string()).default([]),
@@ -2554,6 +2556,14 @@ export async function registerRoutes(
       templateWeek: payload.templateWeek,
       templateDay: payload.templateDay,
       timeCriticalWindowEnforced: Boolean(payload.timeCriticalWindowEnforced),
+      workerStartMinutes:
+        typeof (payload as any).workerStartMinutes === "number"
+          ? (payload as any).workerStartMinutes
+          : null,
+      workerEndMinutes:
+        typeof (payload as any).workerEndMinutes === "number"
+          ? (payload as any).workerEndMinutes
+          : null,
       shiftBars,
       selectedGroupKeys,
       overrides,
@@ -3282,10 +3292,11 @@ ${correctionExamples}
       sendProgress(10, "Analyzing EMAR document...", "metadata_extraction");
 
       // =====================================================================
-      // USE EMAR AGENT (if enabled via environment variable)
-      // Toggle: USE_EMAR_AGENT=true/false
+      // USE EMAR AGENT (enabled by default unless explicitly disabled)
+      // Toggle: USE_EMAR_AGENT=true/false (false disables)
       // =====================================================================
-      const useEmarAgent = process.env.USE_EMAR_AGENT === 'true';
+      const emarAgentFlag = (process.env.USE_EMAR_AGENT || "").toLowerCase();
+      const useEmarAgent = emarAgentFlag !== "false" && emarAgentFlag !== "0" && emarAgentFlag !== "off";
       let agentExtractionSucceeded = false;
       let agentExtractedData: any = null;
       let agentDrugInteractions: any[] = [];
@@ -3295,8 +3306,9 @@ ${correctionExamples}
         sendProgress(15, "Using cost-efficient EMAR agent...", "emar_agent");
         
         try {
+          const agentText = documentText;
           const agentResult = await emarAgent.extract(
-            analysisText,
+            agentText,
             tableStructure,
             correctionsContext,
             aiUserContext
@@ -3623,12 +3635,12 @@ ${correctionExamples}
           
           // Determine service user type based on code distribution
           const totalAdminCodes = agentCodeCounts.AD + agentCodeCounts.AS + agentCodeCounts.P;
-          let agentServiceUserType = 'prompts';
+          let agentServiceUserType: "administer" | "assist" | "prompt" = "prompt";
           if (totalAdminCodes > 0) {
             const adRatio = agentCodeCounts.AD / totalAdminCodes;
             const asRatio = agentCodeCounts.AS / totalAdminCodes;
-            if (adRatio > 0.6) agentServiceUserType = 'full_admin';
-            else if (asRatio > 0.4) agentServiceUserType = 'assisted';
+            if (adRatio > 0.6) agentServiceUserType = "administer";
+            else if (asRatio > 0.4) agentServiceUserType = "assist";
           }
           
           // Extract office-closed entries (codes without initials, manually closed by office staff)
@@ -3641,6 +3653,19 @@ ${correctionExamples}
             closedTime: e.closedTime || ''
           }));
           console.log(`Agent: Found ${officeClosedEntries.length} office-closed entries`);
+
+          // Extract ALL entries with support level codes (AS/AD/P) for frontend recalculation
+          const supportLevelCodes = ['AS', 'AD', 'P'];
+          const supportCodeEntries = agentEntries
+            .filter((e: any) => e.code && supportLevelCodes.includes(String(e.code).toUpperCase()))
+            .map((e: any) => ({
+              careWorkerName: e.careWorkerInitials || 'Unknown',
+              medication: e.medication,
+              date: e.date,
+              timeSlot: e.timeSlot,
+              code: String(e.code || '').toUpperCase()
+            }));
+          console.log(`Agent: Found ${supportCodeEntries.length} entries with support level codes (AS/AD/P)`);
           
           const agentAnalysisResult = {
             serviceUserName: agentExtractedData.serviceUserInitials || 'N.N.',
@@ -3672,6 +3697,7 @@ ${correctionExamples}
               }))
             },
             officeClosedEntries: officeClosedEntries,
+            supportCodeEntries: supportCodeEntries,
             totalEntriesProcessed: agentEntries.length,
             totalMedications: agentMedications.length,
             datesAudited: agentDates,
@@ -5699,6 +5725,36 @@ CARE WORKER INITIALS (IMPORTANT):
           // Duplicate - map old ID to canonical ID
           const canonicalMed = medByNormalizedName.get(normalizedName);
           oldIdToCanonicalId.set(med.medicationId, canonicalMed.medicationId);
+
+          // Merge critical fields so we don't lose PRN flags or richer metadata when deduping
+          const merged = { ...canonicalMed };
+          merged.isPRN = Boolean(canonicalMed.isPRN || med.isPRN);
+
+          const canonicalInstr = (canonicalMed?.instructions || "").toString();
+          const newInstr = (med?.instructions || "").toString();
+          if (newInstr.length > canonicalInstr.length) {
+            merged.instructions = med.instructions;
+          }
+
+          if (merged.requiredGapHours == null && med.requiredGapHours != null) {
+            merged.requiredGapHours = med.requiredGapHours;
+          }
+
+          const canonicalScheduled = Array.isArray(canonicalMed?.scheduledTimeSlots) ? canonicalMed.scheduledTimeSlots : [];
+          const newScheduled = Array.isArray(med?.scheduledTimeSlots) ? med.scheduledTimeSlots : [];
+          if (newScheduled.length > canonicalScheduled.length) {
+            merged.scheduledTimeSlots = newScheduled;
+          }
+
+          const canonicalTimeSlots = Array.isArray(canonicalMed?.timeSlots) ? canonicalMed.timeSlots : [];
+          const newTimeSlots = Array.isArray(med?.timeSlots) ? med.timeSlots : [];
+          if (newTimeSlots.length > canonicalTimeSlots.length) {
+            merged.timeSlots = newTimeSlots;
+          }
+
+          // Preserve the original canonical medicationId for stability
+          merged.medicationId = canonicalMed.medicationId;
+          medByNormalizedName.set(normalizedName, merged);
         }
       });
       
@@ -6746,6 +6802,8 @@ If no equivalences found, return: {"equivalences": []}`
           
           // Check if this is too close to any existing entry
           const isDuplicate = deduped.some((existing: any) => {
+            // Only dedupe when the original dates match; otherwise we risk collapsing entries from different days
+            if (existing.originalDate !== entry.originalDate) return false;
             const [eH, eM] = existing.extractedTime.split(":").map(Number);
             const existingMinutes = eH * 60 + eM;
             const diff = Math.abs(entryMinutes - existingMinutes);

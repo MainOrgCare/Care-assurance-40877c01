@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Search, RefreshCw, Shield } from "lucide-react";
+import { Link } from "wouter";
 
 type OptimizedRouteEntry = {
   key: string;
@@ -45,6 +46,8 @@ type CareWorkerRotaPayload = {
   optimizedRun: OptimizedRouteEntry[];
   selectedGroupKeys?: string[];
   overrides?: Record<string, any>;
+  workerStartMinutes?: number | null;
+  workerEndMinutes?: number | null;
 };
 
 type CareWorkerRotaRecord = {
@@ -309,6 +312,9 @@ export default function CareWorkerRotas() {
       const payloadToSave: CareWorkerRotaPayload = {
         ...draftPayload,
         optimizedRun: normalizedRun,
+        workerStartMinutes:
+          typeof draftPayload.workerStartMinutes === "number" ? draftPayload.workerStartMinutes : null,
+        workerEndMinutes: typeof draftPayload.workerEndMinutes === "number" ? draftPayload.workerEndMinutes : null,
       };
 
       const response = await fetch(`/api/admin/care-worker-rotas/${selectedRota.id}`, {
@@ -356,6 +362,24 @@ export default function CareWorkerRotas() {
       setSavingEdit(false);
     }
   }, [draftPayload, selectedRota, toast]);
+
+  const addShiftBar = useCallback(
+    (startMinutes: number) => {
+      const duration = 8 * 60;
+      const endMinutes = startMinutes + duration;
+      setDraftPayload((prev) => {
+        if (!prev) return prev;
+        const nextBars = [...(prev.shiftBars || [])];
+        nextBars.push({
+          startMinutes,
+          endMinutes,
+          durationMinutes: duration,
+        });
+        return { ...prev, shiftBars: nextBars };
+      });
+    },
+    []
+  );
 
   const triggerDownload = useCallback((blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -480,6 +504,11 @@ export default function CareWorkerRotas() {
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
+            <Link href="/testing-features">
+              <Button type="button" variant="default">
+                Optimise new rota
+              </Button>
+            </Link>
         </div>
       </div>
 
@@ -605,6 +634,32 @@ export default function CareWorkerRotas() {
                     <label htmlFor="time-critical-enforced" className="cursor-pointer select-none">
                       Enforce time-critical windows
                     </label>
+                    <div className="flex items-center gap-2 ml-4">
+                      <span className="text-muted-foreground">Worker day</span>
+                      <Input
+                        type="time"
+                        className="w-24"
+                        value={minutesToTimeInput(activePayload.workerStartMinutes)}
+                        onChange={(event) =>
+                          setDraftPayload((prev) =>
+                            prev ? { ...prev, workerStartMinutes: timeInputToMinutes(event.target.value) } : prev
+                          )
+                        }
+                        aria-label="Worker start"
+                      />
+                      <span className="text-muted-foreground">to</span>
+                      <Input
+                        type="time"
+                        className="w-24"
+                        value={minutesToTimeInput(activePayload.workerEndMinutes)}
+                        onChange={(event) =>
+                          setDraftPayload((prev) =>
+                            prev ? { ...prev, workerEndMinutes: timeInputToMinutes(event.target.value) } : prev
+                          )
+                        }
+                        aria-label="Worker end"
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -633,13 +688,31 @@ export default function CareWorkerRotas() {
                   </div>
                 )}
 
-                {(activePayload?.shiftBars?.length ?? 0) > 0 && (
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                    <p className="text-sm font-semibold text-foreground">Fixed shift bars</p>
-                    <p className="text-xs text-muted-foreground">
-                      Shift bars stay at their template time and can overlap calls.
-                    </p>
-                    <div className="mt-2 space-y-2">
+                {(activePayload?.shiftBars?.length ?? 0) > 0 || isEditing ? (
+                  <div className="rounded-xl border border-border/60 bg-background/60 p-3 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2 justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Fixed shift bars</p>
+                        <p className="text-xs text-muted-foreground">
+                          Shift bars stay at their template time and can overlap calls.
+                        </p>
+                      </div>
+                      {isEditing && (
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <span className="text-muted-foreground">Add shift (8h):</span>
+                          <Button size="sm" variant="outline" onClick={() => addShiftBar(7 * 60)}>
+                            07:00
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => addShiftBar(9 * 60)}>
+                            09:00
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => addShiftBar(9 * 60 + 30)}>
+                            09:30
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
                       {(activePayload?.shiftBars || []).map((bar, index) => (
                         <div
                           key={`shift-bar-${index}`}
@@ -656,9 +729,12 @@ export default function CareWorkerRotas() {
                           </Badge>
                         </div>
                       ))}
+                      {(!activePayload?.shiftBars || activePayload.shiftBars.length === 0) && (
+                        <p className="text-xs text-muted-foreground">No shift bars added yet.</p>
+                      )}
                     </div>
                   </div>
-                )}
+                ) : null}
 
                 <div className="space-y-2">
                   {(activePayload?.optimizedRun || []).map((entry) => {
