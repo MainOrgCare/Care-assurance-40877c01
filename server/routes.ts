@@ -2438,6 +2438,7 @@ export async function registerRoutes(
     windowEndMinutes: z.number().nullable().optional(),
     isOutsideWindow: z.boolean().optional(),
     hasWindowConflict: z.boolean().optional(),
+    suggestedStartMinutes: z.number().nullable().optional(),
   });
 
   const rotaOverrideSchema = z.object({
@@ -2525,6 +2526,9 @@ export async function registerRoutes(
         windowEndMinutes: typeof entry.windowEndMinutes === "number" ? entry.windowEndMinutes : null,
         isOutsideWindow: Boolean(entry.isOutsideWindow),
         hasWindowConflict: Boolean(entry.hasWindowConflict),
+        suggestedStartMinutes: typeof (entry as any).suggestedStartMinutes === "number"
+          ? (entry as any).suggestedStartMinutes
+          : null,
       }))
       .sort((a, b) => a.key.localeCompare(b.key));
 
@@ -2593,6 +2597,65 @@ export async function registerRoutes(
       const rotas = await storage.getCareWorkerRotas({ search });
       return res.json(rotas);
     } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get a specific care worker rota (admin only)
+  app.get("/api/admin/care-worker-rotas/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const rota = await storage.getCareWorkerRotaById(req.params.id);
+      if (!rota) {
+        return res.status(404).json({ message: "Rota not found" });
+      }
+      return res.json(rota);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update an existing care worker rota (admin only)
+  app.put("/api/admin/care-worker-rotas/:id", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const existing = await storage.getCareWorkerRotaById(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Rota not found" });
+      }
+
+      const payload = careWorkerRotaPayloadSchema.parse(req.body);
+      const normalized = normalizeRotaPayload(payload);
+      const sourceHash = createHash("sha256")
+        .update(JSON.stringify(sortKeysDeep(normalized)))
+        .digest("hex");
+
+      // If the new hash already exists on a different record, surface that record instead of erroring.
+      const duplicate = await storage.getCareWorkerRotaByHash(sourceHash);
+      if (duplicate && duplicate.id !== existing.id) {
+        return res.json({ rota: duplicate, deduped: true, updated: false });
+      }
+
+      // If nothing changed, return existing
+      if (existing.sourceHash === sourceHash) {
+        return res.json({ rota: existing, deduped: false, updated: false });
+      }
+
+      const updated = await storage.updateCareWorkerRota(req.params.id, {
+        workerName: payload.workerName,
+        workerKey: payload.workerKey,
+        templateWeek: payload.templateWeek,
+        templateDay: payload.templateDay,
+        payload,
+        sourceHash,
+        // preserve original creator fields if present
+        createdBy: existing.createdBy ?? null,
+        createdByUsername: existing.createdByUsername ?? null,
+      });
+
+      return res.json({ rota: updated, deduped: false, updated: true });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
       return res.status(500).json({ message: error.message });
     }
   });

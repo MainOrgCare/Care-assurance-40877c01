@@ -488,6 +488,7 @@ interface OptimizedRouteEntry {
   windowEndMinutes: number | null;
   isOutsideWindow: boolean;
   hasWindowConflict: boolean;
+  suggestedStartMinutes?: number | null;
 }
 
 interface CareWorkerRotaPayload {
@@ -2833,17 +2834,6 @@ export default function TestingFeatures() {
             ? cursor ?? requirementStart
             : Math.max(cursor ?? requirementStart, requirementStart);
           scheduledStart = Math.max(baselineStart, DAY_START_MINUTES);
-
-          if (group.isTimeCritical && enforceTimeCriticalWindow && windowStart !== null && windowEnd !== null) {
-            if (scheduledStart < windowStart) {
-              scheduledStart = windowStart;
-            }
-            if (scheduledStart > windowEnd) {
-              // Cannot satisfy the time window without going backwards; keep schedule monotonic and flag it.
-              hasWindowConflict = true;
-              scheduledStart = Math.max(cursor ?? scheduledStart, DAY_START_MINUTES);
-            }
-          }
         }
 
         // Office staff: prevent scheduling calls inside shift bars.
@@ -2870,6 +2860,15 @@ export default function TestingFeatures() {
             ? scheduledStart < windowStart || scheduledStart > windowEnd
             : false;
 
+        // Suggest a window-aligned start rather than hard-locking time-critical calls.
+        const suggestedStartMinutes =
+          group.isTimeCritical && windowStart !== null && windowEnd !== null && isOutsideWindow
+            ? Math.min(Math.max(scheduledStart, windowStart), windowEnd)
+            : null;
+        if (suggestedStartMinutes !== null) {
+          hasWindowConflict = true;
+        }
+
         optimized.push({
           key: group.key,
           serviceUserName: group.serviceUserName,
@@ -2886,6 +2885,7 @@ export default function TestingFeatures() {
           windowEndMinutes: windowEnd,
           isOutsideWindow,
           hasWindowConflict,
+          suggestedStartMinutes,
         });
       });
 

@@ -414,6 +414,15 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async getCareWorkerRotaById(id: string): Promise<CareWorkerRota | undefined> {
+    const result = await this.db
+      .select()
+      .from(careWorkerRotas)
+      .where(eq(careWorkerRotas.id, id))
+      .limit(1);
+    return result[0];
+  }
+
   async getCareWorkerRotas(options?: { search?: string }): Promise<CareWorkerRota[]> {
     const term = options?.search?.trim().toLowerCase();
     if (term) {
@@ -430,6 +439,34 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(careWorkerRotas)
       .orderBy(desc(careWorkerRotas.createdAt));
+  }
+
+  async updateCareWorkerRota(
+    id: string,
+    update: Partial<InsertCareWorkerRota>
+  ): Promise<CareWorkerRota> {
+    const payload: Partial<InsertCareWorkerRota> = {};
+
+    if (update.workerName !== undefined) payload.workerName = update.workerName;
+    if (update.workerKey !== undefined) payload.workerKey = update.workerKey;
+    if (update.templateWeek !== undefined) payload.templateWeek = update.templateWeek;
+    if (update.templateDay !== undefined) payload.templateDay = update.templateDay;
+    if (update.payload !== undefined) payload.payload = update.payload;
+    if (update.sourceHash !== undefined) payload.sourceHash = update.sourceHash;
+    if (update.createdBy !== undefined) payload.createdBy = update.createdBy;
+    if (update.createdByUsername !== undefined) payload.createdByUsername = update.createdByUsername;
+
+    const updated = await this.db
+      .update(careWorkerRotas)
+      .set(payload)
+      .where(eq(careWorkerRotas.id, id))
+      .returning();
+
+    if (!updated.length) {
+      throw new Error("Care worker rota not found");
+    }
+
+    return updated[0];
   }
 
   // Rostering template recommendation operations

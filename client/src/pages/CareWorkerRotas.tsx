@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
 import { Search, RefreshCw, Shield } from "lucide-react";
 
 type OptimizedRouteEntry = {
@@ -25,6 +26,7 @@ type OptimizedRouteEntry = {
   windowEndMinutes?: number | null;
   isOutsideWindow?: boolean;
   hasWindowConflict?: boolean;
+  suggestedStartMinutes?: number | null;
 };
 
 type ShiftBarEntry = {
@@ -72,6 +74,19 @@ function formatMinutesLabel(minutes: number | null | undefined): string {
   return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
 }
 
+function minutesToTimeInput(minutes: number | null | undefined): string {
+  if (typeof minutes !== "number" || Number.isNaN(minutes)) return "";
+  return formatMinutesLabel(minutes);
+}
+
+function timeInputToMinutes(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^[0-2]\d:[0-5]\d$/.test(trimmed)) return null;
+  const [hours, minutes] = trimmed.split(":").map((part) => Number(part));
+  if (hours >= 24) return null;
+  return hours * 60 + minutes;
+}
+
 function formatDurationLabel(minutes: number | null | undefined): string {
   if (typeof minutes !== "number" || Number.isNaN(minutes)) return "—";
   const abs = Math.abs(minutes);
@@ -108,6 +123,9 @@ export default function CareWorkerRotas() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRotaId, setSelectedRotaId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftPayload, setDraftPayload] = useState<CareWorkerRotaPayload | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const fetchRotas = useCallback(async (search?: string) => {
     setLoading(true);
@@ -163,8 +181,23 @@ export default function CareWorkerRotas() {
     [filteredRotas, selectedRotaId]
   );
 
+  const activePayload = useMemo(() => {
+    if (isEditing && draftPayload) return draftPayload;
+    return selectedRota?.payload ?? null;
+  }, [draftPayload, isEditing, selectedRota?.payload]);
+
+  useEffect(() => {
+    setIsEditing(false);
+    setSavingEdit(false);
+    if (selectedRota?.payload) {
+      setDraftPayload(JSON.parse(JSON.stringify(selectedRota.payload)) as CareWorkerRotaPayload);
+    } else {
+      setDraftPayload(null);
+    }
+  }, [selectedRota?.id, selectedRota?.payload]);
+
   const rosterSummary = useMemo(() => {
-    const entries = selectedRota?.payload?.optimizedRun ?? [];
+    const entries = activePayload?.optimizedRun ?? [];
     if (!entries.length) return null;
     const scheduledEntries = entries.filter(
       (entry) => typeof entry.scheduledStartMinutes === "number" && typeof entry.scheduledEndMinutes === "number"
@@ -223,7 +256,106 @@ export default function CareWorkerRotas() {
       timeCriticalCount,
       doubleUpCount,
     };
-  }, [selectedRota?.payload?.optimizedRun]);
+  }, [activePayload?.optimizedRun]);
+
+  const handleUpdateEntry = useCallback(
+    (entryKey: string, updates: Partial<OptimizedRouteEntry>) => {
+      setDraftPayload((prev) => {
+        if (!prev) return prev;
+        const idx = prev.optimizedRun.findIndex((entry) => entry.key === entryKey);
+        if (idx === -1) return prev;
+        const nextEntries = [...prev.optimizedRun];
+        const nextEntry = { ...nextEntries[idx], ...updates } as OptimizedRouteEntry;
+
+        if (
+          typeof nextEntry.scheduledStartMinutes === "number" &&
+          typeof nextEntry.scheduledEndMinutes === "number"
+        ) {
+          let duration = nextEntry.scheduledEndMinutes - nextEntry.scheduledStartMinutes;
+          if (duration < 0) duration += 24 * 60; // handle cross-midnight edits
+          nextEntry.durationMinutes = duration;
+        }
+
+        nextEntries[idx] = nextEntry;
+        return { ...prev, optimizedRun: nextEntries };
+      });
+    },
+    []
+  );
+
+  const handleCancelEdits = useCallback(() => {
+    if (selectedRota?.payload) {
+      setDraftPayload(JSON.parse(JSON.stringify(selectedRota.payload)) as CareWorkerRotaPayload);
+    } else {
+      setDraftPayload(null);
+    }
+    setIsEditing(false);
+  }, [selectedRota?.payload]);
+
+  const handleSaveEdits = useCallback(async () => {
+    if (!selectedRota || !draftPayload) return;
+    setSavingEdit(true);
+    try {
+      const normalizedRun = draftPayload.optimizedRun.map((entry) => {
+        const hasWindow = typeof entry.windowStartMinutes === "number" && typeof entry.windowEndMinutes === "number";
+        const isTimeCritical = hasWindow ? Boolean(entry.isTimeCritical) : false;
+        return {
+          ...entry,
+          isTimeCritical,
+          suggestedStartMinutes: hasWindow ? entry.suggestedStartMinutes ?? null : null,
+        } as OptimizedRouteEntry;
+      });
+
+      const payloadToSave: CareWorkerRotaPayload = {
+        ...draftPayload,
+        optimizedRun: normalizedRun,
+      };
+
+      const response = await fetch(`/api/admin/care-worker-rotas/${selectedRota.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          ...payloadToSave,
+          workerName: selectedRota.workerName,
+          workerKey: selectedRota.workerKey,
+          templateWeek: selectedRota.templateWeek as "week1" | "week2",
+          templateDay: selectedRota.templateDay as string,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Unable to update rota.");
+      }
+
+      const updatedRota: CareWorkerRotaRecord = result.rota;
+      setRotas((prev) => {
+        const exists = prev.some((rota) => rota.id === updatedRota.id);
+        if (!exists) return [updatedRota, ...prev];
+        return prev.map((rota) => (rota.id === updatedRota.id ? updatedRota : rota));
+      });
+      setSelectedRotaId(updatedRota.id);
+      setDraftPayload(JSON.parse(JSON.stringify(updatedRota.payload)) as CareWorkerRotaPayload);
+      setIsEditing(false);
+
+      const updatedLabel = result?.updated ? "Changes saved" : "No changes";
+      const description = result?.deduped
+        ? "An identical rota already exists. Showing the existing record instead."
+        : result?.updated
+        ? "The saved rota has been updated."
+        : "No differences detected to save.";
+
+      toast({ title: result?.deduped ? "Duplicate rota" : updatedLabel, description });
+    } catch (error: any) {
+      toast({
+        title: "Update failed",
+        description: error.message || "Unable to update the rota.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingEdit(false);
+    }
+  }, [draftPayload, selectedRota, toast]);
 
   const triggerDownload = useCallback((blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -253,11 +385,12 @@ export default function CareWorkerRotas() {
       "Window End": formatMinutesLabel(entry.windowEndMinutes),
       "Outside Window": entry.isOutsideWindow ? "Yes" : "No",
       "Window Conflict": entry.hasWindowConflict ? "Yes" : "No",
+      "Suggested Start": formatMinutesLabel(entry.suggestedStartMinutes ?? null),
     }));
   }, []);
 
   const handleExportCsv = useCallback(() => {
-    if (!selectedRota?.payload?.optimizedRun?.length) {
+    if (!activePayload?.optimizedRun?.length || !selectedRota) {
       toast({
         title: "No rota to export",
         description: "Select a saved rota with an optimized run.",
@@ -265,7 +398,7 @@ export default function CareWorkerRotas() {
       });
       return;
     }
-    const rows = buildExportRows(selectedRota.payload.optimizedRun);
+    const rows = buildExportRows(activePayload.optimizedRun);
     const headers = rows.length ? Object.keys(rows[0]) : [];
     const escapeValue = (value: unknown) => {
       const text = String(value ?? "");
@@ -281,10 +414,10 @@ export default function CareWorkerRotas() {
     const safeWorker = (selectedRota.workerName || "rota").replace(/[^a-z0-9]+/gi, "_").toLowerCase();
     const filename = `${safeWorker}-${selectedRota.templateWeek}-${selectedRota.templateDay}-rota.csv`;
     triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8" }), filename);
-  }, [buildExportRows, selectedRota, toast, triggerDownload]);
+  }, [activePayload?.optimizedRun, buildExportRows, selectedRota, toast, triggerDownload]);
 
   const handleCopyRota = useCallback(async () => {
-    if (!selectedRota?.payload?.optimizedRun?.length) {
+    if (!activePayload?.optimizedRun?.length) {
       toast({
         title: "No rota to copy",
         description: "Select a saved rota with an optimized run.",
@@ -292,7 +425,7 @@ export default function CareWorkerRotas() {
       });
       return;
     }
-    const rows = buildExportRows(selectedRota.payload.optimizedRun);
+    const rows = buildExportRows(activePayload.optimizedRun);
     const headers = rows.length ? Object.keys(rows[0]) : [];
     const text = [
       headers.join("\t"),
@@ -311,7 +444,7 @@ export default function CareWorkerRotas() {
         variant: "destructive",
       });
     }
-  }, [buildExportRows, selectedRota, toast]);
+  }, [activePayload?.optimizedRun, buildExportRows, toast]);
 
   if (user?.role !== "admin") {
     return (
@@ -426,7 +559,7 @@ export default function CareWorkerRotas() {
                       {TEMPLATE_WEEK_LABELS[selectedRota.templateWeek] || selectedRota.templateWeek}
                     </Badge>
                     <Badge variant="secondary">{selectedRota.templateDay}</Badge>
-                    {selectedRota.payload?.timeCriticalWindowEnforced && (
+                    {activePayload?.timeCriticalWindowEnforced && (
                       <Badge variant="outline">Time window enforced</Badge>
                     )}
                     <Button size="sm" variant="outline" onClick={handleExportCsv}>
@@ -435,6 +568,23 @@ export default function CareWorkerRotas() {
                     <Button size="sm" variant="outline" onClick={handleCopyRota}>
                       Copy
                     </Button>
+                    <Button
+                      size="sm"
+                      variant={isEditing ? "secondary" : "default"}
+                      onClick={() => setIsEditing((prev) => !prev)}
+                    >
+                      {isEditing ? "Editing" : "Edit"}
+                    </Button>
+                    {isEditing && (
+                      <>
+                        <Button size="sm" onClick={handleSaveEdits} disabled={savingEdit}>
+                          {savingEdit ? "Saving..." : "Save changes"}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={handleCancelEdits}>
+                          Cancel
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -442,6 +592,21 @@ export default function CareWorkerRotas() {
                   <span>Saved: {formatDateLabel(selectedRota.createdAt)}</span>
                   {selectedRota.createdByUsername && <span>• Saved by {selectedRota.createdByUsername}</span>}
                 </div>
+
+                {isEditing && activePayload && (
+                  <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/60 p-3 text-xs text-foreground">
+                    <Switch
+                      checked={Boolean(activePayload.timeCriticalWindowEnforced)}
+                      onCheckedChange={(checked) =>
+                        setDraftPayload((prev) => (prev ? { ...prev, timeCriticalWindowEnforced: checked } : prev))
+                      }
+                      id="time-critical-enforced"
+                    />
+                    <label htmlFor="time-critical-enforced" className="cursor-pointer select-none">
+                      Enforce time-critical windows
+                    </label>
+                  </div>
+                )}
 
                 {rosterSummary && (
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -468,14 +633,14 @@ export default function CareWorkerRotas() {
                   </div>
                 )}
 
-                {(selectedRota.payload?.shiftBars?.length ?? 0) > 0 && (
+                {(activePayload?.shiftBars?.length ?? 0) > 0 && (
                   <div className="rounded-xl border border-border/60 bg-background/60 p-3">
                     <p className="text-sm font-semibold text-foreground">Fixed shift bars</p>
                     <p className="text-xs text-muted-foreground">
                       Shift bars stay at their template time and can overlap calls.
                     </p>
                     <div className="mt-2 space-y-2">
-                      {(selectedRota.payload?.shiftBars || []).map((bar, index) => (
+                      {(activePayload?.shiftBars || []).map((bar, index) => (
                         <div
                           key={`shift-bar-${index}`}
                           className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-xs text-muted-foreground"
@@ -496,7 +661,7 @@ export default function CareWorkerRotas() {
                 )}
 
                 <div className="space-y-2">
-                  {(selectedRota.payload?.optimizedRun || []).map((entry) => {
+                  {(activePayload?.optimizedRun || []).map((entry) => {
                     const requiredLabel = formatMinutesLabel(entry.requirementStartMinutes);
                     const scheduledStart = formatMinutesLabel(entry.scheduledStartMinutes);
                     const scheduledEnd = formatMinutesLabel(entry.scheduledEndMinutes);
@@ -583,6 +748,11 @@ export default function CareWorkerRotas() {
                             {entry.isTimeCritical && windowLabel && (
                               <Badge variant="outline">Time critical {windowLabel}</Badge>
                             )}
+                              {entry.isTimeCritical && entry.suggestedStartMinutes !== null && entry.suggestedStartMinutes !== undefined && (
+                                <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-200">
+                                  Suggested start {formatMinutesLabel(entry.suggestedStartMinutes)}
+                                </Badge>
+                              )}
                             {entry.isOutsideWindow && (
                               <Badge variant="destructive">Outside window</Badge>
                             )}
@@ -591,6 +761,50 @@ export default function CareWorkerRotas() {
                             )}
                           </div>
                         </div>
+                        {isEditing && (
+                          <div className="flex flex-wrap gap-2 text-xs text-foreground">
+                            <div className="flex items-center gap-1">
+                              <span className="text-muted-foreground">Start</span>
+                              <Input
+                                type="time"
+                                className="w-28"
+                                value={minutesToTimeInput(entry.scheduledStartMinutes)}
+                                onChange={(event) =>
+                                  handleUpdateEntry(entry.key, {
+                                    scheduledStartMinutes: timeInputToMinutes(event.target.value),
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-muted-foreground">End</span>
+                              <Input
+                                type="time"
+                                className="w-28"
+                                value={minutesToTimeInput(entry.scheduledEndMinutes)}
+                                onChange={(event) =>
+                                  handleUpdateEntry(entry.key, {
+                                    scheduledEndMinutes: timeInputToMinutes(event.target.value),
+                                  })
+                                }
+                              />
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={entry.isDoubleUp ? "secondary" : "outline"}
+                              onClick={() => handleUpdateEntry(entry.key, { isDoubleUp: !entry.isDoubleUp })}
+                            >
+                              {entry.isDoubleUp ? "Double-up" : "Mark double-up"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={entry.isTimeCritical ? "secondary" : "outline"}
+                              onClick={() => handleUpdateEntry(entry.key, { isTimeCritical: !entry.isTimeCritical })}
+                            >
+                              {entry.isTimeCritical ? "Time critical" : "Mark time critical"}
+                            </Button>
+                          </div>
+                        )}
                         {hasSchedule && (
                           <div className="mt-2">
                             <div className="relative h-2 rounded-full bg-muted/50">
@@ -605,7 +819,7 @@ export default function CareWorkerRotas() {
                     );
                   })}
 
-                  {!selectedRota.payload?.optimizedRun?.length && (
+                  {!activePayload?.optimizedRun?.length && (
                     <p className="text-xs text-muted-foreground">No optimized entries saved for this rota.</p>
                   )}
                 </div>
