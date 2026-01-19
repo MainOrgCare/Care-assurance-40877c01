@@ -18,6 +18,177 @@ const debugLog = (...args: unknown[]) => {
   if (EMAR_GRID_DEBUG_ENABLED) console.log(...args);
 };
 
+const MEDICATION_NAME_STOP_WORDS = new Set([
+  "tablet",
+  "tablets",
+  "tab",
+  "tabs",
+  "capsule",
+  "capsules",
+  "cap",
+  "caps",
+  "patch",
+  "patches",
+  "cream",
+  "ointment",
+  "gel",
+  "lotion",
+  "spray",
+  "drops",
+  "drop",
+  "solution",
+  "syrup",
+  "suspension",
+  "inhaler",
+  "injection",
+  "ampoule",
+  "ampoules",
+  "nebule",
+  "nebules",
+  "puff",
+  "puffs",
+  "sachet",
+  "sachets",
+  "powder",
+  "granules",
+  "suppository",
+  "suppositories",
+]);
+
+const MEDICATION_NAME_INSTRUCTION_WORDS = new Set([
+  "take",
+  "apply",
+  "administer",
+  "give",
+  "insert",
+  "inhale",
+  "use",
+  "instill",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "half",
+  "quarter",
+  "every",
+  "hourly",
+  "hours",
+  "daily",
+  "weekly",
+  "monthly",
+  "morning",
+  "noon",
+  "midday",
+  "afternoon",
+  "evening",
+  "night",
+  "bedtime",
+  "when",
+  "required",
+  "needed",
+  "prn",
+  "upto",
+  "up",
+  "max",
+  "maximum",
+  "times",
+  "per",
+  "dose",
+  "doses",
+]);
+
+const splitMedicationLabel = (label: string): { name: string; instructions: string } => {
+  const cleaned = String(label || "")
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return { name: "", instructions: "" };
+
+  const tokens = cleaned.split(" ").filter(Boolean);
+  const firstToken = tokens[0]?.toLowerCase() || "";
+  if (MEDICATION_NAME_STOP_WORDS.has(firstToken) || MEDICATION_NAME_INSTRUCTION_WORDS.has(firstToken)) {
+    return { name: "", instructions: cleaned };
+  }
+
+  const strengthPattern = /^\d+(?:\.\d+)?(?:mg|mcg|g|ml|iu|units?|%)$/i;
+  const strengthRatioPattern = /^\d+(?:\.\d+)?\/\d+(?:\.\d+)?(?:mg|mcg|g|ml|iu|units?)$/i;
+  const quantityPattern = /^(?:\d+\s*[x×]|\d+[x×]|x\d+)$/i;
+  const rangePattern = /^\d{1,2}\s*[-–]\s*\d{1,2}$/;
+
+  const nameTokens: string[] = [];
+  let stopIndex = tokens.length;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const lower = token.toLowerCase();
+    const prevLower = i > 0 ? tokens[i - 1].toLowerCase() : "";
+
+    const isLetterDigitToken = /^[a-z]+[0-9]+[a-z0-9]*$/i.test(token);
+    const isDigitsOnlyToken = /^\d+$/.test(token);
+    const startsWithDigit = /^\d/.test(token);
+
+    if (quantityPattern.test(token)) {
+      continue;
+    }
+
+    // Allow "Omega 3" style names.
+    if (isDigitsOnlyToken && (prevLower === "omega" || prevLower === "vitamin")) {
+      nameTokens.push(token);
+      continue;
+    }
+
+    // Allow letter+digit tokens like "D3", "B12".
+    if (isLetterDigitToken) {
+      nameTokens.push(token);
+      continue;
+    }
+
+    if (startsWithDigit) {
+      const compact = token.replace(/[()]/g, "").trim();
+      if (strengthPattern.test(compact) || strengthRatioPattern.test(compact)) {
+        nameTokens.push(token);
+        continue;
+      }
+      if (rangePattern.test(token)) {
+        stopIndex = i;
+        break;
+      }
+      // Skip leading numeric prefixes like "0.9%" in "0.9% Sodium Chloride".
+      if (nameTokens.length === 0) {
+        continue;
+      }
+      stopIndex = i;
+      break;
+    }
+    if (lower === "route") {
+      stopIndex = i;
+      break;
+    }
+    if (MEDICATION_NAME_INSTRUCTION_WORDS.has(lower)) {
+      stopIndex = i;
+      break;
+    }
+    if (MEDICATION_NAME_STOP_WORDS.has(lower)) {
+      nameTokens.push(token);
+      continue;
+    }
+
+    nameTokens.push(token);
+  }
+
+  const name = nameTokens.join(" ").trim();
+  const instructions = stopIndex < tokens.length ? tokens.slice(stopIndex).join(" ").trim() : "";
+
+  if (!name) return { name: "", instructions: cleaned };
+  return { name, instructions: instructions || cleaned };
+};
+
 interface TextItem {
   str: string;
   x: number;
@@ -524,6 +695,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   
   interface MedicationBlock {
     name: string;
+    instructions: string;
     yStart: number;
     yEnd: number;
     timeSlots: Array<{ slot: string; y: number; yStart: number; yEnd: number }>;
@@ -1070,10 +1242,19 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       const matchesMed = medicationPattern.test(cleanedLeft) || medicationPatternLoose.test(cleanedLeft);
       const blocked = blockedMedCandidatePattern.test(cleanedLeft);
       if (matchesMed && !blocked) {
-        const medName = cleanedLeft.substring(0, 120).trim();
+        const rawLabel = cleanedLeft.substring(0, 260).trim();
+        const { name: medName, instructions: medInstructions } = splitMedicationLabel(rawLabel);
+        if (!medName) {
+          const previous = medsOnPage[medsOnPage.length - 1];
+          if (previous) {
+            previous.instructions = [previous.instructions, rawLabel].filter(Boolean).join(" ");
+          }
+          continue;
+        }
         const avgY = row.reduce((sum, item) => sum + item.y, 0) / row.length;
         medsOnPage.push({
           name: medName,
+          instructions: medInstructions || rawLabel,
           yStart: avgY - 5,
           yEnd: 0,
           timeSlots: []
@@ -1287,10 +1468,14 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
           const assignedColumns = dedupeColumnsBySlot(assignedColumnsRaw, med.x);
           if (assignedColumns.length === 0) continue;
 
+          const rawLabel = String(med.name || "").trim();
+          const { name: cleanMedName, instructions: medInstructions } = splitMedicationLabel(rawLabel);
+          const outputMedName = cleanMedName || rawLabel || `Medication page ${page} block ${sectionIndex + 1}`;
+
           transposedMedications.push({
-            name: med.name,
+            name: outputMedName,
             row: transposedMedications.length,
-            instructions: "",
+            instructions: medInstructions || rawLabel,
             timeSlots: assignedColumns.map(c => c.slot),
           });
 
@@ -1312,7 +1497,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
               const time = extracted.time;
 
               transposedPageCells.push({
-                medication: med.name,
+                medication: outputMedName,
                 date: dr.date,
                 timeSlot: col.slot,
                 content,
@@ -1456,7 +1641,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       ? medicationBlocks.map((m, i) => ({
           name: m.name,
           row: i,
-          instructions: "",
+          instructions: m.instructions || "",
           timeSlots: m.timeSlots.map(ts => ts.slot)
         }))
       : transposedMedications),

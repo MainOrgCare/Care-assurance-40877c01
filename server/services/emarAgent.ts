@@ -472,7 +472,8 @@ export const emarAgent = {
           const prnCount = stats?.prnCount || 0;
           const prnRatio = nonBlankCount > 0 ? prnCount / nonBlankCount : 0;
           const gridPrnStrong = prnCount >= 2 && prnRatio >= 0.5;
-          const isPRN = isPrnFromText(name) || gridPrnStrong;
+          const instructionText = String(med?.instructions || "");
+          const isPRN = isPrnFromText(`${name} ${instructionText}`) || gridPrnStrong;
           const inferredGap = inferRequiredGapHoursFromText(`${name} ${String(med?.instructions || "")}`);
 
           const scheduledSlots = uniqueStrings(Array.isArray(med?.timeSlots) ? med.timeSlots : []);

@@ -104,6 +104,93 @@ interface RefusalReviewState {
   [key: string]: boolean;
 }
 
+const MEDICATION_DISPLAY_STOP_WORDS = new Set([
+  "tablet",
+  "tablets",
+  "tab",
+  "tabs",
+  "capsule",
+  "capsules",
+  "cap",
+  "caps",
+  "patch",
+  "patches",
+  "cream",
+  "ointment",
+  "gel",
+  "lotion",
+  "spray",
+  "drops",
+  "drop",
+  "solution",
+  "syrup",
+  "suspension",
+  "inhaler",
+  "injection",
+  "ampoule",
+  "ampoules",
+  "nebule",
+  "nebules",
+  "puff",
+  "puffs",
+  "sachet",
+  "sachets",
+  "powder",
+  "granules",
+  "suppository",
+  "suppositories",
+  "take",
+  "apply",
+  "administer",
+  "give",
+  "insert",
+  "inhale",
+  "use",
+  "instill",
+  "every",
+  "hourly",
+  "daily",
+  "weekly",
+  "monthly",
+  "when",
+  "required",
+  "needed",
+  "prn",
+]);
+
+const getMedicationDisplayName = (medication: string): string => {
+  const cleaned = String(medication || "").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+
+  const tokens = cleaned.split(" ").filter(Boolean);
+  const nameTokens: string[] = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const lower = token.toLowerCase();
+    const prevLower = i > 0 ? tokens[i - 1].toLowerCase() : "";
+
+    const isLetterDigitToken = /^[a-z]+[0-9]+[a-z0-9]*$/i.test(token);
+    const isDigitsOnlyToken = /^\d+$/.test(token);
+    const startsWithDigit = /^\d/.test(token);
+
+    if (isDigitsOnlyToken && (prevLower === "omega" || prevLower === "vitamin")) {
+      nameTokens.push(token);
+      continue;
+    }
+
+    if (isLetterDigitToken) {
+      nameTokens.push(token);
+      continue;
+    }
+
+    if (startsWithDigit || MEDICATION_DISPLAY_STOP_WORDS.has(lower)) break;
+    nameTokens.push(token);
+  }
+
+  return nameTokens.join(" ").trim() || cleaned;
+};
+
 interface CorrectedEntry {
   originalKey: string;
   careWorkerName: string;
@@ -1069,7 +1156,7 @@ ${generatedProtocol.additionalComments}`;
     const allDiscrepancies = getAllDiscrepancies();
     if (allDiscrepancies.length === 0) return "";
     return allDiscrepancies.map(d => 
-      `${d.careWorkerName}\t${d.date}\t${d.medication}\t${d.issue}\t${getActionsText(d.actions)}`
+      `${d.careWorkerName}\t${d.date}\t${getMedicationDisplayName(d.medication)}\t${d.issue}\t${getActionsText(d.actions)}`
     ).join('\n');
   };
 
@@ -1078,7 +1165,7 @@ ${generatedProtocol.additionalComments}`;
     if (allDiscrepancies.length === 0) return "";
     const header = "Care Worker\tDate\tMedication\tIssue\tActions Required";
     const rows = allDiscrepancies.map(d => 
-      `${d.careWorkerName}\t${d.date}\t${d.medication}\t${d.issue}\t${getActionsText(d.actions)}`
+      `${d.careWorkerName}\t${d.date}\t${getMedicationDisplayName(d.medication)}\t${d.issue}\t${getActionsText(d.actions)}`
     );
     return [header, ...rows].join('\n');
   };
@@ -1158,7 +1245,7 @@ ${generatedProtocol.additionalComments}`;
         head: [['Type', 'Medication', 'Description', 'Recommended Action']],
         body: result.warnings.map((w: Warning) => [
           w.type.replace(/_/g, ' '),
-          w.medication || '-',
+          w.medication ? getMedicationDisplayName(w.medication) : '-',
           w.description,
           w.recommendedAction
         ]),
@@ -1207,7 +1294,7 @@ ${generatedProtocol.additionalComments}`;
         body: allDiscrepancies.map(d => [
           d.careWorkerName,
           d.date,
-          d.medication,
+          getMedicationDisplayName(d.medication),
           d.issue,
           getActionsText(d.actions)
         ]),
@@ -1246,7 +1333,7 @@ ${generatedProtocol.additionalComments}`;
         startY: yPos,
         head: [['Medication', 'Date', 'Time Slot', 'Code', 'Closed By', 'Time Closed']],
         body: result.officeClosedEntries.map(e => [
-          e.medication,
+          getMedicationDisplayName(e.medication),
           e.date,
           e.timeSlot,
           e.code,
@@ -2184,9 +2271,9 @@ ${generatedProtocol.additionalComments}`;
                                       )}
                                     </TableCell>
                                     <TableCell className="text-foreground">
-                                      {correctedData?.medication || disc.medication}
+                                      {getMedicationDisplayName(correctedData?.medication || disc.medication)}
                                       {isCorrected && correctedData?.medication !== disc.medication && (
-                                        <span className="block text-xs text-yellow-400/70 line-through">{disc.medication}</span>
+                                        <span className="block text-xs text-yellow-400/70 line-through">{getMedicationDisplayName(disc.medication)}</span>
                                       )}
                                     </TableCell>
                                     <TableCell className="text-destructive">

@@ -19,6 +19,13 @@ function escapeXml(value) {
     .replace(/'/g, "&apos;");
 }
 
+function normalizeDeckTitle(value) {
+  return String(value || "")
+    .replace(/[‑–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function buildContentTypesXml(slideCount) {
   const slideOverrides = Array.from({ length: slideCount }, (_, idx) => {
     const num = idx + 1;
@@ -51,7 +58,8 @@ function buildRootRelsXml() {
 </Relationships>`;
 }
 
-function buildCoreXml(nowIso) {
+function buildCoreXml(nowIso, deckTitle) {
+  const title = escapeXml(normalizeDeckTitle(deckTitle) || "Presentation");
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties
   xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
@@ -60,7 +68,7 @@ function buildCoreXml(nowIso) {
   xmlns:dcmitype="http://purl.org/dc/dcmitype/"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 >
-  <dc:title>Microsoft Copilot vs GPT-4.1-mini</dc:title>
+  <dc:title>${title}</dc:title>
   <dc:creator>CareAssurance</dc:creator>
   <cp:lastModifiedBy>CareAssurance</cp:lastModifiedBy>
   <dcterms:created xsi:type="dcterms:W3CDTF">${nowIso}</dcterms:created>
@@ -601,11 +609,12 @@ ${footerRight}
 async function generatePptx(slides, outPath) {
   const zip = new JSZip();
   const nowIso = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+  const deckTitle = slides?.[0]?.title || "Presentation";
 
   zip.file("[Content_Types].xml", buildContentTypesXml(slides.length));
   zip.folder("_rels")?.file(".rels", buildRootRelsXml());
 
-  zip.folder("docProps")?.file("core.xml", buildCoreXml(nowIso));
+  zip.folder("docProps")?.file("core.xml", buildCoreXml(nowIso, deckTitle));
   zip.folder("docProps")?.file("app.xml", buildAppXml(slides.length));
 
   zip.folder("ppt")?.file("presentation.xml", buildPresentationXml(slides.length));
