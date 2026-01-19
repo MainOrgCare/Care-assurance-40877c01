@@ -64,6 +64,14 @@ const MEDICATION_NAME_INSTRUCTION_WORDS = new Set([
   "inhale",
   "use",
   "instill",
+  "oral",
+  "topical",
+  "subcutaneous",
+  "intravenous",
+  "iv",
+  "im",
+  "pr",
+  "sc",
   "one",
   "two",
   "three",
@@ -1444,8 +1452,8 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
                 },
               ];
 
-        const dedupeColumnsBySlot = (columns: SlotColumn[], targetX: number): SlotColumn[] => {
-          const bySlot = new Map<string, SlotColumn>();
+	        const dedupeColumnsBySlot = (columns: SlotColumn[], targetX: number): SlotColumn[] => {
+	          const bySlot = new Map<string, SlotColumn>();
           for (const col of columns) {
             const slotKey = normalizeSlot(col.slot);
             const center = (col.xStart + col.xEnd) / 2;
@@ -1459,58 +1467,110 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
               bySlot.set(slotKey, col);
             }
           }
-          return Array.from(bySlot.values());
-        };
+	          return Array.from(bySlot.values());
+	        };
 
-        for (let i = 0; i < medsForSection.length; i++) {
-          const med = medsForSection[i];
-          const assignedColumnsRaw = medGroups.get(i) || [];
-          const assignedColumns = dedupeColumnsBySlot(assignedColumnsRaw, med.x);
-          if (assignedColumns.length === 0) continue;
+	        const medicationIndexBySlotKey = new Map<string, number>();
+	        const processedSlotsByMedicationIndex = new Map<number, Set<string>>();
+	        let lastMedicationIndexInSection: number | null = null;
 
-          const rawLabel = String(med.name || "").trim();
-          const { name: cleanMedName, instructions: medInstructions } = splitMedicationLabel(rawLabel);
-          const outputMedName = cleanMedName || rawLabel || `Medication page ${page} block ${sectionIndex + 1}`;
+	        for (let i = 0; i < medsForSection.length; i++) {
+	          const med = medsForSection[i];
+	          const assignedColumnsRaw = medGroups.get(i) || [];
+	          const assignedColumns = dedupeColumnsBySlot(assignedColumnsRaw, med.x);
+	          if (assignedColumns.length === 0) continue;
 
-          transposedMedications.push({
-            name: outputMedName,
-            row: transposedMedications.length,
-            instructions: medInstructions || rawLabel,
-            timeSlots: assignedColumns.map(c => c.slot),
-          });
+	          const normalizedSlots = assignedColumns.map((c) => normalizeSlot(c.slot)).filter(Boolean);
+	          const slotKey = [...normalizedSlots].sort().join("|");
 
-          for (const dr of sectionDateRows) {
-            for (const col of assignedColumns) {
-              const cellItems = pageItems.filter(item =>
-                item.x >= col.xStart &&
-                item.x < col.xEnd &&
-                item.y <= dr.yStart &&
-                item.y >= dr.yEnd &&
-                item.y <= yUpper &&
-                item.y >= yLower
-              );
+	          const rawLabel = String(med.name || "").trim();
+	          const { name: cleanMedName, instructions: medInstructions } = splitMedicationLabel(rawLabel);
 
-              const content = cellItems.map(i => i.str).join(" ");
-              const extracted = extractCodesFromCell(content);
-              const code = extracted.code;
-              const careWorker = extracted.careWorker;
-              const time = extracted.time;
+	          let medicationIndex: number | null = null;
+	          let medicationNameForCells = "";
 
-              transposedPageCells.push({
-                medication: outputMedName,
-                date: dr.date,
-                timeSlot: col.slot,
-                content,
-                code,
-                careWorker,
-                time,
-              });
-            }
-          }
-        }
-      }
-    }
-  }
+	          if (cleanMedName) {
+	            medicationNameForCells = cleanMedName;
+	            transposedMedications.push({
+	              name: medicationNameForCells,
+	              row: transposedMedications.length,
+	              instructions: medInstructions || rawLabel,
+	              timeSlots: assignedColumns.map((c) => c.slot),
+	            });
+	            medicationIndex = transposedMedications.length - 1;
+	            medicationIndexBySlotKey.set(slotKey, medicationIndex);
+	            lastMedicationIndexInSection = medicationIndex;
+	          } else {
+	            const existingIndex =
+	              medicationIndexBySlotKey.get(slotKey) ??
+	              (typeof lastMedicationIndexInSection === "number" ? lastMedicationIndexInSection : undefined);
+	            if (typeof existingIndex !== "number") continue;
+	            medicationIndex = existingIndex;
+	            const existing = transposedMedications[medicationIndex];
+	            medicationNameForCells = existing?.name || "";
+
+	            if (existing && rawLabel) {
+	              const existingInstructions = String(existing.instructions || "").trim();
+	              if (!existingInstructions) {
+	                existing.instructions = rawLabel;
+	              } else if (!existingInstructions.includes(rawLabel)) {
+	                existing.instructions = `${existingInstructions} ${rawLabel}`.trim();
+	              }
+
+	              const slotSet = new Set(existing.timeSlots.map((s) => normalizeSlot(s)));
+	              for (const col of assignedColumns) {
+	                const norm = normalizeSlot(col.slot);
+	                if (!norm || slotSet.has(norm)) continue;
+	                slotSet.add(norm);
+	                existing.timeSlots.push(col.slot);
+	              }
+	            }
+	          }
+
+	          if (typeof medicationIndex !== "number" || !medicationNameForCells) continue;
+
+	          let processedSlots = processedSlotsByMedicationIndex.get(medicationIndex);
+	          if (!processedSlots) {
+	            processedSlots = new Set<string>();
+	            processedSlotsByMedicationIndex.set(medicationIndex, processedSlots);
+	          }
+
+	          for (const col of assignedColumns) {
+	            const slotNorm = normalizeSlot(col.slot);
+	            if (slotNorm && processedSlots.has(slotNorm)) continue;
+	            if (slotNorm) processedSlots.add(slotNorm);
+
+	            for (const dr of sectionDateRows) {
+	              const cellItems = pageItems.filter((item) =>
+	                item.x >= col.xStart &&
+	                item.x < col.xEnd &&
+	                item.y <= dr.yStart &&
+	                item.y >= dr.yEnd &&
+	                item.y <= yUpper &&
+	                item.y >= yLower
+	              );
+
+	              const content = cellItems.map((i) => i.str).join(" ");
+	              const extracted = extractCodesFromCell(content);
+	              const code = extracted.code;
+	              const careWorker = extracted.careWorker;
+	              const time = extracted.time;
+
+	              transposedPageCells.push({
+	                medication: medicationNameForCells,
+	                date: dr.date,
+	                timeSlot: col.slot,
+	                content,
+	                code,
+	                careWorker,
+	                time,
+	              });
+	            }
+	          }
+	        }
+	      }
+	    }
+	  }
   
   debugLog(`DEBUG: Found ${allTimeSlots.length} time slots:`, allTimeSlots);
   

@@ -1312,10 +1312,10 @@ ${generatedProtocol.additionalComments}`;
       doc.setTextColor(200, 150, 0);
       doc.text(`PRN Medications (${result.prnMedications.medications.length})`, 14, yPos);
       yPos += 8;
-      
-      const prnList = result.prnMedications.medications.map((m: any) => 
-        typeof m === 'string' ? m : m.name
-      ).join(', ');
+	      
+	      const prnList = result.prnMedications.medications
+	        .map((m: any) => getMedicationDisplayName(typeof m === 'string' ? m : m.name))
+	        .join(', ');
       doc.setFontSize(10);
       doc.setTextColor(33, 33, 33);
       doc.text(prnList, 14, yPos, { maxWidth: pageWidth - 28 });
@@ -1560,15 +1560,15 @@ ${generatedProtocol.additionalComments}`;
     const key = generateEntryKey(entry.careWorkerName, entry.date, entry.medication, entry.timeSlot);
     const existingCorrection = corrections.get(key);
     
-    setEditingEntry({
-      key,
-      careWorkerName: existingCorrection?.careWorkerName || entry.careWorkerName,
-      date: existingCorrection?.date || entry.date,
-      timeSlot: existingCorrection?.timeSlot || entry.timeSlot || '',
-      medication: existingCorrection?.medication || entry.medication,
-      code: existingCorrection?.code || entry.code || '',
-      issue: existingCorrection?.issue || entry.issue,
-    });
+	    setEditingEntry({
+	      key,
+	      careWorkerName: existingCorrection?.careWorkerName || entry.careWorkerName,
+	      date: existingCorrection?.date || entry.date,
+	      timeSlot: existingCorrection?.timeSlot || entry.timeSlot || '',
+	      medication: getMedicationDisplayName(existingCorrection?.medication || entry.medication),
+	      code: existingCorrection?.code || entry.code || '',
+	      issue: existingCorrection?.issue || entry.issue,
+	    });
     setEditDialogOpen(true);
   };
 
@@ -1959,7 +1959,9 @@ ${generatedProtocol.additionalComments}`;
                                   {warning.type.replace(/_/g, ' ').toUpperCase()}
                                 </span>
                                 {warning.medication && (
-                                  <span className="text-foreground font-medium">{warning.medication}</span>
+                                  <span className="text-foreground font-medium">
+                                    {getMedicationDisplayName(warning.medication)}
+                                  </span>
                                 )}
                                 {warning.frequency && (
                                   <span className="text-muted-foreground text-sm">({warning.frequency})</span>
@@ -2494,7 +2496,7 @@ ${generatedProtocol.additionalComments}`;
                                             {item.timeSlot}
                                           </span>
                                         )}
-                                        <span className="text-sm text-muted-foreground">{item.medication}</span>
+                                        <span className="text-sm text-muted-foreground">{getMedicationDisplayName(item.medication)}</span>
                                         {isReviewed && (
                                           <span className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 ${
                                             isAcceptable 
@@ -2569,12 +2571,14 @@ ${generatedProtocol.additionalComments}`;
           <Card className="bg-card border-border">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>PRN Medications</CardTitle>
-              <CopyButton 
-                text={result.prnMedications.hasPRN 
-                  ? `PRN Medications: ${result.prnMedications.medications.map(m => typeof m === 'string' ? m : m.name).join(', ')}` 
-                  : 'No PRN medications'} 
-                label="prn-section" 
-              />
+	              <CopyButton 
+	                text={result.prnMedications.hasPRN 
+	                  ? `PRN Medications: ${result.prnMedications.medications
+	                      .map((m) => getMedicationDisplayName(typeof m === 'string' ? m : m.name))
+	                      .join(', ')}` 
+	                  : 'No PRN medications'} 
+	                label="prn-section" 
+	              />
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
@@ -2590,13 +2594,13 @@ ${generatedProtocol.additionalComments}`;
                 <>
                   <div className="bg-muted rounded-lg p-4">
                     <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">PRN Medications List</p>
-                    <div className="flex flex-wrap gap-2">
-                      {result.prnMedications.medications.map((med, idx) => (
-                        <span key={idx} className="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-sm">
-                          {typeof med === 'string' ? med : med.name}
-                        </span>
-                      ))}
-                    </div>
+	                    <div className="flex flex-wrap gap-2">
+	                      {result.prnMedications.medications.map((med, idx) => (
+	                        <span key={idx} className="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-sm">
+	                          {getMedicationDisplayName(typeof med === 'string' ? med : med.name)}
+	                        </span>
+	                      ))}
+	                    </div>
                   </div>
 
                   {prnProtocolsSubmitted ? (
@@ -2617,11 +2621,14 @@ ${generatedProtocol.additionalComments}`;
                               const issues = [];
                               if (!check.isCompleted) issues.push("not completed");
                               if (!check.isGoodStandard) issues.push("not to a good standard");
-                              return (
-                                <li key={idx}>
-                                  <span className="text-foreground font-medium">{check.medication}</span> - {issues.join(" and ")}
-                                </li>
-                              );
+	                              return (
+	                                <li key={idx}>
+	                                  <span className="text-foreground font-medium">
+	                                    {getMedicationDisplayName(check.medication)}
+	                                  </span>{" "}
+	                                  - {issues.join(" and ")}
+	                                </li>
+	                              );
                             })}
                           </ul>
                         </div>
@@ -2641,16 +2648,17 @@ ${generatedProtocol.additionalComments}`;
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {result.prnMedications.medications.map((med, idx) => {
-                            const medName = typeof med === 'string' ? med : med.name;
-                            const protocol = typeof med === 'string' ? 'Standard PRN protocol required' : med.protocol;
-                            const isCompleted = prnProtocolChecks[idx]?.isCompleted || false;
-                            const isGoodStandard = prnProtocolChecks[idx]?.isGoodStandard || false;
-                            const needsProtocol = !isCompleted || !isGoodStandard;
-                            return (
-                              <TableRow key={idx}>
-                                <TableCell className="text-foreground font-medium">{medName}</TableCell>
-                                <TableCell className="text-muted-foreground text-sm">{protocol}</TableCell>
+	                          {result.prnMedications.medications.map((med, idx) => {
+	                            const medName = typeof med === 'string' ? med : med.name;
+	                            const medDisplayName = getMedicationDisplayName(medName);
+	                            const protocol = typeof med === 'string' ? 'Standard PRN protocol required' : med.protocol;
+	                            const isCompleted = prnProtocolChecks[idx]?.isCompleted || false;
+	                            const isGoodStandard = prnProtocolChecks[idx]?.isGoodStandard || false;
+	                            const needsProtocol = !isCompleted || !isGoodStandard;
+	                            return (
+	                              <TableRow key={idx}>
+	                                <TableCell className="text-foreground font-medium">{medDisplayName}</TableCell>
+	                                <TableCell className="text-muted-foreground text-sm">{protocol}</TableCell>
                                 <TableCell className="text-center">
                                   <Checkbox
                                     checked={isCompleted}
@@ -2731,10 +2739,15 @@ ${generatedProtocol.additionalComments}`;
                     {result.officeClosedEntries.length}
                   </Badge>
                 </CardTitle>
-                <CopyButton 
-                  text={result.officeClosedEntries.map(e => `${e.medication} - ${e.date} ${e.timeSlot} (${e.code}) closed by ${e.closedByStaff}`).join('\n')} 
-                  label="office-closed" 
-                />
+	                <CopyButton 
+	                  text={result.officeClosedEntries
+	                    .map(
+	                      (e) =>
+	                        `${getMedicationDisplayName(e.medication)} - ${e.date} ${e.timeSlot} (${e.code}) closed by ${e.closedByStaff}`
+	                    )
+	                    .join('\n')} 
+	                  label="office-closed" 
+	                />
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground" data-testid="text-office-closed-description">
@@ -2756,7 +2769,7 @@ ${generatedProtocol.additionalComments}`;
                     <TableBody>
                       {result.officeClosedEntries.map((entry, idx) => (
                         <TableRow key={idx} data-testid={`row-office-closed-${idx}`}>
-                          <TableCell className="font-medium" data-testid={`cell-medication-${idx}`}>{entry.medication}</TableCell>
+	                          <TableCell className="font-medium" data-testid={`cell-medication-${idx}`}>{getMedicationDisplayName(entry.medication)}</TableCell>
                           <TableCell data-testid={`cell-date-${idx}`}>{entry.date}</TableCell>
                           <TableCell data-testid={`cell-timeslot-${idx}`}>{entry.timeSlot}</TableCell>
                           <TableCell data-testid={`cell-code-${idx}`}>

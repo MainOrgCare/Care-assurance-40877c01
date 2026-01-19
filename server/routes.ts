@@ -3540,21 +3540,21 @@ ${correctionExamples}
             const isPRN = agentPrnMedIds.has(medId) || agentPrnMeds.has(medication);
 
             // CHECK 5d (1): PRN-style codes on non-PRN meds
-            if (PRN_CODES.includes(code) && !isPRN) {
-              // PRN-R remains a verification item; avoid double-reporting.
-              if (code !== 'PRN-R') {
-                agentDiscrepancies.push({
-                  careWorkerName: careWorker,
-                  date,
-                  timeSlot,
-                  medication,
-                  code,
-                  issue: `PRN code "${code}" used on regular medication - "${medication}" is not prescribed as PRN`,
-                  severity: "high",
-                  actions: { performanceNote: true, meeting: "phone", referToManager: true }
-                });
-              }
-              return;
+	            if (PRN_CODES.includes(code) && !isPRN) {
+	              // PRN-R remains a verification item; avoid double-reporting.
+	              if (code !== 'PRN-R') {
+	                agentDiscrepancies.push({
+	                  careWorkerName: careWorker,
+	                  date,
+	                  timeSlot,
+	                  medication,
+	                  code,
+	                  issue: `PRN code "${code}" used on regular medication - not prescribed as PRN`,
+	                  severity: "high",
+	                  actions: { performanceNote: true, meeting: "phone", referToManager: true }
+	                });
+	              }
+	              return;
             }
 
             // CHECK 5d (2): AD/AS/P used on PRN meds
@@ -6729,16 +6729,16 @@ If no equivalences found, return: {"equivalences": []}`
         if (PRN_CODES.includes(code) && !isPRN) {
           // PRN-R is treated as a red-code verification rather than a discrepancy.
           if (code !== "PRN-R") {
-            discrepancies.push({
-              careWorkerName: careWorker,
-              date: date,
-              timeSlot: timeSlot,
-              medication: medication,
-              code: code,
-              issue: `PRN code "${code}" used on regular medication - "${medication}" is not prescribed as PRN`,
-              severity: "high",
-              actions: { performanceNote: true, meeting: "phone", referToManager: true }
-            });
+	            discrepancies.push({
+	              careWorkerName: careWorker,
+	              date: date,
+	              timeSlot: timeSlot,
+	              medication: medication,
+	              code: code,
+	              issue: `PRN code "${code}" used on regular medication - not prescribed as PRN`,
+	              severity: "high",
+	              actions: { performanceNote: true, meeting: "phone", referToManager: true }
+	            });
           }
         }
         
