@@ -47,6 +47,7 @@ interface Discrepancy {
   careWorkerName: string;
   date: string;
   medication: string;
+  medicationId?: number;
   issue: string;
   actions: DiscrepancyAction;
 }
@@ -55,6 +56,7 @@ interface Warning {
   type: string;
   severity?: "critical" | "high" | "medium" | "low";
   medication: string;
+  medicationId?: number;
   description: string;
   frequency?: string;
   recommendedAction: string;
@@ -64,6 +66,7 @@ interface UserVerificationItem {
   careWorkerName: string;
   date: string;
   medication: string;
+  medicationId?: number;
   code: string;
   note: string;
 }
@@ -95,6 +98,7 @@ interface GeneratedPRNProtocol {
 interface GroupedRefusal {
   careWorkerName: string;
   medication: string;
+  medicationId?: number;
   code?: string;
   dates: { date: string; timeSlot: string; code?: string }[];
   count: number;
@@ -220,6 +224,7 @@ interface DrugInteraction {
 
 interface OfficeClosedEntry {
   medication: string;
+  medicationId?: number;
   date: string;
   timeSlot: string;
   code: string;
@@ -230,6 +235,7 @@ interface OfficeClosedEntry {
 interface SupportCodeEntry {
   careWorkerName: string;
   medication: string;
+  medicationId?: number;
   date: string;
   timeSlot: string;
   code: string;
@@ -1005,8 +1011,13 @@ ${generatedProtocol.additionalComments}`;
   };
 
   // Helper to generate stable key for discrepancy deduplication
-  const getDiscrepancyKey = (careWorker: string, date: string, medication: string, timeSlot?: string) => 
-    `${careWorker}|${date}|${medication}|${timeSlot || ''}`.toLowerCase();
+  const getDiscrepancyKey = (
+    careWorker: string,
+    date: string,
+    medication: string,
+    medicationId?: number,
+    timeSlot?: string
+  ) => `${careWorker}|${date}|${medicationId || medication}|${timeSlot || ''}`.toLowerCase();
 
   // Derive code discrepancies from structured data based on current medication level
   const deriveCodeDiscrepancies = (
@@ -1032,9 +1043,10 @@ ${generatedProtocol.additionalComments}`;
       careWorkerName: string,
       date: string,
       medication: string,
+      medicationId: number | undefined,
       code: string
     ) => {
-      const key = getDiscrepancyKey(careWorkerName, date, medication);
+      const key = getDiscrepancyKey(careWorkerName, date, medication, medicationId);
       if (processedDiscrepancyKeys.has(key)) return;
       processedDiscrepancyKeys.add(key);
       
@@ -1047,6 +1059,7 @@ ${generatedProtocol.additionalComments}`;
         careWorkerName,
         date,
         medication,
+        medicationId,
         issue: `${codeDisplayName} code (${code}) used but service user is ${levelDisplayName} level`,
         actions: {
           performanceNote: true,
@@ -1061,17 +1074,18 @@ ${generatedProtocol.additionalComments}`;
       careWorkerName: string,
       date: string,
       medication: string,
+      medicationId: number | undefined,
       code?: string
     ) => {
       const entryCode = (code || '').toUpperCase();
       if (supportCodes.includes(entryCode)) {
         // Track ALL code entries (valid or invalid) so we can filter out AI discrepancies about them
-        const key = getDiscrepancyKey(careWorkerName, date, medication);
+        const key = getDiscrepancyKey(careWorkerName, date, medication, medicationId);
         allCodeEntryKeys.add(key);
         
         // Only create discrepancies for INVALID codes
         if (mapping.invalidCodes.includes(entryCode)) {
-          addCodeDiscrepancy(careWorkerName, date, medication, entryCode);
+          addCodeDiscrepancy(careWorkerName, date, medication, medicationId, entryCode);
         }
       }
     };
@@ -1079,31 +1093,31 @@ ${generatedProtocol.additionalComments}`;
     // Process groupedMainRefusals
     analysisResult.groupedMainRefusals?.forEach(refusal => {
       refusal.dates.forEach(dateItem => {
-        processEntry(refusal.careWorkerName, dateItem.date, refusal.medication, dateItem.code || refusal.code);
+        processEntry(refusal.careWorkerName, dateItem.date, refusal.medication, refusal.medicationId, dateItem.code || refusal.code);
       });
     });
     
     // Process groupedPrnRefusals
     analysisResult.groupedPrnRefusals?.forEach(refusal => {
       refusal.dates.forEach(dateItem => {
-        processEntry(refusal.careWorkerName, dateItem.date, refusal.medication, dateItem.code || refusal.code);
+        processEntry(refusal.careWorkerName, dateItem.date, refusal.medication, refusal.medicationId, dateItem.code || refusal.code);
       });
     });
     
     // Process officeClosedEntries
     analysisResult.officeClosedEntries?.forEach(entry => {
-      processEntry(entry.closedByStaff, entry.date, entry.medication, entry.code);
+      processEntry(entry.closedByStaff, entry.date, entry.medication, entry.medicationId, entry.code);
     });
     
     // Process userVerificationItems
     analysisResult.userVerificationItems?.forEach(item => {
-      processEntry(item.careWorkerName, item.date, item.medication, item.code);
+      processEntry(item.careWorkerName, item.date, item.medication, item.medicationId, item.code);
     });
     
     // Process supportCodeEntries - this is the primary source for AS/AD/P code entries
     // This data comes from the backend and contains ALL entries with support level codes
     analysisResult.supportCodeEntries?.forEach(entry => {
-      processEntry(entry.careWorkerName, entry.date, entry.medication, entry.code);
+      processEntry(entry.careWorkerName, entry.date, entry.medication, entry.medicationId, entry.code);
     });
     
     return { discrepancies: derivedDiscrepancies, allCodeEntryKeys };
@@ -1132,7 +1146,7 @@ ${generatedProtocol.additionalComments}`;
       ];
       
       allDisc = allDisc.filter(d => {
-        const key = getDiscrepancyKey(d.careWorkerName, d.date, d.medication);
+        const key = getDiscrepancyKey(d.careWorkerName, d.date, d.medication, d.medicationId);
         // Remove if it matches a code entry
         if (allCodeEntryKeys.has(key)) return false;
         // Remove if the issue text matches any code conflict pattern
@@ -1448,6 +1462,7 @@ ${generatedProtocol.additionalComments}`;
   interface UnifiedRefusalItem {
     careWorkerName: string;
     medication: string;
+    medicationId?: number;
     date: string;
     timeSlot: string;
     code: string;
@@ -1479,10 +1494,12 @@ ${generatedProtocol.additionalComments}`;
     result?.groupedMainRefusals?.forEach(refusal => {
       refusal.dates.forEach(dateItem => {
         const code = dateItem.code || refusal.code || 'R';
-        const key = `main|${refusal.careWorkerName}|${refusal.medication}|${dateItem.date}|${dateItem.timeSlot || ''}`;
+        const medicationKey = refusal.medicationId ? `id:${refusal.medicationId}` : refusal.medication;
+        const key = `main|${refusal.careWorkerName}|${medicationKey}|${dateItem.date}|${dateItem.timeSlot || ''}`;
         const item: UnifiedRefusalItem = {
           careWorkerName: getMappedCarerName(refusal.careWorkerName),
           medication: refusal.medication,
+          medicationId: refusal.medicationId,
           date: dateItem.date,
           timeSlot: dateItem.timeSlot || '',
           code: code,
@@ -1500,10 +1517,12 @@ ${generatedProtocol.additionalComments}`;
     result?.groupedPrnRefusals?.forEach(refusal => {
       refusal.dates.forEach(dateItem => {
         const code = dateItem.code || refusal.code || 'PRN-R';
-        const key = `prn|${refusal.careWorkerName}|${refusal.medication}|${dateItem.date}|${dateItem.timeSlot || ''}`;
+        const medicationKey = refusal.medicationId ? `id:${refusal.medicationId}` : refusal.medication;
+        const key = `prn|${refusal.careWorkerName}|${medicationKey}|${dateItem.date}|${dateItem.timeSlot || ''}`;
         const item: UnifiedRefusalItem = {
           careWorkerName: getMappedCarerName(refusal.careWorkerName),
           medication: refusal.medication,
+          medicationId: refusal.medicationId,
           date: dateItem.date,
           timeSlot: dateItem.timeSlot || '',
           code: code,
@@ -1552,12 +1571,18 @@ ${generatedProtocol.additionalComments}`;
 
   const EMAR_CODES = ['AD', 'AS', 'R', 'MU', 'NH', 'FA', 'SA', 'PRN', 'PRN-R'];
 
-  const generateEntryKey = (careWorkerName: string, date: string, medication: string, timeSlot?: string): string => {
-    return `${careWorkerName}|${date}|${medication}|${timeSlot || ''}`;
+  const generateEntryKey = (
+    careWorkerName: string,
+    date: string,
+    medication: string,
+    timeSlot?: string,
+    medicationId?: number
+  ): string => {
+    return `${careWorkerName}|${date}|${medicationId || medication}|${timeSlot || ''}`;
   };
 
-  const startEditing = (entry: { careWorkerName: string; date: string; medication: string; issue: string; timeSlot?: string; code?: string }) => {
-    const key = generateEntryKey(entry.careWorkerName, entry.date, entry.medication, entry.timeSlot);
+  const startEditing = (entry: { careWorkerName: string; date: string; medication: string; medicationId?: number; issue: string; timeSlot?: string; code?: string }) => {
+    const key = generateEntryKey(entry.careWorkerName, entry.date, entry.medication, entry.timeSlot, entry.medicationId);
     const existingCorrection = corrections.get(key);
     
 	    setEditingEntry({
@@ -1658,8 +1683,8 @@ ${generatedProtocol.additionalComments}`;
     return corrections.get(key) || null;
   };
 
-  const isEntryCorrected = (careWorkerName: string, date: string, medication: string, timeSlot?: string): boolean => {
-    const key = generateEntryKey(careWorkerName, date, medication, timeSlot);
+  const isEntryCorrected = (careWorkerName: string, date: string, medication: string, timeSlot?: string, medicationId?: number): boolean => {
+    const key = generateEntryKey(careWorkerName, date, medication, timeSlot, medicationId);
     return corrections.has(key);
   };
 
@@ -1680,6 +1705,7 @@ ${generatedProtocol.additionalComments}`;
         careWorkerName: item.careWorkerName,
         date: item.date,
         medication: item.medication,
+        medicationId: item.medicationId,
         issue: `Inadequate refusal documentation - ${item.code} code used without acceptable reason`,
         actions: { performanceNote: true, meeting: "none", referToManager: false },
       }));
@@ -2256,8 +2282,8 @@ ${generatedProtocol.additionalComments}`;
                             </TableHeader>
                             <TableBody>
                               {group.discrepancies.map((disc, discIdx) => {
-                                const entryKey = generateEntryKey(disc.careWorkerName, disc.date, disc.medication);
-                                const isCorrected = isEntryCorrected(disc.careWorkerName, disc.date, disc.medication);
+                                const entryKey = generateEntryKey(disc.careWorkerName, disc.date, disc.medication, undefined, disc.medicationId);
+                                const isCorrected = isEntryCorrected(disc.careWorkerName, disc.date, disc.medication, undefined, disc.medicationId);
                                 const correctedData = isCorrected ? getCorrectedValue(entryKey) : null;
                                 
                                 return (
@@ -2311,6 +2337,7 @@ ${generatedProtocol.additionalComments}`;
                                               careWorkerName: disc.careWorkerName,
                                               date: disc.date,
                                               medication: disc.medication,
+                                              medicationId: disc.medicationId,
                                               issue: disc.issue,
                                             })}
                                             data-testid={`button-edit-discrepancy-${idx}-${discIdx}`}

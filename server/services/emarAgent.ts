@@ -140,6 +140,30 @@ const normalizeMedicationKey = (name: string): string =>
 const PRN_TEXT_PATTERN = /\b(prn|as required|as needed|when required|when needed|if needed|as necessary|up to \d+\s*(?:times|tablets?|capsules?|puffs|drops?)\s*(?:daily|per day))\b/i;
 const isPrnFromText = (text: string): boolean => PRN_TEXT_PATTERN.test(text || "");
 
+const buildMedicationVariantKey = (name: string, instructions: string): string => {
+  const base = normalizeMedicationKey(name || "");
+  const combined = `${name || ""} ${instructions || ""}`.toLowerCase();
+  if (!base || !combined.trim()) return base;
+
+  const signature = new Set<string>();
+
+  const ratioMatches =
+    combined.match(/\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|units?)\s*\/\s*\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|units?)\b/g) || [];
+  for (const match of ratioMatches) signature.add(normalizeMedicationKey(match));
+
+  const strengthMatches =
+    combined.match(/\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|units?|%)\b/g) || [];
+  for (const match of strengthMatches) signature.add(normalizeMedicationKey(match));
+
+  const formMatches =
+    combined.match(/\b(tablets?|tabs?|capsules?|caps?|liquid|solution|syrup|suspension|cream|ointment|gel|patch(?:es)?|spray|drops?|inhaler|injection|ampoules?|nebules?|puffs?)\b/g) ||
+    [];
+  for (const match of formMatches) signature.add(normalizeMedicationKey(match));
+
+  const signatureKey = Array.from(signature).filter(Boolean).sort().join("-");
+  return signatureKey ? `${base}|${signatureKey}` : base;
+};
+
 const inferRequiredGapHoursFromText = (text: string): number | null => {
   const lower = String(text || "").toLowerCase();
   if (!lower) return null;
@@ -445,18 +469,39 @@ export const emarAgent = {
         return code;
       };
 
+      const resolveCellMedicationId = (cell: any): number | null => {
+        const direct = Number(cell?.medicationId);
+        if (Number.isFinite(direct) && direct > 0) return direct;
+        const row = Number(cell?.medicationRow);
+        if (Number.isFinite(row) && row >= 0) return row + 1;
+        return null;
+      };
+
+      const medStatsById = new Map<number, { prnCount: number; nonBlankCount: number }>();
       const medStatsByKey = new Map<string, { prnCount: number; nonBlankCount: number }>();
       for (const cell of rawCells) {
-        const medKey = normalizeMedicationKey(String(cell?.medication || ""));
-        if (!medKey) continue;
         const code = nonBlankCode((cell as any)?.code);
         if (!code) continue;
-        if (!medStatsByKey.has(medKey)) {
-          medStatsByKey.set(medKey, { prnCount: 0, nonBlankCount: 0 });
+
+        const medId = resolveCellMedicationId(cell);
+        if (medId) {
+          if (!medStatsById.has(medId)) {
+            medStatsById.set(medId, { prnCount: 0, nonBlankCount: 0 });
+          }
+          const stats = medStatsById.get(medId)!;
+          stats.nonBlankCount += 1;
+          if (code.startsWith("PRN")) stats.prnCount += 1;
         }
-        const stats = medStatsByKey.get(medKey)!;
-        stats.nonBlankCount += 1;
-        if (code.startsWith("PRN")) stats.prnCount += 1;
+
+        const medKey = normalizeMedicationKey(String(cell?.medication || ""));
+        if (medKey) {
+          if (!medStatsByKey.has(medKey)) {
+            medStatsByKey.set(medKey, { prnCount: 0, nonBlankCount: 0 });
+          }
+          const stats = medStatsByKey.get(medKey)!;
+          stats.nonBlankCount += 1;
+          if (code.startsWith("PRN")) stats.prnCount += 1;
+        }
       }
 
       const medsWithIds = rawMeds
@@ -466,53 +511,81 @@ export const emarAgent = {
           const name = rawName
             .replace(/\s+/g, " ")
             .trim();
+          const row = Number.isFinite(Number(med?.row)) ? Number(med.row) : index;
+          const medicationId = row + 1;
           const key = normalizeMedicationKey(name);
-          const stats = key ? medStatsByKey.get(key) : undefined;
+          const stats = medStatsById.get(medicationId) || (key ? medStatsByKey.get(key) : undefined);
           const nonBlankCount = stats?.nonBlankCount || 0;
           const prnCount = stats?.prnCount || 0;
           const prnRatio = nonBlankCount > 0 ? prnCount / nonBlankCount : 0;
           const gridPrnStrong = prnCount >= 2 && prnRatio >= 0.5;
-          const instructionText = String(med?.instructions || "");
+          const instructionText = String(med?.instructions || "").replace(/\s+/g, " ").trim();
           const isPRN = isPrnFromText(`${name} ${instructionText}`) || gridPrnStrong;
           const inferredGap = inferRequiredGapHoursFromText(`${name} ${String(med?.instructions || "")}`);
 
           const scheduledSlots = uniqueStrings(Array.isArray(med?.timeSlots) ? med.timeSlots : []);
-            return {
-              medicationId: index + 1,
-              name,
-              genericName: inferGenericNameFromMedicationLabel(name),
-              isPRN,
-              instructions: "",
-              requiredGapHours: inferredGap ?? 4,
-              scheduledTimeSlots: (scheduledSlots.length > 0 ? scheduledSlots : gridTimeSlots),
-            };
+          return {
+            medicationId,
+            name,
+            genericName: inferGenericNameFromMedicationLabel(name),
+            isPRN,
+            instructions: instructionText,
+            requiredGapHours: inferredGap ?? 4,
+            scheduledTimeSlots: (scheduledSlots.length > 0 ? scheduledSlots : gridTimeSlots),
+          };
         })
         .filter(Boolean) as any[];
 
-      const medIdByKey = new Map<string, number>();
+      const medCandidatesByKey = new Map<string, Array<{ medicationId: number; scheduledTimeSlots: string[] }>>();
       for (const med of medsWithIds) {
         const key = normalizeMedicationKey(med.name);
-        if (key) medIdByKey.set(key, med.medicationId);
+        if (!key) continue;
+        const scheduled = uniqueStrings(Array.isArray(med?.scheduledTimeSlots) ? med.scheduledTimeSlots : []);
+        const candidates = medCandidatesByKey.get(key) || [];
+        candidates.push({ medicationId: med.medicationId, scheduledTimeSlots: scheduled });
+        medCandidatesByKey.set(key, candidates);
       }
 
-      const resolveMedicationId = (name: string): number | null => {
+      const resolveMedicationIdByNameAndSlot = (name: string, timeSlotHint?: string): number | null => {
         const key = normalizeMedicationKey(name || "");
         if (!key) return null;
-        const direct = medIdByKey.get(key);
-        if (direct) return direct;
-        let bestId: number | null = null;
+        const directCandidates = medCandidatesByKey.get(key) || [];
+        if (directCandidates.length === 1) return directCandidates[0].medicationId;
+        if (directCandidates.length > 1 && timeSlotHint) {
+          const normalizedHint = normalizeTimeSlot(timeSlotHint) || timeSlotHint;
+          const matching = directCandidates.filter((candidate) => {
+            const slots = candidate.scheduledTimeSlots.map((s) => normalizeTimeSlot(s) || s);
+            return slots.includes(normalizedHint);
+          });
+          if (matching.length === 1) return matching[0].medicationId;
+        }
+
+        let bestCandidate: { medicationId: number; scheduledTimeSlots: string[] } | null = null;
         let bestScore = 0;
-        for (const [candidateKey, id] of medIdByKey.entries()) {
+        for (const [candidateKey, candidates] of medCandidatesByKey.entries()) {
           if (!candidateKey) continue;
           const hit = candidateKey.includes(key) || key.includes(candidateKey);
           if (!hit) continue;
           const score = Math.min(candidateKey.length, key.length);
           if (score > bestScore) {
             bestScore = score;
-            bestId = id;
+            bestCandidate = candidates[0] || null;
           }
         }
-        return bestScore >= 6 ? bestId : null;
+
+        if (bestScore >= 6 && bestCandidate) {
+          if (timeSlotHint) {
+            const normalizedHint = normalizeTimeSlot(timeSlotHint) || timeSlotHint;
+            const candidates = medCandidatesByKey.get(normalizeMedicationKey(name || "")) || [];
+            const slotMatched = candidates.find((candidate) => {
+              const slots = candidate.scheduledTimeSlots.map((s) => normalizeTimeSlot(s) || s);
+              return slots.includes(normalizedHint);
+            });
+            if (slotMatched) return slotMatched.medicationId;
+          }
+          return bestCandidate.medicationId;
+        }
+        return null;
       };
 
       const prnMedIds = new Set<number>();
@@ -524,7 +597,12 @@ export const emarAgent = {
         const entries: any[] = [];
 
         for (const cell of rawCells) {
-          const medId = resolveMedicationId(String((cell as any)?.medication || ""));
+          const medId =
+            resolveCellMedicationId(cell) ||
+            resolveMedicationIdByNameAndSlot(
+              String((cell as any)?.medication || ""),
+              String((cell as any)?.timeSlot || "")
+            );
           if (!medId) continue;
           const isPrn = prnMedIds.has(medId);
 
@@ -632,14 +710,15 @@ export const emarAgent = {
     for (const med of medicationCandidates) {
       const name = String(med?.name || "").trim();
       if (!name) continue;
-      const key = normalizeMedicationKey(name);
+      const instructions = String(med?.instructions || "").trim();
+      const key = buildMedicationVariantKey(name, instructions);
       if (!key) continue;
       const existing = medByKey.get(key);
       const next = {
         name,
         genericName: String(med?.genericName || "").trim(),
         isPRN: typeof med?.isPRN === "boolean" ? med.isPRN : isPrnFromText(String(med?.instructions || "")),
-        instructions: String(med?.instructions || "").trim(),
+        instructions,
         requiredGapHours: Number(med?.requiredGapHours || 0) || 4,
         scheduledTimeSlots: uniqueStrings(Array.isArray(med?.scheduledTimeSlots) ? med.scheduledTimeSlots : []),
       };
@@ -746,10 +825,13 @@ export const emarAgent = {
     );
 
     const validMedicationIds = new Set(medicationsWithIds.map((med) => med.medicationId));
-    const medIdByKey = new Map<string, number>();
+    const medIdsByKey = new Map<string, number[]>();
     for (const med of medicationsWithIds) {
       const key = normalizeMedicationKey(med.name);
-      if (key) medIdByKey.set(key, med.medicationId);
+      if (!key) continue;
+      const existing = medIdsByKey.get(key) || [];
+      existing.push(med.medicationId);
+      medIdsByKey.set(key, existing);
     }
 
     const normalizeEntry = (entry: any): any | null => {
@@ -757,8 +839,24 @@ export const emarAgent = {
       if (!validMedicationIds.has(medId)) {
         const medName = String(entry?.medication || entry?.medicationName || entry?.name || "").trim();
         const key = normalizeMedicationKey(medName);
-        if (key && medIdByKey.has(key)) {
-          medId = medIdByKey.get(key) as number;
+        const candidates = key ? medIdsByKey.get(key) || [] : [];
+        if (candidates.length === 1) {
+          medId = candidates[0];
+        } else if (candidates.length > 1) {
+          const time = String(entry?.time || "").trim();
+          const timeSlotHint = resolveTimeSlot(entry?.timeSlot, time, mergedMetadata.timeSlots);
+          if (timeSlotHint) {
+            const normalizedHint = normalizeTimeSlot(timeSlotHint) || timeSlotHint;
+              const matching = candidates.filter((candidateId) => {
+                const medDetails = medicationsWithIds.find((med) => med.medicationId === candidateId);
+                const slots = Array.isArray(medDetails?.scheduledTimeSlots) ? medDetails.scheduledTimeSlots : [];
+                const normalizedSlots = slots.map((slot: string) => normalizeTimeSlot(slot) || slot);
+                return normalizedSlots.includes(normalizedHint);
+              });
+            if (matching.length === 1) {
+              medId = matching[0];
+            }
+          }
         }
       }
       if (!validMedicationIds.has(medId)) return null;

@@ -3384,13 +3384,15 @@ ${correctionExamples}
           const agentDates = agentExtractedData.dates;
           const agentTimeSlots = agentExtractedData.timeSlots;
           
-          // Build PRN medication set
-          const agentPrnMeds = new Set<string>();
+          // Build PRN medication sets (prefer medicationId to avoid collisions on duplicate names)
+          const agentMedicationNameById = new Map<number, string>();
+          const agentPrnMeds = new Set<string>(); // fallback when entries lack medicationId
           const agentPrnMedIds = new Set<number>();
           agentMedications.forEach((m: any) => {
+            const medId = Number(m.medicationId) || 0;
+            if (medId) agentMedicationNameById.set(medId, m.name);
             if (m.isPRN) {
-              agentPrnMeds.add(m.name);
-              const medId = Number(m.medicationId) || 0;
+              if (m?.name) agentPrnMeds.add(m.name);
               if (medId) agentPrnMedIds.add(medId);
             }
           });
@@ -3429,12 +3431,22 @@ ${correctionExamples}
           };
           
           // Build medication scheduled slot counts for time gap detection
-          const agentMedScheduledSlots = new Map<string, number>();
-          const agentMedGapHours = new Map<string, number>();
+          const agentMedScheduledSlotsById = new Map<number, number>();
+          const agentMedGapHoursById = new Map<number, number>();
+          const agentMedScheduledSlotsByName = new Map<string, number>(); // fallback
+          const agentMedGapHoursByName = new Map<string, number>(); // fallback
           agentMedications.forEach((m: any) => {
             const slots = m.scheduledTimeSlots?.length || agentTimeSlots.length;
-            agentMedScheduledSlots.set(m.name, slots);
-            agentMedGapHours.set(m.name, m.requiredGapHours || 4);
+            const gapHours = m.requiredGapHours || 4;
+            const medId = Number(m.medicationId) || 0;
+            if (m?.name) {
+              agentMedScheduledSlotsByName.set(m.name, slots);
+              agentMedGapHoursByName.set(m.name, gapHours);
+            }
+            if (medId) {
+              agentMedScheduledSlotsById.set(medId, slots);
+              agentMedGapHoursById.set(medId, gapHours);
+            }
           });
           
           const agentDiscrepancies: any[] = [];
@@ -3494,11 +3506,15 @@ ${correctionExamples}
             const code = normalizeAgentCode(entry.code || "");
             if (reviewCodes.includes(code)) {
               const medId = Number(entry.medicationId) || 0;
-              const isPRN = agentPrnMedIds.has(medId) || agentPrnMeds.has(entry.medication) || code.includes('PRN');
+              const isPRN =
+                (medId > 0 && agentPrnMedIds.has(medId)) ||
+                agentPrnMeds.has(entry.medication) ||
+                code.includes('PRN');
               const verificationItem = {
                 careWorkerName: entry.careWorkerInitials || 'Unknown',
                 date: entry.date,
                 medication: entry.medication,
+                medicationId: medId || undefined,
                 code: code,
                 note: getVerificationNote(code, isPRN)
               };
@@ -3509,6 +3525,7 @@ ${correctionExamples}
                 date: entry.date,
                 timeSlot: entry.timeSlot,
                 medication: entry.medication,
+                medicationId: medId || undefined,
                 code: code,
               };
               
@@ -3537,24 +3554,25 @@ ${correctionExamples}
             const medication = entry.medication || '';
 
             const medId = Number(entry.medicationId) || 0;
-            const isPRN = agentPrnMedIds.has(medId) || agentPrnMeds.has(medication);
+            const isPRN = (medId > 0 && agentPrnMedIds.has(medId)) || agentPrnMeds.has(medication);
 
             // CHECK 5d (1): PRN-style codes on non-PRN meds
-	            if (PRN_CODES.includes(code) && !isPRN) {
-	              // PRN-R remains a verification item; avoid double-reporting.
-	              if (code !== 'PRN-R') {
-	                agentDiscrepancies.push({
-	                  careWorkerName: careWorker,
-	                  date,
-	                  timeSlot,
-	                  medication,
-	                  code,
-	                  issue: `PRN code "${code}" used on regular medication - not prescribed as PRN`,
-	                  severity: "high",
-	                  actions: { performanceNote: true, meeting: "phone", referToManager: true }
-	                });
-	              }
-	              return;
+            if (PRN_CODES.includes(code) && !isPRN) {
+              // PRN-R remains a verification item; avoid double-reporting.
+              if (code !== 'PRN-R') {
+                agentDiscrepancies.push({
+                  careWorkerName: careWorker,
+                  date,
+                  timeSlot,
+                  medication,
+                  medicationId: medId || undefined,
+                  code,
+                  issue: `PRN code "${code}" used on regular medication - not prescribed as PRN`,
+                  severity: "high",
+                  actions: { performanceNote: true, meeting: "phone", referToManager: true }
+                });
+              }
+              return;
             }
 
             // CHECK 5d (2): AD/AS/P used on PRN meds
@@ -3564,6 +3582,7 @@ ${correctionExamples}
                 date,
                 timeSlot,
                 medication,
+                medicationId: medId || undefined,
                 code,
                 issue: `Invalid code "${code}" used on PRN medication - should use PRN codes (PRN, PRN-AD, PRN-AS, PRN-R)`,
                 severity: "high",
@@ -3581,6 +3600,7 @@ ${correctionExamples}
                   date,
                   timeSlot,
                   medication,
+                  medicationId: medId || undefined,
                   code,
                   issue: `Invalid code "${code}" used on administered medication - valid codes are: AD, SA, NH, R, FA, MU`,
                   severity: "high",
@@ -3618,13 +3638,18 @@ ${correctionExamples}
             
             // Normalize date for grouping
             const dateKey = entry.date.toLowerCase().replace(/[,\s]+/g, '-').substring(0, 10);
-            const key = `${entry.medication}|${dateKey}`;
+            const medId = Number(entry.medicationId) || 0;
+            const medKey = medId > 0 ? `id:${medId}` : `name:${entry.medication || ""}`;
+            const key = `${medKey}|${dateKey}`;
             
             if (!medDateEntriesForGap.has(key)) medDateEntriesForGap.set(key, []);
             medDateEntriesForGap.get(key)!.push({
               ...entry,
               extractedTime: timeValue,
-              isPRN: agentPrnMeds.has(entry.medication)
+              isPRN:
+                (medId > 0 && agentPrnMedIds.has(medId)) ||
+                agentPrnMeds.has(entry.medication) ||
+                code.includes("PRN")
             });
           });
           
@@ -3632,13 +3657,27 @@ ${correctionExamples}
           medDateEntriesForGap.forEach((dayEntries, key) => {
             if (dayEntries.length < 2) return;
             
-            const [medication] = key.split('|');
-            const scheduledSlots = agentMedScheduledSlots.get(medication) || 1;
+            const [medKeyPart] = key.split('|');
+            const medId = medKeyPart.startsWith('id:') ? Number(medKeyPart.slice(3)) || 0 : 0;
+            const medication =
+              medId > 0
+                ? agentMedicationNameById.get(medId) || dayEntries[0]?.medication || ''
+                : medKeyPart.startsWith('name:')
+                  ? medKeyPart.slice(5)
+                  : dayEntries[0]?.medication || '';
+
+            const scheduledSlots =
+              medId > 0
+                ? agentMedScheduledSlotsById.get(medId) || 1
+                : agentMedScheduledSlotsByName.get(medication) || 1;
             
             // Skip once-daily medications
             if (scheduledSlots <= 1) return;
             
-            const requiredGap = agentMedGapHours.get(medication) || 4;
+            const requiredGap =
+              medId > 0
+                ? agentMedGapHoursById.get(medId) || 4
+                : agentMedGapHoursByName.get(medication) || 4;
             
             // Sort by time
             const sorted = dayEntries.sort((a: any, b: any) => {
@@ -3664,6 +3703,7 @@ ${correctionExamples}
                   date: curr.date,
                   timeSlot: curr.timeSlot,
                   medication: medication,
+                  medicationId: medId || undefined,
                   issue: `Time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap}h). Previous: ${prev.extractedTime}, Current: ${curr.extractedTime}`,
                   severity: "high",
                   actions: { performanceNote: true, meeting: "in_person", referToManager: true }
@@ -3675,19 +3715,28 @@ ${correctionExamples}
           // =====================================================================
           // MU FREQUENCY WARNING
           // =====================================================================
-          const muCounts = new Map<string, number>();
+          const muCounts = new Map<string, { count: number; medication: string; medicationId?: number }>();
           agentEntries.forEach((entry: any) => {
             if ((entry.code || '').toUpperCase() === 'MU') {
-              muCounts.set(entry.medication, (muCounts.get(entry.medication) || 0) + 1);
+              const medId = Number(entry.medicationId) || 0;
+              const key = medId > 0 ? `id:${medId}` : `name:${entry.medication || ""}`;
+              const existing = muCounts.get(key) || {
+                count: 0,
+                medication: medId > 0 ? agentMedicationNameById.get(medId) || entry.medication || "" : entry.medication || "",
+                medicationId: medId || undefined,
+              };
+              existing.count += 1;
+              muCounts.set(key, existing);
             }
           });
           
-          muCounts.forEach((count, med) => {
+          muCounts.forEach(({ count, medication, medicationId }) => {
             if (count >= 3) {
               agentWarnings.push({
                 type: "medication_unavailable_pattern",
                 severity: "medium",
-                medication: med,
+                medication,
+                medicationId,
                 description: `Medication Unavailable (MU) recorded ${count} times`,
                 recommendedAction: "Check if medication has been discontinued or stock issues"
               });
@@ -3700,11 +3749,12 @@ ${correctionExamples}
           const groupRefusals = (refusals: any[]) => {
             const groups = new Map<string, any>();
             refusals.forEach((d: any) => {
-              const key = `${d.careWorkerName}|${d.medication}`;
+              const key = `${d.careWorkerName}|${d.medicationId || d.medication}`;
               if (!groups.has(key)) {
                 groups.set(key, {
                   careWorkerName: d.careWorkerName,
                   medication: d.medication,
+                  medicationId: d.medicationId || undefined,
                   code: d.code || '',
                   dates: [],
                   count: 0
@@ -3747,7 +3797,8 @@ ${correctionExamples}
           
           agentEntries.forEach((entry: any) => {
             const code = (entry.code || '').toUpperCase();
-            const isPRN = agentPrnMeds.has(entry.medication);
+            const medId = Number(entry.medicationId) || 0;
+            const isPRN = (medId > 0 && agentPrnMedIds.has(medId)) || agentPrnMeds.has(entry.medication);
             
             if (isPRN) {
               if (code === 'PRN' || code === 'PRN-AD' || code === 'PRN-AS') agentPrnCodeCounts.PRN++;
@@ -3794,6 +3845,7 @@ ${correctionExamples}
           // Extract office-closed entries (codes without initials, manually closed by office staff)
           const officeClosedEntries = agentEntries.filter((e: any) => e.isOfficeClosed).map((e: any) => ({
             medication: e.medication,
+            medicationId: Number(e.medicationId) || undefined,
             date: e.date,
             timeSlot: e.timeSlot,
             code: e.code,
@@ -3809,6 +3861,7 @@ ${correctionExamples}
             .map((e: any) => ({
               careWorkerName: e.careWorkerInitials || 'Unknown',
               medication: e.medication,
+              medicationId: Number(e.medicationId) || undefined,
               date: e.date,
               timeSlot: e.timeSlot,
               code: String(e.code || '').toUpperCase()
@@ -3920,6 +3973,7 @@ ${correctionExamples}
       let gridNonBlankCount = 0;
       let gridPrnKeys = new Set<string>();
       const gridPrnStats = new Map<string, { prnCount: number; nonBlankCount: number }>();
+      const gridPrnStatsByMedId = new Map<number, { prnCount: number; nonBlankCount: number }>();
       // STEP 2: Two-phase AI extraction to handle large grids
       // Phase 1: Extract metadata only (medications, dates, timeSlots) from document text
       
@@ -3948,6 +4002,7 @@ Use this layout information to correctly parse the grid structure.
               : Array.isArray(grid.timeSlots) ? grid.timeSlots : [];
             return {
               name,
+              gridMedicationId: typeof (med as any)?.row === "number" ? (med as any).row + 1 : undefined,
               genericName: inferredGeneric,
               isPRN: false,
               instructions: typeof med?.instructions === "string" ? med.instructions : "",
@@ -4563,6 +4618,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         for (const cell of gridBaseline.cells) {
           const key = normalizeMedicationKey(cell.medication || "");
           if (!key) continue;
+          const cellMedId = Number((cell as any)?.medicationId) || 0;
           const raw = normalizeCellCode(cell.code);
           const code = raw && raw !== "BLANK" && raw !== "N/A" ? raw : extractCellCode(cell.content);
           if (code) {
@@ -4575,11 +4631,29 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
               stats.prnCount += 1;
               gridPrnKeys.add(key);
             }
+
+            if (cellMedId > 0) {
+              if (!gridPrnStatsByMedId.has(cellMedId)) {
+                gridPrnStatsByMedId.set(cellMedId, { prnCount: 0, nonBlankCount: 0 });
+              }
+              const byIdStats = gridPrnStatsByMedId.get(cellMedId)!;
+              if (code !== "N/A") {
+                byIdStats.nonBlankCount += 1;
+              }
+              if (code.startsWith("PRN")) {
+                byIdStats.prnCount += 1;
+              }
+            }
           }
         }
       }
 
-      const getGridPrnStatsForMed = (name: string) => {
+      const getGridPrnStatsForMed = (name: string, medicationId?: number) => {
+        const medId = Number(medicationId) || 0;
+        if (medId > 0) {
+          const directById = gridPrnStatsByMedId.get(medId);
+          if (directById) return directById;
+        }
         const key = normalizeMedicationKey(name || "");
         if (!key) return undefined;
         const direct = gridPrnStats.get(key);
@@ -4644,6 +4718,7 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
               : Array.isArray(med?.timeSlots) ? med.timeSlots : [];
             return {
               name,
+              gridMedicationId: typeof (med as any)?.row === "number" ? (med as any).row + 1 : undefined,
               genericName: aiMed?.genericName || "",
               isPRN: isPrn,
               instructions,
@@ -5850,12 +5925,45 @@ CARE WORKER INITIALS (IMPORTANT):
       // deduplicates medications by normalized name to prevent inflated counts.
       // =====================================================================
       
-      // Helper to normalize medication names for comparison
-      const normalizeMedName = (name: string): string => {
-        return normalizeMedicationKey(name || "")
+      // Helper to normalize medication names for comparison.
+      // IMPORTANT: Include strength/form signals so two meds with the same base name
+      // (e.g., tablet vs liquid) are not merged.
+      const normalizeMedName = (med: any): string => {
+        const rawName = String(med?.name || "");
+        const rawInstructions = String(med?.instructions || "");
+        const base = normalizeMedicationKey(rawName || "")
           .replace(/\b(tablets?|tabs?|capsules?|caps?)\b/g, " ")
           .replace(/\s+/g, " ")
           .trim();
+        const gridMedicationId = Number(med?.gridMedicationId) || 0;
+        const gridKey = gridMedicationId > 0 ? `grid:${gridMedicationId}` : "";
+
+        const combined = `${rawName} ${rawInstructions}`.toLowerCase();
+        const signature = new Set<string>();
+
+        const ratioMatches =
+          combined.match(/\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|units?)\s*\/\s*\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|units?)\b/g) || [];
+        for (const match of ratioMatches) signature.add(normalizeMedicationKey(match));
+
+        const strengthMatches =
+          combined.match(/\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|units?|%)\b/g) || [];
+        for (const match of strengthMatches) signature.add(normalizeMedicationKey(match));
+
+        const formMatches =
+          combined.match(/\b(tablets?|tabs?|capsules?|caps?|liquid|solution|syrup|suspension|cream|ointment|gel|patch(?:es)?|spray|drops?|inhaler|injection|ampoules?|nebules?|puffs?)\b/g) ||
+          [];
+        for (const match of formMatches) signature.add(normalizeMedicationKey(match));
+
+        const routeMatches =
+          combined.match(/\b(oral|topical|subcutaneous|intravenous|iv|im|pr|sc)\b/g) || [];
+        for (const match of routeMatches) signature.add(normalizeMedicationKey(match));
+
+        const signatureKey = Array.from(signature).filter(Boolean).sort().join("-");
+        if (signatureKey) return `${base}|${gridKey ? `${gridKey}|` : ""}${signatureKey}`;
+
+        const instrKey = normalizeMedicationKey(rawInstructions).split(" ").slice(0, 10).join(" ");
+        if (instrKey) return `${base}|${gridKey ? `${gridKey}|` : ""}instr:${instrKey}`;
+        return gridKey ? `${base}|${gridKey}` : base;
       };
       
       // Group medications by normalized name, keeping first occurrence as canonical
@@ -5863,7 +5971,7 @@ CARE WORKER INITIALS (IMPORTANT):
       const oldIdToCanonicalId = new Map<number, number>();
       
       medications.forEach((med: any) => {
-        const normalizedName = normalizeMedName(med.name);
+        const normalizedName = normalizeMedName(med);
         
         if (!medByNormalizedName.has(normalizedName)) {
           // First occurrence - this becomes the canonical entry
@@ -5972,6 +6080,7 @@ CARE WORKER INITIALS (IMPORTANT):
         date: string;
         timeSlot: string;
         medication: string;
+        medicationId?: number;
         code?: string; // Administration code (R, MU, NH, etc.) - used for refusal grouping
         issue: string;
         severity: "high" | "medium" | "low";
@@ -5982,6 +6091,7 @@ CARE WORKER INITIALS (IMPORTANT):
         careWorkerName: string;
         date: string;
         medication: string;
+        medicationId?: number;
         code: string;
         note: string;
       }
@@ -5990,6 +6100,7 @@ CARE WORKER INITIALS (IMPORTANT):
         type: string;
         severity: "critical" | "high" | "medium" | "low";
         medication: string;
+        medicationId?: number;
         description: string;
         recommendedAction: string;
       }
@@ -6032,17 +6143,18 @@ CARE WORKER INITIALS (IMPORTANT):
       };
       
       // Build lookup maps
-      const prnMeds = new Set<string>();
       const prnMedIds = new Set<number>(); // Track PRN medication IDs
-      const medGenericNames = new Map<string, string>();
-      const medGapHours = new Map<string, number>();
-      const medTimeSlots = new Map<string, string[]>();
-      const medScheduledSlotCount = new Map<string, number>(); // Track how many scheduled slots per medication
+      const medNameById = new Map<number, string>();
+      const medGapHoursById = new Map<number, number>();
+      const medScheduledSlotCountById = new Map<number, number>(); // Track how many scheduled slots per medication
       
       medications.forEach((med: any) => {
+        const medId = Number(med?.medicationId) || 0;
+        if (medId) medNameById.set(medId, med.name);
+
         // VALIDATE PRN: Only mark as PRN if instructions contain PRN keywords
         const validatedIsPRN = isPRNFromInstructions(med);
-        const gridStats = getGridPrnStatsForMed(med.name);
+        const gridStats = getGridPrnStatsForMed(med.name, Number(med?.gridMedicationId) || 0);
         const nonBlankCount = gridStats?.nonBlankCount || 0;
         const prnCount = gridStats?.prnCount || 0;
         const prnRatio = nonBlankCount > 0 ? prnCount / nonBlankCount : 0;
@@ -6057,16 +6169,15 @@ CARE WORKER INITIALS (IMPORTANT):
         }
         
         if (med.isPRN) {
-          prnMeds.add(med.name);
-          prnMedIds.add(med.medicationId);
+          if (medId) prnMedIds.add(medId);
         }
-        if (med.genericName) medGenericNames.set(med.name, med.genericName.toLowerCase());
-        if (med.requiredGapHours) medGapHours.set(med.name, med.requiredGapHours);
-        if (med.timeSlots) medTimeSlots.set(med.name, med.timeSlots);
+
+        if (medId && med.requiredGapHours) medGapHoursById.set(medId, med.requiredGapHours);
+
         // Track scheduled time slot count for time gap validation
         // Prefer per-medication slots, only default to 1 if not specified (assume once-daily)
         const slotCount = med.scheduledTimeSlots?.length || med.timeSlots?.length || 1;
-        medScheduledSlotCount.set(med.name, slotCount);
+        if (medId) medScheduledSlotCountById.set(medId, slotCount);
       });
 
       // =====================================================================
@@ -6647,11 +6758,11 @@ If no equivalences found, return: {"equivalences": []}`
         const timeSlot = entry.timeSlot || "";
         const medication = entry.medication || "";
         const entryMedId = Number(entry.medicationId) || 0;
-        const isPrnById =
-          canonicalPrnMedicationIds.has(entryMedId) ||
-          canonicalInferredPrnMedicationIds.has(entryMedId);
         const isPrnByCode = code.startsWith("PRN");
-        const isPRN = prnMeds.has(medication) || isPrnById || isPrnByCode;
+        const isPRN =
+          (entryMedId > 0 &&
+            (prnMedIds.has(entryMedId) || canonicalInferredPrnMedicationIds.has(entryMedId))) ||
+          isPrnByCode;
 
         // CHECK 5a: R (Refused) or PRN-R (PRN Refused) - verification only
         if (code === "R" || code === "PRN-R") {
@@ -6660,6 +6771,7 @@ If no equivalences found, return: {"equivalences": []}`
             careWorkerName: careWorker,
             date: date,
             medication: medication,
+            medicationId: entryMedId || undefined,
             code: code,
             note: isPrnRefusal 
               ? "Check if PRN refusal reason is documented and acceptable"
@@ -6674,6 +6786,7 @@ If no equivalences found, return: {"equivalences": []}`
             careWorkerName: careWorker || "Unknown",
             date: date,
             medication: medication,
+            medicationId: entryMedId || undefined,
             code: "MISSED",
             note: "Check why the medication was missed and ensure it is documented"
           });
@@ -6685,6 +6798,7 @@ If no equivalences found, return: {"equivalences": []}`
             careWorkerName: careWorker,
             date: date,
             medication: medication,
+            medicationId: entryMedId || undefined,
             code: "MU",
             note: "Check if medication unavailability is documented and escalated"
           });
@@ -6695,6 +6809,7 @@ If no equivalences found, return: {"equivalences": []}`
             careWorkerName: careWorker,
             date: date,
             medication: medication,
+            medicationId: entryMedId || undefined,
             code: "NH",
             note: "Check if not home status is documented"
           });
@@ -6705,6 +6820,7 @@ If no equivalences found, return: {"equivalences": []}`
             careWorkerName: careWorker,
             date: date,
             medication: medication,
+            medicationId: entryMedId || undefined,
             code: "SA",
             note: "Check if self-administration was appropriate and witnessed"
           });
@@ -6715,6 +6831,7 @@ If no equivalences found, return: {"equivalences": []}`
             careWorkerName: careWorker,
             date: date,
             medication: medication,
+            medicationId: entryMedId || undefined,
             code: "FA",
             note: "Check if family administration is documented and appropriate"
           });
@@ -6734,6 +6851,7 @@ If no equivalences found, return: {"equivalences": []}`
 	              date: date,
 	              timeSlot: timeSlot,
 	              medication: medication,
+	              medicationId: entryMedId || undefined,
 	              code: code,
 	              issue: `PRN code "${code}" used on regular medication - not prescribed as PRN`,
 	              severity: "high",
@@ -6751,6 +6869,7 @@ If no equivalences found, return: {"equivalences": []}`
             date: date,
             timeSlot: timeSlot,
             medication: medication,
+            medicationId: entryMedId || undefined,
             code: code,
             issue: `Invalid code "${code}" used on PRN medication - should use PRN codes (PRN, PRN-AD, PRN-AS, PRN-R)`,
             severity: "high",
@@ -6782,6 +6901,7 @@ If no equivalences found, return: {"equivalences": []}`
               date: date,
               timeSlot: timeSlot,
               medication: medication,
+              medicationId: entryMedId || undefined,
               code: code,
               issue: `Invalid code "${code}" used on administered medication - valid codes are: AD, SA, NH, R, FA, MU`,
               severity: "high",
@@ -6918,8 +7038,13 @@ If no equivalences found, return: {"equivalences": []}`
           canonicalDateKey = `${dayNum}-${month}`;
         }
         
-        const isPRN = prnMeds.has(entry.medication) || code.includes("PRN");
-        const key = `${entry.medication}|${canonicalDateKey}`;
+        const medId = Number(entry.medicationId) || 0;
+        const isPRN =
+          (medId > 0 &&
+            (prnMedIds.has(medId) || canonicalInferredPrnMedicationIds.has(medId))) ||
+          code.includes("PRN");
+        const medKey = medId > 0 ? `id:${medId}` : `name:${entry.medication || ""}`;
+        const key = `${medKey}|${canonicalDateKey}`;
         
         console.log(`DEBUG: Valid administration for gap check: ${entry.medication} on "${entryDate}" (key: ${canonicalDateKey}) at ${timeValue} by ${careWorkerInitials}`);
         
@@ -6975,19 +7100,26 @@ If no equivalences found, return: {"equivalences": []}`
         // Need at least 2 entries to compare
         if (dayEntries.length < 2) return;
         
-        const [medication, dateKey] = key.split("|");
+        const [medKeyPart, dateKey] = key.split("|");
+        const medId = medKeyPart?.startsWith("id:") ? Number(medKeyPart.slice(3)) || 0 : 0;
+        const medication =
+          medId > 0
+            ? medNameById.get(medId) || dayEntries[0]?.medication || ""
+            : medKeyPart?.startsWith("name:")
+              ? medKeyPart.slice(5)
+              : dayEntries[0]?.medication || "";
         
         // SKIP: Once-daily medications should not trigger time gap checks
         // If a medication has only 1 scheduled time slot, it's once-daily and 
         // any multiple entries are likely duplicate extractions from different time slot rows
-        const scheduledSlots = medScheduledSlotCount.get(medication) || 1;
+        const scheduledSlots = medId > 0 ? medScheduledSlotCountById.get(medId) || 1 : 1;
         if (scheduledSlots <= 1) {
           console.log(`DEBUG: Skipping time gap check for once-daily medication "${medication}" (${scheduledSlots} scheduled slot)`);
           return;
         }
         
         // Use configured gap if available, otherwise 4 hours for PRN, 4 hours for regular meds
-        const requiredGap = medGapHours.get(medication) || 4; // Default 4 hours minimum between doses
+        const requiredGap = medId > 0 ? medGapHoursById.get(medId) || 4 : 4; // Default 4 hours minimum between doses
         
         // Verify all entries have the same original date (prevent cross-day false positives)
         const uniqueDates = new Set(dayEntries.map((e: any) => e.originalDate));
@@ -7065,6 +7197,7 @@ If no equivalences found, return: {"equivalences": []}`
               date: curr.date,
               timeSlot: curr.timeSlot,
               medication: medication,
+              medicationId: medId || undefined,
               issue: `${issueType} time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap} hours minimum). Previous dose at ${prev.extractedTime}, this dose at ${curr.extractedTime}`,
               severity: "high",
               actions: { performanceNote: true, meeting: "in_person", referToManager: true }
@@ -7078,19 +7211,28 @@ If no equivalences found, return: {"equivalences": []}`
       // =====================================================================
       // CHECK 7: MU FREQUENCY WARNING
       // =====================================================================
-      const muCounts = new Map<string, number>();
+      const muCounts = new Map<string, { count: number; medication: string; medicationId?: number }>();
       allEntries.forEach((entry: any) => {
         if ((entry.code || "").toUpperCase() === "MU") {
-          muCounts.set(entry.medication, (muCounts.get(entry.medication) || 0) + 1);
+          const medId = Number(entry.medicationId) || 0;
+          const key = medId > 0 ? `id:${medId}` : `name:${entry.medication || ""}`;
+          const existing = muCounts.get(key) || {
+            count: 0,
+            medication: medId > 0 ? medNameById.get(medId) || entry.medication || "" : entry.medication || "",
+            medicationId: medId || undefined,
+          };
+          existing.count += 1;
+          muCounts.set(key, existing);
         }
       });
 
-      muCounts.forEach((count, med) => {
+      muCounts.forEach(({ count, medication, medicationId }) => {
         if (count >= 3) {
           warnings.push({
             type: "medication_unavailable_pattern",
             severity: "medium",
-            medication: med,
+            medication,
+            medicationId,
             description: `Medication Unavailable (MU) recorded ${count} times`,
             recommendedAction: "Check if medication has been discontinued or if there are stock issues"
           });
@@ -7309,7 +7451,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       };
 
       const verificationKey = (item: VerificationItem) =>
-        `${item.careWorkerName}|${item.date}|${item.medication}|${item.code}`;
+        `${item.careWorkerName}|${item.date}|${item.medicationId || item.medication}|${item.code}`;
       const existingVerificationKeys = new Set(verificationItems.map(verificationKey));
 
       if (validatedDiscrepancies.length > 0) {
@@ -7325,6 +7467,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
               careWorkerName: discrepancy.careWorkerName || "Unknown",
               date: discrepancy.date || "",
               medication: discrepancy.medication || "",
+              medicationId: discrepancy.medicationId || undefined,
               code: inferredCode || normalizedCode || "R",
               note: discrepancy.issue || "Check if this entry is documented appropriately",
             };
@@ -7364,6 +7507,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         refusalEntries.push({
           careWorkerName: entry.careWorker || "Unknown",
           medication: entry.medication,
+          medicationId: Number(entry.medicationId) || undefined,
           code: normalizedCode,
           date: entry.date,
           timeSlot: entry.timeSlot || ""
@@ -7381,17 +7525,19 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       const mainRefusalGroups = new Map<string, {
         careWorkerName: string;
         medication: string;
+        medicationId?: number;
         code: string;
         dates: { date: string; timeSlot: string; code: string }[];
         count: number;
       }>();
 
       mainRefusalDiscrepancies.forEach((d: any) => {
-        const key = `${d.careWorkerName}|${d.medication}`;
+        const key = `${d.careWorkerName}|${d.medicationId || d.medication}`;
         if (!mainRefusalGroups.has(key)) {
           mainRefusalGroups.set(key, {
             careWorkerName: d.careWorkerName,
             medication: d.medication,
+            medicationId: d.medicationId || undefined,
             code: d.code || "",
             dates: [],
             count: 0
@@ -7406,17 +7552,19 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       const prnRefusalGroups = new Map<string, {
         careWorkerName: string;
         medication: string;
+        medicationId?: number;
         code: string;
         dates: { date: string; timeSlot: string; code: string }[];
         count: number;
       }>();
 
       prnRefusalDiscrepancies.forEach((d: any) => {
-        const key = `${d.careWorkerName}|${d.medication}`;
+        const key = `${d.careWorkerName}|${d.medicationId || d.medication}`;
         if (!prnRefusalGroups.has(key)) {
           prnRefusalGroups.set(key, {
             careWorkerName: d.careWorkerName,
             medication: d.medication,
+            medicationId: d.medicationId || undefined,
             code: d.code || "",
             dates: [],
             count: 0
@@ -7456,6 +7604,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       // Extract office-closed entries (codes without initials, manually closed by office staff)
       const officeClosedEntries = allEntries.filter((e: any) => e.isOfficeClosed).map((e: any) => ({
         medication: e.medication,
+        medicationId: Number(e.medicationId) || undefined,
         date: e.date,
         timeSlot: e.timeSlot,
         code: e.code,
@@ -7472,6 +7621,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         .map((e: any) => ({
           careWorkerName: e.careWorker || 'Unknown',
           medication: e.medication,
+          medicationId: Number(e.medicationId) || undefined,
           date: e.date,
           timeSlot: e.timeSlot,
           code: e.code.toUpperCase()
@@ -7517,7 +7667,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         totalOtherDiscrepancyCount: totalOtherDiscrepancyCount,
         userVerificationItems: verificationItems,
         prnMedications: {
-          hasPRN: prnMeds.size > 0,
+          hasPRN: prnMedIds.size > 0,
           medications: medications.filter((m: any) => m.isPRN).map((m: any) => ({
             name: m.name,
             protocol: "PRN protocol should be in place"

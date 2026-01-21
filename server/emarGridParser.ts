@@ -208,6 +208,8 @@ interface TextItem {
 
 export interface GridCell {
   medication: string;
+  medicationRow?: number;
+  medicationId?: number;
   date: string;
   timeSlot: string;
   content: string;
@@ -704,6 +706,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   interface MedicationBlock {
     name: string;
     instructions: string;
+    row?: number;
     yStart: number;
     yEnd: number;
     timeSlots: Array<{ slot: string; y: number; yStart: number; yEnd: number }>;
@@ -1317,8 +1320,13 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   }
 
   // Flatten medication blocks
+  let medicationRowCounter = 0;
   for (const [page, meds] of Array.from(medicationBlocksByPage.entries()).sort((a, b) => a[0] - b[0])) {
-    for (const m of meds) medicationBlocks.push({ ...m, name: m.name });
+    for (const med of meds) {
+      med.row = medicationRowCounter;
+      medicationBlocks.push({ ...med });
+      medicationRowCounter += 1;
+    }
   }
 
   // If no date columns were detected, attempt the transposed layout extraction.
@@ -1558,6 +1566,8 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
 
 	              transposedPageCells.push({
 	                medication: medicationNameForCells,
+	                medicationRow: medicationIndex,
+	                medicationId: medicationIndex + 1,
 	                date: dr.date,
 	                timeSlot: col.slot,
 	                content,
@@ -1604,6 +1614,8 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
         
           cells.push({
             medication: med.name,
+            medicationRow: typeof med.row === "number" ? med.row : undefined,
+            medicationId: typeof med.row === "number" ? med.row + 1 : undefined,
             date: dateCol.date,
             timeSlot: ts.slot,
             content,
@@ -1628,6 +1640,8 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       for (const slot of allTimeSlots.length > 0 ? allTimeSlots : ["Morning", "Noon", "Evening", "Night"]) {
         cells.push({
           medication: med.name,
+          medicationRow: typeof med.row === "number" ? med.row : undefined,
+          medicationId: typeof med.row === "number" ? med.row + 1 : undefined,
           date: "Unknown",
           timeSlot: slot,
           content: "",
@@ -1700,7 +1714,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     medications: (medicationBlocks.length > 0
       ? medicationBlocks.map((m, i) => ({
           name: m.name,
-          row: i,
+          row: typeof m.row === "number" ? m.row : i,
           instructions: m.instructions || "",
           timeSlots: m.timeSlots.map(ts => ts.slot)
         }))
