@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import jsPDF from "jspdf";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -45,7 +46,6 @@ type BillingRow = {
   serviceType: string | null;
   dayCounts: DayCounts;
   weeklyHours: number | null;
-  totalHoursInRange?: number | null;
   warnings?: string[];
 };
 
@@ -55,7 +55,6 @@ type BillingSegment = {
   endDate: string;
   days: number;
   weeklyHoursTotal: number;
-  totalHours: number;
   rows: BillingRow[];
 };
 
@@ -217,6 +216,121 @@ export default function BillingTool() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleExportPdf = () => {
+    if (!analysis) return;
+
+    const doc = new jsPDF();
+    const marginLeft = 14;
+    let cursorY = 18;
+
+    const line = (text: string, opts?: { bold?: boolean }) => {
+      if (cursorY > 280) {
+        doc.addPage();
+        cursorY = 18;
+      }
+      doc.setFont("helvetica", opts?.bold ? "bold" : "normal");
+      const wrapped = doc.splitTextToSize(text, 180);
+      doc.text(wrapped, marginLeft, cursorY);
+      cursorY += (Array.isArray(wrapped) ? wrapped.length : 1) * 6;
+    };
+
+    const dayNameMap: Record<(typeof dayKeys)[number], string> = {
+      mon: "Monday",
+      tue: "Tuesday",
+      wed: "Wednesday",
+      thu: "Thursday",
+      fri: "Friday",
+      sat: "Saturday",
+      sun: "Sunday",
+    };
+
+    const allRows = analysis.segments.flatMap((segment) => segment.rows);
+    const earliestStart = analysis.segments[0]?.startDate ?? "";
+    const latestEnd = analysis.segments[analysis.segments.length - 1]?.endDate ?? "";
+    const dateRangeLabel = isCurrent ? `${earliestStart} → current` : `${earliestStart} → ${latestEnd}`;
+
+    doc.setFontSize(16);
+    line("Billing analysis export", { bold: true });
+
+    doc.setFontSize(11);
+    line(dateRangeLabel, { bold: true });
+    line(`Images: ${analysis.summary.imageCount} • Rows: ${analysis.summary.rowCount}`);
+    if (analysis.summary.warnings?.length) {
+      line(`Warnings: ${analysis.summary.warnings.join(" | ")}`);
+    }
+    line("");
+
+    type Group = {
+      dayTotals: Record<(typeof dayKeys)[number], number>;
+      weeklyHours: number;
+      durations: Record<string, number>;
+    };
+
+    const groups = new Map<string, Group>();
+
+    allRows.forEach((row) => {
+      const key = row.serviceType || "Service order";
+      if (!groups.has(key)) {
+        groups.set(key, {
+          dayTotals: {
+            mon: 0,
+            tue: 0,
+            wed: 0,
+            thu: 0,
+            fri: 0,
+            sat: 0,
+            sun: 0,
+          },
+          weeklyHours: 0,
+          durations: {},
+        });
+      }
+      const group = groups.get(key)!;
+
+      dayKeys.forEach((day) => {
+        group.dayTotals[day] += row.dayCounts[day] || 0;
+      });
+
+      group.weeklyHours += row.weeklyHours || 0;
+
+      const durationLabel = formatDuration(row.durationMinutes, row.durationText) || "";
+      if (durationLabel) {
+        group.durations[durationLabel] = (group.durations[durationLabel] || 0) + 1;
+      }
+    });
+
+    const resolveDurationLabel = (durations: Group["durations"]): string => {
+      const entries = Object.entries(durations);
+      if (!entries.length) return "";
+      const [label] = entries.reduce((best, current) => (current[1] > best[1] ? current : best));
+      return entries.length === 1 ? label : `${label} (mixed)`;
+    };
+
+    Array.from(groups.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .forEach(([service, group]) => {
+        line(`${service}:`, { bold: true });
+
+        const durationLabel = resolveDurationLabel(group.durations);
+        const dayParts = dayKeys
+          .filter((day) => group.dayTotals[day] > 0)
+          .map((day) => {
+            const count = group.dayTotals[day];
+            const base = `${dayNameMap[day]}${count > 1 ? ` x${count}` : ""}`;
+            return durationLabel ? `${base} (${durationLabel})` : base;
+          });
+
+        const dayLine = dayParts.length ? dayParts.join(", ") : "No day quantities";
+        const hoursLine = `Total weekly hours: ${formatHours(group.weeklyHours)}`;
+
+        line(dayLine);
+        line(hoursLine);
+        line("");
+      });
+
+    doc.save("billing-analysis.pdf");
   };
 
   return (
@@ -454,6 +568,12 @@ export default function BillingTool() {
             </CardContent>
           </Card>
 
+          <div className="flex justify-end">
+            <Button variant="secondary" onClick={handleExportPdf} disabled={!analysis}>
+              Export PDF
+            </Button>
+          </div>
+
           <div className="space-y-4">
             {analysis.segments.map((segment) => (
               <Collapsible key={segment.id} defaultOpen className="rounded-2xl border border-border/60 bg-card/60">
@@ -467,9 +587,6 @@ export default function BillingTool() {
                   <div className="flex items-center gap-3">
                     <Badge variant="outline" className="text-xs">
                       Weekly total {formatHours(segment.weeklyHoursTotal)}
-                    </Badge>
-                    <Badge variant="secondary" className="text-xs">
-                      Range total {formatHours(segment.totalHours)}
                     </Badge>
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
                   </div>
@@ -489,7 +606,6 @@ export default function BillingTool() {
                           </TableHead>
                         ))}
                         <TableHead>Weekly hours</TableHead>
-                        <TableHead>Range hours</TableHead>
                         <TableHead>Service & visit</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -514,7 +630,6 @@ export default function BillingTool() {
                             </TableCell>
                           ))}
                           <TableCell>{formatHours(row.weeklyHours)}</TableCell>
-                          <TableCell>{formatHours(row.totalHoursInRange ?? null)}</TableCell>
                           <TableCell>
                             <div className="space-y-1">
                               <p className="text-sm font-medium text-foreground">
@@ -541,7 +656,6 @@ export default function BillingTool() {
                         <TableCell></TableCell>
                         <TableCell colSpan={dayKeys.length}></TableCell>
                         <TableCell>{formatHours(segment.weeklyHoursTotal)}</TableCell>
-                        <TableCell>{formatHours(segment.totalHours)}</TableCell>
                         <TableCell></TableCell>
                       </TableRow>
                     </TableFooter>

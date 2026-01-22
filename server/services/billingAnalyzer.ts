@@ -70,7 +70,6 @@ export type BillingSegmentRow = {
   serviceType: string | null;
   dayCounts: BillingDayCounts;
   weeklyHours: number | null;
-  totalHoursInRange: number;
   warnings?: string[];
 };
 
@@ -80,7 +79,6 @@ export type BillingSegment = {
   endDate: string;
   days: number;
   weeklyHoursTotal: number;
-  totalHours: number;
   rows: BillingSegmentRow[];
 };
 
@@ -246,37 +244,6 @@ const getBillingDayIndex = (date: Date): number => (date.getDay() + 6) % 7;
 
 const getBillingDayKey = (date: Date): BillingDayKey => BILLING_DAY_KEYS[getBillingDayIndex(date)];
 
-const getWeekIndex = (start: Date, date: Date): number => {
-  const startWeek = startOfWeekMonday(start);
-  const dateWeek = startOfWeekMonday(date);
-  const diffDays = differenceInDays(startWeek, dateWeek);
-  return Math.floor(diffDays / 7);
-};
-
-const computeRowMinutesInRange = (
-  row: NormalizedBillingRow,
-  rangeStart: Date,
-  rangeEnd: Date
-): number => {
-  if (!row.durationMinutes) return 0;
-  const effectiveStart = rangeStart.getTime() > row.startDate.getTime() ? rangeStart : row.startDate;
-  const effectiveEnd = rangeEnd.getTime() < row.effectiveEndDate!.getTime() ? rangeEnd : row.effectiveEndDate!;
-  if (effectiveEnd.getTime() < effectiveStart.getTime()) return 0;
-
-  let totalMinutes = 0;
-  for (let current = effectiveStart; current.getTime() <= effectiveEnd.getTime(); current = addDays(current, 1)) {
-    const weekIndex = getWeekIndex(row.startDate, current);
-    if (row.occursEveryWeeks > 1 && weekIndex % row.occursEveryWeeks !== 0) {
-      continue;
-    }
-    const dayKey = getBillingDayKey(current);
-    const qty = row.dayCounts[dayKey] || 0;
-    if (qty > 0) {
-      totalMinutes += qty * row.durationMinutes;
-    }
-  }
-  return totalMinutes;
-};
 
 export function analyzeBillingRows(
   rawRows: BillingRowInput[],
@@ -485,26 +452,20 @@ export function analyzeBillingRows(
       });
     if (activeRows.length === 0) continue;
 
-    let totalMinutes = 0;
-    const rowsForSegment: BillingSegmentRow[] = activeRows.map((row) => {
-      const rowMinutes = computeRowMinutesInRange(row, segmentStart, segmentEnd);
-      totalMinutes += rowMinutes;
-      return {
-        id: row.id,
-        startDate: row.startDateText,
-        endDate: row.endDateText,
-        startTime: row.startTime,
-        endTime: row.endTime,
-        durationMinutes: row.durationMinutes,
-        durationText: row.durationText,
-        occursEveryWeeks: row.occursEveryWeeks,
-        serviceType: row.serviceType,
-        dayCounts: row.dayCounts,
-        weeklyHours: row.weeklyMinutes != null ? row.weeklyMinutes / 60 : null,
-        totalHoursInRange: rowMinutes ? rowMinutes / 60 : 0,
-        warnings: row.warnings,
-      };
-    });
+    const rowsForSegment: BillingSegmentRow[] = activeRows.map((row) => ({
+      id: row.id,
+      startDate: row.startDateText,
+      endDate: row.endDateText,
+      startTime: row.startTime,
+      endTime: row.endTime,
+      durationMinutes: row.durationMinutes,
+      durationText: row.durationText,
+      occursEveryWeeks: row.occursEveryWeeks,
+      serviceType: row.serviceType,
+      dayCounts: row.dayCounts,
+      weeklyHours: row.weeklyMinutes != null ? row.weeklyMinutes / 60 : null,
+      warnings: row.warnings,
+    }));
 
     const weeklyHoursTotal = rowsForSegment.reduce((sum, row) => sum + (row.weeklyHours || 0), 0);
     const daysInRange = differenceInDays(segmentStart, segmentEnd) + 1;
@@ -515,7 +476,6 @@ export function analyzeBillingRows(
       endDate: formatDate(segmentEnd),
       days: daysInRange,
       weeklyHoursTotal,
-      totalHours: totalMinutes / 60,
       rows: rowsForSegment,
     });
   }
