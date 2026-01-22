@@ -40,6 +40,18 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: true,
     hmr: false,
+    // When running the client dev server directly (`npm run dev:client`),
+    // proxy API + WS calls to the Express server on port 5000.
+    proxy: {
+      "/api": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+      },
+      "/ws": {
+        target: "ws://localhost:5000",
+        ws: true,
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

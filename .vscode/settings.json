@@ -6,5 +6,6 @@
         "GitHub.vscode-pull-request-github",
         "Github.copilot"
     ],
-    "chat.agent.maxRequests": 250
+    "chat.agent.maxRequests": 250,
+    "git.ignoreLimitWarning": true
 }

@@ -20,7 +20,8 @@ import {
   Lock,
   Calculator,
   FlaskConical,
-  ArrowUpRight
+  ArrowUpRight,
+  FileSpreadsheet
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -48,7 +49,8 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
     location.startsWith("/admin") ||
     location === "/shadow-admin-portal" ||
     location === "/testing-features" ||
-    location === "/care-worker-rotas";
+    location === "/care-worker-rotas" ||
+    location === "/billing-tool";
   const [openAdmin, setOpenAdmin] = useState(isAdminUser && isAdminRoute);
 
   useEffect(() => {
@@ -56,7 +58,7 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
      if (location.startsWith("/care-workers")) setOpenCareWorkers(true);
       if (
         isAdminUser &&
-        (location.startsWith("/admin") || location === "/shadow-admin-portal" || location === "/testing-features" || location === "/care-worker-rotas")
+        (location.startsWith("/admin") || location === "/shadow-admin-portal" || location === "/testing-features" || location === "/care-worker-rotas" || location === "/billing-tool")
       ) {
         setOpenAdmin(true);
       }
@@ -212,6 +214,9 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
               </Link>
               <Link href="/care-worker-rotas" className={subNavLinkClass(location === "/care-worker-rotas")} style={subNavLinkStyle(location === "/care-worker-rotas")}>
                 <ClipboardList size={15} /> Care Worker Rotas
+              </Link>
+              <Link href="/billing-tool" className={subNavLinkClass(location === "/billing-tool")} style={subNavLinkStyle(location === "/billing-tool")} data-testid="link-billing-tool">
+                <FileSpreadsheet size={15} /> Billing Tool
               </Link>
             </CollapsibleContent>
           </Collapsible>

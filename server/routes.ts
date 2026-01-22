@@ -18,6 +18,7 @@ import mammoth from "mammoth";
 import { scanFile, computeFileHash, getCachedScan } from "./services/fileScan";
 import * as XLSX from "xlsx";
 import { convertPdfToImages } from "./services/pdfToImages";
+import { analyzeBillingRows } from "./services/billingAnalyzer";
 // Use legacy build for Node.js (no DOM APIs required)
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
@@ -54,6 +55,21 @@ const uploadExcel = multer({
       cb(new Error("Only Excel files (.xlsx, .xls) or CSV files are allowed"));
     }
   }
+});
+
+const uploadImages = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const mime = file.mimetype || "";
+    const name = file.originalname.toLowerCase();
+    const isPng = mime === "image/png" || name.endsWith(".png");
+    if (isPng) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PNG images are allowed"));
+    }
+  },
 });
 
 const MAX_NON_ADMIN_SESSIONS = 2;
@@ -267,6 +283,244 @@ async function scanAndLogFile(
       error: `File scan failed: ${error.message}. Please try again later.`,
     };
   }
+}
+
+// Billing tool helpers
+const BILLING_DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+type BillingDayKey = typeof BILLING_DAY_KEYS[number];
+type BillingDayCounts = Record<BillingDayKey, number>;
+
+const normalizeDate = (date: Date): Date =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+const addDays = (date: Date, amount: number): Date => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return normalizeDate(next);
+};
+
+const differenceInDays = (start: Date, end: Date): number => {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.round((normalizeDate(end).getTime() - normalizeDate(start).getTime()) / msPerDay);
+};
+
+const startOfWeekMonday = (date: Date): Date => {
+  const day = date.getDay();
+  const diff = (day + 6) % 7;
+  return addDays(normalizeDate(date), -diff);
+};
+
+const parseDateInput = (value?: string | null): Date | null => {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+
+  const isoMatch = trimmed.match(/^(\d{4})[\\/-](\d{1,2})[\\/-](\d{1,2})$/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]);
+    const day = Number(isoMatch[3]);
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
+      return normalizeDate(date);
+    }
+    return null;
+  }
+
+  const match = trimmed.match(/(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{2,4})/);
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  let year = Number(match[3]);
+  if (year < 100) year += 2000;
+
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
+    return normalizeDate(date);
+  }
+  return null;
+};
+
+const formatDate = (date: Date): string => {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = String(date.getFullYear());
+  return `${day}/${month}/${year}`;
+};
+
+const parseInteger = (value: any): number => {
+  if (value === null || value === undefined) return 0;
+  const match = String(value).match(/-?\\d+/);
+  if (!match) return 0;
+  const parsed = Number.parseInt(match[0], 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const normalizeTime = (value?: string | null): string | null => {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  const match = trimmed.match(/(\\d{1,2})[:.](\\d{2})/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const mins = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(mins)) return null;
+  if (hours < 0 || hours > 23 || mins < 0 || mins > 59) return null;
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+};
+
+const parseTimeToMinutes = (value?: string | null): number | null => {
+  const normalized = normalizeTime(value);
+  if (!normalized) return null;
+  const [hours, mins] = normalized.split(":").map((v) => Number.parseInt(v, 10));
+  if (!Number.isFinite(hours) || !Number.isFinite(mins)) return null;
+  return hours * 60 + mins;
+};
+
+const parseDurationMinutes = (value?: string | null): number | null => {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+
+  const timeMatch = trimmed.match(/(\\d{1,2})[:.](\\d{2})/);
+  if (timeMatch) {
+    const hours = Number(timeMatch[1]);
+    const mins = Number(timeMatch[2]);
+    if (Number.isFinite(hours) && Number.isFinite(mins)) {
+      return hours * 60 + mins;
+    }
+  }
+
+  const hourMatch = trimmed.match(/(\\d+(?:\\.\\d+)?)\\s*h/i);
+  if (hourMatch) {
+    const hours = Number(hourMatch[1]);
+    if (Number.isFinite(hours)) return Math.round(hours * 60);
+  }
+
+  const minMatch = trimmed.match(/(\\d+(?:\\.\\d+)?)\\s*m/i);
+  if (minMatch) {
+    const mins = Number(minMatch[1]);
+    if (Number.isFinite(mins)) return Math.round(mins);
+  }
+
+  return null;
+};
+
+const formatDurationFromMinutes = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+};
+
+const getBillingDayIndex = (date: Date): number => (date.getDay() + 6) % 7;
+
+const getBillingDayKey = (date: Date): BillingDayKey => BILLING_DAY_KEYS[getBillingDayIndex(date)];
+
+const getWeekIndex = (start: Date, date: Date): number => {
+  const startWeek = startOfWeekMonday(start);
+  const dateWeek = startOfWeekMonday(date);
+  const diffDays = differenceInDays(startWeek, dateWeek);
+  return Math.floor(diffDays / 7);
+};
+
+const parseJsonFromModel = (content: string): any => {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced ? fenced[1].trim() : trimmed;
+  const startCandidates = [candidate.indexOf("{"), candidate.indexOf("[")].filter((idx) => idx >= 0);
+  const endIndex = Math.max(candidate.lastIndexOf("}"), candidate.lastIndexOf("]"));
+  if (startCandidates.length === 0 || endIndex < 0) {
+    throw new Error("Model response did not contain JSON");
+  }
+  const startIndex = Math.min(...startCandidates);
+  const jsonText = candidate.slice(startIndex, endIndex + 1);
+  return JSON.parse(jsonText);
+};
+
+const BILLING_EXTRACTION_PROMPT = `You are extracting rows from a "Service Requirement Details" table in a care service order screenshot.
+
+Return JSON ONLY with this shape:
+{
+  "rows": [
+    {
+      "startDate": "DD/MM/YYYY",
+      "endDate": "DD/MM/YYYY" | null,
+      "startTime": "HH:MM" | null,
+      "endTime": "HH:MM" | null,
+      "duration": "00:30m" | "01:00h" | null,
+      "mon": number,
+      "tue": number,
+      "wed": number,
+      "thu": number,
+      "fri": number,
+      "sat": number,
+      "sun": number,
+      "occursEveryWeeks": number,
+      "serviceType": string | null
+    }
+  ]
+}
+
+Rules:
+- Use integers for day quantities; blank cells should be 0.
+- If an end date is blank in the table, set "endDate" to null.
+- If a cell is unreadable, use null for dates/times/duration and 0 for day quantities.
+- Do not invent rows that are not visible in the image.
+- Keep the date format exactly as shown in the table (DD/MM/YYYY).
+`;
+
+async function extractRowsFromBillingImage(
+  file: Express.Multer.File,
+  imageIndex: number,
+  userContext: AiUserContext
+): Promise<any[]> {
+  const base64 = file.buffer.toString("base64");
+  const mimeType = file.mimetype || "image/jpeg";
+  const dataUrl = `data:${mimeType};base64,${base64}`;
+  const preferredModel = getPreferredModel();
+  const fallbackModel = "gpt-4o";
+
+  const runExtraction = async (model: string) =>
+    createChatCompletionWithLogging(
+      {
+        model,
+        temperature: 0,
+        max_tokens: 1600,
+        messages: [
+          { role: "system", content: "You extract structured data from images." },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: BILLING_EXTRACTION_PROMPT },
+              { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+            ],
+          },
+        ],
+      },
+      "billing-tool-extract",
+      userContext
+    );
+
+  let completion;
+  try {
+    completion = await runExtraction(preferredModel);
+  } catch (error: any) {
+    if (preferredModel !== fallbackModel) {
+      console.warn(
+        `[Billing Tool] Preferred model failed for image ${imageIndex + 1}. Falling back to ${fallbackModel}.`,
+        error?.message || error
+      );
+      completion = await runExtraction(fallbackModel);
+    } else {
+      throw error;
+    }
+  }
+
+  const content = completion.choices?.[0]?.message?.content || "";
+  if (!content.trim()) return [];
+  const parsed = parseJsonFromModel(content);
+  if (Array.isArray(parsed)) return parsed;
+  if (parsed && Array.isArray(parsed.rows)) return parsed.rows;
+  throw new Error("Model response did not return any rows");
 }
 
 const connectedClients: Map<string, WebSocket> = new Map();
@@ -10609,6 +10863,76 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     
     return "";
   }
+
+  app.post("/api/billing-tool/analyze", requireAuth, requireAdmin, uploadImages.array("images"), async (req: any, res) => {
+    try {
+      const files = Array.isArray(req.files) ? (req.files as Express.Multer.File[]) : [];
+      if (files.length === 0) {
+        return res.status(400).json({ message: "No photos uploaded" });
+      }
+
+      const isCurrent = String(req.body?.isCurrent || "").toLowerCase() === "true";
+      const endDateInput = typeof req.body?.endDate === "string" ? req.body.endDate : null;
+      const asOfDateInput = typeof req.body?.asOfDate === "string" ? req.body.asOfDate : null;
+
+      const analysisEndDate = isCurrent
+        ? parseDateInput(asOfDateInput) || normalizeDate(new Date())
+        : parseDateInput(endDateInput);
+
+      if (!analysisEndDate) {
+        return res.status(400).json({ message: "An end date is required for non-current service orders." });
+      }
+
+      const user = req.user ?? await storage.getUser(req.session.userId!);
+      const aiUserContext: AiUserContext = {
+        userId: user?.id != null ? String(user.id) : null,
+        username: user?.username != null ? String(user.username) : null,
+      };
+
+      for (const file of files) {
+        const scanCheck = await scanAndLogFile(file, "billing-tool-image", user?.username);
+        if (!scanCheck.allowed) {
+          return res.status(400).json({ message: scanCheck.error });
+        }
+      }
+
+      const rawRows: any[] = [];
+      const extractionWarnings: string[] = [];
+
+      for (let i = 0; i < files.length; i += 1) {
+        try {
+          const rows = await extractRowsFromBillingImage(files[i], i, aiUserContext);
+          if (Array.isArray(rows)) {
+            rawRows.push(...rows);
+          }
+        } catch (error: any) {
+          extractionWarnings.push(`Image ${i + 1}: ${error?.message || "Failed to extract rows"}`);
+        }
+      }
+
+      if (rawRows.length === 0) {
+        return res.status(400).json({
+          message: extractionWarnings[0] || "No service requirement rows could be extracted from the photos.",
+        });
+      }
+
+      const analysis = analyzeBillingRows(rawRows, {
+        analysisEndDate,
+        analysisAsOfDate: parseDateInput(asOfDateInput) || normalizeDate(new Date()),
+        imageCount: files.length,
+        extractionWarnings,
+      });
+
+      if (!analysis.summary.rowCount) {
+        return res.status(400).json({ message: "No valid rows were detected in the uploaded photos." });
+      }
+
+      return res.json(analysis);
+    } catch (error: any) {
+      console.error("Billing tool error:", error);
+      return res.status(500).json({ message: error.message || "Failed to analyze service order images" });
+    }
+  });
 
   app.post("/api/reconciliation/analyze", requireAuth, requireAdmin, uploadExcel.single("file"), async (req: any, res) => {
     try {
