@@ -758,6 +758,47 @@ html.theme-light body::after {
   background: transparent;
 }
 
+/* Responsive tuning: lighten effects and tighten spacing on small screens */
+@media (max-width: 1024px) {
+  :root {
+    --radius: 0.75rem;
+  }
+  h1 { @apply text-3xl; }
+  h2 { @apply text-2xl; }
+  h3 { @apply text-xl; }
+  .page-shell { gap: 1.25rem; }
+  .page-shell-compact { gap: 1rem; }
+}
+
+@media (max-width: 768px) {
+  body {
+    background-color: var(--color-background);
+    background-image: none;
+  }
+  body::before,
+  body::after {
+    display: none;
+  }
+  .glass-card,
+  .glass-card-interactive,
+  .app-surface,
+  .stat-card {
+    backdrop-filter: blur(8px);
+    box-shadow: var(--shadow-sm);
+    border-color: var(--color-border);
+  }
+  .pill,
+  .pill-primary,
+  .pill-secondary,
+  .pill-success,
+  .pill-muted {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.625rem;
+  }
+  .page-title { font-size: 1.5rem; }
+  .page-subtitle { font-size: 0.85rem; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;

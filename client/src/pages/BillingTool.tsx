@@ -225,7 +225,15 @@ export default function BillingTool() {
     const marginLeft = 14;
     let cursorY = 18;
 
+    const ensureSpace = (needed = 12) => {
+      if (cursorY + needed > 280) {
+        doc.addPage();
+        cursorY = 18;
+      }
+    };
+
     const line = (text: string, opts?: { bold?: boolean }) => {
+      ensureSpace();
       if (cursorY > 280) {
         doc.addPage();
         cursorY = 18;
@@ -234,6 +242,33 @@ export default function BillingTool() {
       const wrapped = doc.splitTextToSize(text, 180);
       doc.text(wrapped, marginLeft, cursorY);
       cursorY += (Array.isArray(wrapped) ? wrapped.length : 1) * 6;
+    };
+
+    const renderTable = (headers: string[], rows: string[][]) => {
+      const colWidths = [70, 48, 52, 26];
+      const colStarts = colWidths.reduce<number[]>((acc, width, idx) => {
+        if (idx === 0) return [marginLeft];
+        acc.push(marginLeft + colWidths.slice(0, idx).reduce((a, b) => a + b, 0));
+        return acc;
+      }, []);
+
+      const rowHeight = 7;
+
+      const drawRow = (cells: string[], bold = false) => {
+        ensureSpace(rowHeight + 1);
+        doc.setFont("helvetica", bold ? "bold" : "normal");
+        cells.forEach((cell, idx) => {
+          const x = colStarts[idx] + 1;
+          const maxWidth = colWidths[idx] - 2;
+          const text = doc.splitTextToSize(cell, maxWidth);
+          doc.text(text, x, cursorY);
+        });
+        cursorY += rowHeight;
+      };
+
+      drawRow(headers, true);
+      rows.forEach((r) => drawRow(r));
+      cursorY += 2;
     };
 
     const dayNameMap: Record<(typeof dayKeys)[number], string> = {
@@ -246,7 +281,6 @@ export default function BillingTool() {
       sun: "Sunday",
     };
 
-    const allRows = analysis.segments.flatMap((segment) => segment.rows);
     const earliestStart = analysis.segments[0]?.startDate ?? "";
     const latestEnd = analysis.segments[analysis.segments.length - 1]?.endDate ?? "";
     const dateRangeLabel = isCurrent ? `${earliestStart} → current` : `${earliestStart} → ${latestEnd}`;
@@ -263,72 +297,76 @@ export default function BillingTool() {
     line("");
 
     type Group = {
+      service: string;
+      startTime: string;
+      endTime: string;
+      durationLabel: string;
+      occursEveryWeeks: number;
       dayTotals: Record<(typeof dayKeys)[number], number>;
       weeklyHours: number;
-      durations: Record<string, number>;
     };
 
-    const groups = new Map<string, Group>();
+    analysis.segments.forEach((segment) => {
+      line(`${segment.startDate} → ${segment.endDate} (${segment.days} days)`, { bold: true });
+      line(`Weekly total: ${formatHours(segment.weeklyHoursTotal)}`);
 
-    allRows.forEach((row) => {
-      const key = row.serviceType || "Service order";
-      if (!groups.has(key)) {
-        groups.set(key, {
-          dayTotals: {
-            mon: 0,
-            tue: 0,
-            wed: 0,
-            thu: 0,
-            fri: 0,
-            sat: 0,
-            sun: 0,
-          },
-          weeklyHours: 0,
-          durations: {},
-        });
-      }
-      const group = groups.get(key)!;
+      const groups = new Map<string, Group>();
 
-      dayKeys.forEach((day) => {
-        group.dayTotals[day] += row.dayCounts[day] || 0;
-      });
-
-      group.weeklyHours += row.weeklyHours || 0;
-
-      const durationLabel = formatDuration(row.durationMinutes, row.durationText) || "";
-      if (durationLabel) {
-        group.durations[durationLabel] = (group.durations[durationLabel] || 0) + 1;
-      }
-    });
-
-    const resolveDurationLabel = (durations: Group["durations"]): string => {
-      const entries = Object.entries(durations);
-      if (!entries.length) return "";
-      const [label] = entries.reduce((best, current) => (current[1] > best[1] ? current : best));
-      return entries.length === 1 ? label : `${label} (mixed)`;
-    };
-
-    Array.from(groups.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .forEach(([service, group]) => {
-        line(`${service}:`, { bold: true });
-
-        const durationLabel = resolveDurationLabel(group.durations);
-        const dayParts = dayKeys
-          .filter((day) => group.dayTotals[day] > 0)
-          .map((day) => {
-            const count = group.dayTotals[day];
-            const base = `${dayNameMap[day]}${count > 1 ? ` x${count}` : ""}`;
-            return durationLabel ? `${base} (${durationLabel})` : base;
+      segment.rows.forEach((row) => {
+        const service = row.serviceType || "Service order";
+        const durationLabel = formatDuration(row.durationMinutes, row.durationText) || "";
+        const key = [service, row.startTime || "", row.endTime || "", durationLabel].join("|");
+        if (!groups.has(key)) {
+          groups.set(key, {
+            service,
+            startTime: row.startTime || "—",
+            endTime: row.endTime || "—",
+            durationLabel,
+            occursEveryWeeks: row.occursEveryWeeks,
+            dayTotals: {
+              mon: 0,
+              tue: 0,
+              wed: 0,
+              thu: 0,
+              fri: 0,
+              sat: 0,
+              sun: 0,
+            },
+            weeklyHours: 0,
           });
-
-        const dayLine = dayParts.length ? dayParts.join(", ") : "No day quantities";
-        const hoursLine = `Total weekly hours: ${formatHours(group.weeklyHours)}`;
-
-        line(dayLine);
-        line(hoursLine);
-        line("");
+        }
+        const group = groups.get(key)!;
+        dayKeys.forEach((day) => {
+          group.dayTotals[day] += row.dayCounts[day] || 0;
+        });
+        group.weeklyHours += row.weeklyHours || 0;
       });
+
+      const tableRows = Array.from(groups.values())
+        .sort((a, b) => a.service.localeCompare(b.service))
+        .map((group) => {
+          const dayParts = dayKeys
+            .filter((day) => group.dayTotals[day] > 0)
+            .map((day) => {
+              const count = group.dayTotals[day];
+              return `${dayNameMap[day]}${count > 1 ? ` x${count}` : ""}`;
+            });
+
+          const timeWindow = `${group.startTime}–${group.endTime}`;
+          const durationText = group.durationLabel ? ` • ${group.durationLabel}` : "";
+          const occursText = group.occursEveryWeeks > 1 ? ` • every ${group.occursEveryWeeks} weeks` : "";
+          const daysCell = dayParts.length ? dayParts.join(", ") : "No day quantities";
+
+          return [
+            group.service,
+            `${timeWindow}${durationText}${occursText}`,
+            daysCell,
+            formatHours(group.weeklyHours),
+          ];
+        });
+
+      renderTable(["Service", "Time", "Days", "Weekly hrs"], tableRows);
+    });
 
     doc.save("billing-analysis.pdf");
   };

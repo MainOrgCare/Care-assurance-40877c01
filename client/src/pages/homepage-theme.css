@@ -162,3 +162,29 @@
 .homepage-theme .text-muted-foreground {
   color: #64748b !important;
 }
+
+@media (max-width: 768px) {
+  .homepage-theme {
+    background-image: none;
+  }
+  .homepage-theme .home-pattern {
+    display: none;
+  }
+  .homepage-theme .home-card {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    border-radius: 14px;
+  }
+  .homepage-theme .home-card-soft {
+    border-radius: 10px;
+  }
+  .homepage-theme h1 {
+    font-size: 1.85rem !important;
+  }
+  .homepage-theme h2 {
+    font-size: 1.6rem !important;
+  }
+  .homepage-theme .home-cta,
+  .homepage-theme .home-outline {
+    width: 100%;
+  }
+}

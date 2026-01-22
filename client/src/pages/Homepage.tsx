@@ -268,7 +268,7 @@ export default function Homepage() {
       <div className="home-pattern fixed inset-0 pointer-events-none opacity-25" />
 
       <header className="relative z-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between gap-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex items-center justify-between gap-6">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-[#3b82f6] text-white flex items-center justify-center shadow-sm">
               <ShieldCheck className="h-5 w-5" />
@@ -387,7 +387,7 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
             <motion.div {...reveal()} className="text-center lg:text-left">
               <span className="home-eyebrow">Operational Assurance for UK Care</span>
-              <h1 className="mt-5 text-4xl sm:text-5xl lg:text-[3.25rem] font-heading font-bold leading-[1.1]" style={{ color: 'hsl(220, 25%, 10%)' }}>
+              <h1 className="mt-5 text-3xl sm:text-4xl lg:text-[3.25rem] font-heading font-bold leading-[1.1]" style={{ color: 'hsl(220, 25%, 10%)' }}>
                 Compliance reporting that feels calm, clear, and prepared.
               </h1>
               <p className="mt-6 text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed" style={{ color: 'hsl(220, 10%, 35%)' }}>
@@ -409,7 +409,7 @@ export default function Homepage() {
                   Estimate savings
                 </Button>
               </div>
-              <div className="mt-10 grid grid-cols-2 gap-4">
+              <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {HERO_STATS.map((stat) => (
                   <div key={stat.label} className="home-card-soft p-4 text-left">
                     <div className="flex items-center gap-2 text-xs font-medium" style={{ color: 'hsl(220, 10%, 50%)' }}>
@@ -469,7 +469,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="platform" className="px-4 py-16">
+        <section id="platform" className="px-4 py-12 sm:py-16">
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[0.95fr_1.05fr] items-center">
             <motion.div {...reveal()}>
               <span className="home-eyebrow">Platform overview</span>
@@ -556,7 +556,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section className="px-4 py-16">
+        <section className="px-4 py-12 sm:py-16">
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Platform highlights</span>
@@ -584,7 +584,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section className="px-4 py-16" style={{ backgroundColor: '#ffffff' }}>
+        <section className="px-4 py-12 sm:py-16" style={{ backgroundColor: '#ffffff' }}>
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">How it works</span>
@@ -620,7 +620,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="roi" className="px-4 py-16">
+        <section id="roi" className="px-4 py-12 sm:py-16">
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Savings estimator</span>
@@ -632,7 +632,7 @@ export default function Homepage() {
               </p>
             </motion.div>
 
-            <motion.div {...reveal(0.1)} className="home-card p-8 mt-10">
+            <motion.div {...reveal(0.1)} className="home-card p-6 sm:p-8 mt-10">
               <div className="flex items-center justify-between mb-4">
                 <Label className="text-base font-semibold" style={{ color: '#0f172a' }}>Number of Service Users</Label>
                 <div className="flex items-center gap-2">
@@ -709,9 +709,9 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="contact" className="px-4 pb-20">
+        <section id="contact" className="px-4 pb-16 sm:pb-20">
           <div className="max-w-6xl mx-auto">
-            <motion.div {...reveal()} className="home-card p-8 sm:p-10">
+            <motion.div {...reveal()} className="home-card p-6 sm:p-8">
               <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
                 <div>
                   <span className="home-eyebrow">Contact</span>
