@@ -234,10 +234,6 @@ export default function BillingTool() {
 
     const line = (text: string, opts?: { bold?: boolean }) => {
       ensureSpace();
-      if (cursorY > 280) {
-        doc.addPage();
-        cursorY = 18;
-      }
       doc.setFont("helvetica", opts?.bold ? "bold" : "normal");
       const wrapped = doc.splitTextToSize(text, 180);
       doc.text(wrapped, marginLeft, cursorY);
@@ -245,30 +241,74 @@ export default function BillingTool() {
     };
 
     const renderTable = (headers: string[], rows: string[][]) => {
-      const colWidths = [70, 48, 52, 26];
-      const colStarts = colWidths.reduce<number[]>((acc, width, idx) => {
+      const pageWidth = (doc as any).internal?.pageSize?.getWidth?.() ?? 210;
+      const usableWidth = pageWidth - marginLeft * 2;
+      const colRatios = [0.32, 0.28, 0.28, 0.12];
+      const colWidths = colRatios.map((ratio) => Math.floor(usableWidth * ratio));
+      // Ensure exact fit (fix rounding drift)
+      const drift = usableWidth - colWidths.reduce((sum, w) => sum + w, 0);
+      colWidths[0] += drift;
+
+      const colStarts = colWidths.reduce<number[]>((acc, _width, idx) => {
         if (idx === 0) return [marginLeft];
         acc.push(marginLeft + colWidths.slice(0, idx).reduce((a, b) => a + b, 0));
         return acc;
       }, []);
 
-      const rowHeight = 7;
+      const cellPaddingX = 1.5;
+      const cellPaddingY = 1.5;
+      const lineHeight = 4.2;
 
-      const drawRow = (cells: string[], bold = false) => {
-        ensureSpace(rowHeight + 1);
-        doc.setFont("helvetica", bold ? "bold" : "normal");
-        cells.forEach((cell, idx) => {
-          const x = colStarts[idx] + 1;
-          const maxWidth = colWidths[idx] - 2;
-          const text = doc.splitTextToSize(cell, maxWidth);
-          doc.text(text, x, cursorY);
-        });
-        cursorY += rowHeight;
+      const wrapCell = (text: string, colWidth: number): string[] => {
+        const maxWidth = Math.max(10, colWidth - cellPaddingX * 2);
+        const parts = doc.splitTextToSize(text || "", maxWidth);
+        return Array.isArray(parts) ? parts : [String(parts)];
       };
 
-      drawRow(headers, true);
-      rows.forEach((r) => drawRow(r));
-      cursorY += 2;
+      const drawGridRow = (cells: string[], opts?: { isHeader?: boolean }) => {
+        const wrappedCells = cells.map((cell, idx) => wrapCell(cell, colWidths[idx]));
+        const maxLines = Math.max(1, ...wrappedCells.map((lines) => lines.length));
+        const rowHeight = cellPaddingY * 2 + maxLines * lineHeight;
+
+        ensureSpace(rowHeight + 2);
+
+        // Header styling
+        if (opts?.isHeader) {
+          doc.setFillColor(245, 246, 248);
+          doc.setDrawColor(220, 224, 230);
+          doc.rect(marginLeft, cursorY - 4.2, usableWidth, rowHeight + 1.2, "FD");
+          doc.setFont("helvetica", "bold");
+        } else {
+          doc.setDrawColor(220, 224, 230);
+          doc.setFont("helvetica", "normal");
+        }
+
+        // Cell borders + text
+        for (let i = 0; i < colWidths.length; i += 1) {
+          const x = colStarts[i];
+          const w = colWidths[i];
+          // Border
+          doc.rect(x, cursorY - 4.2, w, rowHeight + 1.2);
+
+          // Text
+          const textX = x + cellPaddingX;
+          const textYStart = cursorY;
+          wrappedCells[i].slice(0, maxLines).forEach((txt, lineIdx) => {
+            doc.text(String(txt), textX, textYStart + lineIdx * lineHeight);
+          });
+        }
+
+        cursorY += rowHeight + 2;
+      };
+
+      const originalFontSize = doc.getFontSize();
+      doc.setFontSize(9.5);
+
+      drawGridRow(headers, { isHeader: true });
+      rows.forEach((row) => drawGridRow(row));
+
+      doc.setFontSize(originalFontSize);
+      cursorY += 1;
     };
 
     const dayNameMap: Record<(typeof dayKeys)[number], string> = {
@@ -365,7 +405,7 @@ export default function BillingTool() {
           ];
         });
 
-      renderTable(["Service", "Time", "Days", "Weekly hrs"], tableRows);
+      renderTable(["Service", "Time bracket", "Days", "Weekly hrs"], tableRows);
     });
 
     doc.save("billing-analysis.pdf");
