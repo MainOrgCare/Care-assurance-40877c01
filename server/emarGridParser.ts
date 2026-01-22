@@ -663,6 +663,34 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       dateColumns.push({ ...col, page: ph.page });
     }
   }
+
+  const isLikelyTransposedLayout = (): boolean => {
+    if (pageHeaders.length === 0) return true;
+    let transposedVotes = 0;
+    for (const ph of pageHeaders) {
+      const xs = ph.dateColumns.map(col => col.xStart).filter((x) => Number.isFinite(x));
+      if (xs.length < 2) {
+        transposedVotes += 1;
+        continue;
+      }
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const spread = maxX - minX;
+      const pageItems = itemsByPage.get(ph.page) || [];
+      const pageMaxX = pageItems.length > 0
+        ? Math.max(...pageItems.map((item) => item.x + (item.width || 0)))
+        : maxX;
+      const spreadRatio = pageMaxX > 0 ? spread / pageMaxX : 0;
+      const appearsVertical = maxX < 260 || spreadRatio < 0.35;
+      if (appearsVertical) transposedVotes += 1;
+    }
+    return transposedVotes >= Math.max(1, Math.ceil(pageHeaders.length / 2));
+  };
+
+  const preferTransposed = isLikelyTransposedLayout();
+  if (preferTransposed && pageHeaders.length > 0) {
+    debugLog("DEBUG: Header dates appear in a narrow column; preferring transposed layout extraction.");
+  }
   
   if (dateColumns.length === 0) {
     debugLog("DEBUG: No dates found. Trying aggregated row search...");
@@ -1061,10 +1089,14 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     page: number,
     headerY: number | null,
     upperBoundY: number | null
-  ): Array<{ name: string; x: number; y: number; xMin: number; xMax: number }> => {
+  ): {
+    meds: Array<{ name: string; x: number; y: number; xMin: number; xMax: number; score: number }>;
+    instructionHints: Array<{ text: string; x: number; y: number; xMin: number; xMax: number }>;
+  } => {
     const pageItems = itemsByPage.get(page) || [];
     const rows = groupByY(pageItems, yTolerance);
-    const candidates: Array<{ name: string; x: number; y: number; xMin: number; xMax: number }> = [];
+    const candidates: Array<{ name: string; x: number; y: number; xMin: number; xMax: number; score: number }> = [];
+    const instructionHints: Array<{ text: string; x: number; y: number; xMin: number; xMax: number }> = [];
 
     for (const row of rows) {
       const avgY = row.reduce((sum, i) => sum + i.y, 0) / row.length;
@@ -1109,10 +1141,15 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
         }
 
         const trimmedCandidate = candidateName.trim();
+        const firstToken = trimmedCandidate.split(/\s+/)[0]?.toLowerCase() || "";
+        const startsWithStopWord = MEDICATION_NAME_STOP_WORDS.has(firstToken);
+        const startsWithInstructionWord = MEDICATION_NAME_INSTRUCTION_WORDS.has(firstToken);
+        const instructionVerbPattern = /\b(take|apply|administer|give|dissolve|mix|use|insert|instill|inhale|inject)\b/i;
+        const instructionLike = instructionVerbPattern.test(trimmedCandidate) && (startsWithStopWord || startsWithInstructionWord);
         const isInstructionOnly = /^\d/.test(trimmedCandidate) && /\btake\b/i.test(trimmedCandidate);
         const isBlocked = blockedMedCandidatePattern.test(trimmedCandidate);
         const upperCandidate = trimmedCandidate.toUpperCase();
-        if (isInstructionOnly || isBlocked) continue;
+        if (isBlocked) continue;
         if (upperCandidate === "KEY" || upperCandidate === "ROUTE") continue;
 
         const routeDerived =
@@ -1131,40 +1168,77 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
           !/\b(take|apply|dissolve|mix|route)\b/i.test(trimmedCandidate) &&
           !isBlocked;
 
+        const instructionTokenPattern = /\b(daily|hourly|times?|tablet|tablets|capsule|capsules|mg|mcg|ml|drops?|puffs?|sachet|sachets|oral|topical|route|apply|take)\b/i;
+        const instructionCandidate =
+          (instructionLike || isInstructionOnly || startsWithStopWord || startsWithInstructionWord) &&
+          /[a-z]/i.test(trimmedCandidate) &&
+          (instructionVerbPattern.test(trimmedCandidate) || instructionTokenPattern.test(trimmedCandidate));
+
+        if (instructionCandidate) {
+          const hintText = trimmedCandidate.substring(0, 160).trim();
+          const tokenCount = hintText.split(/\s+/).filter(Boolean).length;
+          const hasDetail =
+            instructionVerbPattern.test(hintText) ||
+            /\d/.test(hintText) ||
+            tokenCount >= 3;
+          if (hintText.length >= 6 && hasDetail) {
+            instructionHints.push({
+              text: hintText,
+              x: (segment.xMin + segment.xMax) / 2,
+              y: avgY,
+              xMin: segment.xMin,
+              xMax: segment.xMax,
+            });
+          }
+        }
+
         const validCandidate =
           matchesMed ||
           routeDerived ||
           (candidateName !== cleaned && /[a-zA-Z]/.test(trimmedCandidate) && trimmedCandidate.length >= 3) ||
           looksLikeMedicationHeader;
-        if (!validCandidate) continue;
+
+        const instructionOnlyCandidate = (startsWithStopWord || startsWithInstructionWord || isInstructionOnly) &&
+          !routeDerived &&
+          !looksLikeMedicationHeader;
+
+        if (!validCandidate || instructionOnlyCandidate) continue;
 
         const xCenter = (segment.xMin + segment.xMax) / 2;
+        const score =
+          (routeDerived ? 6 : 0) +
+          (matchesMed ? 3 : 0) +
+          (looksLikeMedicationHeader ? 1 : 0) -
+          (instructionLike ? 4 : 0);
         candidates.push({
           name: candidateName.substring(0, 140).trim(),
           x: xCenter,
           y: avgY,
           xMin: segment.xMin,
           xMax: segment.xMax,
+          score,
         });
       }
     }
 
-    const deduped: Array<{ name: string; x: number; y: number; xMin: number; xMax: number }> = [];
+    const deduped: Array<{ name: string; x: number; y: number; xMin: number; xMax: number; score: number }> = [];
     for (const candidate of candidates.sort((a, b) => a.x - b.x)) {
       const existing = deduped.find((d) => Math.abs(d.x - candidate.x) <= 40);
       if (!existing) {
         deduped.push(candidate);
         continue;
       }
-      if (candidate.name.length > existing.name.length) {
+      const scoreDelta = candidate.score - existing.score;
+      if (scoreDelta > 0 || (scoreDelta === 0 && candidate.name.length > existing.name.length)) {
         existing.name = candidate.name;
         existing.y = candidate.y;
         existing.x = candidate.x;
         existing.xMin = candidate.xMin;
         existing.xMax = candidate.xMax;
+        existing.score = candidate.score;
       }
     }
-    return deduped;
+    return { meds: deduped, instructionHints };
   };
 
   const inferMedicationNameForPage = (page: number, headerY: number | null, upperBoundY: number | null): string => {
@@ -1330,7 +1404,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   }
 
   // If no date columns were detected, attempt the transposed layout extraction.
-  if (pageHeaders.length === 0) {
+  if (pageHeaders.length === 0 || preferTransposed) {
     const debugTransposed = process.env.DEBUG_EMAR_GRID === 'true';
     for (const [page] of Array.from(itemsByPage.entries()).sort((a, b) => a[0] - b[0])) {
       const dateRows = extractDateRowsForPage(page);
@@ -1391,7 +1465,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
 
         // Upper bound prevents the medication-name heuristic from selecting the prior stacked section.
         const upperBoundY = prevSection ? prevSection.headerY - 2 : null;
-        const medCandidates = extractMedicationCandidatesForPage(page, section.headerY, upperBoundY);
+        const { meds: medCandidates, instructionHints } = extractMedicationCandidatesForPage(page, section.headerY, upperBoundY);
 
         const assignColumnsToMeds = (
           columns: SlotColumn[],
@@ -1457,8 +1531,71 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
                     `Medication page ${page} block ${sectionIndex + 1}`,
                   x: section.columns[0]?.xStart || 0,
                   y: section.headerY,
+                  xMin: section.columns[0]?.xStart || 0,
+                  xMax: section.columns[section.columns.length - 1]?.xEnd || section.columns[0]?.xStart || 0,
+                  score: 0,
                 },
               ];
+
+        const mapInstructionHintsToMeds = (
+          meds: Array<{ x: number; xMin?: number; xMax?: number }>,
+          hints: Array<{ text: string; x: number; y: number; xMin: number; xMax: number }>
+        ): Map<number, string[]> => {
+          const map = new Map<number, string[]>();
+          if (meds.length === 0 || hints.length === 0) return map;
+
+          for (const hint of hints) {
+            const hintMin = typeof hint.xMin === "number" ? hint.xMin : hint.x;
+            const hintMax = typeof hint.xMax === "number" ? hint.xMax : hint.x;
+            const hintFirstToken = hint.text.split(/\s+/)[0]?.toLowerCase() || "";
+            const preferLeftEdge =
+              MEDICATION_NAME_STOP_WORDS.has(hintFirstToken) || MEDICATION_NAME_INSTRUCTION_WORDS.has(hintFirstToken);
+            let bestIndex = -1;
+            let bestOverlap = -1;
+            let bestDist = Number.POSITIVE_INFINITY;
+
+            for (let i = 0; i < meds.length; i++) {
+              const med = meds[i];
+              const medMin = typeof med.xMin === "number" ? med.xMin : med.x;
+              const medMax = typeof med.xMax === "number" ? med.xMax : med.x;
+              const overlap = Math.min(hintMax, medMax) - Math.max(hintMin, medMin);
+              const dist = Math.abs(hintMin - medMin);
+
+              if (preferLeftEdge) {
+                if (dist < bestDist) {
+                  bestDist = dist;
+                  bestIndex = i;
+                }
+                continue;
+              }
+
+              if (overlap > 0) {
+                if (overlap > bestOverlap || (overlap === bestOverlap && dist < bestDist)) {
+                  bestOverlap = overlap;
+                  bestDist = dist;
+                  bestIndex = i;
+                }
+                continue;
+              }
+
+              if (bestOverlap < 0 && dist < bestDist) {
+                bestDist = dist;
+                bestIndex = i;
+              }
+            }
+
+            const targetIndex = bestIndex >= 0 && (bestOverlap > 0 || bestDist <= 160) ? bestIndex : -1;
+            if (targetIndex < 0) continue;
+            const existing = map.get(targetIndex) || [];
+            if (!existing.includes(hint.text)) {
+              existing.push(hint.text);
+              map.set(targetIndex, existing);
+            }
+          }
+          return map;
+        };
+
+        const instructionByMedIndex = mapInstructionHintsToMeds(medsForSection, instructionHints);
 
 	        const dedupeColumnsBySlot = (columns: SlotColumn[], targetX: number): SlotColumn[] => {
 	          const bySlot = new Map<string, SlotColumn>();
@@ -1493,16 +1630,19 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
 
 	          const rawLabel = String(med.name || "").trim();
 	          const { name: cleanMedName, instructions: medInstructions } = splitMedicationLabel(rawLabel);
+            const extraInstructionText = (instructionByMedIndex.get(i) || []).join(" ").trim();
 
 	          let medicationIndex: number | null = null;
 	          let medicationNameForCells = "";
 
 	          if (cleanMedName) {
 	            medicationNameForCells = cleanMedName;
+              const baseInstructions = medInstructions || rawLabel;
+              const combinedInstructions = [baseInstructions, extraInstructionText].filter(Boolean).join(" ").trim();
 	            transposedMedications.push({
 	              name: medicationNameForCells,
 	              row: transposedMedications.length,
-	              instructions: medInstructions || rawLabel,
+	              instructions: combinedInstructions || rawLabel,
 	              timeSlots: assignedColumns.map((c) => c.slot),
 	            });
 	            medicationIndex = transposedMedications.length - 1;
@@ -1524,6 +1664,9 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
 	              } else if (!existingInstructions.includes(rawLabel)) {
 	                existing.instructions = `${existingInstructions} ${rawLabel}`.trim();
 	              }
+                if (extraInstructionText && !existing.instructions.includes(extraInstructionText)) {
+                  existing.instructions = `${existing.instructions} ${extraInstructionText}`.trim();
+                }
 
 	              const slotSet = new Set(existing.timeSlots.map((s) => normalizeSlot(s)));
 	              for (const col of assignedColumns) {
@@ -1587,49 +1730,51 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   const cells: GridCell[] = [];
 
   // Generate cells per page using that page's header columns and medication blocks
-  for (const ph of pageHeaders) {
-    const page = ph.page;
-    const medsOnPage = medicationBlocksByPage.get(page) || [];
-    const dateColsOnPage = ph.dateColumns;
+  if (!preferTransposed || transposedPageCells.length === 0) {
+    for (const ph of pageHeaders) {
+      const page = ph.page;
+      const medsOnPage = medicationBlocksByPage.get(page) || [];
+      const dateColsOnPage = ph.dateColumns;
 
-    for (const med of medsOnPage) {
-      for (const dateCol of dateColsOnPage) {
-        const slotsToUse = med.timeSlots.length > 0 ? med.timeSlots :
-          allTimeSlots.map(slot => ({ slot, y: med.yStart + 30, yStart: med.yStart, yEnd: med.yEnd }));
+      for (const med of medsOnPage) {
+        for (const dateCol of dateColsOnPage) {
+          const slotsToUse = med.timeSlots.length > 0 ? med.timeSlots :
+            allTimeSlots.map(slot => ({ slot, y: med.yStart + 30, yStart: med.yStart, yEnd: med.yEnd }));
 
-        for (const ts of slotsToUse) {
-          const cellItems = allTextItems.filter(item =>
-            item.page === page &&
-            item.x >= dateCol.xStart &&
-            item.x < dateCol.xEnd &&
-            item.y >= (med.timeSlots.length > 0 ? ts.yStart : med.yStart) &&
-            item.y < (med.timeSlots.length > 0 ? ts.yEnd : med.yEnd)
-          );
-        
-          const content = cellItems.map(i => i.str).join(" ");
-          const extracted = extractCodesFromCell(content);
-          const code = extracted.code;
-          const careWorker = extracted.careWorker;
-          const time = extracted.time;
-        
-          cells.push({
-            medication: med.name,
-            medicationRow: typeof med.row === "number" ? med.row : undefined,
-            medicationId: typeof med.row === "number" ? med.row + 1 : undefined,
-            date: dateCol.date,
-            timeSlot: ts.slot,
-            content,
-            code,
-            careWorker,
-            time
-          });
+          for (const ts of slotsToUse) {
+            const cellItems = allTextItems.filter(item =>
+              item.page === page &&
+              item.x >= dateCol.xStart &&
+              item.x < dateCol.xEnd &&
+              item.y >= (med.timeSlots.length > 0 ? ts.yStart : med.yStart) &&
+              item.y < (med.timeSlots.length > 0 ? ts.yEnd : med.yEnd)
+            );
+
+            const content = cellItems.map(i => i.str).join(" ");
+            const extracted = extractCodesFromCell(content);
+            const code = extracted.code;
+            const careWorker = extracted.careWorker;
+            const time = extracted.time;
+
+            cells.push({
+              medication: med.name,
+              medicationRow: typeof med.row === "number" ? med.row : undefined,
+              medicationId: typeof med.row === "number" ? med.row + 1 : undefined,
+              date: dateCol.date,
+              timeSlot: ts.slot,
+              content,
+              code,
+              careWorker,
+              time
+            });
+          }
         }
       }
     }
   }
 
-  // If transposed mode produced cells, prefer them.
-  if (cells.length === 0 && transposedPageCells.length > 0) {
+  // If transposed mode produced cells, prefer them when requested or when standard parsing failed.
+  if ((preferTransposed || cells.length === 0) && transposedPageCells.length > 0) {
     cells.push(...transposedPageCells);
   }
   
@@ -1687,16 +1832,32 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       captured = captured.split(/(?:Route|Date|Time|Sun|Mon|Tue|Wed|Thu|Fri|Sat|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i)[0].trim();
       const tooLong = captured.length > 80;
       const hasDateLike = /\b(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\b/i.test(captured) || /\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i.test(captured);
-      if (captured && !tooLong && !hasDateLike) {
+      const hasTimeLike = /\b\d{1,2}:\d{2}\b/.test(captured);
+      const tokens = captured.split(/\s+/).filter(Boolean);
+      const upperTokens = tokens.map(token => token.replace(/[.,]/g, "").toUpperCase());
+      const knownAllergyFlags = new Set(["NKA", "NKDA", "NO", "KNOWN", "ALLERGIES"]);
+      const isCodeLike =
+        upperTokens.length > 0 &&
+        upperTokens.every(token => CODE_INITIALS.has(token) || /^[A-Z]{1,3}$/.test(token));
+      const isKnownAllergyFlag =
+        upperTokens.includes("NKA") ||
+        upperTokens.includes("NKDA") ||
+        (upperTokens.includes("NO") && upperTokens.includes("KNOWN") && upperTokens.includes("ALLERGIES"));
+      if (captured && !tooLong && !hasDateLike && !hasTimeLike && !(isCodeLike && !isKnownAllergyFlag)) {
         allergies = captured;
       }
     }
   }
   
   const detectedDatesCount = dates.length;
-  const detectedMedsCount = medicationBlocks.length > 0 ? medicationBlocks.length : transposedMedications.length;
+  const useTransposedMeds = preferTransposed && transposedMedications.length > 0;
+  const detectedMedsCount = useTransposedMeds
+    ? transposedMedications.length
+    : medicationBlocks.length > 0
+      ? medicationBlocks.length
+      : transposedMedications.length;
   const parserMode =
-    medicationBlocks.length > 0 ? "grid" : transposedMedications.length > 0 ? "transposed" : "unknown";
+    useTransposedMeds ? "transposed" : medicationBlocks.length > 0 ? "grid" : transposedMedications.length > 0 ? "transposed" : "unknown";
   debugLog(
     `DEBUG: Parser complete (${parserMode}) - ${detectedDatesCount} dates, ${detectedMedsCount} meds, ${cells.length} cells`
   );
@@ -1711,20 +1872,22 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     pageTexts,
     dates,
     timeSlots: allTimeSlots,
-    medications: (medicationBlocks.length > 0
-      ? medicationBlocks.map((m, i) => ({
-          name: m.name,
-          row: typeof m.row === "number" ? m.row : i,
-          instructions: m.instructions || "",
-          timeSlots: m.timeSlots.map(ts => ts.slot)
-        }))
-      : transposedMedications),
+    medications: (useTransposedMeds
+      ? transposedMedications
+      : medicationBlocks.length > 0
+        ? medicationBlocks.map((m, i) => ({
+            name: m.name,
+            row: typeof m.row === "number" ? m.row : i,
+            instructions: m.instructions || "",
+            timeSlots: m.timeSlots.map(ts => ts.slot)
+          }))
+        : transposedMedications),
     cells,
     rawText,
     debugInfo: {
       totalTextItems: allTextItems.length,
       dateColumnsFound: dates.length,
-      medicationsFound: (medicationBlocks.length > 0 ? medicationBlocks.length : transposedMedications.length),
+      medicationsFound: detectedMedsCount,
       timeSlotsFound: allTimeSlots.length,
       cellsGenerated: cells.length
     }
