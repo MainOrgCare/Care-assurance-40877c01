@@ -222,6 +222,29 @@ interface DrugInteraction {
   description: string;
 }
 
+interface EmarPreflightResult {
+  fileName: string;
+  fileSizeMb: number;
+  pageCount: number;
+  medicationCount: number;
+  dateCount: number;
+  timeSlotCount: number;
+  cellCount: number;
+  warnings: string[];
+}
+
+const MAX_EMAR_UPLOAD_MB = 40;
+const MAX_EMAR_UPLOAD_BYTES = MAX_EMAR_UPLOAD_MB * 1024 * 1024;
+const LARGE_FILE_WARNING_MB = 25;
+
+const formatFileSize = (bytes: number): string => {
+  if (!Number.isFinite(bytes)) return "";
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(1)} MB`;
+};
+
 interface OfficeClosedEntry {
   medication: string;
   medicationId?: number;
@@ -398,6 +421,10 @@ export default function EMARAudit() {
   const { resetTimer } = useTemporaryData();
   const [file, setFile] = useState<File | null>(null);
   const [documentContent, setDocumentContent] = useState("");
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [preflightLoading, setPreflightLoading] = useState(false);
+  const [preflightResult, setPreflightResult] = useState<EmarPreflightResult | null>(null);
+  const [preflightError, setPreflightError] = useState<string | null>(null);
   const [analyzed, setAnalyzed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<EmarAnalysisResult | null>(null);
@@ -628,57 +655,147 @@ export default function EMARAudit() {
     return mapping?.fullName || originalName;
   };
 
+  const handleSelectedFile = async (selectedFile: File) => {
+    setPreflightResult(null);
+    setPreflightError(null);
+
+    if (selectedFile.size > MAX_EMAR_UPLOAD_BYTES) {
+      toast({
+        title: "File Too Large",
+        description: `Maximum file size is ${MAX_EMAR_UPLOAD_MB} MB. Selected file is ${formatFileSize(selectedFile.size)}.`,
+        variant: "destructive",
+      });
+      setFile(null);
+      return;
+    }
+
+    if (selectedFile.size >= LARGE_FILE_WARNING_MB * 1024 * 1024) {
+      toast({
+        title: "Large File Detected",
+        description: "Analysis may take longer for large PDFs. We’ll keep you updated with progress.",
+      });
+    }
+
+    setFile(selectedFile);
+
+    const isPdf = selectedFile.type === "application/pdf" || selectedFile.name.toLowerCase().endsWith(".pdf");
+
+    if (isPdf) {
+      // For PDFs, just store the file - we'll send it directly for image-based analysis
+      setDocumentContent("PDF file ready for image analysis");
+      resetTimer();
+      toast({ title: "PDF Selected", description: "Click 'Analyze EMAR' to process with image recognition." });
+    } else if (selectedFile.name.toLowerCase().endsWith(".docx")) {
+      // For Word docs, still extract text first
+      setLoading(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+
+        const res = await fetch("/api/parse-pdf", {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to parse document");
+        }
+
+        const data = await res.json();
+        setDocumentContent(data.text);
+        resetTimer();
+        toast({ title: "Document Loaded", description: "Content extracted successfully." });
+      } catch (error: any) {
+        toast({
+          title: "Document Error",
+          description: error.message || "Failed to read document",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        setDocumentContent(content);
+        resetTimer();
+      };
+      reader.readAsText(selectedFile);
+    }
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
-      setFile(selectedFile);
-      
-      const isPdf = selectedFile.type === "application/pdf" || selectedFile.name.toLowerCase().endsWith(".pdf");
-      
-      if (isPdf) {
-        // For PDFs, just store the file - we'll send it directly for image-based analysis
-        setDocumentContent("PDF file ready for image analysis");
-        resetTimer();
-        toast({ title: "PDF Selected", description: "Click 'Analyze EMAR' to process with image recognition." });
-      } else if (selectedFile.name.toLowerCase().endsWith(".docx")) {
-        // For Word docs, still extract text first
-        setLoading(true);
-        try {
-          const formData = new FormData();
-          formData.append("file", selectedFile);
-          
-          const res = await fetch("/api/parse-pdf", {
-            method: "POST",
-            credentials: "include",
-            body: formData,
-          });
-          
-          if (!res.ok) {
-            throw new Error("Failed to parse document");
-          }
-          
-          const data = await res.json();
-          setDocumentContent(data.text);
-          resetTimer();
-          toast({ title: "Document Loaded", description: "Content extracted successfully." });
-        } catch (error: any) {
-          toast({
-            title: "Document Error",
-            description: error.message || "Failed to read document",
-            variant: "destructive",
-          });
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const content = event.target?.result as string;
-          setDocumentContent(content);
-          resetTimer();
-        };
-        reader.readAsText(selectedFile);
+      await handleSelectedFile(selectedFile);
+    }
+  };
+
+  const handleFileDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragActive(false);
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) {
+      await handleSelectedFile(droppedFile);
+    }
+  };
+
+  const runPreflightCheck = async () => {
+    if (!file) {
+      toast({
+        title: "No File Selected",
+        description: "Please choose a PDF file first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf) {
+      toast({
+        title: "PDF Required",
+        description: "Preflight checks are only available for PDF EMAR files.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPreflightLoading(true);
+    setPreflightError(null);
+    setPreflightResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/ai/analyze-emar/preflight", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Preflight check failed");
       }
+
+      const data = await res.json();
+      setPreflightResult(data);
+      toast({
+        title: "Preflight Complete",
+        description: "Quick checks finished. Review the results below.",
+      });
+    } catch (error: any) {
+      setPreflightError(error.message || "Preflight check failed");
+      toast({
+        title: "Preflight Failed",
+        description: error.message || "Unable to complete preflight checks.",
+        variant: "destructive",
+      });
+    } finally {
+      setPreflightLoading(false);
     }
   };
 
@@ -1782,34 +1899,125 @@ ${generatedProtocol.additionalComments}`;
               </ul>
             </div>
 
-            {file && (
-              <div className="bg-muted rounded-lg p-4">
-                <p className="text-sm text-muted-foreground">Selected file:</p>
-                <p className="text-foreground font-medium">{file.name}</p>
+            <div className="space-y-4">
+              <div
+                className={`border border-dashed rounded-xl p-5 transition-colors ${isDragActive ? "border-primary bg-primary/5" : "border-border bg-muted/30"}`}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setIsDragActive(true);
+                }}
+                onDragLeave={() => setIsDragActive(false)}
+                onDrop={handleFileDrop}
+              >
+                <Input
+                  id="emar-upload"
+                  type="file"
+                  onChange={handleFileChange}
+                  accept=".pdf"
+                  className="sr-only"
+                  data-testid="input-file-upload"
+                />
+                <Label htmlFor="emar-upload" className="flex flex-col items-center gap-2 text-center cursor-pointer">
+                  <Upload className="h-6 w-6 text-primary" />
+                  <span className="text-sm font-medium text-foreground">
+                    {isDragActive ? "Drop your EMAR PDF to upload" : "Drag & drop your EMAR PDF, or click to browse"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    PDF only · Up to {MAX_EMAR_UPLOAD_MB} MB
+                  </span>
+                </Label>
               </div>
-            )}
 
-            <div className="flex items-center gap-4">
-              <Input 
-                type="file" 
-                onChange={handleFileChange} 
-                accept=".pdf"
-                className="max-w-xs bg-background" 
-                data-testid="input-file-upload"
-              />
-              <Button onClick={processAudit} disabled={loading || !file} data-testid="button-analyze">
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Analyzing Images...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Analyze EMAR
-                  </>
+              {file && (
+                <div className="bg-muted rounded-lg p-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Selected file:</p>
+                    <p className="text-foreground font-medium">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                  </div>
+                  <Badge variant="outline">Ready</Badge>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={processAudit} disabled={loading || !file} data-testid="button-analyze">
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Analyzing Images...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Analyze EMAR
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={runPreflightCheck}
+                  disabled={!file || loading || preflightLoading}
+                >
+                  {preflightLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Running Quick Check...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Run Quick Check
+                    </>
+                  )}
+                </Button>
+                {file && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setFile(null);
+                      setDocumentContent("");
+                      setPreflightResult(null);
+                      setPreflightError(null);
+                    }}
+                  >
+                    Clear
+                  </Button>
                 )}
-              </Button>
+              </div>
+
+              {preflightError && (
+                <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4 mt-0.5" />
+                  <span>{preflightError}</span>
+                </div>
+              )}
+
+              {preflightResult && (
+                <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                    Preflight results
+                  </div>
+                  <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                    <span>Pages: <span className="text-foreground font-medium">{preflightResult.pageCount}</span></span>
+                    <span>Medications: <span className="text-foreground font-medium">{preflightResult.medicationCount}</span></span>
+                    <span>Dates: <span className="text-foreground font-medium">{preflightResult.dateCount}</span></span>
+                    <span>Time slots: <span className="text-foreground font-medium">{preflightResult.timeSlotCount}</span></span>
+                    <span>Grid cells: <span className="text-foreground font-medium">{preflightResult.cellCount}</span></span>
+                    <span>File size: <span className="text-foreground font-medium">{preflightResult.fileSizeMb} MB</span></span>
+                  </div>
+                  {preflightResult.warnings?.length > 0 && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-200 space-y-1">
+                      {preflightResult.warnings.map((warning, idx) => (
+                        <div key={idx} className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 mt-0.5" />
+                          <span>{warning}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             
             {loading && (

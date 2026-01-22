@@ -25,7 +25,7 @@ import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 40 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const isPdf = file.mimetype === "application/pdf" || file.originalname.toLowerCase().endsWith(".pdf");
     const isDocx = file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.originalname.toLowerCase().endsWith(".docx");
@@ -2855,6 +2855,62 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Document parsing error:", error);
       res.status(500).json({ message: "Failed to parse document" });
+    }
+  });
+
+  // Analyze EMAR document using AI-based extraction with streaming progress
+  app.post("/api/ai/analyze-emar/preflight", requireAuth, upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const isPdf = req.file.mimetype === "application/pdf" || req.file.originalname.toLowerCase().endsWith(".pdf");
+      if (!isPdf) {
+        return res.status(400).json({ message: "Only PDF files are supported" });
+      }
+
+      if (!req.file.buffer || req.file.buffer.length === 0) {
+        return res.status(400).json({ message: "File upload failed - please try again" });
+      }
+
+      const user = req.user ?? await storage.getUser(req.session.userId!);
+      const scanCheck = await scanAndLogFile(req.file, "emar-preflight", user?.username);
+      if (!scanCheck.allowed) {
+        return res.status(400).json({ message: scanCheck.error });
+      }
+
+      const grid = await parseEMARGrid(req.file.buffer);
+      const warnings: string[] = [];
+      const fileSizeMb = Number((req.file.size / (1024 * 1024)).toFixed(1));
+
+      if (fileSizeMb > 30) {
+        warnings.push("Large file detected. Analysis may take longer than usual.");
+      }
+      if ((grid.medications || []).length === 0) {
+        warnings.push("No medications detected in the grid parser preflight.");
+      }
+      if ((grid.dates || []).length === 0) {
+        warnings.push("No dates detected in the grid parser preflight.");
+      }
+      if ((grid.timeSlots || []).length === 0) {
+        warnings.push("No time slots detected in the grid parser preflight.");
+      }
+
+      return res.json({
+        ok: true,
+        fileName: req.file.originalname,
+        fileSizeMb,
+        pageCount: grid.pageCount,
+        medicationCount: (grid.medications || []).length,
+        dateCount: (grid.dates || []).length,
+        timeSlotCount: (grid.timeSlots || []).length,
+        cellCount: (grid.cells || []).length,
+        warnings,
+      });
+    } catch (error: any) {
+      console.error("EMAR preflight error:", error);
+      return res.status(500).json({ message: error.message || "Preflight failed" });
     }
   });
 
@@ -6253,15 +6309,203 @@ CARE WORKER INITIALS (IMPORTANT):
             m.name.toLowerCase().startsWith(baseName)
           ).map((m: any) => m.name);
           
-          warnings.push({
-            type: "duplicate_medication_entry",
-            severity: "high",
-            medication: matchingMeds.join(", "),
-            description: `Medication "${baseName}" appears ${count} times with potentially different instructions`,
-            recommendedAction: "Review EMAR setup - may indicate system error or prescribing issue"
-          });
+        warnings.push({
+          type: "duplicate_medication_entry",
+          severity: "high",
+          medication: matchingMeds.join(", "),
+          description: `Medication "${baseName}" appears ${count} times with potentially different instructions`,
+          recommendedAction: "Review EMAR setup - may indicate system error or prescribing issue"
+        });
+      }
+      });
+
+      // =====================================================================
+      // CHECK 3A: DUPLICATE MEDICATIONS WITH EXACT SAME DOSE
+      // =====================================================================
+      const buildExactDoseKey = (med: any): { key: string; hasStrength: boolean } => {
+        const name = String(med?.name || "");
+        const instructions = String(med?.instructions || "");
+        const extra = `${med?.strength || ""} ${med?.form || ""}`;
+        const combined = `${name} ${instructions} ${extra}`.toLowerCase();
+
+        const base = normalizeMedicationKey(name)
+          .replace(/\b(tablets?|tabs?|capsules?|caps?)\b/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        const signature = new Set<string>();
+        const strengthMatches =
+          combined.match(/\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|units?|%|micrograms?|milligrams?|grams?|millilitres?)\b/g) || [];
+        for (const match of strengthMatches) signature.add(normalizeMedicationKey(match));
+
+        const formMatches =
+          combined.match(/\b(tablets?|tabs?|capsules?|caps?|liquid|solution|syrup|suspension|cream|ointment|gel|patch(?:es)?|spray|drops?|inhaler|injection|ampoules?|nebules?|puffs?)\b/g) ||
+          [];
+        for (const match of formMatches) signature.add(normalizeMedicationKey(match));
+
+        const routeMatches =
+          combined.match(/\b(oral|topical|subcutaneous|intravenous|iv|im|pr|sc)\b/g) || [];
+        for (const match of routeMatches) signature.add(normalizeMedicationKey(match));
+
+        const signatureKey = Array.from(signature).filter(Boolean).sort().join("-");
+        return { key: signatureKey ? `${base}|${signatureKey}` : base, hasStrength: strengthMatches.length > 0 };
+      };
+
+      const exactDoseMap = new Map<string, { meds: any[]; hasStrength: boolean }>();
+      medications.forEach((med: any) => {
+        const { key, hasStrength } = buildExactDoseKey(med);
+        if (!key) return;
+        if (!exactDoseMap.has(key)) {
+          exactDoseMap.set(key, { meds: [med], hasStrength });
+        } else {
+          const existing = exactDoseMap.get(key)!;
+          existing.meds.push(med);
+          existing.hasStrength = existing.hasStrength || hasStrength;
         }
       });
+
+      exactDoseMap.forEach(({ meds, hasStrength }, key) => {
+        if (meds.length < 2) return;
+        if (!hasStrength) return;
+        const medNames = meds.map((m) => m.name);
+        warnings.push({
+          type: "duplicate_medication_exact_dose",
+          severity: "high",
+          medication: medNames.join(", "),
+          description: `Exact duplicate medication with the same dose appears multiple times (${meds.length} entries).`,
+          recommendedAction: "Confirm whether duplicate entries are intentional; remove duplicates if not."
+        });
+      });
+
+      // =====================================================================
+      // CHECK 3B: PARACETAMOL OVERLAP (e.g., co-codamol + paracetamol)
+      // =====================================================================
+      const medicationContains = (med: any, pattern: RegExp): boolean => {
+        const text = `${med?.name || ""} ${med?.genericName || ""} ${med?.instructions || ""}`.toLowerCase();
+        return pattern.test(text);
+      };
+
+      const hasParacetamol = (med: any) => medicationContains(med, /\b(paracetamol|acetaminophen)\b/i);
+      const isParacetamolCombo = (med: any) =>
+        medicationContains(med, /\bco[-\s]?codamol\b/i) ||
+        medicationContains(med, /\bco[-\s]?dydramol\b/i) ||
+        medicationContains(med, /\bco[-\s]?proxamol\b/i) ||
+        medicationContains(med, /\bco[-\s]?codaprin\b/i) ||
+        medicationContains(med, /\btramacet\b/i) ||
+        (hasParacetamol(med) && medicationContains(med, /\b(codeine|dihydrocodeine|tramadol|aspirin)\b/i));
+
+      const paracetamolOnlyMeds = medications.filter((med: any) => hasParacetamol(med) && !isParacetamolCombo(med));
+      const paracetamolComboMeds = medications.filter((med: any) => isParacetamolCombo(med));
+
+      if (paracetamolOnlyMeds.length > 0 && paracetamolComboMeds.length > 0) {
+        const medNames = [
+          ...new Set([
+            ...paracetamolOnlyMeds.map((m: any) => m.name),
+            ...paracetamolComboMeds.map((m: any) => m.name),
+          ]),
+        ];
+        warnings.push({
+          type: "paracetamol_overlap",
+          severity: "high",
+          medication: medNames.join(", "),
+          description: "Paracetamol appears both as a standalone medication and inside a combination product (e.g., co-codamol). Risk of exceeding max daily dose.",
+          recommendedAction: "Review total paracetamol daily dose across all medications."
+        });
+      }
+
+      // =====================================================================
+      // CHECK 3C: DRUG INTERACTIONS (RULE-BASED)
+      // =====================================================================
+      const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const normalizeMedText = (med: any) =>
+        `${med?.name || ""} ${med?.genericName || ""} ${med?.instructions || ""}`
+          .toLowerCase()
+          .replace(/[^\w]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      const hasToken = (text: string, token: string) => new RegExp(`\\b${escapeRegExp(token)}\\b`, "i").test(text);
+      const hasAnyToken = (text: string, tokens: string[]) => tokens.some((token) => hasToken(text, token));
+      const filterMeds = (tokens: string[]) =>
+        medications.filter((med: any) => hasAnyToken(normalizeMedText(med), tokens));
+
+      const ACE_INHIBITORS = [
+        "lisinopril", "ramipril", "enalapril", "perindopril", "captopril", "quinapril",
+        "benazepril", "fosinopril", "trandolapril"
+      ];
+      const ARBS = [
+        "losartan", "candesartan", "valsartan", "irbesartan", "olmesartan", "telmisartan", "eprosartan"
+      ];
+      const NSAIDS = [
+        "ibuprofen", "naproxen", "diclofenac", "indomethacin", "ketoprofen", "piroxicam",
+        "celecoxib", "etoricoxib", "meloxicam", "ketorolac", "aspirin"
+      ];
+      const OPIOIDS = [
+        "oxycodone", "morphine", "hydromorphone", "hydrocodone", "codeine",
+        "dihydrocodeine", "tramadol", "fentanyl", "buprenorphine", "methadone", "tapentadol"
+      ];
+      const BENZOS = [
+        "diazepam", "lorazepam", "temazepam", "oxazepam", "chlordiazepoxide",
+        "clonazepam", "alprazolam", "nitrazepam", "midazolam"
+      ];
+      const SEDATIVES = ["zolpidem", "zopiclone", "eszopiclone", "pregabalin", "gabapentin"];
+      const STATINS = ["atorvastatin", "simvastatin", "lovastatin"];
+      const CYP3A4_INHIBITORS = [
+        "clarithromycin", "erythromycin", "ketoconazole", "itraconazole",
+        "voriconazole", "posaconazole", "ritonavir", "cobicistat"
+      ];
+
+      const aceOrArbMeds = [...filterMeds(ACE_INHIBITORS), ...filterMeds(ARBS)];
+      const nsaidMeds = filterMeds(NSAIDS);
+      const opioidMeds = filterMeds(OPIOIDS);
+      const benzoMeds = filterMeds(BENZOS);
+      const sedativeMeds = filterMeds(SEDATIVES);
+      const statinMeds = filterMeds(STATINS);
+      const inhibitorMeds = filterMeds(CYP3A4_INHIBITORS);
+      const warfarinMeds = filterMeds(["warfarin"]);
+
+      if (aceOrArbMeds.length > 0 && nsaidMeds.length > 0) {
+        const medsList = [...new Set([...aceOrArbMeds, ...nsaidMeds].map((m: any) => m.name))];
+        warnings.push({
+          type: "interaction_ace_arb_nsaid",
+          severity: "high",
+          medication: medsList.join(", "),
+          description: "NSAIDs can reduce the effect of ACE inhibitors/ARBs and may increase kidney-related risks.",
+          recommendedAction: "Review need for NSAID therapy, especially in older adults or dehydration; monitor BP/renal function if combined."
+        });
+      }
+
+      if (opioidMeds.length > 0 && (benzoMeds.length > 0 || sedativeMeds.length > 0)) {
+        const medsList = [...new Set([...opioidMeds, ...benzoMeds, ...sedativeMeds].map((m: any) => m.name))];
+        warnings.push({
+          type: "interaction_opioid_sedative",
+          severity: "critical",
+          medication: medsList.join(", "),
+          description: "Opioids combined with benzodiazepines or other sedatives can cause severe respiratory depression.",
+          recommendedAction: "Avoid combination where possible; if necessary, use lowest effective doses and monitor closely."
+        });
+      }
+
+      if (statinMeds.length > 0 && inhibitorMeds.length > 0) {
+        const medsList = [...new Set([...statinMeds, ...inhibitorMeds].map((m: any) => m.name))];
+        warnings.push({
+          type: "interaction_statin_cyp3a4_inhibitor",
+          severity: "high",
+          medication: medsList.join(", "),
+          description: "Strong CYP3A4 inhibitors (e.g., clarithromycin/azole antifungals) can increase statin levels and myopathy risk.",
+          recommendedAction: "Consider holding or adjusting statin during inhibitor therapy; monitor for muscle symptoms."
+        });
+      }
+
+      if (warfarinMeds.length > 0 && nsaidMeds.length > 0) {
+        const medsList = [...new Set([...warfarinMeds, ...nsaidMeds].map((m: any) => m.name))];
+        warnings.push({
+          type: "interaction_warfarin_nsaid",
+          severity: "high",
+          medication: medsList.join(", "),
+          description: "Warfarin combined with NSAIDs increases bleeding risk.",
+          recommendedAction: "Avoid NSAIDs with warfarin where possible; use alternatives and monitor bleeding risk."
+        });
+      }
 
       // =====================================================================
       // CHECK 3.5: AI-POWERED MEDICATION EQUIVALENCE DETECTION
