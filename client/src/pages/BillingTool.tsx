@@ -243,7 +243,7 @@ export default function BillingTool() {
     const renderTable = (headers: string[], rows: string[][]) => {
       const pageWidth = (doc as any).internal?.pageSize?.getWidth?.() ?? 210;
       const usableWidth = pageWidth - marginLeft * 2;
-      const colRatios = [0.32, 0.28, 0.28, 0.12];
+      const colRatios = [0.30, 0.32, 0.26, 0.12];
       const colWidths = colRatios.map((ratio) => Math.floor(usableWidth * ratio));
       // Ensure exact fit (fix rounding drift)
       const drift = usableWidth - colWidths.reduce((sum, w) => sum + w, 0);
