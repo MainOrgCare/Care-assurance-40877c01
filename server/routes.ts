@@ -19,6 +19,7 @@ import { scanFile, computeFileHash, getCachedScan } from "./services/fileScan";
 import * as XLSX from "xlsx";
 import { convertPdfToImages } from "./services/pdfToImages";
 import { analyzeBillingRows } from "./services/billingAnalyzer";
+import { parse as parseDateFns, format as formatDateFns } from "date-fns";
 // Use legacy build for Node.js (no DOM APIs required)
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
@@ -28,12 +29,14 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 40 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const isPdf = file.mimetype === "application/pdf" || file.originalname.toLowerCase().endsWith(".pdf");
-    const isDocx = file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.originalname.toLowerCase().endsWith(".docx");
-    if (isPdf || isDocx) {
+    const name = file.originalname.toLowerCase();
+    const isPdf = file.mimetype === "application/pdf" || name.endsWith(".pdf");
+    const isDocx = file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || name.endsWith(".docx");
+    const isDoc = file.mimetype === "application/msword" || name.endsWith(".doc");
+    if (isPdf || isDocx || isDoc) {
       cb(null, true);
     } else {
-      cb(new Error("Only PDF and Word (.docx) files are allowed"));
+      cb(new Error("Only PDF and Word files are allowed"));
     }
   }
 });
@@ -10864,6 +10867,199 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     return "";
   }
 
+  // =====================
+  // Support plan helpers
+  // =====================
+
+  const tryParseAnyDate = (raw?: string | null): Date | null => {
+    if (!raw) return null;
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+
+    const parsedDirect = parseDateInput(trimmed);
+    if (parsedDirect) return parsedDirect;
+
+    const formats = ["d MMM yyyy", "d MMM yy", "d MMMM yyyy", "d MMMM yy", "dd-MM-yyyy", "dd.MM.yyyy"] as const;
+    for (const fmt of formats) {
+      const parsed = parseDateFns(trimmed, fmt, new Date());
+      if (parsed && !Number.isNaN(parsed.getTime())) {
+        return normalizeDate(parsed);
+      }
+    }
+    return null;
+  };
+
+  const extractSupportPlanDataFromText = (text: string) => {
+    const lower = text.toLowerCase();
+
+    // Provider detection
+    const providerMatch = lower.match(/(lawson[^\n]*|newcastle[^\n]*)/i);
+    const provider = providerMatch ? providerMatch[0].trim() : null;
+    const providerValid = provider ? /lawson|newcastle/i.test(provider) : false;
+
+    // Date extraction
+    const dateRegex = /(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/g;
+    const longDateRegex = /(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{2,4})/gi;
+    const dateTokens: string[] = [];
+
+    let match;
+    while ((match = dateRegex.exec(text)) !== null) {
+      dateTokens.push(match[1]);
+    }
+    while ((match = longDateRegex.exec(text)) !== null) {
+      dateTokens.push(match[1]);
+    }
+
+    const startMatch = text.match(/start[^\n]{0,40}?(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,}\s+\d{2,4})/i);
+    const endMatch = text.match(/end[^\n]{0,40}?(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,}\s+\d{2,4})/i);
+
+    const startDate = tryParseAnyDate(startMatch?.[1] || dateTokens[0] || null);
+    const endDate = tryParseAnyDate(endMatch?.[1] || (dateTokens.length > 1 ? dateTokens[dateTokens.length - 1] : null));
+
+    // Time extraction (HH:MM)
+    const timeRegex = /(\d{1,2}[:.]\d{2})/g;
+    const planTimes = new Set<string>();
+    while ((match = timeRegex.exec(text)) !== null) {
+      const normalized = normalizeTime(match[1]);
+      if (normalized) planTimes.add(normalized);
+    }
+
+    // Weekly hours extraction
+    const hoursRegex = /(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|hr)\b/gi;
+    let supportPlanHours: number | null = null;
+    while ((match = hoursRegex.exec(text)) !== null) {
+      const candidate = Number.parseFloat(match[1]);
+      if (Number.isFinite(candidate)) {
+        supportPlanHours = candidate;
+        // Prefer the first mention that is followed by "per week" if available
+        const tail = text.slice(match.index, match.index + 40).toLowerCase();
+        if (tail.includes("per week") || tail.includes("weekly")) {
+          break;
+        }
+      }
+    }
+
+    return {
+      provider,
+      providerValid,
+      startDate: startDate ? formatDate(startDate) : null,
+      endDate: endDate ? formatDate(endDate) : null,
+      times: Array.from(planTimes).sort(),
+      weeklyHours: supportPlanHours,
+    } as const;
+  };
+
+  type ServiceOrderComparisonInput = {
+    summary?: {
+      earliestStart?: string | null;
+      latestEnd?: string | null;
+      totalWeeklyHours?: number | null;
+    };
+    segments?: Array<{
+      startDate?: string | null;
+      endDate?: string | null;
+      weeklyHoursTotal?: number | null;
+      rows?: Array<{ startTime?: string | null; endTime?: string | null; serviceType?: string | null }>;
+    }>;
+  };
+
+  const compareSupportPlanToServiceOrders = (
+    plan: ReturnType<typeof extractSupportPlanDataFromText>,
+    orders: ServiceOrderComparisonInput
+  ) => {
+    const discrepancies: string[] = [];
+
+    const segments = orders.segments || [];
+
+    const serviceEarliest = tryParseAnyDate(
+      orders.summary?.earliestStart || segments[0]?.startDate || null
+    );
+    const serviceLatest = tryParseAnyDate(
+      orders.summary?.latestEnd || (segments.length ? segments[segments.length - 1]?.endDate : null) || null
+    );
+
+    const serviceOrderHours = (() => {
+      if (Number.isFinite(orders.summary?.totalWeeklyHours || NaN)) {
+        return Number(orders.summary!.totalWeeklyHours);
+      }
+      const total = segments.reduce((sum, seg) => {
+        const hours = seg.weeklyHoursTotal;
+        if (Number.isFinite(hours)) return sum + Number(hours);
+        return sum;
+      }, 0);
+      return total;
+    })();
+
+    const serviceTimes = new Set<string>();
+    for (const seg of segments) {
+      for (const row of seg.rows || []) {
+        const start = normalizeTime(row.startTime || undefined);
+        const end = normalizeTime(row.endTime || undefined);
+        if (start && end) serviceTimes.add(`${start}-${end}`);
+      }
+    }
+
+    if (!plan.provider) {
+      discrepancies.push("Support plan provider not found.");
+    } else if (!plan.providerValid) {
+      discrepancies.push(`Provider "${plan.provider}" is not Lawson or Newcastle.`);
+    }
+
+    if (plan.startDate && serviceEarliest) {
+      const planStart = tryParseAnyDate(plan.startDate)!;
+      if (planStart.getTime() > serviceEarliest.getTime()) {
+        discrepancies.push(`Support plan starts later (${plan.startDate}) than service order (${formatDate(serviceEarliest)}).`);
+      }
+    }
+
+    if (plan.endDate && serviceLatest) {
+      const planEnd = tryParseAnyDate(plan.endDate)!;
+      if (planEnd.getTime() < serviceLatest.getTime()) {
+        discrepancies.push(`Support plan ends earlier (${plan.endDate}) than service order (${formatDate(serviceLatest)}).`);
+      }
+    }
+
+    const planTimes = new Set(plan.times);
+    for (const window of serviceTimes) {
+      const [start, end] = window.split("-");
+      if (!planTimes.has(start) && !planTimes.has(end) && !planTimes.has(window)) {
+        discrepancies.push(`Service order time ${window} not found in support plan.`);
+      }
+    }
+
+    for (const t of planTimes) {
+      if (![...serviceTimes].some((w) => w.startsWith(t) || w.endsWith(t) || w === t)) {
+        discrepancies.push(`Support plan time ${t} not present in service order schedule.`);
+      }
+    }
+
+    if (plan.weeklyHours != null && Number.isFinite(plan.weeklyHours)) {
+      const diff = Math.abs(plan.weeklyHours - serviceOrderHours);
+      if (diff > 0.25) {
+        discrepancies.push(
+          `Weekly hours differ: support plan ${plan.weeklyHours}h vs service order ${serviceOrderHours.toFixed(2)}h.`
+        );
+      }
+    }
+
+    return {
+      provider: plan.provider,
+      providerValid: plan.providerValid,
+      planDates: { start: plan.startDate, end: plan.endDate },
+      serviceDates: {
+        start: serviceEarliest ? formatDate(serviceEarliest) : null,
+        end: serviceLatest ? formatDate(serviceLatest) : null,
+      },
+      planTimes: Array.from(planTimes).sort(),
+      serviceTimes: Array.from(serviceTimes).sort(),
+      weeklyHours: {
+        supportPlan: plan.weeklyHours ?? null,
+        serviceOrder: serviceOrderHours,
+      },
+      discrepancies,
+    } as const;
+  };
+
   app.post("/api/billing-tool/analyze", requireAuth, requireAdmin, uploadImages.array("images"), async (req: any, res) => {
     try {
       const files = Array.isArray(req.files) ? (req.files as Express.Multer.File[]) : [];
@@ -10931,6 +11127,59 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     } catch (error: any) {
       console.error("Billing tool error:", error);
       return res.status(500).json({ message: error.message || "Failed to analyze service order images" });
+    }
+  });
+
+  app.post("/api/support-plan/compare", requireAuth, requireAdmin, upload.single("supportPlan"), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No support plan uploaded" });
+      }
+
+      const serviceOrdersRaw = req.body?.serviceOrders;
+      if (!serviceOrdersRaw) {
+        return res.status(400).json({ message: "Service order summary is required" });
+      }
+
+      let serviceOrders: ServiceOrderComparisonInput;
+      try {
+        serviceOrders = typeof serviceOrdersRaw === "string" ? JSON.parse(serviceOrdersRaw) : serviceOrdersRaw;
+      } catch {
+        return res.status(400).json({ message: "Invalid service order summary payload" });
+      }
+
+      const scanCheck = await scanAndLogFile(req.file, "support-plan", req.user?.username);
+      if (!scanCheck.allowed) {
+        return res.status(400).json({ message: scanCheck.error });
+      }
+
+      const name = req.file.originalname.toLowerCase();
+      const mime = req.file.mimetype || "";
+
+      let extractedText = "";
+      if (mime === "application/pdf" || name.endsWith(".pdf")) {
+        const pdfResult = await extractPdfTextWithPdfjs(req.file.buffer);
+        extractedText = pdfResult.text;
+      } else {
+        const mammothResult = await mammoth.extractRawText({ buffer: req.file.buffer });
+        extractedText = mammothResult.value || "";
+      }
+
+      if (!extractedText.trim()) {
+        return res.status(400).json({ message: "Could not read any text from the support plan" });
+      }
+
+      const planData = extractSupportPlanDataFromText(extractedText);
+      const comparison = compareSupportPlanToServiceOrders(planData, serviceOrders);
+
+      return res.json({
+        sourceFile: req.file.originalname,
+        plan: planData,
+        comparison,
+      });
+    } catch (error: any) {
+      console.error("Support plan comparison error:", error);
+      return res.status(500).json({ message: error.message || "Failed to compare support plan" });
     }
   });
 

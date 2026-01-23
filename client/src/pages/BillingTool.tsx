@@ -24,6 +24,7 @@ import {
   CheckCircle2,
   ChevronDown,
   FileImage,
+   FileText,
   Loader2,
   Trash2,
   Upload,
@@ -70,6 +71,28 @@ type BillingAnalysis = {
   segments: BillingSegment[];
 };
 
+type SupportPlanComparison = {
+  sourceFile: string;
+  plan: {
+    provider: string | null;
+    providerValid: boolean;
+    startDate: string | null;
+    endDate: string | null;
+    times: string[];
+    weeklyHours: number | null;
+  };
+  comparison: {
+    provider: string | null;
+    providerValid: boolean;
+    planDates: { start: string | null; end: string | null };
+    serviceDates: { start: string | null; end: string | null };
+    planTimes: string[];
+    serviceTimes: string[];
+    weeklyHours: { supportPlan: number | null; serviceOrder: number };
+    discrepancies: string[];
+  };
+};
+
 const formatBytes = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
   const kb = bytes / 1024;
@@ -102,6 +125,10 @@ export default function BillingTool() {
   const [status, setStatus] = useState<"idle" | "processing" | "complete">("idle");
   const [analysis, setAnalysis] = useState<BillingAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [supportPlanFile, setSupportPlanFile] = useState<File | null>(null);
+  const [supportPlanStatus, setSupportPlanStatus] = useState<"idle" | "processing" | "complete">("idle");
+  const [supportPlanResult, setSupportPlanResult] = useState<SupportPlanComparison | null>(null);
+  const [supportPlanError, setSupportPlanError] = useState<string | null>(null);
 
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const canAnalyze = files.length > 0 && (isCurrent || Boolean(endDate)) && status !== "processing";
@@ -178,6 +205,8 @@ export default function BillingTool() {
     if (!canAnalyze) return;
     setStatus("processing");
     setError(null);
+    setSupportPlanResult(null);
+    setSupportPlanError(null);
 
     try {
       const formData = new FormData();
@@ -213,6 +242,87 @@ export default function BillingTool() {
       toast({
         title: "Analysis failed",
         description: err.message || "An error occurred while processing images",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSupportPlanSelect = (selected: FileList | null) => {
+    if (!selected || selected.length === 0) return;
+    const candidate = selected[0];
+    const lower = candidate.name.toLowerCase();
+    const isAllowed =
+      lower.endsWith(".pdf") || lower.endsWith(".docx") || lower.endsWith(".doc") ||
+      candidate.type === "application/pdf" ||
+      candidate.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      candidate.type === "application/msword";
+    if (!isAllowed) {
+      toast({
+        title: "Unsupported file type",
+        description: "Please upload a PDF or Word support plan.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSupportPlanFile(candidate);
+    setSupportPlanResult(null);
+    setSupportPlanError(null);
+  };
+
+  const handleCompareSupportPlan = async () => {
+    if (!analysis || !supportPlanFile) return;
+    setSupportPlanStatus("processing");
+    setSupportPlanError(null);
+
+    try {
+      const earliestStart = analysis.segments[0]?.startDate || null;
+      const latestEnd = analysis.segments[analysis.segments.length - 1]?.endDate || null;
+      const totalWeeklyHours = analysis.segments.reduce((sum, seg) => sum + seg.weeklyHoursTotal, 0);
+
+      const payload = {
+        summary: { earliestStart, latestEnd, totalWeeklyHours },
+        segments: analysis.segments.map((seg) => ({
+          startDate: seg.startDate,
+          endDate: seg.endDate,
+          weeklyHoursTotal: seg.weeklyHoursTotal,
+          rows: seg.rows.map((row) => ({
+            startTime: row.startTime,
+            endTime: row.endTime,
+            serviceType: row.serviceType,
+          })),
+        })),
+      };
+
+      const formData = new FormData();
+      formData.append("supportPlan", supportPlanFile);
+      formData.append("serviceOrders", JSON.stringify(payload));
+
+      const response = await fetch("/api/support-plan/compare", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to compare support plan");
+      }
+
+      const data = (await response.json()) as SupportPlanComparison;
+      setSupportPlanResult(data);
+      setSupportPlanStatus("complete");
+      toast({
+        title: "Support plan checked",
+        description: data.comparison.discrepancies.length
+          ? `${data.comparison.discrepancies.length} discrepancy${data.comparison.discrepancies.length === 1 ? "" : "ies"} found.`
+          : "No discrepancies detected.",
+      });
+    } catch (err: any) {
+      setSupportPlanStatus("idle");
+      setSupportPlanError(err.message || "Failed to compare support plan");
+      toast({
+        title: "Comparison failed",
+        description: err.message || "Failed to compare support plan",
         variant: "destructive",
       });
     }
@@ -323,7 +433,7 @@ export default function BillingTool() {
 
     const earliestStart = analysis.segments[0]?.startDate ?? "";
     const latestEnd = analysis.segments[analysis.segments.length - 1]?.endDate ?? "";
-    const dateRangeLabel = isCurrent ? `${earliestStart} → current` : `${earliestStart} → ${latestEnd}`;
+    const dateRangeLabel = isCurrent ? `${earliestStart} to current` : `${earliestStart} to ${latestEnd}`;
 
     doc.setFontSize(16);
     line("Billing analysis export", { bold: true });
@@ -336,6 +446,32 @@ export default function BillingTool() {
     }
     line("");
 
+    if (supportPlanResult) {
+      const cmp = supportPlanResult.comparison;
+      line("Support plan check", { bold: true });
+      line(`File: ${supportPlanResult.sourceFile}`);
+      if (cmp.provider) {
+        line(`Provider: ${cmp.provider}${cmp.providerValid ? " (ok)" : " (not Lawson/Newcastle)"}`);
+      } else {
+        line("Provider: not detected");
+      }
+      line(
+        `Plan dates: ${cmp.planDates.start || "?"} to ${cmp.planDates.end || "?"} • Service order: ${cmp.serviceDates.start || "?"} to ${cmp.serviceDates.end || "?"}`
+      );
+      line(
+        `Weekly hours: plan ${
+          cmp.weeklyHours.supportPlan != null ? `${cmp.weeklyHours.supportPlan}h` : "not specified"
+        } vs service order ${cmp.weeklyHours.serviceOrder.toFixed(2)}h`
+      );
+      if (cmp.discrepancies.length === 0) {
+        line("Discrepancies: none detected");
+      } else {
+        line("Discrepancies:");
+        cmp.discrepancies.forEach((d) => line(`- ${d}`));
+      }
+      line("");
+    }
+
     type Group = {
       service: string;
       startTime: string;
@@ -347,7 +483,7 @@ export default function BillingTool() {
     };
 
     analysis.segments.forEach((segment) => {
-      line(`${segment.startDate} → ${segment.endDate} (${segment.days} days)`, { bold: true });
+      line(`${segment.startDate} to ${segment.endDate} (${segment.days} days)`, { bold: true });
       line(`Weekly total: ${formatHours(segment.weeklyHoursTotal)}`);
 
       const groups = new Map<string, Group>();
@@ -651,6 +787,148 @@ export default function BillingTool() {
               Export PDF
             </Button>
           </div>
+
+          <Card className="glass-card border-border/60">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                Support Plan Comparison (optional)
+              </CardTitle>
+              <CardDescription>
+                Upload the social worker support plan (PDF or Word) to cross-check provider, dates, and visit times against the service order.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-dashed border-border/70 bg-muted/40 px-4 py-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">Support plan file</p>
+                  <p className="text-xs text-muted-foreground">PDF, DOCX, or DOC up to 40 MB.</p>
+                  {supportPlanFile && (
+                    <p className="text-xs text-foreground">{supportPlanFile.name}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Button variant="outline" className="border-border" disabled={supportPlanStatus === "processing"}>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Choose file
+                    </Button>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      className="absolute inset-0 cursor-pointer opacity-0"
+                      onChange={(e) => {
+                        handleSupportPlanSelect(e.target.files);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                  </div>
+                  {supportPlanFile && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setSupportPlanFile(null);
+                        setSupportPlanResult(null);
+                      }}
+                      disabled={supportPlanStatus === "processing"}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  className="bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                  onClick={handleCompareSupportPlan}
+                  disabled={!supportPlanFile || !analysis || supportPlanStatus === "processing"}
+                >
+                  {supportPlanStatus === "processing" ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Comparing...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4" /> Compare support plan
+                    </span>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground">Requires a completed service order analysis above.</p>
+              </div>
+
+              {supportPlanError && (
+                <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-100">
+                  {supportPlanError}
+                </div>
+              )}
+
+              {supportPlanResult && (
+                <div className="space-y-3 rounded-xl border border-border/60 bg-card/50 p-4">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{supportPlanResult.sourceFile}</p>
+                      <p className="text-xs text-muted-foreground">Provider must be Lawson or Newcastle.</p>
+                    </div>
+                    <Badge variant={supportPlanResult.comparison.providerValid ? "success" : "destructive"}>
+                      {supportPlanResult.comparison.providerValid
+                        ? supportPlanResult.comparison.provider || "Provider found"
+                        : supportPlanResult.comparison.provider || "Provider missing"}
+                    </Badge>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
+                      <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">Dates</p>
+                      <p className="text-foreground">
+                        Support plan: {supportPlanResult.comparison.planDates.start || "?"} to {supportPlanResult.comparison.planDates.end || "?"}
+                      </p>
+                      <p className="text-muted-foreground text-xs">
+                        Service order: {supportPlanResult.comparison.serviceDates.start || "?"} to {supportPlanResult.comparison.serviceDates.end || "?"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
+                      <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">Times</p>
+                      <p className="text-foreground">Plan: {supportPlanResult.comparison.planTimes.length ? supportPlanResult.comparison.planTimes.join(", ") : "none detected"}</p>
+                      <p className="text-muted-foreground text-xs">
+                        Service order: {supportPlanResult.comparison.serviceTimes.length ? supportPlanResult.comparison.serviceTimes.join(", ") : "none"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
+                    <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">Weekly hours</p>
+                    <p className="text-foreground">
+                      Support plan: {supportPlanResult.comparison.weeklyHours.supportPlan != null ? `${supportPlanResult.comparison.weeklyHours.supportPlan}h` : "not specified"}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      Service order: {supportPlanResult.comparison.weeklyHours.serviceOrder.toFixed(2)}h
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">Discrepancies</p>
+                    {supportPlanResult.comparison.discrepancies.length === 0 ? (
+                      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-50">
+                        No discrepancies detected.
+                      </div>
+                    ) : (
+                      <ul className="space-y-2 text-sm">
+                        {supportPlanResult.comparison.discrepancies.map((item) => (
+                          <li key={item} className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-100">
+                            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <div className="space-y-4">
             {analysis.segments.map((segment) => (
