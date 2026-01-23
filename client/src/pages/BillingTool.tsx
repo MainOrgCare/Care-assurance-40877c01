@@ -335,21 +335,23 @@ export default function BillingTool() {
 
     const doc = new jsPDF();
     const marginLeft = 14;
-    let cursorY = 18;
+    let cursorY = 20;
 
-    const ensureSpace = (needed = 12) => {
+    const ensureSpace = (needed = 14) => {
       if (cursorY + needed > 280) {
         doc.addPage();
-        cursorY = 18;
+        cursorY = 20;
       }
     };
 
-    const line = (text: string, opts?: { bold?: boolean }) => {
+    const line = (text: string, opts?: { bold?: boolean; size?: number }) => {
       ensureSpace();
+      const fontSize = opts?.size || 10;
+      doc.setFontSize(fontSize);
       doc.setFont("helvetica", opts?.bold ? "bold" : "normal");
       const wrapped = doc.splitTextToSize(text, 180);
       doc.text(wrapped, marginLeft, cursorY);
-      cursorY += (Array.isArray(wrapped) ? wrapped.length : 1) * 6;
+      cursorY += (Array.isArray(wrapped) ? wrapped.length : 1) * (fontSize * 0.5 + 1);
     };
 
     const renderTable = (headers: string[], rows: string[][]) => {
@@ -367,9 +369,9 @@ export default function BillingTool() {
         return acc;
       }, []);
 
-      const cellPaddingX = 1.5;
-      const cellPaddingY = 1.5;
-      const lineHeight = 4.2;
+      const cellPaddingX = 2;
+      const cellPaddingY = 2;
+      const lineHeight = 4.5;
 
       const wrapCell = (text: string, colWidth: number): string[] => {
         const maxWidth = Math.max(10, colWidth - cellPaddingX * 2);
@@ -382,16 +384,16 @@ export default function BillingTool() {
         const maxLines = Math.max(1, ...wrappedCells.map((lines) => lines.length));
         const rowHeight = cellPaddingY * 2 + maxLines * lineHeight;
 
-        ensureSpace(rowHeight + 2);
+        ensureSpace(rowHeight + 4);
 
         // Header styling
         if (opts?.isHeader) {
-          doc.setFillColor(245, 246, 248);
-          doc.setDrawColor(220, 224, 230);
-          doc.rect(marginLeft, cursorY - 4.2, usableWidth, rowHeight + 1.2, "FD");
+          doc.setFillColor(240, 242, 245);
+          doc.setDrawColor(180, 185, 195);
+          doc.rect(marginLeft, cursorY - 4.5, usableWidth, rowHeight + 1.5, "FD");
           doc.setFont("helvetica", "bold");
         } else {
-          doc.setDrawColor(220, 224, 230);
+          doc.setDrawColor(200, 205, 215);
           doc.setFont("helvetica", "normal");
         }
 
@@ -400,9 +402,10 @@ export default function BillingTool() {
           const x = colStarts[i];
           const w = colWidths[i];
           // Border
-          doc.rect(x, cursorY - 4.2, w, rowHeight + 1.2);
+          doc.rect(x, cursorY - 4.5, w, rowHeight + 1.5);
 
           // Text
+          doc.setTextColor(30, 30, 30);
           const textX = x + cellPaddingX;
           const textYStart = cursorY;
           wrappedCells[i].slice(0, maxLines).forEach((txt, lineIdx) => {
@@ -410,17 +413,17 @@ export default function BillingTool() {
           });
         }
 
-        cursorY += rowHeight + 2;
+        cursorY += rowHeight + 3;
       };
 
       const originalFontSize = doc.getFontSize();
-      doc.setFontSize(9.5);
+      doc.setFontSize(9);
 
       drawGridRow(headers, { isHeader: true });
       rows.forEach((row) => drawGridRow(row));
 
       doc.setFontSize(originalFontSize);
-      cursorY += 1;
+      cursorY += 2;
     };
 
     const dayNameMap: Record<(typeof dayKeys)[number], string> = {
@@ -437,50 +440,78 @@ export default function BillingTool() {
     const latestEnd = analysis.segments[analysis.segments.length - 1]?.endDate ?? "";
     const dateRangeLabel = isCurrent ? `${earliestStart} to current` : `${earliestStart} to ${latestEnd}`;
 
-    doc.setFontSize(16);
-    line("Billing analysis export", { bold: true });
+    // Filter to only show important warnings in PDF
+    const importantWarningPatterns = [
+      /weekly.*hours?/i,
+      /discrepan/i,
+      /mismatch/i,
+      /missing.*duration/i,
+      /no.*day.*quantities/i,
+    ];
+    const filterImportantWarnings = (warnings: string[] | undefined) => {
+      if (!warnings) return [];
+      return warnings.filter((w) => 
+        importantWarningPatterns.some((pattern) => pattern.test(w))
+      );
+    };
 
-    doc.setFontSize(11);
-    line(dateRangeLabel, { bold: true });
-    line(`Images: ${analysis.summary.imageCount} • Rows: ${analysis.summary.rowCount}`);
-    if (analysis.summary.warnings?.length) {
-      line(`Warnings: ${analysis.summary.warnings.join(" | ")}`);
+    doc.setTextColor(30, 30, 30);
+    line("Billing Analysis Export", { bold: true, size: 16 });
+
+    line(dateRangeLabel, { bold: true, size: 12 });
+    line(`Images: ${analysis.summary.imageCount}  •  Rows: ${analysis.summary.rowCount}`, { size: 10 });
+    
+    // Only show important warnings in PDF export
+    const importantWarnings = filterImportantWarnings(analysis.summary.warnings);
+    if (importantWarnings.length > 0) {
+      line(`Warnings: ${importantWarnings.join(" | ")}`, { size: 10 });
     }
-    line("");
+    cursorY += 4;
 
     if (supportPlanResult) {
       const cmp = supportPlanResult.comparison;
-      line("Support plan check", { bold: true });
-      line(`File: ${supportPlanResult.sourceFile}`);
-      if (supportPlanResult.extractionWarnings?.length) {
-        line(`Extraction warnings: ${supportPlanResult.extractionWarnings.join(" | ")}`);
+      line("Support Plan Check", { bold: true, size: 12 });
+      line(`File: ${supportPlanResult.sourceFile}`, { size: 10 });
+      
+      // Only show extraction warnings if critical
+      const importantExtWarnings = filterImportantWarnings(supportPlanResult.extractionWarnings);
+      if (importantExtWarnings.length > 0) {
+        line(`Warnings: ${importantExtWarnings.join(" | ")}`, { size: 10 });
       }
+      
       if (cmp.provider) {
-        line(`Provider: ${cmp.provider}${cmp.providerValid ? " (ok)" : " (not Lawson/Newcastle)"}`);
-      } else {
-        line("Provider: not detected");
+        line(`Provider: ${cmp.provider}${cmp.providerValid ? " (valid)" : " (not Lawson/Newcastle)"}`, { size: 10 });
       }
       line(
-        `Plan dates: ${cmp.planDates.start || "?"} to ${cmp.planDates.end || "?"} • Service order: ${cmp.serviceDates.start || "?"} to ${cmp.serviceDates.end || "?"}`
+        `Plan dates: ${cmp.planDates.start || "?"} to ${cmp.planDates.end || "?"}  •  Service order: ${cmp.serviceDates.start || "?"} to ${cmp.serviceDates.end || "?"}`,
+        { size: 10 }
       );
       line(
-        `Plan times: ${cmp.planTimes.length ? cmp.planTimes.join(", ") : "not detected"} • Service order times: ${cmp.serviceTimes.length ? cmp.serviceTimes.join(", ") : "none"}`
+        `Plan times: ${cmp.planTimes.length ? cmp.planTimes.join(", ") : "not detected"}  •  Service order times: ${cmp.serviceTimes.length ? cmp.serviceTimes.join(", ") : "none"}`,
+        { size: 10 }
       );
+      
+      // Highlight weekly hours comparison prominently
+      const planHours = cmp.weeklyHours.supportPlan;
+      const serviceHours = cmp.weeklyHours.serviceOrder;
+      const hoursDiff = planHours != null ? Math.abs(planHours - serviceHours) : 0;
+      const hoursMatch = planHours != null && hoursDiff < 0.5;
+      
       line(
-        `Weekly hours: plan ${
-          cmp.weeklyHours.supportPlan != null ? `${cmp.weeklyHours.supportPlan}h` : "not specified"
-        } vs service order ${cmp.weeklyHours.serviceOrder.toFixed(2)}h`
+        `Weekly hours: Plan ${planHours != null ? `${planHours}h` : "not specified"} vs Service order ${serviceHours.toFixed(2)}h${!hoursMatch && planHours != null ? ` (DIFFERENCE: ${hoursDiff.toFixed(2)}h)` : ""}`,
+        { size: 10, bold: !hoursMatch && planHours != null }
       );
+      
       if (cmp.weeklyHourChanges?.length) {
-        line(`Weekly hour changes: ${cmp.weeklyHourChanges.map((change) => `${change.date} ${formatHours(change.from)} → ${formatHours(change.to)}`).join(" | ")}`);
+        line(`Weekly hour changes: ${cmp.weeklyHourChanges.map((change) => `${change.date} ${formatHours(change.from)} → ${formatHours(change.to)}`).join(" | ")}`, { size: 10 });
       }
       if (cmp.discrepancies.length === 0) {
-        line("Discrepancies: none detected");
+        line("Discrepancies: None detected", { size: 10 });
       } else {
-        line("Discrepancies:");
-        cmp.discrepancies.forEach((d) => line(`- ${d}`));
+        line("Discrepancies:", { size: 10, bold: true });
+        cmp.discrepancies.forEach((d) => line(`  • ${d}`, { size: 10 }));
       }
-      line("");
+      cursorY += 6;
     }
 
     type Group = {
@@ -494,8 +525,8 @@ export default function BillingTool() {
     };
 
     analysis.segments.forEach((segment) => {
-      line(`${segment.startDate} to ${segment.endDate} (${segment.days} days)`, { bold: true });
-      line(`Weekly total: ${formatHours(segment.weeklyHoursTotal)}`);
+      line(`${segment.startDate} to ${segment.endDate} (${segment.days} days)`, { bold: true, size: 11 });
+      line(`Weekly total: ${formatHours(segment.weeklyHoursTotal)}`, { size: 10 });
 
       const groups = new Map<string, Group>();
 

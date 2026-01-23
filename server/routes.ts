@@ -504,17 +504,28 @@ Return JSON ONLY with this shape:
   ]
 }
 
-CRITICAL Rules:
-- CAREFULLY read each day column (Mon qty, Tue qty, Wed qty, Thu qty, Fri qty, Sat qty, Sun qty) for EACH ROW.
-- Many rows have GAPS where some days have values and other days are BLANK/EMPTY.
-- Use integers for day quantities. BLANK or EMPTY cells must be 0.
-- If a cell shows a number like 1, 2, or 3, use that number. If the cell is EMPTY, use 0.
-- Do NOT assume all days have the same value - read each cell individually.
-- If an end date is blank in the table, set "endDate" to null.
-- If a cell is unreadable, use null for dates/times/duration and 0 for day quantities.
-- Do not invent rows that are not visible in the image.
-- Keep the date format exactly as shown in the table (DD/MM/YYYY).
-- Each visual row in the table should produce exactly one object in the rows array.
+CRITICAL EXTRACTION RULES:
+
+1. TABLE STRUCTURE: The table has columns: Start date, End date, Start time, End time, Duration, Mon qty, Tue qty, Wed qty, Thu qty, Fri qty, Sat qty, Sun qty, Occurs every X weeks, Service & Visit type.
+
+2. DAY QUANTITIES - READ EACH CELL INDIVIDUALLY:
+   - Look at EACH day column (Mon, Tue, Wed, Thu, Fri, Sat, Sun) SEPARATELY for every row.
+   - If a cell contains a number (1, 2, 3, etc.), use that exact number.
+   - If a cell is BLANK/EMPTY (no number visible), use 0.
+   - IMPORTANT: Different rows often have DIFFERENT patterns - some rows only have values on certain days.
+   - Example: A row might have Mon=0, Tue=2, Wed=0, Thu=2, Fri=0, Sat=0, Sun=0 (only Tue and Thu have values).
+
+3. DO NOT assume patterns - read what is actually shown in each cell.
+
+4. DATES: Keep DD/MM/YYYY format. If end date is blank, use null.
+
+5. DURATION: Extract as shown (e.g., "00:30m", "01:00h", "01:30h").
+
+6. SERVICE TYPE: Extract from the "Service & Visit type" column (e.g., "Extra Care - AM", "Extra Care - Lunch").
+
+7. OCCURS EVERY WEEKS: Usually 1, but check the column for each row.
+
+8. Each visible table row = one object in the rows array.
 `;
 
 async function extractRowsFromBillingImage(
