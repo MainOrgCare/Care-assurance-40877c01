@@ -10970,29 +10970,80 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     const discrepancies: string[] = [];
 
     const segments = orders.segments || [];
+    const hourTolerance = 0.25;
 
-    const serviceEarliest = tryParseAnyDate(
-      orders.summary?.earliestStart || segments[0]?.startDate || null
-    );
-    const serviceLatest = tryParseAnyDate(
-      orders.summary?.latestEnd || (segments.length ? segments[segments.length - 1]?.endDate : null) || null
-    );
+    const formatHoursValue = (value: number): string => {
+      const rounded = Math.round(value * 100) / 100;
+      if (Number.isInteger(rounded)) return `${rounded.toFixed(0)}h`;
+      return `${rounded.toFixed(2)}h`;
+    };
+
+    const normalizeWeeklyHours = (value?: number | null): number | null => {
+      if (value == null) return null;
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return null;
+      return parsed;
+    };
+
+    const normalizedSegments = segments
+      .map((seg) => {
+        const start = tryParseAnyDate(seg.startDate || null);
+        const end = tryParseAnyDate(seg.endDate || null);
+        if (!start || !end) return null;
+        return {
+          start,
+          end,
+          startText: seg.startDate || formatDate(start),
+          endText: seg.endDate || formatDate(end),
+          weeklyHours: normalizeWeeklyHours(seg.weeklyHoursTotal ?? null),
+          rows: seg.rows || [],
+        };
+      })
+      .filter(Boolean) as Array<{
+      start: Date;
+      end: Date;
+      startText: string;
+      endText: string;
+      weeklyHours: number | null;
+      rows: Array<{ startTime?: string | null; endTime?: string | null; serviceType?: string | null }>;
+    }>;
+
+    normalizedSegments.sort((a, b) => a.start.getTime() - b.start.getTime());
+
+    const serviceEarliest =
+      tryParseAnyDate(orders.summary?.earliestStart || null) || normalizedSegments[0]?.start || null;
+    const serviceLatest =
+      tryParseAnyDate(orders.summary?.latestEnd || null) ||
+      (normalizedSegments.length ? normalizedSegments[normalizedSegments.length - 1].end : null);
+
+    const planStartDate = plan.startDate ? tryParseAnyDate(plan.startDate) : null;
+    const planEndDate = plan.endDate ? tryParseAnyDate(plan.endDate) : null;
+    const coverageStart = planStartDate || serviceEarliest;
+    const coverageEnd = planEndDate || serviceLatest;
+
+    const segmentsInCoverage = normalizedSegments.filter((seg) => {
+      if (!coverageStart || !coverageEnd) return true;
+      return seg.start.getTime() <= coverageEnd.getTime() && seg.end.getTime() >= coverageStart.getTime();
+    });
+    const effectiveSegments = segmentsInCoverage.length ? segmentsInCoverage : normalizedSegments;
 
     const serviceOrderHours = (() => {
+      const latestSegment = effectiveSegments.length ? effectiveSegments[effectiveSegments.length - 1] : null;
+      if (latestSegment?.weeklyHours != null) return latestSegment.weeklyHours;
       if (Number.isFinite(orders.summary?.totalWeeklyHours || NaN)) {
         return Number(orders.summary!.totalWeeklyHours);
       }
-      const total = segments.reduce((sum, seg) => {
-        const hours = seg.weeklyHoursTotal;
-        if (Number.isFinite(hours)) return sum + Number(hours);
-        return sum;
-      }, 0);
+      const total = normalizedSegments.reduce((sum, seg) => sum + (seg.weeklyHours || 0), 0);
       return total;
     })();
 
     const serviceTimes = new Set<string>();
-    for (const seg of segments) {
-      for (const row of seg.rows || []) {
+    const timeSegments = (effectiveSegments.length ? effectiveSegments : segments) as Array<{
+      rows?: Array<{ startTime?: string | null; endTime?: string | null; serviceType?: string | null }>;
+    }>;
+    for (const seg of timeSegments) {
+      const rows = Array.isArray(seg.rows) ? seg.rows : [];
+      for (const row of rows) {
         const start = normalizeTime(row.startTime || undefined);
         const end = normalizeTime(row.endTime || undefined);
         if (start && end) serviceTimes.add(`${start}-${end}`);
@@ -11005,16 +11056,14 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       discrepancies.push(`Provider "${plan.provider}" is not Lawson or Newcastle.`);
     }
 
-    if (plan.startDate && serviceEarliest) {
-      const planStart = tryParseAnyDate(plan.startDate)!;
-      if (planStart.getTime() > serviceEarliest.getTime()) {
+    if (plan.startDate && planStartDate && serviceEarliest) {
+      if (planStartDate.getTime() > serviceEarliest.getTime()) {
         discrepancies.push(`Support plan starts later (${plan.startDate}) than service order (${formatDate(serviceEarliest)}).`);
       }
     }
 
-    if (plan.endDate && serviceLatest) {
-      const planEnd = tryParseAnyDate(plan.endDate)!;
-      if (planEnd.getTime() < serviceLatest.getTime()) {
+    if (plan.endDate && planEndDate && serviceLatest) {
+      if (planEndDate.getTime() < serviceLatest.getTime()) {
         discrepancies.push(`Support plan ends earlier (${plan.endDate}) than service order (${formatDate(serviceLatest)}).`);
       }
     }
@@ -11033,13 +11082,71 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       }
     }
 
-    if (plan.weeklyHours != null && Number.isFinite(plan.weeklyHours)) {
-      const diff = Math.abs(plan.weeklyHours - serviceOrderHours);
-      if (diff > 0.25) {
+    const planWeeklyHours = Number.isFinite(plan.weeklyHours) ? Number(plan.weeklyHours) : null;
+    const hourSegments = effectiveSegments.filter((seg) => seg.weeklyHours != null);
+
+    const distinctHours: number[] = [];
+    hourSegments.forEach((seg) => {
+      const hours = seg.weeklyHours!;
+      if (!distinctHours.some((value) => Math.abs(value - hours) <= hourTolerance)) {
+        distinctHours.push(hours);
+      }
+    });
+
+    const changePoints = [];
+    for (let i = 1; i < hourSegments.length; i += 1) {
+      const prev = hourSegments[i - 1];
+      const curr = hourSegments[i];
+      if (Math.abs(prev.weeklyHours! - curr.weeklyHours!) > hourTolerance) {
+        changePoints.push({
+          date: curr.start,
+          dateText: curr.startText,
+          from: prev.weeklyHours!,
+          to: curr.weeklyHours!,
+        });
+      }
+    }
+
+    const weeklyHourChanges = changePoints.map((change) => ({
+      date: change.dateText,
+      from: change.from,
+      to: change.to,
+    }));
+
+    if (planWeeklyHours != null && hourSegments.length > 0) {
+      if (distinctHours.length <= 1) {
+        const diff = Math.abs(planWeeklyHours - (hourSegments[0]?.weeklyHours ?? 0));
+        if (diff > hourTolerance) {
+          discrepancies.push(
+            `Weekly hours differ: support plan ${formatHoursValue(planWeeklyHours)} vs service order ${formatHoursValue(
+              hourSegments[0]?.weeklyHours ?? serviceOrderHours
+            )}.`
+          );
+        }
+      } else if (changePoints.length > 0) {
+        changePoints.forEach((change) => {
+          discrepancies.push(
+            `Service order weekly hours change on ${change.dateText}: ${formatHoursValue(change.from)} → ${formatHoursValue(
+              change.to
+            )}, but support plan lists ${formatHoursValue(planWeeklyHours)}.`
+          );
+        });
+      }
+    } else if (planWeeklyHours != null && hourSegments.length === 0) {
+      const diff = Math.abs(planWeeklyHours - serviceOrderHours);
+      if (diff > hourTolerance) {
         discrepancies.push(
-          `Weekly hours differ: support plan ${plan.weeklyHours}h vs service order ${serviceOrderHours.toFixed(2)}h.`
+          `Weekly hours differ: support plan ${formatHoursValue(planWeeklyHours)} vs service order ${formatHoursValue(serviceOrderHours)}.`
         );
       }
+    } else if (planWeeklyHours == null && changePoints.length > 0) {
+      changePoints.forEach((change) => {
+        discrepancies.push(
+          `Service order weekly hours change on ${change.dateText}: ${formatHoursValue(change.from)} → ${formatHoursValue(
+            change.to
+          )}, but support plan does not specify weekly hours.`
+        );
+      });
     }
 
     return {
@@ -11056,6 +11163,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         supportPlan: plan.weeklyHours ?? null,
         serviceOrder: serviceOrderHours,
       },
+      weeklyHourChanges,
       discrepancies,
     } as const;
   };

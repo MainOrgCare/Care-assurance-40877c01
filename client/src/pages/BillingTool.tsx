@@ -89,6 +89,7 @@ type SupportPlanComparison = {
     planTimes: string[];
     serviceTimes: string[];
     weeklyHours: { supportPlan: number | null; serviceOrder: number };
+    weeklyHourChanges: Array<{ date: string; from: number; to: number }>;
     discrepancies: string[];
   };
 };
@@ -463,6 +464,9 @@ export default function BillingTool() {
           cmp.weeklyHours.supportPlan != null ? `${cmp.weeklyHours.supportPlan}h` : "not specified"
         } vs service order ${cmp.weeklyHours.serviceOrder.toFixed(2)}h`
       );
+      if (cmp.weeklyHourChanges?.length) {
+        line(`Weekly hour changes: ${cmp.weeklyHourChanges.map((change) => `${change.date} ${formatHours(change.from)} → ${formatHours(change.to)}`).join(" | ")}`);
+      }
       if (cmp.discrepancies.length === 0) {
         line("Discrepancies: none detected");
       } else {
@@ -906,6 +910,15 @@ export default function BillingTool() {
                     <p className="text-muted-foreground text-xs">
                       Service order: {supportPlanResult.comparison.weeklyHours.serviceOrder.toFixed(2)}h
                     </p>
+                    {supportPlanResult.comparison.weeklyHourChanges?.length ? (
+                      <div className="mt-2 text-xs text-muted-foreground space-y-1">
+                        {supportPlanResult.comparison.weeklyHourChanges.map((change) => (
+                          <p key={`${change.date}-${change.from}-${change.to}`}>
+                            Change on {change.date}: {formatHours(change.from)} → {formatHours(change.to)}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="space-y-2">
