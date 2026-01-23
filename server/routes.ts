@@ -504,12 +504,17 @@ Return JSON ONLY with this shape:
   ]
 }
 
-Rules:
-- Use integers for day quantities; blank cells should be 0.
+CRITICAL Rules:
+- CAREFULLY read each day column (Mon qty, Tue qty, Wed qty, Thu qty, Fri qty, Sat qty, Sun qty) for EACH ROW.
+- Many rows have GAPS where some days have values and other days are BLANK/EMPTY.
+- Use integers for day quantities. BLANK or EMPTY cells must be 0.
+- If a cell shows a number like 1, 2, or 3, use that number. If the cell is EMPTY, use 0.
+- Do NOT assume all days have the same value - read each cell individually.
 - If an end date is blank in the table, set "endDate" to null.
 - If a cell is unreadable, use null for dates/times/duration and 0 for day quantities.
 - Do not invent rows that are not visible in the image.
 - Keep the date format exactly as shown in the table (DD/MM/YYYY).
+- Each visual row in the table should produce exactly one object in the rows array.
 `;
 
 async function extractRowsFromBillingImage(

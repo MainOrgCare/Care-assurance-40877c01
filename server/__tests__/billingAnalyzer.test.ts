@@ -415,3 +415,110 @@ test("different time slots are not superseded", () => {
   assert.ok(segment, "segment should exist");
   assert.equal(segment.rows.length, 2, "both time slots should be active");
 });
+
+test("rows with partial day coverage are flagged with gap warnings", () => {
+  // Row with coverage only on Tue and Thu (gaps on Mon, Wed, Fri, Sat, Sun)
+  const partialCoverageRows: BillingRowInput[] = [
+    {
+      startDate: "20/01/2025",
+      endDate: null,
+      startTime: "05:15",
+      endTime: "05:45",
+      duration: "00:30m",
+      mon: 0, // gap
+      tue: 2,
+      wed: 0, // gap
+      thu: 2,
+      fri: 0, // gap
+      sat: 0, // gap
+      sun: 0, // gap
+      occursEveryWeeks: 1,
+      serviceType: "Extra Care - AM",
+    },
+    {
+      startDate: "20/01/2025",
+      endDate: null,
+      startTime: "09:15",
+      endTime: "10:00",
+      duration: "00:45m",
+      mon: 3,
+      tue: 0, // gap
+      wed: 3,
+      thu: 0, // gap
+      fri: 3,
+      sat: 3,
+      sun: 3,
+      occursEveryWeeks: 1,
+      serviceType: "Extra Care - AM",
+    },
+  ];
+
+  const analysis = analyzeBillingRows(partialCoverageRows, {
+    analysisEndDate: new Date("2025-01-22"),
+    imageCount: 1,
+  });
+
+  // Summary should indicate partial coverage rows
+  assert.ok(
+    analysis.summary.warnings?.some((w) => w.includes("partial day coverage")),
+    "should have partial coverage warning in summary"
+  );
+  
+  // Each row should have gap warnings
+  const allRows = analysis.segments.flatMap((seg) => seg.rows);
+  
+  const firstRow = allRows.find((r) => r.startTime === "05:15");
+  assert.ok(firstRow, "first row should exist");
+  assert.ok(
+    firstRow.warnings?.some((w) => w.includes("No coverage")),
+    "first row should have gap warning"
+  );
+  assert.ok(
+    firstRow.warnings?.some((w) => w.includes("Monday")),
+    "first row gap should mention Monday"
+  );
+  
+  const secondRow = allRows.find((r) => r.startTime === "09:15");
+  assert.ok(secondRow, "second row should exist");
+  assert.ok(
+    secondRow.warnings?.some((w) => w.includes("No coverage")),
+    "second row should have gap warning"
+  );
+  assert.ok(
+    secondRow.warnings?.some((w) => w.includes("Tuesday")),
+    "second row gap should mention Tuesday"
+  );
+});
+
+test("rows with full day coverage have no gap warnings", () => {
+  const fullCoverageRows: BillingRowInput[] = [
+    {
+      startDate: "20/01/2025",
+      endDate: "31/01/2025",
+      startTime: "09:00",
+      endTime: "09:45",
+      duration: "00:45m",
+      mon: 2, tue: 2, wed: 2, thu: 2, fri: 2, sat: 2, sun: 2,
+      occursEveryWeeks: 1,
+      serviceType: "Extra Care - AM",
+    },
+  ];
+
+  const analysis = analyzeBillingRows(fullCoverageRows, {
+    analysisEndDate: new Date("2025-01-31"),
+    imageCount: 1,
+  });
+
+  // Should not have partial coverage warning
+  assert.ok(
+    !analysis.summary.warnings?.some((w) => w.includes("partial day coverage")),
+    "should NOT have partial coverage warning for full coverage"
+  );
+  
+  const row = analysis.segments[0]?.rows[0];
+  assert.ok(row, "row should exist");
+  assert.ok(
+    !row.warnings?.some((w) => w.includes("No coverage")),
+    "row should NOT have gap warning for full coverage"
+  );
+});

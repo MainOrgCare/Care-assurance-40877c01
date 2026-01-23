@@ -244,6 +244,46 @@ const getBillingDayIndex = (date: Date): number => (date.getDay() + 6) % 7;
 
 const getBillingDayKey = (date: Date): BillingDayKey => BILLING_DAY_KEYS[getBillingDayIndex(date)];
 
+const DAY_NAMES: Record<BillingDayKey, string> = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday",
+};
+
+/**
+ * Detects which days have coverage (qty > 0) and which are gaps (qty = 0).
+ * Returns information about partial day coverage patterns.
+ */
+function detectDayCoverageGaps(dayCounts: BillingDayCounts): {
+  hasPartialCoverage: boolean;
+  coveredDays: BillingDayKey[];
+  gapDays: BillingDayKey[];
+  gapDescription: string | null;
+} {
+  const coveredDays = BILLING_DAY_KEYS.filter((day) => dayCounts[day] > 0);
+  const gapDays = BILLING_DAY_KEYS.filter((day) => dayCounts[day] === 0);
+  
+  // No gaps if all days have coverage or no days have coverage
+  if (gapDays.length === 0 || coveredDays.length === 0) {
+    return { hasPartialCoverage: false, coveredDays, gapDays, gapDescription: null };
+  }
+  
+  // Has partial coverage - some days have values, others are gaps
+  const gapDayNames = gapDays.map((d) => DAY_NAMES[d]);
+  const gapDescription = `No coverage: ${gapDayNames.join(", ")}`;
+  
+  return {
+    hasPartialCoverage: true,
+    coveredDays,
+    gapDays,
+    gapDescription,
+  };
+}
+
 /**
  * Determines if two time ranges overlap.
  * Returns true if the time brackets are the same or overlap significantly.
@@ -388,6 +428,7 @@ export function analyzeBillingRows(
   let cappedRows = 0;
   let missingDurationRows = 0;
   let noDayCountRows = 0;
+  let partialCoverageRows = 0;
 
   for (const raw of rawRows) {
     const startDateValue = (raw as any)?.startDate ?? (raw as any)?.start_date ?? (raw as any)?.start;
@@ -452,6 +493,13 @@ export function analyzeBillingRows(
     if (Object.values(dayCounts).every((value) => value === 0)) {
       warnings.push("No day quantities");
       noDayCountRows += 1;
+    }
+    
+    // Detect partial day coverage (gaps where some days have values, others don't)
+    const gapInfo = detectDayCoverageGaps(dayCounts);
+    if (gapInfo.hasPartialCoverage && gapInfo.gapDescription) {
+      warnings.push(gapInfo.gapDescription);
+      partialCoverageRows += 1;
     }
 
     const weeklyMinutes =
@@ -554,6 +602,9 @@ export function analyzeBillingRows(
   }
   if (noDayCountRows > 0) {
     summaryWarnings.add("Some rows have no day quantities; check the extracted data.");
+  }
+  if (partialCoverageRows > 0) {
+    summaryWarnings.add(`${partialCoverageRows} row${partialCoverageRows === 1 ? " has" : "s have"} partial day coverage (gaps in weekly schedule).`);
   }
 
   const boundarySet = new Set<number>();
