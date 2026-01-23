@@ -1,5 +1,26 @@
 import { parse as parseDateFns } from "date-fns";
 
+export type SupportPlanVisit = {
+  time: string; // "09:00" or "09:00-09:45" or "overnight"
+  duration?: number | null; // in minutes
+  description?: string | null;
+  days?: string[]; // which days this visit occurs (empty = all days)
+  carerCount?: number | null; // number of carers for this visit
+  frequency?: string | null; // "per day", "daily", etc.
+  startDate?: string | null; // when this visit schedule starts
+  endDate?: string | null; // when this visit schedule ends
+};
+
+export type SupportPlanSection = {
+  provider: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  visits: SupportPlanVisit[];
+  weeklyHours: number | null;
+  serviceType: string | null; // "Extra Care overnight", "Personal Care", etc.
+  rawText?: string;
+};
+
 export type SupportPlanData = {
   provider: string | null;
   providerValid: boolean;
@@ -7,6 +28,8 @@ export type SupportPlanData = {
   endDate: string | null;
   times: string[];
   weeklyHours: number | null;
+  sections: SupportPlanSection[];
+  visits: SupportPlanVisit[];
 };
 
 export type ServiceOrderComparisonInput = {
@@ -19,8 +42,21 @@ export type ServiceOrderComparisonInput = {
     startDate?: string | null;
     endDate?: string | null;
     weeklyHoursTotal?: number | null;
-    rows?: Array<{ startTime?: string | null; endTime?: string | null; serviceType?: string | null }>;
+    rows?: Array<{ 
+      startTime?: string | null; 
+      endTime?: string | null; 
+      serviceType?: string | null;
+      durationMinutes?: number | null;
+      dayCounts?: Record<string, number>;
+    }>;
   }>;
+};
+
+export type ServiceOrderVisitSummary = {
+  time: string;
+  duration: number | null;
+  serviceType: string | null;
+  totalCarersPerWeek: number;
 };
 
 export type SupportPlanComparison = {
@@ -33,6 +69,11 @@ export type SupportPlanComparison = {
   weeklyHours: { supportPlan: number | null; serviceOrder: number };
   weeklyHourChanges: Array<{ date: string; from: number; to: number }>;
   discrepancies: string[];
+  visitComparison?: {
+    planVisits: SupportPlanVisit[];
+    serviceOrderVisits: ServiceOrderVisitSummary[];
+    mismatches: string[];
+  };
 };
 
 const normalizeDate = (date: Date): Date => new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -132,206 +173,289 @@ export const tryParseAnyDate = (raw?: string | null): Date | null => {
 export const extractSupportPlanDataFromText = (text: string): SupportPlanData => {
   const lower = text.toLowerCase();
 
-  const pickRelevantSupportSection = () => {
-    const blocks: Array<{ text: string; start: number; score: number }> = [];
+  // Date patterns for reuse
+  const numericDatePattern = "\\d{1,2}[\\/-]\\d{1,2}[\\/-]\\d{2,4}";
+  const longDatePattern = "\\d{1,2}[\\s-](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\\s-]\\d{2,4}";
+  const dashedLongDatePattern = "\\d{1,2}[\\/-](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\\/-]\\d{2,4}";
+  const datePattern = `(?:${numericDatePattern}|${longDatePattern}|${dashedLongDatePattern})`;
+
+  // Split text into sections by "Provider:" markers
+  const extractAllSections = (): SupportPlanSection[] => {
+    const sections: SupportPlanSection[] = [];
     const providerRegex = /provider\s*:\s*/gi;
-    let match: RegExpExecArray | null;
     const indices: number[] = [];
+    let match: RegExpExecArray | null;
+    
     while ((match = providerRegex.exec(text)) !== null) {
       indices.push(match.index);
     }
-    if (indices.length === 0) return null;
+    
+    if (indices.length === 0) return sections;
 
     for (let i = 0; i < indices.length; i += 1) {
       const start = indices[i];
       const end = i + 1 < indices.length ? indices[i + 1] : text.length;
       const block = text.slice(start, end);
-      const blockLower = block.toLowerCase();
+      
+      const section = parseSectionBlock(block);
+      if (section) {
+        sections.push(section);
+      }
+    }
+    
+    return sections;
+  };
+
+  // Parse a single section block
+  const parseSectionBlock = (block: string): SupportPlanSection | null => {
+    const blockLower = block.toLowerCase();
+    
+    // Extract provider
+    const providerMatch = block.match(/provider\s*:\s*([^\n\r]+)/i);
+    const provider = providerMatch ? providerMatch[1].trim() : null;
+    
+    // Extract start date
+    const startDateMatch = block.match(/start\s*date\s*:\s*([^\n\r]+)/i);
+    const startDateStr = startDateMatch ? startDateMatch[1].trim() : null;
+    const startDate = tryParseAnyDate(startDateStr);
+    
+    // Extract end date
+    const endDateMatch = block.match(/end\s*date\s*:\s*([^\n\r]+)/i);
+    const endDateStr = endDateMatch ? endDateMatch[1].trim() : null;
+    const endDate = tryParseAnyDate(endDateStr);
+    
+    // Extract service type (e.g., "Extra Care overnight cost")
+    const typeMatch = block.match(/type\s*of\s*placement\s*:\s*([^\n\r]+)/i);
+    const serviceType = typeMatch ? typeMatch[1].trim() : null;
+    
+    // Extract "Support to be provided" section
+    const supportMatch = block.match(/support\s*to\s*be\s*provided\s*:\s*([\s\S]*?)(?=(?:appropriate\s*provision|extra\s*care\s*service|$))/i);
+    const supportText = supportMatch ? supportMatch[1].trim() : '';
+    
+    // Parse visits from the support text
+    const visits = parseVisitsFromSupportText(supportText);
+    
+    // Calculate weekly hours from visits
+    let weeklyHours: number | null = null;
+    if (visits.length > 0) {
+      let totalMinutesPerWeek = 0;
+      for (const visit of visits) {
+        if (visit.duration) {
+          // If frequency is "per day", multiply by 7
+          const daysPerWeek = visit.frequency?.toLowerCase().includes('per day') || 
+                              visit.frequency?.toLowerCase().includes('daily') ? 7 : 7;
+          totalMinutesPerWeek += visit.duration * daysPerWeek;
+        }
+      }
+      if (totalMinutesPerWeek > 0) {
+        weeklyHours = totalMinutesPerWeek / 60;
+      }
+    }
+    
+    // Also check for explicit "Number of hours" field
+    const hoursMatch = block.match(/number\s*of\s*hours\s*:\s*(\d+(?:\.\d+)?)/i);
+    if (hoursMatch) {
+      const explicitHours = Number.parseFloat(hoursMatch[1]);
+      if (Number.isFinite(explicitHours)) {
+        weeklyHours = explicitHours;
+      }
+    }
+    
+    return {
+      provider,
+      startDate: startDate ? formatDate(startDate) : null,
+      endDate: endDate ? formatDate(endDate) : null,
+      visits,
+      weeklyHours,
+      serviceType,
+      rawText: block,
+    };
+  };
+
+  // Parse visits from "Support to be provided" text
+  const parseVisitsFromSupportText = (supportText: string): SupportPlanVisit[] => {
+    const visits: SupportPlanVisit[] = [];
+    if (!supportText) return visits;
+    
+    const supportLower = supportText.toLowerCase();
+    
+    // Pattern: "One overnight call x2 carers for 15 mins"
+    // Pattern: "x2 carers for 15 mins", "2 carers for 30 minutes"
+    // Pattern: "One call for 45 mins", "Two visits for 1 hour"
+    
+    // Extract carer count: "x2 carers", "2 carers", "x 2 carers"
+    let carerCount: number | null = null;
+    const carerMatch = supportText.match(/x\s*(\d+)\s*carers?|(\d+)\s*carers?/i);
+    if (carerMatch) {
+      carerCount = Number.parseInt(carerMatch[1] || carerMatch[2], 10);
+    }
+    
+    // Extract duration: "15 mins", "30 minutes", "1 hour", "1.5 hours"
+    let duration: number | null = null;
+    const durationMatch = supportText.match(/(\d+(?:\.\d+)?)\s*(?:mins?|minutes?)/i);
+    if (durationMatch) {
+      duration = Number.parseInt(durationMatch[1], 10);
+    } else {
+      const hourMatch = supportText.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)/i);
+      if (hourMatch) {
+        duration = Math.round(Number.parseFloat(hourMatch[1]) * 60);
+      }
+    }
+    
+    // Extract frequency: "per day", "daily", "once daily"
+    let frequency: string | null = null;
+    if (supportLower.includes('per day')) {
+      frequency = 'per day';
+    } else if (supportLower.includes('daily')) {
+      frequency = 'daily';
+    } else if (supportLower.includes('per week')) {
+      frequency = 'per week';
+    }
+    
+    // Extract time of day: "overnight", "morning", "evening", "lunchtime"
+    let time = 'unspecified';
+    if (supportLower.includes('overnight')) {
+      time = 'overnight';
+    } else if (supportLower.includes('morning')) {
+      time = 'morning';
+    } else if (supportLower.includes('evening') || supportLower.includes('tea')) {
+      time = 'evening';
+    } else if (supportLower.includes('lunch')) {
+      time = 'lunch';
+    } else if (supportLower.includes('afternoon')) {
+      time = 'afternoon';
+    }
+    
+    // Extract specific times if present (HH:MM format)
+    const timeMatch = supportText.match(/(\d{1,2}[:.]\d{2})\s*[-–to]+\s*(\d{1,2}[:.]\d{2})/);
+    if (timeMatch) {
+      const startTime = normalizeTime(timeMatch[1]);
+      const endTime = normalizeTime(timeMatch[2]);
+      if (startTime && endTime) {
+        time = `${startTime}-${endTime}`;
+        // Calculate duration from time range if not already set
+        if (!duration) {
+          const startMins = parseTimeToMinutes(startTime);
+          const endMins = parseTimeToMinutes(endTime);
+          if (startMins != null && endMins != null) {
+            duration = endMins - startMins;
+            if (duration <= 0) duration += 24 * 60;
+          }
+        }
+      }
+    }
+    
+    // Extract visit count: "One", "Two", "Three" or "1", "2", "3"
+    const wordToNum: Record<string, number> = {
+      'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+      'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10
+    };
+    let visitCount = 1;
+    const countWordMatch = supportLower.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/);
+    if (countWordMatch) {
+      visitCount = wordToNum[countWordMatch[1]] || 1;
+    } else {
+      const countNumMatch = supportText.match(/\b(\d+)\s*(?:call|visit|overnight)/i);
+      if (countNumMatch) {
+        visitCount = Number.parseInt(countNumMatch[1], 10) || 1;
+      }
+    }
+    
+    // Create visits based on count
+    for (let i = 0; i < visitCount; i++) {
+      visits.push({
+        time,
+        duration,
+        description: supportText.trim(),
+        carerCount,
+        frequency,
+      });
+    }
+    
+    return visits;
+  };
+
+  // Extract all sections
+  const sections = extractAllSections();
+  
+  // Pick the most relevant section for overall data
+  const pickRelevantSection = (): SupportPlanSection | null => {
+    if (sections.length === 0) return null;
+    
+    // Score sections by relevance
+    const scored = sections.map(section => {
       let score = 0;
-      if (blockLower.includes("number of hours")) score += 6;
-      if (blockLower.includes("hourly cost")) score += 4;
-      if (blockLower.includes("support to be provided")) score += 3;
-      if (blockLower.includes("start date")) score += 2;
-      if (blockLower.includes("end date")) score += 2;
-      if (blockLower.includes("service status")) score += 1;
-      blocks.push({ text: block, start, score });
+      if (section.visits.length > 0) score += 5;
+      if (section.weeklyHours != null) score += 4;
+      if (section.startDate) score += 2;
+      if (section.endDate) score += 2;
+      if (section.serviceType) score += 1;
+      return { section, score };
+    });
+    
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0]?.section || null;
+  };
+  
+  const mainSection = pickRelevantSection();
+  
+  // Collect all visits from all sections
+  const allVisits: SupportPlanVisit[] = [];
+  for (const section of sections) {
+    for (const visit of section.visits) {
+      allVisits.push({
+        ...visit,
+        startDate: section.startDate,
+        endDate: section.endDate,
+      });
     }
-
-    blocks.sort((a, b) => b.score - a.score || a.start - b.start);
-    return blocks[0]?.text || null;
-  };
-
-  const candidateSection = pickRelevantSupportSection();
-  const sectionText = candidateSection || text;
-  const sectionLower = sectionText.toLowerCase();
-
-  // Provider detection (prefer section; keep original casing for display)
-  const providerMatch =
-    sectionText.match(/provider\s*:\s*([^\n\r]+)/i) || text.match(/provider\s*:\s*([^\n\r]+)/i);
-  const provider = providerMatch ? providerMatch[1].trim() : null;
-  const providerValid = provider ? /lawson|newcastle/i.test(provider) : false;
-
-  // Date extraction (within section)
-  const numericDatePattern = "\\d{1,2}[\\/-]\\d{1,2}[\\/-]\\d{2,4}";
-  const longDatePattern = "\\d{1,2}\\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\s+\\d{2,4}";
-  const dashedLongDatePattern = "\\d{1,2}[\\/-](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\\/-]\\d{2,4}";
-  const datePattern = `(?:${numericDatePattern}|${longDatePattern}|${dashedLongDatePattern})`;
-  const dateRegex = new RegExp(`(${numericDatePattern})`, "g");
-  const longDateRegex = new RegExp(`(${longDatePattern})`, "gi");
-  const dashedLongDateRegex = new RegExp(`(${dashedLongDatePattern})`, "gi");
-
-  const dateTokens: Array<{ value: string; index: number }> = [];
-  let tokenMatch: RegExpExecArray | null;
-
-  while ((tokenMatch = dateRegex.exec(sectionText)) !== null) {
-    dateTokens.push({ value: tokenMatch[1], index: tokenMatch.index });
   }
-  while ((tokenMatch = longDateRegex.exec(sectionText)) !== null) {
-    dateTokens.push({ value: tokenMatch[1], index: tokenMatch.index });
-  }
-  while ((tokenMatch = dashedLongDateRegex.exec(sectionText)) !== null) {
-    dateTokens.push({ value: tokenMatch[1], index: tokenMatch.index });
-  }
-
-  const isDobContext = (index: number) => {
-    const start = Math.max(0, index - 25);
-    const end = Math.min(sectionLower.length, index + 25);
-    const window = sectionLower.slice(start, end);
-    return window.includes("date of birth") || /\bdob\b/.test(window) || window.includes("birth");
-  };
-
-  const filteredTokens = dateTokens.filter((token) => !isDobContext(token.index));
-  filteredTokens.sort((a, b) => a.index - b.index);
-
-  const findDateByKeywords = (keywords: string[]) => {
-    const keywordPattern = keywords
-      .map((keyword) => keyword.trim().replace(/\s+/g, "\\s+"))
-      .filter(Boolean)
-      .join("|");
-    if (!keywordPattern) return null;
-    const regex = new RegExp(`(?:${keywordPattern})[\\s\\S]{0,80}?(${datePattern})`, "i");
-    const found = sectionText.match(regex);
-    return found?.[1] || null;
-  };
-
-  const startMatch = findDateByKeywords([
-    "start date",
-    "package start",
-    "start",
-    "commence",
-    "commencement",
-    "begin",
-    "beginning",
-    "from",
-  ]);
-  const endMatch = findDateByKeywords([
-    "end date",
-    "end of",
-    "ending",
-    "end",
-    "expires",
-    "expiry",
-    "until",
-  ]);
-
-  const rangeRegex = new RegExp(
-    `(?:from|starting|starts|start)\\s+([^\\n]{0,30}?${datePattern}[^\\n]{0,20}?)\\s+(?:to|until|through|thru)\\s+([^\\n]{0,30}?${datePattern}[^\\n]{0,20}?)`,
-    "i"
-  );
-  const rangeMatch = sectionText.match(rangeRegex);
-
-  const startDate = tryParseAnyDate(rangeMatch?.[1] || startMatch || filteredTokens[0]?.value || null);
-  const endDate = tryParseAnyDate(rangeMatch?.[2] || endMatch || filteredTokens[filteredTokens.length - 1]?.value || null);
-
-  // Time extraction (HH:MM and "9am"/"9:30pm")
-  const timeRegex = /(\d{1,2}[:.]\d{2})/g;
+  
+  // Extract times from visits
   const planTimes = new Set<string>();
-  while ((tokenMatch = timeRegex.exec(sectionText)) !== null) {
-    const normalized = normalizeTime(tokenMatch[1]);
-    if (normalized) planTimes.add(normalized);
-  }
-
-  const timeAmPmRegex = /(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/gi;
-  while ((tokenMatch = timeAmPmRegex.exec(sectionText)) !== null) {
-    const hours = Number(tokenMatch[1]);
-    const minutes = tokenMatch[2] ? Number(tokenMatch[2]) : 0;
-    const suffix = tokenMatch[3].toLowerCase();
-    if (Number.isFinite(hours) && hours >= 1 && hours <= 12 && Number.isFinite(minutes) && minutes >= 0 && minutes < 60) {
-      const h24 = ((hours % 12) + (suffix === "pm" ? 12 : 0)).toString().padStart(2, "0");
-      const m = minutes.toString().padStart(2, "0");
-      planTimes.add(`${h24}:${m}`);
-    }
-  }
-
-  // Weekly hours extraction (prefer explicit "Number of hours")
-  let supportPlanHours: number | null = null;
-  const numberOfHoursMatch = sectionText.match(/number of hours\s*:\s*(\d+(?:\.\d+)?)/i);
-  if (numberOfHoursMatch?.[1]) {
-    const candidate = Number.parseFloat(numberOfHoursMatch[1]);
-    if (Number.isFinite(candidate)) {
-      supportPlanHours = candidate;
-    }
-  }
-
-  if (supportPlanHours == null) {
-    const weeklyHoursPattern =
-      /(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|hr)\s*(?:per\s*week|weekly|per\s*wk|\/\s*week|\/\s*wk|\bpw\b|\bp\/w\b)/i;
-    const weeklyHoursMatch = sectionText.match(weeklyHoursPattern);
-    if (weeklyHoursMatch && weeklyHoursMatch[1]) {
-      const candidate = Number.parseFloat(weeklyHoursMatch[1]);
-      if (Number.isFinite(candidate)) {
-        supportPlanHours = candidate;
+  for (const visit of allVisits) {
+    if (visit.time && visit.time !== 'unspecified' && visit.time !== 'overnight') {
+      // If it's a time range like "09:00-09:45", add both start and end
+      if (visit.time.includes('-')) {
+        const [start, end] = visit.time.split('-');
+        if (start) planTimes.add(start);
+        if (end) planTimes.add(end);
+      } else {
+        planTimes.add(visit.time);
       }
     }
   }
-
-  if (supportPlanHours == null) {
-    const hoursRegex = /(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|hr)\b/gi;
-    const weeklyMarkers = [
-      "per week",
-      "weekly",
-      "per wk",
-      "/week",
-      "/wk",
-      " pw",
-      "p/w",
-      "pw ",
-      "a week",
-      "each week",
-      "perweek",
-      "per-week",
-      "wkly",
-      "weekly hours",
-    ];
-    while ((tokenMatch = hoursRegex.exec(sectionText)) !== null) {
-      const candidate = Number.parseFloat(tokenMatch[1]);
-      if (!Number.isFinite(candidate)) continue;
-      const tail = sectionText.slice(tokenMatch.index, tokenMatch.index + 64).toLowerCase();
-      if (weeklyMarkers.some((marker) => tail.includes(marker))) {
-        supportPlanHours = candidate;
-        break;
-      }
-      if (supportPlanHours == null) {
-        supportPlanHours = candidate;
+  
+  // Calculate overall weekly hours
+  let totalWeeklyHours: number | null = null;
+  if (mainSection?.weeklyHours != null) {
+    totalWeeklyHours = mainSection.weeklyHours;
+  } else {
+    // Sum from all sections
+    let total = 0;
+    let hasHours = false;
+    for (const section of sections) {
+      if (section.weeklyHours != null) {
+        total += section.weeklyHours;
+        hasHours = true;
       }
     }
+    if (hasHours) totalWeeklyHours = total;
   }
 
-  if (supportPlanHours == null) {
-    const weeklyLine = sectionText.match(/weekly\s+hours[^\d]{0,12}(\d+(?:\.\d+)?)/i);
-    if (weeklyLine?.[1]) {
-      const candidate = Number.parseFloat(weeklyLine[1]);
-      if (Number.isFinite(candidate)) supportPlanHours = candidate;
-    }
-  }
+  // Provider detection
+  const provider = mainSection?.provider || sections[0]?.provider || null;
+  const providerValid = provider ? /lawson|newcastle/i.test(provider) : false;
 
   return {
     provider,
     providerValid,
-    startDate: startDate ? formatDate(startDate) : null,
-    endDate: endDate ? formatDate(endDate) : null,
+    startDate: mainSection?.startDate || sections[0]?.startDate || null,
+    endDate: mainSection?.endDate || sections[0]?.endDate || null,
     times: Array.from(planTimes).sort(),
-    weeklyHours: supportPlanHours,
+    weeklyHours: totalWeeklyHours,
+    sections,
+    visits: allVisits,
   };
 };
 
@@ -377,7 +501,13 @@ export const compareSupportPlanToServiceOrders = (
     startText: string;
     endText: string;
     weeklyHours: number | null;
-    rows: Array<{ startTime?: string | null; endTime?: string | null; serviceType?: string | null }>;
+    rows: Array<{ 
+      startTime?: string | null; 
+      endTime?: string | null; 
+      serviceType?: string | null;
+      durationMinutes?: number | null;
+      dayCounts?: Record<string, number>;
+    }>;
   }>;
 
   normalizedSegments.sort((a, b) => a.start.getTime() - b.start.getTime());
@@ -397,8 +527,28 @@ export const compareSupportPlanToServiceOrders = (
   });
   const effectiveSegments = segmentsInCoverage.length ? segmentsInCoverage : normalizedSegments;
 
+  // Build service order visit summaries from the latest/most relevant segment
+  const serviceOrderVisits: ServiceOrderVisitSummary[] = [];
+  const latestSegment = effectiveSegments.length ? effectiveSegments[effectiveSegments.length - 1] : null;
+  if (latestSegment) {
+    for (const row of latestSegment.rows) {
+      const startTime = normalizeTime(row.startTime || undefined);
+      const endTime = normalizeTime(row.endTime || undefined);
+      if (startTime && endTime) {
+        const dayCounts = row.dayCounts || {};
+        const totalCarersPerWeek = Object.values(dayCounts).reduce((sum, count) => sum + (count || 0), 0);
+        
+        serviceOrderVisits.push({
+          time: `${startTime}-${endTime}`,
+          duration: row.durationMinutes || null,
+          serviceType: row.serviceType || null,
+          totalCarersPerWeek,
+        });
+      }
+    }
+  }
+
   const serviceOrderHours = (() => {
-    const latestSegment = effectiveSegments.length ? effectiveSegments[effectiveSegments.length - 1] : null;
     if (latestSegment?.weeklyHours != null) return latestSegment.weeklyHours;
     if (Number.isFinite(orders.summary?.totalWeeklyHours || NaN)) {
       return Number(orders.summary!.totalWeeklyHours);
@@ -444,17 +594,49 @@ export const compareSupportPlanToServiceOrders = (
     }
   }
 
+  // Compare visit times between plan and service order
   const planTimes = new Set(plan.times);
+  const visitMismatches: string[] = [];
+  
   for (const window of serviceTimes) {
     const [start, end] = window.split("-");
     if (!planTimes.has(start) && !planTimes.has(end) && !planTimes.has(window)) {
-      discrepancies.push(`Service order time ${window} not found in support plan.`);
+      const msg = `Service order time ${window} not found in support plan.`;
+      discrepancies.push(msg);
+      visitMismatches.push(msg);
     }
   }
 
   for (const t of planTimes) {
     if (![...serviceTimes].some((w) => w.startsWith(t) || w.endsWith(t) || w === t)) {
-      discrepancies.push(`Support plan time ${t} not present in service order schedule.`);
+      const msg = `Support plan time ${t} not present in service order schedule.`;
+      discrepancies.push(msg);
+      visitMismatches.push(msg);
+    }
+  }
+
+  // Compare visit durations if we have detailed visit data
+  if (plan.visits.length > 0 && serviceOrderVisits.length > 0) {
+    for (const planVisit of plan.visits) {
+      const matchingServiceVisit = serviceOrderVisits.find(sv => {
+        // Match by overlapping time
+        const planTime = planVisit.time;
+        const serviceTime = sv.time;
+        if (planTime === serviceTime) return true;
+        
+        // Check if start times match
+        const planStart = planTime.split('-')[0];
+        const serviceStart = serviceTime.split('-')[0];
+        return planStart === serviceStart;
+      });
+      
+      if (matchingServiceVisit && planVisit.duration && matchingServiceVisit.duration) {
+        const durationDiff = Math.abs(planVisit.duration - matchingServiceVisit.duration);
+        if (durationDiff > 5) { // More than 5 minutes difference
+          const msg = `Visit at ${planVisit.time}: duration mismatch - plan ${planVisit.duration}min vs service order ${matchingServiceVisit.duration}min`;
+          visitMismatches.push(msg);
+        }
+      }
     }
   }
 
@@ -543,5 +725,10 @@ export const compareSupportPlanToServiceOrders = (
     },
     weeklyHourChanges,
     discrepancies,
+    visitComparison: {
+      planVisits: plan.visits,
+      serviceOrderVisits,
+      mismatches: visitMismatches,
+    },
   };
 };

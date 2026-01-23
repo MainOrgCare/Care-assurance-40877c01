@@ -337,3 +337,81 @@ test("weekly totals add up for the first segment", () => {
   const sumOfRows = firstSegment.rows.reduce((sum, row) => sum + (row.weeklyHours || 0), 0);
   assert.equal(Number(firstSegment.weeklyHoursTotal.toFixed(2)), Number(sumOfRows.toFixed(2)));
 });
+
+test("overlapping time slots from older rows are superseded by newer rows", () => {
+  // Scenario: Old row 24/06/2024 to 05/08/2024 with 09:00-09:45 (2 carers)
+  // New row 05/08/2024 to 21/10/2024 with 09:00-09:45 (3 carers)
+  // On the overlap day (05/08/2024), the NEW row should take precedence
+  const overlapRows: BillingRowInput[] = [
+    {
+      startDate: "24/06/2024",
+      endDate: "05/08/2024",
+      startTime: "09:00",
+      endTime: "09:45",
+      duration: "00:45m",
+      mon: 2, tue: 2, wed: 2, thu: 2, fri: 2, sat: 2, sun: 2,
+      occursEveryWeeks: 1,
+      serviceType: "Extra Care - AM",
+    },
+    {
+      startDate: "05/08/2024",
+      endDate: "21/10/2024",
+      startTime: "09:00",
+      endTime: "09:45",
+      duration: "00:45m",
+      mon: 3, tue: 3, wed: 3, thu: 3, fri: 3, sat: 3, sun: 3,
+      occursEveryWeeks: 1,
+      serviceType: "Extra Care - AM",
+    },
+  ];
+
+  const analysis = analyzeBillingRows(overlapRows, {
+    analysisEndDate: new Date("2024-10-21"),
+    imageCount: 1,
+  });
+
+  // Find the segment that covers 05/08/2024 (the overlap day)
+  const overlapSegment = analysis.segments.find(seg => seg.startDate === "05/08/2024");
+  assert.ok(overlapSegment, "segment for overlap day should exist");
+  
+  // On the overlap day, only the NEW row (with 3 carers) should be active
+  // The old row should be superseded
+  assert.equal(overlapSegment.rows.length, 1, "only one row should be active on overlap day");
+  assert.equal(overlapSegment.rows[0].dayCounts.mon, 3, "should use newer row's carer count");
+});
+
+test("different time slots are not superseded", () => {
+  // Scenario: Two different time slots should both remain active
+  const differentTimeRows: BillingRowInput[] = [
+    {
+      startDate: "01/08/2024",
+      endDate: "31/08/2024",
+      startTime: "09:00",
+      endTime: "09:45",
+      duration: "00:45m",
+      mon: 2, tue: 2, wed: 2, thu: 2, fri: 2, sat: 2, sun: 2,
+      occursEveryWeeks: 1,
+      serviceType: "Extra Care - AM",
+    },
+    {
+      startDate: "01/08/2024",
+      endDate: "31/08/2024",
+      startTime: "13:00",
+      endTime: "13:30",
+      duration: "00:30m",
+      mon: 2, tue: 2, wed: 2, thu: 2, fri: 2, sat: 2, sun: 2,
+      occursEveryWeeks: 1,
+      serviceType: "Extra Care - Lunch",
+    },
+  ];
+
+  const analysis = analyzeBillingRows(differentTimeRows, {
+    analysisEndDate: new Date("2024-08-31"),
+    imageCount: 1,
+  });
+
+  // Both rows should be present since they have different time slots
+  const segment = analysis.segments[0];
+  assert.ok(segment, "segment should exist");
+  assert.equal(segment.rows.length, 2, "both time slots should be active");
+});

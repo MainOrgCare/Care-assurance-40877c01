@@ -244,6 +244,136 @@ const getBillingDayIndex = (date: Date): number => (date.getDay() + 6) % 7;
 
 const getBillingDayKey = (date: Date): BillingDayKey => BILLING_DAY_KEYS[getBillingDayIndex(date)];
 
+/**
+ * Determines if two time ranges overlap.
+ * Returns true if the time brackets are the same or overlap significantly.
+ */
+function timeRangesOverlap(
+  startA: string | null,
+  endA: string | null,
+  startB: string | null,
+  endB: string | null
+): boolean {
+  // If both have exact same start time, they overlap
+  if (startA && startB && startA === startB) return true;
+  
+  const startAMin = parseTimeToMinutes(startA);
+  const endAMin = parseTimeToMinutes(endA);
+  const startBMin = parseTimeToMinutes(startB);
+  const endBMin = parseTimeToMinutes(endB);
+  
+  // If we can't parse times, can't determine overlap
+  if (startAMin == null || endAMin == null || startBMin == null || endBMin == null) {
+    return false;
+  }
+  
+  // Handle overnight shifts
+  const aStart = startAMin;
+  const aEnd = endAMin <= startAMin ? endAMin + 24 * 60 : endAMin;
+  const bStart = startBMin;
+  const bEnd = endBMin <= startBMin ? endBMin + 24 * 60 : endBMin;
+  
+  // Check if time ranges overlap (with tolerance for boundary cases)
+  // Two ranges overlap if one starts before the other ends
+  const tolerance = 15; // 15 minute tolerance for similar time brackets
+  return aStart < bEnd + tolerance && aEnd > bStart - tolerance;
+}
+
+/**
+ * Checks if two service types represent the same type of visit.
+ */
+function isSameServiceType(serviceA: string | null, serviceB: string | null): boolean {
+  const a = (serviceA || '').toLowerCase().trim();
+  const b = (serviceB || '').toLowerCase().trim();
+  
+  if (!a || !b) return false;
+  if (a === b) return true;
+  
+  // Extract the core service type (e.g., "AM" from "Extra Care - AM")
+  const extractCore = (s: string) => {
+    // Remove common prefixes
+    const cleaned = s
+      .replace(/extra\s*care\s*[-–]\s*/i, '')
+      .replace(/personal\s*care\s*[-–]\s*/i, '')
+      .replace(/care\s*[-–]\s*/i, '')
+      .trim();
+    return cleaned;
+  };
+  
+  const coreA = extractCore(a);
+  const coreB = extractCore(b);
+  
+  // Same core type (e.g., both are "AM" visits)
+  if (coreA === coreB) return true;
+  
+  // One contains the other
+  if (a.includes(b) || b.includes(a)) return true;
+  
+  return false;
+}
+
+/**
+ * Filters out older service order rows that are superseded by newer rows
+ * with overlapping time slots. When two rows have the same/similar time bracket,
+ * the newer one (later start date) takes precedence on the overlap day.
+ * 
+ * Key rule: If a new service order starts on the same day an old one ends,
+ * the new one takes over for that time slot.
+ */
+function filterSupersededRows(rows: NormalizedBillingRow[]): NormalizedBillingRow[] {
+  if (rows.length <= 1) return rows;
+  
+  const result: NormalizedBillingRow[] = [];
+  
+  for (const row of rows) {
+    // Check if this row is superseded by a newer row with overlapping time
+    const isSuperseded = rows.some((other) => {
+      // Don't compare with self
+      if (row.id === other.id) return false;
+      
+      // Other row must have a later start date to supersede
+      if (other.startDate.getTime() <= row.startDate.getTime()) return false;
+      
+      // Check for same/similar service types
+      const sameService = isSameServiceType(row.serviceType, other.serviceType);
+      
+      // Check if times overlap
+      const timesOverlap = timeRangesOverlap(
+        row.startTime,
+        row.endTime,
+        other.startTime,
+        other.endTime
+      );
+      
+      // Row is superseded if:
+      // 1. Same service type AND overlapping times - this is a replacement
+      if (sameService && timesOverlap) {
+        return true;
+      }
+      
+      // 2. Exact same time slot (same start AND end time) - replacement regardless of service name
+      if (row.startTime && other.startTime && row.endTime && other.endTime) {
+        if (row.startTime === other.startTime && row.endTime === other.endTime) {
+          return true;
+        }
+      }
+      
+      // 3. Very similar times (within 15 mins) and same service type category
+      if (timesOverlap && sameService) {
+        return true;
+      }
+      
+      return false;
+    });
+    
+    if (!isSuperseded) {
+      result.push(row);
+    }
+  }
+  
+  return result;
+}
+
 
 export function analyzeBillingRows(
   rawRows: BillingRowInput[],
@@ -452,7 +582,12 @@ export function analyzeBillingRows(
       });
     if (activeRows.length === 0) continue;
 
-    const rowsForSegment: BillingSegmentRow[] = activeRows.map((row) => ({
+    // Filter out older rows that are superseded by newer rows with the same time slot
+    // When a newer service order starts for the same time bracket, it replaces the old one
+    const filteredRows = filterSupersededRows(activeRows);
+    if (filteredRows.length === 0) continue;
+
+    const rowsForSegment: BillingSegmentRow[] = filteredRows.map((row) => ({
       id: row.id,
       startDate: row.startDateText,
       endDate: row.endDateText,
