@@ -10879,7 +10879,22 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     const parsedDirect = parseDateInput(trimmed);
     if (parsedDirect) return parsedDirect;
 
-    const formats = ["d MMM yyyy", "d MMM yy", "d MMMM yyyy", "d MMMM yy", "dd-MM-yyyy", "dd.MM.yyyy"] as const;
+    const formats = [
+      "d MMM yyyy",
+      "d MMM yy",
+      "d MMMM yyyy",
+      "d MMMM yy",
+      "d-MMM-yyyy",
+      "d-MMM-yy",
+      "d-MMMM-yyyy",
+      "d-MMMM-yy",
+      "dd-MM-yyyy",
+      "dd.MM.yyyy",
+      "dd-MMM-yyyy",
+      "dd-MMM-yy",
+      "dd-MMMM-yyyy",
+      "dd-MMMM-yy",
+    ] as const;
     for (const fmt of formats) {
       const parsed = parseDateFns(trimmed, fmt, new Date());
       if (parsed && !Number.isNaN(parsed.getTime())) {
@@ -10892,48 +10907,157 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   const extractSupportPlanDataFromText = (text: string) => {
     const lower = text.toLowerCase();
 
-    // Provider detection
-    const providerMatch = lower.match(/(lawson[^\n]*|newcastle[^\n]*)/i);
-    const provider = providerMatch ? providerMatch[0].trim() : null;
+    const pickRelevantSupportSection = () => {
+      const blocks: Array<{ text: string; start: number; score: number }> = [];
+      const providerRegex = /provider\s*:\s*/gi;
+      let match: RegExpExecArray | null;
+      const indices: number[] = [];
+      while ((match = providerRegex.exec(text)) !== null) {
+        indices.push(match.index);
+      }
+
+      if (indices.length === 0) return null;
+
+      for (let i = 0; i < indices.length; i += 1) {
+        const start = indices[i];
+        const end = i + 1 < indices.length ? indices[i + 1] : text.length;
+        const block = text.slice(start, end);
+        const blockLower = block.toLowerCase();
+        let score = 0;
+        if (blockLower.includes("number of hours")) score += 6;
+        if (blockLower.includes("hourly cost")) score += 4;
+        if (blockLower.includes("support to be provided")) score += 3;
+        if (blockLower.includes("start date")) score += 2;
+        if (blockLower.includes("end date")) score += 2;
+        if (blockLower.includes("service status")) score += 1;
+        blocks.push({ text: block, start, score });
+      }
+
+      blocks.sort((a, b) => b.score - a.score || a.start - b.start);
+      return blocks[0]?.text || null;
+    };
+
+    const candidateSection = pickRelevantSupportSection();
+    const sectionText = candidateSection || text;
+    const sectionLower = sectionText.toLowerCase();
+
+    // Provider detection (prefer section)
+    const providerMatch =
+      sectionLower.match(/provider\s*:\s*([^\n\r]+)/i) || lower.match(/provider\s*:\s*([^\n\r]+)/i);
+    const provider = providerMatch ? providerMatch[1].trim() : null;
     const providerValid = provider ? /lawson|newcastle/i.test(provider) : false;
 
-    // Date extraction
-    const dateRegex = /(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/g;
-    const longDateRegex = /(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{2,4})/gi;
-    const dateTokens: string[] = [];
+    // Date extraction (within section)
+    const numericDatePattern = "\\d{1,2}[\\/-]\\d{1,2}[\\/-]\\d{2,4}";
+    const longDatePattern = "\\d{1,2}\\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\s+\\d{2,4}";
+    const dashedLongDatePattern = "\\d{1,2}[\\/-](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\\/-]\\d{2,4}";
+    const datePattern = `(?:${numericDatePattern}|${longDatePattern}|${dashedLongDatePattern})`;
+    const dateRegex = new RegExp(`(${numericDatePattern})`, "g");
+    const longDateRegex = new RegExp(`(${longDatePattern})`, "gi");
+    const dashedLongDateRegex = new RegExp(`(${dashedLongDatePattern})`, "gi");
 
-    let match;
-    while ((match = dateRegex.exec(text)) !== null) {
-      dateTokens.push(match[1]);
+    const dateTokens: Array<{ value: string; index: number }> = [];
+
+    while ((match = dateRegex.exec(sectionText)) !== null) {
+      dateTokens.push({ value: match[1], index: match.index });
     }
-    while ((match = longDateRegex.exec(text)) !== null) {
-      dateTokens.push(match[1]);
+    while ((match = longDateRegex.exec(sectionText)) !== null) {
+      dateTokens.push({ value: match[1], index: match.index });
+    }
+    while ((match = dashedLongDateRegex.exec(sectionText)) !== null) {
+      dateTokens.push({ value: match[1], index: match.index });
     }
 
-    const startMatch = text.match(/start[^\n]{0,40}?(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,}\s+\d{2,4})/i);
-    const endMatch = text.match(/end[^\n]{0,40}?(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,}\s+\d{2,4})/i);
+    const isDobContext = (index: number) => {
+      const start = Math.max(0, index - 25);
+      const end = Math.min(sectionLower.length, index + 25);
+      const window = sectionLower.slice(start, end);
+      return window.includes("date of birth") || /\bdob\b/.test(window) || window.includes("birth");
+    };
 
-    const startDate = tryParseAnyDate(startMatch?.[1] || dateTokens[0] || null);
-    const endDate = tryParseAnyDate(endMatch?.[1] || (dateTokens.length > 1 ? dateTokens[dateTokens.length - 1] : null));
+    const filteredTokens = dateTokens.filter((token) => !isDobContext(token.index));
+    filteredTokens.sort((a, b) => a.index - b.index);
+
+    const findDateByKeywords = (keywords: string[]) => {
+      const keywordPattern = keywords
+        .map((keyword) => keyword.trim().replace(/\s+/g, "\\s+"))
+        .filter(Boolean)
+        .join("|");
+      if (!keywordPattern) return null;
+      const regex = new RegExp(`(?:${keywordPattern})[\\s\\S]{0,80}?(${datePattern})`, "i");
+      const found = sectionText.match(regex);
+      return found?.[1] || null;
+    };
+
+    const startMatch = findDateByKeywords([
+      "start date",
+      "package start",
+      "start",
+      "commence",
+      "commencement",
+      "begin",
+      "beginning",
+      "from",
+    ]);
+    const endMatch = findDateByKeywords([
+      "end date",
+      "end of",
+      "ending",
+      "end",
+      "expires",
+      "expiry",
+      "until",
+    ]);
+
+    const startDate = tryParseAnyDate(startMatch || filteredTokens[0]?.value || null);
+    const endDate = tryParseAnyDate(endMatch || filteredTokens[filteredTokens.length - 1]?.value || null);
 
     // Time extraction (HH:MM)
     const timeRegex = /(\d{1,2}[:.]\d{2})/g;
     const planTimes = new Set<string>();
-    while ((match = timeRegex.exec(text)) !== null) {
+    while ((match = timeRegex.exec(sectionText)) !== null) {
       const normalized = normalizeTime(match[1]);
       if (normalized) planTimes.add(normalized);
     }
 
-    // Weekly hours extraction
-    const hoursRegex = /(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|hr)\b/gi;
+    // Weekly hours extraction (prefer explicit "Number of hours")
     let supportPlanHours: number | null = null;
-    while ((match = hoursRegex.exec(text)) !== null) {
-      const candidate = Number.parseFloat(match[1]);
+    const numberOfHoursMatch = sectionText.match(/number of hours\s*:\s*(\d+(?:\.\d+)?)/i);
+    if (numberOfHoursMatch?.[1]) {
+      const candidate = Number.parseFloat(numberOfHoursMatch[1]);
       if (Number.isFinite(candidate)) {
         supportPlanHours = candidate;
-        // Prefer the first mention that is followed by "per week" if available
-        const tail = text.slice(match.index, match.index + 40).toLowerCase();
-        if (tail.includes("per week") || tail.includes("weekly")) {
+      }
+    }
+
+    if (supportPlanHours == null) {
+      const weeklyHoursPattern =
+        /(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|hr)\s*(?:per\s*week|weekly|per\s*wk|\/\s*week|\/\s*wk|\bpw\b|\bp\/w\b)/i;
+      const weeklyHoursMatch = sectionText.match(weeklyHoursPattern);
+      if (weeklyHoursMatch && weeklyHoursMatch[1]) {
+        const candidate = Number.parseFloat(weeklyHoursMatch[1]);
+        if (Number.isFinite(candidate)) {
+          supportPlanHours = candidate;
+        }
+      }
+    }
+
+    if (supportPlanHours == null) {
+      const hoursRegex = /(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|hr)\b/gi;
+      while ((match = hoursRegex.exec(sectionText)) !== null) {
+        const candidate = Number.parseFloat(match[1]);
+        if (!Number.isFinite(candidate)) continue;
+        const tail = sectionText.slice(match.index, match.index + 48).toLowerCase();
+        if (
+          tail.includes("per week") ||
+          tail.includes("weekly") ||
+          tail.includes("per wk") ||
+          tail.includes("/week") ||
+          tail.includes("/wk") ||
+          tail.includes(" pw") ||
+          tail.includes("p/w")
+        ) {
+          supportPlanHours = candidate;
           break;
         }
       }
@@ -11050,6 +11174,16 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       }
     }
 
+    if (!plan.startDate && serviceEarliest) {
+      discrepancies.push("Support plan start date not found; check file formatting.");
+    }
+    if (!plan.endDate && serviceLatest) {
+      discrepancies.push("Support plan end date not found; check file formatting.");
+    }
+    if (plan.times.length === 0 && serviceTimes.size > 0) {
+      discrepancies.push("Support plan visit times not detected; cannot compare time windows.");
+    }
+
     if (!plan.provider) {
       discrepancies.push("Support plan provider not found.");
     } else if (!plan.providerValid) {
@@ -11084,6 +11218,9 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
 
     const planWeeklyHours = Number.isFinite(plan.weeklyHours) ? Number(plan.weeklyHours) : null;
     const hourSegments = effectiveSegments.filter((seg) => seg.weeklyHours != null);
+    if (planWeeklyHours == null && hourSegments.length > 0) {
+      discrepancies.push("Support plan weekly hours not detected; cannot compare hours.");
+    }
 
     const distinctHours: number[] = [];
     hourSegments.forEach((seg) => {
