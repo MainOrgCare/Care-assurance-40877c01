@@ -2,6 +2,10 @@ import type { Express } from "express";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
+import os from "node:os";
+import { promises as fs } from "node:fs";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
@@ -24,6 +28,8 @@ import { parse as parseDateFns, format as formatDateFns } from "date-fns";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
 // Vision-based extraction for improved EMAR accuracy
+
+const execFileAsync = promisify(execFile);
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -229,6 +235,40 @@ async function extractPdfTextWithPdfjs(pdfBuffer: Buffer): Promise<{ text: strin
   const combined = pageTexts.join("\n\n--- PAGE BREAK ---\n\n");
   return { text: combined, pageCount: pdf.numPages, pageCharCounts, pageTexts };
 }
+
+const tryConvertOfficeToPdf = async (buffer: Buffer, originalName: string): Promise<Buffer | null> => {
+  const ext = path.extname(originalName).toLowerCase();
+  if (![".doc", ".docx"].includes(ext)) return null;
+
+  let tempDir: string | null = null;
+  try {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "support-plan-"));
+    const inputPath = path.join(tempDir, `input${ext || ".docx"}`);
+    await fs.writeFile(inputPath, buffer);
+
+    const runConversion = async (command: string): Promise<Buffer | null> => {
+      try {
+        await execFileAsync(command, ["--headless", "--convert-to", "pdf", "--outdir", tempDir!, inputPath], {
+          timeout: 15000,
+        });
+        const pdfPath = path.join(tempDir!, "input.pdf");
+        const pdfBuffer = await fs.readFile(pdfPath);
+        return pdfBuffer;
+      } catch {
+        return null;
+      }
+    };
+
+    const pdfBuffer = (await runConversion("soffice")) || (await runConversion("libreoffice"));
+    return pdfBuffer;
+  } catch {
+    return null;
+  } finally {
+    if (tempDir) {
+      await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+};
 
 // Virus scanning helper - scans file, logs result, creates admin alert if threat detected
 async function scanAndLogFile(
@@ -11010,9 +11050,11 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       "until",
     ]);
 
-    const rangeMatch = sectionText.match(
-      /(?:from|starting|starts|start)\s+([^\n]{0,30}?\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}[^\n]{0,20}?)\s+(?:to|until|through|thru)\s+([^\n]{0,30}?\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}[^\n]{0,20}?)/i
+    const rangeRegex = new RegExp(
+      `(?:from|starting|starts|start)\\s+([^\\n]{0,30}?${datePattern}[^\\n]{0,20}?)\\s+(?:to|until|through|thru)\\s+([^\\n]{0,30}?${datePattern}[^\\n]{0,20}?)`,
+      "i"
     );
+    const rangeMatch = sectionText.match(rangeRegex);
 
     const startDate = tryParseAnyDate(rangeMatch?.[1] || startMatch || filteredTokens[0]?.value || null);
     const endDate = tryParseAnyDate(rangeMatch?.[2] || endMatch || filteredTokens[filteredTokens.length - 1]?.value || null);
@@ -11422,16 +11464,51 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       const mime = req.file.mimetype || "";
 
       let extractedText = "";
+      const extractionWarnings: string[] = [];
       if (mime === "application/pdf" || name.endsWith(".pdf")) {
         const pdfResult = await extractPdfTextWithPdfjs(req.file.buffer);
         extractedText = pdfResult.text;
       } else {
-        const mammothResult = await mammoth.extractRawText({ buffer: req.file.buffer });
-        extractedText = mammothResult.value || "";
+        let pdfText = "";
+        const convertedPdf = await tryConvertOfficeToPdf(req.file.buffer, req.file.originalname);
+        if (convertedPdf) {
+          const pdfResult = await extractPdfTextWithPdfjs(convertedPdf);
+          pdfText = pdfResult.text;
+          if (!pdfText.trim()) {
+            extractionWarnings.push("Converted PDF text was empty; falling back to Word text extraction.");
+          }
+        } else {
+          extractionWarnings.push("Word-to-PDF conversion unavailable; using direct Word text extraction.");
+        }
+
+        let wordText = "";
+        try {
+          const mammothResult = await mammoth.extractRawText({ buffer: req.file.buffer });
+          wordText = mammothResult.value || "";
+          if (!wordText.trim()) {
+            extractionWarnings.push("Word text extraction returned no readable text.");
+          }
+        } catch (error: any) {
+          extractionWarnings.push(error?.message || "Word text extraction failed.");
+        }
+
+        const pdfLength = pdfText.trim().length;
+        const wordLength = wordText.trim().length;
+        if (pdfLength && pdfLength >= wordLength) {
+          extractedText = pdfText;
+        } else if (wordLength) {
+          extractedText = wordText;
+        } else {
+          extractedText = pdfText || wordText;
+        }
       }
 
       if (!extractedText.trim()) {
-        return res.status(400).json({ message: "Could not read any text from the support plan" });
+        const isLegacyDoc = name.endsWith(".doc") && !name.endsWith(".docx");
+        const message = isLegacyDoc
+          ? "Could not read this .doc file. Please upload a .docx or PDF support plan."
+          : "Could not read any text from the support plan";
+        return res.status(400).json({ message });
       }
 
       const planData = extractSupportPlanDataFromText(extractedText);
@@ -11441,6 +11518,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         sourceFile: req.file.originalname,
         plan: planData,
         comparison,
+        extractionWarnings,
       });
     } catch (error: any) {
       console.error("Support plan comparison error:", error);
