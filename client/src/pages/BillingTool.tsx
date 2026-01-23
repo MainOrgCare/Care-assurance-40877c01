@@ -73,6 +73,7 @@ type BillingAnalysis = {
 
 type SupportPlanComparison = {
   sourceFile: string;
+  extractionWarnings?: string[];
   plan: {
     provider: string | null;
     providerValid: boolean;
@@ -451,6 +452,9 @@ export default function BillingTool() {
       const cmp = supportPlanResult.comparison;
       line("Support plan check", { bold: true });
       line(`File: ${supportPlanResult.sourceFile}`);
+      if (supportPlanResult.extractionWarnings?.length) {
+        line(`Extraction warnings: ${supportPlanResult.extractionWarnings.join(" | ")}`);
+      }
       if (cmp.provider) {
         line(`Provider: ${cmp.provider}${cmp.providerValid ? " (ok)" : " (not Lawson/Newcastle)"}`);
       } else {
@@ -885,6 +889,17 @@ export default function BillingTool() {
                         : supportPlanResult.comparison.provider || "Provider missing"}
                     </Badge>
                   </div>
+
+                  {supportPlanResult.extractionWarnings?.length ? (
+                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                      <p className="text-xs uppercase tracking-[0.15em] text-amber-200/80 mb-1">Extraction warnings</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        {supportPlanResult.extractionWarnings.map((warning) => (
+                          <li key={warning}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
 
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
