@@ -460,6 +460,9 @@ export default function BillingTool() {
         `Plan dates: ${cmp.planDates.start || "?"} to ${cmp.planDates.end || "?"} • Service order: ${cmp.serviceDates.start || "?"} to ${cmp.serviceDates.end || "?"}`
       );
       line(
+        `Plan times: ${cmp.planTimes.length ? cmp.planTimes.join(", ") : "not detected"} • Service order times: ${cmp.serviceTimes.length ? cmp.serviceTimes.join(", ") : "none"}`
+      );
+      line(
         `Weekly hours: plan ${
           cmp.weeklyHours.supportPlan != null ? `${cmp.weeklyHours.supportPlan}h` : "not specified"
         } vs service order ${cmp.weeklyHours.serviceOrder.toFixed(2)}h`
