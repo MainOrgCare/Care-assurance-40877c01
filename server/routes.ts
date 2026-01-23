@@ -10957,15 +10957,16 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     const dashedLongDateRegex = new RegExp(`(${dashedLongDatePattern})`, "gi");
 
     const dateTokens: Array<{ value: string; index: number }> = [];
+    let tokenMatch: RegExpExecArray | null;
 
-    while ((match = dateRegex.exec(sectionText)) !== null) {
-      dateTokens.push({ value: match[1], index: match.index });
+    while ((tokenMatch = dateRegex.exec(sectionText)) !== null) {
+      dateTokens.push({ value: tokenMatch[1], index: tokenMatch.index });
     }
-    while ((match = longDateRegex.exec(sectionText)) !== null) {
-      dateTokens.push({ value: match[1], index: match.index });
+    while ((tokenMatch = longDateRegex.exec(sectionText)) !== null) {
+      dateTokens.push({ value: tokenMatch[1], index: tokenMatch.index });
     }
-    while ((match = dashedLongDateRegex.exec(sectionText)) !== null) {
-      dateTokens.push({ value: match[1], index: match.index });
+    while ((tokenMatch = dashedLongDateRegex.exec(sectionText)) !== null) {
+      dateTokens.push({ value: tokenMatch[1], index: tokenMatch.index });
     }
 
     const isDobContext = (index: number) => {
@@ -11009,15 +11010,30 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       "until",
     ]);
 
-    const startDate = tryParseAnyDate(startMatch || filteredTokens[0]?.value || null);
-    const endDate = tryParseAnyDate(endMatch || filteredTokens[filteredTokens.length - 1]?.value || null);
+    const rangeMatch = sectionText.match(
+      /(?:from|starting|starts|start)\s+([^\n]{0,30}?\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}[^\n]{0,20}?)\s+(?:to|until|through|thru)\s+([^\n]{0,30}?\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}[^\n]{0,20}?)/i
+    );
+
+    const startDate = tryParseAnyDate(rangeMatch?.[1] || startMatch || filteredTokens[0]?.value || null);
+    const endDate = tryParseAnyDate(rangeMatch?.[2] || endMatch || filteredTokens[filteredTokens.length - 1]?.value || null);
 
     // Time extraction (HH:MM)
     const timeRegex = /(\d{1,2}[:.]\d{2})/g;
     const planTimes = new Set<string>();
-    while ((match = timeRegex.exec(sectionText)) !== null) {
-      const normalized = normalizeTime(match[1]);
+    while ((tokenMatch = timeRegex.exec(sectionText)) !== null) {
+      const normalized = normalizeTime(tokenMatch[1]);
       if (normalized) planTimes.add(normalized);
+    }
+    const timeAmPmRegex = /(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/gi;
+    while ((tokenMatch = timeAmPmRegex.exec(sectionText)) !== null) {
+      const hours = Number(tokenMatch[1]);
+      const minutes = tokenMatch[2] ? Number(tokenMatch[2]) : 0;
+      const suffix = tokenMatch[3].toLowerCase();
+      if (Number.isFinite(hours) && hours >= 1 && hours <= 12 && Number.isFinite(minutes) && minutes >= 0 && minutes < 60) {
+        const h24 = ((hours % 12) + (suffix === "pm" ? 12 : 0)).toString().padStart(2, "0");
+        const m = minutes.toString().padStart(2, "0");
+        planTimes.add(`${h24}:${m}`);
+      }
     }
 
     // Weekly hours extraction (prefer explicit "Number of hours")
@@ -11044,22 +11060,26 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
 
     if (supportPlanHours == null) {
       const hoursRegex = /(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|hr)\b/gi;
-      while ((match = hoursRegex.exec(sectionText)) !== null) {
-        const candidate = Number.parseFloat(match[1]);
+      const weeklyMarkers = ["per week", "weekly", "per wk", "/week", "/wk", " pw", "p/w", "pw ", "a week", "each week", "perweek", "per-week", "wkly", "weekly hours"];
+      while ((tokenMatch = hoursRegex.exec(sectionText)) !== null) {
+        const candidate = Number.parseFloat(tokenMatch[1]);
         if (!Number.isFinite(candidate)) continue;
-        const tail = sectionText.slice(match.index, match.index + 48).toLowerCase();
-        if (
-          tail.includes("per week") ||
-          tail.includes("weekly") ||
-          tail.includes("per wk") ||
-          tail.includes("/week") ||
-          tail.includes("/wk") ||
-          tail.includes(" pw") ||
-          tail.includes("p/w")
-        ) {
+        const tail = sectionText.slice(tokenMatch.index, tokenMatch.index + 64).toLowerCase();
+        if (weeklyMarkers.some((marker) => tail.includes(marker))) {
           supportPlanHours = candidate;
           break;
         }
+        if (supportPlanHours == null) {
+          supportPlanHours = candidate;
+        }
+      }
+    }
+
+    if (supportPlanHours == null) {
+      const weeklyLine = sectionText.match(/weekly\s+hours[^\d]{0,12}(\d+(?:\.\d+)?)/i);
+      if (weeklyLine?.[1]) {
+        const candidate = Number.parseFloat(weeklyLine[1]);
+        if (Number.isFinite(candidate)) supportPlanHours = candidate;
       }
     }
 
