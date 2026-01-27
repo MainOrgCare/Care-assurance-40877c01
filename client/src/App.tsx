@@ -36,6 +36,7 @@ import ROICalculator from "@/pages/ROICalculator";
 import TestingFeatures from "@/pages/TestingFeatures";
 import CareWorkerRotas from "@/pages/CareWorkerRotas";
 import BillingTool from "@/pages/BillingTool";
+import SystemLogs from "@/pages/SystemLogs";
 
 function HomeRoute() {
   const { user } = useAuth();
@@ -71,6 +72,7 @@ function Router() {
       <ProtectedRoute path="/compliance" component={Compliance} />
       <AdminRoute path="/roi-calculator" component={ROICalculator} />
       <AdminRoute path="/testing-features" component={TestingFeatures} />
+      <AdminRoute path="/system-logs" component={SystemLogs} />
       <AdminRoute path="/care-worker-rotas" component={CareWorkerRotas} />
       <AdminRoute path="/billing-tool" component={BillingTool} />
       <Route path="/admin/care-worker-rotas">

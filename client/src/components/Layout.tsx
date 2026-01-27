@@ -20,6 +20,7 @@ import {
   Lock,
   Calculator,
   FlaskConical,
+  Terminal,
   ArrowUpRight,
   FileSpreadsheet,
 } from "lucide-react";
@@ -50,7 +51,8 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
     location === "/shadow-admin-portal" ||
     location === "/testing-features" ||
     location === "/care-worker-rotas" ||
-    location === "/billing-tool";
+    location === "/billing-tool" ||
+    location === "/system-logs";
   const [openAdmin, setOpenAdmin] = useState(isAdminUser && isAdminRoute);
 
   useEffect(() => {
@@ -58,7 +60,12 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
      if (location.startsWith("/care-workers")) setOpenCareWorkers(true);
       if (
         isAdminUser &&
-        (location.startsWith("/admin") || location === "/shadow-admin-portal" || location === "/testing-features" || location === "/care-worker-rotas" || location === "/billing-tool")
+        (location.startsWith("/admin") ||
+          location === "/shadow-admin-portal" ||
+          location === "/testing-features" ||
+          location === "/care-worker-rotas" ||
+          location === "/billing-tool" ||
+          location === "/system-logs")
       ) {
         setOpenAdmin(true);
       }
@@ -203,6 +210,9 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
               </Link>
               <Link href="/testing-features" className={subNavLinkClass(location === "/testing-features")}>
                 <FlaskConical size={15} /> Testing Features
+              </Link>
+              <Link href="/system-logs" className={subNavLinkClass(location === "/system-logs")}>
+                <Terminal size={15} /> System Logs
               </Link>
               <Link href="/care-worker-rotas" className={subNavLinkClass(location === "/care-worker-rotas")}>
                 <ClipboardList size={15} /> Care Worker Rotas

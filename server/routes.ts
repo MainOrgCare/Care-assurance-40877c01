@@ -7702,28 +7702,14 @@ If no equivalences found, return: {"equivalences": []}`
       
       // Helper to extract time from entry - check both time field and timeSlot
       const extractTimeFromEntry = (entry: any): string | null => {
-        // First check explicit time field
-        let timeStr = (entry.time || "").trim();
+        // Only use explicit admin times recorded in the cell (not time-slot ranges).
+        const timeStr = (entry.time || "").trim();
+        if (!computeHasTime(entry)) return null;
         if (timeStr && timeStr.includes(":")) {
           return timeStr;
         }
-        
-        // Also check if timeSlot contains a time (e.g., "08:00", "14:30")
-        const slotStr = (entry.timeSlot || "").trim();
-        const timeMatch = slotStr.match(/(\d{1,2}:\d{2})/);
-        if (timeMatch) {
-          return timeMatch[1];
-        }
-        
-        // Check for common time slot names and convert to approximate times
-        const slotLower = slotStr.toLowerCase();
-        if (slotLower.includes("morning") || slotLower === "am") return "08:00";
-        if (slotLower.includes("lunch") || slotLower.includes("noon")) return "12:00";
-        if (slotLower.includes("afternoon")) return "14:00";
-        if (slotLower.includes("evening") || slotLower.includes("tea")) return "18:00";
-        if (slotLower.includes("night") || slotLower.includes("bed")) return "22:00";
-        
-        return null;
+        const tokenMatch = timeStr.match(/\b(?:0?[0-9]|1[0-9]|2[0-3])[:.]?[0-5][0-9](?:\s*(?:am|pm|AM|PM))?\b/);
+        return tokenMatch ? tokenMatch[0] : null;
       };
       
       // Check if code indicates medication was administered (not assisted)
