@@ -4460,12 +4460,24 @@ Use this layout information to correctly parse the grid structure.
       }, 0) || 0;
 
       const gridMetadataCandidate = gridBaseline ? buildMetadataFromGrid(gridBaseline) : null;
+      const gridMedicationNames = gridMetadataCandidate?.medications || [];
+      const lowQualityGridMedCount = gridMedicationNames.filter((med) => {
+        const name = typeof med?.name === "string" ? med.name.trim() : "";
+        if (!name) return true;
+        const tokens: string[] = name.split(/\s+/).filter(Boolean);
+        if (!tokens.some((token) => /[a-zA-Z]/.test(token))) return true;
+        return tokens.length <= 2 && /^(?:\d|\d+\w+)\b/.test(name);
+      }).length;
+      const gridMedicationQualityRatio =
+        gridMedicationNames.length > 0 ? lowQualityGridMedCount / gridMedicationNames.length : 1;
+
       const gridLooksStrong = Boolean(
         gridMetadataCandidate &&
           gridMetadataCandidate.medications.length >= 2 &&
           gridMetadataCandidate.dates.length >= 1 &&
           gridMetadataCandidate.timeSlots.length >= 1 &&
-          gridNonBlankCountEarly > 0
+          gridNonBlankCountEarly > 0 &&
+          gridMedicationQualityRatio < 0.4
       );
       let metadataFromGrid = false;
       let metadata = {
@@ -6809,13 +6821,36 @@ CARE WORKER INITIALS (IMPORTANT):
             m.name.toLowerCase().startsWith(baseName)
           ).map((m: any) => m.name);
           
-        warnings.push({
-          type: "duplicate_medication_entry",
-          severity: "high",
-          medication: matchingMeds.join(", "),
-          description: `Medication "${baseName}" appears ${count} times with potentially different instructions`,
-          recommendedAction: "Review EMAR setup - may indicate system error or prescribing issue"
-        });
+        const hasDoseOrRoute = (med: any): boolean => {
+          const text = `${med?.name || ""} ${med?.instructions || ""}`.toLowerCase();
+          const strength = /\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|units?|%|micrograms?|milligrams?|grams?|millilitres?)\b/i.test(text);
+          const form = /\b(tablets?|tabs?|capsules?|caps?|liquid|solution|syrup|suspension|cream|ointment|gel|patch(?:es)?|spray|drops?|inhaler|injection|ampoules?|nebules?|puffs?)\b/i.test(text);
+          const route = /\b(oral|topical|subcutaneous|intravenous|iv|im|pr|sc)\b/i.test(text);
+          return strength || form || route;
+        };
+
+        const medEntries = medications.filter((m: any) => m.name.toLowerCase().startsWith(baseName));
+        const anyDifferentiator = medEntries.some((med: any) => hasDoseOrRoute(med));
+        const variantKeys = new Set(
+          medEntries.map((med: any) => {
+            const text = `${med?.name || ""} ${med?.instructions || ""}`.toLowerCase();
+            const strength = (text.match(/\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|units?|%|micrograms?|milligrams?|grams?|millilitres?)\b/g) || []).sort().join("-");
+            const form = (text.match(/\b(tablets?|tabs?|capsules?|caps?|liquid|solution|syrup|suspension|cream|ointment|gel|patch(?:es)?|spray|drops?|inhaler|injection|ampoules?|nebules?|puffs?)\b/g) || []).sort().join("-");
+            const route = (text.match(/\b(oral|topical|subcutaneous|intravenous|iv|im|pr|sc)\b/g) || []).sort().join("-");
+            const parts = [strength, form, route].filter(Boolean);
+            return parts.join("|");
+          }).filter((key: string) => key.length > 0)
+        );
+
+        if (!anyDifferentiator || variantKeys.size <= 1) {
+          warnings.push({
+            type: "duplicate_medication_entry",
+            severity: "high",
+            medication: matchingMeds.join(", "),
+            description: `Medication "${baseName}" appears ${count} times without clear dose/route/form differences in the notes.`,
+            recommendedAction: "Confirm if duplicates are intentional; add dose/route/form details or remove duplicates."
+          });
+        }
       }
       });
 

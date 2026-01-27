@@ -100,6 +100,16 @@ const MEDICATION_NAME_INSTRUCTION_WORDS = new Set([
   "evening",
   "night",
   "bedtime",
+  "taken",
+  "before",
+  "after",
+  "food",
+  "breakfast",
+  "lunch",
+  "dinner",
+  "meal",
+  "meals",
+  "water",
   "when",
   "required",
   "needed",
@@ -139,6 +149,7 @@ const splitMedicationLabel = (label: string): { name: string; instructions: stri
     const token = tokens[i];
     const lower = token.toLowerCase();
     const prevLower = i > 0 ? tokens[i - 1].toLowerCase() : "";
+    const nextLower = i + 1 < tokens.length ? tokens[i + 1].toLowerCase() : "";
 
     const isLetterDigitToken = /^[a-z]+[0-9]+[a-z0-9]*$/i.test(token);
     const isDigitsOnlyToken = /^\d+$/.test(token);
@@ -174,6 +185,10 @@ const splitMedicationLabel = (label: string): { name: string; instructions: stri
       if (nameTokens.length === 0) {
         continue;
       }
+      stopIndex = i;
+      break;
+    }
+    if (lower === "to" && ["be", "taken", "take", "administered"].includes(nextLower)) {
       stopIndex = i;
       break;
     }
@@ -1379,6 +1394,13 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
           }
         }
 
+        const split = splitMedicationLabel(trimmedCandidate);
+        const candidateNameOnly = split.name.trim();
+        const candidateMeaningful = Boolean(candidateNameOnly) && hasMeaningfulMedicationToken(candidateNameOnly);
+        if (!candidateMeaningful || isLowInformationMedicationName(candidateNameOnly)) {
+          continue;
+        }
+
         const validCandidate =
           matchesMed ||
           routeDerived ||
@@ -1398,7 +1420,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
           (looksLikeMedicationHeader ? 1 : 0) -
           (instructionLike ? 4 : 0);
         candidates.push({
-          name: candidateName.substring(0, 140).trim(),
+          name: candidateNameOnly.substring(0, 140).trim(),
           x: xCenter,
           y: avgY,
           xMin: segment.xMin,
