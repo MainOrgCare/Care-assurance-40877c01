@@ -2371,6 +2371,11 @@ export function extractCodesFromCell(content: string): { code: string; careWorke
   let careWorker = "";
   let time = "";
   
+  const stripped = String(content || "").replace(/\s+/g, " ").trim();
+  if (/^[xX×✗✘]+$/.test(stripped)) {
+    return { code: "BLANK", careWorker: "", time: "" };
+  }
+
   const upperContent = content.toUpperCase();
   const normalizedContent = normalizeCodeText(upperContent);
   const codeRegex = new RegExp(CODE_PATTERN.source, "gi");

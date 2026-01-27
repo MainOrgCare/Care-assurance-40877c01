@@ -6851,6 +6851,30 @@ CARE WORKER INITIALS (IMPORTANT):
             recommendedAction: "Confirm if duplicates are intentional; add dose/route/form details or remove duplicates."
           });
         }
+
+        if (!anyDifferentiator || variantKeys.size <= 1) {
+          const medEntries = medications.filter((m: any) =>
+            m.name.toLowerCase().startsWith(baseName)
+          );
+          const administeredByMedId = new Set<number>();
+          for (const entry of allEntries) {
+            const code = String(entry.code || "").toUpperCase();
+            if (!["AD", "PRN-AD", "PRN", "ADMINISTERED", "GIVEN", "A"].includes(code)) continue;
+            const medId = Number(entry.medicationId) || 0;
+            if (!medId) continue;
+            const belongs = medEntries.some((m: any) => Number(m.medicationId) === medId);
+            if (belongs) administeredByMedId.add(medId);
+          }
+          if (administeredByMedId.size >= 2) {
+            warnings.push({
+              type: "duplicate_medication_administered",
+              severity: "high",
+              medication: medEntries.map((m: any) => m.name).join(", "),
+              description: `Multiple entries for "${baseName}" were administered without clear dose/route/form differences in the notes.`,
+              recommendedAction: "Confirm both administrations are valid or clarify dosage/route/form in the medication notes."
+            });
+          }
+        }
       }
       });
 
