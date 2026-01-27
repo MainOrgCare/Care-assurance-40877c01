@@ -1012,7 +1012,7 @@ const mergeAssessmentRecommendations = (
     const normalized = {
       name: item.name.trim(),
       isMandatory: Boolean(item.isMandatory),
-      reason: item.reason?.trim() || "Document indicates this assessment is required.",
+      reason: item.reason?.trim() || (item.evidence?.trim() ? "Evidence noted in documents." : ""),
       evidence: item.evidence?.trim() || "",
     };
     const current = merged.get(key);
@@ -9589,6 +9589,8 @@ IMPORTANT RULES:
 2. If you cannot find specific information, state "Information not found in documents"
 3. Be very careful to extract the correct service user details
 4. Write narrative fields in FIRST PERSON using "I" and "my"
+5. ONLY recommend a risk assessment if you can cite evidence from the documents. If no evidence is found, omit it.
+6. For every recommended assessment, include a short evidence phrase from the documents.
 ${privacyRules}
 
 EXTRACT FROM DOCUMENTS:
@@ -9636,7 +9638,8 @@ Respond ONLY with valid JSON in this exact format:
     {
       "name": "Assessment category name",
       "isMandatory": true/false,
-      "reason": "Why this is recommended based on document content"
+      "reason": "Why this is recommended based on document content",
+      "evidence": "Exact phrase or short paraphrase from the documents that supports this recommendation"
     }
   ],
   "documentSummary": "Brief summary of what was found in the documents"
@@ -9703,6 +9706,9 @@ Respond ONLY with valid JSON in this exact format:
       const derivedRecommendations = buildAssessmentRecommendations(result);
       result.recommendedAssessments = mergeAssessmentRecommendations(result.recommendedAssessments, derivedRecommendations);
       result.recommendedAssessments = attachAssessmentEvidence(result.recommendedAssessments, result);
+      result.recommendedAssessments = result.recommendedAssessments.filter(
+        (assessment: any) => typeof assessment?.evidence === "string" && assessment.evidence.trim().length > 0
+      );
 
       const scrubbedResult = sanitizeNarrativePII(result);
       const payload = allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult;

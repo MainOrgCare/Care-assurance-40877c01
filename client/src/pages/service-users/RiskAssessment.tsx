@@ -109,6 +109,7 @@ export default function RiskAssessment() {
     const combined: RecommendedAssessment[] = [];
     const seen = new Set<string>();
     analysis.recommendedAssessments.forEach((assessment) => {
+      if (!assessment?.evidence || !assessment.evidence.trim()) return;
       const key = normalizeAssessmentName(assessment.name).toLowerCase();
       if (!key || seen.has(key)) return;
       seen.add(key);
@@ -929,6 +930,9 @@ export default function RiskAssessment() {
                   Reset Filters
                 </Button>
               )}
+            </div>
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+              Assessments without supporting evidence are not auto-listed. Add them manually below if needed.
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
