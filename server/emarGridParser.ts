@@ -60,6 +60,20 @@ const MEDICATION_NAME_INSTRUCTION_WORDS = new Set([
   "apply",
   "administer",
   "give",
+  "to",
+  "be",
+  "with",
+  "without",
+  "this",
+  "that",
+  "the",
+  "and",
+  "or",
+  "if",
+  "then",
+  "per",
+  "via",
+  "by",
   "insert",
   "inhale",
   "use",
@@ -791,6 +805,28 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
     });
   };
 
+  const INSTRUCTION_FILLER_WORDS = new Set([
+    "to",
+    "be",
+    "with",
+    "without",
+    "this",
+    "that",
+    "the",
+    "and",
+    "or",
+    "if",
+    "then",
+    "per",
+    "via",
+    "by",
+    "before",
+    "after",
+    "food",
+    "meal",
+    "meals",
+  ]);
+
   const isDoseInstructionText = (text: string): boolean => {
     const cleaned = (text || "").trim();
     if (!cleaned) return false;
@@ -803,6 +839,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
       return (
         MEDICATION_NAME_INSTRUCTION_WORDS.has(lower) ||
         MEDICATION_NAME_STOP_WORDS.has(lower) ||
+        INSTRUCTION_FILLER_WORDS.has(lower) ||
         strengthPattern.test(token) ||
         strengthRatioPattern.test(token) ||
         quantityPattern.test(token) ||
@@ -812,7 +849,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
     });
   };
 
-  const MEDICATION_NAME_EXTRA_STOP_WORDS = new Set(["day", "days"]);
+  const MEDICATION_NAME_EXTRA_STOP_WORDS = new Set(["day", "days", "per", "via", "with", "without"]);
   const MEDICATION_NAME_BAD_STARTERS = new Set([
     "a",
     "an",
@@ -829,6 +866,12 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
     "by",
     "as",
     "not",
+    "be",
+    "this",
+    "that",
+    "then",
+    "per",
+    "via",
   ]);
 
   const hasMeaningfulMedicationToken = (name: string): boolean => {
@@ -1530,7 +1573,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
   for (const ph of pageHeaders) {
     const rows = rowsByPage.get(ph.page) || [];
     const medsOnPage: MedicationBlock[] = [];
-    const instructionLinePattern = /\b(take|apply|administer|give|route|dose|doses|daily|times?|prn|as needed|once|twice|morning|noon|midday|afternoon|evening|night|bedtime|ml|mg|mcg|units?|tablets?|capsules?|drops?)\b/i;
+    const instructionLinePattern = /\b(take|apply|administer|give|route|dose|doses|daily|weekly|monthly|times?|prn|as needed|once|twice|morning|noon|midday|afternoon|evening|night|bedtime|before|after|with|without|food|meal|meals|ml|mg|mcg|units?|tablets?|capsules?|drops?)\b/i;
 
     for (let i = ph.headerRowIndex + 1; i < rows.length; i++) {
       const row = rows[i];

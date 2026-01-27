@@ -2642,6 +2642,14 @@ ${generatedProtocol.additionalComments}`;
                 <CopyableBox label="First Day of Audit" value={result.auditPeriodStart} />
                 <CopyableBox label="Last Day of Audit" value={result.auditPeriodEnd} />
               </div>
+              {result.extractionMethod && (
+                <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="uppercase tracking-wider">Extraction Method:</span>
+                  <Badge variant="outline">
+                    {result.extractionMethod === "grid-parser" ? "Grid Parser" : result.extractionMethod}
+                  </Badge>
+                </div>
+              )}
               {result.medicationLevelEvidence && (
                 <div className="mt-4 p-3 bg-muted rounded-lg">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Medication Level Evidence</p>
