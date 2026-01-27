@@ -2372,7 +2372,9 @@ export function extractCodesFromCell(content: string): { code: string; careWorke
   let time = "";
   
   const stripped = String(content || "").replace(/\s+/g, " ").trim();
-  if (/^[xX×✗✘]+$/.test(stripped)) {
+  const xOnly = stripped.replace(/[^xX×✗✘]/g, "");
+  const nonX = stripped.replace(/[xX×✗✘\s]/g, "").trim();
+  if ((xOnly.length >= 2 && nonX.length === 0) || /^[xX×✗✘]+$/.test(stripped)) {
     return { code: "BLANK", careWorker: "", time: "" };
   }
 
