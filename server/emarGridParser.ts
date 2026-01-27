@@ -1016,6 +1016,22 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
       return tokens.every((token) => headerTokens.has(token));
     };
 
+    // Check if text looks like medication instruction text (should not extract slots from this)
+    const looksLikeInstructionText = (str: string): boolean => {
+      const lower = str.toLowerCase();
+      // Common instruction patterns that indicate we shouldn't extract time slots
+      const instructionIndicators = [
+        /\b(take|apply|administer|use|insert|dissolve|mix|inhale|give)\b/i,
+        /\b(tablet|tablets|capsule|capsules|dose|doses|puff|puffs|drop|drops)\b/i,
+        /\b(daily|twice|once|hourly|hours apart)\b/i,
+        /\b(morning and|and evening|and pm|and tea|and lunch|am and|at am|at pm)\b/i,
+        /\b(route|oral|topical)\b/i,
+        /\d+\s*mg\b/i,
+        /\d+\s*%\b/i,
+      ];
+      return instructionIndicators.some(pattern => pattern.test(str));
+    };
+
     const rangeRegex = new RegExp(TIME_RANGE_PATTERN.source, "g");
     const rangeMatches = Array.from(cleaned.matchAll(rangeRegex)).map((m) => m[0]).filter(Boolean);
     if (rangeMatches.length > 0) {
@@ -1033,6 +1049,11 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
       if (rangeMatches.length === 1) {
         return [normalizeSlot(rangeMatches[0])];
       }
+    }
+
+    // Don't extract AMPM or simple time slots from instruction-like text
+    if (looksLikeInstructionText(cleaned)) {
+      return [];
     }
 
     const ampmRegex = new RegExp(TIME_AMPM_PATTERN.source, "gi");
@@ -1735,15 +1756,57 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
           if (avgY >= med.yStart && avgY < med.yEnd) {
             const existingSlot = med.timeSlots.find(ts => ts.slot === normalizedSlot);
             if (!existingSlot) {
+              // Initial Y-range, will be expanded below if multiple rows exist
               med.timeSlots.push({
                 slot: normalizedSlot,
                 y: avgY,
-                yStart: avgY - 20,
-                yEnd: avgY + 20
+                yStart: avgY - 25,
+                yEnd: avgY + 25
               });
+            } else {
+              // Same slot label at different Y position - expand the Y-range
+              // This handles staggered layouts where data for different dates
+              // appears at different Y positions for the same time slot
+              existingSlot.yStart = Math.min(existingSlot.yStart, avgY - 25);
+              existingSlot.yEnd = Math.max(existingSlot.yEnd, avgY + 25);
+              existingSlot.y = (existingSlot.yStart + existingSlot.yEnd) / 2;
             }
             break;
           }
+        }
+      }
+    }
+  }
+
+  // Post-process medication time slots: expand Y-ranges to fill gaps
+  // and ensure proper coverage between adjacent slots
+  for (const [page, meds] of Array.from(medicationBlocksByPage.entries())) {
+    for (const med of meds) {
+      if (med.timeSlots.length <= 1) continue;
+      
+      // Sort by Y position
+      med.timeSlots.sort((a, b) => a.y - b.y);
+      
+      // Adjust boundaries to prevent gaps
+      for (let i = 0; i < med.timeSlots.length; i++) {
+        const current = med.timeSlots[i];
+        const prev = med.timeSlots[i - 1];
+        const next = med.timeSlots[i + 1];
+        
+        // Extend yStart towards previous slot or medication start
+        if (prev) {
+          current.yStart = Math.max(current.yStart, prev.yEnd);
+        } else {
+          current.yStart = Math.min(current.yStart, med.yStart);
+        }
+        
+        // Extend yEnd towards next slot or medication end
+        if (next) {
+          // Set midpoint as boundary
+          const midpoint = (current.y + next.y) / 2;
+          current.yEnd = Math.max(current.yEnd, midpoint);
+        } else {
+          current.yEnd = Math.max(current.yEnd, med.yEnd);
         }
       }
     }
@@ -1759,18 +1822,32 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
     }
   }
 
-  // If we have range-based time slots, drop word-only time slots (e.g., "Tea") from meds.
+  // If we have range-based time slots, drop word-only time slots (e.g., "Tea") and standalone
+  // AMPM time slots (e.g., "8pm") from both meds and allTimeSlots. These are typically extracted
+  // from instruction text rather than being actual scheduled time slot headers.
   const hasRangeSlotsDetected = allTimeSlots.some((slot) =>
     new RegExp(`^${TIME_RANGE_PATTERN.source}$`, "i").test(slot)
   );
   if (hasRangeSlotsDetected) {
     const timeWordOnly = new RegExp(`^${TIME_WORD_PATTERN.source}$`, "i");
+    const standaloneAmPm = new RegExp(`^${TIME_AMPM_PATTERN.source}$`, "i");
+    
+    // Also filter slots that look like single AM/PM times without a range (e.g., "8pm", "9am")
+    const isSpuriousSlot = (slot: string): boolean => {
+      if (timeWordOnly.test(slot)) return true;
+      if (standaloneAmPm.test(slot)) return true;
+      // Filter simple HH:MM without range when we have proper ranges
+      const simpleTime = /^\d{1,2}:\d{2}$/;
+      if (simpleTime.test(slot)) return true;
+      return false;
+    };
+    
     for (const med of medicationBlocks) {
       if (Array.isArray(med.timeSlots) && med.timeSlots.length > 0) {
-        med.timeSlots = med.timeSlots.filter((ts) => !timeWordOnly.test(ts.slot));
+        med.timeSlots = med.timeSlots.filter((ts) => !isSpuriousSlot(ts.slot));
       }
     }
-    allTimeSlots = allTimeSlots.filter((slot) => !timeWordOnly.test(slot));
+    allTimeSlots = allTimeSlots.filter((slot) => !isSpuriousSlot(slot));
   }
 
   // If no date columns were detected, attempt the transposed layout extraction.
@@ -2103,7 +2180,11 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
   if (hasRangeSlots) {
     const timeWordOnly = new RegExp(`^${TIME_WORD_PATTERN.source}$`, "i");
     const ampmOnly = new RegExp(`^${TIME_AMPM_PATTERN.source}$`, "i");
-    allTimeSlots = allTimeSlots.filter((slot) => !timeWordOnly.test(slot) && !ampmOnly.test(slot));
+    const simpleTime = /^\d{1,2}:\d{2}$/;
+    // Filter out spurious slots (word-only, standalone AMPM, or simple time without range)
+    allTimeSlots = allTimeSlots.filter((slot) => 
+      !timeWordOnly.test(slot) && !ampmOnly.test(slot) && !simpleTime.test(slot)
+    );
   }
 
   debugLog(`DEBUG: Found ${allTimeSlots.length} time slots:`, allTimeSlots);
@@ -2180,6 +2261,25 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
       }
     }
   }
+  
+  // Filter cells to remove those with spurious time slots (word-only, AMPM-only, etc.)
+  // This handles cases where cells were generated before the allTimeSlots was filtered
+  const validTimeSlotSet = new Set(allTimeSlots);
+  const filteredCells = cells.filter((cell) => {
+    // Always keep cells whose time slot is in the validated list
+    if (validTimeSlotSet.has(cell.timeSlot)) return true;
+    // If there's no validated slots, keep all cells (edge case)
+    if (validTimeSlotSet.size === 0) return true;
+    // Filter out cells with spurious time slots
+    const timeWordOnly = new RegExp(`^${TIME_WORD_PATTERN.source}$`, "i");
+    const standaloneAmPm = new RegExp(`^${TIME_AMPM_PATTERN.source}$`, "i");
+    const isSpurious = timeWordOnly.test(cell.timeSlot) || standaloneAmPm.test(cell.timeSlot);
+    return !isSpurious;
+  });
+  
+  // Replace cells array with filtered version
+  cells.length = 0;
+  cells.push(...filteredCells);
   
   let serviceUserName = "";
   const normalizeInitials = (fullName: string): string => {
