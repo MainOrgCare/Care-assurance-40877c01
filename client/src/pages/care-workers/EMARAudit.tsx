@@ -311,6 +311,7 @@ interface EmarAnalysisResult {
   medicationLevelEvidence?: string;
   codeConflictDetected?: boolean;
   codeConflictDetails?: string;
+  extractionMethod?: string;
   auditPeriodStart: string;
   auditPeriodEnd: string;
   warnings?: Warning[];

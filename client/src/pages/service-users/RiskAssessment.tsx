@@ -11,7 +11,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { ShieldAlert, ArrowRight, Loader2, AlertTriangle, CheckCircle, FileText, Info, Search, Copy, Check } from "lucide-react";
+import { ShieldAlert, ArrowRight, Loader2, AlertTriangle, CheckCircle, FileText, Info, Search, Copy, Check, X } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
@@ -74,6 +74,8 @@ export default function RiskAssessment() {
   const [sortMode, setSortMode] = useState<"default" | "mandatory">("default");
   const [copiedAssessment, setCopiedAssessment] = useState<number | null>(null);
   const [allowSensitive, setAllowSensitive] = useState(false);
+  const [customAssessmentName, setCustomAssessmentName] = useState("");
+  const [customAssessments, setCustomAssessments] = useState<RecommendedAssessment[]>([]);
 
   const isAdmin = user?.role === "admin";
   const showSensitive = isAdmin && allowSensitive;
@@ -101,13 +103,34 @@ export default function RiskAssessment() {
       : null,
   ].filter(Boolean) as { label: string; message: string }[];
 
-  const assessmentOptions = useMemo(() => {
+  const normalizeAssessmentName = (value: string) => value.trim().replace(/\s+/g, " ");
+  const combinedAssessments = useMemo(() => {
     if (!analysis) return [];
-    return analysis.recommendedAssessments.map((assessment, index) => ({
+    const combined: RecommendedAssessment[] = [];
+    const seen = new Set<string>();
+    analysis.recommendedAssessments.forEach((assessment) => {
+      const key = normalizeAssessmentName(assessment.name).toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      combined.push(assessment);
+    });
+    customAssessments.forEach((assessment) => {
+      const key = normalizeAssessmentName(assessment.name).toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      combined.push(assessment);
+    });
+    return combined;
+  }, [analysis, customAssessments]);
+  const customAssessmentKeys = useMemo(() => {
+    return new Set(customAssessments.map((assessment) => normalizeAssessmentName(assessment.name).toLowerCase()));
+  }, [customAssessments]);
+  const assessmentOptions = useMemo(() => {
+    return combinedAssessments.map((assessment, index) => ({
       assessment,
       index,
     }));
-  }, [analysis]);
+  }, [combinedAssessments]);
   const filteredAssessments = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     let filtered = assessmentOptions.filter(({ assessment }) => {
@@ -142,7 +165,7 @@ export default function RiskAssessment() {
         mandatorySelected: 0,
       };
     }
-    const mandatoryNames = analysis.recommendedAssessments
+    const mandatoryNames = combinedAssessments
       .filter((assessment) => assessment.isMandatory)
       .map((assessment) => assessment.name);
     const mandatorySet = new Set(mandatoryNames);
@@ -152,13 +175,13 @@ export default function RiskAssessment() {
     });
 
     return {
-      total: analysis.recommendedAssessments.length,
+      total: combinedAssessments.length,
       mandatory: mandatoryNames.length,
-      optional: analysis.recommendedAssessments.length - mandatoryNames.length,
+      optional: combinedAssessments.length - mandatoryNames.length,
       selected: selectedAssessments.size,
       mandatorySelected,
     };
-  }, [analysis, selectedAssessments]);
+  }, [analysis, combinedAssessments, selectedAssessments]);
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
     assessmentFilter !== "all" ||
@@ -245,6 +268,8 @@ export default function RiskAssessment() {
       setSearchQuery("");
       setAssessmentFilter("all");
       setSortMode("default");
+      setCustomAssessments([]);
+      setCustomAssessmentName("");
       setAnalysisRaw(resultRaw);
       setAnalysisScrubbed(resultScrubbed || resultRaw);
       setStep("select");
@@ -282,7 +307,7 @@ export default function RiskAssessment() {
 
   const selectAll = () => {
     if (analysis) {
-      const all = new Set(analysis.recommendedAssessments.map(a => a.name));
+      const all = new Set(combinedAssessments.map(a => a.name));
       setSelectedAssessments(all);
     }
   };
@@ -294,7 +319,7 @@ export default function RiskAssessment() {
   const selectMandatory = () => {
     if (analysis) {
       const mandatory = new Set(
-        analysis.recommendedAssessments
+        combinedAssessments
           .filter((assessment) => assessment.isMandatory)
           .map((assessment) => assessment.name)
       );
@@ -304,9 +329,50 @@ export default function RiskAssessment() {
 
   const getMandatoryNotSelected = (): string[] => {
     if (!analysis) return [];
-    return analysis.recommendedAssessments
+    return combinedAssessments
       .filter(a => a.isMandatory && !selectedAssessments.has(a.name))
       .map(a => a.name);
+  };
+
+  const addCustomAssessment = () => {
+    if (!analysis) return;
+    const cleaned = normalizeAssessmentName(customAssessmentName);
+    if (!cleaned) return;
+    const key = cleaned.toLowerCase();
+    const existing =
+      combinedAssessments.find((assessment) => normalizeAssessmentName(assessment.name).toLowerCase() === key) ||
+      null;
+    if (existing) {
+      const nextSelected = new Set(selectedAssessments);
+      nextSelected.add(existing.name);
+      setSelectedAssessments(nextSelected);
+      setCustomAssessmentName("");
+      toast({
+        title: "Already listed",
+        description: `${existing.name} is already available and has been selected.`,
+      });
+      return;
+    }
+    const nextAssessment: RecommendedAssessment = {
+      name: cleaned,
+      isMandatory: false,
+      reason: "Added manually by assessor.",
+    };
+    setCustomAssessments((prev) => [...prev, nextAssessment]);
+    const nextSelected = new Set(selectedAssessments);
+    nextSelected.add(cleaned);
+    setSelectedAssessments(nextSelected);
+    setCustomAssessmentName("");
+  };
+
+  const removeCustomAssessment = (name: string) => {
+    const key = normalizeAssessmentName(name).toLowerCase();
+    setCustomAssessments((prev) =>
+      prev.filter((assessment) => normalizeAssessmentName(assessment.name).toLowerCase() !== key)
+    );
+    const nextSelected = new Set(selectedAssessments);
+    nextSelected.delete(name);
+    setSelectedAssessments(nextSelected);
   };
 
   const handleProceed = () => {
@@ -401,20 +467,20 @@ export default function RiskAssessment() {
 
     // Log the risk assessment selections
     try {
-      await fetch("/api/risk-assessment-logs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          serviceUserInitials: analysisScrubbed?.serviceUser.initials || analysis?.serviceUser.initials || "N.N.",
-          performedBy: user?.username || "Unknown",
-          performedByJobTitle: user?.jobTitle,
-          offeredAssessments: analysis?.recommendedAssessments.map(a => a.name) || [],
-          selectedAssessments: Array.from(selectedAssessments),
-          skippedMandatory: getMandatoryNotSelected(),
-          documentSummary: analysisScrubbed?.documentSummary || analysis?.documentSummary,
-        }),
-      });
+          await fetch("/api/risk-assessment-logs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              serviceUserInitials: analysisScrubbed?.serviceUser.initials || analysis?.serviceUser.initials || "N.N.",
+              performedBy: user?.username || "Unknown",
+              performedByJobTitle: user?.jobTitle,
+              offeredAssessments: combinedAssessments.map(a => a.name),
+              selectedAssessments: Array.from(selectedAssessments),
+              skippedMandatory: getMandatoryNotSelected(),
+              documentSummary: analysisScrubbed?.documentSummary || analysis?.documentSummary,
+            }),
+          });
     } catch (error) {
       console.error("Failed to log risk assessment:", error);
     }
@@ -866,6 +932,54 @@ export default function RiskAssessment() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-lg border border-border bg-muted/30 p-4">
+              <Label className="text-sm font-medium">Add a custom risk assessment</Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                If a specific assessment is missing (e.g., Breathing), add it here and it will be generated.
+              </p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  value={customAssessmentName}
+                  onChange={(e) => setCustomAssessmentName(e.target.value)}
+                  placeholder="e.g., Breathing risk assessment"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addCustomAssessment();
+                    }
+                  }}
+                  data-testid="input-custom-assessment"
+                />
+                <Button
+                  type="button"
+                  onClick={addCustomAssessment}
+                  disabled={!customAssessmentName.trim()}
+                  data-testid="button-add-custom-assessment"
+                >
+                  Add
+                </Button>
+              </div>
+              {customAssessments.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {customAssessments.map((assessment) => (
+                    <div
+                      key={assessment.name}
+                      className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground"
+                    >
+                      <span>{assessment.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeCustomAssessment(assessment.name)}
+                        className="ml-1 text-muted-foreground hover:text-foreground"
+                        aria-label={`Remove ${assessment.name}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -945,6 +1059,9 @@ export default function RiskAssessment() {
                         <span className="text-foreground font-medium">{assessment.name}</span>
                         {assessment.isMandatory && (
                           <Badge variant="destructive" className="text-xs">Mandatory</Badge>
+                        )}
+                        {!assessment.isMandatory && customAssessmentKeys.has(normalizeAssessmentName(assessment.name).toLowerCase()) && (
+                          <Badge variant="outline" className="text-xs">Custom</Badge>
                         )}
                       </Label>
                       <p className="text-xs text-muted-foreground mt-1">{assessment.reason}</p>

@@ -1028,6 +1028,31 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
     return [];
   };
 
+  const stripTimeRanges = (text: string): string => {
+    if (!text) return "";
+    const rangeRegex = new RegExp(TIME_RANGE_PATTERN.source, "g");
+    return text.replace(rangeRegex, " ").replace(/\s+/g, " ").trim();
+  };
+
+  const sanitizeInstructionText = (text: string): string => {
+    if (!text) return "";
+    let cleaned = stripTimeRanges(text);
+    // Remove legend snippets like "AD - Administered (Level 3)" that bleed into instructions.
+    cleaned = cleaned.replace(
+      /\b(?:AD|AS|NH|MU|SA|FA|PRN)\s*[-–]\s*[A-Za-z ]+(?:\([^)]+\))?/gi,
+      " "
+    );
+    return cleaned.replace(/\s+/g, " ").trim();
+  };
+
+  const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const stripNamePrefix = (text: string, name: string): string => {
+    if (!text || !name) return text;
+    const pattern = new RegExp(`^${escapeRegex(name)}\\b[\\s:;\\-–—]*`, "i");
+    return text.replace(pattern, "").trim();
+  };
+
   const normalizeDateLabel = (value: string) =>
     (value || "")
       .trim()
@@ -1588,7 +1613,8 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
       if (blocked) continue;
 
       const rawLabel = cleanedLeft.substring(0, 260).trim();
-      const { name: medName, instructions: medInstructions } = splitMedicationLabel(rawLabel);
+      const sanitizedLabel = sanitizeInstructionText(rawLabel);
+      const { name: medName, instructions: medInstructions } = splitMedicationLabel(sanitizedLabel);
       const previous = medsOnPage[medsOnPage.length - 1];
       const isTimeLabel = isTimeLabelOnly(medName);
       const hasMeaningfulToken = hasMeaningfulMedicationToken(medName);
@@ -1608,8 +1634,15 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
           Boolean(cleanedLeft) &&
           (instructionLinePattern.test(cleanedLeft) || isDoseInstructionText(cleanedLeft));
         if (previous && (matchesMed || medName || isInstructionLine)) {
-          if (cleanedLeft && cleanedLeft.toLowerCase() !== previous.name.toLowerCase()) {
-            previous.instructions = [previous.instructions, rawLabel].filter(Boolean).join(" ");
+          if (sanitizedLabel && sanitizedLabel.toLowerCase() !== previous.name.toLowerCase()) {
+            let appendText = stripNamePrefix(sanitizedLabel, previous.name);
+            if (appendText) {
+              const existing = String(previous.instructions || "").toLowerCase();
+              const next = appendText.toLowerCase();
+              if (!existing.includes(next)) {
+                previous.instructions = [previous.instructions, appendText].filter(Boolean).join(" ");
+              }
+            }
           }
         }
         continue;
@@ -1618,7 +1651,13 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
       const avgY = row.reduce((sum, item) => sum + item.y, 0) / row.length;
       medsOnPage.push({
         name: medName,
-        instructions: medInstructions || rawLabel,
+        instructions: (() => {
+          if (medInstructions) return medInstructions;
+          if (sanitizedLabel && sanitizedLabel.toLowerCase() !== medName.toLowerCase()) {
+            return stripNamePrefix(sanitizedLabel, medName);
+          }
+          return "";
+        })(),
         yStart: avgY - 5,
         yEnd: 0,
         timeSlots: []
@@ -1679,6 +1718,20 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
       medicationBlocks.push({ ...med });
       medicationRowCounter += 1;
     }
+  }
+
+  // If we have range-based time slots, drop word-only time slots (e.g., "Tea") from meds.
+  const hasRangeSlotsDetected = allTimeSlots.some((slot) =>
+    new RegExp(`^${TIME_RANGE_PATTERN.source}$`, "i").test(slot)
+  );
+  if (hasRangeSlotsDetected) {
+    const timeWordOnly = new RegExp(`^${TIME_WORD_PATTERN.source}$`, "i");
+    for (const med of medicationBlocks) {
+      if (Array.isArray(med.timeSlots) && med.timeSlots.length > 0) {
+        med.timeSlots = med.timeSlots.filter((ts) => !timeWordOnly.test(ts.slot));
+      }
+    }
+    allTimeSlots = allTimeSlots.filter((slot) => !timeWordOnly.test(slot));
   }
 
   // If no date columns were detected, attempt the transposed layout extraction.
@@ -2003,7 +2056,9 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
 	    }
 	  }
   
-  const hasRangeSlots = allTimeSlots.some((slot) => TIME_RANGE_PATTERN.test(slot));
+  const hasRangeSlots = allTimeSlots.some((slot) =>
+    new RegExp(`^${TIME_RANGE_PATTERN.source}$`, "i").test(slot)
+  );
   if (hasRangeSlots) {
     const timeWordOnly = new RegExp(`^${TIME_WORD_PATTERN.source}$`, "i");
     const ampmOnly = new RegExp(`^${TIME_AMPM_PATTERN.source}$`, "i");
@@ -2186,7 +2241,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
         ? medicationBlocks.map((m, i) => ({
             name: m.name,
             row: typeof m.row === "number" ? m.row : i,
-            instructions: m.instructions || "",
+            instructions: stripNamePrefix(m.instructions || "", m.name),
             timeSlots: m.timeSlots.map(ts => ts.slot)
           }))
         : transposedMedications),
@@ -2221,10 +2276,16 @@ function computeGridConfidence(input: {
     return content.length > 0 || (cell.code && cell.code !== "BLANK");
   }).length;
 
-  const expectedCells =
-    dateCount > 0 && timeSlotCount > 0 && medicationCount > 0
-      ? dateCount * timeSlotCount * medicationCount
-      : 0;
+  let expectedCells = 0;
+  if (dateCount > 0 && medicationCount > 0) {
+    const fallbackSlots = Math.max(1, timeSlotCount);
+    expectedCells = input.medications.reduce((sum, med) => {
+      const slotCount = Array.isArray(med.timeSlots) && med.timeSlots.length > 0
+        ? med.timeSlots.length
+        : fallbackSlots;
+      return sum + (dateCount * slotCount);
+    }, 0);
+  }
   const cellCoverage = expectedCells > 0 ? Math.min(1, cellCount / expectedCells) : 0;
   const filledRatio = expectedCells > 0 ? Math.min(1, nonEmptyCells / expectedCells) : 0;
 

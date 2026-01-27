@@ -3875,6 +3875,18 @@ ${correctionExamples}
               agentMedGapHoursById.set(medId, gapHours);
             }
           });
+
+          const timeCriticalAgentMedIds = new Set<number>();
+          const timeCriticalAgentMedNames = new Set<string>();
+          const timeCriticalToken = /\b(?:0?[0-9]|1[0-9]|2[0-3])(?::[0-5][0-9])?\s*(?:am|pm)\b|\b(?:0?[0-9]|1[0-9]|2[0-3]):[0-5][0-9]\b/i;
+          agentMedications.forEach((m: any) => {
+            const text = `${m?.instructions || ""} ${m?.name || ""}`;
+            if (timeCriticalToken.test(text)) {
+              const medId = Number(m.medicationId) || 0;
+              if (medId) timeCriticalAgentMedIds.add(medId);
+              if (m?.name) timeCriticalAgentMedNames.add(m.name);
+            }
+          });
           
           const agentDiscrepancies: any[] = [];
           const agentWarnings: any[] = [];
@@ -4055,24 +4067,36 @@ ${correctionExamples}
               return;
             }
             
-            // Extract time from entry
-            let timeValue = entry.time;
-            if (!timeValue && entry.timeSlot) {
-              const timeMatch = entry.timeSlot.match(/(\d{1,2}:\d{2})/);
-              if (timeMatch) timeValue = timeMatch[1];
-            }
+            // Only enforce gaps for time-critical medications with explicit admin times
+            const entryMedId = Number(entry.medicationId) || 0;
+            const entryMedName = entry.medication || "";
+            const isTimeCritical =
+              (entryMedId > 0 && timeCriticalAgentMedIds.has(entryMedId)) ||
+              (entryMedName && timeCriticalAgentMedNames.has(entryMedName));
+            if (!isTimeCritical) return;
+
+            // Only use explicit admin times recorded in the cell (ignore service order time slots)
+            const timeValue = String(entry.time || "").trim();
             if (!timeValue) return;
+            const isRange = /\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/.test(timeValue);
+            if (isRange) return;
+            const timeMatch = timeValue.match(/\b(?:0?[0-9]|1[0-9]|2[0-3])[:.]?[0-5][0-9](?:\s*(?:am|pm|AM|PM))?\b/);
+            if (!timeMatch) return;
+
+            // Require care worker initials to avoid blank/crossed-out boxes
+            const careWorkerInitials = (entry.careWorkerInitials || entry.careWorker || "").trim();
+            if (!careWorkerInitials) return;
             
             // Normalize date for grouping
             const dateKey = entry.date.toLowerCase().replace(/[,\s]+/g, '-').substring(0, 10);
-            const medId = Number(entry.medicationId) || 0;
+            const medId = entryMedId;
             const medKey = medId > 0 ? `id:${medId}` : `name:${entry.medication || ""}`;
             const key = `${medKey}|${dateKey}`;
             
             if (!medDateEntriesForGap.has(key)) medDateEntriesForGap.set(key, []);
             medDateEntriesForGap.get(key)!.push({
               ...entry,
-              extractedTime: timeValue,
+              extractedTime: timeMatch[0].replace(".", ":"),
               isPRN:
                 (medId > 0 && agentPrnMedIds.has(medId)) ||
                 agentPrnMeds.has(entry.medication) ||
@@ -4125,13 +4149,14 @@ ${correctionExamples}
               if (gapHours <= 0.25 || gapHours < 0) continue;
               
               if (gapHours < requiredGap - 0.17) {
+                const recommendedSlot = curr.timeSlot ? ` Scheduled slot: ${curr.timeSlot}.` : "";
                 agentDiscrepancies.push({
                   careWorkerName: curr.careWorkerInitials || 'Unknown',
                   date: curr.date,
                   timeSlot: curr.timeSlot,
                   medication: medication,
                   medicationId: medId || undefined,
-                  issue: `Time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap}h). Previous: ${prev.extractedTime}, Current: ${curr.extractedTime}`,
+                  issue: `Time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap}h). Previous: ${prev.extractedTime}, Current: ${curr.extractedTime}.${recommendedSlot}`,
                   severity: "high",
                   actions: { performanceNote: true, meeting: "in_person", referToManager: true }
                 });
@@ -7724,6 +7749,18 @@ If no equivalences found, return: {"equivalences": []}`
       // Excluded codes: BLANK, EMPTY, MU, NH, R, FA, MISSED, SA (self-admin)
       // =====================================================================
       
+      const timeCriticalMedIds = new Set<number>();
+      const timeCriticalMedNames = new Set<string>();
+      const timeCriticalToken = /\b(?:0?[0-9]|1[0-9]|2[0-3])(?::[0-5][0-9])?\s*(?:am|pm)\b|\b(?:0?[0-9]|1[0-9]|2[0-3]):[0-5][0-9]\b/i;
+      (medications || []).forEach((med: any) => {
+        const text = `${med?.instructions || ""} ${med?.name || ""}`;
+        if (timeCriticalToken.test(text)) {
+          const medId = Number(med?.medicationId) || 0;
+          if (medId) timeCriticalMedIds.add(medId);
+          if (med?.name) timeCriticalMedNames.add(med.name);
+        }
+      });
+
       // Helper to extract time from entry - check both time field and timeSlot
       const extractTimeFromEntry = (entry: any): string | null => {
         // Only use explicit admin times recorded in the cell (not time-slot ranges).
@@ -7775,6 +7812,14 @@ If no equivalences found, return: {"equivalences": []}`
         
         // Only include entries where medication was actually administered
         if (!isAdministeredCode(code)) return;
+
+        // Only enforce gaps for time-critical medications
+        const entryMedId = Number(entry.medicationId) || 0;
+        const entryMedName = entry.medication || "";
+        const isTimeCritical =
+          (entryMedId > 0 && timeCriticalMedIds.has(entryMedId)) ||
+          (entryMedName && timeCriticalMedNames.has(entryMedName));
+        if (!isTimeCritical) return;
         
         // Skip office-closed entries from time gap checks (manually closed by office staff)
         if (entry.isOfficeClosed) {
@@ -7827,7 +7872,7 @@ If no equivalences found, return: {"equivalences": []}`
           canonicalDateKey = `${dayNum}-${month}`;
         }
         
-        const medId = Number(entry.medicationId) || 0;
+        const medId = entryMedId;
         const isPRN =
           (medId > 0 &&
             (prnMedIds.has(medId) || canonicalInferredPrnMedicationIds.has(medId))) ||
@@ -7981,13 +8026,14 @@ If no equivalences found, return: {"equivalences": []}`
             const isPRNEntry = prev.isPRN || curr.isPRN;
             const issueType = isPRNEntry ? "PRN medication" : "Medication";
             console.log(`DEBUG: TIME GAP VIOLATION DETECTED: ${medication} on ${curr.originalDate} - ${gapHours.toFixed(1)}h < ${requiredGap}h`);
+            const recommendedSlot = curr.timeSlot ? ` Scheduled slot: ${curr.timeSlot}.` : "";
             discrepancies.push({
               careWorkerName: curr.careWorker,
               date: curr.date,
               timeSlot: curr.timeSlot,
               medication: medication,
               medicationId: medId || undefined,
-              issue: `${issueType} time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap} hours minimum). Previous dose at ${prev.extractedTime}, this dose at ${curr.extractedTime}`,
+              issue: `${issueType} time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap} hours minimum). Previous dose at ${prev.extractedTime}, this dose at ${curr.extractedTime}.${recommendedSlot}`,
               severity: "high",
               actions: { performanceNote: true, meeting: "in_person", referToManager: true }
             });
