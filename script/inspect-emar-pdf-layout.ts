@@ -36,18 +36,20 @@ async function main() {
 	const dateHits: Hit[] = [];
 	const timeSlotHits: Hit[] = [];
 
-	for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+  const pdfjsUtil = (pdfjsLib as any).Util;
+
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
 		const page = await pdf.getPage(pageNum);
 		const textContent = await page.getTextContent();
 		const viewport = page.getViewport({ scale: 1.0 });
 
-		for (const item of textContent.items as any[]) {
-			if (!item?.str || !String(item.str).trim()) continue;
-			const str = String(item.str).trim();
-			const tx = item.transform;
-			const x = tx[4];
-			const y = viewport.height - tx[5];
-			const width = item.width || 0;
+      for (const item of textContent.items as any[]) {
+        if (!item?.str || !String(item.str).trim()) continue;
+        const str = String(item.str).trim();
+        const tx = pdfjsUtil.transform(viewport.transform, item.transform);
+        const x = tx[4];
+        const y = tx[5];
+        const width = item.width || 0;
 
 			for (const pat of DATE_PATTERNS) {
 				const matches = Array.from(str.matchAll(pat));

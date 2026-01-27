@@ -82,6 +82,9 @@ const MEDICATION_NAME_INSTRUCTION_WORDS = new Set([
   "eight",
   "nine",
   "ten",
+  "once",
+  "twice",
+  "thrice",
   "half",
   "quarter",
   "every",
@@ -379,21 +382,23 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   const pageTexts: string[] = [];
   const pageCharCounts: number[] = [];
   
+  const pdfjsUtil = (pdfjsLib as any).Util;
+
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const textContent = await page.getTextContent();
     const viewport = page.getViewport({ scale: 1.0 });
-    
+
     for (const item of textContent.items) {
       if ('str' in item && item.str.trim()) {
-        const tx = (item as any).transform;
+        const tx = pdfjsUtil.transform(viewport.transform, (item as any).transform);
         const x = tx[4];
-        const y = viewport.height - tx[5];
-        
+        const y = tx[5];
+
         allTextItems.push({
           str: item.str.trim(),
-          x: x,
-          y: y,
+          x,
+          y,
           width: (item as any).width || 0,
           height: (item as any).height || 0,
           page: pageNum
@@ -687,10 +692,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     return transposedVotes >= Math.max(1, Math.ceil(pageHeaders.length / 2));
   };
 
-  const preferTransposed = isLikelyTransposedLayout();
-  if (preferTransposed && pageHeaders.length > 0) {
-    debugLog("DEBUG: Header dates appear in a narrow column; preferring transposed layout extraction.");
-  }
+  const preferTransposedByDate = isLikelyTransposedLayout();
   
   if (dateColumns.length === 0) {
     debugLog("DEBUG: No dates found. Trying aggregated row search...");
@@ -718,6 +720,76 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   const medicationPatternLoose = /\b(\d+\s*(mg|mcg|ml|%|g|units?|iu)|tablets?|capsules?|gel|patch|spray|drops?|cream|ointment|lotion|powder|inhaler)\b/i;
 
   const blockedMedCandidatePattern = /\b(case id|case-|printed|date of birth|mar chart|service user|resident|patient|title|allerg(?:y|ies)|key)\b/i;
+
+  const strengthPattern = /^\d+(?:\.\d+)?(?:mg|mcg|g|ml|iu|units?|%)$/i;
+  const strengthRatioPattern = /^\d+(?:\.\d+)?\/\d+(?:\.\d+)?(?:mg|mcg|g|ml|iu|units?)$/i;
+  const quantityPattern = /^(?:\d+\s*[x×]|\d+[x×]|x\d+)$/i;
+  const rangePattern = /^\d{1,2}\s*[-–]\s*\d{1,2}$/;
+
+  const isLowInformationMedicationName = (name: string): boolean => {
+    const cleaned = (name || "").trim();
+    if (!cleaned) return true;
+    const tokens = cleaned.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return true;
+    const hasAlpha = tokens.some((t) => /[a-zA-Z]/.test(t));
+    if (!hasAlpha) return true;
+    return tokens.every((token) => {
+      const lower = token.toLowerCase();
+      return (
+        MEDICATION_NAME_STOP_WORDS.has(lower) ||
+        MEDICATION_NAME_INSTRUCTION_WORDS.has(lower) ||
+        strengthPattern.test(token) ||
+        strengthRatioPattern.test(token) ||
+        quantityPattern.test(token) ||
+        rangePattern.test(token)
+      );
+    });
+  };
+
+  const MEDICATION_NAME_EXTRA_STOP_WORDS = new Set(["day", "days"]);
+  const MEDICATION_NAME_BAD_STARTERS = new Set([
+    "a",
+    "an",
+    "the",
+    "of",
+    "with",
+    "and",
+    "or",
+    "to",
+    "for",
+    "in",
+    "on",
+    "at",
+    "by",
+    "as",
+    "not",
+  ]);
+
+  const hasMeaningfulMedicationToken = (name: string): boolean => {
+    const cleaned = (name || "").trim();
+    if (!cleaned) return false;
+    const tokens = cleaned.split(/\s+/).filter(Boolean);
+    return tokens.some((token) => {
+      const normalized = token.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+      if (normalized.length < 3) return false;
+      if (!/[a-zA-Z]/.test(normalized)) return false;
+      if (MEDICATION_NAME_STOP_WORDS.has(normalized)) return false;
+      if (MEDICATION_NAME_INSTRUCTION_WORDS.has(normalized)) return false;
+      if (MEDICATION_NAME_EXTRA_STOP_WORDS.has(normalized)) return false;
+      if (TIME_WORD_PATTERN.test(normalized)) return false;
+      return true;
+    });
+  };
+
+  const isTimeLabelOnly = (value: string): boolean => {
+    const cleaned = (value || "").trim();
+    if (!cleaned) return false;
+    const rangeRegex = new RegExp(`^${TIME_RANGE_PATTERN.source}$`, "i");
+    const ampmRegex = new RegExp(`^${TIME_AMPM_PATTERN.source}$`, "i");
+    const tokenRegex = new RegExp(`^${TIME_TOKEN_PATTERN.source}$`, "i");
+    const wordRegex = new RegExp(`^${TIME_WORD_PATTERN.source}$`, "i");
+    return rangeRegex.test(cleaned) || ampmRegex.test(cleaned) || tokenRegex.test(cleaned) || wordRegex.test(cleaned);
+  };
 
   interface SlotColumn {
     slot: string;
@@ -783,6 +855,19 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     const cleaned = (text || "").replace(/\s+/g, " ").trim();
     if (!cleaned) return [];
 
+    const isHeaderLeftover = (leftover: string) => {
+      const normalized = leftover
+        .replace(/[^a-zA-Z]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+      if (!normalized) return false;
+      const tokens = normalized.split(" ").filter(Boolean);
+      if (tokens.length === 0) return false;
+      const headerTokens = new Set(["time", "times", "slot", "slots", "hour", "hours", "hrs"]);
+      return tokens.every((token) => headerTokens.has(token));
+    };
+
     const rangeRegex = new RegExp(TIME_RANGE_PATTERN.source, "g");
     const rangeMatches = Array.from(cleaned.matchAll(rangeRegex)).map((m) => m[0]).filter(Boolean);
     if (rangeMatches.length > 0) {
@@ -792,7 +877,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
         .replace(/[()]/g, " ")
         .replace(/\s+/g, " ")
         .trim();
-      if (!leftover) {
+      if (!leftover || (rangeMatches.length >= 2 && isHeaderLeftover(leftover))) {
         return rangeMatches.map((slot) => normalizeSlot(slot));
       }
       // Loose mode: allow a single range label even when other tokens are present
@@ -818,7 +903,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
         .replace(/\s+/g, " ")
         .replace(/[–-]/g, "")
         .trim();
-      if (!leftover) {
+      if (!leftover || (tokenMatches.length >= 2 && isHeaderLeftover(leftover))) {
         return tokenMatches.map((slot) => normalizeSlot(slot));
       }
     }
@@ -854,6 +939,25 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     const debugTransposed = process.env.DEBUG_EMAR_GRID === 'true';
     type SlotCandidate = { slot: string; x: number; y: number; width: number; isRange: boolean };
     const candidates: SlotCandidate[] = [];
+    const pageMaxX = pageItems.length > 0
+      ? Math.max(...pageItems.map((item) => item.x + (item.width || 0)))
+      : 0;
+    const leftCutoff = Math.max(250, pageMaxX * 0.35);
+    const dateLineYs: number[] = [];
+
+    for (const item of pageItems) {
+      const text = item.str;
+      if (!text || text.length < 4) continue;
+      if (item.x > leftCutoff) continue;
+      for (const pattern of DATE_PATTERNS) {
+        const dateRegex = new RegExp(pattern.source, pattern.flags);
+        const matches = Array.from(text.matchAll(dateRegex));
+        if (matches.length > 0) {
+          dateLineYs.push(item.y);
+          break;
+        }
+      }
+    }
 
     for (const item of pageItems) {
       const text = item.str;
@@ -911,14 +1015,12 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       if (unique.length < 2) continue;
 
       const spread = unique[unique.length - 1].x - unique[0].x;
-      // Stacked grids sometimes have more compressed slot headers on some pages.
-      // Keep a modest spread threshold plus a very light "not hard-left" guard.
-      // (Some PDFs report smaller X coordinates even for slot headers.)
-      const minX = unique[0].x;
       if (spread < 60) continue;
-      if (minX < 50) continue;
 
       const avgY = unique.reduce((sum, c) => sum + c.y, 0) / unique.length;
+      const hasDateLabelNearby = dateLineYs.some((y) => Math.abs(y - avgY) <= yTolerance * 1.5);
+      if (hasDateLabelNearby) continue;
+
       clusterCandidates.push({ unique, spread, avgY });
     }
 
@@ -946,8 +1048,8 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       return [];
     }
 
-    // Prefer higher-on-page headers first (larger Y).
-    clusterCandidates.sort((a, b) => b.avgY - a.avgY);
+    // Prefer higher-on-page headers first (smaller Y).
+    clusterCandidates.sort((a, b) => a.avgY - b.avgY);
 
     // Deduplicate very-close header lines (keep the richer one).
     const deduped: Array<{ unique: SlotCandidate[]; spread: number; avgY: number }> = [];
@@ -987,11 +1089,16 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     type DateCandidate = { date: string; x: number; y: number };
     const candidates: DateCandidate[] = [];
 
+    const pageMaxX = pageItems.length > 0
+      ? Math.max(...pageItems.map((item) => item.x + (item.width || 0)))
+      : 0;
+    const leftCutoff = Math.max(250, pageMaxX * 0.35);
+
     for (const item of pageItems) {
       const text = item.str;
       if (!text || text.length < 4) continue;
       // Only consider likely row-label positions (left area).
-      if (item.x > 250) continue;
+      if (item.x > leftCutoff) continue;
       for (const pattern of DATE_PATTERNS) {
         const dateRegex = new RegExp(pattern.source, pattern.flags);
         const matches = Array.from(text.matchAll(dateRegex));
@@ -1006,7 +1113,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
 
     // Consolidate by Y (date labels often appear twice: "Sun, 30 Nov" and "30 Nov" at same Y).
     // Cluster by Y, then choose the best label in that cluster.
-    const sortedByY = [...candidates].sort((a, b) => b.y - a.y);
+    const sortedByY = [...candidates].sort((a, b) => a.y - b.y);
     const clusters: DateCandidate[][] = [];
     let current: DateCandidate[] = [sortedByY[0]];
     let currentY = sortedByY[0].y;
@@ -1037,8 +1144,8 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       })
       .filter((p) => Boolean(p.date));
 
-    // In this PDF family, larger Y appears to be higher on the page.
-    points.sort((a, b) => b.y - a.y);
+    // In viewport coordinates, smaller Y is higher on the page.
+    points.sort((a, b) => a.y - b.y);
 
     const rowPadding = 26;
     const rows: DateRow[] = [];
@@ -1047,14 +1154,39 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       const prev = points[i - 1];
       const next = points[i + 1];
 
-      const yStart = prev ? (prev.y + cur.y) / 2 : cur.y + rowPadding;
-      const yEnd = next ? (cur.y + next.y) / 2 : cur.y - rowPadding;
+      const yStart = prev ? (prev.y + cur.y) / 2 : cur.y - rowPadding;
+      const yEnd = next ? (cur.y + next.y) / 2 : cur.y + rowPadding;
 
       rows.push({ date: cur.date, yStart, yEnd });
     }
 
     return rows;
   };
+
+  const hasTransposedSlotHeaders = (): boolean => {
+    const pages = Array.from(itemsByPage.keys()).sort((a, b) => a - b);
+    if (pages.length === 0) return false;
+    let transposedVotes = 0;
+
+    for (const page of pages) {
+      const headerClusters = extractTimeSlotHeaderClustersForPage(page);
+      if (headerClusters.length === 0) continue;
+      const dateRows = extractDateRowsForPage(page);
+      if (dateRows.length < 2) continue;
+      const hasMultipleColumns = headerClusters.some((cluster) => cluster.columns.length >= 2);
+      if (hasMultipleColumns) transposedVotes += 1;
+    }
+
+    return transposedVotes >= Math.max(1, Math.ceil(pages.length / 2));
+  };
+
+  const preferTransposed = preferTransposedByDate || hasTransposedSlotHeaders();
+  if (preferTransposedByDate && pageHeaders.length > 0) {
+    debugLog("DEBUG: Header dates appear in a narrow column; preferring transposed layout extraction.");
+  }
+  if (!preferTransposedByDate && preferTransposed) {
+    debugLog("DEBUG: Time-slot header clusters detected with date rows; preferring transposed layout extraction.");
+  }
 
   const splitRowIntoSegments = (
     rowItems: TextItem[],
@@ -1102,9 +1234,9 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       const avgY = row.reduce((sum, i) => sum + i.y, 0) / row.length;
 
       if (headerY !== null) {
-        if (upperBoundY !== null && avgY >= upperBoundY) continue;
-        if (avgY <= headerY + 5) continue;
-        const distanceFromHeader = avgY - headerY;
+        if (upperBoundY !== null && avgY <= upperBoundY) continue;
+        if (avgY >= headerY - 5) continue;
+        const distanceFromHeader = headerY - avgY;
         if (distanceFromHeader > 220) continue;
       }
 
@@ -1141,6 +1273,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
         }
 
         const trimmedCandidate = candidateName.trim();
+        const lowInfoCandidate = isLowInformationMedicationName(trimmedCandidate);
         const firstToken = trimmedCandidate.split(/\s+/)[0]?.toLowerCase() || "";
         const startsWithStopWord = MEDICATION_NAME_STOP_WORDS.has(firstToken);
         const startsWithInstructionWord = MEDICATION_NAME_INSTRUCTION_WORDS.has(firstToken);
@@ -1149,7 +1282,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
         const isInstructionOnly = /^\d/.test(trimmedCandidate) && /\btake\b/i.test(trimmedCandidate);
         const isBlocked = blockedMedCandidatePattern.test(trimmedCandidate);
         const upperCandidate = trimmedCandidate.toUpperCase();
-        if (isBlocked) continue;
+        if (isBlocked || lowInfoCandidate) continue;
         if (upperCandidate === "KEY" || upperCandidate === "ROUTE") continue;
 
         const routeDerived =
@@ -1255,13 +1388,13 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       // Prefer rows above the time-slot header (where med name & instructions usually are)
       if (headerY !== null) {
         const avgY = row.reduce((sum, i) => sum + i.y, 0) / row.length;
-        // In this PDF family, larger Y is higher on the page.
+        // In viewport coordinates, smaller Y is higher on the page.
         // Medication text typically sits ABOVE the slot header line.
-        if (upperBoundY !== null && avgY >= upperBoundY) continue;
-        if (avgY <= headerY + 5) continue;
+        if (upperBoundY !== null && avgY <= upperBoundY) continue;
+        if (avgY >= headerY - 5) continue;
 
         // Prefer the row closest above the header (usually the actual medication label for the table).
-        const distanceFromHeader = avgY - headerY;
+        const distanceFromHeader = headerY - avgY;
         // Ignore very far-away rows (likely other sections)
         if (distanceFromHeader > 220) continue;
 
@@ -1326,25 +1459,39 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       const cleanedLeft = (routeIndex > 0 ? trimmedLeft.slice(0, routeIndex) : trimmedLeft).trim();
       const matchesMed = medicationPattern.test(cleanedLeft) || medicationPatternLoose.test(cleanedLeft);
       const blocked = blockedMedCandidatePattern.test(cleanedLeft);
-      if (matchesMed && !blocked) {
-        const rawLabel = cleanedLeft.substring(0, 260).trim();
-        const { name: medName, instructions: medInstructions } = splitMedicationLabel(rawLabel);
-        if (!medName) {
-          const previous = medsOnPage[medsOnPage.length - 1];
-          if (previous) {
-            previous.instructions = [previous.instructions, rawLabel].filter(Boolean).join(" ");
-          }
-          continue;
+      if (blocked) continue;
+
+      const rawLabel = cleanedLeft.substring(0, 260).trim();
+      const { name: medName, instructions: medInstructions } = splitMedicationLabel(rawLabel);
+      const previous = medsOnPage[medsOnPage.length - 1];
+      const isTimeLabel = isTimeLabelOnly(medName);
+      const hasMeaningfulToken = hasMeaningfulMedicationToken(medName);
+      const firstToken = medName.split(/\s+/)[0]?.toLowerCase() || "";
+      const startsWithInstruction =
+        MEDICATION_NAME_INSTRUCTION_WORDS.has(firstToken) || MEDICATION_NAME_BAD_STARTERS.has(firstToken);
+      const rowHasTimeSlot = extractSlotLabels(cleanedLeft).length > 0;
+      const looksLikeMedicationHeader =
+        Boolean(medName) &&
+        hasMeaningfulToken &&
+        !startsWithInstruction &&
+        !isTimeLabel &&
+        (matchesMed || rowHasTimeSlot);
+
+      if (!looksLikeMedicationHeader || isLowInformationMedicationName(medName)) {
+        if (previous && (matchesMed || medName)) {
+          previous.instructions = [previous.instructions, rawLabel].filter(Boolean).join(" ");
         }
-        const avgY = row.reduce((sum, item) => sum + item.y, 0) / row.length;
-        medsOnPage.push({
-          name: medName,
-          instructions: medInstructions || rawLabel,
-          yStart: avgY - 5,
-          yEnd: 0,
-          timeSlots: []
-        });
+        continue;
       }
+
+      const avgY = row.reduce((sum, item) => sum + item.y, 0) / row.length;
+      medsOnPage.push({
+        name: medName,
+        instructions: medInstructions || rawLabel,
+        yStart: avgY - 5,
+        yEnd: 0,
+        timeSlots: []
+      });
     }
 
     for (let i = 0; i < medsOnPage.length; i++) {
@@ -1430,19 +1577,19 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
         const prevSection = headerClusters[sectionIndex - 1];
 
         // Limit cells to the vertical band between this header and the next header below (stacked grids).
-        const yUpper = section.headerY - 2;
-        // Some PDFs yield negative Y coordinates near the bottom of the page.
-        // Use -Infinity so we don't drop valid lower rows.
-        const yLower = nextSection ? nextSection.headerY + 2 : Number.NEGATIVE_INFINITY;
+        const yTop = section.headerY + 2;
+        // Some PDFs yield large Y coordinates near the bottom of the page.
+        // Use +Infinity so we don't drop valid lower rows.
+        const yBottom = nextSection ? nextSection.headerY - 2 : Number.POSITIVE_INFINITY;
 
         const sectionDateRows = dateRows.filter((dr) => {
           const midY = (dr.yStart + dr.yEnd) / 2;
-          return midY <= yUpper && midY >= yLower;
+          return midY >= yTop && midY <= yBottom;
         });
 
         if (debugTransposed) {
           console.log(
-            `[EMAR GRID DEBUG] page=${page} section=${sectionIndex} headerY=${section.headerY.toFixed(1)} columns=${section.columns.length} yUpper=${yUpper.toFixed(1)} yLower=${yLower.toFixed(1)} sectionDateRows=${sectionDateRows.length}`
+            `[EMAR GRID DEBUG] page=${page} section=${sectionIndex} headerY=${section.headerY.toFixed(1)} columns=${section.columns.length} yTop=${yTop.toFixed(1)} yBottom=${yBottom.toFixed(1)} sectionDateRows=${sectionDateRows.length}`
           );
         }
 
@@ -1464,7 +1611,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
         }
 
         // Upper bound prevents the medication-name heuristic from selecting the prior stacked section.
-        const upperBoundY = prevSection ? prevSection.headerY - 2 : null;
+        const upperBoundY = prevSection ? prevSection.headerY + 2 : null;
         const { meds: medCandidates, instructionHints } = extractMedicationCandidatesForPage(page, section.headerY, upperBoundY);
 
         const assignColumnsToMeds = (
@@ -1692,14 +1839,14 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
 	            if (slotNorm) processedSlots.add(slotNorm);
 
 	            for (const dr of sectionDateRows) {
-	              const cellItems = pageItems.filter((item) =>
-	                item.x >= col.xStart &&
-	                item.x < col.xEnd &&
-	                item.y <= dr.yStart &&
-	                item.y >= dr.yEnd &&
-	                item.y <= yUpper &&
-	                item.y >= yLower
-	              );
+              const cellItems = pageItems.filter((item) =>
+                item.x >= col.xStart &&
+                item.x < col.xEnd &&
+                item.y >= dr.yStart &&
+                item.y <= dr.yEnd &&
+                item.y >= yTop &&
+                item.y <= yBottom
+              );
 
 	              const content = cellItems.map((i) => i.str).join(" ");
 	              const extracted = extractCodesFromCell(content);
@@ -1725,6 +1872,13 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
 	    }
 	  }
   
+  const hasRangeSlots = allTimeSlots.some((slot) => TIME_RANGE_PATTERN.test(slot));
+  if (hasRangeSlots) {
+    const timeWordOnly = new RegExp(`^${TIME_WORD_PATTERN.source}$`, "i");
+    const ampmOnly = new RegExp(`^${TIME_AMPM_PATTERN.source}$`, "i");
+    allTimeSlots = allTimeSlots.filter((slot) => !timeWordOnly.test(slot) && !ampmOnly.test(slot));
+  }
+
   debugLog(`DEBUG: Found ${allTimeSlots.length} time slots:`, allTimeSlots);
   
   const cells: GridCell[] = [];

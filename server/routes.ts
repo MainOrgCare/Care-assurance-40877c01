@@ -6205,6 +6205,35 @@ CARE WORKER INITIALS (IMPORTANT):
       medicationsWithIds.forEach((m: any) => {
         medIdToDetails.set(m.medicationId, m);
       });
+      const medNameToId = new Map<string, number>();
+      medicationsWithIds.forEach((m: any) => {
+        const key = normalizeMedicationKey(m?.name || "");
+        if (!key) return;
+        if (!medNameToId.has(key)) medNameToId.set(key, m.medicationId);
+      });
+
+      const resolveMedicationIdFromName = (name: string): number | null => {
+        const key = normalizeMedicationKey(name || "");
+        if (!key) return null;
+        const direct = medNameToId.get(key);
+        if (direct) return direct;
+        let bestId: number | null = null;
+        let bestScore = 0;
+        for (const [candidateKey, id] of medNameToId.entries()) {
+          if (!candidateKey) continue;
+          const hit = candidateKey.includes(key) || key.includes(candidateKey);
+          if (!hit) continue;
+          const score = Math.min(candidateKey.length, key.length);
+          if (score > bestScore) {
+            bestScore = score;
+            bestId = id;
+          }
+        }
+        return bestScore >= 6 ? bestId : null;
+      };
+
+      const normalizeInitialsToken = (value: unknown): string =>
+        String(value || "").toUpperCase().replace(/[^A-Z]/g, "");
 
       // Calculate expected total cells (for non-PRN medications)
       const nonPrnMedsList = metadata.medications?.filter((m: any) => !m.isPRN) || [];
@@ -6245,25 +6274,42 @@ CARE WORKER INITIALS (IMPORTANT):
       // Replace initials with full names where possible, track unknown ones
       // Use medicationId to resolve medication name deterministically
       let allEntries = (extractedData.entries || []).map((entry: any) => {
-        const rawInitials = (entry.careWorkerInitials || "").toUpperCase();
+        const rawCareWorker = String(entry.careWorker || "").trim();
+        const rawInitials = normalizeInitialsToken(entry.careWorkerInitials || rawCareWorker);
         const initials = rawInitials === "MANUAL" ? "" : rawInitials;
-        let careWorkerValue = initials;
-        
-        if (initials && initials.length > 0) {
+        const looksLikeName = rawCareWorker.split(/\s+/).filter(Boolean).length >= 2;
+        let careWorkerValue = rawCareWorker;
+
+        if (looksLikeName && rawCareWorker) {
+          careWorkerValue = rawCareWorker;
+        } else if (initials && initials.length > 0) {
           const fullName = initialsToName.get(initials);
           if (fullName) {
             careWorkerValue = fullName;
           } else {
             // Keep original initials but track as unknown
+            careWorkerValue = rawCareWorker || initials;
             unknownInitials.add(initials);
           }
+        } else if (rawCareWorker) {
+          careWorkerValue = rawCareWorker;
+        } else {
+          careWorkerValue = "Not recorded";
         }
-        
-        // Resolve medication name from medicationId
-        const medId = entry.medicationId || 0;
+
+        // Resolve medication name from medicationId or fallback to name matching
+        const rawMedicationName = typeof entry.medication === "string" ? entry.medication.trim() : "";
+        let medId = Number(entry.medicationId) || 0;
+        if (!medId || !medIdToDetails.has(medId)) {
+          const resolvedId = rawMedicationName ? resolveMedicationIdFromName(rawMedicationName) : null;
+          if (resolvedId) medId = resolvedId;
+        }
         const medDetails = medIdToDetails.get(medId);
-        const medicationName = medDetails?.name || entry.medication || `Unknown (ID:${medId})`;
-        
+        const medicationName =
+          medDetails?.name ||
+          rawMedicationName ||
+          (medId > 0 ? `Medication ${medId}` : "Unmatched medication");
+
         return {
           medicationId: medId,
           medication: medicationName,
