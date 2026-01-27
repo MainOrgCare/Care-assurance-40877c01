@@ -263,6 +263,8 @@ export interface GridCell {
   code: string;
   careWorker: string;
   time: string;
+  keyMismatch?: boolean;
+  detectedCode?: string;
 }
 
 export interface ParsedEMAR {
@@ -289,6 +291,7 @@ export interface ParsedEMAR {
     medicationsFound: number;
     timeSlotsFound: number;
     cellsGenerated: number;
+    keyCodesFound?: number;
     confidenceScore?: number;
     validationWarnings?: string[];
     passLabel?: string;
@@ -368,6 +371,40 @@ const normalizeCodeText = (value: string): string => {
     .replace(/\bA\s*D\b/g, "AD")
     .replace(/\bA\s*S\b/g, "AS")
     .replace(/\bF\b/g, "FA");
+};
+
+const expandKeyCodes = (codes: Set<string>): Set<string> => {
+  const expanded = new Set<string>();
+  codes.forEach((code) => expanded.add(code));
+  if (codes.has("PRN")) {
+    expanded.add("PRN-R");
+    expanded.add("PRN-AD");
+    expanded.add("PRN-AS");
+  }
+  return expanded;
+};
+
+const extractKeyCodes = (text: string): Set<string> => {
+  const found = new Set<string>();
+  if (!text) return found;
+  const keyRegex = /\bKEY\b[:\s-]*/gi;
+  const keyPositions: number[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = keyRegex.exec(text)) !== null) {
+    keyPositions.push(match.index);
+    if (keyPositions.length >= 3) break;
+  }
+  if (keyPositions.length === 0) return found;
+
+  for (const pos of keyPositions) {
+    const slice = text.slice(pos, pos + 900);
+    const codeRegex = new RegExp(CODE_PATTERN.source, "gi");
+    for (const codeMatch of slice.matchAll(codeRegex)) {
+      const normalized = normalizeGridCode(codeMatch[1]);
+      if (normalized) found.add(normalized);
+    }
+  }
+  return found;
 };
 
 const extractCareWorkerInitials = (content: string): string => {
@@ -721,6 +758,8 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
   }
 
   const dates: string[] = allDatesOrdered;
+  const rawKeyCodes = extractKeyCodes(rawText);
+  const keyCodes = rawKeyCodes.size >= 3 ? expandKeyCodes(rawKeyCodes) : new Set<string>();
   const dateColumns: Array<{ date: string; xStart: number; xEnd: number; page: number }> = [];
   for (const ph of pageHeaders) {
     for (const col of ph.dateColumns) {
@@ -2033,22 +2072,24 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
               );
 
 	              const content = cellItems.map((i) => i.str).join(" ");
-	              const extracted = extractCodesFromCell(content);
-	              const code = extracted.code;
-	              const careWorker = extracted.careWorker;
-	              const time = extracted.time;
+              const extracted = extractCodesFromCell(content, keyCodes.size > 0 ? keyCodes : undefined);
+              const code = extracted.code;
+              const careWorker = extracted.careWorker;
+              const time = extracted.time;
 
-	              transposedPageCells.push({
-	                medication: medicationNameForCells,
-	                medicationRow: medicationIndex,
-	                medicationId: medicationIndex + 1,
-	                date: dr.date,
-	                timeSlot: col.slot,
-	                content,
-	                code,
-	                careWorker,
-	                time,
-	              });
+              transposedPageCells.push({
+                medication: medicationNameForCells,
+                medicationRow: medicationIndex,
+                medicationId: medicationIndex + 1,
+                date: dr.date,
+                timeSlot: col.slot,
+                content,
+                code,
+                careWorker,
+                time,
+                keyMismatch: extracted.keyMismatch,
+                detectedCode: extracted.detectedCode,
+              });
 	            }
 	          }
 	        }
@@ -2091,7 +2132,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
             );
 
             const content = cellItems.map(i => i.str).join(" ");
-            const extracted = extractCodesFromCell(content);
+            const extracted = extractCodesFromCell(content, keyCodes.size > 0 ? keyCodes : undefined);
             const code = extracted.code;
             const careWorker = extracted.careWorker;
             const time = extracted.time;
@@ -2105,7 +2146,9 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
               content,
               code,
               careWorker,
-              time
+              time,
+              keyMismatch: extracted.keyMismatch,
+              detectedCode: extracted.detectedCode,
             });
           }
         }
@@ -2253,6 +2296,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
       medicationsFound: detectedMedsCount,
       timeSlotsFound: allTimeSlots.length,
       cellsGenerated: cells.length,
+      keyCodesFound: keyCodes.size,
       confidenceScore: confidence.score,
       validationWarnings: confidence.warnings,
       passLabel: options.passLabel
@@ -2469,11 +2513,15 @@ function groupByY(items: TextItem[], tolerance: number): TextItem[][] {
   return rows;
 }
 
-export function extractCodesFromCell(content: string): { code: string; careWorker: string; time: string } {
+export function extractCodesFromCell(
+  content: string,
+  allowedCodes?: Set<string>
+): { code: string; careWorker: string; time: string; keyMismatch?: boolean; detectedCode?: string } {
   const codes = ["AD", "AS", "P", "R", "MU", "NH", "SA", "S/A", "S-A", "FA", "PRN", "PRN-R", "PRN-AD", "PRN-AS", "MISSED", "N/A"];
-  let foundCode = "BLANK";
   let careWorker = "";
   let time = "";
+
+  const allowed = allowedCodes && allowedCodes.size > 0 ? allowedCodes : null;
   
   const stripped = String(content || "").replace(/\s+/g, " ").trim();
   const xOnly = stripped.replace(/[^xX×✗✘]/g, "");
@@ -2485,16 +2533,34 @@ export function extractCodesFromCell(content: string): { code: string; careWorke
   const upperContent = content.toUpperCase();
   const normalizedContent = normalizeCodeText(upperContent);
   const codeRegex = new RegExp(CODE_PATTERN.source, "gi");
-  const matches = Array.from(normalizedContent.matchAll(codeRegex)).map((match) => normalizeGridCode(match[1]));
 
-  if (matches.length > 0) {
-    foundCode = pickBestCode(matches);
-  } else {
+  const pickCode = (filter?: Set<string>): string => {
+    let matches = Array.from(normalizedContent.matchAll(codeRegex)).map((match) => normalizeGridCode(match[1]));
+    if (filter) {
+      matches = matches.filter((code) => filter.has(code));
+    }
+    if (matches.length > 0) {
+      return pickBestCode(matches);
+    }
     for (const code of codes) {
+      const normalized = normalizeGridCode(code);
+      if (filter && !filter.has(normalized)) continue;
       if (normalizedContent.includes(code)) {
-        foundCode = normalizeGridCode(code);
-        break;
+        return normalized;
       }
+    }
+    return "BLANK";
+  };
+
+  let foundCode = pickCode(allowed || undefined);
+  let keyMismatch = false;
+  let detectedCode: string | undefined;
+
+  if (allowed && foundCode === "BLANK") {
+    const fallbackCode = pickCode();
+    if (fallbackCode !== "BLANK") {
+      keyMismatch = true;
+      detectedCode = fallbackCode;
     }
   }
   
@@ -2506,5 +2572,5 @@ export function extractCodesFromCell(content: string): { code: string; careWorke
     time = timeMatch[1].replace(".", ":");
   }
   
-  return { code: foundCode, careWorker, time };
+  return { code: foundCode, careWorker, time, keyMismatch: keyMismatch || undefined, detectedCode };
 }

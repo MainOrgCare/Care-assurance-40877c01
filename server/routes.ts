@@ -833,6 +833,7 @@ function normalizeInitials(name: string | undefined | null): string {
 
 const extractServiceUserFullName = (text: string): string => {
   if (!text) return "";
+  const stopPattern = /\b(?:allerg(?:y|ies)|allergy status|dob|date of birth|nhs|case id)\b/i;
   const patterns = [
     /Printed date\s+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)\s+CASE/i,
     /\bCase\s*:\s*([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)\b/i,
@@ -847,7 +848,9 @@ const extractServiceUserFullName = (text: string): string => {
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (match && match[1]) {
-      const fullName = match[1].replace(/\s+/g, " ").trim();
+      let fullName = match[1].replace(/\s+/g, " ").trim();
+      fullName = fullName.split(/\s{2,}|\s{1}(?=Allerg(?:y|ies)|Allergy Status|DOB|Date of Birth|NHS|Case ID)/i)[0].trim();
+      if (stopPattern.test(fullName)) continue;
       if (/\bcase\s*id\b/i.test(fullName)) continue;
       return fullName;
     }
@@ -6736,6 +6739,7 @@ CARE WORKER INITIALS (IMPORTANT):
         medicationId?: number;
         code: string;
         note: string;
+        timeSlot?: string;
       }
 
       interface Warning {
@@ -7613,16 +7617,49 @@ If no equivalences found, return: {"equivalences": []}`
           }
         }
 
-        if (scannedImportant > 0 && (missingImportant > 0 || mismatchImportant > 0)) {
-          warnings.push({
-            type: "grid_baseline_mismatch",
-            severity: missingImportant > 0 ? "high" : "medium",
-            medication: "Multiple",
-            description: `Baseline grid scan found ${scannedImportant} important non-admin code cells. Extraction missed ${missingImportant} and mismatched ${mismatchImportant}.`,
-            recommendedAction: "Review the affected rows/cells in the original EMAR. Consider re-running analysis or uploading a cleaner PDF export if available."
-          });
-        }
+      if (scannedImportant > 0 && (missingImportant > 0 || mismatchImportant > 0)) {
+        warnings.push({
+          type: "grid_baseline_mismatch",
+          severity: missingImportant > 0 ? "high" : "medium",
+          medication: "Multiple",
+          description: `Baseline grid scan found ${scannedImportant} important non-admin code cells. Extraction missed ${missingImportant} and mismatched ${mismatchImportant}.`,
+          recommendedAction: "Review the affected rows/cells in the original EMAR. Consider re-running analysis or uploading a cleaner PDF export if available."
+        });
       }
+    }
+
+    // If the EMAR key lists specific codes, flag any cells containing other codes for manual verification.
+    if (gridBaseline?.cells?.length) {
+      const keyMismatchSeen = new Set<string>();
+      for (const cell of gridBaseline.cells) {
+        if (!cell.keyMismatch || !cell.detectedCode) continue;
+        const medName = cell.medication || "Unknown medication";
+        const date = cell.date || "Unknown date";
+        const slot = cell.timeSlot || "Unknown slot";
+        const mismatchKey = `${medName}|${date}|${slot}|${cell.detectedCode}`;
+        if (keyMismatchSeen.has(mismatchKey)) continue;
+        keyMismatchSeen.add(mismatchKey);
+        verificationItems.push({
+          careWorkerName: cell.careWorker || "Unknown",
+          date,
+          medication: medName,
+          medicationId: cell.medicationId || undefined,
+          code: "KEY-MISMATCH",
+          timeSlot: slot,
+          note: `Cell shows code "${cell.detectedCode}" but it is not listed in the EMAR key. Verify this cell manually.`
+        });
+      }
+
+      if (keyMismatchSeen.size > 0) {
+        warnings.push({
+          type: "key_code_mismatch",
+          severity: "medium",
+          medication: "Multiple",
+          description: `Found ${keyMismatchSeen.size} cells with codes not listed in the EMAR key.`,
+          recommendedAction: "Verify these cells against the EMAR key and confirm the correct code."
+        });
+      }
+    }
 
       // =====================================================================
       // CHECK 6: VALIDATE EXTRACTED ENTRIES (for codes like R, MU, NH, SA)

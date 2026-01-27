@@ -70,6 +70,7 @@ interface UserVerificationItem {
   medicationId?: number;
   code: string;
   note: string;
+  timeSlot?: string;
 }
 
 interface PRNMedication {
@@ -272,6 +273,7 @@ interface EmarRecordState {
   editingEntry: EditingEntry | null;
   editDialogOpen: boolean;
   correctionsApplied: boolean;
+  fileReady: boolean;
 }
 
 const MAX_EMAR_UPLOAD_MB = 40;
@@ -474,6 +476,7 @@ export default function EMARAudit() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<EmarAnalysisResult | null>(null);
   const [allowSensitive, setAllowSensitive] = useState(false);
+  const [fileReady, setFileReady] = useState(false);
   const prevContentRef = useRef("");
   
   const [verificationChecks, setVerificationChecks] = useState<{ [key: number]: boolean }>({});
@@ -732,6 +735,7 @@ export default function EMARAudit() {
     setEditingEntry(null);
     setEditDialogOpen(false);
     setCorrectionsApplied(false);
+    setFileReady(false);
   };
 
   const buildRecordState = (): EmarRecordState => ({
@@ -761,6 +765,7 @@ export default function EMARAudit() {
     editingEntry,
     editDialogOpen,
     correctionsApplied,
+    fileReady,
   });
 
   const applyRecordState = (state: EmarRecordState) => {
@@ -790,6 +795,7 @@ export default function EMARAudit() {
     setEditingEntry(state.editingEntry);
     setEditDialogOpen(state.editDialogOpen);
     setCorrectionsApplied(state.correctionsApplied);
+    setFileReady(state.fileReady);
   };
 
   const buildRecordId = (selectedFile: File) =>
@@ -908,6 +914,7 @@ export default function EMARAudit() {
         editingEntry: null,
         editDialogOpen: false,
         correctionsApplied: false,
+        fileReady: false,
       },
     };
 
@@ -916,6 +923,7 @@ export default function EMARAudit() {
     setFile(selectedFile);
     setAnalyzed(false);
     setResult(null);
+    setFileReady(false);
     resetAuditState();
 
     const isPdf = selectedFile.type === "application/pdf" || selectedFile.name.toLowerCase().endsWith(".pdf");
@@ -929,6 +937,14 @@ export default function EMARAudit() {
           record.id === recordId ? { ...record, documentContent: content } : record
         )
       );
+      setTimeout(() => {
+        setFileReady(true);
+        setEmarRecords(prev =>
+          prev.map(record =>
+            record.id === recordId ? { ...record, state: { ...record.state, fileReady: true } } : record
+          )
+        );
+      }, 500);
       resetTimer();
       toast({ title: "PDF Selected", description: "Click 'Analyze EMAR' to process with image recognition." });
     } else if (selectedFile.name.toLowerCase().endsWith(".docx")) {
@@ -955,6 +971,12 @@ export default function EMARAudit() {
             record.id === recordId ? { ...record, documentContent: data.text } : record
           )
         );
+        setFileReady(true);
+        setEmarRecords(prev =>
+          prev.map(record =>
+            record.id === recordId ? { ...record, state: { ...record.state, fileReady: true } } : record
+          )
+        );
         resetTimer();
         toast({ title: "Document Loaded", description: "Content extracted successfully." });
       } catch (error: any) {
@@ -974,6 +996,12 @@ export default function EMARAudit() {
         setEmarRecords(prev =>
           prev.map(record =>
             record.id === recordId ? { ...record, documentContent: content } : record
+          )
+        );
+        setFileReady(true);
+        setEmarRecords(prev =>
+          prev.map(record =>
+            record.id === recordId ? { ...record, state: { ...record.state, fileReady: true } } : record
           )
         );
         resetTimer();
@@ -2278,13 +2306,16 @@ ${generatedProtocol.additionalComments}`;
                     <p className="text-sm text-muted-foreground">Selected file:</p>
                     <p className="text-foreground font-medium">{file.name}</p>
                     <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                    {!fileReady && (
+                      <p className="text-xs text-muted-foreground mt-1">Preparing file for analysis...</p>
+                    )}
                   </div>
-                  <Badge variant="outline">Ready</Badge>
+                  <Badge variant="outline">{fileReady ? "Ready" : "Preparing"}</Badge>
                 </div>
               )}
 
               <div className="flex flex-wrap items-center gap-3">
-                <Button onClick={processAudit} disabled={loading || !file} data-testid="button-analyze">
+                <Button onClick={processAudit} disabled={loading || !file || !fileReady} data-testid="button-analyze">
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -2300,7 +2331,7 @@ ${generatedProtocol.additionalComments}`;
                 <Button
                   variant="outline"
                   onClick={runPreflightCheck}
-                  disabled={!file || loading || preflightLoading}
+                  disabled={!file || !fileReady || loading || preflightLoading}
                 >
                   {preflightLoading ? (
                     <>
@@ -2581,6 +2612,43 @@ ${generatedProtocol.additionalComments}`;
                 </CollapsibleContent>
               </Card>
             </Collapsible>
+          )}
+
+          {result.userVerificationItems && result.userVerificationItems.length > 0 && (
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  Verification Required ({result.userVerificationItems.length})
+                </CardTitle>
+                <CardDescription>
+                  These cells need manual review. Tick each item once verified.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {result.userVerificationItems.map((item, idx) => (
+                  <div key={`${item.medication}-${item.date}-${idx}`} className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3">
+                    <Checkbox
+                      checked={verificationChecks[idx] || false}
+                      onCheckedChange={(checked) =>
+                        setVerificationChecks((prev) => ({ ...prev, [idx]: Boolean(checked) }))
+                      }
+                      data-testid={`checkbox-verification-${idx}`}
+                    />
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-medium text-foreground">{getMedicationDisplayName(item.medication)}</span>
+                        <span className="text-muted-foreground">{item.date}</span>
+                        {item.timeSlot && <span className="text-muted-foreground">({item.timeSlot})</span>}
+                        {item.code && <Badge variant="outline">{item.code}</Badge>}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{item.note}</p>
+                      <p className="text-xs text-muted-foreground">Care worker: {getMappedCarerName(item.careWorkerName || "Unknown")}</p>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           )}
 
           {result.codeConflictDetected && (
