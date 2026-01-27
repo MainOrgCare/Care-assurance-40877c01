@@ -4552,6 +4552,84 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         return merged;
       };
 
+      const refineMedicationNamesWithAI = async (meds: any[]) => {
+        if (!Array.isArray(meds) || meds.length === 0) return meds;
+        const cleaned: any[] = [];
+        const batchSize = 8;
+
+        for (let i = 0; i < meds.length; i += batchSize) {
+          const batch = meds.slice(i, i + batchSize).map((med, idx) => ({
+            index: i + idx,
+            name: typeof med?.name === "string" ? med.name : "",
+            instructions: typeof med?.instructions === "string" ? med.instructions : "",
+            scheduledTimeSlots: Array.isArray(med?.scheduledTimeSlots) ? med.scheduledTimeSlots : [],
+          }));
+
+          const prompt = `You are a pharmacy data normalizer. For each item, separate the MEDICATION NAME from the ADMINISTRATION INSTRUCTIONS.
+
+Rules:
+- name: medication name + strength/form if shown (e.g., "Paracetamol 500mg tablets"). Do NOT include instructions like "take", "apply", "10ml", "twice daily".
+- instructions: dosage + frequency + route + PRN rules. Keep as close to source as possible.
+- If the name field looks like only a dose/instruction, move it into instructions and keep name minimal if possible. If you cannot infer a name, return the original name unchanged.
+- isPRN: true only if instructions explicitly indicate PRN / as needed.
+- requiredGapHours: extract from instructions if stated; otherwise use 4.
+
+Return JSON with EXACT shape:
+{
+  "medications": [
+    { "index": 0, "name": "...", "instructions": "...", "isPRN": true/false, "requiredGapHours": 4 }
+  ]
+}`;
+
+          try {
+            const response = await createChatCompletionWithLogging({
+              model: emarMetadataModel,
+              messages: [
+                { role: "system", content: prompt },
+                { role: "user", content: JSON.stringify({ medications: batch }) },
+              ],
+              max_completion_tokens: 1200,
+              temperature: 0,
+              seed: DETERMINISTIC_SEED,
+              response_format: { type: "json_object" },
+            }, "emar_medication_normalize", aiUserContext);
+
+            const content = response.choices[0]?.message?.content || "{}";
+            const parsed = parseJsonFromContent(content);
+            const entries = Array.isArray(parsed?.medications) ? parsed.medications : [];
+            for (const entry of entries) {
+              if (typeof entry?.index !== "number") continue;
+              cleaned.push(entry);
+            }
+          } catch (error) {
+            console.error("Medication normalization error:", error);
+          }
+        }
+
+        if (cleaned.length === 0) return meds;
+        const byIndex = new Map<number, any>();
+        cleaned.forEach((entry) => {
+          byIndex.set(entry.index, entry);
+        });
+
+        return meds.map((med, idx) => {
+          const updated = byIndex.get(idx);
+          if (!updated) return med;
+          const nextName = typeof updated.name === "string" && updated.name.trim() ? updated.name.trim() : med.name;
+          const nextInstructions =
+            typeof updated.instructions === "string" && updated.instructions.trim()
+              ? updated.instructions.trim()
+              : med.instructions;
+          return {
+            ...med,
+            name: nextName,
+            instructions: nextInstructions,
+            isPRN: typeof updated.isPRN === "boolean" ? updated.isPRN : med.isPRN,
+            requiredGapHours: typeof updated.requiredGapHours === "number" ? updated.requiredGapHours : med.requiredGapHours,
+          };
+        });
+      };
+
       const extractMetadataForText = async (text: string) => {
         const metadataResponse = await createChatCompletionWithLogging({
           model: emarMetadataModel,
@@ -4611,6 +4689,11 @@ IMPORTANT: Extract exactly what you see in the text - don't guess or make assump
         }
       }
       
+      if (metadata.medications && metadata.medications.length > 0) {
+        sendProgress(18, "Normalizing medication names...", "medication_normalization");
+        metadata.medications = await refineMedicationNamesWithAI(metadata.medications);
+      }
+
       // Validate that we actually found medications
       if (!metadata.medications || metadata.medications.length === 0) {
         console.error("No medications found in metadata");
