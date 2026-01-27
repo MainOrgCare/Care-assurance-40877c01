@@ -776,6 +776,27 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
     });
   };
 
+  const isDoseInstructionText = (text: string): boolean => {
+    const cleaned = (text || "").trim();
+    if (!cleaned) return false;
+    const tokens = cleaned.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return false;
+    const startsWithDigit = /^\d/.test(tokens[0]);
+    if (!startsWithDigit) return false;
+    return tokens.every((token) => {
+      const lower = token.toLowerCase();
+      return (
+        MEDICATION_NAME_INSTRUCTION_WORDS.has(lower) ||
+        MEDICATION_NAME_STOP_WORDS.has(lower) ||
+        strengthPattern.test(token) ||
+        strengthRatioPattern.test(token) ||
+        quantityPattern.test(token) ||
+        rangePattern.test(token) ||
+        /^\d+(?:\.\d+)?$/.test(token)
+      );
+    });
+  };
+
   const MEDICATION_NAME_EXTRA_STOP_WORDS = new Set(["day", "days"]);
   const MEDICATION_NAME_BAD_STARTERS = new Set([
     "a",
@@ -1313,6 +1334,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
         const instructionLike = instructionVerbPattern.test(trimmedCandidate) && (startsWithStopWord || startsWithInstructionWord);
         const isInstructionOnly = /^\d/.test(trimmedCandidate) && /\btake\b/i.test(trimmedCandidate);
         const isBlocked = blockedMedCandidatePattern.test(trimmedCandidate);
+        const doseOnlyCandidate = isDoseInstructionText(trimmedCandidate);
         const upperCandidate = trimmedCandidate.toUpperCase();
         if (isBlocked || lowInfoCandidate) continue;
         if (upperCandidate === "KEY" || upperCandidate === "ROUTE") continue;
@@ -1335,7 +1357,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
 
         const instructionTokenPattern = /\b(daily|hourly|times?|tablet|tablets|capsule|capsules|mg|mcg|ml|drops?|puffs?|sachet|sachets|oral|topical|route|apply|take)\b/i;
         const instructionCandidate =
-          (instructionLike || isInstructionOnly || startsWithStopWord || startsWithInstructionWord) &&
+          (instructionLike || isInstructionOnly || startsWithStopWord || startsWithInstructionWord || doseOnlyCandidate) &&
           /[a-z]/i.test(trimmedCandidate) &&
           (instructionVerbPattern.test(trimmedCandidate) || instructionTokenPattern.test(trimmedCandidate));
 
@@ -1363,7 +1385,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
           (candidateName !== cleaned && /[a-zA-Z]/.test(trimmedCandidate) && trimmedCandidate.length >= 3) ||
           looksLikeMedicationHeader;
 
-        const instructionOnlyCandidate = (startsWithStopWord || startsWithInstructionWord || isInstructionOnly) &&
+        const instructionOnlyCandidate = (startsWithStopWord || startsWithInstructionWord || isInstructionOnly || doseOnlyCandidate) &&
           !routeDerived &&
           !looksLikeMedicationHeader;
 
@@ -1437,18 +1459,21 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
 
         const matchesMed = medicationPattern.test(cleaned) || medicationPatternLoose.test(cleaned);
         if (!matchesMed) continue;
+        if (isDoseInstructionText(cleaned)) continue;
 
-        const score = cleaned.length;
+        const { name: inferredName } = splitMedicationLabel(cleaned);
+        if (!inferredName || isLowInformationMedicationName(inferredName)) continue;
+        const score = inferredName.length;
         if (!best) {
-          best = { text: cleaned, distanceFromHeader, score };
+          best = { text: inferredName, distanceFromHeader, score };
           continue;
         }
         if (distanceFromHeader < best.distanceFromHeader) {
-          best = { text: cleaned, distanceFromHeader, score };
+          best = { text: inferredName, distanceFromHeader, score };
           continue;
         }
         if (distanceFromHeader === best.distanceFromHeader && score > best.score) {
-          best = { text: cleaned, distanceFromHeader, score };
+          best = { text: inferredName, distanceFromHeader, score };
         }
         continue;
       }
@@ -1461,14 +1486,17 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
       }
       const matchesMed = medicationPattern.test(rowText) || medicationPatternLoose.test(rowText);
       if (!matchesMed) continue;
+      if (isDoseInstructionText(rowText)) continue;
       const routeIndex = rowText.toLowerCase().indexOf("route");
       const cleaned = (routeIndex > 0 ? rowText.slice(0, routeIndex) : rowText).trim();
       if (!cleaned) continue;
-      const score = cleaned.length;
+      const { name: inferredName } = splitMedicationLabel(cleaned);
+      if (!inferredName || isLowInformationMedicationName(inferredName)) continue;
+      const score = inferredName.length;
       if (!best) {
-        best = { text: cleaned, distanceFromHeader: Number.POSITIVE_INFINITY, score };
+        best = { text: inferredName, distanceFromHeader: Number.POSITIVE_INFINITY, score };
       } else if (score > best.score) {
-        best = { text: cleaned, distanceFromHeader: best.distanceFromHeader, score };
+        best = { text: inferredName, distanceFromHeader: best.distanceFromHeader, score };
       }
     }
 
@@ -1480,6 +1508,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
   for (const ph of pageHeaders) {
     const rows = rowsByPage.get(ph.page) || [];
     const medsOnPage: MedicationBlock[] = [];
+    const instructionLinePattern = /\b(take|apply|administer|give|route|dose|doses|daily|times?|prn|as needed|once|twice|morning|noon|midday|afternoon|evening|night|bedtime|ml|mg|mcg|units?|tablets?|capsules?|drops?)\b/i;
 
     for (let i = ph.headerRowIndex + 1; i < rows.length; i++) {
       const row = rows[i];
@@ -1510,8 +1539,13 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
         (matchesMed || rowHasTimeSlot);
 
       if (!looksLikeMedicationHeader || isLowInformationMedicationName(medName)) {
-        if (previous && (matchesMed || medName)) {
-          previous.instructions = [previous.instructions, rawLabel].filter(Boolean).join(" ");
+        const isInstructionLine =
+          Boolean(cleanedLeft) &&
+          (instructionLinePattern.test(cleanedLeft) || isDoseInstructionText(cleanedLeft));
+        if (previous && (matchesMed || medName || isInstructionLine)) {
+          if (cleanedLeft && cleanedLeft.toLowerCase() !== previous.name.toLowerCase()) {
+            previous.instructions = [previous.instructions, rawLabel].filter(Boolean).join(" ");
+          }
         }
         continue;
       }
@@ -2048,6 +2082,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
     `DEBUG: Parser complete (${parserMode}) - ${detectedDatesCount} dates, ${detectedMedsCount} meds, ${cells.length} cells`
   );
 
+  const expectedDayInfo = estimateExpectedDays(dates);
   const confidence = computeGridConfidence({
     dates,
     timeSlots: allTimeSlots,
@@ -2067,6 +2102,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
           }))
         : transposedMedications,
     cells,
+    extraWarnings: expectedDayInfo.warning ? [expectedDayInfo.warning] : undefined,
   });
   
   return {
@@ -2109,6 +2145,7 @@ function computeGridConfidence(input: {
   timeSlots: string[];
   medications: Array<{ name: string; row: number; instructions: string; timeSlots: string[] }>;
   cells: GridCell[];
+  extraWarnings?: string[];
 }) {
   const dateCount = input.dates.length;
   const timeSlotCount = input.timeSlots.length;
@@ -2152,8 +2189,91 @@ function computeGridConfidence(input: {
     cellCount === 0 ||
     (timeSlotCount < 2 && dateCount >= 2);
 
+  if (input.extraWarnings && input.extraWarnings.length > 0) {
+    warnings.push(...input.extraWarnings);
+  }
+
   return { score, warnings, isLow, expectedCells, nonEmptyCells };
 }
+
+const estimateExpectedDays = (dates: string[]): { expected: number | null; warning?: string } => {
+  if (dates.length < 2) return { expected: null };
+  const parseDateLabel = (value: string): Date | null => {
+    const cleaned = (value || "").replace(/[,]/g, " ").replace(/\s+/g, " ").trim();
+    if (!cleaned) return null;
+
+    // Try DD/MM/YYYY or DD/MM
+    const numericMatch = cleaned.match(/\b(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?\b/);
+    if (numericMatch) {
+      const day = Number(numericMatch[1]);
+      const month = Number(numericMatch[2]);
+      const year = numericMatch[3] ? Number(numericMatch[3]) : new Date().getFullYear();
+      if (!Number.isNaN(day) && !Number.isNaN(month)) {
+        return new Date(year, month - 1, day);
+      }
+    }
+
+    // Try "01 Dec" or "01 December"
+    const textMatch = cleaned.match(/\b(\d{1,2})\s+([A-Za-z]{3,})\b/);
+    if (textMatch) {
+      const day = Number(textMatch[1]);
+      const monthStr = textMatch[2].toLowerCase();
+      const months: Record<string, number> = {
+        jan: 0,
+        january: 0,
+        feb: 1,
+        february: 1,
+        mar: 2,
+        march: 2,
+        apr: 3,
+        april: 3,
+        may: 4,
+        jun: 5,
+        june: 5,
+        jul: 6,
+        july: 6,
+        aug: 7,
+        august: 7,
+        sep: 8,
+        sept: 8,
+        september: 8,
+        oct: 9,
+        october: 9,
+        nov: 10,
+        november: 10,
+        dec: 11,
+        december: 11,
+      };
+      const month = months[monthStr];
+      if (!Number.isNaN(day) && typeof month === "number") {
+        return new Date(new Date().getFullYear(), month, day);
+      }
+    }
+
+    return null;
+  };
+
+  const first = parseDateLabel(dates[0]);
+  const last = parseDateLabel(dates[dates.length - 1]);
+  if (!first || !last) return { expected: null };
+
+  const start = new Date(first.getFullYear(), first.getMonth(), first.getDate());
+  const end = new Date(last.getFullYear(), last.getMonth(), last.getDate());
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return { expected: null };
+  if (end < start) return { expected: null };
+  const diffMs = end.getTime() - start.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
+  if (diffDays <= 0) return { expected: null };
+
+  if (Math.abs(diffDays - dates.length) > 1) {
+    return {
+      expected: diffDays,
+      warning: `Date range suggests ${diffDays} days but detected ${dates.length} date columns`,
+    };
+  }
+
+  return { expected: diffDays };
+};
 
 export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   const primary = await parseEMARGridWithOptions(pdfBuffer, { passLabel: "primary" });

@@ -23,14 +23,14 @@ const formatTimestamp = (timestamp: number) =>
   });
 
 export default function ServiceUserUpload() {
-  const { uploadFile, serviceUserData } = useTemporaryData();
+  const { uploadFile, serviceUserData, removeAdditionalDocument } = useTemporaryData();
   const { toast } = useToast();
   const [dragOver, setDragOver] = useState<string | null>(null);
   const initialAssessmentInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleUpload = (section: "socialWork" | "initialAssessment" | "carePlan" | "movingHandling", e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = (section: "socialWork" | "initialAssessment" | "carePlan" | "movingHandling" | "additionalDocuments", e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      uploadFile(section, e.target.files[0]);
+      Array.from(e.target.files).forEach((file) => uploadFile(section, file));
       toast({
         title: "File Uploaded",
         description: `Successfully uploaded to ${section} section. Timer reset.`,
@@ -38,11 +38,11 @@ export default function ServiceUserUpload() {
     }
   };
 
-  const handleDrop = (section: "socialWork" | "initialAssessment" | "carePlan" | "movingHandling", e: React.DragEvent) => {
+  const handleDrop = (section: "socialWork" | "initialAssessment" | "carePlan" | "movingHandling" | "additionalDocuments", e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(null);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      uploadFile(section, e.dataTransfer.files[0]);
+      Array.from(e.dataTransfer.files).forEach((file) => uploadFile(section, file));
       toast({
         title: "File Uploaded",
         description: `Successfully uploaded to ${section} section. Timer reset.`,
@@ -394,6 +394,83 @@ export default function ServiceUserUpload() {
                   onChange={(e) => handleUpload("movingHandling", e)}
                   data-testid="input-upload-moving-handling"
                 />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Box 5: Additional Documents */}
+        <Card
+          className={`relative overflow-hidden transition-all duration-300 ${
+            (serviceUserData.additionalDocuments || []).length > 0
+              ? "border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_30px_rgba(16,185,129,0.1)]"
+              : dragOver === "additionalDocuments"
+                ? "border-indigo-500/50 bg-indigo-500/5 border-dashed border-2 scale-[1.02]"
+                : "border-dashed border-2 border-border/60 hover:border-indigo-500/40 hover:bg-muted/30"
+          }`}
+          onDrop={(e) => handleDrop("additionalDocuments", e)}
+          onDragOver={(e) => handleDragOver("additionalDocuments", e)}
+          onDragLeave={handleDragLeave}
+        >
+          {(serviceUserData.additionalDocuments || []).length > 0 && (
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-emerald-400" />
+          )}
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2.5 text-base">
+              <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-indigo-500/10">
+                <Upload className="h-4 w-4 text-indigo-400" />
+              </div>
+              Additional Documents
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground/70">
+              Upload extra care-related docs (multiple allowed).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center py-6 text-center space-y-3">
+            <div className="w-full">
+              <label htmlFor="upload-additional" className="cursor-pointer flex flex-col items-center group">
+                <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-3 group-hover:bg-indigo-500/10 transition-colors">
+                  <CloudUpload className="h-6 w-6 text-muted-foreground/50 group-hover:text-indigo-400 transition-colors" />
+                </div>
+                <span className="text-xs text-muted-foreground/70 group-hover:text-foreground/70 transition-colors">
+                  Drop files here or click to browse
+                </span>
+              </label>
+              <input
+                id="upload-additional"
+                type="file"
+                accept=".pdf,.docx"
+                multiple
+                className="hidden"
+                onChange={(e) => handleUpload("additionalDocuments", e)}
+                data-testid="input-upload-additional-docs"
+              />
+            </div>
+            {(serviceUserData.additionalDocuments || []).length > 0 && (
+              <div className="mt-2 w-full space-y-2 text-left text-xs text-muted-foreground/80">
+                {(serviceUserData.additionalDocuments || []).map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/40 px-2 py-2">
+                    <div className="min-w-0">
+                      <p className={`truncate text-[11px] ${doc.parseError ? "text-rose-400" : "text-foreground/80"}`}>
+                        {doc.name}
+                      </p>
+                      {doc.isParsing ? (
+                        <span className="text-[10px] text-blue-400">Parsing...</span>
+                      ) : doc.parseError ? (
+                        <span className="text-[10px] text-rose-400">{doc.parseError}</span>
+                      ) : (
+                        <span className="text-[10px] text-emerald-500/70">Ready</span>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => doc.id && removeAdditionalDocument(doc.id)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

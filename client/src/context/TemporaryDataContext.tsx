@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { SAMPLE_CARE_PLAN_CONTENT, SAMPLE_SOCIAL_WORK_CONTENT } from "@/lib/sampleDemoData";
 
 interface FileData {
+  id?: string;
   name: string;
   type: string;
   size: number;
@@ -12,18 +13,20 @@ interface FileData {
   parseError?: string;
 }
 
-type UploadSection = "socialWork" | "initialAssessment" | "carePlan" | "movingHandling";
+type UploadSection = "socialWork" | "initialAssessment" | "carePlan" | "movingHandling" | "additionalDocuments";
 
 type ServiceUserDataState = {
   socialWork?: FileData;
   initialAssessment?: FileData;
   carePlan?: FileData;
   movingHandling?: FileData;
+  additionalDocuments?: FileData[];
 };
 
 interface TemporaryDataContextType {
   serviceUserData: ServiceUserDataState;
   uploadFile: (section: UploadSection, file: File) => Promise<void>;
+  removeAdditionalDocument: (id: string) => void;
   clearServiceUserData: () => void;
   timeLeft: number | null; // Time left in seconds
   startTimer: () => void;
@@ -46,12 +49,14 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     initialAssessment: Symbol("initialAssessment"),
     carePlan: Symbol("carePlan"),
     movingHandling: Symbol("movingHandling"),
+    additionalDocuments: Symbol("additionalDocuments"),
   });
   const uploadAbortControllersRef = useRef<Record<UploadSection, AbortController | null>>({
     socialWork: null,
     initialAssessment: null,
     carePlan: null,
     movingHandling: null,
+    additionalDocuments: null,
   });
 
   // Handle timer countdown
@@ -93,16 +98,65 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
       initialAssessment: null,
       carePlan: null,
       movingHandling: null,
+      additionalDocuments: null,
     };
     uploadTokensRef.current = {
       socialWork: Symbol("socialWork"),
       initialAssessment: Symbol("initialAssessment"),
       carePlan: Symbol("carePlan"),
       movingHandling: Symbol("movingHandling"),
+      additionalDocuments: Symbol("additionalDocuments"),
     };
   };
 
   const uploadFile = async (section: UploadSection, file: File) => {
+    if (section === "additionalDocuments") {
+      const entryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const newFile: FileData = {
+        id: entryId,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        content: "",
+        timestamp: Date.now(),
+        isParsing: true,
+      };
+      setServiceUserData(prev => ({
+        ...prev,
+        additionalDocuments: [...(prev.additionalDocuments || []), newFile],
+      }));
+      resetTimer();
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await fetch("/api/parse-pdf", {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        });
+        if (!response.ok) {
+          throw new Error("Failed to parse PDF");
+        }
+        const data = await response.json();
+        setServiceUserData(prev => ({
+          ...prev,
+          additionalDocuments: (prev.additionalDocuments || []).map(doc =>
+            doc.id === entryId ? { ...doc, content: data.text || "", isParsing: false } : doc
+          ),
+        }));
+      } catch (error: any) {
+        console.error("PDF parsing error:", error);
+        setServiceUserData(prev => ({
+          ...prev,
+          additionalDocuments: (prev.additionalDocuments || []).map(doc =>
+            doc.id === entryId ? { ...doc, content: "", isParsing: false, parseError: error.message || "Failed to parse PDF" } : doc
+          ),
+        }));
+      }
+      return;
+    }
+
     const token = Symbol(section);
     uploadTokensRef.current[section] = token;
 
@@ -184,6 +238,13 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     console.log("Secure Wipe: Service User Data Cleared from Memory.");
   };
 
+  const removeAdditionalDocument = (id: string) => {
+    setServiceUserData(prev => ({
+      ...prev,
+      additionalDocuments: (prev.additionalDocuments || []).filter(doc => doc.id !== id),
+    }));
+  };
+
   const startTimer = () => {
     setTimeLeft(30 * 60); // 30 minutes in seconds
   };
@@ -207,6 +268,13 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     if (serviceUserData.movingHandling?.content) {
       parts.push(`=== MOVING AND HANDLING PLAN ===\n${serviceUserData.movingHandling.content}`);
     }
+    if (serviceUserData.additionalDocuments && serviceUserData.additionalDocuments.length > 0) {
+      serviceUserData.additionalDocuments.forEach((doc, index) => {
+        if (!doc.content) return;
+        const label = doc.name ? doc.name : `Additional Document ${index + 1}`;
+        parts.push(`=== ADDITIONAL DOCUMENT: ${label} ===\n${doc.content}`);
+      });
+    }
     
     return parts.join("\n\n");
   };
@@ -216,7 +284,8 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
       serviceUserData.socialWork?.isParsing ||
       serviceUserData.initialAssessment?.isParsing ||
       serviceUserData.carePlan?.isParsing ||
-      serviceUserData.movingHandling?.isParsing
+      serviceUserData.movingHandling?.isParsing ||
+      serviceUserData.additionalDocuments?.some(doc => doc.isParsing)
     );
   };
 
@@ -245,6 +314,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
         timestamp: Date.now(),
         isParsing: false,
       },
+      additionalDocuments: [],
     });
     startTimer();
     console.log("Demo Mode: Sample data loaded.");
@@ -254,6 +324,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     <TemporaryDataContext.Provider value={{ 
       serviceUserData, 
       uploadFile, 
+      removeAdditionalDocument,
       clearServiceUserData, 
       timeLeft,
       startTimer,
