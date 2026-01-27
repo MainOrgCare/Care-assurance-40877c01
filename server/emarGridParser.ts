@@ -196,7 +196,22 @@ const splitMedicationLabel = (label: string): { name: string; instructions: stri
   const name = nameTokens.join(" ").trim();
   const instructions = stopIndex < tokens.length ? tokens.slice(stopIndex).join(" ").trim() : "";
 
+  const isDoseToken = (token: string): boolean => {
+    const compact = token.replace(/[()]/g, "").trim();
+    if (!compact) return false;
+    if (strengthPattern.test(compact) || strengthRatioPattern.test(compact)) return true;
+    if (quantityPattern.test(compact) || rangePattern.test(compact)) return true;
+    if (/^\d+(?:\.\d+)?$/.test(compact)) return true;
+    if (/^\d/.test(compact) && /(?:mg|mcg|g|ml|iu|units?|%)$/i.test(compact)) return true;
+    return false;
+  };
+
   if (!name) return { name: "", instructions: cleaned };
+  const nameTokensNormalized = name.split(/\s+/).filter(Boolean);
+  const nameLooksDoseOnly = nameTokensNormalized.length > 0 && nameTokensNormalized.every(isDoseToken);
+  if (nameLooksDoseOnly) {
+    return { name: "", instructions: cleaned };
+  }
   return { name, instructions: instructions || cleaned };
 };
 
@@ -245,7 +260,21 @@ export interface ParsedEMAR {
     medicationsFound: number;
     timeSlotsFound: number;
     cellsGenerated: number;
+    confidenceScore?: number;
+    validationWarnings?: string[];
+    passLabel?: string;
   };
+}
+
+interface ParseOptions {
+  yTolerance?: number;
+  textRowTolerance?: number;
+  minDatesForHeader?: number;
+  maxHeaderScanRows?: number;
+  headerSpreadMin?: number;
+  leftCutoffRatio?: number;
+  leftCutoffMin?: number;
+  passLabel?: string;
 }
 
 const DATE_PATTERNS = [
@@ -366,7 +395,7 @@ const pickBestCode = (codes: string[]): string => {
   return best;
 };
 
-export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
+async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions = {}): Promise<ParsedEMAR> {
   const uint8Array = new Uint8Array(pdfBuffer);
   // Server-side parsing: disable worker to avoid PDF.js API/worker version mismatches.
   const loadingTask = pdfjsLib.getDocument({
@@ -408,7 +437,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   }
   
   // IMPORTANT: Group by page first. Y coordinates are only meaningful within a page.
-  const yTolerance = 12;
+  const yTolerance = options.yTolerance ?? 12;
   const itemsByPage = new Map<number, TextItem[]>();
   for (const item of allTextItems) {
     if (!itemsByPage.has(item.page)) itemsByPage.set(item.page, []);
@@ -417,7 +446,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
 
   // Build a more readable text extraction (re-using already-parsed PDF items).
   // This matches the legacy text extractor behavior closely enough for downstream heuristics.
-  const textRowTolerance = 2.5;
+  const textRowTolerance = options.textRowTolerance ?? 2.5;
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const pageItems = itemsByPage.get(pageNum) || [];
     const rows = groupByY(pageItems, textRowTolerance);
@@ -452,8 +481,9 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   const allDatesOrdered: string[] = [];
   const dateSeen = new Set<string>();
 
-  const MIN_DATES_FOR_HEADER = 2; // allow shorter EMARs (e.g., 2-4 days)
-  const MAX_HEADER_SCAN_ROWS = 40; // keep search near the top to reduce false positives
+  const MIN_DATES_FOR_HEADER = options.minDatesForHeader ?? 2; // allow shorter EMARs (e.g., 2-4 days)
+  const MAX_HEADER_SCAN_ROWS = options.maxHeaderScanRows ?? 40; // keep search near the top to reduce false positives
+  const headerSpreadMin = options.headerSpreadMin ?? 150;
 
   for (const [page, rows] of Array.from(rowsByPage.entries()).sort((a, b) => a[0] - b[0])) {
     let headerRowIndex = -1;
@@ -505,7 +535,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
 
       // Simple sanity: header-like row should have multiple dates spread across page
       const spread = foundDates.length >= 2 ? (foundDates[foundDates.length - 1].xStart - foundDates[0].xStart) : 0;
-      const looksLikeHeader = foundDates.length >= MIN_DATES_FOR_HEADER && spread >= 150;
+      const looksLikeHeader = foundDates.length >= MIN_DATES_FOR_HEADER && spread >= headerSpreadMin;
 
       if (looksLikeHeader) {
         headerRowIndex = i;
@@ -591,7 +621,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
           if (unique.length < MIN_DATES_FOR_HEADER) continue;
 
           const spread = unique.length >= 2 ? (unique[unique.length - 1].x - unique[0].x) : 0;
-          if (spread < 150) continue;
+          if (spread < headerSpreadMin) continue;
 
           const avgY = unique.reduce((sum, c) => sum + c.y, 0) / unique.length;
           const candidate = { cluster: unique, uniqueCount: unique.length, spread, avgY };
@@ -942,7 +972,9 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
     const pageMaxX = pageItems.length > 0
       ? Math.max(...pageItems.map((item) => item.x + (item.width || 0)))
       : 0;
-    const leftCutoff = Math.max(250, pageMaxX * 0.35);
+    const leftCutoffRatio = options.leftCutoffRatio ?? 0.35;
+    const leftCutoffMin = options.leftCutoffMin ?? 250;
+    const leftCutoff = Math.max(leftCutoffMin, pageMaxX * leftCutoffRatio);
     const dateLineYs: number[] = [];
 
     for (const item of pageItems) {
@@ -1782,7 +1814,7 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
 	          let medicationIndex: number | null = null;
 	          let medicationNameForCells = "";
 
-	          if (cleanMedName) {
+	          if (cleanMedName && !isLowInformationMedicationName(cleanMedName)) {
 	            medicationNameForCells = cleanMedName;
               const baseInstructions = medInstructions || rawLabel;
               const combinedInstructions = [baseInstructions, extraInstructionText].filter(Boolean).join(" ").trim();
@@ -2015,6 +2047,27 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
   debugLog(
     `DEBUG: Parser complete (${parserMode}) - ${detectedDatesCount} dates, ${detectedMedsCount} meds, ${cells.length} cells`
   );
+
+  const confidence = computeGridConfidence({
+    dates,
+    timeSlots: allTimeSlots,
+    medications: useTransposedMeds
+      ? transposedMedications.map((m) => ({
+          name: m.name,
+          row: m.row,
+          instructions: m.instructions || "",
+          timeSlots: m.timeSlots,
+        }))
+      : medicationBlocks.length > 0
+        ? medicationBlocks.map((m, i) => ({
+            name: m.name,
+            row: typeof m.row === "number" ? m.row : i,
+            instructions: m.instructions || "",
+            timeSlots: m.timeSlots.map(ts => ts.slot),
+          }))
+        : transposedMedications,
+    cells,
+  });
   
   return {
     serviceUserName,
@@ -2043,9 +2096,105 @@ export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
       dateColumnsFound: dates.length,
       medicationsFound: detectedMedsCount,
       timeSlotsFound: allTimeSlots.length,
-      cellsGenerated: cells.length
+      cellsGenerated: cells.length,
+      confidenceScore: confidence.score,
+      validationWarnings: confidence.warnings,
+      passLabel: options.passLabel
     }
   };
+}
+
+function computeGridConfidence(input: {
+  dates: string[];
+  timeSlots: string[];
+  medications: Array<{ name: string; row: number; instructions: string; timeSlots: string[] }>;
+  cells: GridCell[];
+}) {
+  const dateCount = input.dates.length;
+  const timeSlotCount = input.timeSlots.length;
+  const medicationCount = input.medications.length;
+  const cellCount = input.cells.length;
+  const nonEmptyCells = input.cells.filter((cell) => {
+    const content = String(cell.content || "").trim();
+    return content.length > 0 || (cell.code && cell.code !== "BLANK");
+  }).length;
+
+  const expectedCells =
+    dateCount > 0 && timeSlotCount > 0 && medicationCount > 0
+      ? dateCount * timeSlotCount * medicationCount
+      : 0;
+  const cellCoverage = expectedCells > 0 ? Math.min(1, cellCount / expectedCells) : 0;
+  const filledRatio = expectedCells > 0 ? Math.min(1, nonEmptyCells / expectedCells) : 0;
+
+  const dateScore = Math.min(1, dateCount / 4);
+  const timeScore = Math.min(1, timeSlotCount / 4);
+  const medScore = Math.min(1, medicationCount / 6);
+  const fillScore = Math.min(1, filledRatio / 0.15);
+
+  const score =
+    0.25 * dateScore +
+    0.25 * timeScore +
+    0.2 * medScore +
+    0.2 * cellCoverage +
+    0.1 * fillScore;
+
+  const warnings: string[] = [];
+  if (dateCount < 1) warnings.push("No dates detected");
+  if (timeSlotCount < 2) warnings.push("Time slots below minimum threshold");
+  if (medicationCount < 1) warnings.push("No medications detected");
+  if (cellCount === 0) warnings.push("No grid cells generated");
+  if (expectedCells > 0 && filledRatio < 0.02) warnings.push("Very low filled cell ratio");
+
+  const isLow =
+    score < 0.35 ||
+    dateCount < 1 ||
+    medicationCount < 1 ||
+    cellCount === 0 ||
+    (timeSlotCount < 2 && dateCount >= 2);
+
+  return { score, warnings, isLow, expectedCells, nonEmptyCells };
+}
+
+export async function parseEMARGrid(pdfBuffer: Buffer): Promise<ParsedEMAR> {
+  const primary = await parseEMARGridWithOptions(pdfBuffer, { passLabel: "primary" });
+  const primaryConfidence = computeGridConfidence({
+    dates: primary.dates,
+    timeSlots: primary.timeSlots,
+    medications: primary.medications,
+    cells: primary.cells,
+  });
+
+  if (!primaryConfidence.isLow) {
+    return primary;
+  }
+
+  const fallback = await parseEMARGridWithOptions(pdfBuffer, {
+    yTolerance: 16,
+    textRowTolerance: 3.5,
+    minDatesForHeader: 1,
+    maxHeaderScanRows: 55,
+    headerSpreadMin: 110,
+    leftCutoffRatio: 0.3,
+    leftCutoffMin: 220,
+    passLabel: "fallback",
+  });
+
+  const fallbackConfidence = computeGridConfidence({
+    dates: fallback.dates,
+    timeSlots: fallback.timeSlots,
+    medications: fallback.medications,
+    cells: fallback.cells,
+  });
+
+  if (fallbackConfidence.score > primaryConfidence.score + 0.05) {
+    return fallback;
+  }
+
+  if (fallbackConfidence.score > primaryConfidence.score && fallback.cells.length > primary.cells.length) {
+    return fallback;
+  }
+
+  return primary;
 }
 
 function groupByY(items: TextItem[], tolerance: number): TextItem[][] {

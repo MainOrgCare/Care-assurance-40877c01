@@ -12,12 +12,13 @@ interface FileData {
   parseError?: string;
 }
 
-type UploadSection = "socialWork" | "initialAssessment" | "carePlan";
+type UploadSection = "socialWork" | "initialAssessment" | "carePlan" | "movingHandling";
 
 type ServiceUserDataState = {
   socialWork?: FileData;
   initialAssessment?: FileData;
   carePlan?: FileData;
+  movingHandling?: FileData;
 };
 
 interface TemporaryDataContextType {
@@ -44,11 +45,13 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     socialWork: Symbol("socialWork"),
     initialAssessment: Symbol("initialAssessment"),
     carePlan: Symbol("carePlan"),
+    movingHandling: Symbol("movingHandling"),
   });
   const uploadAbortControllersRef = useRef<Record<UploadSection, AbortController | null>>({
     socialWork: null,
     initialAssessment: null,
     carePlan: null,
+    movingHandling: null,
   });
 
   // Handle timer countdown
@@ -89,11 +92,13 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
       socialWork: null,
       initialAssessment: null,
       carePlan: null,
+      movingHandling: null,
     };
     uploadTokensRef.current = {
       socialWork: Symbol("socialWork"),
       initialAssessment: Symbol("initialAssessment"),
       carePlan: Symbol("carePlan"),
+      movingHandling: Symbol("movingHandling"),
     };
   };
 
@@ -199,6 +204,9 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     if (serviceUserData.carePlan?.content) {
       parts.push(`=== CURRENT CARE PLAN ===\n${serviceUserData.carePlan.content}`);
     }
+    if (serviceUserData.movingHandling?.content) {
+      parts.push(`=== MOVING AND HANDLING PLAN ===\n${serviceUserData.movingHandling.content}`);
+    }
     
     return parts.join("\n\n");
   };
@@ -207,7 +215,8 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     return Boolean(
       serviceUserData.socialWork?.isParsing ||
       serviceUserData.initialAssessment?.isParsing ||
-      serviceUserData.carePlan?.isParsing
+      serviceUserData.carePlan?.isParsing ||
+      serviceUserData.movingHandling?.isParsing
     );
   };
 

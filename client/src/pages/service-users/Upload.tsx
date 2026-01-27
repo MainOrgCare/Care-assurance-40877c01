@@ -28,7 +28,7 @@ export default function ServiceUserUpload() {
   const [dragOver, setDragOver] = useState<string | null>(null);
   const initialAssessmentInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleUpload = (section: "socialWork" | "initialAssessment" | "carePlan", e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = (section: "socialWork" | "initialAssessment" | "carePlan" | "movingHandling", e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       uploadFile(section, e.target.files[0]);
       toast({
@@ -38,7 +38,7 @@ export default function ServiceUserUpload() {
     }
   };
 
-  const handleDrop = (section: "socialWork" | "initialAssessment" | "carePlan", e: React.DragEvent) => {
+  const handleDrop = (section: "socialWork" | "initialAssessment" | "carePlan" | "movingHandling", e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(null);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
@@ -68,7 +68,7 @@ export default function ServiceUserUpload() {
         </p>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-5">
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Box 1: Social Work */}
         <Card 
           className={`relative overflow-hidden transition-all duration-300 ${
@@ -311,6 +311,91 @@ export default function ServiceUserUpload() {
                  <input id="upload-plan" type="file" accept=".pdf" className="hidden" onChange={(e) => handleUpload("carePlan", e)} data-testid="input-upload-careplan" />
                </div>
              )}
+          </CardContent>
+        </Card>
+
+        {/* Box 4: Moving & Handling */}
+        <Card
+          className={`relative overflow-hidden transition-all duration-300 ${
+            serviceUserData.movingHandling
+              ? "border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_30px_rgba(16,185,129,0.1)]"
+              : dragOver === "movingHandling"
+                ? "border-sky-500/50 bg-sky-500/5 border-dashed border-2 scale-[1.02]"
+                : "border-dashed border-2 border-border/60 hover:border-sky-500/40 hover:bg-muted/30"
+          }`}
+          onDrop={(e) => handleDrop("movingHandling", e)}
+          onDragOver={(e) => handleDragOver("movingHandling", e)}
+          onDragLeave={handleDragLeave}
+        >
+          {serviceUserData.movingHandling && (
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-emerald-400" />
+          )}
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2.5 text-base">
+              <div
+                className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${
+                  serviceUserData.movingHandling ? "bg-emerald-500/15" : "bg-sky-500/10"
+                }`}
+              >
+                {serviceUserData.movingHandling ? (
+                  <Check className="h-4 w-4 text-emerald-500" />
+                ) : (
+                  <Upload className="h-4 w-4 text-sky-400" />
+                )}
+              </div>
+              Moving & Handling Plan
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground/70">
+              Upload moving & handling plans or mobility guidance.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center py-6 text-center space-y-3">
+            {serviceUserData.movingHandling ? (
+              <div className="text-sm w-full">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                    <File className="h-4 w-4 text-emerald-500" />
+                  </div>
+                  <span
+                    className={`font-medium truncate max-w-[150px] ${
+                      serviceUserData.movingHandling.parseError ? "text-rose-400" : "text-emerald-400"
+                    }`}
+                  >
+                    {serviceUserData.movingHandling.name}
+                  </span>
+                </div>
+                {serviceUserData.movingHandling.isParsing ? (
+                  <div className="flex items-center justify-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 py-1.5 px-3 rounded-full mx-auto w-fit">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Parsing document...
+                  </div>
+                ) : serviceUserData.movingHandling.parseError ? (
+                  <p className="text-xs text-rose-400 bg-rose-500/10 py-1.5 px-3 rounded-full mx-auto w-fit">
+                    {serviceUserData.movingHandling.parseError}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-emerald-500/70">Ready for processing</p>
+                )}
+              </div>
+            ) : (
+              <div className="w-full">
+                <label htmlFor="upload-moving-handling" className="cursor-pointer flex flex-col items-center group">
+                  <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-3 group-hover:bg-sky-500/10 transition-colors">
+                    <CloudUpload className="h-6 w-6 text-muted-foreground/50 group-hover:text-sky-400 transition-colors" />
+                  </div>
+                  <span className="text-xs text-muted-foreground/70 group-hover:text-foreground/70 transition-colors">
+                    Drop file here or click to browse
+                  </span>
+                </label>
+                <input
+                  id="upload-moving-handling"
+                  type="file"
+                  accept=".pdf,.docx"
+                  className="hidden"
+                  onChange={(e) => handleUpload("movingHandling", e)}
+                  data-testid="input-upload-moving-handling"
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

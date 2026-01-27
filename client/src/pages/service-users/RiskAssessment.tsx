@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { ShieldAlert, ArrowRight, Loader2, AlertTriangle, CheckCircle, FileText, Info, Search, Copy, Check } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import jsPDF from "jspdf";
 
 interface RecommendedAssessment {
   name: string;
@@ -488,6 +489,75 @@ export default function RiskAssessment() {
       title: "Copied",
       description: "All risk assessments copied to clipboard",
     });
+  };
+
+  const exportAssessmentsPdf = () => {
+    if (generatedAssessmentsForCopy.length === 0) return;
+    const doc = new jsPDF();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const marginX = 14;
+    const maxWidth = pageWidth - marginX * 2;
+    let y = 18;
+
+    const addLines = (lines: string[], lineHeight = 6) => {
+      for (const line of lines) {
+        if (y + lineHeight > pageHeight - 12) {
+          doc.addPage();
+          y = 18;
+        }
+        doc.text(line, marginX, y);
+        y += lineHeight;
+      }
+    };
+
+    const addParagraph = (text: string, lineHeight = 6) => {
+      const lines = doc.splitTextToSize(text, maxWidth);
+      addLines(lines, lineHeight);
+    };
+
+    generatedAssessmentsForCopy.forEach((assessment, index) => {
+      if (index > 0) {
+        doc.addPage();
+        y = 18;
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      addParagraph(`${assessment.category} Risk Assessment`, 8);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      addParagraph(`Date: ${assessment.assessmentDate}`);
+      addParagraph(`Service User: ${assessment.serviceUserInitials}`);
+      addParagraph(`Signed By: ${assessment.signedBy}`);
+      addParagraph(`Job Title: ${assessment.jobTitle}`);
+      y += 2;
+
+      assessment.risks.forEach((risk, idx) => {
+        doc.setFont("helvetica", "bold");
+        addParagraph(`Risk ${idx + 1}: ${risk.riskDefinition}`, 7);
+        doc.setFont("helvetica", "normal");
+        addParagraph(`Initial Rating: ${risk.initialRating}`);
+        addParagraph(`Who Will Be Harmed: ${risk.whoWillBeHarmed}`);
+        addParagraph(`How It's a Risk: ${risk.howItsARisk}`);
+        addParagraph(`Control Measures: ${risk.controlMeasures}`);
+        addParagraph(`Rating After Controls: ${risk.ratingAfterControls}`);
+        y += 2;
+      });
+
+      if (
+        assessment.additionalNotes &&
+        assessment.additionalNotes !== "I'm not aware of additional information based on the documents provided"
+      ) {
+        doc.setFont("helvetica", "bold");
+        addParagraph("Additional Notes", 7);
+        doc.setFont("helvetica", "normal");
+        addParagraph(assessment.additionalNotes);
+      }
+    });
+
+    const fileName = `Risk_Assessments_${new Date().toISOString().split("T")[0]}.pdf`;
+    doc.save(fileName);
   };
 
   // Step 1: No data uploaded
@@ -976,6 +1046,9 @@ export default function RiskAssessment() {
             )}
             <Button variant="outline" onClick={copyAllAssessments} data-testid="button-copy-all-assessments">
               <Copy size={16} /> Copy All
+            </Button>
+            <Button variant="outline" onClick={exportAssessmentsPdf} data-testid="button-export-risk-pdf">
+              <FileText size={16} /> Export PDF
             </Button>
             <Button 
               variant="outline" 
