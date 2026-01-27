@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 import { ShieldAlert, ArrowRight, Loader2, AlertTriangle, CheckCircle, FileText, Info, Search, Copy, Check } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -57,11 +58,13 @@ export default function RiskAssessment() {
   const { toast } = useToast();
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysis, setAnalysis] = useState<RiskAnalysis | null>(null);
+  const [analysisRaw, setAnalysisRaw] = useState<RiskAnalysis | null>(null);
+  const [analysisScrubbed, setAnalysisScrubbed] = useState<RiskAnalysis | null>(null);
   const [selectedAssessments, setSelectedAssessments] = useState<Set<string>>(new Set());
   const [showWarnings, setShowWarnings] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedAssessments, setGeneratedAssessments] = useState<GeneratedAssessment[]>([]);
+  const [generatedAssessmentsRaw, setGeneratedAssessmentsRaw] = useState<GeneratedAssessment[]>([]);
+  const [generatedAssessmentsScrubbed, setGeneratedAssessmentsScrubbed] = useState<GeneratedAssessment[]>([]);
   const [step, setStep] = useState<"upload" | "analyze" | "select" | "generate" | "view">("upload");
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
@@ -69,6 +72,19 @@ export default function RiskAssessment() {
   const [assessmentFilter, setAssessmentFilter] = useState<"all" | "mandatory" | "optional">("all");
   const [sortMode, setSortMode] = useState<"default" | "mandatory">("default");
   const [copiedAssessment, setCopiedAssessment] = useState<number | null>(null);
+  const [allowSensitive, setAllowSensitive] = useState(false);
+
+  const isAdmin = user?.role === "admin";
+  const showSensitive = isAdmin && allowSensitive;
+  const analysis = useMemo(
+    () => (showSensitive && analysisRaw ? analysisRaw : analysisScrubbed),
+    [showSensitive, analysisRaw, analysisScrubbed]
+  );
+  const generatedAssessments = useMemo(
+    () => (showSensitive && generatedAssessmentsRaw.length > 0 ? generatedAssessmentsRaw : generatedAssessmentsScrubbed),
+    [showSensitive, generatedAssessmentsRaw, generatedAssessmentsScrubbed]
+  );
+  const generatedAssessmentsForCopy = generatedAssessmentsScrubbed.length > 0 ? generatedAssessmentsScrubbed : generatedAssessmentsRaw;
 
   const hasData = serviceUserData.initialAssessment || serviceUserData.socialWork || serviceUserData.carePlan;
   const hasAllParsed = hasData && !isAnyParsing();
@@ -163,12 +179,14 @@ export default function RiskAssessment() {
       if (!documentContent) {
         throw new Error("No document content available");
       }
+      setAnalysisRaw(null);
+      setAnalysisScrubbed(null);
 
       const response = await fetch("/api/ai/analyze-risks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ documentContent }),
+        body: JSON.stringify({ documentContent, allowSensitive: isAdmin && allowSensitive }),
       });
 
       if (!response.ok) {
@@ -182,7 +200,8 @@ export default function RiskAssessment() {
 
       const decoder = new TextDecoder();
       let buffer = "";
-      let result: RiskAnalysis | null = null;
+      let resultRaw: RiskAnalysis | null = null;
+      let resultScrubbed: RiskAnalysis | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -207,7 +226,8 @@ export default function RiskAssessment() {
               setProgress(data.percent);
               setProgressStatus(data.status);
             } else if (eventType === "result") {
-              result = data;
+              resultRaw = data;
+              resultScrubbed = data?.scrubbedResult || data;
             } else if (eventType === "error") {
               throw new Error(data.message);
             }
@@ -215,7 +235,7 @@ export default function RiskAssessment() {
         }
       }
 
-      if (!result) {
+      if (!resultRaw) {
         throw new Error("No result received from server");
       }
 
@@ -224,12 +244,13 @@ export default function RiskAssessment() {
       setSearchQuery("");
       setAssessmentFilter("all");
       setSortMode("default");
-      setAnalysis(result);
+      setAnalysisRaw(resultRaw);
+      setAnalysisScrubbed(resultScrubbed || resultRaw);
       setStep("select");
       
       // Auto-select mandatory assessments
       const mandatory = new Set<string>(
-        result.recommendedAssessments
+        (resultScrubbed || resultRaw).recommendedAssessments
           .filter((a: RecommendedAssessment) => a.isMandatory)
           .map((a: RecommendedAssessment) => a.name)
       );
@@ -303,7 +324,8 @@ export default function RiskAssessment() {
     setProgressStatus("Starting generation...");
     
     const documentContent = getAllDocumentContent();
-    const generated: GeneratedAssessment[] = [];
+    const generatedRaw: GeneratedAssessment[] = [];
+    const generatedScrubbed: GeneratedAssessment[] = [];
     const assessmentsArray = Array.from(selectedAssessments);
     const total = assessmentsArray.length;
 
@@ -319,9 +341,10 @@ export default function RiskAssessment() {
           body: JSON.stringify({
             documentContent,
             assessmentCategory: assessmentName,
-            serviceUserInitials: analysis?.serviceUser.initials,
+            serviceUserInitials: analysisScrubbed?.serviceUser.initials || analysis?.serviceUser.initials,
             performedBy: user?.username,
             performedByJobTitle: user?.jobTitle || "Care Staff",
+            allowSensitive: isAdmin && allowSensitive,
           }),
         });
 
@@ -330,7 +353,8 @@ export default function RiskAssessment() {
           if (reader) {
             const decoder = new TextDecoder();
             let buffer = "";
-            let result: GeneratedAssessment | null = null;
+            let resultRaw: GeneratedAssessment | null = null;
+            let resultScrubbed: GeneratedAssessment | null = null;
 
             while (true) {
               const { done, value } = await reader.read();
@@ -356,14 +380,16 @@ export default function RiskAssessment() {
                     const itemPercent = Math.round((data.percent / 100) * (100 / total));
                     setProgress(basePercent + itemPercent);
                   } else if (eventType === "result") {
-                    result = data;
+                    resultRaw = data;
+                    resultScrubbed = data?.scrubbedResult || data;
                   }
                 }
               }
             }
 
-            if (result) {
-              generated.push(result);
+            if (resultRaw) {
+              generatedRaw.push(resultRaw);
+              generatedScrubbed.push(resultScrubbed || resultRaw);
             }
           }
         }
@@ -379,20 +405,21 @@ export default function RiskAssessment() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          serviceUserInitials: analysis?.serviceUser.initials || "N.N.",
+          serviceUserInitials: analysisScrubbed?.serviceUser.initials || analysis?.serviceUser.initials || "N.N.",
           performedBy: user?.username || "Unknown",
           performedByJobTitle: user?.jobTitle,
           offeredAssessments: analysis?.recommendedAssessments.map(a => a.name) || [],
           selectedAssessments: Array.from(selectedAssessments),
           skippedMandatory: getMandatoryNotSelected(),
-          documentSummary: analysis?.documentSummary,
+          documentSummary: analysisScrubbed?.documentSummary || analysis?.documentSummary,
         }),
       });
     } catch (error) {
       console.error("Failed to log risk assessment:", error);
     }
 
-    setGeneratedAssessments(generated);
+    setGeneratedAssessmentsRaw(generatedRaw);
+    setGeneratedAssessmentsScrubbed(generatedScrubbed);
     setIsGenerating(false);
     setProgress(0);
     setProgressStatus("");
@@ -441,7 +468,9 @@ export default function RiskAssessment() {
     return lines.join("\n").trim();
   };
 
-  const copyAssessment = async (assessment: GeneratedAssessment, index: number) => {
+  const copyAssessment = async (index: number) => {
+    const assessment = generatedAssessmentsForCopy[index];
+    if (!assessment) return;
     await navigator.clipboard.writeText(formatAssessmentForCopy(assessment));
     setCopiedAssessment(index);
     toast({
@@ -452,8 +481,8 @@ export default function RiskAssessment() {
   };
 
   const copyAllAssessments = async () => {
-    if (generatedAssessments.length === 0) return;
-    const combined = generatedAssessments.map(formatAssessmentForCopy).join("\n\n---\n\n");
+    if (generatedAssessmentsForCopy.length === 0) return;
+    const combined = generatedAssessmentsForCopy.map(formatAssessmentForCopy).join("\n\n---\n\n");
     await navigator.clipboard.writeText(combined);
     toast({
       title: "Copied",
@@ -507,6 +536,12 @@ export default function RiskAssessment() {
           <p className="text-muted-foreground mt-2">
             Analyze uploaded documents to identify required risk assessments.
           </p>
+          {isAdmin && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
+              <span>Show full names (admin view). Copies use initials only.</span>
+            </div>
+          )}
         </div>
 
         <Card className="bg-card border-border">
@@ -629,6 +664,12 @@ export default function RiskAssessment() {
             Based on the documents, we recommend the following assessments for{" "}
             <span className="text-foreground font-medium">{analysis.serviceUser.initials}</span>
           </p>
+          {isAdmin && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
+              <span>Show full names (admin view). Copies use initials only.</span>
+            </div>
+          )}
         </div>
 
         {parseErrors.length > 0 && (
@@ -916,14 +957,23 @@ export default function RiskAssessment() {
   if (step === "view" && generatedAssessments.length > 0) {
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-3xl font-heading font-bold text-foreground">Risk Assessments</h2>
             <p className="text-muted-foreground mt-2">
               Generated {generatedAssessments.length} risk assessment{generatedAssessments.length !== 1 ? "s" : ""} for {analysis?.serviceUser.initials}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && (
+              <div className="flex flex-col items-start gap-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
+                  <span>Show full names (admin view)</span>
+                </div>
+                <span className="text-[11px] text-muted-foreground/80">Copies use initials only.</span>
+              </div>
+            )}
             <Button variant="outline" onClick={copyAllAssessments} data-testid="button-copy-all-assessments">
               <Copy size={16} /> Copy All
             </Button>
@@ -931,7 +981,8 @@ export default function RiskAssessment() {
               variant="outline" 
               onClick={() => {
                 setStep("select");
-                setGeneratedAssessments([]);
+                setGeneratedAssessmentsRaw([]);
+                setGeneratedAssessmentsScrubbed([]);
                 setCopiedAssessment(null);
               }}
               data-testid="button-back-to-select"
@@ -956,7 +1007,7 @@ export default function RiskAssessment() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => copyAssessment(assessment, idx)}
+                    onClick={() => copyAssessment(idx)}
                     data-testid={`button-copy-assessment-${idx}`}
                   >
                     {copiedAssessment === idx ? <Check size={14} /> : <Copy size={14} />}

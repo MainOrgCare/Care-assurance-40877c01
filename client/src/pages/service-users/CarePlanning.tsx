@@ -1,10 +1,12 @@
 import { useState, useMemo } from "react";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
+import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Switch } from "@/components/ui/switch";
 import { FileText, ArrowRight, AlertTriangle, Loader2, CheckCircle2, Sparkles, ChevronDown, ChevronUp, Copy, Check, Search } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
@@ -31,8 +33,10 @@ interface CarePlanResult {
 
 export default function CarePlanning() {
   const { serviceUserData, getAllDocumentContent, isAnyParsing } = useTemporaryData();
+  const { user } = useAuth();
   const { toast } = useToast();
-  const [carePlan, setCarePlan] = useState<CarePlanResult | null>(null);
+  const [carePlanRaw, setCarePlanRaw] = useState<CarePlanResult | null>(null);
+  const [carePlanScrubbed, setCarePlanScrubbed] = useState<CarePlanResult | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
   const [copiedSection, setCopiedSection] = useState<number | null>(null);
   const [progress, setProgress] = useState(0);
@@ -40,6 +44,14 @@ export default function CarePlanning() {
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [sortMode, setSortMode] = useState<"default" | "priority">("default");
+  const [allowSensitive, setAllowSensitive] = useState(false);
+
+  const isAdmin = user?.role === "admin";
+  const showSensitive = isAdmin && allowSensitive;
+  const carePlan = useMemo(
+    () => (showSensitive && carePlanRaw ? carePlanRaw : carePlanScrubbed),
+    [showSensitive, carePlanRaw, carePlanScrubbed]
+  );
 
   const hasData = serviceUserData.socialWork || serviceUserData.initialAssessment;
   const sectionsWithIndex = useMemo(() => {
@@ -125,20 +137,22 @@ export default function CarePlanning() {
 
       setProgress(0);
       setProgressStatus("Preparing documents...");
-      
+
       // Clear any existing care plan and prepare for incremental updates
-      setCarePlan(null);
+      setCarePlanRaw(null);
+      setCarePlanScrubbed(null);
       setExpandedSections(new Set());
       setSearchQuery("");
       setPriorityFilter("all");
       setSortMode("default");
-      const sectionsInProgress: CarePlanSection[] = [];
+      const sectionsInProgressRaw: CarePlanSection[] = [];
+      const sectionsInProgressScrubbed: CarePlanSection[] = [];
 
       const response = await fetch("/api/ai/generate-care-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ documentContent }),
+        body: JSON.stringify({ documentContent, allowSensitive: isAdmin && allowSensitive }),
       });
 
       if (!response.ok) {
@@ -158,7 +172,8 @@ export default function CarePlanning() {
 
       const decoder = new TextDecoder();
       let buffer = "";
-      let result: CarePlanResult | null = null;
+      let resultRaw: CarePlanResult | null = null;
+      let resultScrubbed: CarePlanResult | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -192,15 +207,26 @@ export default function CarePlanning() {
               } else if (eventType === "section") {
                 // New section arrived - add it to the list immediately
                 console.log("[CarePlan] Section received:", data.index, data.section?.title, "keys:", Object.keys(data.section || {}));
-                if (data.section && typeof data.index === 'number') {
-                  sectionsInProgress[data.index] = data.section;
+                if (data.section && typeof data.index === "number") {
+                  const sectionScrubbed = data.scrubbedSection || data.section;
+                  sectionsInProgressRaw[data.index] = data.section;
+                  sectionsInProgressScrubbed[data.index] = sectionScrubbed;
                   // Filter out undefined entries (sparse array)
-                  const validSections = sectionsInProgress.filter((s): s is CarePlanSection => s !== undefined);
+                  const validSectionsRaw = sectionsInProgressRaw.filter((s): s is CarePlanSection => s !== undefined);
+                  const validSectionsScrubbed = sectionsInProgressScrubbed.filter((s): s is CarePlanSection => s !== undefined);
                   // Update care plan in real-time so user sees progress
-                  setCarePlan(prev => ({
+                  setCarePlanRaw(prev => ({
                     serviceUserInitials: prev?.serviceUserInitials || "N.N.",
                     generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
-                    sections: validSections,
+                    sections: validSectionsRaw,
+                    emergencyContacts: prev?.emergencyContacts || "Loading...",
+                    gpDetails: prev?.gpDetails || "Loading...",
+                    additionalNotes: prev?.additionalNotes || "Loading...",
+                  }));
+                  setCarePlanScrubbed(prev => ({
+                    serviceUserInitials: prev?.serviceUserInitials || "N.N.",
+                    generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
+                    sections: validSectionsScrubbed,
                     emergencyContacts: prev?.emergencyContacts || "Loading...",
                     gpDetails: prev?.gpDetails || "Loading...",
                     additionalNotes: prev?.additionalNotes || "Loading...",
@@ -214,7 +240,8 @@ export default function CarePlanning() {
                 }
               } else if (eventType === "result") {
                 console.log("[CarePlan] Final result received, sections count:", data?.sections?.length, "keys:", Object.keys(data || {}));
-                result = data;
+                resultRaw = data;
+                resultScrubbed = data?.scrubbedResult || data;
               } else if (eventType === "error") {
                 throw new Error(data.message);
               }
@@ -225,14 +252,14 @@ export default function CarePlanning() {
         }
       }
 
-      if (!result) {
+      if (!resultRaw) {
         throw new Error("No result received from server");
       }
 
-      return result;
+      return { raw: resultRaw, scrubbed: resultScrubbed || resultRaw };
     },
-    onSuccess: (data) => {
-      console.log("[CarePlan] onSuccess called with data:", JSON.stringify(data).substring(0, 500));
+    onSuccess: ({ raw, scrubbed }) => {
+      console.log("[CarePlan] onSuccess called with data:", JSON.stringify(raw).substring(0, 500));
       setProgress(100);
       setProgressStatus("Complete!");
       setTimeout(() => {
@@ -241,18 +268,28 @@ export default function CarePlanning() {
       }, 500);
       
       // Ensure sections is always an array
-      const safeSections = Array.isArray(data?.sections) ? data.sections : [];
-      const safeData: CarePlanResult = {
-        serviceUserInitials: data?.serviceUserInitials || "N.N.",
-        generatedDate: data?.generatedDate || new Date().toLocaleDateString("en-GB"),
-        sections: safeSections,
-        emergencyContacts: data?.emergencyContacts || "",
-        gpDetails: data?.gpDetails || "",
-        additionalNotes: data?.additionalNotes || "",
+      const safeSectionsRaw = Array.isArray(raw?.sections) ? raw.sections : [];
+      const safeSectionsScrubbed = Array.isArray(scrubbed?.sections) ? scrubbed.sections : [];
+      const safeDataRaw: CarePlanResult = {
+        serviceUserInitials: raw?.serviceUserInitials || "N.N.",
+        generatedDate: raw?.generatedDate || new Date().toLocaleDateString("en-GB"),
+        sections: safeSectionsRaw,
+        emergencyContacts: raw?.emergencyContacts || "",
+        gpDetails: raw?.gpDetails || "",
+        additionalNotes: raw?.additionalNotes || "",
+      };
+      const safeDataScrubbed: CarePlanResult = {
+        serviceUserInitials: scrubbed?.serviceUserInitials || "N.N.",
+        generatedDate: scrubbed?.generatedDate || new Date().toLocaleDateString("en-GB"),
+        sections: safeSectionsScrubbed,
+        emergencyContacts: scrubbed?.emergencyContacts || "",
+        gpDetails: scrubbed?.gpDetails || "",
+        additionalNotes: scrubbed?.additionalNotes || "",
       };
       
-      setCarePlan(safeData);
-      setExpandedSections(new Set(safeSections.map((_: CarePlanSection, i: number) => i)));
+      setCarePlanRaw(safeDataRaw);
+      setCarePlanScrubbed(safeDataScrubbed);
+      setExpandedSections(new Set(safeSectionsScrubbed.map((_: CarePlanSection, i: number) => i)));
       setSearchQuery("");
       setPriorityFilter("all");
       setSortMode("default");
@@ -307,29 +344,31 @@ export default function CarePlanning() {
   };
 
   const copySection = async (section: CarePlanSection, index: number) => {
-    await navigator.clipboard.writeText(formatSectionForCopy(section));
+    const scrubbedSection = carePlanScrubbed?.sections?.[index] || section;
+    await navigator.clipboard.writeText(formatSectionForCopy(scrubbedSection));
     setCopiedSection(index);
     setTimeout(() => setCopiedSection(null), 2000);
   };
 
   const copyAllPlan = async () => {
-    if (!carePlan) return;
+    const copySource = carePlanScrubbed || carePlan;
+    if (!copySource) return;
 
-    const sectionsText = carePlan.sections
+    const sectionsText = copySource.sections
       .filter((section): section is CarePlanSection => section != null)
       .map((section) => formatSectionForCopy(section))
       .join("\n\n---\n\n");
-    const metadataText = `Care Plan for ${carePlan.serviceUserInitials}\nGenerated: ${carePlan.generatedDate}`;
+    const metadataText = `Care Plan for ${copySource.serviceUserInitials}\nGenerated: ${copySource.generatedDate}`;
     const additionalDetails: string[] = [];
 
-    if (carePlan.emergencyContacts && carePlan.emergencyContacts !== "Information not found in documents") {
-      additionalDetails.push(`Emergency Contacts: ${carePlan.emergencyContacts}`);
+    if (copySource.emergencyContacts && copySource.emergencyContacts !== "Information not found in documents") {
+      additionalDetails.push(`Emergency Contacts: ${copySource.emergencyContacts}`);
     }
-    if (carePlan.gpDetails && carePlan.gpDetails !== "Information not found in documents") {
-      additionalDetails.push(`GP Details: ${carePlan.gpDetails}`);
+    if (copySource.gpDetails && copySource.gpDetails !== "Information not found in documents") {
+      additionalDetails.push(`GP Details: ${copySource.gpDetails}`);
     }
-    if (carePlan.additionalNotes && carePlan.additionalNotes !== "Information not found in documents") {
-      additionalDetails.push(`Additional Notes: ${carePlan.additionalNotes}`);
+    if (copySource.additionalNotes && copySource.additionalNotes !== "Information not found in documents") {
+      additionalDetails.push(`Additional Notes: ${copySource.additionalNotes}`);
     }
 
     const additionalText =
@@ -377,18 +416,29 @@ export default function CarePlanning() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-heading font-bold text-foreground" data-testid="text-page-title">Care Planning</h2>
           <p className="text-muted-foreground mt-2">
             Generate detailed, first-person care plans based on uploaded documentation.
           </p>
         </div>
-        {carePlan && (
-          <Button variant="outline" onClick={copyAllPlan} className="gap-2" data-testid="button-copy-all">
-            <Copy size={16} /> Copy Full Plan
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {isAdmin && (
+            <div className="flex flex-col items-start gap-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
+                <span>Show full names (admin view)</span>
+              </div>
+              <span className="text-[11px] text-muted-foreground/80">Copies and saves use initials only.</span>
+            </div>
+          )}
+          {carePlan && (
+            <Button variant="outline" onClick={copyAllPlan} className="gap-2" data-testid="button-copy-all">
+              <Copy size={16} /> Copy Full Plan
+            </Button>
+          )}
+        </div>
       </div>
 
       <Card className="bg-card border-border">

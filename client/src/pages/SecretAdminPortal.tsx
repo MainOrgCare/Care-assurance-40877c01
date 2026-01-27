@@ -1450,7 +1450,7 @@ function AuditTrailSection() {
 }
 
 interface SystemLog {
-  id: number;
+  id: string;
   user: string;
   action: string;
   target: string;

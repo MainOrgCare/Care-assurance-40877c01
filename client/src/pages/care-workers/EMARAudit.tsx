@@ -233,6 +233,46 @@ interface EmarPreflightResult {
   warnings: string[];
 }
 
+interface EmarRecord {
+  id: string;
+  file: File;
+  documentContent: string;
+  preflightResult: EmarPreflightResult | null;
+  preflightError: string | null;
+  analyzed: boolean;
+  result: EmarAnalysisResult | null;
+  state: EmarRecordState;
+}
+
+interface EmarRecordState {
+  verificationChecks: { [key: number]: boolean };
+  prnProtocolChecks: PRNProtocolCheck[];
+  medicationLevelOverride: string | null;
+  pendingLevelOverride: string | null;
+  discrepanciesUpdated: boolean;
+  verificationSubmitted: boolean;
+  warningsOpen: boolean;
+  prnProtocolsSubmitted: boolean;
+  addedDiscrepancies: Discrepancy[];
+  detectedInitials: string[];
+  carerMappings: CarerMapping[];
+  mappingsConfirmed: boolean;
+  refusalReviews: RefusalReviewState;
+  expandedRefusals: Set<string>;
+  selectedForEscalation: Set<string>;
+  refusalDecisions: { [key: string]: 'acceptable' | 'escalate' | null };
+  refusalReviewSubmitted: boolean;
+  reasonsNotAdministeredOpen: string[];
+  generatingProtocol: string | null;
+  generatedProtocol: GeneratedPRNProtocol | null;
+  protocolDialogOpen: boolean;
+  editMode: boolean;
+  corrections: Map<string, CorrectedEntry>;
+  editingEntry: EditingEntry | null;
+  editDialogOpen: boolean;
+  correctionsApplied: boolean;
+}
+
 const MAX_EMAR_UPLOAD_MB = 40;
 const MAX_EMAR_UPLOAD_BYTES = MAX_EMAR_UPLOAD_MB * 1024 * 1024;
 const LARGE_FILE_WARNING_MB = 25;
@@ -416,11 +456,13 @@ const WARNING_SEVERITY_STYLES: Record<string, { card: string; badge: string; acc
 };
 
 export default function EMARAudit() {
-  const { user } = useAuth();
+  const { user, logAction } = useAuth();
   const { toast } = useToast();
   const { resetTimer } = useTemporaryData();
   const [file, setFile] = useState<File | null>(null);
   const [documentContent, setDocumentContent] = useState("");
+  const [emarRecords, setEmarRecords] = useState<EmarRecord[]>([]);
+  const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const [preflightLoading, setPreflightLoading] = useState(false);
   const [preflightResult, setPreflightResult] = useState<EmarPreflightResult | null>(null);
@@ -470,7 +512,7 @@ export default function EMARAudit() {
   }, [documentContent, resetTimer]);
 
   useEffect(() => {
-    if (result?.prnMedications?.hasPRN) {
+    if (result?.prnMedications?.hasPRN && prnProtocolChecks.length === 0) {
       const meds = result.prnMedications.medications;
       const initialChecks: PRNProtocolCheck[] = meds.map((med) => ({
         medication: typeof med === 'string' ? med : med.name,
@@ -479,7 +521,7 @@ export default function EMARAudit() {
       }));
       setPrnProtocolChecks(initialChecks);
     }
-  }, [result]);
+  }, [result, prnProtocolChecks.length]);
 
   const sortedWarnings = useMemo(() => {
     const warnings = result?.warnings ? [...result.warnings] : [];
@@ -490,6 +532,7 @@ export default function EMARAudit() {
       return (a.medication || "").localeCompare(b.medication || "");
     });
   }, [result?.warnings]);
+  const analyzedRecords = useMemo(() => emarRecords.filter(record => record.analyzed), [emarRecords]);
 
   const highestWarningSeverity = sortedWarnings.length > 0
     ? sortedWarnings[0].severity ?? "low"
@@ -655,6 +698,155 @@ export default function EMARAudit() {
     return mapping?.fullName || originalName;
   };
 
+  const resetAuditState = () => {
+    setVerificationChecks({});
+    setPrnProtocolChecks([]);
+    setMedicationLevelOverride(null);
+    setPendingLevelOverride(null);
+    setDiscrepanciesUpdated(false);
+    setVerificationSubmitted(false);
+    setWarningsOpen(false);
+    setPrnProtocolsSubmitted(false);
+    setAddedDiscrepancies([]);
+    setDetectedInitials([]);
+    setCarerMappings([]);
+    setMappingsConfirmed(false);
+    setRefusalReviews({});
+    setExpandedRefusals(new Set());
+    setSelectedForEscalation(new Set());
+    setRefusalDecisions({});
+    setRefusalReviewSubmitted(false);
+    setReasonsNotAdministeredOpen([]);
+    if (file) {
+      logAction("EMAR Audit Started", file.name, "Authorized", undefined, { event: "emar_audit_started", fileName: file.name });
+    }
+    setGeneratingProtocol(null);
+    setGeneratedProtocol(null);
+    setProtocolDialogOpen(false);
+    setEditMode(false);
+    setCorrections(new Map());
+    setEditingEntry(null);
+    setEditDialogOpen(false);
+    setCorrectionsApplied(false);
+  };
+
+  const buildRecordState = (): EmarRecordState => ({
+    verificationChecks,
+    prnProtocolChecks,
+    medicationLevelOverride,
+    pendingLevelOverride,
+    discrepanciesUpdated,
+    verificationSubmitted,
+    warningsOpen,
+    prnProtocolsSubmitted,
+    addedDiscrepancies,
+    detectedInitials,
+    carerMappings,
+    mappingsConfirmed,
+    refusalReviews,
+    expandedRefusals,
+    selectedForEscalation,
+    refusalDecisions,
+    refusalReviewSubmitted,
+    reasonsNotAdministeredOpen,
+    generatingProtocol,
+    generatedProtocol,
+    protocolDialogOpen,
+    editMode,
+    corrections,
+    editingEntry,
+    editDialogOpen,
+    correctionsApplied,
+  });
+
+  const applyRecordState = (state: EmarRecordState) => {
+    setVerificationChecks(state.verificationChecks);
+    setPrnProtocolChecks(state.prnProtocolChecks);
+    setMedicationLevelOverride(state.medicationLevelOverride);
+    setPendingLevelOverride(state.pendingLevelOverride);
+    setDiscrepanciesUpdated(state.discrepanciesUpdated);
+    setVerificationSubmitted(state.verificationSubmitted);
+    setWarningsOpen(state.warningsOpen);
+    setPrnProtocolsSubmitted(state.prnProtocolsSubmitted);
+    setAddedDiscrepancies(state.addedDiscrepancies);
+    setDetectedInitials(state.detectedInitials);
+    setCarerMappings(state.carerMappings);
+    setMappingsConfirmed(state.mappingsConfirmed);
+    setRefusalReviews(state.refusalReviews);
+    setExpandedRefusals(state.expandedRefusals);
+    setSelectedForEscalation(state.selectedForEscalation);
+    setRefusalDecisions(state.refusalDecisions);
+    setRefusalReviewSubmitted(state.refusalReviewSubmitted);
+    setReasonsNotAdministeredOpen(state.reasonsNotAdministeredOpen);
+    setGeneratingProtocol(state.generatingProtocol);
+    setGeneratedProtocol(state.generatedProtocol);
+    setProtocolDialogOpen(state.protocolDialogOpen);
+    setEditMode(state.editMode);
+    setCorrections(state.corrections);
+    setEditingEntry(state.editingEntry);
+    setEditDialogOpen(state.editDialogOpen);
+    setCorrectionsApplied(state.correctionsApplied);
+  };
+
+  const buildRecordId = (selectedFile: File) =>
+    `${selectedFile.name}-${selectedFile.size}-${selectedFile.lastModified}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const selectRecord = (record: EmarRecord) => {
+    setActiveRecordId(record.id);
+    setFile(record.file);
+    setDocumentContent(record.documentContent);
+    setPreflightResult(record.preflightResult);
+    setPreflightError(record.preflightError);
+    setAnalyzed(record.analyzed);
+    setResult(record.result);
+    applyRecordState(record.state);
+  };
+
+  const updateActiveRecord = (updater: (record: EmarRecord) => EmarRecord) => {
+    setEmarRecords(prev =>
+      prev.map(record => (record.id === activeRecordId ? updater(record) : record))
+    );
+  };
+
+  const persistActiveState = () => {
+    if (!activeRecordId) return;
+    updateActiveRecord(record => ({ ...record, state: buildRecordState() }));
+  };
+
+  const loadRecordById = (recordId: string) => {
+    persistActiveState();
+    const record = emarRecords.find(item => item.id === recordId);
+    if (record) {
+      selectRecord(record);
+    }
+  };
+
+  const removeActiveRecord = () => {
+    persistActiveState();
+    setEmarRecords(prev => {
+      const next = prev.filter(record => record.id !== activeRecordId);
+      const nextActive = next[0] || null;
+      setActiveRecordId(nextActive?.id ?? null);
+      if (nextActive) {
+        setFile(nextActive.file);
+        setDocumentContent(nextActive.documentContent);
+        setPreflightResult(nextActive.preflightResult);
+        setPreflightError(nextActive.preflightError);
+        setAnalyzed(nextActive.analyzed);
+        setResult(nextActive.result);
+      } else {
+        setFile(null);
+        setDocumentContent("");
+        setPreflightResult(null);
+        setPreflightError(null);
+        setAnalyzed(false);
+        setResult(null);
+      }
+      resetAuditState();
+      return next;
+    });
+  };
+
   const handleSelectedFile = async (selectedFile: File) => {
     setPreflightResult(null);
     setPreflightError(null);
@@ -676,13 +868,63 @@ export default function EMARAudit() {
       });
     }
 
+    const recordId = buildRecordId(selectedFile);
+    const newRecord: EmarRecord = {
+      id: recordId,
+      file: selectedFile,
+      documentContent: "",
+      preflightResult: null,
+      preflightError: null,
+      analyzed: false,
+      result: null,
+      state: {
+        verificationChecks: {},
+        prnProtocolChecks: [],
+        medicationLevelOverride: null,
+        pendingLevelOverride: null,
+        discrepanciesUpdated: false,
+        verificationSubmitted: false,
+        warningsOpen: false,
+        prnProtocolsSubmitted: false,
+        addedDiscrepancies: [],
+        detectedInitials: [],
+        carerMappings: [],
+        mappingsConfirmed: false,
+        refusalReviews: {},
+        expandedRefusals: new Set(),
+        selectedForEscalation: new Set(),
+        refusalDecisions: {},
+        refusalReviewSubmitted: false,
+        reasonsNotAdministeredOpen: [],
+        generatingProtocol: null,
+        generatedProtocol: null,
+        protocolDialogOpen: false,
+        editMode: false,
+        corrections: new Map(),
+        editingEntry: null,
+        editDialogOpen: false,
+        correctionsApplied: false,
+      },
+    };
+
+    setEmarRecords(prev => [...prev, newRecord]);
+    setActiveRecordId(recordId);
     setFile(selectedFile);
+    setAnalyzed(false);
+    setResult(null);
+    resetAuditState();
 
     const isPdf = selectedFile.type === "application/pdf" || selectedFile.name.toLowerCase().endsWith(".pdf");
 
     if (isPdf) {
       // For PDFs, just store the file - we'll send it directly for image-based analysis
-      setDocumentContent("PDF file ready for image analysis");
+      const content = "PDF file ready for image analysis";
+      setDocumentContent(content);
+      setEmarRecords(prev =>
+        prev.map(record =>
+          record.id === recordId ? { ...record, documentContent: content } : record
+        )
+      );
       resetTimer();
       toast({ title: "PDF Selected", description: "Click 'Analyze EMAR' to process with image recognition." });
     } else if (selectedFile.name.toLowerCase().endsWith(".docx")) {
@@ -704,6 +946,11 @@ export default function EMARAudit() {
 
         const data = await res.json();
         setDocumentContent(data.text);
+        setEmarRecords(prev =>
+          prev.map(record =>
+            record.id === recordId ? { ...record, documentContent: data.text } : record
+          )
+        );
         resetTimer();
         toast({ title: "Document Loaded", description: "Content extracted successfully." });
       } catch (error: any) {
@@ -720,25 +967,36 @@ export default function EMARAudit() {
       reader.onload = (event) => {
         const content = event.target?.result as string;
         setDocumentContent(content);
+        setEmarRecords(prev =>
+          prev.map(record =>
+            record.id === recordId ? { ...record, documentContent: content } : record
+          )
+        );
         resetTimer();
       };
       reader.readAsText(selectedFile);
     }
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
+  const handleSelectedFiles = async (files: File[]) => {
+    for (const selectedFile of files) {
       await handleSelectedFile(selectedFile);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      await handleSelectedFiles(Array.from(e.target.files));
+      e.target.value = "";
     }
   };
 
   const handleFileDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragActive(false);
-    const droppedFile = e.dataTransfer.files?.[0];
-    if (droppedFile) {
-      await handleSelectedFile(droppedFile);
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles && droppedFiles.length > 0) {
+      await handleSelectedFiles(Array.from(droppedFiles));
     }
   };
 
@@ -765,6 +1023,8 @@ export default function EMARAudit() {
     setPreflightLoading(true);
     setPreflightError(null);
     setPreflightResult(null);
+    updateActiveRecord(record => ({ ...record, preflightError: null, preflightResult: null }));
+    logAction("EMAR Preflight Started", file.name, "Authorized", undefined, { event: "emar_preflight_start" });
 
     try {
       const formData = new FormData();
@@ -783,12 +1043,26 @@ export default function EMARAudit() {
 
       const data = await res.json();
       setPreflightResult(data);
+      updateActiveRecord(record => ({ ...record, preflightResult: data, preflightError: null }));
+      logAction("EMAR Preflight Completed", file.name, "Authorized", undefined, {
+        event: "emar_preflight_complete",
+        fileName: file.name,
+        pageCount: data.pageCount,
+        medicationCount: data.medicationCount,
+        dateCount: data.dateCount,
+        timeSlotCount: data.timeSlotCount,
+      });
       toast({
         title: "Preflight Complete",
         description: "Quick checks finished. Review the results below.",
       });
     } catch (error: any) {
       setPreflightError(error.message || "Preflight check failed");
+      updateActiveRecord(record => ({ ...record, preflightError: error.message || "Preflight check failed" }));
+      logAction("EMAR Preflight Failed", file.name, "Flagged", error.message || "Preflight check failed", {
+        event: "emar_preflight_failed",
+        fileName: file.name,
+      });
       toast({
         title: "Preflight Failed",
         description: error.message || "Unable to complete preflight checks.",
@@ -907,6 +1181,14 @@ export default function EMARAudit() {
             } else if (eventType === 'result') {
               setResult(data);
               setAnalyzed(true);
+              updateActiveRecord(record => ({ ...record, result: data, analyzed: true }));
+              logAction("EMAR Audit Completed", data?.serviceUserInitials || data?.serviceUserName || file?.name || "EMAR", "Authorized", undefined, {
+                event: "emar_audit_completed",
+                fileName: file?.name,
+                serviceUserInitials: data?.serviceUserInitials,
+                auditPeriodStart: data?.auditPeriodStart,
+                auditPeriodEnd: data?.auditPeriodEnd,
+              });
               receivedResult = true;
               toast({ title: "Analysis Complete", description: "EMAR analysis processed successfully." });
             } else if (eventType === 'warning') {
@@ -949,6 +1231,14 @@ export default function EMARAudit() {
             if (eventType === 'result') {
               setResult(data);
               setAnalyzed(true);
+              updateActiveRecord(record => ({ ...record, result: data, analyzed: true }));
+              logAction("EMAR Audit Completed", data?.serviceUserInitials || data?.serviceUserName || file?.name || "EMAR", "Authorized", undefined, {
+                event: "emar_audit_completed",
+                fileName: file?.name,
+                serviceUserInitials: data?.serviceUserInitials,
+                auditPeriodStart: data?.auditPeriodStart,
+                auditPeriodEnd: data?.auditPeriodEnd,
+              });
               receivedResult = true;
               toast({ title: "Analysis Complete", description: "EMAR analysis processed successfully." });
             } else if (eventType === 'warning') {
@@ -974,6 +1264,10 @@ export default function EMARAudit() {
         throw new Error("Analysis completed but no result was received");
       }
     } catch (error: any) {
+      logAction("EMAR Audit Failed", file?.name || "EMAR", "Flagged", error.message || "Failed to analyze document", {
+        event: "emar_audit_failed",
+        fileName: file?.name,
+      });
       toast({
         title: "Analysis Failed",
         description: error.message || "Failed to analyze document",
@@ -1018,15 +1312,18 @@ export default function EMARAudit() {
 
       if (!auditRes.ok) throw new Error("Failed to save audit");
 
+      logAction("EMAR Audit Saved", serviceUserDisplay || "N.N.", "Authorized", undefined, {
+        event: "emar_audit_saved",
+        serviceUserInitials: serviceUserDisplay || "N.N.",
+        auditPeriodStart: result?.auditPeriodStart,
+        auditPeriodEnd: result?.auditPeriodEnd,
+      });
       toast({ 
         title: "Audit Saved", 
         description: "Audit results have been recorded." 
       });
 
-      setAnalyzed(false);
-      setFile(null);
-      setDocumentContent("");
-      setResult(null);
+      removeActiveRecord();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -1882,7 +2179,7 @@ ${generatedProtocol.additionalComments}`;
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Upload EMAR Document (PDF)
+              Upload EMAR Documents (PDF)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -1914,19 +2211,51 @@ ${generatedProtocol.additionalComments}`;
                   type="file"
                   onChange={handleFileChange}
                   accept=".pdf"
+                  multiple
                   className="sr-only"
                   data-testid="input-file-upload"
                 />
                 <Label htmlFor="emar-upload" className="flex flex-col items-center gap-2 text-center cursor-pointer">
                   <Upload className="h-6 w-6 text-primary" />
                   <span className="text-sm font-medium text-foreground">
-                    {isDragActive ? "Drop your EMAR PDF to upload" : "Drag & drop your EMAR PDF, or click to browse"}
+                    {isDragActive ? "Drop your EMAR PDFs to upload" : "Drag & drop your EMAR PDFs, or click to browse"}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     PDF only · Up to {MAX_EMAR_UPLOAD_MB} MB
                   </span>
                 </Label>
               </div>
+
+              {emarRecords.length > 0 && (
+                <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                  <div className="flex items-center justify-between text-sm font-semibold text-foreground">
+                    <span>Uploaded EMARs</span>
+                    <span className="text-xs text-muted-foreground">{emarRecords.length} file{emarRecords.length !== 1 ? "s" : ""}</span>
+                  </div>
+                  <div className="grid gap-2">
+                    {emarRecords.map((record) => {
+                      const isActive = record.id === activeRecordId;
+                      const status = record.analyzed ? "Analyzed" : "Ready";
+                      return (
+                        <button
+                          key={record.id}
+                          type="button"
+                          onClick={() => loadRecordById(record.id)}
+                          className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${
+                            isActive ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
+                          }`}
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{record.file.name}</p>
+                            <p className="text-xs text-muted-foreground">{formatFileSize(record.file.size)}</p>
+                          </div>
+                          <Badge variant={record.analyzed ? "success" : "outline"}>{status}</Badge>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {file && (
                 <div className="bg-muted rounded-lg p-4 flex flex-wrap items-center justify-between gap-3">
@@ -1973,12 +2302,7 @@ ${generatedProtocol.additionalComments}`;
                 {file && (
                   <Button
                     variant="ghost"
-                    onClick={() => {
-                      setFile(null);
-                      setDocumentContent("");
-                      setPreflightResult(null);
-                      setPreflightError(null);
-                    }}
+                    onClick={removeActiveRecord}
                   >
                     Clear
                   </Button>
@@ -2042,6 +2366,27 @@ ${generatedProtocol.additionalComments}`;
         </Card>
       ) : result && (
         <div className="space-y-6">
+          {analyzedRecords.length > 1 && (
+            <Card className="border-border bg-card">
+              <CardHeader>
+                <CardTitle className="text-base">Select EMAR to view</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Select value={activeRecordId ?? ""} onValueChange={(value) => loadRecordById(value)}>
+                  <SelectTrigger className="max-w-md">
+                    <SelectValue placeholder="Select an EMAR file" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {analyzedRecords.map((record) => (
+                      <SelectItem key={record.id} value={record.id}>
+                        {record.file.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+          )}
           {detectedInitials.length > 0 && !mappingsConfirmed && (
             <Card className="bg-primary/5 border-primary/20">
               <CardHeader>
@@ -3052,7 +3397,7 @@ ${generatedProtocol.additionalComments}`;
           </Card>
           
           <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => { setAnalyzed(false); setResult(null); }} data-testid="button-start-new-emar">
+            <Button variant="outline" onClick={removeActiveRecord} data-testid="button-start-new-emar">
               Start New Audit
             </Button>
             <Button 

@@ -1,7 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
+import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
@@ -70,26 +72,28 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
   );
 }
 
-function FieldRow({ label, value }: { label: string; value: string }) {
+function FieldRow({ label, value, copyValue }: { label: string; value: string; copyValue?: string }) {
   if (!value || value === "N/A") return null;
+  const valueToCopy = copyValue ?? value;
   return (
     <div className="flex justify-between items-start py-2 border-b border-border last:border-b-0">
       <span className="text-sm text-muted-foreground flex-shrink-0 mr-4">{label}</span>
       <div className="flex items-center gap-2">
         <span className="text-sm text-foreground text-right">{value}</span>
-        <CopyButton text={value} label={label} />
+        <CopyButton text={valueToCopy} label={label} />
       </div>
     </div>
   );
 }
 
-function TextBlock({ label, value }: { label: string; value: string }) {
+function TextBlock({ label, value, copyValue }: { label: string; value: string; copyValue?: string }) {
   if (!value) return null;
+  const valueToCopy = copyValue ?? value;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-medium text-foreground">{label}</h4>
-        <CopyButton text={value} label={label} />
+        <CopyButton text={valueToCopy} label={label} />
       </div>
       <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted rounded-lg p-3">{value}</p>
     </div>
@@ -122,13 +126,24 @@ function Section({ title, children, defaultOpen = false }: { title: string; chil
 
 export default function PlanEnhancer() {
   const { serviceUserData, getAllDocumentContent, isAnyParsing } = useTemporaryData();
+  const { user } = useAuth();
   const { toast } = useToast();
-  const [result, setResult] = useState<CarePlanTemplate | null>(null);
+  const [resultRaw, setResultRaw] = useState<CarePlanTemplate | null>(null);
+  const [resultScrubbed, setResultScrubbed] = useState<CarePlanTemplate | null>(null);
   const [originalContent, setOriginalContent] = useState<string>("");
   const [viewMode, setViewMode] = useState<"enhanced" | "comparison">("enhanced");
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [allowSensitive, setAllowSensitive] = useState(false);
+
+  const isAdmin = user?.role === "admin";
+  const showSensitive = isAdmin && allowSensitive;
+  const displayResult = useMemo(
+    () => (showSensitive && resultRaw ? resultRaw : resultScrubbed),
+    [showSensitive, resultRaw, resultScrubbed]
+  );
+  const copyResult = resultScrubbed || resultRaw;
 
   const hasData = serviceUserData.carePlan || serviceUserData.socialWork || serviceUserData.initialAssessment;
 
@@ -147,6 +162,8 @@ export default function PlanEnhancer() {
         documentContent ? `=== Supporting Documents ===\n${documentContent}` : ""
       ].filter(Boolean).join("\n\n");
       setOriginalContent(combinedOriginal);
+      setResultRaw(null);
+      setResultScrubbed(null);
 
       setProgress(0);
       setProgressStatus("Preparing documents...");
@@ -157,7 +174,8 @@ export default function PlanEnhancer() {
         credentials: "include",
         body: JSON.stringify({ 
           documentContent,
-          existingPlanContent: carePlanContent 
+          existingPlanContent: carePlanContent,
+          allowSensitive: isAdmin && allowSensitive
         }),
       });
 
@@ -178,7 +196,8 @@ export default function PlanEnhancer() {
 
       const decoder = new TextDecoder();
       let buffer = "";
-      let result: CarePlanTemplate | null = null;
+      let resultRaw: CarePlanTemplate | null = null;
+      let resultScrubbed: CarePlanTemplate | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -203,7 +222,8 @@ export default function PlanEnhancer() {
               setProgress(data.percent);
               setProgressStatus(data.status);
             } else if (eventType === "result") {
-              result = data;
+              resultRaw = data;
+              resultScrubbed = data?.scrubbedResult || data;
             } else if (eventType === "error") {
               throw new Error(data.message);
             }
@@ -211,20 +231,21 @@ export default function PlanEnhancer() {
         }
       }
 
-      if (!result) {
+      if (!resultRaw) {
         throw new Error("No result received from server");
       }
 
-      return result;
+      return { raw: resultRaw, scrubbed: resultScrubbed || resultRaw };
     },
-    onSuccess: (data) => {
+    onSuccess: ({ raw, scrubbed }) => {
       setProgress(100);
       setProgressStatus("Complete!");
       setTimeout(() => {
         setProgress(0);
         setProgressStatus("");
       }, 500);
-      setResult(data);
+      setResultRaw(raw);
+      setResultScrubbed(scrubbed);
       toast({
         title: "Care Plan Generated",
         description: "Complete template ready for copying into your forms.",
@@ -269,6 +290,12 @@ export default function PlanEnhancer() {
         <p className="text-muted-foreground mt-2">
           Generate a complete Initial Assessment/Care Plan template from uploaded documents.
         </p>
+        {isAdmin && (
+          <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
+            <span>Show full names (admin view). Copies use initials only.</span>
+          </div>
+        )}
       </div>
 
       <Card className="bg-card border-border">
@@ -352,7 +379,7 @@ export default function PlanEnhancer() {
         </CardContent>
       </Card>
 
-      {result && (
+      {displayResult && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
@@ -403,22 +430,22 @@ export default function PlanEnhancer() {
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4 max-h-[500px] overflow-y-auto">
                       <div className="text-xs text-muted-foreground space-y-3">
-                        {result.thisIsMe && (
+                        {displayResult.thisIsMe && (
                           <div>
                             <strong className="text-foreground">This Is Me:</strong>
-                            <p className="mt-1">{result.thisIsMe.whoAmI}</p>
+                            <p className="mt-1">{displayResult.thisIsMe.whoAmI}</p>
                           </div>
                         )}
-                        {result.myCarePlan && (
+                        {displayResult.myCarePlan && (
                           <div>
                             <strong className="text-foreground">My Care Plan:</strong>
-                            <p className="mt-1">{result.myCarePlan.healthAndWellbeing}</p>
+                            <p className="mt-1">{displayResult.myCarePlan.healthAndWellbeing}</p>
                           </div>
                         )}
-                        {result.goalSetting?.goals?.length > 0 && (
+                        {displayResult.goalSetting?.goals?.length > 0 && (
                           <div>
                             <strong className="text-foreground">Goals:</strong>
-                            {result.goalSetting.goals.map((g, i) => (
+                            {displayResult.goalSetting.goals.map((g, i) => (
                               <p key={i} className="mt-1">• {g.goal}</p>
                             ))}
                           </div>
@@ -436,45 +463,45 @@ export default function PlanEnhancer() {
 
           {/* This Is Me */}
           <Section title="This Is Me" defaultOpen={true}>
-            <TextBlock label="Who am I and what is important to me?" value={result.thisIsMe?.whoAmI || ""} />
-            <TextBlock label="What hobbies and interests do I have?" value={result.thisIsMe?.hobbiesInterests || ""} />
-            <TextBlock label="What makes a good day for me?" value={result.thisIsMe?.whatMakesGoodDay || ""} />
+            <TextBlock label="Who am I and what is important to me?" value={displayResult.thisIsMe?.whoAmI || ""} copyValue={copyResult?.thisIsMe?.whoAmI || ""} />
+            <TextBlock label="What hobbies and interests do I have?" value={displayResult.thisIsMe?.hobbiesInterests || ""} copyValue={copyResult?.thisIsMe?.hobbiesInterests || ""} />
+            <TextBlock label="What makes a good day for me?" value={displayResult.thisIsMe?.whatMakesGoodDay || ""} copyValue={copyResult?.thisIsMe?.whatMakesGoodDay || ""} />
           </Section>
 
           {/* Goal Setting */}
           <Section title="My Goal Setting">
-            {result.goalSetting?.goals?.map((g, idx) => (
+            {displayResult.goalSetting?.goals?.map((g, idx) => (
               <div key={idx} className="p-3 bg-muted rounded-lg space-y-2">
-                <FieldRow label="My Goal" value={g.goal} />
-                <FieldRow label="How I will achieve it" value={g.howToAchieve} />
-                <FieldRow label="Potential Barriers" value={g.potentialBarriers} />
-                <FieldRow label="Time Frame" value={g.timeFrame} />
+                <FieldRow label="My Goal" value={g.goal} copyValue={copyResult?.goalSetting?.goals?.[idx]?.goal || ""} />
+                <FieldRow label="How I will achieve it" value={g.howToAchieve} copyValue={copyResult?.goalSetting?.goals?.[idx]?.howToAchieve || ""} />
+                <FieldRow label="Potential Barriers" value={g.potentialBarriers} copyValue={copyResult?.goalSetting?.goals?.[idx]?.potentialBarriers || ""} />
+                <FieldRow label="Time Frame" value={g.timeFrame} copyValue={copyResult?.goalSetting?.goals?.[idx]?.timeFrame || ""} />
               </div>
             ))}
-            <FieldRow label="Internet Support Required" value={result.goalSetting?.internetSupport || ""} />
-            <FieldRow label="Assistive Technology" value={result.goalSetting?.assistiveTechnology || ""} />
+            <FieldRow label="Internet Support Required" value={displayResult.goalSetting?.internetSupport || ""} copyValue={copyResult?.goalSetting?.internetSupport || ""} />
+            <FieldRow label="Assistive Technology" value={displayResult.goalSetting?.assistiveTechnology || ""} copyValue={copyResult?.goalSetting?.assistiveTechnology || ""} />
           </Section>
 
           {/* Advance Decisions */}
           <Section title="Advance Decisions / DNR / Lasting Power of Attorney">
-            <FieldRow label="Advance Decision in Place" value={result.advanceDecisions?.advanceDecisionInPlace || ""} />
-            <FieldRow label="DNR/Advance Decision Details" value={result.advanceDecisions?.dnrDetails || ""} />
-            <FieldRow label="Lasting Power of Attorney" value={result.advanceDecisions?.lastingPOA || ""} />
-            <FieldRow label="POA Type" value={result.advanceDecisions?.poaType || ""} />
-            <FieldRow label="POA Contact" value={result.advanceDecisions?.poaContact || ""} />
+            <FieldRow label="Advance Decision in Place" value={displayResult.advanceDecisions?.advanceDecisionInPlace || ""} copyValue={copyResult?.advanceDecisions?.advanceDecisionInPlace || ""} />
+            <FieldRow label="DNR/Advance Decision Details" value={displayResult.advanceDecisions?.dnrDetails || ""} copyValue={copyResult?.advanceDecisions?.dnrDetails || ""} />
+            <FieldRow label="Lasting Power of Attorney" value={displayResult.advanceDecisions?.lastingPOA || ""} copyValue={copyResult?.advanceDecisions?.lastingPOA || ""} />
+            <FieldRow label="POA Type" value={displayResult.advanceDecisions?.poaType || ""} copyValue={copyResult?.advanceDecisions?.poaType || ""} />
+            <FieldRow label="POA Contact" value={displayResult.advanceDecisions?.poaContact || ""} copyValue={copyResult?.advanceDecisions?.poaContact || ""} />
           </Section>
 
           {/* My Care Plan */}
           <Section title="My Care Plan" defaultOpen={true}>
-            <TextBlock label="Capacity, Decision Making and Safeguarding" value={result.myCarePlan?.capacityAndSafeguarding || ""} />
-            <TextBlock label="My Health and Current Wellbeing" value={result.myCarePlan?.healthAndWellbeing || ""} />
-            <TextBlock label="Trigger Points to Alert to Potential Changes" value={result.myCarePlan?.triggerPoints || ""} />
-            <TextBlock label="My Medication Requirements" value={result.myCarePlan?.medicationRequirements || ""} />
-            <TextBlock label="Nutrition (Dietary needs or preferences)" value={result.myCarePlan?.nutrition || ""} />
-            <TextBlock label="My Personal Care Needs" value={result.myCarePlan?.personalCareNeeds || ""} />
-            <TextBlock label="Mobility and Equipment / Methods" value={result.myCarePlan?.mobilityAndEquipment || ""} />
-            <TextBlock label="Housework/Shopping and Social Support" value={result.myCarePlan?.houseworkAndSocial || ""} />
-            <TextBlock label="Financial Arrangements" value={result.myCarePlan?.financialArrangements || ""} />
+            <TextBlock label="Capacity, Decision Making and Safeguarding" value={displayResult.myCarePlan?.capacityAndSafeguarding || ""} copyValue={copyResult?.myCarePlan?.capacityAndSafeguarding || ""} />
+            <TextBlock label="My Health and Current Wellbeing" value={displayResult.myCarePlan?.healthAndWellbeing || ""} copyValue={copyResult?.myCarePlan?.healthAndWellbeing || ""} />
+            <TextBlock label="Trigger Points to Alert to Potential Changes" value={displayResult.myCarePlan?.triggerPoints || ""} copyValue={copyResult?.myCarePlan?.triggerPoints || ""} />
+            <TextBlock label="My Medication Requirements" value={displayResult.myCarePlan?.medicationRequirements || ""} copyValue={copyResult?.myCarePlan?.medicationRequirements || ""} />
+            <TextBlock label="Nutrition (Dietary needs or preferences)" value={displayResult.myCarePlan?.nutrition || ""} copyValue={copyResult?.myCarePlan?.nutrition || ""} />
+            <TextBlock label="My Personal Care Needs" value={displayResult.myCarePlan?.personalCareNeeds || ""} copyValue={copyResult?.myCarePlan?.personalCareNeeds || ""} />
+            <TextBlock label="Mobility and Equipment / Methods" value={displayResult.myCarePlan?.mobilityAndEquipment || ""} copyValue={copyResult?.myCarePlan?.mobilityAndEquipment || ""} />
+            <TextBlock label="Housework/Shopping and Social Support" value={displayResult.myCarePlan?.houseworkAndSocial || ""} copyValue={copyResult?.myCarePlan?.houseworkAndSocial || ""} />
+            <TextBlock label="Financial Arrangements" value={displayResult.myCarePlan?.financialArrangements || ""} copyValue={copyResult?.myCarePlan?.financialArrangements || ""} />
           </Section>
 
           {/* Risk Section 1: Mental and Physical Health */}
@@ -482,122 +509,122 @@ export default function PlanEnhancer() {
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <h4 className="font-medium text-foreground">Communication</h4>
-                <FieldRow label="Speech" value={result.riskSection1Health?.speech || ""} />
-                <FieldRow label="Speech Details" value={result.riskSection1Health?.speechDetails || ""} />
-                <FieldRow label="Hearing" value={result.riskSection1Health?.hearing || ""} />
-                <FieldRow label="Hearing Details" value={result.riskSection1Health?.hearingDetails || ""} />
-                <FieldRow label="Eyesight" value={result.riskSection1Health?.eyesight || ""} />
-                <FieldRow label="Eyesight Details" value={result.riskSection1Health?.eyesightDetails || ""} />
+                <FieldRow label="Speech" value={displayResult.riskSection1Health?.speech || ""} copyValue={copyResult?.riskSection1Health?.speech || ""} />
+                <FieldRow label="Speech Details" value={displayResult.riskSection1Health?.speechDetails || ""} copyValue={copyResult?.riskSection1Health?.speechDetails || ""} />
+                <FieldRow label="Hearing" value={displayResult.riskSection1Health?.hearing || ""} copyValue={copyResult?.riskSection1Health?.hearing || ""} />
+                <FieldRow label="Hearing Details" value={displayResult.riskSection1Health?.hearingDetails || ""} copyValue={copyResult?.riskSection1Health?.hearingDetails || ""} />
+                <FieldRow label="Eyesight" value={displayResult.riskSection1Health?.eyesight || ""} copyValue={copyResult?.riskSection1Health?.eyesight || ""} />
+                <FieldRow label="Eyesight Details" value={displayResult.riskSection1Health?.eyesightDetails || ""} copyValue={copyResult?.riskSection1Health?.eyesightDetails || ""} />
               </div>
               <div className="space-y-2">
                 <h4 className="font-medium text-foreground">General Health</h4>
-                <FieldRow label="Breathlessness" value={result.riskSection1Health?.breathlessness || ""} />
-                <FieldRow label="Details" value={result.riskSection1Health?.breathlessnessDetails || ""} />
-                <FieldRow label="Urinary Incontinence" value={result.riskSection1Health?.urinaryIncontinence || ""} />
-                <FieldRow label="Details" value={result.riskSection1Health?.urinaryDetails || ""} />
-                <FieldRow label="Faecal Incontinence" value={result.riskSection1Health?.faecalIncontinence || ""} />
-                <FieldRow label="Details" value={result.riskSection1Health?.faecalDetails || ""} />
+                <FieldRow label="Breathlessness" value={displayResult.riskSection1Health?.breathlessness || ""} copyValue={copyResult?.riskSection1Health?.breathlessness || ""} />
+                <FieldRow label="Details" value={displayResult.riskSection1Health?.breathlessnessDetails || ""} copyValue={copyResult?.riskSection1Health?.breathlessnessDetails || ""} />
+                <FieldRow label="Urinary Incontinence" value={displayResult.riskSection1Health?.urinaryIncontinence || ""} copyValue={copyResult?.riskSection1Health?.urinaryIncontinence || ""} />
+                <FieldRow label="Details" value={displayResult.riskSection1Health?.urinaryDetails || ""} copyValue={copyResult?.riskSection1Health?.urinaryDetails || ""} />
+                <FieldRow label="Faecal Incontinence" value={displayResult.riskSection1Health?.faecalIncontinence || ""} copyValue={copyResult?.riskSection1Health?.faecalIncontinence || ""} />
+                <FieldRow label="Details" value={displayResult.riskSection1Health?.faecalDetails || ""} copyValue={copyResult?.riskSection1Health?.faecalDetails || ""} />
               </div>
             </div>
             <div className="space-y-2 mt-4">
               <h4 className="font-medium text-foreground">Mental Health Assessment</h4>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <FieldRow label="Memory" value={result.riskSection1Health?.memory || ""} />
-                  <FieldRow label="Moods" value={result.riskSection1Health?.moods || ""} />
-                  <FieldRow label="Orientation" value={result.riskSection1Health?.orientation || ""} />
+                  <FieldRow label="Memory" value={displayResult.riskSection1Health?.memory || ""} copyValue={copyResult?.riskSection1Health?.memory || ""} />
+                  <FieldRow label="Moods" value={displayResult.riskSection1Health?.moods || ""} copyValue={copyResult?.riskSection1Health?.moods || ""} />
+                  <FieldRow label="Orientation" value={displayResult.riskSection1Health?.orientation || ""} copyValue={copyResult?.riskSection1Health?.orientation || ""} />
                 </div>
                 <div>
-                  <FieldRow label="Sleep Pattern" value={result.riskSection1Health?.sleepPattern || ""} />
-                  <FieldRow label="Behaviours" value={result.riskSection1Health?.behaviours || ""} />
+                  <FieldRow label="Sleep Pattern" value={displayResult.riskSection1Health?.sleepPattern || ""} copyValue={copyResult?.riskSection1Health?.sleepPattern || ""} />
+                  <FieldRow label="Behaviours" value={displayResult.riskSection1Health?.behaviours || ""} copyValue={copyResult?.riskSection1Health?.behaviours || ""} />
                 </div>
               </div>
             </div>
             <div className="space-y-2 mt-4">
               <h4 className="font-medium text-foreground">Mental Capacity Assessment</h4>
-              <FieldRow label="Understands Information" value={result.riskSection1Health?.understandsInfo || ""} />
-              <FieldRow label="Retains Information" value={result.riskSection1Health?.retainsInfo || ""} />
-              <FieldRow label="Weighs Up Decision" value={result.riskSection1Health?.weighsDecision || ""} />
-              <FieldRow label="Communicates Decision" value={result.riskSection1Health?.communicatesDecision || ""} />
-              <TextBlock label="Capacity Details" value={result.riskSection1Health?.capacityDetails || ""} />
+              <FieldRow label="Understands Information" value={displayResult.riskSection1Health?.understandsInfo || ""} copyValue={copyResult?.riskSection1Health?.understandsInfo || ""} />
+              <FieldRow label="Retains Information" value={displayResult.riskSection1Health?.retainsInfo || ""} copyValue={copyResult?.riskSection1Health?.retainsInfo || ""} />
+              <FieldRow label="Weighs Up Decision" value={displayResult.riskSection1Health?.weighsDecision || ""} copyValue={copyResult?.riskSection1Health?.weighsDecision || ""} />
+              <FieldRow label="Communicates Decision" value={displayResult.riskSection1Health?.communicatesDecision || ""} copyValue={copyResult?.riskSection1Health?.communicatesDecision || ""} />
+              <TextBlock label="Capacity Details" value={displayResult.riskSection1Health?.capacityDetails || ""} copyValue={copyResult?.riskSection1Health?.capacityDetails || ""} />
             </div>
             <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
-              <FieldRow label="Risk Level" value={result.riskSection1Health?.riskLevel || ""} />
-              <TextBlock label="Risk Prevention" value={result.riskSection1Health?.riskPrevention || ""} />
+              <FieldRow label="Risk Level" value={displayResult.riskSection1Health?.riskLevel || ""} copyValue={copyResult?.riskSection1Health?.riskLevel || ""} />
+              <TextBlock label="Risk Prevention" value={displayResult.riskSection1Health?.riskPrevention || ""} copyValue={copyResult?.riskSection1Health?.riskPrevention || ""} />
             </div>
           </Section>
 
           {/* Risk Section 2: Medication */}
           <Section title="Risk Assessment Section 2: Medication">
-            <FieldRow label="Prescription Ordering" value={result.riskSection2Medication?.prescriptionOrdering || ""} />
-            <FieldRow label="Dosage System" value={result.riskSection2Medication?.dosageSystem || ""} />
-            <FieldRow label="System Maintainer" value={result.riskSection2Medication?.systemMaintainer || ""} />
-            <FieldRow label="Medication Storage" value={result.riskSection2Medication?.medicationStorage || ""} />
-            <FieldRow label="Current Investigations" value={result.riskSection2Medication?.currentInvestigations || ""} />
-            <FieldRow label="Surplus Medication" value={result.riskSection2Medication?.surplusMedication || ""} />
-            <FieldRow label="Medication Concerns" value={result.riskSection2Medication?.medicationConcerns || ""} />
-            <FieldRow label="Homeopathic/OTC Meds" value={result.riskSection2Medication?.homeopathicMeds || ""} />
-            <FieldRow label="PRN Medication" value={result.riskSection2Medication?.prnMedication || ""} />
-            <FieldRow label="Covert Medication" value={result.riskSection2Medication?.covertMedication || ""} />
+            <FieldRow label="Prescription Ordering" value={displayResult.riskSection2Medication?.prescriptionOrdering || ""} copyValue={copyResult?.riskSection2Medication?.prescriptionOrdering || ""} />
+            <FieldRow label="Dosage System" value={displayResult.riskSection2Medication?.dosageSystem || ""} copyValue={copyResult?.riskSection2Medication?.dosageSystem || ""} />
+            <FieldRow label="System Maintainer" value={displayResult.riskSection2Medication?.systemMaintainer || ""} copyValue={copyResult?.riskSection2Medication?.systemMaintainer || ""} />
+            <FieldRow label="Medication Storage" value={displayResult.riskSection2Medication?.medicationStorage || ""} copyValue={copyResult?.riskSection2Medication?.medicationStorage || ""} />
+            <FieldRow label="Current Investigations" value={displayResult.riskSection2Medication?.currentInvestigations || ""} copyValue={copyResult?.riskSection2Medication?.currentInvestigations || ""} />
+            <FieldRow label="Surplus Medication" value={displayResult.riskSection2Medication?.surplusMedication || ""} copyValue={copyResult?.riskSection2Medication?.surplusMedication || ""} />
+            <FieldRow label="Medication Concerns" value={displayResult.riskSection2Medication?.medicationConcerns || ""} copyValue={copyResult?.riskSection2Medication?.medicationConcerns || ""} />
+            <FieldRow label="Homeopathic/OTC Meds" value={displayResult.riskSection2Medication?.homeopathicMeds || ""} copyValue={copyResult?.riskSection2Medication?.homeopathicMeds || ""} />
+            <FieldRow label="PRN Medication" value={displayResult.riskSection2Medication?.prnMedication || ""} copyValue={copyResult?.riskSection2Medication?.prnMedication || ""} />
+            <FieldRow label="Covert Medication" value={displayResult.riskSection2Medication?.covertMedication || ""} copyValue={copyResult?.riskSection2Medication?.covertMedication || ""} />
             <div className="mt-4">
               <h4 className="font-medium text-foreground mb-2">Medication Difficulties</h4>
               <div className="grid md:grid-cols-3 gap-2">
-                <FieldRow label="Picking Up Tablets" value={result.riskSection2Medication?.pickingUpTablets || ""} />
-                <FieldRow label="Opening Boxes" value={result.riskSection2Medication?.openingBoxes || ""} />
-                <FieldRow label="Pouring Liquids" value={result.riskSection2Medication?.pouringLiquids || ""} />
-                <FieldRow label="Using Dosage System" value={result.riskSection2Medication?.usingDosageSystem || ""} />
-                <FieldRow label="Applying Creams" value={result.riskSection2Medication?.applyingCreams || ""} />
-                <FieldRow label="Swallowing Tablets" value={result.riskSection2Medication?.swallowingTablets || ""} />
-                <FieldRow label="Understanding Instructions" value={result.riskSection2Medication?.understandingInstructions || ""} />
-                <FieldRow label="Managing Inhalers" value={result.riskSection2Medication?.managingInhalers || ""} />
-                <FieldRow label="Instilling Drops" value={result.riskSection2Medication?.instillingDrops || ""} />
+                <FieldRow label="Picking Up Tablets" value={displayResult.riskSection2Medication?.pickingUpTablets || ""} copyValue={copyResult?.riskSection2Medication?.pickingUpTablets || ""} />
+                <FieldRow label="Opening Boxes" value={displayResult.riskSection2Medication?.openingBoxes || ""} copyValue={copyResult?.riskSection2Medication?.openingBoxes || ""} />
+                <FieldRow label="Pouring Liquids" value={displayResult.riskSection2Medication?.pouringLiquids || ""} copyValue={copyResult?.riskSection2Medication?.pouringLiquids || ""} />
+                <FieldRow label="Using Dosage System" value={displayResult.riskSection2Medication?.usingDosageSystem || ""} copyValue={copyResult?.riskSection2Medication?.usingDosageSystem || ""} />
+                <FieldRow label="Applying Creams" value={displayResult.riskSection2Medication?.applyingCreams || ""} copyValue={copyResult?.riskSection2Medication?.applyingCreams || ""} />
+                <FieldRow label="Swallowing Tablets" value={displayResult.riskSection2Medication?.swallowingTablets || ""} copyValue={copyResult?.riskSection2Medication?.swallowingTablets || ""} />
+                <FieldRow label="Understanding Instructions" value={displayResult.riskSection2Medication?.understandingInstructions || ""} copyValue={copyResult?.riskSection2Medication?.understandingInstructions || ""} />
+                <FieldRow label="Managing Inhalers" value={displayResult.riskSection2Medication?.managingInhalers || ""} copyValue={copyResult?.riskSection2Medication?.managingInhalers || ""} />
+                <FieldRow label="Instilling Drops" value={displayResult.riskSection2Medication?.instillingDrops || ""} copyValue={copyResult?.riskSection2Medication?.instillingDrops || ""} />
               </div>
             </div>
-            <FieldRow label="Controlled Drugs" value={result.riskSection2Medication?.controlledDrugs || ""} />
-            <FieldRow label="Warfarin" value={result.riskSection2Medication?.warfarin || ""} />
-            <FieldRow label="Skin Integrity Risk" value={result.riskSection2Medication?.skinIntegrity || ""} />
-            <TextBlock label="Skin Details" value={result.riskSection2Medication?.skinDetails || ""} />
+            <FieldRow label="Controlled Drugs" value={displayResult.riskSection2Medication?.controlledDrugs || ""} copyValue={copyResult?.riskSection2Medication?.controlledDrugs || ""} />
+            <FieldRow label="Warfarin" value={displayResult.riskSection2Medication?.warfarin || ""} copyValue={copyResult?.riskSection2Medication?.warfarin || ""} />
+            <FieldRow label="Skin Integrity Risk" value={displayResult.riskSection2Medication?.skinIntegrity || ""} copyValue={copyResult?.riskSection2Medication?.skinIntegrity || ""} />
+            <TextBlock label="Skin Details" value={displayResult.riskSection2Medication?.skinDetails || ""} copyValue={copyResult?.riskSection2Medication?.skinDetails || ""} />
             <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
-              <FieldRow label="Risk Level" value={result.riskSection2Medication?.riskLevel || ""} />
-              <TextBlock label="Risk Prevention" value={result.riskSection2Medication?.riskPrevention || ""} />
+              <FieldRow label="Risk Level" value={displayResult.riskSection2Medication?.riskLevel || ""} copyValue={copyResult?.riskSection2Medication?.riskLevel || ""} />
+              <TextBlock label="Risk Prevention" value={displayResult.riskSection2Medication?.riskPrevention || ""} copyValue={copyResult?.riskSection2Medication?.riskPrevention || ""} />
             </div>
           </Section>
 
           {/* Risk Section 3: Nutrition */}
           <Section title="Risk Assessment Section 3: Nutrition">
-            <FieldRow label="Meal Assistance Required" value={result.riskSection3Nutrition?.mealAssistance || ""} />
-            <FieldRow label="Normal Diet" value={result.riskSection3Nutrition?.normalDiet || ""} />
-            <FieldRow label="Special Dietary Requirements" value={result.riskSection3Nutrition?.specialDietary || ""} />
-            <FieldRow label="Food Allergies" value={result.riskSection3Nutrition?.foodAllergies || ""} />
-            <FieldRow label="Soft Diet" value={result.riskSection3Nutrition?.softDiet || ""} />
-            <FieldRow label="Food Intolerances" value={result.riskSection3Nutrition?.foodIntolerances || ""} />
-            <FieldRow label="Tube Feed" value={result.riskSection3Nutrition?.tubeFeed || ""} />
-            <FieldRow label="Supplementary Foods/Thickeners" value={result.riskSection3Nutrition?.supplementaryFoods || ""} />
-            <FieldRow label="Foods I Like" value={result.riskSection3Nutrition?.foodLikes || ""} />
-            <FieldRow label="Foods I Dislike" value={result.riskSection3Nutrition?.foodDislikes || ""} />
-            <FieldRow label="Portion Size" value={result.riskSection3Nutrition?.portionSize || ""} />
-            <FieldRow label="Preferred Main Meal Time" value={result.riskSection3Nutrition?.mainMealTime || ""} />
-            <FieldRow label="Fluid Intake" value={result.riskSection3Nutrition?.fluidIntake || ""} />
+            <FieldRow label="Meal Assistance Required" value={displayResult.riskSection3Nutrition?.mealAssistance || ""} copyValue={copyResult?.riskSection3Nutrition?.mealAssistance || ""} />
+            <FieldRow label="Normal Diet" value={displayResult.riskSection3Nutrition?.normalDiet || ""} copyValue={copyResult?.riskSection3Nutrition?.normalDiet || ""} />
+            <FieldRow label="Special Dietary Requirements" value={displayResult.riskSection3Nutrition?.specialDietary || ""} copyValue={copyResult?.riskSection3Nutrition?.specialDietary || ""} />
+            <FieldRow label="Food Allergies" value={displayResult.riskSection3Nutrition?.foodAllergies || ""} copyValue={copyResult?.riskSection3Nutrition?.foodAllergies || ""} />
+            <FieldRow label="Soft Diet" value={displayResult.riskSection3Nutrition?.softDiet || ""} copyValue={copyResult?.riskSection3Nutrition?.softDiet || ""} />
+            <FieldRow label="Food Intolerances" value={displayResult.riskSection3Nutrition?.foodIntolerances || ""} copyValue={copyResult?.riskSection3Nutrition?.foodIntolerances || ""} />
+            <FieldRow label="Tube Feed" value={displayResult.riskSection3Nutrition?.tubeFeed || ""} copyValue={copyResult?.riskSection3Nutrition?.tubeFeed || ""} />
+            <FieldRow label="Supplementary Foods/Thickeners" value={displayResult.riskSection3Nutrition?.supplementaryFoods || ""} copyValue={copyResult?.riskSection3Nutrition?.supplementaryFoods || ""} />
+            <FieldRow label="Foods I Like" value={displayResult.riskSection3Nutrition?.foodLikes || ""} copyValue={copyResult?.riskSection3Nutrition?.foodLikes || ""} />
+            <FieldRow label="Foods I Dislike" value={displayResult.riskSection3Nutrition?.foodDislikes || ""} copyValue={copyResult?.riskSection3Nutrition?.foodDislikes || ""} />
+            <FieldRow label="Portion Size" value={displayResult.riskSection3Nutrition?.portionSize || ""} copyValue={copyResult?.riskSection3Nutrition?.portionSize || ""} />
+            <FieldRow label="Preferred Main Meal Time" value={displayResult.riskSection3Nutrition?.mainMealTime || ""} copyValue={copyResult?.riskSection3Nutrition?.mainMealTime || ""} />
+            <FieldRow label="Fluid Intake" value={displayResult.riskSection3Nutrition?.fluidIntake || ""} copyValue={copyResult?.riskSection3Nutrition?.fluidIntake || ""} />
             <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
-              <FieldRow label="Risk Level" value={result.riskSection3Nutrition?.riskLevel || ""} />
-              <TextBlock label="Risk Prevention" value={result.riskSection3Nutrition?.riskPrevention || ""} />
+              <FieldRow label="Risk Level" value={displayResult.riskSection3Nutrition?.riskLevel || ""} copyValue={copyResult?.riskSection3Nutrition?.riskLevel || ""} />
+              <TextBlock label="Risk Prevention" value={displayResult.riskSection3Nutrition?.riskPrevention || ""} copyValue={copyResult?.riskSection3Nutrition?.riskPrevention || ""} />
             </div>
           </Section>
 
           {/* Risk Section 4: Equipment */}
           <Section title="Risk Assessment Section 4: Equipment">
-            {result.riskSection4Equipment?.equipment?.map((eq, idx) => (
+            {displayResult.riskSection4Equipment?.equipment?.map((eq, idx) => (
               <div key={idx} className="p-3 bg-muted rounded-lg space-y-2">
-                <FieldRow label="Equipment" value={eq.name} />
-                <FieldRow label="Fit For Purpose" value={eq.fitForPurpose} />
-                <FieldRow label="Supplier" value={eq.supplier} />
-                <FieldRow label="Next Service Date" value={eq.nextService} />
+                <FieldRow label="Equipment" value={eq.name} copyValue={copyResult?.riskSection4Equipment?.equipment?.[idx]?.name || ""} />
+                <FieldRow label="Fit For Purpose" value={eq.fitForPurpose} copyValue={copyResult?.riskSection4Equipment?.equipment?.[idx]?.fitForPurpose || ""} />
+                <FieldRow label="Supplier" value={eq.supplier} copyValue={copyResult?.riskSection4Equipment?.equipment?.[idx]?.supplier || ""} />
+                <FieldRow label="Next Service Date" value={eq.nextService} copyValue={copyResult?.riskSection4Equipment?.equipment?.[idx]?.nextService || ""} />
               </div>
             ))}
-            <TextBlock label="Remedial Action" value={result.riskSection4Equipment?.remedialAction || ""} />
+            <TextBlock label="Remedial Action" value={displayResult.riskSection4Equipment?.remedialAction || ""} copyValue={copyResult?.riskSection4Equipment?.remedialAction || ""} />
             <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
-              <FieldRow label="Risk Level" value={result.riskSection4Equipment?.riskLevel || ""} />
-              <TextBlock label="Risk Prevention" value={result.riskSection4Equipment?.riskPrevention || ""} />
+              <FieldRow label="Risk Level" value={displayResult.riskSection4Equipment?.riskLevel || ""} copyValue={copyResult?.riskSection4Equipment?.riskLevel || ""} />
+              <TextBlock label="Risk Prevention" value={displayResult.riskSection4Equipment?.riskPrevention || ""} copyValue={copyResult?.riskSection4Equipment?.riskPrevention || ""} />
             </div>
           </Section>
 
@@ -605,123 +632,123 @@ export default function PlanEnhancer() {
           <Section title="Risk Assessment Section 5: Mobility">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <FieldRow label="Weight Bearing" value={result.riskSection5Mobility?.weightBearing || ""} />
-                <FieldRow label="Details" value={result.riskSection5Mobility?.weightBearingDetails || ""} />
-                <FieldRow label="Walking" value={result.riskSection5Mobility?.walking || ""} />
-                <FieldRow label="Details" value={result.riskSection5Mobility?.walkingDetails || ""} />
-                <FieldRow label="Stairs" value={result.riskSection5Mobility?.stairs || ""} />
-                <FieldRow label="Details" value={result.riskSection5Mobility?.stairsDetails || ""} />
-                <FieldRow label="Sit to Stand" value={result.riskSection5Mobility?.sitToStand || ""} />
-                <FieldRow label="Details" value={result.riskSection5Mobility?.sitToStandDetails || ""} />
+                <FieldRow label="Weight Bearing" value={displayResult.riskSection5Mobility?.weightBearing || ""} copyValue={copyResult?.riskSection5Mobility?.weightBearing || ""} />
+                <FieldRow label="Details" value={displayResult.riskSection5Mobility?.weightBearingDetails || ""} copyValue={copyResult?.riskSection5Mobility?.weightBearingDetails || ""} />
+                <FieldRow label="Walking" value={displayResult.riskSection5Mobility?.walking || ""} copyValue={copyResult?.riskSection5Mobility?.walking || ""} />
+                <FieldRow label="Details" value={displayResult.riskSection5Mobility?.walkingDetails || ""} copyValue={copyResult?.riskSection5Mobility?.walkingDetails || ""} />
+                <FieldRow label="Stairs" value={displayResult.riskSection5Mobility?.stairs || ""} copyValue={copyResult?.riskSection5Mobility?.stairs || ""} />
+                <FieldRow label="Details" value={displayResult.riskSection5Mobility?.stairsDetails || ""} copyValue={copyResult?.riskSection5Mobility?.stairsDetails || ""} />
+                <FieldRow label="Sit to Stand" value={displayResult.riskSection5Mobility?.sitToStand || ""} copyValue={copyResult?.riskSection5Mobility?.sitToStand || ""} />
+                <FieldRow label="Details" value={displayResult.riskSection5Mobility?.sitToStandDetails || ""} copyValue={copyResult?.riskSection5Mobility?.sitToStandDetails || ""} />
               </div>
               <div>
-                <FieldRow label="Washing" value={result.riskSection5Mobility?.washing || ""} />
-                <FieldRow label="Details" value={result.riskSection5Mobility?.washingDetails || ""} />
-                <FieldRow label="Dressing" value={result.riskSection5Mobility?.dressing || ""} />
-                <FieldRow label="Details" value={result.riskSection5Mobility?.dressingDetails || ""} />
-                <FieldRow label="Oral Care" value={result.riskSection5Mobility?.oralCare || ""} />
-                <FieldRow label="Details" value={result.riskSection5Mobility?.oralCareDetails || ""} />
-                <FieldRow label="Bath/Shower" value={result.riskSection5Mobility?.bathShower || ""} />
-                <FieldRow label="Toilet/Commode" value={result.riskSection5Mobility?.toiletCommode || ""} />
+                <FieldRow label="Washing" value={displayResult.riskSection5Mobility?.washing || ""} copyValue={copyResult?.riskSection5Mobility?.washing || ""} />
+                <FieldRow label="Details" value={displayResult.riskSection5Mobility?.washingDetails || ""} copyValue={copyResult?.riskSection5Mobility?.washingDetails || ""} />
+                <FieldRow label="Dressing" value={displayResult.riskSection5Mobility?.dressing || ""} copyValue={copyResult?.riskSection5Mobility?.dressing || ""} />
+                <FieldRow label="Details" value={displayResult.riskSection5Mobility?.dressingDetails || ""} copyValue={copyResult?.riskSection5Mobility?.dressingDetails || ""} />
+                <FieldRow label="Oral Care" value={displayResult.riskSection5Mobility?.oralCare || ""} copyValue={copyResult?.riskSection5Mobility?.oralCare || ""} />
+                <FieldRow label="Details" value={displayResult.riskSection5Mobility?.oralCareDetails || ""} copyValue={copyResult?.riskSection5Mobility?.oralCareDetails || ""} />
+                <FieldRow label="Bath/Shower" value={displayResult.riskSection5Mobility?.bathShower || ""} copyValue={copyResult?.riskSection5Mobility?.bathShower || ""} />
+                <FieldRow label="Toilet/Commode" value={displayResult.riskSection5Mobility?.toiletCommode || ""} copyValue={copyResult?.riskSection5Mobility?.toiletCommode || ""} />
               </div>
             </div>
-            <FieldRow label="Wheelchair" value={result.riskSection5Mobility?.wheelchair || ""} />
-            <FieldRow label="Transfers" value={result.riskSection5Mobility?.transfers || ""} />
-            <FieldRow label="Move in Bed" value={result.riskSection5Mobility?.moveInBed || ""} />
-            <FieldRow label="In/Out of Bed" value={result.riskSection5Mobility?.inOutOfBed || ""} />
-            <FieldRow label="Can Be Left Alone" value={result.riskSection5Mobility?.canBeLeftAlone || ""} />
-            <FieldRow label="Prone to Falls" value={result.riskSection5Mobility?.proneToFalls || ""} />
+            <FieldRow label="Wheelchair" value={displayResult.riskSection5Mobility?.wheelchair || ""} copyValue={copyResult?.riskSection5Mobility?.wheelchair || ""} />
+            <FieldRow label="Transfers" value={displayResult.riskSection5Mobility?.transfers || ""} copyValue={copyResult?.riskSection5Mobility?.transfers || ""} />
+            <FieldRow label="Move in Bed" value={displayResult.riskSection5Mobility?.moveInBed || ""} copyValue={copyResult?.riskSection5Mobility?.moveInBed || ""} />
+            <FieldRow label="In/Out of Bed" value={displayResult.riskSection5Mobility?.inOutOfBed || ""} copyValue={copyResult?.riskSection5Mobility?.inOutOfBed || ""} />
+            <FieldRow label="Can Be Left Alone" value={displayResult.riskSection5Mobility?.canBeLeftAlone || ""} copyValue={copyResult?.riskSection5Mobility?.canBeLeftAlone || ""} />
+            <FieldRow label="Prone to Falls" value={displayResult.riskSection5Mobility?.proneToFalls || ""} copyValue={copyResult?.riskSection5Mobility?.proneToFalls || ""} />
             <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
-              <FieldRow label="Risk Level" value={result.riskSection5Mobility?.riskLevel || ""} />
-              <TextBlock label="Risk Prevention" value={result.riskSection5Mobility?.riskPrevention || ""} />
+              <FieldRow label="Risk Level" value={displayResult.riskSection5Mobility?.riskLevel || ""} copyValue={copyResult?.riskSection5Mobility?.riskLevel || ""} />
+              <TextBlock label="Risk Prevention" value={displayResult.riskSection5Mobility?.riskPrevention || ""} copyValue={copyResult?.riskSection5Mobility?.riskPrevention || ""} />
             </div>
           </Section>
 
           {/* Risk Section 6: Appliances */}
           <Section title="Risk Assessment Section 6: Appliances/Equipment">
             <div className="grid md:grid-cols-3 gap-4">
-              <FieldRow label="Cooker" value={result.riskSection6Appliances?.cooker || ""} />
-              <FieldRow label="Microwave" value={result.riskSection6Appliances?.microwave || ""} />
-              <FieldRow label="Iron" value={result.riskSection6Appliances?.iron || ""} />
-              <FieldRow label="Kettle" value={result.riskSection6Appliances?.kettle || ""} />
-              <FieldRow label="Toaster" value={result.riskSection6Appliances?.toaster || ""} />
-              <FieldRow label="Tumble Dryer" value={result.riskSection6Appliances?.tumbleDryer || ""} />
+              <FieldRow label="Cooker" value={displayResult.riskSection6Appliances?.cooker || ""} copyValue={copyResult?.riskSection6Appliances?.cooker || ""} />
+              <FieldRow label="Microwave" value={displayResult.riskSection6Appliances?.microwave || ""} copyValue={copyResult?.riskSection6Appliances?.microwave || ""} />
+              <FieldRow label="Iron" value={displayResult.riskSection6Appliances?.iron || ""} copyValue={copyResult?.riskSection6Appliances?.iron || ""} />
+              <FieldRow label="Kettle" value={displayResult.riskSection6Appliances?.kettle || ""} copyValue={copyResult?.riskSection6Appliances?.kettle || ""} />
+              <FieldRow label="Toaster" value={displayResult.riskSection6Appliances?.toaster || ""} copyValue={copyResult?.riskSection6Appliances?.toaster || ""} />
+              <FieldRow label="Tumble Dryer" value={displayResult.riskSection6Appliances?.tumbleDryer || ""} copyValue={copyResult?.riskSection6Appliances?.tumbleDryer || ""} />
             </div>
-            <FieldRow label="Floor Coverings" value={result.riskSection6Appliances?.floorCoverings || ""} />
-            <FieldRow label="Hand/Grab Rails" value={result.riskSection6Appliances?.handRails || ""} />
-            <FieldRow label="Electric Blanket" value={result.riskSection6Appliances?.electricBlanket || ""} />
-            <FieldRow label="Bed" value={result.riskSection6Appliances?.bed || ""} />
-            <FieldRow label="Washing Machine" value={result.riskSection6Appliances?.washingMachine || ""} />
-            <FieldRow label="Central Heating/Boiler" value={result.riskSection6Appliances?.centralHeating || ""} />
-            <TextBlock label="Actions Required" value={result.riskSection6Appliances?.actionsRequired || ""} />
+            <FieldRow label="Floor Coverings" value={displayResult.riskSection6Appliances?.floorCoverings || ""} copyValue={copyResult?.riskSection6Appliances?.floorCoverings || ""} />
+            <FieldRow label="Hand/Grab Rails" value={displayResult.riskSection6Appliances?.handRails || ""} copyValue={copyResult?.riskSection6Appliances?.handRails || ""} />
+            <FieldRow label="Electric Blanket" value={displayResult.riskSection6Appliances?.electricBlanket || ""} copyValue={copyResult?.riskSection6Appliances?.electricBlanket || ""} />
+            <FieldRow label="Bed" value={displayResult.riskSection6Appliances?.bed || ""} copyValue={copyResult?.riskSection6Appliances?.bed || ""} />
+            <FieldRow label="Washing Machine" value={displayResult.riskSection6Appliances?.washingMachine || ""} copyValue={copyResult?.riskSection6Appliances?.washingMachine || ""} />
+            <FieldRow label="Central Heating/Boiler" value={displayResult.riskSection6Appliances?.centralHeating || ""} copyValue={copyResult?.riskSection6Appliances?.centralHeating || ""} />
+            <TextBlock label="Actions Required" value={displayResult.riskSection6Appliances?.actionsRequired || ""} copyValue={copyResult?.riskSection6Appliances?.actionsRequired || ""} />
           </Section>
 
           {/* Risk Section 7: Fire Safety */}
           <Section title="Risk Assessment Section 7: Fire Safety">
-            <FieldRow label="At Risk of Fire" value={result.riskSection7Fire?.atRisk || ""} />
-            <FieldRow label="Risk Reason" value={result.riskSection7Fire?.riskReason || ""} />
-            <FieldRow label="RAG Rating" value={result.riskSection7Fire?.ragRating || ""} />
-            <FieldRow label="Plug Sockets" value={result.riskSection7Fire?.plugSockets || ""} />
-            <FieldRow label="Electric Cables" value={result.riskSection7Fire?.electricCables || ""} />
-            <FieldRow label="Smoking Policy Explained" value={result.riskSection7Fire?.smokingPolicy || ""} />
-            <FieldRow label="Smoke Alarm Location" value={result.riskSection7Fire?.smokeAlarmLocation || ""} />
-            <FieldRow label="Smoke Alarm Working" value={result.riskSection7Fire?.smokeAlarmWorking || ""} />
-            <FieldRow label="CO Detector Location" value={result.riskSection7Fire?.coDetectorLocation || ""} />
-            <FieldRow label="CO Detector Working" value={result.riskSection7Fire?.coDetectorWorking || ""} />
-            <FieldRow label="Can Evacuate Without Assistance" value={result.riskSection7Fire?.canEvacuate || ""} />
-            <TextBlock label="Actions and Safety Measures" value={result.riskSection7Fire?.actionsAndSafety || ""} />
+            <FieldRow label="At Risk of Fire" value={displayResult.riskSection7Fire?.atRisk || ""} copyValue={copyResult?.riskSection7Fire?.atRisk || ""} />
+            <FieldRow label="Risk Reason" value={displayResult.riskSection7Fire?.riskReason || ""} copyValue={copyResult?.riskSection7Fire?.riskReason || ""} />
+            <FieldRow label="RAG Rating" value={displayResult.riskSection7Fire?.ragRating || ""} copyValue={copyResult?.riskSection7Fire?.ragRating || ""} />
+            <FieldRow label="Plug Sockets" value={displayResult.riskSection7Fire?.plugSockets || ""} copyValue={copyResult?.riskSection7Fire?.plugSockets || ""} />
+            <FieldRow label="Electric Cables" value={displayResult.riskSection7Fire?.electricCables || ""} copyValue={copyResult?.riskSection7Fire?.electricCables || ""} />
+            <FieldRow label="Smoking Policy Explained" value={displayResult.riskSection7Fire?.smokingPolicy || ""} copyValue={copyResult?.riskSection7Fire?.smokingPolicy || ""} />
+            <FieldRow label="Smoke Alarm Location" value={displayResult.riskSection7Fire?.smokeAlarmLocation || ""} copyValue={copyResult?.riskSection7Fire?.smokeAlarmLocation || ""} />
+            <FieldRow label="Smoke Alarm Working" value={displayResult.riskSection7Fire?.smokeAlarmWorking || ""} copyValue={copyResult?.riskSection7Fire?.smokeAlarmWorking || ""} />
+            <FieldRow label="CO Detector Location" value={displayResult.riskSection7Fire?.coDetectorLocation || ""} copyValue={copyResult?.riskSection7Fire?.coDetectorLocation || ""} />
+            <FieldRow label="CO Detector Working" value={displayResult.riskSection7Fire?.coDetectorWorking || ""} copyValue={copyResult?.riskSection7Fire?.coDetectorWorking || ""} />
+            <FieldRow label="Can Evacuate Without Assistance" value={displayResult.riskSection7Fire?.canEvacuate || ""} copyValue={copyResult?.riskSection7Fire?.canEvacuate || ""} />
+            <TextBlock label="Actions and Safety Measures" value={displayResult.riskSection7Fire?.actionsAndSafety || ""} copyValue={copyResult?.riskSection7Fire?.actionsAndSafety || ""} />
           </Section>
 
           {/* Risk Section 8: COSHH */}
           <Section title="Risk Assessment Section 8: COSHH">
-            <FieldRow label="Cleaning Materials Storage" value={result.riskSection8COSHH?.cleaningStorage || ""} />
-            <FieldRow label="RIDDOR Explained" value={result.riskSection8COSHH?.riddorExplained || ""} />
+            <FieldRow label="Cleaning Materials Storage" value={displayResult.riskSection8COSHH?.cleaningStorage || ""} copyValue={copyResult?.riskSection8COSHH?.cleaningStorage || ""} />
+            <FieldRow label="RIDDOR Explained" value={displayResult.riskSection8COSHH?.riddorExplained || ""} copyValue={copyResult?.riskSection8COSHH?.riddorExplained || ""} />
           </Section>
 
           {/* Risk Section 9: External Safety */}
           <Section title="Risk Assessment Section 9: External Safe Working">
-            <FieldRow label="Access" value={result.riskSection9External?.access || ""} />
-            <FieldRow label="Clear Pathways" value={result.riskSection9External?.clearPathways || ""} />
-            <FieldRow label="Handrails" value={result.riskSection9External?.handrails || ""} />
-            <FieldRow label="Entrance Steps" value={result.riskSection9External?.entranceSteps || ""} />
-            <FieldRow label="Lighting" value={result.riskSection9External?.lighting || ""} />
-            <FieldRow label="Ramps" value={result.riskSection9External?.ramps || ""} />
-            <FieldRow label="Personal Security" value={result.riskSection9External?.personalSecurity || ""} />
-            <FieldRow label="Parking" value={result.riskSection9External?.parking || ""} />
-            <TextBlock label="Actions Required" value={result.riskSection9External?.actionsRequired || ""} />
+            <FieldRow label="Access" value={displayResult.riskSection9External?.access || ""} copyValue={copyResult?.riskSection9External?.access || ""} />
+            <FieldRow label="Clear Pathways" value={displayResult.riskSection9External?.clearPathways || ""} copyValue={copyResult?.riskSection9External?.clearPathways || ""} />
+            <FieldRow label="Handrails" value={displayResult.riskSection9External?.handrails || ""} copyValue={copyResult?.riskSection9External?.handrails || ""} />
+            <FieldRow label="Entrance Steps" value={displayResult.riskSection9External?.entranceSteps || ""} copyValue={copyResult?.riskSection9External?.entranceSteps || ""} />
+            <FieldRow label="Lighting" value={displayResult.riskSection9External?.lighting || ""} copyValue={copyResult?.riskSection9External?.lighting || ""} />
+            <FieldRow label="Ramps" value={displayResult.riskSection9External?.ramps || ""} copyValue={copyResult?.riskSection9External?.ramps || ""} />
+            <FieldRow label="Personal Security" value={displayResult.riskSection9External?.personalSecurity || ""} copyValue={copyResult?.riskSection9External?.personalSecurity || ""} />
+            <FieldRow label="Parking" value={displayResult.riskSection9External?.parking || ""} copyValue={copyResult?.riskSection9External?.parking || ""} />
+            <TextBlock label="Actions Required" value={displayResult.riskSection9External?.actionsRequired || ""} copyValue={copyResult?.riskSection9External?.actionsRequired || ""} />
             <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
-              <FieldRow label="Risk Level" value={result.riskSection9External?.riskLevel || ""} />
-              <TextBlock label="Risk Prevention" value={result.riskSection9External?.riskPrevention || ""} />
+              <FieldRow label="Risk Level" value={displayResult.riskSection9External?.riskLevel || ""} copyValue={copyResult?.riskSection9External?.riskLevel || ""} />
+              <TextBlock label="Risk Prevention" value={displayResult.riskSection9External?.riskPrevention || ""} copyValue={copyResult?.riskSection9External?.riskPrevention || ""} />
             </div>
           </Section>
 
           {/* Risk Section 10: Security */}
           <Section title="Risk Assessment Section 10: Security/Entry/Emergency Access">
-            <FieldRow label="Means of Access" value={result.riskSection10Security?.meansOfAccess || ""} />
-            <FieldRow label="Property Type" value={result.riskSection10Security?.propertyType || ""} />
-            <FieldRow label="Enter Using" value={result.riskSection10Security?.enterUsing || ""} />
-            <FieldRow label="Keysafe Consent" value={result.riskSection10Security?.keysafeConsent || ""} />
-            <FieldRow label="Gas Shut Off Location" value={result.riskSection10Security?.gasShutOff || ""} />
-            <FieldRow label="Stop Tap/Mains Location" value={result.riskSection10Security?.stopTap || ""} />
-            <FieldRow label="Fuse Box Location" value={result.riskSection10Security?.fuseBox || ""} />
+            <FieldRow label="Means of Access" value={displayResult.riskSection10Security?.meansOfAccess || ""} copyValue={copyResult?.riskSection10Security?.meansOfAccess || ""} />
+            <FieldRow label="Property Type" value={displayResult.riskSection10Security?.propertyType || ""} copyValue={copyResult?.riskSection10Security?.propertyType || ""} />
+            <FieldRow label="Enter Using" value={displayResult.riskSection10Security?.enterUsing || ""} copyValue={copyResult?.riskSection10Security?.enterUsing || ""} />
+            <FieldRow label="Keysafe Consent" value={displayResult.riskSection10Security?.keysafeConsent || ""} copyValue={copyResult?.riskSection10Security?.keysafeConsent || ""} />
+            <FieldRow label="Gas Shut Off Location" value={displayResult.riskSection10Security?.gasShutOff || ""} copyValue={copyResult?.riskSection10Security?.gasShutOff || ""} />
+            <FieldRow label="Stop Tap/Mains Location" value={displayResult.riskSection10Security?.stopTap || ""} copyValue={copyResult?.riskSection10Security?.stopTap || ""} />
+            <FieldRow label="Fuse Box Location" value={displayResult.riskSection10Security?.fuseBox || ""} copyValue={copyResult?.riskSection10Security?.fuseBox || ""} />
             <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
-              <FieldRow label="Risk Level" value={result.riskSection10Security?.riskLevel || ""} />
-              <TextBlock label="Risk Prevention" value={result.riskSection10Security?.riskPrevention || ""} />
+              <FieldRow label="Risk Level" value={displayResult.riskSection10Security?.riskLevel || ""} copyValue={copyResult?.riskSection10Security?.riskLevel || ""} />
+              <TextBlock label="Risk Prevention" value={displayResult.riskSection10Security?.riskPrevention || ""} copyValue={copyResult?.riskSection10Security?.riskPrevention || ""} />
             </div>
           </Section>
 
           {/* Section 11: Service User Bands */}
           <Section title="Section 11: Service User Bands">
             <div className="grid md:grid-cols-3 gap-4">
-              <FieldRow label="Personal Care" value={result.section11Bands?.personalCare || ""} />
-              <FieldRow label="Mental Health" value={result.section11Bands?.mentalHealth || ""} />
-              <FieldRow label="Physical Disability" value={result.section11Bands?.physicalDisability || ""} />
-              <FieldRow label="Dementia" value={result.section11Bands?.dementia || ""} />
-              <FieldRow label="Eating Disorder" value={result.section11Bands?.eatingDisorder || ""} />
-              <FieldRow label="Sensory Impairment" value={result.section11Bands?.sensoryImpairment || ""} />
-              <FieldRow label="Detained under MHA" value={result.section11Bands?.detainedMHA || ""} />
-              <FieldRow label="Drug/Alcohol Misuse" value={result.section11Bands?.drugAlcoholMisuse || ""} />
-              <FieldRow label="Learning Difficulties" value={result.section11Bands?.learningDifficulties || ""} />
+              <FieldRow label="Personal Care" value={displayResult.section11Bands?.personalCare || ""} copyValue={copyResult?.section11Bands?.personalCare || ""} />
+              <FieldRow label="Mental Health" value={displayResult.section11Bands?.mentalHealth || ""} copyValue={copyResult?.section11Bands?.mentalHealth || ""} />
+              <FieldRow label="Physical Disability" value={displayResult.section11Bands?.physicalDisability || ""} copyValue={copyResult?.section11Bands?.physicalDisability || ""} />
+              <FieldRow label="Dementia" value={displayResult.section11Bands?.dementia || ""} copyValue={copyResult?.section11Bands?.dementia || ""} />
+              <FieldRow label="Eating Disorder" value={displayResult.section11Bands?.eatingDisorder || ""} copyValue={copyResult?.section11Bands?.eatingDisorder || ""} />
+              <FieldRow label="Sensory Impairment" value={displayResult.section11Bands?.sensoryImpairment || ""} copyValue={copyResult?.section11Bands?.sensoryImpairment || ""} />
+              <FieldRow label="Detained under MHA" value={displayResult.section11Bands?.detainedMHA || ""} copyValue={copyResult?.section11Bands?.detainedMHA || ""} />
+              <FieldRow label="Drug/Alcohol Misuse" value={displayResult.section11Bands?.drugAlcoholMisuse || ""} copyValue={copyResult?.section11Bands?.drugAlcoholMisuse || ""} />
+              <FieldRow label="Learning Difficulties" value={displayResult.section11Bands?.learningDifficulties || ""} copyValue={copyResult?.section11Bands?.learningDifficulties || ""} />
             </div>
           </Section>
         </div>

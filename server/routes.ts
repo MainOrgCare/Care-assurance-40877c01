@@ -14,7 +14,7 @@ import connectPgSimple from "connect-pg-simple";
 import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
-import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema } from "@shared/schema";
+import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema, insertSystemLogSchema } from "@shared/schema";
 import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { emarAgent } from "./services/emarAgent";
 import multer from "multer";
@@ -1751,6 +1751,27 @@ export async function registerRoutes(
     await storage.updateSessionActivity(req.sessionID);
     
     req.user = user;
+    const shouldLog = req.path.startsWith("/api") &&
+      !req.path.startsWith("/api/system-logs") &&
+      req.path !== "/api/auth/me" &&
+      req.method !== "OPTIONS";
+    if (shouldLog) {
+      storage.createSystemLog({
+        eventType: "api_request",
+        userId: user.id,
+        username: user.username,
+        serviceUserInitials: null,
+        details: {
+          action: `API ${req.method} ${req.path}`,
+          target: req.path,
+          status: "Authorized",
+          method: req.method,
+          path: req.path,
+        },
+      }).catch((error) => {
+        console.error("Failed to record system log:", error);
+      });
+    }
     next();
   };
 
@@ -2721,6 +2742,42 @@ export async function registerRoutes(
       return res.json({ message: "Alert marked as read" });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ===== SYSTEM LOG ROUTES =====
+
+  app.get("/api/system-logs", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const logs = await storage.getSystemLogs();
+      return res.json(logs);
+    } catch (error: any) {
+      console.error("Failed to fetch system logs:", error);
+      return res.status(500).json({ message: "Failed to fetch system logs" });
+    }
+  });
+
+  app.post("/api/system-logs", requireAuth, blockDemoWrites, async (req: any, res) => {
+    try {
+      const { eventType, action, target, status, alert, serviceUserInitials, details } = req.body || {};
+      const payload = insertSystemLogSchema.parse({
+        eventType: typeof eventType === "string" && eventType.trim() ? eventType : "action",
+        userId: req.user?.id,
+        username: req.user?.username,
+        serviceUserInitials: serviceUserInitials || null,
+        details: {
+          action,
+          target,
+          status,
+          alert,
+          ...(details && typeof details === "object" ? details : {}),
+        },
+      });
+      const log = await storage.createSystemLog(payload);
+      return res.status(201).json(log);
+    } catch (error: any) {
+      console.error("Failed to create system log:", error);
+      return res.status(400).json({ message: "Failed to create system log" });
     }
   });
 
@@ -9252,7 +9309,8 @@ Return JSON - include ALL by default:
     const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
     
     try {
-      const { documentContent } = req.body;
+      const { documentContent, allowSensitive } = req.body;
+      const allowSensitiveView = Boolean(allowSensitive) && req.user?.role === "admin";
       
       if (!documentContent) {
         return res.status(400).json({ message: "Document content required" });
@@ -9339,6 +9397,13 @@ CRITICAL: You MUST structure your response using the templates above as referenc
 `;
       }
 
+      const privacyRules = allowSensitiveView
+        ? `5. Full names may be included only if they appear in the documents. Do not invent names.
+6. Keep place names and locations as written. Do not redact places.
+7. Never include dates of birth.`
+        : `5. Do NOT include any person names. Use role terms (my carer, my GP, my family member)
+6. Keep place names and locations as written. Do not redact places.`;
+
       const systemPrompt = `You are an expert care assessor for a UK care facility. Analyze the uploaded documents to identify service user information and determine which risk assessments are needed.
 ${policyContext}
 FORMATTING RULES - MUST FOLLOW:
@@ -9350,8 +9415,7 @@ IMPORTANT RULES:
 2. If you cannot find specific information, state "Information not found in documents"
 3. Be very careful to extract the correct service user details
 4. Write narrative fields in FIRST PERSON using "I" and "my"
-5. Do NOT include any person names. Use role terms (my carer, my GP, my family member)
-6. Keep place names and locations as written. Do not redact places.
+${privacyRules}
 
 EXTRACT FROM DOCUMENTS:
 - Service user initials ONLY (format: "F.O." - first letter of first name + "." + first letter of last name + ".")
@@ -9360,8 +9424,8 @@ EXTRACT FROM DOCUMENTS:
 - Any concerns mentioned (falls history, skin issues, behavioral concerns, etc.)
 
 PRIVACY REQUIREMENT:
-- NEVER include full names or dates of birth
-- Extract ONLY initials in format "F.O." (first initial + dot + last initial + dot)
+- NEVER include dates of birth
+- Extract initials in format "F.O." (first initial + dot + last initial + dot)
 - Example: "Freda O'Neill" becomes "F.O."
 
 MANDATORY RISK ASSESSMENTS (if applicable):
@@ -9428,7 +9492,7 @@ Respond ONLY with valid JSON in this exact format:
         model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Analyze these documents for risk assessment needs:\n\n${sanitizeNarrativePII(documentContent)}` }
+          { role: "user", content: `Analyze these documents for risk assessment needs:\n\n${allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent)}` }
         ],
         max_completion_tokens: 4000,
         temperature: 0,
@@ -9467,8 +9531,9 @@ Respond ONLY with valid JSON in this exact format:
       result.recommendedAssessments = attachAssessmentEvidence(result.recommendedAssessments, result);
 
       const scrubbedResult = sanitizeNarrativePII(result);
+      const payload = allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult;
       sendProgress(100, "Complete!", "complete");
-      sendEvent('result', scrubbedResult);
+      sendEvent('result', payload);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       return res.end();
     } catch (error: any) {
@@ -9491,7 +9556,8 @@ Respond ONLY with valid JSON in this exact format:
     const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
     
     try {
-      const { documentContent, assessmentCategory, serviceUserInitials, performedBy, performedByJobTitle } = req.body;
+      const { documentContent, assessmentCategory, serviceUserInitials, performedBy, performedByJobTitle, allowSensitive } = req.body;
+      const allowSensitiveView = Boolean(allowSensitive) && req.user?.role === "admin";
       
       if (!documentContent || !assessmentCategory) {
         return res.status(400).json({ message: "Document content and assessment category required" });
@@ -9550,6 +9616,10 @@ ${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.versio
 `;
       }
 
+      const privacyDirective = allowSensitiveView
+        ? "Privacy requirement: You may include full names only if present in the documents. Do not invent names. Never include dates of birth."
+        : "Privacy requirement: Never include full names or dates of birth. Use only initials.";
+
       const systemPrompt = `You are an expert care risk assessor for a UK care facility. Generate a detailed risk assessment for the specified category.
 ${policyContext}
 
@@ -9569,7 +9639,7 @@ IMPORTANT RULES:
 SERVICE USER DETAILS:
 - Service User Initials: ${serviceUserInitials || 'N.N.'}
 
-PRIVACY REQUIREMENT: Never include full names or dates of birth. Use only initials.
+${privacyDirective}
 
 RISK ASSESSMENT CATEGORY: ${assessmentCategory}
 
@@ -9607,7 +9677,7 @@ Respond ONLY with valid JSON in this exact format:
         model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a ${assessmentCategory} risk assessment based on these documents:\n\n${sanitizeNarrativePII(documentContent)}` }
+          { role: "user", content: `Generate a ${assessmentCategory} risk assessment based on these documents:\n\n${allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent)}` }
         ],
         temperature: 0,
         seed: 42,
@@ -9663,10 +9733,11 @@ Respond ONLY with valid JSON in this exact format:
         if (typeof result.additionalNotes === "string") {
           result.additionalNotes = toFirstPerson(result.additionalNotes);
         }
-        result = sanitizeNarrativePII(result);
+        const scrubbedResult = sanitizeNarrativePII(result);
+        const payload = allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult;
         
         sendProgress(100, "Complete!", "complete");
-        sendEvent('result', result);
+        sendEvent('result', payload);
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       } else {
@@ -9694,7 +9765,8 @@ Respond ONLY with valid JSON in this exact format:
     const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
     
     try {
-      const { documentContent, serviceUserInitials } = req.body;
+      const { documentContent, serviceUserInitials, allowSensitive } = req.body;
+      const allowSensitiveView = Boolean(allowSensitive) && req.user?.role === "admin";
       
       if (!documentContent) {
         return res.status(400).json({ message: "Document content required" });
@@ -9781,6 +9853,10 @@ REQUIREMENTS:
         { title: "Secure Property Before Leaving", priority: "high", focus: "Door locks, windows, appliances off, keys, alarm system - safety checklist before carers leave" },
       ];
 
+      const privacyRules = allowSensitiveView
+        ? "- Full names may be included only if present in the documents. Do not invent names."
+        : "- Do NOT include any person names. Use role terms (my carer, my GP, my family member).";
+
       const baseSystemPrompt = `You are an expert care plan writer for a UK care facility following CQC standards.
 ${policyContext}
 RULES:
@@ -9790,7 +9866,7 @@ RULES:
 - Never use Oxford commas.
 - Be detailed and specific with times, preferences, routines.
 - Only include information found in the documents. If no info, say "Please ask me about my preferences."
-- Do NOT include any person names. Use role terms (my carer, my GP, my family member).
+${privacyRules}
 - Keep place names and locations as written. Do not redact places.
 
 OUTPUT: Return ONLY valid JSON matching this structure:
@@ -9805,10 +9881,20 @@ OUTPUT: Return ONLY valid JSON matching this structure:
 
       sendProgress(10, "Starting section generation...", "generating");
 
+      const toStringSafe = (value: unknown) =>
+        typeof value === "string" ? value : value == null ? "" : String(value);
+      const scrubText = (value: unknown) => sanitizeNarrativePII(toStringSafe(value));
+      const viewText = (value: unknown) => allowSensitiveView ? toStringSafe(value) : scrubText(value);
+
       const completedSections: any[] = [];
-      let emergencyContacts = "Not found in documents";
-      let gpDetails = "Not found in documents";
-      let additionalNotes = "No additional notes";
+      const scrubbedSections: any[] = [];
+      let emergencyContactsView = "Not found in documents";
+      let gpDetailsView = "Not found in documents";
+      let additionalNotesView = "No additional notes";
+      let emergencyContactsScrubbed = "Not found in documents";
+      let gpDetailsScrubbed = "Not found in documents";
+      let additionalNotesScrubbed = "No additional notes";
+      const documentContentForAi = allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent);
 
       // Generate each section individually
       for (let i = 0; i < mandatorySections.length; i++) {
@@ -9828,7 +9914,7 @@ OUTPUT: Return ONLY valid JSON matching this structure:
 FOCUS ON: ${section.focus}
 
 Service user documents:
-${sanitizeNarrativePII(documentContent)}
+${documentContentForAi}
 
 Remember: Write as if I am the service user speaking about my own needs. Return ONLY valid JSON.` }
             ],
@@ -9850,24 +9936,38 @@ Remember: Write as if I am the service user speaking about my own needs. Return 
               enhancedContent = enhancedContent.replace(/Staff should/gi, "I need my carers to");
             }
             
+            const stepsRaw = (Array.isArray(parsed.steps) && parsed.steps.length > 0
+              ? parsed.steps
+              : ["Please refer to my preferences above", "Check my care notes", "Ask me if unsure"]);
+            const risksRaw = Array.isArray(parsed.risks) ? parsed.risks : [];
+            const equipmentRaw = Array.isArray(parsed.equipment) ? parsed.equipment : [];
+
             const completedSection = {
               title: section.title,
               priority: section.priority,
-              content: sanitizeNarrativePII(enhancedContent),
-              steps: (Array.isArray(parsed.steps) && parsed.steps.length > 0 
-                ? parsed.steps 
-                : ["Please refer to my preferences above", "Check my care notes", "Ask me if unsure"])
-                .map((s: any) => typeof s === 'string' ? sanitizeNarrativePII(s) : String(s)),
-              risks: (Array.isArray(parsed.risks) ? parsed.risks : [])
-                .map((r: any) => typeof r === 'string' ? sanitizeNarrativePII(r) : String(r)),
-              equipment: (Array.isArray(parsed.equipment) ? parsed.equipment : [])
-                .map((e: any) => typeof e === 'string' ? sanitizeNarrativePII(e) : String(e)),
+              content: viewText(enhancedContent),
+              steps: stepsRaw.map((s: any) => viewText(s)),
+              risks: risksRaw.map((r: any) => viewText(r)),
+              equipment: equipmentRaw.map((e: any) => viewText(e)),
             };
-            
+
+            const scrubbedSection = {
+              title: section.title,
+              priority: section.priority,
+              content: scrubText(enhancedContent),
+              steps: stepsRaw.map((s: any) => scrubText(s)),
+              risks: risksRaw.map((r: any) => scrubText(r)),
+              equipment: equipmentRaw.map((e: any) => scrubText(e)),
+            };
+
             completedSections.push(completedSection);
+            scrubbedSections.push(scrubbedSection);
             
             // Send this section immediately to the frontend
-            sendEvent('section', { index: i, section: completedSection });
+            sendEvent('section', allowSensitiveView
+              ? { index: i, section: completedSection, scrubbedSection }
+              : { index: i, section: completedSection }
+            );
             
           } else {
             // Section generation failed - use placeholder
@@ -9880,7 +9980,11 @@ Remember: Write as if I am the service user speaking about my own needs. Return 
               equipment: [],
             };
             completedSections.push(fallbackSection);
-            sendEvent('section', { index: i, section: fallbackSection });
+            scrubbedSections.push(fallbackSection);
+            sendEvent('section', allowSensitiveView
+              ? { index: i, section: fallbackSection, scrubbedSection: fallbackSection }
+              : { index: i, section: fallbackSection }
+            );
           }
         } catch (sectionError: any) {
           console.error(`[CarePlan] Error generating section "${section.title}":`, sectionError.message);
@@ -9894,7 +9998,11 @@ Remember: Write as if I am the service user speaking about my own needs. Return 
             equipment: [],
           };
           completedSections.push(fallbackSection);
-          sendEvent('section', { index: i, section: fallbackSection });
+          scrubbedSections.push(fallbackSection);
+          sendEvent('section', allowSensitiveView
+            ? { index: i, section: fallbackSection, scrubbedSection: fallbackSection }
+            : { index: i, section: fallbackSection }
+          );
         }
       }
 
@@ -9910,7 +10018,7 @@ Remember: Write as if I am the service user speaking about my own needs. Return 
 3. Any additional important notes
 
 Documents:
-${sanitizeNarrativePII(documentContent).substring(0, 3000)}
+${documentContentForAi.substring(0, 3000)}
 
 Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes": "..."}` }
           ],
@@ -9924,21 +10032,24 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
         const meta = parseJsonFromContent(metaContent);
         if (meta) {
           // Ensure all fields are strings, not objects
-          const extractedEmergency = meta.emergencyContacts || emergencyContacts;
-          const extractedGp = meta.gpDetails || gpDetails;
-          const extractedNotes = meta.additionalNotes || additionalNotes;
+          const extractedEmergency = meta.emergencyContacts || emergencyContactsView;
+          const extractedGp = meta.gpDetails || gpDetailsView;
+          const extractedNotes = meta.additionalNotes || additionalNotesView;
           
           // Convert objects to strings if needed
           const emergencyStr = typeof extractedEmergency === 'string' ? extractedEmergency : 
-                               extractedEmergency ? JSON.stringify(extractedEmergency) : emergencyContacts;
+                               extractedEmergency ? JSON.stringify(extractedEmergency) : emergencyContactsView;
           const gpStr = typeof extractedGp === 'string' ? extractedGp : 
-                        extractedGp ? JSON.stringify(extractedGp) : gpDetails;
+                        extractedGp ? JSON.stringify(extractedGp) : gpDetailsView;
           const notesStr = typeof extractedNotes === 'string' ? extractedNotes : 
-                           extractedNotes ? JSON.stringify(extractedNotes) : additionalNotes;
+                           extractedNotes ? JSON.stringify(extractedNotes) : additionalNotesView;
           
-          emergencyContacts = sanitizeNarrativePII(emergencyStr);
-          gpDetails = sanitizeNarrativePII(gpStr);
-          additionalNotes = sanitizeNarrativePII(notesStr);
+          emergencyContactsView = viewText(emergencyStr);
+          gpDetailsView = viewText(gpStr);
+          additionalNotesView = viewText(notesStr);
+          emergencyContactsScrubbed = scrubText(emergencyStr);
+          gpDetailsScrubbed = scrubText(gpStr);
+          additionalNotesScrubbed = scrubText(notesStr);
         }
       } catch (e) {
         console.log("[CarePlan] Could not extract meta info, using defaults");
@@ -9949,13 +10060,21 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
         serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
         generatedDate: today,
         sections: Array.isArray(completedSections) ? completedSections.filter((s): s is any => s != null && typeof s === 'object') : [],
-        emergencyContacts: String(emergencyContacts || ""),
-        gpDetails: String(gpDetails || ""),
-        additionalNotes: String(additionalNotes || ""),
+        emergencyContacts: String(emergencyContactsView || ""),
+        gpDetails: String(gpDetailsView || ""),
+        additionalNotes: String(additionalNotesView || ""),
+      };
+      const scrubbedResult = {
+        serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
+        generatedDate: today,
+        sections: Array.isArray(scrubbedSections) ? scrubbedSections.filter((s): s is any => s != null && typeof s === 'object') : [],
+        emergencyContacts: String(emergencyContactsScrubbed || ""),
+        gpDetails: String(gpDetailsScrubbed || ""),
+        additionalNotes: String(additionalNotesScrubbed || ""),
       };
 
       sendProgress(100, "Complete!", "complete");
-      sendEvent('result', result);
+      sendEvent('result', allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult);
       
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       return res.end();
@@ -9980,7 +10099,8 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
     const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
     
     try {
-      const { documentContent, existingPlanContent } = req.body;
+      const { documentContent, existingPlanContent, allowSensitive } = req.body;
+      const allowSensitiveView = Boolean(allowSensitive) && req.user?.role === "admin";
       
       if (!documentContent && !existingPlanContent) {
         return res.status(400).json({ message: "Document content or existing plan required" });
@@ -10033,7 +10153,9 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
       sendProgress(10, "Preparing documents...", "preparing");
 
       const rawContent = existingPlanContent || documentContent;
-      const contentToEnhance = typeof rawContent === 'string' ? sanitizeNarrativePII(rawContent) : rawContent;
+      const contentToEnhance = typeof rawContent === 'string'
+        ? (allowSensitiveView ? rawContent : sanitizeNarrativePII(rawContent))
+        : rawContent;
 
       const carePlanPolicies = await storage.getPolicyDocumentsByCategory("care_plan");
       const initialAssessmentPolicies = await storage.getPolicyDocumentsByCategory("initial_assessment");
@@ -10051,15 +10173,16 @@ ${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.versio
 `;
       }
 
+      const privacyDirective = allowSensitiveView
+        ? "Privacy rules: Full names may be included only if present in the documents. Do not invent names. Never include dates of birth."
+        : "Privacy rules: Replace any service user names with I. NEVER include dates of birth. Do NOT include any person names. Use role terms (my carer, my GP, my family member).";
+
       const systemPrompt = `You are an expert care plan writer for a UK care facility following CQC standards.
 ${policyContext}
 Analyze the uploaded documents and generate content for a COMPLETE Initial Assessment/Care Plan template.
 
-PRIVACY RULES - CRITICAL:
-- Replace any service user names with "I" (first person perspective)
-- NEVER include dates of birth
-- Do NOT include any person names. Use role terms (my carer, my GP, my family member).
-- Keep place names and locations as written. Do not redact places.
+${privacyDirective}
+Keep place names and locations as written. Do not redact places.
 
 FORMATTING RULES:
 - Never use m-dashes or en-dashes. Use hyphens (-) or commas instead.
@@ -10310,10 +10433,11 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
       const content = response.choices[0]?.message?.content || "";
       const result = parseJsonFromContent(content);
       if (result) {
-        const sanitizedResult = sanitizeNarrativePII(result);
+        const scrubbedResult = sanitizeNarrativePII(result);
+        const payload = allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult;
         
         sendProgress(100, "Complete!", "complete");
-        sendEvent('result', sanitizedResult);
+        sendEvent('result', payload);
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       } else {

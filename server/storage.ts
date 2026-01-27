@@ -28,6 +28,8 @@ import {
   type InsertSuspensionLog,
   type PolicyDocument,
   type InsertPolicyDocument,
+  type InsertSystemLog,
+  type SystemLog,
   type BlockedIp,
   type InsertBlockedIp,
   type EmarRefusalReview,
@@ -52,6 +54,7 @@ import {
   sessionHistory,
   suspensionLogs,
   policyDocuments,
+  systemLogs,
   blockedIps,
   emarRefusalReviews,
   fileScanLogs,
@@ -169,6 +172,10 @@ export interface IStorage {
   getAllPolicyDocuments(): Promise<PolicyDocument[]>;
   updatePolicyDocument(id: string, doc: Partial<InsertPolicyDocument>): Promise<PolicyDocument | undefined>;
   deletePolicyDocument(id: string): Promise<void>;
+
+  // System Log operations
+  createSystemLog(log: InsertSystemLog): Promise<SystemLog>;
+  getSystemLogs(): Promise<SystemLog[]>;
 
   // Blocked IP operations
   blockIp(blockedIp: InsertBlockedIp): Promise<BlockedIp>;
@@ -888,6 +895,16 @@ export class DatabaseStorage implements IStorage {
 
   async deletePolicyDocument(id: string): Promise<void> {
     await this.db.delete(policyDocuments).where(eq(policyDocuments.id, id));
+  }
+
+  // System Log operations
+  async createSystemLog(log: InsertSystemLog): Promise<SystemLog> {
+    const result = await this.db.insert(systemLogs).values(log).returning();
+    return result[0];
+  }
+
+  async getSystemLogs(): Promise<SystemLog[]> {
+    return await this.db.select().from(systemLogs).orderBy(desc(systemLogs.createdAt));
   }
 
   // Blocked IP operations

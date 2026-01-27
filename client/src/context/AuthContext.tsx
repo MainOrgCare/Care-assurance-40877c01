@@ -29,7 +29,7 @@ interface AuthContextType {
   createUser: (username: string, password: string, role: string) => Promise<void>;
   fetchUsers: () => Promise<void>;
   refetchUser: () => Promise<void>;
-  logAction: (action: string, target: string, status?: "Authorized" | "Flagged" | "Blocked" | "System", alert?: string) => void;
+  logAction: (action: string, target: string, status?: "Authorized" | "Flagged" | "Blocked" | "System", alert?: string, details?: Record<string, any>) => void;
   auditLogs: any[];
   loading: boolean;
 }
@@ -40,12 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [auditLogs, setAuditLogs] = useState<any[]>([
-    { id: 1, user: "Nurse Sarah", action: "Viewed Profile", target: "Eleanor Rigby", time: "10:02 AM", status: "Authorized" },
-    { id: 2, user: "Nurse Sarah", action: "Updated Care Plan", target: "Eleanor Rigby", time: "10:15 AM", status: "Authorized" },
-    { id: 3, user: "Agency Staff Mark", action: "Attempted Unseal", target: "John Doe (Sealed)", time: "11:30 AM", status: "Flagged", alert: "Invalid Password" },
-    { id: 4, user: "Admin (System)", action: "Auto-Deletion", target: "Batch #441", time: "12:00 PM", status: "System" },
-  ]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -65,12 +60,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(userData);
         if (userData.role === "admin") {
           await fetchUsers();
+          await fetchSystemLogs();
         }
       }
     } catch (error) {
       console.error("Session check failed:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const mapSystemLog = (log: any) => {
+    const details = log?.details && typeof log.details === "object" ? log.details : {};
+    return {
+      id: log.id,
+      user: log.username || "Unknown",
+      action: details.action || log.eventType || "Action",
+      target: details.target || details.serviceUserInitials || log.serviceUserInitials || "System",
+      time: log.createdAt
+        ? new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      status: details.status || "System",
+      alert: details.alert,
+      createdAt: log.createdAt,
+    };
+  };
+
+  const fetchSystemLogs = async () => {
+    try {
+      const response = await fetch("/api/system-logs", {
+        credentials: "include",
+      });
+      if (response.ok) {
+        const logs = await response.json();
+        setAuditLogs(logs.map(mapSystemLog));
+      }
+    } catch (error) {
+      console.error("Failed to fetch system logs:", error);
     }
   };
 
@@ -104,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logAction = (action: string, target: string, status: "Authorized" | "Flagged" | "Blocked" | "System" = "Authorized", alert?: string) => {
+  const logAction = (action: string, target: string, status: "Authorized" | "Flagged" | "Blocked" | "System" = "Authorized", alert?: string, details?: Record<string, any>) => {
     const newLog = {
       id: Date.now(),
       user: user?.username || "Unknown",
@@ -115,6 +141,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       alert
     };
     setAuditLogs(prev => [newLog, ...prev]);
+    fetch("/api/system-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        eventType: "action",
+        action,
+        target,
+        status,
+        alert,
+        serviceUserInitials: details?.serviceUserInitials,
+        details,
+      }),
+    }).catch((error) => {
+      console.error("Failed to record system log:", error);
+    });
   };
 
   const login = async (username: string, password: string): Promise<boolean> => {
@@ -175,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (data.role === "admin") {
         await fetchUsers();
+        await fetchSystemLogs();
       }
 
       return true;
