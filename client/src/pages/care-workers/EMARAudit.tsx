@@ -21,6 +21,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 
 interface CareWorker {
   id: string;
@@ -458,6 +459,7 @@ const WARNING_SEVERITY_STYLES: Record<string, { card: string; badge: string; acc
 
 export default function EMARAudit() {
   const { user, logAction } = useAuth();
+  const isAdmin = user?.role === "admin";
   const { toast } = useToast();
   const { resetTimer } = useTemporaryData();
   const [file, setFile] = useState<File | null>(null);
@@ -471,6 +473,7 @@ export default function EMARAudit() {
   const [analyzed, setAnalyzed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<EmarAnalysisResult | null>(null);
+  const [allowSensitive, setAllowSensitive] = useState(false);
   const prevContentRef = useRef("");
   
   const [verificationChecks, setVerificationChecks] = useState<{ [key: number]: boolean }>({});
@@ -1115,6 +1118,7 @@ export default function EMARAudit() {
 
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("allowSensitive", isAdmin && allowSensitive ? "true" : "false");
 
       const response = await fetch(`/api/ai/analyze-emar`,
       {
@@ -1183,7 +1187,8 @@ export default function EMARAudit() {
               setResult(data);
               setAnalyzed(true);
               updateActiveRecord(record => ({ ...record, result: data, analyzed: true }));
-              logAction("EMAR Audit Completed", data?.serviceUserInitials || data?.serviceUserName || file?.name || "EMAR", "Authorized", undefined, {
+              const logName = formatServiceUserInitials(data?.serviceUserInitials || data?.serviceUserName);
+              logAction("EMAR Audit Completed", logName || file?.name || "EMAR", "Authorized", undefined, {
                 event: "emar_audit_completed",
                 fileName: file?.name,
                 serviceUserInitials: data?.serviceUserInitials,
@@ -1233,7 +1238,8 @@ export default function EMARAudit() {
               setResult(data);
               setAnalyzed(true);
               updateActiveRecord(record => ({ ...record, result: data, analyzed: true }));
-              logAction("EMAR Audit Completed", data?.serviceUserInitials || data?.serviceUserName || file?.name || "EMAR", "Authorized", undefined, {
+              const logName = formatServiceUserInitials(data?.serviceUserInitials || data?.serviceUserName);
+              logAction("EMAR Audit Completed", logName || file?.name || "EMAR", "Authorized", undefined, {
                 event: "emar_audit_completed",
                 fileName: file?.name,
                 serviceUserInitials: data?.serviceUserInitials,
@@ -1287,14 +1293,15 @@ export default function EMARAudit() {
     try {
       setLoading(true);
 
+      const resultForSave = (result as any)?.scrubbedResult || result;
       const auditData = {
-        serviceUserName: serviceUserDisplay,
+        serviceUserName: serviceUserDisplayScrubbed,
         auditor: user.username,
         auditType: "EMAR",
-        periodStart: result.auditPeriodStart,
-        periodEnd: result.auditPeriodEnd,
+        periodStart: resultForSave.auditPeriodStart,
+        periodEnd: resultForSave.auditPeriodEnd,
         results: {
-          ...result,
+          ...resultForSave,
           verificationResults: verificationChecks,
           prnProtocolResults: prnProtocolChecks,
           medicationLevelOverride,
@@ -1313,9 +1320,9 @@ export default function EMARAudit() {
 
       if (!auditRes.ok) throw new Error("Failed to save audit");
 
-      logAction("EMAR Audit Saved", serviceUserDisplay || "N.N.", "Authorized", undefined, {
+      logAction("EMAR Audit Saved", serviceUserDisplayScrubbed || "N.N.", "Authorized", undefined, {
         event: "emar_audit_saved",
-        serviceUserInitials: serviceUserDisplay || "N.N.",
+        serviceUserInitials: serviceUserDisplayScrubbed || "N.N.",
         auditPeriodStart: result?.auditPeriodStart,
         auditPeriodEnd: result?.auditPeriodEnd,
       });
@@ -1615,10 +1622,17 @@ ${generatedProtocol.additionalComments}`;
   };
 
   const auditorDisplay = getAuditorDisplay();
-  const serviceUserDisplay = useMemo(() => {
+  const serviceUserDisplayScrubbed = useMemo(() => {
     if (!result) return "N.N.";
     return formatServiceUserInitials(result.serviceUserInitials || result.serviceUserName);
   }, [result]);
+  const serviceUserDisplay = useMemo(() => {
+    if (!result) return "N.N.";
+    if (isAdmin && allowSensitive) {
+      return result.serviceUserName || serviceUserDisplayScrubbed;
+    }
+    return serviceUserDisplayScrubbed;
+  }, [result, isAdmin, allowSensitive, serviceUserDisplayScrubbed]);
 
   const hasAnyDiscrepancies = () => {
     const allDiscrepancies = getAllDiscrepancies();
@@ -2309,6 +2323,12 @@ ${generatedProtocol.additionalComments}`;
                   </Button>
                 )}
               </div>
+              {isAdmin && (
+                <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
+                  <span>Show full service user name (admin view). Saved audits use initials.</span>
+                </div>
+              )}
 
               {preflightError && (
                 <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">

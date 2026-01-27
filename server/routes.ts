@@ -831,6 +831,30 @@ function normalizeInitials(name: string | undefined | null): string {
   return 'N.N.';
 }
 
+const extractServiceUserFullName = (text: string): string => {
+  if (!text) return "";
+  const patterns = [
+    /Printed date\s+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)\s+CASE/i,
+    /\bCase\s*:\s*([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)\b/i,
+    /\bCase\s+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)\b/i,
+    /Service User(?: Name)?[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
+    /Resident(?: Name)?[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
+    /Patient(?: Name)?[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
+    /Client(?: Name)?[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
+    /Name[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const fullName = match[1].replace(/\s+/g, " ").trim();
+      if (/\bcase\s*id\b/i.test(fullName)) continue;
+      return fullName;
+    }
+  }
+  return "";
+};
+
 const extractJsonObject = (content: string): string | null => {
   const start = content.indexOf("{");
   if (start === -1) return null;
@@ -3312,6 +3336,10 @@ export async function registerRoutes(
       return res.status(400).json({ message: scanCheck.error });
     }
     
+    const allowSensitiveParam = String((req as any)?.body?.allowSensitive || "").toLowerCase();
+    const allowSensitiveView =
+      ["1", "true", "yes", "on"].includes(allowSensitiveParam) && user?.role === "admin";
+
     // User context for AI cost tracking
     const aiUserContext: AiUserContext = {
       userId: user?.id != null ? String(user.id) : null,
@@ -3387,6 +3415,7 @@ export async function registerRoutes(
       // STEP 1: Extract text from PDF (primary method while Vision API unavailable)
       let extracted: Awaited<ReturnType<typeof extractPdfTextWithPdfjs>> | null = null;
       let documentText = "";
+      let serviceUserFullName = "";
       try {
         // Reuse text extracted during the grid baseline pass (avoids parsing the PDF twice).
         if (
@@ -3416,6 +3445,11 @@ export async function registerRoutes(
         });
 
         documentText = extracted.text;
+        if (allowSensitiveView) {
+          serviceUserFullName =
+            extractServiceUserFullName(documentText) ||
+            extractServiceUserFullName(gridBaseline?.rawText || "");
+        }
         console.log(`DEBUG: Final extracted text: ${documentText.length} chars from PDF (pdfjs-dist)`);
       } catch (textError: any) {
         console.error("PDF text extraction failed:", textError);
@@ -4396,6 +4430,21 @@ ${correctionExamples}
                 : 'Agent extraction completed (no full consensus)'
             }
           };
+
+          const agentScrubbedResult = {
+            ...agentAnalysisResult,
+            serviceUserName: normalizeInitials(agentAnalysisResult.serviceUserInitials || agentAnalysisResult.serviceUserName),
+            serviceUserInitials: normalizeInitials(agentAnalysisResult.serviceUserInitials || agentAnalysisResult.serviceUserName),
+          };
+          const agentRawResult =
+            allowSensitiveView && serviceUserFullName
+              ? {
+                  ...agentAnalysisResult,
+                  serviceUserName: serviceUserFullName,
+                  serviceUserInitials: agentScrubbedResult.serviceUserInitials,
+                  scrubbedResult: agentScrubbedResult,
+                }
+              : null;
           
           console.log('Agent: Analysis complete -', {
             entries: agentEntries.length,
@@ -4406,7 +4455,7 @@ ${correctionExamples}
           
           // Send final result
           sendProgress(100, 'Analysis complete!', 'complete');
-          sendEvent('result', agentAnalysisResult);
+          sendEvent('result', agentRawResult || agentScrubbedResult);
           if (heartbeatInterval) clearInterval(heartbeatInterval);
           return res.end();
           
@@ -8555,6 +8604,21 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         }
       };
 
+      const scrubbedResult = {
+        ...result,
+        serviceUserName: normalizeInitials(result.serviceUserInitials || result.serviceUserName),
+        serviceUserInitials: normalizeInitials(result.serviceUserInitials || result.serviceUserName),
+      };
+      const rawResult =
+        allowSensitiveView && serviceUserFullName
+          ? {
+              ...result,
+              serviceUserName: serviceUserFullName,
+              serviceUserInitials: scrubbedResult.serviceUserInitials,
+              scrubbedResult,
+            }
+          : null;
+
       console.log("DEBUG: Count validation summary -", {
         medicationCountConsensus,
         agreedMedicationCount,
@@ -8566,7 +8630,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
 
       // Send final result and 100% progress
       sendProgress(100, "Analysis complete!", "complete");
-      sendEvent('result', result);
+      sendEvent('result', rawResult || scrubbedResult);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       return res.end();
       
