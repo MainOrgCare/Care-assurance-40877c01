@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, or, ilike } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
 const { Pool } = pkg;
@@ -182,6 +182,12 @@ export interface IStorage {
   // System Log operations
   createSystemLog(log: InsertSystemLog): Promise<SystemLog>;
   getSystemLogs(): Promise<SystemLog[]>;
+  getSystemLogsPaginated(options: {
+    page: number;
+    limit: number;
+    search?: string;
+    status?: string;
+  }): Promise<{ logs: SystemLog[]; total: number; page: number; totalPages: number }>;
 
   // Blocked IP operations
   blockIp(blockedIp: InsertBlockedIp): Promise<BlockedIp>;
@@ -924,6 +930,71 @@ export class DatabaseStorage implements IStorage {
 
   async getSystemLogs(): Promise<SystemLog[]> {
     return await this.db.select().from(systemLogs).orderBy(desc(systemLogs.createdAt));
+  }
+
+  async getSystemLogsPaginated(options: {
+    page: number;
+    limit: number;
+    search?: string;
+    status?: string;
+  }): Promise<{ logs: SystemLog[]; total: number; page: number; totalPages: number }> {
+    const { page, limit, search, status } = options;
+    const offset = (page - 1) * limit;
+
+    // Build conditions array
+    const conditions: any[] = [];
+
+    // Search filter - searches across username, eventType, and details (as text)
+    if (search && search.trim()) {
+      const searchPattern = `%${search.trim().toLowerCase()}%`;
+      conditions.push(
+        or(
+          ilike(systemLogs.username, searchPattern),
+          ilike(systemLogs.eventType, searchPattern),
+          ilike(systemLogs.serviceUserInitials, searchPattern),
+          sql`LOWER(${systemLogs.details}::text) LIKE ${searchPattern}`
+        )
+      );
+    }
+
+    // Status filter - searches within the details JSON
+    if (status && status !== "all") {
+      conditions.push(
+        sql`LOWER(${systemLogs.details}->>'status') = ${status.toLowerCase()}`
+      );
+    }
+
+    // Get total count with filters
+    const countQuery = this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(systemLogs);
+    
+    if (conditions.length > 0) {
+      countQuery.where(and(...conditions));
+    }
+    
+    const [{ count: total }] = await countQuery;
+
+    // Get paginated results
+    const logsQuery = this.db
+      .select()
+      .from(systemLogs)
+      .orderBy(desc(systemLogs.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    if (conditions.length > 0) {
+      logsQuery.where(and(...conditions));
+    }
+
+    const logs = await logsQuery;
+
+    return {
+      logs,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   // Blocked IP operations

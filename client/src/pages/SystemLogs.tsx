@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Terminal, RefreshCw } from "lucide-react";
+import { Terminal, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react";
+import { useDebounce } from "@/hooks/use-debounce";
 
 interface SystemLogEntry {
   id: string;
@@ -21,53 +22,60 @@ interface SystemLogEntry {
   createdAt: string;
 }
 
+interface PaginatedResponse {
+  logs: SystemLogEntry[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
 export default function SystemLogs() {
   const [logs, setLogs] = useState<SystemLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 10;
 
-  const fetchLogs = async () => {
+  const debouncedSearch = useDebounce(search, 300);
+
+  const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/system-logs", { credentials: "include" });
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: debouncedSearch,
+        status: statusFilter,
+      });
+      const response = await fetch(`/api/system-logs?${params}`, { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch system logs");
-      const data = await response.json();
-      setLogs(Array.isArray(data) ? data : []);
+      const data: PaginatedResponse = await response.json();
+      setLogs(data.logs || []);
+      setTotal(data.total || 0);
+      setTotalPages(data.totalPages || 1);
     } catch (error) {
       console.error("Failed to fetch system logs:", error);
+      setLogs([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, limit, debouncedSearch, statusFilter]);
 
   useEffect(() => {
     fetchLogs();
-  }, []);
+  }, [fetchLogs]);
 
-  const filteredLogs = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return logs.filter((log) => {
-      const details = log.details || {};
-      const action = (details.action || log.eventType || "").toLowerCase();
-      const target = (details.target || log.serviceUserInitials || "").toLowerCase();
-      const user = (log.username || "").toLowerCase();
-      const alert = (details.alert || "").toLowerCase();
-      const status = (details.status || "System").toLowerCase();
+  // Reset to page 1 when search or filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, statusFilter]);
 
-      const matchesSearch =
-        !query ||
-        action.includes(query) ||
-        target.includes(query) ||
-        user.includes(query) ||
-        alert.includes(query);
-
-      const matchesStatus =
-        statusFilter === "all" || status === statusFilter.toLowerCase();
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [logs, search, statusFilter]);
+  const goToPage = useCallback((newPage: number) => {
+    setPage(Math.max(1, Math.min(newPage, totalPages)));
+  }, [totalPages]);
 
   return (
     <div className="page-shell space-y-6">
@@ -90,14 +98,18 @@ export default function SystemLogs() {
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle>Filters</CardTitle>
-          <CardDescription>Search across action, target, user, or alert text.</CardDescription>
+          <CardDescription>Search across action, target, user, or alert text. Results update as you type.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-[2fr_1fr]">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search logs..."
-          />
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search logs..."
+              className="pl-9"
+            />
+          </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger>
               <SelectValue placeholder="Filter by status" />
@@ -117,10 +129,10 @@ export default function SystemLogs() {
         <CardHeader>
           <CardTitle>Activity Log</CardTitle>
           <CardDescription>
-            Showing {filteredLogs.length} of {logs.length} entries.
+            Showing {logs.length} of {total} entries (page {page} of {totalPages}).
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <Table>
             <TableHeader>
               <TableRow>
@@ -133,45 +145,100 @@ export default function SystemLogs() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLogs.map((log) => {
-                const details = log.details || {};
-                const status = details.status || "System";
-                const action = details.action || log.eventType || "Action";
-                const target = details.target || log.serviceUserInitials || "-";
-                return (
-                  <TableRow key={log.id}>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {new Date(log.createdAt).toLocaleString("en-GB", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </TableCell>
-                    <TableCell className="text-sm text-foreground">
-                      {log.username || "Unknown"}
-                    </TableCell>
-                    <TableCell className="text-sm text-foreground">{action}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{target}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{status}</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {details.alert || "-"}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {filteredLogs.length === 0 && (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <RefreshCw className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                  </TableCell>
+                </TableRow>
+              ) : logs.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">
                     No logs match your filters.
                   </TableCell>
                 </TableRow>
+              ) : (
+                logs.map((log) => {
+                  const details = log.details || {};
+                  const status = details.status || "System";
+                  const action = details.action || log.eventType || "Action";
+                  const target = details.target || log.serviceUserInitials || "-";
+                  return (
+                    <TableRow key={log.id}>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {new Date(log.createdAt).toLocaleString("en-GB", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </TableCell>
+                      <TableCell className="text-sm text-foreground">
+                        {log.username || "Unknown"}
+                      </TableCell>
+                      <TableCell className="text-sm text-foreground">{action}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{target}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{status}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {details.alert || "-"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-border pt-4">
+              <p className="text-sm text-muted-foreground">
+                Page {page} of {totalPages} ({total} total logs)
+              </p>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => goToPage(1)}
+                  disabled={page === 1 || loading}
+                  title="First page"
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => goToPage(page - 1)}
+                  disabled={page === 1 || loading}
+                  title="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="px-3 text-sm font-medium">{page}</span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => goToPage(page + 1)}
+                  disabled={page === totalPages || loading}
+                  title="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => goToPage(totalPages)}
+                  disabled={page === totalPages || loading}
+                  title="Last page"
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
