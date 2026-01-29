@@ -17,6 +17,7 @@ import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema, insertSystemLogSchema } from "@shared/schema";
 import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { emarAgent } from "./services/emarAgent";
+import { careWorkerRotaPayloadSchema, computeRotaSourceHash, rotaWeekdayEnum } from "./services/careWorkerRota";
 import multer from "multer";
 import mammoth from "mammoth";
 import { scanFile, computeFileHash, getCachedScan } from "./services/fileScan";
@@ -2810,61 +2811,6 @@ export async function registerRoutes(
 
   // ===== CARE WORKER ROTA ROUTES =====
 
-  const rotaWeekdayEnum = z.enum([
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-  ]);
-
-  const rotaEntrySchema = z.object({
-    key: z.string(),
-    serviceUserName: z.string().nullable().optional(),
-    callTypeLabel: z.string().nullable().optional(),
-    timeBandLabel: z.string().nullable().optional(),
-    requirementStartMinutes: z.number().nullable().optional(),
-    scheduledStartMinutes: z.number().nullable().optional(),
-    scheduledEndMinutes: z.number().nullable().optional(),
-    durationMinutes: z.number().nullable().optional(),
-    shiftMinutes: z.number().nullable().optional(),
-    isTimeCritical: z.boolean().optional(),
-    isDoubleUp: z.boolean().optional(),
-    windowStartMinutes: z.number().nullable().optional(),
-    windowEndMinutes: z.number().nullable().optional(),
-    isOutsideWindow: z.boolean().optional(),
-    hasWindowConflict: z.boolean().optional(),
-    suggestedStartMinutes: z.number().nullable().optional(),
-  });
-
-  const rotaOverrideSchema = z.object({
-    week1Days: z.array(rotaWeekdayEnum).default([]),
-    week2Days: z.array(rotaWeekdayEnum).default([]),
-    requirementStartMinutes: z.number().nullable().optional(),
-  });
-
-  const shiftBarSchema = z.object({
-    startMinutes: z.number().nullable().optional(),
-    endMinutes: z.number().nullable().optional(),
-    durationMinutes: z.number().nullable().optional(),
-  });
-
-  const careWorkerRotaPayloadSchema = z.object({
-    workerName: z.string().min(1),
-    workerKey: z.string().min(1),
-    templateWeek: z.enum(["week1", "week2"]),
-    templateDay: rotaWeekdayEnum,
-    workerStartMinutes: z.number().nullable().optional(),
-    workerEndMinutes: z.number().nullable().optional(),
-    timeCriticalWindowEnforced: z.boolean().default(false),
-    shiftBars: z.array(shiftBarSchema).default([]),
-    selectedGroupKeys: z.array(z.string()).default([]),
-    optimizedRun: z.array(rotaEntrySchema).default([]),
-    overrides: z.record(rotaOverrideSchema).default({}),
-  });
-
   const templateRecommendationQuerySchema = z.object({
     workerKey: z.string().min(1),
     templateWeek: z.enum(["week1", "week2"]),
@@ -2879,104 +2825,11 @@ export async function registerRoutes(
     groupKeys: z.array(z.string()).default([]),
   });
 
-  const sortKeysDeep = (value: any): any => {
-    if (Array.isArray(value)) {
-      return value.map(sortKeysDeep);
-    }
-    if (value && typeof value === "object") {
-      return Object.keys(value)
-        .sort()
-        .reduce<Record<string, any>>((acc, key) => {
-          acc[key] = sortKeysDeep(value[key]);
-          return acc;
-        }, {});
-    }
-    return value;
-  };
-
-  const normalizeRotaPayload = (payload: z.infer<typeof careWorkerRotaPayloadSchema>) => {
-    const overrides = Object.keys(payload.overrides)
-      .sort()
-      .reduce<Record<string, any>>((acc, key) => {
-        const override = payload.overrides[key];
-        acc[key] = {
-          week1Days: [...override.week1Days].sort(),
-          week2Days: [...override.week2Days].sort(),
-          requirementStartMinutes:
-            typeof override.requirementStartMinutes === "number" ? override.requirementStartMinutes : null,
-        };
-        return acc;
-      }, {});
-
-    const optimizedRun = [...payload.optimizedRun]
-      .map((entry) => ({
-        key: entry.key,
-        serviceUserName: entry.serviceUserName ?? null,
-        callTypeLabel: entry.callTypeLabel ?? null,
-        timeBandLabel: entry.timeBandLabel ?? null,
-        requirementStartMinutes:
-          typeof entry.requirementStartMinutes === "number" ? entry.requirementStartMinutes : null,
-        scheduledStartMinutes: typeof entry.scheduledStartMinutes === "number" ? entry.scheduledStartMinutes : null,
-        scheduledEndMinutes: typeof entry.scheduledEndMinutes === "number" ? entry.scheduledEndMinutes : null,
-        durationMinutes: typeof entry.durationMinutes === "number" ? entry.durationMinutes : null,
-        shiftMinutes: typeof entry.shiftMinutes === "number" ? entry.shiftMinutes : null,
-        isTimeCritical: Boolean(entry.isTimeCritical),
-        isDoubleUp: Boolean(entry.isDoubleUp),
-        windowStartMinutes: typeof entry.windowStartMinutes === "number" ? entry.windowStartMinutes : null,
-        windowEndMinutes: typeof entry.windowEndMinutes === "number" ? entry.windowEndMinutes : null,
-        isOutsideWindow: Boolean(entry.isOutsideWindow),
-        hasWindowConflict: Boolean(entry.hasWindowConflict),
-        suggestedStartMinutes: typeof (entry as any).suggestedStartMinutes === "number"
-          ? (entry as any).suggestedStartMinutes
-          : null,
-      }))
-      .sort((a, b) => a.key.localeCompare(b.key));
-
-    const shiftBars = [...payload.shiftBars]
-      .map((bar) => ({
-        startMinutes: typeof bar.startMinutes === "number" ? bar.startMinutes : null,
-        endMinutes: typeof bar.endMinutes === "number" ? bar.endMinutes : null,
-        durationMinutes: typeof bar.durationMinutes === "number" ? bar.durationMinutes : null,
-      }))
-      .sort((a, b) => {
-        const aStart = typeof a.startMinutes === "number" ? a.startMinutes : -1;
-        const bStart = typeof b.startMinutes === "number" ? b.startMinutes : -1;
-        if (aStart !== bStart) return aStart - bStart;
-        const aEnd = typeof a.endMinutes === "number" ? a.endMinutes : -1;
-        const bEnd = typeof b.endMinutes === "number" ? b.endMinutes : -1;
-        return aEnd - bEnd;
-      });
-
-    const selectedGroupKeys = Array.from(new Set(payload.selectedGroupKeys)).sort();
-
-    return {
-      workerKey: payload.workerKey,
-      templateWeek: payload.templateWeek,
-      templateDay: payload.templateDay,
-      timeCriticalWindowEnforced: Boolean(payload.timeCriticalWindowEnforced),
-      workerStartMinutes:
-        typeof (payload as any).workerStartMinutes === "number"
-          ? (payload as any).workerStartMinutes
-          : null,
-      workerEndMinutes:
-        typeof (payload as any).workerEndMinutes === "number"
-          ? (payload as any).workerEndMinutes
-          : null,
-      shiftBars,
-      selectedGroupKeys,
-      overrides,
-      optimizedRun,
-    };
-  };
-
   // Save care worker rota (admin only)
   app.post("/api/admin/care-worker-rotas", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
     try {
       const payload = careWorkerRotaPayloadSchema.parse(req.body);
-      const normalized = normalizeRotaPayload(payload);
-      const sourceHash = createHash("sha256")
-        .update(JSON.stringify(sortKeysDeep(normalized)))
-        .digest("hex");
+      const sourceHash = computeRotaSourceHash(payload);
 
       const { rota, deduped } = await storage.upsertCareWorkerRota({
         workerName: payload.workerName,
@@ -3031,10 +2884,7 @@ export async function registerRoutes(
       }
 
       const payload = careWorkerRotaPayloadSchema.parse(req.body);
-      const normalized = normalizeRotaPayload(payload);
-      const sourceHash = createHash("sha256")
-        .update(JSON.stringify(sortKeysDeep(normalized)))
-        .digest("hex");
+      const sourceHash = computeRotaSourceHash(payload);
 
       // If the new hash already exists on a different record, surface that record instead of erroring.
       const duplicate = await storage.getCareWorkerRotaByHash(sourceHash);

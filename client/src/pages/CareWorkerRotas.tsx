@@ -137,10 +137,26 @@ export default function CareWorkerRotas() {
       const response = await fetch(`/api/admin/care-worker-rotas${query}`, {
         credentials: "include",
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Unable to load care worker rotas.");
+
+      let data: any = null;
+      let rawText = "";
+      try {
+        data = await response.clone().json();
+      } catch {
+        rawText = await response
+          .clone()
+          .text()
+          .catch(() => "");
       }
+
+      if (!response.ok) {
+        const message =
+          (typeof data?.message === "string" && data.message.trim()) ||
+          rawText.trim() ||
+          `Unable to load care worker rotas (HTTP ${response.status}).`;
+        throw new Error(message);
+      }
+
       setRotas(Array.isArray(data) ? data : []);
     } catch (error: any) {
       toast({
@@ -329,9 +345,24 @@ export default function CareWorkerRotas() {
           templateDay: selectedRota.templateDay as string,
         }),
       });
-      const result = await response.json();
+
+      let result: any = null;
+      let rawText = "";
+      try {
+        result = await response.clone().json();
+      } catch {
+        rawText = await response
+          .clone()
+          .text()
+          .catch(() => "");
+      }
+
       if (!response.ok) {
-        throw new Error(result.message || "Unable to update rota.");
+        const message =
+          (typeof result?.message === "string" && result.message.trim()) ||
+          rawText.trim() ||
+          `Unable to update rota (HTTP ${response.status}).`;
+        throw new Error(message);
       }
 
       const updatedRota: CareWorkerRotaRecord = result.rota;

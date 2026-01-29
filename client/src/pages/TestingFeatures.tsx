@@ -17,9 +17,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
 import {
   Accordion,
   AccordionContent,
@@ -542,6 +544,12 @@ export default function TestingFeatures() {
   const analysisJobRef = useRef<number>(0);
   const dragCounterRef = useRef(0);
   const showGlobalProgress = processingState === "parsing" || processingState === "analyzing";
+
+  const scrollToAnchor = useCallback((anchorId: string) => {
+    const target = document.getElementById(anchorId);
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   useEffect(() => {
     setVisibleCount(INITIAL_VISIBLE_ROWS);
@@ -3859,8 +3867,14 @@ export default function TestingFeatures() {
     );
   }
 
+  const workbookNavDisabled = analysisResults.length === 0;
+  const kpiNavDisabled = analysisResults.length === 0;
+  const insightsNavDisabled = analysisResults.length === 0;
+  const studioNavDisabled = careWorkerRosters.length === 0;
+  const stacksNavDisabled = serviceUserStacks.length === 0;
+
   return (
-    <div className="page-shell">
+    <div className="page-shell max-w-7xl mx-auto">
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-primary">
           <FlaskConical className="h-5 w-5" />
@@ -3880,6 +3894,66 @@ export default function TestingFeatures() {
         </AlertDescription>
       </Alert>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick navigation</CardTitle>
+          <CardDescription>Jump between workbook tools, KPIs, and insights.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={workbookNavDisabled}
+              onClick={() => scrollToAnchor("tf-workbook")}
+            >
+              Workbook
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={kpiNavDisabled}
+              onClick={() => scrollToAnchor("tf-kpi")}
+            >
+              KPI
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={insightsNavDisabled}
+              onClick={() => scrollToAnchor("tf-insights")}
+            >
+              Insights
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={studioNavDisabled}
+              onClick={() => scrollToAnchor("tf-studio")}
+            >
+              Studio
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={stacksNavDisabled}
+              onClick={() => scrollToAnchor("tf-stacks")}
+            >
+              Stacks
+            </Button>
+          </div>
+          <Separator />
+          <p className="text-xs text-muted-foreground">
+            Tip: sections appear as data is loaded (some anchors may not exist yet).
+          </p>
+        </CardContent>
+      </Card>
+
       {showGlobalProgress && (
         <div className="z-30 mb-6">
           <div className="rounded-full h-2 bg-border/50 overflow-hidden">
@@ -3892,9 +3966,10 @@ export default function TestingFeatures() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <section id="tf-workbook" className="scroll-mt-24 space-y-6">
+        <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Upload Workbook</CardTitle>
               <CardDescription>Accepted formats: CSV, XLS, XLSX</CardDescription>
@@ -3967,12 +4042,12 @@ export default function TestingFeatures() {
         <Card>
           <CardHeader>
             <CardTitle>Analysis Progress</CardTitle>
-              <CardDescription>
-                {processingState === "analyzing" && "Crunching rows in batches"}
-                {processingState === "parsing" && "Preparing workbook"}
-                {processingState === "complete" && "Analysis finished"}
-                {processingState === "idle" && "Awaiting upload"}
-              </CardDescription>
+            <CardDescription>
+              {processingState === "analyzing" && "Crunching rows in batches"}
+              {processingState === "parsing" && "Preparing workbook"}
+              {processingState === "complete" && "Analysis finished"}
+              {processingState === "idle" && "Awaiting upload"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between text-sm">
@@ -3999,9 +4074,9 @@ export default function TestingFeatures() {
             <div className="pt-3 border-t border-border/60 space-y-2">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Metrics filters</p>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <label htmlFor="toggle-include-cancelled" className="font-medium">
+                <Label htmlFor="toggle-include-cancelled" className="font-medium">
                   Include cancelled calls
-                </label>
+                </Label>
                 <Switch
                   id="toggle-include-cancelled"
                   checked={includeCancelledCalls}
@@ -4009,9 +4084,9 @@ export default function TestingFeatures() {
                 />
               </div>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <label htmlFor="toggle-include-mismatch" className="font-medium">
+                <Label htmlFor="toggle-include-mismatch" className="font-medium">
                   Include mismatched carers
-                </label>
+                </Label>
                 <Switch
                   id="toggle-include-mismatch"
                   checked={includeMismatchedWorkers}
@@ -4021,9 +4096,15 @@ export default function TestingFeatures() {
             </div>
           </CardContent>
         </Card>
-      </div>
+        </div>
+      </section>
 
-      <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <section id="tf-kpi" className="scroll-mt-24 space-y-6">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold text-foreground">KPI</h2>
+          <p className="text-sm text-muted-foreground">Snapshot of key totals and alerts.</p>
+        </div>
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <MetricCard
           icon={<FileSpreadsheet className="h-4 w-4" />}
           label="Total Rows"
@@ -4065,7 +4146,14 @@ export default function TestingFeatures() {
           value={summary.durationAlerts.toLocaleString()}
           helper="Under 80% or over 120%"
         />
-      </div>
+        </div>
+      </section>
+
+      <section id="tf-insights" className="scroll-mt-24 space-y-6">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold text-foreground">Insights</h2>
+          <p className="text-sm text-muted-foreground">Deeper diagnostics once data is loaded.</p>
+        </div>
 
       {analysisResults.length > 0 && healthSummary && (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -4295,7 +4383,7 @@ export default function TestingFeatures() {
           )}
 
           {careWorkerRosters.length > 0 && (
-            <AccordionItem value="care-worker-route-optimizer" className="mb-4 rounded-2xl border border-border/70 bg-card px-5 shadow-sm border-b-0">
+            <AccordionItem id="tf-studio" value="care-worker-route-optimizer" className="scroll-mt-24 mb-4 rounded-2xl border border-border/70 bg-card px-5 shadow-sm border-b-0">
               <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline">Rostering Studio</AccordionTrigger>
               <AccordionContent className="relative">
                 {rosteringFullscreen && (
@@ -5507,8 +5595,8 @@ export default function TestingFeatures() {
           )}
 
           {serviceUserStacks.length > 0 && (
-            <AccordionItem value="service-user-call-stacks">
-              <AccordionTrigger>Service User Call Stacks</AccordionTrigger>
+            <AccordionItem id="tf-stacks" value="service-user-call-stacks" className="scroll-mt-24 mb-4 rounded-2xl border border-border/70 bg-card px-5 shadow-sm border-b-0">
+              <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline">Service User Call Stacks</AccordionTrigger>
               <AccordionContent>
                 <Card>
                   <CardHeader className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -5534,9 +5622,9 @@ export default function TestingFeatures() {
                           checked={excludeOfficeStaffFromPdf}
                           onCheckedChange={setExcludeOfficeStaffFromPdf}
                         />
-                        <label htmlFor="toggle-office-staff-pdf" className="font-medium">
+                        <Label htmlFor="toggle-office-staff-pdf" className="font-medium">
                           Exclude office staff from PDF
-                        </label>
+                        </Label>
                       </div>
                       <Button
                         type="button"
@@ -5967,6 +6055,8 @@ export default function TestingFeatures() {
           )}
         </Accordion>
       )}
+
+      </section>
 
     </div>
   );
