@@ -68,40 +68,41 @@ export default function EmailAssistant() {
 
   return (
     <div className="page-shell max-w-5xl mx-auto">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-heading font-bold" style={{ color: '#0f172a' }}>Email Professionalizer</h2>
-        <p style={{ color: '#64748b' }}>Turn rough notes into polished, professional correspondence instantly.</p>
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
+        <div className="space-y-1">
+          <h1 className="page-title leading-tight">Email Intelligence</h1>
+          <p className="page-subtitle">Refine raw care notes into professional, high-fidelity correspondence.</p>
+        </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-8 h-full">
+      <div className="grid lg:grid-cols-2 gap-8 mt-6 h-full animate-slide-up stagger-2">
         {/* Input Section */}
-        <Card className="flex flex-col h-full shadow-sm" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2" style={{ color: '#0f172a' }}>
-              <span className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#f1f5f9', color: '#64748b' }}>1</span>
-              Draft Your Message
+        <Card className="glass-card flex flex-col h-full overflow-hidden">
+          <CardHeader className="border-b border-border/40 pb-6">
+            <CardTitle className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center border border-border/60 text-[10px] font-black">1</div>
+              Draft Input
             </CardTitle>
-            <CardDescription style={{ color: '#64748b' }}>
-              Enter your bullet points, rough notes, or draft text here.
+            <CardDescription className="text-xs font-medium">
+              Enter rough bullet points or conversational notes below.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex-1 min-h-[300px]">
+          <CardContent className="flex-1 min-h-[400px] pt-6">
             <Textarea 
               placeholder="e.g. update Sarah about missing medication logs, request an update by Friday, and check in on how her holiday went."
-              className="h-full resize-none p-4 text-base"
-              style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', color: '#0f172a' }}
+              className="h-full resize-none p-5 text-sm font-medium leading-relaxed bg-muted/20 border-border/40 rounded-2xl"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
             />
           </CardContent>
-          <CardFooter className="flex flex-col sm:flex-row gap-4 p-4" style={{ borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-             <div className="flex items-center gap-2 w-full">
-               <Label className="text-xs whitespace-nowrap" style={{ color: '#64748b' }}>Tone:</Label>
+          <CardFooter className="flex flex-col gap-4 p-5 bg-muted/20 border-t border-border/40">
+             <div className="flex items-center gap-4 w-full">
+               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground whitespace-nowrap">Tone Selection:</Label>
                <Tabs defaultValue="professional" value={tone} onValueChange={setTone} className="w-full">
-                <TabsList className="w-full grid grid-cols-3">
-                  <TabsTrigger value="professional">Professional</TabsTrigger>
-                  <TabsTrigger value="direct">Direct</TabsTrigger>
-                  <TabsTrigger value="empathetic">Empathetic</TabsTrigger>
+                <TabsList className="w-full grid grid-cols-3 bg-background/50 border border-border/60 rounded-xl p-1 h-10">
+                  <TabsTrigger value="professional" className="rounded-lg font-bold text-[10px] uppercase">Professional</TabsTrigger>
+                  <TabsTrigger value="direct" className="rounded-lg font-bold text-[10px] uppercase">Direct</TabsTrigger>
+                  <TabsTrigger value="empathetic" className="rounded-lg font-bold text-[10px] uppercase">Empathetic</TabsTrigger>
                 </TabsList>
               </Tabs>
              </div>
@@ -110,53 +111,58 @@ export default function EmailAssistant() {
 
         {/* Output Section */}
         <div className="flex flex-col gap-4 h-full">
-           <div className="flex justify-center items-center h-12 lg:hidden">
-              <Button size="icon" variant="ghost" onClick={handleRewrite}>
-                 <ArrowRightLeft className="rotate-90" />
-              </Button>
-           </div>
-           
-           <Card className="flex flex-col h-full shadow-md transition-all duration-500" style={{ backgroundColor: outputText ? '#ffffff' : '#f8fafc', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-            <CardHeader className="pb-4" style={{ backgroundColor: 'rgba(59, 130, 246, 0.05)', borderBottom: '1px solid rgba(59, 130, 246, 0.1)' }}>
+           <Card className={cn(
+             "glass-card flex flex-col h-full overflow-hidden transition-all duration-700",
+             outputText ? "border-primary/30 shadow-primary/5" : "opacity-80"
+           )}>
+            <CardHeader className="border-b border-border/40 pb-6 bg-primary/5">
               <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2" style={{ color: '#3b82f6' }}>
-                  <Sparkles size={18} /> Polished Output
+                <CardTitle className="flex items-center gap-3 text-primary">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Sparkles size={16} />
+                  </div>
+                  Polished Intelligence
                 </CardTitle>
                 {outputText && (
-                  <Badge variant="outline" style={{ backgroundColor: '#ffffff', color: '#3b82f6', borderColor: 'rgba(59, 130, 246, 0.2)' }}>
-                    Ready to Send
+                  <Badge className="bg-primary/15 text-primary border-primary/20 rounded-lg font-black text-[10px] tracking-widest px-2.5">
+                    OPTIMIZED
                   </Badge>
                 )}
               </div>
             </CardHeader>
-            <CardContent className="flex-1 p-0 relative">
-              {isProcessing ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center backdrop-blur-sm z-10" style={{ backgroundColor: 'rgba(255, 255, 255, 0.5)' }}>
-                  <RefreshCw className="h-8 w-8 animate-spin mb-4" style={{ color: '#3b82f6' }} />
-                  <p className="text-sm font-medium animate-pulse" style={{ color: '#64748b' }}>Refining language...</p>
+            <CardContent className="flex-1 p-0 relative min-h-[400px]">
+              {isProcessing && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center glass-card z-10 border-0 rounded-none bg-background/60 backdrop-blur-md">
+                  <div className="relative">
+                    <RefreshCw className="h-10 w-10 animate-spin text-primary opacity-30" />
+                    <Sparkles className="h-5 w-5 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary mt-6">Reconstructing Language...</p>
                 </div>
-              ) : null}
+              )}
               
               <Textarea 
                 readOnly
-                className="h-full w-full resize-none border-0 focus-visible:ring-0 p-6 text-base leading-relaxed bg-transparent"
-                style={{ color: '#0f172a' }}
-                placeholder={isProcessing ? "" : "Your polished email will appear here..."}
+                className="h-full w-full resize-none border-0 focus-visible:ring-0 p-8 text-sm font-medium leading-relaxed bg-transparent text-foreground"
+                placeholder={isProcessing ? "" : "Synthesized professional correspondence will appear here."}
                 value={outputText}
               />
             </CardContent>
-            <CardFooter className="p-4 flex gap-3" style={{ borderTop: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
+            <CardFooter className="p-5 flex gap-4 bg-background border-t border-border/40">
               <Button 
                 onClick={handleRewrite} 
-                className="flex-1 text-white" 
-                style={{ backgroundColor: '#3b82f6' }}
+                className="flex-1 h-12 rounded-xl font-bold tracking-tight shadow-glow group"
                 disabled={isProcessing}
               >
-                {outputText ? <><RefreshCw className="mr-2 h-4 w-4"/> Try Again</> : <><Sparkles className="mr-2 h-4 w-4"/> Rewrite Magic</>}
+                {outputText ? (
+                  <><RefreshCw className="mr-2.5 h-4 w-4 group-hover:rotate-180 transition-transform duration-700"/> RE-REWRITE</>
+                ) : (
+                  <><Sparkles className="mr-2.5 h-4 w-4 animate-pulse"/> REWRITE magic</>
+                )}
               </Button>
               {outputText && (
-                <Button variant="outline" onClick={copyToClipboard} style={{ borderColor: '#e2e8f0', color: '#334155' }}>
-                  <Copy className="mr-2 h-4 w-4" /> Copy
+                <Button variant="outline" onClick={copyToClipboard} className="h-12 px-6 rounded-xl border-border/60 font-bold tracking-tight hover:bg-muted/50 transition-all">
+                  <Copy className="mr-2.5 h-4 w-4" /> COPY
                 </Button>
               )}
             </CardFooter>

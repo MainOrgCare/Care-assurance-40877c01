@@ -667,28 +667,30 @@ export default function RiskAssessment() {
   // Step 3: Ready to analyze
   if (step === "analyze") {
     return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div>
-          <h2 className="text-3xl font-heading font-bold text-foreground">Risk Assessment</h2>
-          <p className="text-muted-foreground mt-2">
-            Analyze uploaded documents to identify required risk assessments.
+      <div className="page-shell animate-fade-in">
+        <div className="space-y-1">
+          <h1 className="page-title">Neural Risk Profiling</h1>
+          <p className="page-subtitle max-w-2xl">
+            Synthesizing clinical documentation to identify risk vectors and mandatory assessment frameworks.
           </p>
           {isAdmin && (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            <div className="mt-4 inline-flex items-center gap-3 rounded-xl border border-border/40 bg-muted/20 px-4 py-2 text-xs font-bold text-muted-foreground">
               <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
-              <span>Show full names (admin view). Copies use initials only.</span>
+              <span className="uppercase tracking-tighter">Extended Identity Access (Admin Only)</span>
             </div>
           )}
         </div>
 
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="text-blue-400" />
-              Documents Ready for Analysis
+        <Card className="glass-card shadow-medium animate-slide-up stagger-2">
+          <CardHeader className="border-b border-border/40 pb-6 mb-2">
+            <CardTitle className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-xs">
+                <FileText className="h-5 w-5" />
+              </div>
+              Payload Validation
             </CardTitle>
             <CardDescription>
-              The following documents will be analyzed to identify service user risks and required assessments.
+              Confirm the integrity of extracted documentation before executing risk synthesis.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -794,17 +796,16 @@ export default function RiskAssessment() {
     const mandatorySkipped = getMandatoryNotSelected();
 
     return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div>
-          <h2 className="text-3xl font-heading font-bold text-foreground">Select Risk Assessments</h2>
-          <p className="text-muted-foreground mt-2">
-            Based on the documents, we recommend the following assessments for{" "}
-            <span className="text-foreground font-medium">{analysis.serviceUser.initials}</span>
+      <div className="page-shell animate-fade-in">
+        <div className="space-y-1">
+          <h1 className="page-title">Risk Framework Selection</h1>
+          <p className="page-subtitle max-w-2xl">
+            Consensus recommendations for <span className="text-foreground font-black tracking-tight">{analysis.serviceUser.initials}</span> based on multi-document neural analysis.
           </p>
           {isAdmin && (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            <div className="mt-4 inline-flex items-center gap-3 rounded-xl border border-border/40 bg-muted/20 px-4 py-2 text-xs font-bold text-muted-foreground">
               <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
-              <span>Show full names (admin view). Copies use initials only.</span>
+              <span className="uppercase tracking-tighter">Extended Identity Access (Admin Only)</span>
             </div>
           )}
         </div>

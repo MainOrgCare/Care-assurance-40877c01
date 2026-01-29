@@ -25,7 +25,7 @@ type TableStructureInfo = {
   detectedDatesOnSameLine?: number;
 };
 
-const AGENT_MODEL = "gpt-4o-mini";
+const AGENT_MODEL = "gpt-4.1-mini";
 const MIN_TEXT_CHARS = 180000;
 const MAX_TEXT_CHARS_CAP = 360000;
 const MIN_EXPECTED_ENTRIES = 600;
@@ -347,28 +347,73 @@ const resolveTimeSlot = (timeSlot: string, time: string, timeSlots: string[]): s
   return "";
 };
 
-const deduplicateEntries = (entries: any[]): any[] => {
-  const bestByKey = new Map<string, any>();
-  for (const entry of entries) {
-    const key = `${entry.medicationId}|${String(entry.date || "").toLowerCase()}|${String(entry.timeSlot || "").toLowerCase()}|${String(entry.code || "").toLowerCase()}`;
-    const existing = bestByKey.get(key);
-    if (!existing) {
-      bestByKey.set(key, entry);
-      continue;
-    }
-    if (entry.hasTime && !existing.hasTime) {
-      bestByKey.set(key, entry);
-      continue;
-    }
-    if (entry.careWorkerInitials && !existing.careWorkerInitials) {
-      bestByKey.set(key, entry);
-      continue;
-    }
-    if (String(entry.code || "").length > String(existing.code || "").length) {
-      bestByKey.set(key, entry);
+
+const reconcileConsensusEntries = (passResults: any[][]): any[] => {
+  if (passResults.length === 0) return [];
+  if (passResults.length === 1) return passResults[0];
+
+  const grouped = new Map<string, any[]>();
+  for (let i = 0; i < passResults.length; i++) {
+    const pass = passResults[i];
+    for (const entry of pass) {
+      const key = `${entry.medicationId}|${String(entry.date || "").toLowerCase()}|${String(entry.timeSlot || "").toLowerCase()}`;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(entry);
     }
   }
-  return Array.from(bestByKey.values());
+
+  const finalEntries: any[] = [];
+  const CODE_SAFETY_PRIORITY: Record<string, number> = {
+    "R": 100,
+    "PRN-R": 100,
+    "MISSED": 95,
+    "MU": 90,
+    "NH": 80,
+    "SA": 75,
+    "FA": 75,
+    "AD": 50,
+    "AS": 50,
+    "PRN-AD": 50,
+    "PRN-AS": 50,
+    "PRN": 40,
+    "P": 30,
+    "N/A": 10,
+  };
+
+  for (const [key, variants] of Array.from(grouped.entries())) {
+    const voteCount = new Map<string, number>();
+    for (const v of variants) {
+      const vKey = String(v.code || "BLANK").toUpperCase();
+      voteCount.set(vKey, (voteCount.get(vKey) || 0) + 1);
+    }
+
+    let winnerCode = "";
+    let maxVotes = 0;
+    for (const [code, count] of Array.from(voteCount.entries())) {
+      if (count > maxVotes) {
+        maxVotes = count;
+        winnerCode = code;
+      } else if (count === maxVotes) {
+        // Tie-breaker: safety critical codes first
+        const p1 = CODE_SAFETY_PRIORITY[winnerCode] || 0;
+        const p2 = CODE_SAFETY_PRIORITY[code] || 0;
+        if (p2 > p1) winnerCode = code;
+      }
+    }
+
+    // Pick the best example of this code from the variants
+    const bestVariant = variants
+      .filter((v) => String(v.code || "").toUpperCase() === winnerCode)
+      .sort((a, b) => {
+        const scoreA = (a.hasTime ? 2 : 0) + (a.careWorkerInitials ? 1 : 0);
+        const scoreB = (b.hasTime ? 2 : 0) + (b.careWorkerInitials ? 1 : 0);
+        return scoreB - scoreA;
+      })[0];
+
+    if (bestVariant) finalEntries.push(bestVariant);
+  }
+
+  return finalEntries;
 };
 
 const buildTableContext = (tableStructure: TableStructureInfo | null): string => {
@@ -388,33 +433,35 @@ const buildTableContext = (tableStructure: TableStructureInfo | null): string =>
 `;
 };
 
-const buildMetadataPrompt = (tableContext: string, correctionsContext: string) => `You are an EMAR (Electronic Medication Administration Record) data extractor.
+const buildMetadataPrompt = (tableContext: string, correctionsContext: string) => `You are an EMAR (Electronic Medication Administration Record) data extractor specialized in UK healthcare records.
 ${tableContext}${correctionsContext}
-Extract ONLY metadata from the document text. Return a JSON object with this exact structure:
+
+Extract metadata from the document text. The document may contain multiple pages.
+Return a JSON object with this structure:
 {
   "serviceUserInitials": "F.O.",
   "allergies": "No known allergies",
   "medications": [
     {
-      "name": "Paracetamol 500mg Tablets",
-      "genericName": "paracetamol",
+      "name": "FULL MEDICATION NAME AND STRENGTH",
+      "genericName": "generic name",
       "isPRN": true,
-      "instructions": "Take 1-2 tablets every 4-6 hours as needed",
+      "instructions": "Full administration instructions including route",
       "requiredGapHours": 4,
-      "scheduledTimeSlots": ["08:00-09:00", "20:30-21:00"]
+      "scheduledTimeSlots": ["list of relevant slots"]
     }
   ],
-  "dates": ["Sun, 30 Nov", "Mon, 01 Dec"],
-  "timeSlots": ["08:00-09:00", "12:00-12:30", "16:00-16:30", "20:30-21:00"]
+  "dates": ["list of all unique dates as columns in the record"],
+  "timeSlots": ["all unique time slot headers found"]
 }
 
-Rules:
-1. serviceUserInitials: Convert the service user name to initials with dots (e.g., "Freda O'Neill" -> "F.O.").
-2. allergies: Use "No known allergies" if none visible.
-3. medications: Include every medication row visible, with strength/form if shown.
-4. isPRN: true ONLY if instructions contain PRN/as required/as needed wording.
-5. requiredGapHours: use 4 as default if not explicit.
-6. scheduledTimeSlots: list only time slots that apply to that medication.`;
+CRITICAL RULES:
+1. serviceUserInitials: Convert "Freda O'Neill" -> "F.O.". Ensure initials are followed by dots.
+2. medications: Be exhaustive. Scan EVERY page. Include strength (e.g., 500mg) and form (e.g., Tablets).
+3. isPRN: True if instructions mention "PRN", "as required", "when needed", etc.
+4. instructions: Capture EVERYTHING in the medication label area, including "Route Oral", "Apply thin layer", etc.
+5. scheduledTimeSlots: For each medication, identify which time slots have grid boxes for administration.
+6. dates: Extract ALL dates that appear as column headers in the grid. Format them exactly as they appear (e.g., "Sun, 30 Nov").`;
 
 const buildEntriesPrompt = (
   medList: string,
@@ -422,11 +469,14 @@ const buildEntriesPrompt = (
   timeSlots: string[],
   tableContext: string,
   correctionsContext: string
-) => `You are an EMAR data extractor. Extract administration entries ONLY for the medications listed.
+) => `You are an EMAR data extractor. Your task is to extract administration entries for specific medications from a grid-based record.
+
 ${tableContext}${correctionsContext}
-MEDICATIONS TO FIND (use exact medicationId in output):
+
+TARGET MEDICATIONS (use exact medicationId in output):
 ${medList}
 
+GRID DIMENSIONS:
 DATES: ${dates.join(", ")}
 TIME SLOTS: ${timeSlots.join(", ")}
 
@@ -438,14 +488,14 @@ Return JSON with this exact structure:
   ]
 }
 
-Rules:
-1. Only include entries that clearly map to a date column and time slot.
-2. Always include R/MU/NH/SA/FA entries (non-administration codes are critical).
-3. hasTime true only when a specific admin time is recorded (not the time-slot range).
-4. If medication is PRN and there is no time recorded, use PRN-R for refusals.
-5. Care worker initials are typically 2 letters; leave empty if not present.
-6. isOfficeClosed is true ONLY if explicitly stated in the document.
-7. If the time slot is unclear but the date/code/initials are present, KEEP the entry and set timeSlot to "UNSPECIFIED". Never drop an entry just because time slot is missing.`;
+EXTRACTION RULES:
+1. MAP TO GRID: Each entry must correspond to a specific (medication, date, timeSlot) intersection in the grid.
+2. NON-ADMINISTRATION CODES ARE VITAL: Always capture R (Refused), MU (Medication Unavailable), NH (Not Home), SA (Self Admin), FA (Family Admin).
+3. BLANK CELLS: If a cell is blank and it's a scheduled dose (non-PRN), it's a MISSING entry. Use "MISSED" as code.
+4. PRN DOSES: For PRN medications, only include entries if there is a code, time, or signature. If the box is empty for a PRN med, do NOT create an entry.
+5. TIME: Only set "hasTime" true and provide "time" if an actual administration time (e.g., 08:45) is handwritten or typed in the box, distinct from the slot header.
+6. INITIALS: Capture the 2 or 3 letter care worker initials if present.
+7. AMBIGUITY: If you see a code like "AD" or a signature but the exact time slot is hard to determine, use the most likely slot and set timeSlot to "UNSPECIFIED" if truly impossible to map.`;
 
 export const emarAgent = {
   async extract(
@@ -674,24 +724,38 @@ export const emarAgent = {
     const tableContext = buildTableContext(tableStructure as TableStructureInfo);
     const metadataPrompt = buildMetadataPrompt(tableContext, correctionsContext);
 
-    const metadataResponse = await createChatCompletionWithLogging(
-      {
-        model: AGENT_MODEL,
-        messages: [
-          { role: "system", content: metadataPrompt },
-          { role: "user", content: `Extract metadata from this EMAR document:\n\n${rawText}` },
-        ],
-        temperature: 0,
-        max_completion_tokens: 2000,
-        seed: DETERMINISTIC_SEED,
-        response_format: { type: "json_object" },
-      },
-      "emar_agent_metadata",
-      aiUserContext
-    );
+    const runMetadataPass = async (passIndex: number) => {
+      const response = await createChatCompletionWithLogging(
+        {
+          model: AGENT_MODEL,
+          messages: [
+            { role: "system", content: metadataPrompt },
+            { role: "user", content: `Extract metadata from this EMAR document:\n\n${rawText}` },
+          ],
+          temperature: passIndex === 0 ? 0 : 0.1,
+          max_completion_tokens: 2000,
+          seed: passIndex === 0 ? DETERMINISTIC_SEED : undefined,
+          response_format: { type: "json_object" },
+        },
+        `emar_agent_metadata_pass${passIndex + 1}`,
+        aiUserContext
+      );
+      const content = response.choices[0]?.message?.content || "{}";
+      return parseJsonFromContent(content) || {};
+    };
 
-    const metadataContent = metadataResponse.choices[0]?.message?.content || "{}";
-    const metadataParsed = parseJsonFromContent(metadataContent) || {};
+    console.log("EMAR Agent: Running 2-pass metadata extraction...");
+    const [meta1, meta2] = await Promise.all([runMetadataPass(0), runMetadataPass(1)]);
+
+    const metadataParsed = {
+      ...meta1,
+      ...meta2,
+      serviceUserInitials: meta1.serviceUserInitials || meta2.serviceUserInitials,
+      allergies: meta1.allergies || meta2.allergies,
+      medications: [...(meta1.medications || []), ...(meta2.medications || [])],
+      dates: uniqueStrings([...(meta1.dates || []), ...(meta2.dates || [])]),
+      timeSlots: uniqueStrings([...(meta1.timeSlots || []), ...(meta2.timeSlots || [])]),
+    };
 
     const serviceUserInitialsRaw = String(
       metadataParsed.serviceUserInitials || metadataParsed.serviceUserName || ""
@@ -788,41 +852,51 @@ export const emarAgent = {
       medicationBatches.push(medicationsWithIds.slice(i, i + MED_BATCH_SIZE));
     }
 
-    const batchResults = await Promise.all(
-      medicationBatches.map(async (batch) => {
-        const medList = batch
-          .map((med) => `[ID:${med.medicationId}] ${med.name}${med.isPRN ? " (PRN)" : ""}`)
-          .join("\n");
+    const runPass = async (passIndex: number) => {
+      const results = await Promise.all(
+        medicationBatches.map(async (batch) => {
+          const medList = batch
+            .map((med) => `[ID:${med.medicationId}] ${med.name}${med.isPRN ? " (PRN)" : ""}`)
+            .join("\n");
 
-        const prompt = buildEntriesPrompt(
-          medList,
-          mergedMetadata.dates,
-          mergedMetadata.timeSlots,
-          tableContext,
-          correctionsContext
-        );
+          const prompt = buildEntriesPrompt(
+            medList,
+            mergedMetadata.dates,
+            mergedMetadata.timeSlots,
+            tableContext,
+            correctionsContext
+          );
 
-        const response = await createChatCompletionWithLogging(
-          {
-            model: AGENT_MODEL,
-            messages: [
-              { role: "system", content: prompt },
-              { role: "user", content: `Extract entries from this EMAR document:\n\n${rawText}` },
-            ],
-            temperature: 0,
-            max_completion_tokens: 8000,
-            seed: DETERMINISTIC_SEED,
-            response_format: { type: "json_object" },
-          },
-          "emar_agent_entries",
-          aiUserContext
-        );
+          const response = await createChatCompletionWithLogging(
+            {
+              model: AGENT_MODEL,
+              messages: [
+                { role: "system", content: prompt },
+                { role: "user", content: `Extract entries from this EMAR document:\n\n${rawText}` },
+              ],
+              temperature: passIndex === 0 ? 0 : 0.1,
+              max_completion_tokens: 8000,
+              seed: passIndex === 0 ? DETERMINISTIC_SEED : undefined,
+              response_format: { type: "json_object" },
+            },
+            `emar_agent_entries_pass${passIndex + 1}`,
+            aiUserContext
+          );
 
-        const content = response.choices[0]?.message?.content || "{\"entries\":[]}";
-        const parsed = parseJsonFromContent(content) || { entries: [] };
-        return Array.isArray(parsed.entries) ? parsed.entries : [];
-      })
-    );
+          const content = response.choices[0]?.message?.content || "{\"entries\":[]}";
+          const parsed = parseJsonFromContent(content) || { entries: [] };
+          return Array.isArray(parsed.entries) ? parsed.entries : [];
+        })
+      );
+      return results.flat();
+    };
+
+    console.log(`EMAR Agent: Running 3-pass extraction for ${medicationsWithIds.length} medications...`);
+    const [pass1Entries, pass2Entries, pass3Entries] = await Promise.all([
+      runPass(0),
+      runPass(1),
+      runPass(2),
+    ]);
 
     const validMedicationIds = new Set(medicationsWithIds.map((med) => med.medicationId));
     const medIdsByKey = new Map<string, number[]>();
@@ -905,8 +979,11 @@ export const emarAgent = {
       };
     };
 
-    const rawEntries = batchResults.flat().map(normalizeEntry).filter(Boolean) as any[];
-    const entries = deduplicateEntries(rawEntries);
+    const rawPass1 = pass1Entries.map(normalizeEntry).filter(Boolean);
+    const rawPass2 = pass2Entries.map(normalizeEntry).filter(Boolean);
+    const rawPass3 = pass3Entries.map(normalizeEntry).filter(Boolean);
+
+    const entries = reconcileConsensusEntries([rawPass1, rawPass2, rawPass3]);
 
     return {
       entries,
@@ -914,7 +991,7 @@ export const emarAgent = {
         ...mergedMetadata,
         medications: medicationsWithIds,
       },
-      consensusStatus: "single_pass",
+      consensusStatus: "triple_pass_consensus",
       validationPassed: entries.length > 0,
       model: AGENT_MODEL,
     };

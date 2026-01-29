@@ -430,106 +430,110 @@ export default function VisitAudit() {
 
   return (
     <div className="page-shell max-w-6xl mx-auto">
-      <div className="space-y-2">
-        <h2 className="page-title">Visit Audit</h2>
-        <p className="page-subtitle max-w-prose">
-          Upload your visit logs and the AI will extract all details and check compliance (location 200m, 70% duration).
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
+        <div className="space-y-1">
+          <h1 className="page-title leading-tight">Visit Audit</h1>
+          <p className="page-subtitle max-w-prose">
+            Autonomous verification of care delivery through GPS and duration telemetry.
+          </p>
+        </div>
       </div>
 
       {!analyzed ? (
-        <Card className="border-border bg-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ClipboardList className="h-5 w-5" />
-              Upload Visit Logs
+        <Card className="glass-card animate-slide-up stagger-2 mt-6">
+          <CardHeader className="border-b border-border/40 pb-6">
+            <CardTitle className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10 shadow-xs">
+                <ClipboardList className="h-5 w-5 text-primary" />
+              </div>
+              Intelligence Intake
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label>Visit Log Content</Label>
+          <CardContent className="space-y-6 pt-6">
+            <div className="space-y-3">
+              <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground px-1">Raw Telemetry / Log Data</Label>
               <Textarea
                 placeholder="Paste your visit log data here or upload a file below...
 
 The AI will automatically extract:
-- Service user name
-- Date range covered
-- Each care call (carer, time, location, duration)
-- Compliance status and discrepancies"
+- Service user identity
+- Operational window (date range)
+- Care call vectors (carer, time, GPS status)
+- Compliance score and discrepancy map"
                 value={documentContent}
                 onChange={(e) => setDocumentContent(e.target.value)}
-                className="bg-background min-h-[250px] font-mono text-sm"
+                className="bg-muted/20 border-border/40 min-h-[300px] font-mono text-xs leading-relaxed rounded-2xl resize-none focus:ring-primary/20"
                 data-testid="textarea-visit-content"
               />
             </div>
 
-            <div className="flex items-center gap-4">
-              <Input 
-                type="file" 
-                onChange={handleFileChange} 
-                accept=".pdf,.txt,.csv,.xlsx,.xls"
-                className="max-w-xs bg-background" 
-                data-testid="input-file-upload"
-              />
-              <Button onClick={processAudit} disabled={loading || !documentContent} data-testid="button-analyze">
+            <div className="flex flex-wrap items-center gap-4 p-4 rounded-2xl bg-muted/20 border border-border/40">
+              <div className="flex-1 min-w-[240px]">
+                <Input
+                  type="file"
+                  onChange={handleFileChange}
+                  accept=".pdf,.txt,.csv,.xlsx,.xls"
+                  className="bg-background border-border/60 rounded-xl"
+                  data-testid="input-file-upload"
+                />
+              </div>
+              <Button onClick={processAudit} disabled={loading || !documentContent} className="h-12 px-8 rounded-xl font-bold tracking-tight shadow-glow group" data-testid="button-analyze">
                 {loading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Analyzing...
+                    <Loader2 className="mr-2.5 h-4.5 w-4.5 animate-spin" />
+                    DECODING...
                   </>
                 ) : (
                   <>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Analyze Visits
+                    <Upload className="mr-2.5 h-4.5 w-4.5 group-hover:-translate-y-1 transition-transform" />
+                    PROCESS AUDIT
                   </>
                 )}
               </Button>
             </div>
 
             {loading && (
-              <div className="space-y-3 p-4 glass-panel border border-border rounded-xl" data-testid="progress-container">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Loader2 size={16} className="animate-spin text-primary" />
-                    <span className="text-sm text-muted-foreground">{progressStatus}</span>
+              <div className="space-y-4 p-5 bg-primary/5 border border-primary/10 rounded-2xl animate-pulse" data-testid="progress-container">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-3">
+                    <div className="h-2 w-2 rounded-full bg-primary animate-ping" />
+                    <span className="text-xs font-bold uppercase tracking-widest text-primary">{progressStatus}</span>
                   </div>
-                  <span className="text-sm font-medium text-foreground">{Math.round(progress)}%</span>
+                  <span className="text-sm font-black text-primary">{Math.round(progress)}%</span>
                 </div>
-                <Progress value={progress} className="h-2" />
+                <Progress value={progress} className="h-1.5 bg-primary/10" />
               </div>
             )}
 
-            <div className="pt-4 border-t border-border">
+            <div className="pt-4 border-t border-border/40">
               <UploadDisclaimer />
             </div>
           </CardContent>
         </Card>
       ) : result && (
-        <div className="space-y-6">
-          <Card className="bg-card border-border">
-            <CardContent className="p-6">
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <CopyableBox label="Service User" value={result.serviceUserName} />
-                <CopyableBox label="Auditor" value={auditorDisplay} />
-                <CopyableBox label="First Day of Audit" value={result.auditPeriodStart} />
-                <CopyableBox label="Last Day of Audit" value={result.auditPeriodEnd} />
-              </div>
-            </CardContent>
-          </Card>
+        <div className="space-y-6 animate-slide-up">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <CopyableBox label="Service User" value={result.serviceUserName} className="glass-card border-border/40" />
+            <CopyableBox label="Auditor" value={auditorDisplay} className="glass-card border-border/40" />
+            <CopyableBox label="Operational Start" value={result.auditPeriodStart} className="glass-card border-border/40" />
+            <CopyableBox label="Operational End" value={result.auditPeriodEnd} className="glass-card border-border/40" />
+          </div>
 
-          <Card className="bg-card border-border">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <ClipboardList className="h-5 w-5" />
-                Care Call Log
+          <Card className="glass-card overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 pb-6">
+              <CardTitle className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10 shadow-xs">
+                  <ClipboardList className="h-5 w-5 text-primary" />
+                </div>
+                Operational Telemetry
               </CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <TableCopyButton text={getCareCallsTableFormat()} label="care-calls-table" />
                 <CopyButton text={getCareCallsText()} label="all-care-calls" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
+            <CardContent className="pt-6">
+              <div className="overflow-x-auto rounded-xl border border-border/40">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -542,34 +546,42 @@ The AI will automatically extract:
                       <TableHead>Comments</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
+                  <TableBody className="bg-muted/5">
                     {result.careCalls.map((call, idx) => (
-                      <TableRow key={idx} data-testid={`row-care-call-${idx}`}>
-                        <TableCell className="text-foreground font-medium">{call.careWorkerName}</TableCell>
-                        <TableCell className="text-muted-foreground">{call.date}</TableCell>
+                      <TableRow key={idx} data-testid={`row-care-call-${idx}`} className="hover:bg-muted/10 transition-colors border-border/30">
+                        <TableCell className="text-foreground font-bold tracking-tight">{call.careWorkerName}</TableCell>
+                        <TableCell className="text-muted-foreground font-medium text-xs">{call.date}</TableCell>
                         <TableCell className="text-center">
                           {call.locationOK ? (
-                            <span className="text-green-400 font-bold">Yes</span>
+                            <span className="inline-flex items-center gap-1.5 text-success font-black text-[10px] uppercase tracking-widest bg-success/10 px-2 py-0.5 rounded-full border border-success/20">
+                              <Check className="h-2.5 w-2.5" /> GPS OK
+                            </span>
                           ) : (
-                            <span className="text-red-400 font-bold">No</span>
+                            <span className="inline-flex items-center gap-1.5 text-destructive font-black text-[10px] uppercase tracking-widest bg-destructive/10 px-2 py-0.5 rounded-full border border-destructive/20">
+                              <X className="h-2.5 w-2.5" /> DRIFT
+                            </span>
                           )}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{call.expectedTime}</TableCell>
-                        <TableCell className={call.percentageStayed >= 70 ? "text-green-400" : "text-red-400"}>
-                          {call.actualTime} ({call.percentageStayed}%)
+                        <TableCell className="text-muted-foreground font-medium text-xs">{call.expectedTime}</TableCell>
+                        <TableCell className={cn("font-bold text-xs", call.percentageStayed >= 70 ? "text-success" : "text-destructive")}>
+                          {call.actualTime} <span className="text-[10px] opacity-70">({call.percentageStayed}%)</span>
                         </TableCell>
                         <TableCell className="text-center">
                           {call.compliant ? (
-                            <span className="text-green-400 font-bold">Yes</span>
+                            <div className="h-6 w-6 rounded-full bg-success/15 flex items-center justify-center mx-auto">
+                              <Check className="h-3.5 w-3.5 text-success" />
+                            </div>
                           ) : (
-                            <span className="text-red-400 font-bold">No</span>
+                            <div className="h-6 w-6 rounded-full bg-destructive/15 flex items-center justify-center mx-auto">
+                              <X className="h-3.5 w-3.5 text-destructive" />
+                            </div>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-xs">
                           {call.comment === "NA" ? (
-                            <span className="text-muted-foreground">NA</span>
+                            <span className="text-muted-foreground/40 font-medium italic">NO LOGS</span>
                           ) : (
-                            <span className="text-red-300">{call.comment}</span>
+                            <span className="text-foreground font-semibold">{call.comment}</span>
                           )}
                         </TableCell>
                       </TableRow>
@@ -580,20 +592,32 @@ The AI will automatically extract:
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-border">
+          <Card className="glass-card overflow-hidden">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Were there any discrepancies?</p>
-                  <div className="flex items-center gap-2">
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Compliance Status Summary</p>
+                  <div className="flex items-center gap-4">
                     {result.hasDiscrepancies ? (
-                      <span className="flex items-center gap-2 text-red-400 font-bold text-xl">
-                        <X className="h-6 w-6" /> Yes
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <div className="h-12 w-12 rounded-2xl bg-destructive/15 flex items-center justify-center border border-destructive/20 shadow-lg shadow-destructive/5">
+                          <X className="h-6 w-6 text-destructive" />
+                        </div>
+                        <div>
+                          <p className="text-xl font-black tracking-tight text-destructive">INCIDENTS DETECTED</p>
+                          <p className="text-xs font-bold text-muted-foreground">Action required for compliance restoration.</p>
+                        </div>
+                      </div>
                     ) : (
-                      <span className="flex items-center gap-2 text-green-400 font-bold text-xl">
-                        <Check className="h-6 w-6" /> No
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <div className="h-12 w-12 rounded-2xl bg-success/15 flex items-center justify-center border border-success/20 shadow-lg shadow-success/5">
+                          <Check className="h-6 w-6 text-success" />
+                        </div>
+                        <div>
+                          <p className="text-xl font-black tracking-tight text-success">TOTAL COMPLIANCE</p>
+                          <p className="text-xs font-bold text-muted-foreground">No operational drift detected in this window.</p>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -603,60 +627,64 @@ The AI will automatically extract:
           </Card>
 
           {result.hasDiscrepancies && result.discrepancies.length > 0 && (
-            <Card className="bg-card border-border">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-red-400" />
-                  Discrepancies
+            <Card className="glass-card overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 pb-6">
+                <CardTitle className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-destructive/10 shadow-xs">
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                  </div>
+                  Incident Reports
                 </CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <TableCopyButton text={getDiscrepanciesTableFormat()} label="discrepancies-table" />
                   <CopyButton text={getAllDiscrepanciesText()} label="all-discrepancies" />
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 {Object.entries(getDiscrepanciesByCarer()).map(([carerName, discrepancies], carerIdx) => (
-                  <div key={carerIdx} className="mb-6 last:mb-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-lg font-semibold text-foreground">{carerName}</h4>
+                  <div key={carerIdx} className="mb-8 last:mb-0 p-5 rounded-2xl bg-destructive/5 border border-destructive/10">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-lg font-black tracking-tight text-destructive">{carerName}</h4>
                       <CopyButton 
                         text={discrepancies.map(d => `${d.date}: ${d.issue}`).join('\n')} 
                         label={`carer-${carerIdx}`} 
                       />
                     </div>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-24">Date</TableHead>
-                          <TableHead>Issue</TableHead>
-                          <TableHead>Actions Required</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {discrepancies.map((disc, idx) => (
-                          <TableRow key={idx} data-testid={`row-discrepancy-${carerIdx}-${idx}`}>
-                            <TableCell className="text-muted-foreground">{disc.date}</TableCell>
-                            <TableCell className="text-red-300">{disc.issue}</TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {disc.actions.performanceNote && (
-                                  <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs">Performance Note</span>
-                                )}
-                                {disc.actions.meeting === "phone" && (
-                                  <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs">Phone Meeting</span>
-                                )}
-                                {disc.actions.meeting === "in_person" && (
-                                  <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded text-xs">In-Person Meeting</span>
-                                )}
-                                {disc.actions.referToManager && (
-                                  <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs">Refer to Manager</span>
-                                )}
-                              </div>
-                            </TableCell>
+                    <div className="overflow-hidden rounded-xl border border-destructive/20 shadow-lg shadow-destructive/5">
+                      <Table>
+                        <TableHeader className="bg-destructive/10">
+                          <TableRow className="border-destructive/20">
+                            <TableHead className="w-24 text-destructive/80 font-bold uppercase text-[10px] tracking-widest">Date</TableHead>
+                            <TableHead className="text-destructive/80 font-bold uppercase text-[10px] tracking-widest">Incident Details</TableHead>
+                            <TableHead className="text-destructive/80 font-bold uppercase text-[10px] tracking-widest">Mitigation Directives</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody className="bg-background/40">
+                          {discrepancies.map((disc, idx) => (
+                            <TableRow key={idx} data-testid={`row-discrepancy-${carerIdx}-${idx}`} className="border-destructive/10 hover:bg-destructive/5 transition-colors">
+                              <TableCell className="text-muted-foreground font-bold text-xs">{disc.date}</TableCell>
+                              <TableCell className="text-foreground font-semibold text-xs leading-relaxed">{disc.issue}</TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {disc.actions.performanceNote && (
+                                    <span className="px-2 py-1 bg-amber-500/15 text-amber-500 border border-amber-500/20 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-sm">Note</span>
+                                  )}
+                                  {disc.actions.meeting === "phone" && (
+                                    <span className="px-2 py-1 bg-blue-500/15 text-blue-400 border border-blue-400/20 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-sm">Phone</span>
+                                  )}
+                                  {disc.actions.meeting === "in_person" && (
+                                    <span className="px-2 py-1 bg-purple-500/15 text-purple-400 border border-purple-400/20 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-sm">1-to-1</span>
+                                  )}
+                                  {disc.actions.referToManager && (
+                                    <span className="px-2 py-1 bg-destructive/15 text-destructive border border-destructive/20 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-sm">Manager</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 ))}
               </CardContent>
@@ -664,44 +692,44 @@ The AI will automatically extract:
           )}
 
           <div className="grid md:grid-cols-2 gap-6">
-            <Card className="bg-card border-border">
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm">Themes & Trends</CardTitle>
+            <Card className="glass-card overflow-hidden">
+              <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between">
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Strategic Intelligence</CardTitle>
                 <CopyButton text={result.themesAndTrends} label="themes" />
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{result.themesAndTrends}</p>
+              <CardContent className="pt-4">
+                <p className="text-sm font-medium text-foreground/80 leading-relaxed">{result.themesAndTrends}</p>
               </CardContent>
             </Card>
 
-            <Card className="bg-card border-border">
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm">Gaps in Knowledge</CardTitle>
+            <Card className="glass-card overflow-hidden">
+              <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between">
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Training Vectors</CardTitle>
                 <CopyButton text={result.gapsInKnowledge} label="gaps" />
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{result.gapsInKnowledge}</p>
+              <CardContent className="pt-4">
+                <p className="text-sm font-medium text-foreground/80 leading-relaxed">{result.gapsInKnowledge}</p>
               </CardContent>
             </Card>
           </div>
 
-          <Card className="bg-card border-border">
-            <CardContent className="p-6">
-              <CopyableBox label="Date of Audit" value={formatDate(new Date())} />
-            </CardContent>
-          </Card>
-          
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => { setAnalyzed(false); setResult(null); }} data-testid="button-start-new-visit">
-              Start New Audit
-            </Button>
-            <Button 
-              onClick={saveAudit} 
-              disabled={loading}
-              data-testid="button-save-visit-audit"
-            >
-              {loading ? "Saving..." : "Save Audit"}
-            </Button>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-6 border-t border-border/40">
+            <div className="flex-1 w-full max-w-sm">
+              <CopyableBox label="Audit Finalization Date" value={formatDate(new Date())} className="glass-card border-border/40" />
+            </div>
+            <div className="flex gap-4 w-full sm:w-auto">
+              <Button variant="outline" onClick={() => { setAnalyzed(false); setResult(null); }} className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-bold tracking-tight border-border/60" data-testid="button-start-new-visit">
+                RESET AUDIT
+              </Button>
+              <Button
+                onClick={saveAudit}
+                disabled={loading}
+                className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-bold tracking-tight shadow-glow"
+                data-testid="button-save-visit-audit"
+              >
+                {loading ? "SAVING..." : "COMMIT AUDIT"}
+              </Button>
+            </div>
           </div>
         </div>
       )}

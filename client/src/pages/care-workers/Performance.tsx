@@ -103,57 +103,65 @@ export default function Performance() {
 
   return (
     <div className="page-shell">
-      <div>
-        <h2 className="text-3xl font-heading font-bold text-foreground">Staff Performance</h2>
-        <p className="text-muted-foreground mt-2">
-          Training recommendations and compliance statistics from saved audits.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
+        <div className="space-y-1">
+          <h1 className="page-title leading-tight">Staff Performance</h1>
+          <p className="page-subtitle">Training recommendations and compliance statistics derived from operational auditing.</p>
+        </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading performance data...</div>
+        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground animate-pulse">
+          <BookOpen className="h-12 w-12 mb-4 opacity-20" />
+          <p className="font-bold tracking-widest text-xs uppercase">Synthesizing performance data...</p>
+        </div>
       ) : careWorkers.length === 0 ? (
-        <Card className="glass-card">
-          <CardContent className="py-12">
-            <div className="text-center space-y-3">
-              <FileText className="mx-auto h-16 w-16 text-muted-foreground" />
-              <h3 className="text-lg font-medium text-foreground">No Audit Data Available</h3>
-              <p className="text-muted-foreground max-w-md mx-auto">
-                Performance metrics are calculated from saved EMAR and Visit audits. 
-                Complete some audits to see performance data here.
+        <Card className="glass-card animate-slide-up stagger-2 mt-6">
+          <CardContent className="py-24">
+            <div className="text-center space-y-4">
+              <div className="h-20 w-20 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-6">
+                <FileText className="h-10 w-10 text-muted-foreground/40" />
+              </div>
+              <h3 className="text-xl font-black tracking-tight text-foreground">Operational Data Missing</h3>
+              <p className="text-sm font-medium text-muted-foreground max-w-md mx-auto leading-relaxed">
+                Staff metrics require baseline audit data. Complete EMAR or Visit audits to populate the intelligence hub.
               </p>
             </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="text-yellow-500" /> 
+        <div className="grid md:grid-cols-2 gap-6 animate-slide-up stagger-2 mt-6">
+          <Card className="glass-card overflow-hidden">
+            <CardHeader className="border-b border-border/40 pb-6">
+              <CardTitle className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-amber-500/10 shadow-xs">
+                  <Trophy className="h-5 w-5 text-amber-500" />
+                </div>
                 Top Performers
               </CardTitle>
-              <CardDescription>Staff with no discrepancies in audits.</CardDescription>
+              <CardDescription className="text-xs font-medium">Staff achieving 100% compliance across all vectors.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               {topPerformers.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground">
-                  <Users className="mx-auto h-10 w-10 text-muted-foreground mb-2" />
-                  <p className="text-sm">No fully compliant staff members yet.</p>
-                  <p className="text-xs text-muted-foreground mt-1">Staff with zero discrepancies will appear here.</p>
+                <div className="text-center py-12 bg-muted/10 rounded-2xl border border-dashed border-border/60">
+                  <Users className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">No candidates identified</p>
                 </div>
               ) : (
-                <ul className="space-y-3">
+                <ul className="space-y-2">
                   {topPerformers.map((worker) => (
                     <li 
                       key={worker.name} 
-                      className="flex justify-between items-center p-2 bg-white/5 rounded"
+                      className="flex justify-between items-center p-4 bg-muted/20 hover:bg-muted/30 border border-border/40 rounded-xl transition-colors group"
                       data-testid={`performer-${worker.name.replace(/\s/g, '-')}`}
                     >
-                      <span className="text-foreground">{worker.name}</span>
-                      <Badge className="bg-green-600">
-                        {getCompliancePercentage(worker)}%
-                      </Badge>
+                      <span className="text-sm font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">{worker.name}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-tighter">{worker.auditCount} AUDITS</span>
+                        <Badge className="bg-success/15 text-success border-success/20 rounded-lg font-black text-[10px]">
+                          {getCompliancePercentage(worker)}% COMPLIANT
+                        </Badge>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -161,35 +169,45 @@ export default function Performance() {
             </CardContent>
           </Card>
 
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="text-blue-500" /> 
-                Recommended Training
+          <Card className="glass-card overflow-hidden">
+            <CardHeader className="border-b border-border/40 pb-6">
+              <CardTitle className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10 shadow-xs">
+                  <BookOpen className="h-5 w-5 text-primary" />
+                </div>
+                Targeted Training
               </CardTitle>
-              <CardDescription>Based on discrepancies in saved audits.</CardDescription>
+              <CardDescription className="text-xs font-medium">Auto-generated learning pathways based on discrepancy themes.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               {trainingRecommendations.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground">
-                  <BookOpen className="mx-auto h-10 w-10 text-muted-foreground mb-2" />
-                  <p className="text-sm">No training recommendations.</p>
-                  <p className="text-xs text-muted-foreground mt-1">Recommendations appear when discrepancies are found.</p>
+                <div className="text-center py-12 bg-muted/10 rounded-2xl border border-dashed border-border/60">
+                  <CheckCircle2 className="mx-auto h-10 w-10 text-success/30 mb-3" />
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">No gaps detected</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {trainingRecommendations.map((rec, idx) => (
                     <div 
                       key={idx} 
-                      className="p-3 border border-border rounded-lg"
+                      className="p-4 bg-primary/5 border border-primary/10 rounded-xl group hover:bg-primary/10 transition-colors"
                       data-testid={`training-${idx}`}
                     >
-                      <h4 className="font-medium text-foreground text-sm">{rec.topic}</h4>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Assigned to: {rec.assignedTo.join(", ")}
-                        {rec.assignedTo.length < careWorkers.filter(w => w.discrepancyCount > 0).length && " and others"}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">{rec.reason}</p>
+                      <div className="flex items-start gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-primary/20 shrink-0 mt-0.5">
+                          <BookOpen className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-foreground text-sm tracking-tight mb-1">{rec.topic}</h4>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                            Assigned: {rec.assignedTo.join(", ")}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs font-medium text-primary">
+                            <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                            {rec.reason}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -197,37 +215,39 @@ export default function Performance() {
             </CardContent>
           </Card>
 
-          <Card className="glass-card md:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="text-teal-500" />
-                Staff Summary
-              </CardTitle>
-              <CardDescription>Overview of all staff from saved audits.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 bg-white/5 rounded-lg text-center">
-                  <p className="text-3xl font-bold text-foreground">{careWorkers.length}</p>
-                  <p className="text-sm text-muted-foreground">Total Staff</p>
+          <Card className="glass-card md:col-span-2 overflow-hidden">
+            <CardHeader className="border-b border-border/40 pb-6">
+              <CardTitle className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-teal-500/10 shadow-xs">
+                  <Users className="h-5 w-5 text-teal-500" />
                 </div>
-                <div className="p-4 bg-white/5 rounded-lg text-center">
-                  <p className="text-3xl font-bold text-green-400">
+                Fleet Intelligence Summary
+              </CardTitle>
+              <CardDescription className="text-xs font-medium">Aggregated operational status of the care workforce.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-8">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="p-6 bg-muted/20 border border-border/40 rounded-2xl text-center group hover:bg-muted/30 transition-all">
+                  <p className="text-4xl font-black tracking-tighter text-foreground group-hover:scale-110 transition-transform">{careWorkers.length}</p>
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-2">Active Staff</p>
+                </div>
+                <div className="p-6 bg-success/5 border border-success/10 rounded-2xl text-center group hover:bg-success/10 transition-all">
+                  <p className="text-4xl font-black tracking-tighter text-success group-hover:scale-110 transition-transform">
                     {careWorkers.filter(w => w.discrepancyCount === 0).length}
                   </p>
-                  <p className="text-sm text-muted-foreground">Fully Compliant</p>
+                  <p className="text-[10px] font-black text-success uppercase tracking-widest mt-2">Elite Status</p>
                 </div>
-                <div className="p-4 bg-white/5 rounded-lg text-center">
-                  <p className="text-3xl font-bold text-amber-400">
+                <div className="p-6 bg-amber-500/5 border border-amber-500/10 rounded-2xl text-center group hover:bg-amber-500/10 transition-all">
+                  <p className="text-4xl font-black tracking-tighter text-amber-500 group-hover:scale-110 transition-transform">
                     {careWorkers.filter(w => w.discrepancyCount > 0 && w.discrepancyCount < 3).length}
                   </p>
-                  <p className="text-sm text-muted-foreground">Minor Issues</p>
+                  <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mt-2">Minor Drifts</p>
                 </div>
-                <div className="p-4 bg-white/5 rounded-lg text-center">
-                  <p className="text-3xl font-bold text-red-400">
+                <div className="p-6 bg-destructive/5 border border-destructive/10 rounded-2xl text-center group hover:bg-destructive/10 transition-all">
+                  <p className="text-4xl font-black tracking-tighter text-destructive group-hover:scale-110 transition-transform">
                     {careWorkers.filter(w => w.discrepancyCount >= 3).length}
                   </p>
-                  <p className="text-sm text-muted-foreground">Needs Attention</p>
+                  <p className="text-[10px] font-black text-destructive uppercase tracking-widest mt-2">Critical Risk</p>
                 </div>
               </div>
             </CardContent>

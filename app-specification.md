@@ -595,8 +595,8 @@ const AUX_MODEL = "gpt-4.1-mini";  // $0.40/1M input, $1.60/1M output
 
 | Task | Model | Reason |
 |------|-------|--------|
-| EMAR metadata extraction | GPT-4.1-mini | Accuracy critical |
-| EMAR entry extraction | GPT-4.1-mini | Accuracy critical |
+| EMAR metadata extraction | GPT-4.1-mini | 2-pass parallel extraction |
+| EMAR entry extraction | GPT-4.1-mini | 3-pass parallel with voting |
 | Count validation | GPT-4.1-mini | Simple verification |
 | Equivalence checks | GPT-4.1-mini | Pattern matching |
 | Drug interactions | GPT-4.1-mini | Lookup-based |

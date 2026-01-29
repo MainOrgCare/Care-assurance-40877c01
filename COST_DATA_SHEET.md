@@ -67,13 +67,14 @@ Protects all file uploads from malware threats.
 
 |Model|Where Used|Input Cost|Output Cost|
 |-------|-----------|------------|-------------|
-|**GPT-5.2**|All features (EMAR, Care plans, Risk assessment, Email)|£1.38/1M tokens|£11.02/1M tokens|
+|**GPT-5.2**|Care plans, Risk assessment|£1.38/1M tokens|£11.02/1M tokens|
+|**GPT-4.1 Mini**|EMAR Analysis (3-pass), Email|£0.31/1M tokens|£1.26/1M tokens|
 
 ### Feature Cost Breakdown
 
 |Feature|Model|Avg Tokens (In/Out)|Est. Cost per Use|
 |---------|-------|---------------------|-------------------|
-|EMAR Analysis (per page, 3-pass)|GPT-5.2|~5,000 / ~3,400|~£0.04|
+|EMAR Analysis (per page, 3-pass)|GPT-4.1 Mini|~15,000 / ~10,000|~£0.02|
 |Care Plan Generation|GPT-5.2|~2,000 / ~4,000|~£0.05|
 |Plan Enhancement (11 sections)|GPT-5.2|~3,000 / ~8,000|~£0.09|
 |Risk Analysis|GPT-5.2|~2,000 / ~3,000|~£0.04|
@@ -212,16 +213,17 @@ Assuming average 10 service users per facility:
 
 ### EMAR Extraction Strategy
 
-- Uses **3-pass GPT-5.2 extraction** with consensus voting
-- When passes disagree: uses **highest valid count**
-- Domain validation ensures only valid entries are accepted
-- GPT-5.2's improved document understanding provides better extraction accuracy
+- Uses **3-pass GPT-4.1 Mini extraction** with consensus voting
+- 2-pass metadata extraction ensures exhaustive medication and date capture
+- Voting logic reconciles entries with safety-critical code prioritization
+- GPT-4.1 Mini provides excellent accuracy for structured data at 1/10th the cost of larger models
 
 ### Models by Feature
 
 |Model|Features|
 |-------|----------|
-|**GPT-5.2**|All features (EMAR, Care plans, Plan enhancement, Risk analysis, Email)|
+|**GPT-5.2**|Care plans, Plan enhancement, Risk analysis|
+|**GPT-4.1 Mini**|EMAR Analysis (Agent), Email rewrite|
 
 ---
 
@@ -237,7 +239,7 @@ Assuming average 10 service users per facility:
 ## 11. Cost Optimization Built-In
 
 1. **Virus Scanning:** Hash caching prevents duplicate scans
-2. **AI Processing:** GPT-5.2 unified model for all features
+2. **AI Processing:** Tiered approach using cost-efficient Mini models for extraction
 3. **Caching:** 90% discount on cached AI inputs
 4. **Database:** Scale-to-zero during inactive periods
 5. **Hosting:** Autoscale only charges when in use

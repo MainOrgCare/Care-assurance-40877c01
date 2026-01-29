@@ -2210,38 +2210,55 @@ ${generatedProtocol.additionalComments}`;
 
   return (
     <div className="page-shell max-w-6xl mx-auto">
-      <div className="space-y-2">
-        <h2 className="page-title">EMAR Audit</h2>
-        <p className="page-subtitle max-w-prose">
-          Upload your EMAR PDF and our AI will read and extract medication data from the document. Automated validation checks then verify the results for accuracy before generating your compliance report.
+      <div className="space-y-2 animate-slide-up stagger-1">
+        <h1 className="page-title">Autonomous EMAR Audit</h1>
+        <p className="page-subtitle max-w-2xl">
+          Deploying neural extraction to audit medication administration records. Our multi-pass consensus engine identifies discrepancies with clinical precision.
         </p>
       </div>
 
       {!analyzed ? (
-        <Card className="border-border bg-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Upload EMAR Documents (PDF)
+        <Card className="glass-card shadow-medium animate-slide-up stagger-2">
+          <CardHeader className="border-b border-border/40 pb-6 mb-2">
+            <CardTitle className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Upload className="h-5 w-5 text-primary" />
+              </div>
+              Intake Channel
             </CardTitle>
+            <CardDescription>Initialize audit by uploading structured PDF documentation.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="glass-panel border border-border rounded-xl p-5">
-              <p className="text-sm text-foreground leading-relaxed">
-                <span className="font-semibold">How it works:</span> Upload your EMAR as a PDF file. The system extracts medication entries, then runs validation checks before generating your compliance report. It will identify:
+          <CardContent className="space-y-8 pt-6">
+            <div className="bg-muted/30 border border-border/40 rounded-2xl p-6 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                <Brain className="h-24 w-24" />
+              </div>
+              <p className="text-sm font-bold text-foreground mb-4 uppercase tracking-widest flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Audit Protocol
               </p>
-              <ul className="mt-3 text-sm text-muted-foreground list-disc pl-5 space-y-1">
-                <li>Service user name and medication level</li>
-                <li>Date range covered by the audit</li>
-                <li>ALL medication records and discrepancies</li>
-                <li>Warnings about medication issues</li>
-                <li>Items requiring your verification</li>
+              <ul className="grid sm:grid-cols-2 gap-4">
+                {[
+                  "PII Scrubbing & Initials Normalization",
+                  "Automated Medication Level Discovery",
+                  "Temporal Gap Analysis (3-Pass)",
+                  "Drug Interaction Cross-Reference",
+                  "Consensus Discrepancy Verification"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-2.5 text-xs font-semibold text-muted-foreground">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success/70" />
+                    {item}
+                  </li>
+                ))}
               </ul>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div
-                className={`border border-dashed rounded-xl p-5 transition-colors ${isDragActive ? "border-primary bg-primary/5" : "border-border bg-muted/30"}`}
+                className={cn(
+                  "border-2 border-dashed rounded-2xl p-10 transition-all duration-300 group relative",
+                  isDragActive ? "border-primary bg-primary/5 scale-[1.01]" : "border-border/60 bg-muted/20 hover:border-primary/40 hover:bg-muted/40"
+                )}
                 onDragOver={(event) => {
                   event.preventDefault();
                   setIsDragActive(true);
@@ -2258,14 +2275,22 @@ ${generatedProtocol.additionalComments}`;
                   className="sr-only"
                   data-testid="input-file-upload"
                 />
-                <Label htmlFor="emar-upload" className="flex flex-col items-center gap-2 text-center cursor-pointer">
-                  <Upload className="h-6 w-6 text-primary" />
-                  <span className="text-sm font-medium text-foreground">
-                    {isDragActive ? "Drop your EMAR PDFs to upload" : "Drag & drop your EMAR PDFs, or click to browse"}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    PDF only · Up to {MAX_EMAR_UPLOAD_MB} MB
-                  </span>
+                <Label htmlFor="emar-upload" className="flex flex-col items-center gap-4 text-center cursor-pointer">
+                  <div className="h-16 w-16 rounded-2xl bg-background border border-border/60 flex items-center justify-center shadow-xs group-hover:scale-110 group-hover:text-primary transition-all">
+                    <Upload className="h-8 w-8" />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-base font-bold text-foreground block">
+                      {isDragActive ? "Drop documentation now" : "Transmit EMAR Records"}
+                    </span>
+                    <span className="text-sm text-muted-foreground font-medium">
+                      Drag & drop PDF files or click to browse secure local storage
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 mt-2">
+                    <Badge variant="outline" className="bg-background/50 border-border/40 font-bold uppercase tracking-tighter text-[10px]">PDF Documents Only</Badge>
+                    <Badge variant="outline" className="bg-background/50 border-border/40 font-bold uppercase tracking-tighter text-[10px]">Max {MAX_EMAR_UPLOAD_MB}MB Per Stream</Badge>
+                  </div>
                 </Label>
               </div>
 
@@ -2417,40 +2442,38 @@ ${generatedProtocol.additionalComments}`;
           </CardContent>
         </Card>
       ) : result && (
-        <div className="space-y-6">
+        <div className="space-y-10 animate-fade-in">
           {analyzedRecords.length > 1 && (
-            <Card className="border-border bg-card">
-              <CardHeader>
-                <CardTitle className="text-base">Select EMAR to view</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Select value={activeRecordId ?? ""} onValueChange={(value) => loadRecordById(value)}>
-                  <SelectTrigger className="max-w-md">
-                    <SelectValue placeholder="Select an EMAR file" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {analyzedRecords.map((record) => (
-                      <SelectItem key={record.id} value={record.id}>
-                        {record.file.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
+            <div className="flex items-center gap-4 bg-muted/20 border border-border/40 p-4 rounded-2xl">
+              <span className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-2">Active Stream:</span>
+              <Select value={activeRecordId ?? ""} onValueChange={(value) => loadRecordById(value)}>
+                <SelectTrigger className="w-full sm:w-80 bg-background border-border/60 rounded-xl font-bold">
+                  <SelectValue placeholder="Select an EMAR file" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-border/60">
+                  {analyzedRecords.map((record) => (
+                    <SelectItem key={record.id} value={record.id} className="font-medium">
+                      {record.file.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
           {detectedInitials.length > 0 && !mappingsConfirmed && (
-            <Card className="bg-primary/5 border-primary/20">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-primary">
-                  <Users className="h-5 w-5" />
-                  Carer Identification Required
+            <Card className="border-primary/30 bg-primary/5 shadow-soft animate-scale-in">
+              <CardHeader className="border-b border-primary/10 pb-6 mb-2">
+                <CardTitle className="flex items-center gap-3 text-primary">
+                  <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                    <UserPlus className="h-5 w-5" />
+                  </div>
+                  Namespace Resolution
                 </CardTitle>
-                <CardDescription className="text-muted-foreground">
-                  The following carer names appear as initials only. Please match them to existing carers or create new entries.
+                <CardDescription className="text-primary/70 font-medium">
+                  The neural engine detected unreferenced initials. Map these to the personnel database to proceed.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6 pt-6">
                 {carerMappings.map((mapping, idx) => {
                   const matchingCarers = getMatchingCarers(mapping.initials);
                   return (
@@ -2709,27 +2732,35 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          <Card className="bg-card border-border">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h3 className="text-lg font-semibold">Audit Summary</h3>
+          <Card className="glass-card shadow-medium animate-slide-up stagger-3">
+            <CardContent className="p-8">
+              <div className="flex items-center justify-between mb-8 border-b border-border/40 pb-6 flex-wrap gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                    <Activity className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black tracking-tight text-foreground">Operational Audit Log</h3>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Metadata Vector: {result.extractionMethod || 'Neural'}</p>
+                  </div>
+                </div>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={downloadPDF}
-                  className="gap-1.5"
+                  className="rounded-xl border-border/60 font-bold bg-background/50 gap-2 shadow-xs hover:shadow-sm transition-all"
                   data-testid="button-download-pdf"
                 >
-                  <Download size={14} />
-                  Download PDF
+                  <Download size={15} />
+                  Export PDF Report
                 </Button>
               </div>
-              <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <CopyableBox label="Service User" value={serviceUserDisplay} />
-                <CopyableBox label="Type" value={getServiceUserTypeDisplay()} />
-                <CopyableBox label="Auditor" value={auditorDisplay} />
-                <CopyableBox label="First Day of Audit" value={result.auditPeriodStart} />
-                <CopyableBox label="Last Day of Audit" value={result.auditPeriodEnd} />
+              <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-5">
+                <CopyableBox label="Service User" value={serviceUserDisplay} className="bg-muted/40 border border-border/40" />
+                <CopyableBox label="Care Intensity" value={getServiceUserTypeDisplay()} className="bg-muted/40 border border-border/40" />
+                <CopyableBox label="Verified By" value={auditorDisplay} className="bg-muted/40 border border-border/40" />
+                <CopyableBox label="Window Start" value={result.auditPeriodStart} className="bg-muted/40 border border-border/40" />
+                <CopyableBox label="Window End" value={result.auditPeriodEnd} className="bg-muted/40 border border-border/40" />
               </div>
               {result.extractionMethod && (
                 <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -2748,46 +2779,67 @@ ${generatedProtocol.additionalComments}`;
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-border">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Were there any discrepancies in the EMAR?</p>
-                  <div className="flex items-center gap-2">
-                    {hasAnyDiscrepancies() ? (
-                      <span className="flex items-center gap-2 text-red-400 font-bold text-xl">
-                        <X className="h-6 w-6" /> Yes
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2 text-green-400 font-bold text-xl">
-                        <Check className="h-6 w-6" /> No
-                      </span>
-                    )}
+          <Card className={cn(
+            "glass-card border-l-4 shadow-medium transition-all duration-500",
+            hasAnyDiscrepancies() ? "border-l-destructive bg-destructive/5" : "border-l-success bg-success/5"
+          )}>
+            <CardContent className="p-8">
+              <div className="flex items-center justify-between gap-6">
+                <div className="flex items-center gap-5">
+                  <div className={cn(
+                    "h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg transition-transform hover:scale-110",
+                    hasAnyDiscrepancies() ? "bg-destructive/20 text-destructive" : "bg-success/20 text-success"
+                  )}>
+                    {hasAnyDiscrepancies() ? <X className="h-8 w-8" /> : <Check className="h-8 w-8" />}
+                  </div>
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">Audit Consensus Status</p>
+                    <h4 className={cn(
+                      "text-2xl font-black tracking-tighter",
+                      hasAnyDiscrepancies() ? "text-destructive" : "text-success"
+                    )}>
+                      {hasAnyDiscrepancies() ? "Critical Discrepancies Detected" : "Full Compliance Confirmed"}
+                    </h4>
                   </div>
                 </div>
-                <CopyButton text={hasAnyDiscrepancies() ? "Yes" : "No"} label="discrepancies-answer" />
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline" className="h-8 px-4 rounded-xl border-border/40 font-bold text-foreground bg-background/50">
+                    {getAllDiscrepancies().length} Incidents
+                  </Badge>
+                  <CopyButton text={hasAnyDiscrepancies() ? "Yes" : "No"} label="discrepancies-answer" />
+                </div>
               </div>
             </CardContent>
           </Card>
 
           {hasAnyDiscrepancies() && (
-            <Card className="bg-card border-border">
-              <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-red-400" />
-                  Main Discrepancies ({getAllDiscrepancies().length} total across {getGroupedDiscrepancies.length} staff)
-                </CardTitle>
-                <div className="flex items-center gap-2 flex-wrap">
+            <Card className="glass-card shadow-medium animate-slide-up stagger-4 overflow-hidden border-destructive/20">
+              <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap bg-destructive/5 border-b border-border/40 py-6">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-destructive/20 flex items-center justify-center text-destructive shadow-sm">
+                    <AlertTriangle className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Incident Inventory</CardTitle>
+                    <CardDescription className="font-bold text-destructive/80 uppercase tracking-tighter text-xs">
+                      {getAllDiscrepancies().length} TOTAL DISCREPANCIES · {getGroupedDiscrepancies.length} STAFF MEMBERS
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
                   {user?.role === 'admin' && (
                     <Button
                       size="sm"
                       variant={editMode ? "default" : "outline"}
                       onClick={() => setEditMode(!editMode)}
-                      className={`gap-1.5 ${editMode ? 'bg-yellow-600 hover:bg-yellow-700' : ''}`}
+                      className={cn(
+                        "rounded-xl font-bold tracking-tight gap-2 transition-all",
+                        editMode ? "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20" : "border-border/60"
+                      )}
                       data-testid="button-toggle-edit-mode"
                     >
                       <Pencil size={14} />
-                      {editMode ? "Exit Edit Mode" : "Edit Mode"}
+                      {editMode ? "Lock Pipeline" : "Override Mode"}
                     </Button>
                   )}
                   {user?.role === 'admin' && corrections.size > 0 && (
@@ -3075,136 +3127,127 @@ ${generatedProtocol.additionalComments}`;
 
           {/* Reasons Not Administered - Unified Refusal Section */}
           {unifiedRefusals.length > 0 && (
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-amber-400" />
-                  Reasons Not Administered ({totalRefusalCount} total)
-                </CardTitle>
-                <CardDescription>
-                  Review medications not administered (refused, not home, self/family administered, unavailable). Mark each item as acceptable or escalate.
-                  {!refusalReviewSubmitted && (
-                    <span className="block mt-1 text-muted-foreground">
-                      Progress: {getRefusalReviewStats.reviewed}/{getRefusalReviewStats.total} reviewed
-                      {getRefusalReviewStats.toEscalate > 0 && (
-                        <span className="text-red-400 ml-2">({getRefusalReviewStats.toEscalate} to escalate)</span>
-                      )}
-                    </span>
-                  )}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {refusalReviewSubmitted ? (
-                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 flex items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-green-400" />
+            <Card className="glass-card shadow-medium animate-slide-up stagger-5 border-amber-500/20 overflow-hidden">
+              <CardHeader className="bg-amber-500/5 border-b border-border/40 py-6">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 shadow-sm">
+                      <AlertTriangle className="h-5 w-5" />
+                    </div>
                     <div>
-                      <p className="text-green-400 font-medium">Reason Review Complete</p>
-                      <p className="text-sm text-muted-foreground">
-                        {getRefusalReviewStats.acceptable} marked acceptable, {getRefusalReviewStats.toEscalate} escalated to discrepancies
+                      <CardTitle className="text-lg">Governance Review: Exceptions</CardTitle>
+                      <CardDescription className="font-bold text-amber-600/80 uppercase tracking-tighter text-xs">
+                        {totalRefusalCount} ENTRIES REQUIRING OPERATIONAL JUSTIFICATION
+                      </CardDescription>
+                    </div>
+                  </div>
+                  {!refusalReviewSubmitted && (
+                    <div className="flex items-center gap-3 bg-background/50 px-4 py-2 rounded-xl border border-border/60">
+                       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Pipeline Progress:</p>
+                       <span className="text-sm font-black text-amber-500">{getRefusalReviewStats.reviewed}/{getRefusalReviewStats.total}</span>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-6">
+                {refusalReviewSubmitted ? (
+                  <div className="bg-success/10 border border-success/20 rounded-2xl p-6 flex items-center gap-4 animate-scale-in">
+                    <div className="h-12 w-12 rounded-xl bg-success/20 flex items-center justify-center text-success shadow-sm">
+                      <CheckCircle2 className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-black tracking-tight text-success uppercase">EXCEPTION REVIEW FINALIZED</p>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {getRefusalReviewStats.acceptable} instances verified. {getRefusalReviewStats.toEscalate} instances migrated to Discrepancy Log.
                       </p>
                     </div>
                   </div>
                 ) : (
                   <>
-                    <Accordion type="multiple" value={reasonsNotAdministeredOpen} onValueChange={setReasonsNotAdministeredOpen}>
+                    <Accordion type="multiple" value={reasonsNotAdministeredOpen} onValueChange={setReasonsNotAdministeredOpen} className="space-y-4">
                       {unifiedRefusals.map((codeGroup) => {
                         const codeReviewedCount = codeGroup.items.filter(item => refusalDecisions[item.key] !== undefined && refusalDecisions[item.key] !== null).length;
-                        const codeEscalateCount = codeGroup.items.filter(item => refusalDecisions[item.key] === 'escalate').length;
-                        const codeAcceptableCount = codeGroup.items.filter(item => refusalDecisions[item.key] === 'acceptable').length;
                         const allCodeReviewed = codeReviewedCount === codeGroup.count;
                         
                         return (
                           <AccordionItem 
                             key={codeGroup.code} 
                             value={codeGroup.code}
-                            className="border border-amber-500/30 rounded-lg mb-3 overflow-hidden bg-amber-500/10"
+                            className="border border-border/40 rounded-2xl overflow-hidden bg-muted/20"
                             data-testid={`refusal-code-group-${codeGroup.code}`}
                           >
-                            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-amber-500/15">
-                              <div className="flex items-center gap-3 flex-1">
-                                <span className="px-2 py-1 bg-amber-500/20 text-amber-400 rounded text-sm font-medium">
+                            <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-muted/30 transition-all">
+                              <div className="flex items-center gap-4 flex-1">
+                                <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 font-black text-xs border border-amber-500/20">
                                   {codeGroup.code}
-                                </span>
-                                <span className="text-foreground font-medium">{codeGroup.displayName}</span>
-                                <span className="px-2 py-0.5 bg-muted rounded-full text-xs text-muted-foreground">
-                                  {codeGroup.count} item{codeGroup.count !== 1 ? 's' : ''}
-                                </span>
+                                </div>
+                                <div className="text-left">
+                                  <p className="text-sm font-bold text-foreground leading-none mb-1">{codeGroup.displayName}</p>
+                                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{codeGroup.count} VECTORS</p>
+                                </div>
                                 {allCodeReviewed ? (
-                                  <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full text-xs flex items-center gap-1">
-                                    <Check size={10} /> Reviewed
-                                  </span>
+                                  <Badge className="bg-success/15 text-success border-success/20 rounded-lg font-black text-[10px] ml-auto mr-4">REVIEWED</Badge>
                                 ) : codeReviewedCount > 0 && (
-                                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full text-xs">
-                                    {codeReviewedCount}/{codeGroup.count} reviewed
-                                  </span>
-                                )}
-                                {codeEscalateCount > 0 && (
-                                  <span className="px-2 py-0.5 bg-red-500/20 text-red-400 rounded-full text-xs">
-                                    {codeEscalateCount} to escalate
-                                  </span>
+                                  <Badge variant="outline" className="text-amber-500 border-amber-500/30 rounded-lg font-black text-[10px] ml-auto mr-4">{codeReviewedCount}/{codeGroup.count} COMPLETE</Badge>
                                 )}
                               </div>
                             </AccordionTrigger>
-                            <AccordionContent className="px-4 pb-4">
-                              <div className="space-y-2 mt-2">
+                            <AccordionContent className="px-5 pb-5">
+                              <div className="space-y-3 mt-2">
                                 {codeGroup.items.map((item, itemIdx) => {
                                   const decision = refusalDecisions[item.key];
                                   const isAcceptable = decision === 'acceptable';
                                   const isEscalate = decision === 'escalate';
-                                  const isReviewed = decision !== undefined && decision !== null;
                                   
                                   return (
                                     <div 
                                       key={item.key}
-                                      className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
-                                        isEscalate 
-                                          ? 'bg-red-500/10 border border-red-500/30' 
-                                          : isAcceptable 
-                                            ? 'bg-green-500/10 border border-green-500/30'
-                                            : 'bg-muted border border-transparent'
-                                      }`}
+                                      className={cn(
+                                        "flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border transition-all duration-300",
+                                        isEscalate ? "bg-destructive/10 border-destructive/30 shadow-lg shadow-destructive/5" :
+                                        isAcceptable ? "bg-success/10 border-success/30 shadow-lg shadow-success/5" :
+                                        "bg-background border-border/60"
+                                      )}
                                       data-testid={`refusal-item-${codeGroup.code}-${itemIdx}`}
                                     >
-                                      <div className="flex items-center gap-3 flex-wrap">
-                                        <span className="text-foreground font-medium">{item.careWorkerName}</span>
-                                        <span className="text-muted-foreground">{item.date}</span>
-                                        {item.timeSlot && (
-                                          <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">
-                                            {item.timeSlot}
-                                          </span>
-                                        )}
-                                        <span className="text-sm text-muted-foreground">{getMedicationDisplayName(item.medication)}</span>
-                                        {isReviewed && (
-                                          <span className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 ${
-                                            isAcceptable 
-                                              ? 'bg-green-500/20 text-green-400' 
-                                              : 'bg-red-500/20 text-red-400'
-                                          }`}>
-                                            {isAcceptable ? <Check size={10} /> : <X size={10} />}
-                                            {isAcceptable ? 'Acceptable' : 'To Escalate'}
-                                          </span>
-                                        )}
+                                      <div className="flex items-center gap-4">
+                                        <div className="space-y-1">
+                                           <p className="text-sm font-black text-foreground leading-none">{item.careWorkerName}</p>
+                                           <div className="flex items-center gap-2">
+                                              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">{item.date}</span>
+                                              {item.timeSlot && <span className="h-1 w-1 rounded-full bg-border" />}
+                                              {item.timeSlot && <span className="text-[10px] font-bold text-primary uppercase tracking-tighter">{item.timeSlot}</span>}
+                                           </div>
+                                        </div>
+                                        <div className="h-8 w-[1px] bg-border/40 mx-2" />
+                                        <p className="text-sm font-medium text-muted-foreground">{getMedicationDisplayName(item.medication)}</p>
                                       </div>
-                                      <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-3">
                                         <Button
                                           size="sm"
                                           variant={isAcceptable ? "default" : "outline"}
-                                          className={`h-8 ${isAcceptable ? 'bg-green-600 hover:bg-green-700' : 'border-green-500/50 text-green-400 hover:bg-green-500/10'}`}
+                                          className={cn(
+                                            "h-9 px-4 rounded-lg font-bold text-[10px] uppercase tracking-widest transition-all",
+                                            isAcceptable ? "bg-success hover:bg-success/90 text-white" : "border-success/30 text-success hover:bg-success/10"
+                                          )}
                                           onClick={() => handleRefusalDecision(item.key, 'acceptable')}
                                           data-testid={`button-acceptable-${codeGroup.code}-${itemIdx}`}
                                         >
-                                          <Check size={14} className="mr-1" />
-                                          Acceptable
+                                          <Check size={14} className="mr-1.5" />
+                                          VERIFY
                                         </Button>
                                         <Button
                                           size="sm"
                                           variant={isEscalate ? "destructive" : "outline"}
-                                          className={`h-8 ${!isEscalate ? 'border-red-500/50 text-red-400 hover:bg-red-500/10' : ''}`}
+                                          className={cn(
+                                            "h-9 px-4 rounded-lg font-bold text-[10px] uppercase tracking-widest transition-all",
+                                            isEscalate ? "bg-destructive hover:bg-destructive/90 text-white" : "border-destructive/30 text-destructive hover:bg-destructive/10"
+                                          )}
                                           onClick={() => handleRefusalDecision(item.key, 'escalate')}
                                           data-testid={`button-escalate-${codeGroup.code}-${itemIdx}`}
                                         >
-                                          <X size={14} className="mr-1" />
-                                          Escalate
+                                          <X size={14} className="mr-1.5" />
+                                          ESCALATE
                                         </Button>
                                       </div>
                                     </div>
@@ -3217,26 +3260,31 @@ ${generatedProtocol.additionalComments}`;
                       })}
                     </Accordion>
                     
-                    <div className="flex items-center justify-between pt-4 border-t border-border">
-                      <div className="text-sm text-muted-foreground">
+                    <div className="flex items-center justify-between pt-6 border-t border-border/40">
+                      <div className="flex items-center gap-3">
                         {getRefusalReviewStats.pending > 0 ? (
-                          <span className="text-amber-400">{getRefusalReviewStats.pending} items pending review</span>
+                          <div className="flex items-center gap-2 text-amber-500 animate-pulse">
+                            <Clock size={16} />
+                            <span className="text-xs font-black uppercase tracking-widest">{getRefusalReviewStats.pending} PENDING DECISION</span>
+                          </div>
                         ) : (
-                          <span className="text-green-400 flex items-center gap-1">
-                            <Check size={14} /> All items reviewed
-                          </span>
+                          <div className="flex items-center gap-2 text-success">
+                            <CheckCircle2 size={16} />
+                            <span className="text-xs font-black uppercase tracking-widest">READY FOR COMMIT</span>
+                          </div>
                         )}
                       </div>
                       <Button
                         onClick={handleSubmitRefusalReview}
                         disabled={getRefusalReviewStats.reviewed === 0}
+                        className="h-11 px-8 rounded-xl font-bold tracking-tight shadow-glow group"
                         data-testid="button-submit-refusal-review"
                       >
                         {getRefusalReviewStats.toEscalate > 0 && (
-                          <AlertTriangle className="h-4 w-4 mr-2" />
+                          <AlertTriangle className="h-4 w-4 mr-2.5 group-hover:scale-110 transition-transform" />
                         )}
-                        Submit Review
-                        {getRefusalReviewStats.toEscalate > 0 && ` (${getRefusalReviewStats.toEscalate} escalations)`}
+                        COMMIT REVIEW
+                        {getRefusalReviewStats.toEscalate > 0 && ` (${getRefusalReviewStats.toEscalate} ESCALATIONS)`}
                       </Button>
                     </div>
                   </>
@@ -3245,9 +3293,17 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          <Card className="bg-card border-border">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>PRN Medications</CardTitle>
+          <Card className="glass-card shadow-medium animate-slide-up stagger-6 overflow-hidden border-amber-500/10">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 py-6 bg-amber-500/5">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-600 shadow-sm">
+                  <Pill size={20} />
+                </div>
+                <div>
+                   <CardTitle className="text-lg">Clinical Governance: PRN Protocols</CardTitle>
+                   <CardDescription className="text-xs font-bold uppercase tracking-widest text-amber-600/70">PRN medication compliance verification</CardDescription>
+                </div>
+              </div>
 	              <CopyButton 
 	                text={result.prnMedications.hasPRN 
 	                  ? `PRN Medications: ${result.prnMedications.medications
@@ -3257,23 +3313,27 @@ ${generatedProtocol.additionalComments}`;
 	                label="prn-section" 
 	              />
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-4">
-                <p className="text-muted-foreground">Are any medications PRN?</p>
+            <CardContent className="space-y-6 pt-6">
+              <div className="flex items-center gap-6 p-4 rounded-2xl bg-muted/20 border border-border/40">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">PRN Vectors Detected:</p>
                 {result.prnMedications.hasPRN ? (
-                  <span className="text-yellow-400 font-bold">Yes</span>
+                  <div className="flex items-center gap-2 text-amber-500 font-black text-xs uppercase tracking-widest bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> CONFIRMED
+                  </div>
                 ) : (
-                  <span className="text-green-400 font-bold">No</span>
+                  <div className="flex items-center gap-2 text-success font-black text-xs uppercase tracking-widest bg-success/10 px-3 py-1 rounded-full border border-success/20">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> NONE
+                  </div>
                 )}
               </div>
 
               {result.prnMedications.hasPRN && (
-                <>
-                  <div className="bg-muted rounded-lg p-4">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">PRN Medications List</p>
-	                    <div className="flex flex-wrap gap-2">
+                <div className="space-y-6 animate-slide-up">
+                  <div className="bg-muted/10 rounded-2xl p-5 border border-border/40">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-4">MAPPED ASSETS</p>
+	                    <div className="flex flex-wrap gap-2.5">
 	                      {result.prnMedications.medications.map((med, idx) => (
-	                        <span key={idx} className="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-sm">
+	                        <span key={idx} className="px-4 py-1.5 bg-background border border-border/60 text-foreground font-bold rounded-xl text-[11px] shadow-xs">
 	                          {getMedicationDisplayName(typeof med === 'string' ? med : med.name)}
 	                        </span>
 	                      ))}
@@ -3281,16 +3341,28 @@ ${generatedProtocol.additionalComments}`;
                   </div>
 
                   {prnProtocolsSubmitted ? (
-                    <div className="bg-muted rounded-lg p-4">
-                      <p className="text-sm text-muted-foreground mb-4">Are the PRN protocols completed?</p>
+                    <div className="p-6 rounded-2xl bg-muted/20 border border-border/40 animate-scale-in">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">PROTOCOL STATUS VERIFIED</p>
                       {prnProtocolChecks.every(p => p.isCompleted && p.isGoodStandard) ? (
-                        <div className="flex items-center gap-2 text-green-400 font-bold">
-                          <Check className="h-5 w-5" /> Yes - All PRN protocols are completed and to a good standard
+                        <div className="flex items-center gap-3 text-success">
+                          <div className="h-10 w-10 rounded-xl bg-success/20 flex items-center justify-center border border-success/20">
+                             <Check className="h-6 w-6" />
+                          </div>
+                          <div>
+                             <p className="text-base font-black tracking-tight uppercase">ALL PROTOCOLS OPTIMIZED</p>
+                             <p className="text-xs font-medium text-muted-foreground">Compliance standard met across all identified PRN vectors.</p>
+                          </div>
                         </div>
                       ) : (
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2 text-red-400 font-bold">
-                            <X className="h-5 w-5" /> No - The following protocols need attention:
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-3 text-destructive">
+                             <div className="h-10 w-10 rounded-xl bg-destructive/20 flex items-center justify-center border border-destructive/20">
+                                <X className="h-6 w-6" />
+                             </div>
+                             <div>
+                                <p className="text-base font-black tracking-tight uppercase">PROTOCOL DRIFT DETECTED</p>
+                                <p className="text-xs font-medium text-muted-foreground">Immediate remedial action required for the following assets:</p>
+                             </div>
                           </div>
                           <ul className="list-disc list-inside text-muted-foreground space-y-1">
                             {prnProtocolChecks.map((check, idx) => {
@@ -3401,21 +3473,25 @@ ${generatedProtocol.additionalComments}`;
                       </div>
                     </div>
                   )}
-                </>
+                </div>
               )}
             </CardContent>
           </Card>
 
           {result.officeClosedEntries && result.officeClosedEntries.length > 0 && (
-            <Card className="bg-card border-border" data-testid="card-office-closed-entries">
-              <CardHeader className="flex flex-row items-center justify-between gap-2">
-                <CardTitle className="flex items-center gap-2" data-testid="title-office-closed">
-                  <Users className="h-5 w-5 text-blue-400" />
-                  Office Staff Manual Entries
-                  <Badge variant="outline" className="ml-2 text-blue-400 border-blue-400/30" data-testid="badge-office-closed-count">
-                    {result.officeClosedEntries.length}
-                  </Badge>
-                </CardTitle>
+            <Card className="glass-card shadow-medium animate-slide-up stagger-7 overflow-hidden border-blue-500/20" data-testid="card-office-closed-entries">
+              <CardHeader className="bg-blue-500/5 flex flex-row items-center justify-between border-b border-border/40 py-6">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-500 shadow-sm">
+                    <Users className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Back-Office Interventions</CardTitle>
+                    <CardDescription className="font-bold text-blue-600/80 uppercase tracking-tighter text-xs">
+                      {result.officeClosedEntries.length} MANUAL ENTRIES DETECTED
+                    </CardDescription>
+                  </div>
+                </div>
 	                <CopyButton 
 	                  text={result.officeClosedEntries
 	                    .map(
@@ -3426,36 +3502,35 @@ ${generatedProtocol.additionalComments}`;
 	                  label="office-closed" 
 	                />
               </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground" data-testid="text-office-closed-description">
-                  These entries were manually closed by office staff (codes without initials in red boxes). 
-                  They are excluded from time gap violations but still validated for correct codes and required notes.
+              <CardContent className="space-y-4 pt-6">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1" data-testid="text-office-closed-description">
+                  Administrative overrides (red box codes without initials). These are excluded from temporal gap metrics.
                 </p>
-                <div className="rounded-lg border border-border overflow-hidden">
+                <div className="rounded-2xl border border-border/40 overflow-hidden bg-muted/10">
                   <Table data-testid="table-office-closed">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead data-testid="header-medication">Medication</TableHead>
-                        <TableHead data-testid="header-date">Date</TableHead>
-                        <TableHead data-testid="header-timeslot">Time Slot</TableHead>
-                        <TableHead data-testid="header-code">Code</TableHead>
-                        <TableHead data-testid="header-closedby">Closed By</TableHead>
-                        <TableHead data-testid="header-closedtime">Time Closed</TableHead>
+                    <TableHeader className="bg-muted/30">
+                      <TableRow className="border-border/40">
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest">Medication</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest">Date</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest">Time Slot</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest">Code</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest">Staff</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-widest text-right">Timestamp</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {result.officeClosedEntries.map((entry, idx) => (
-                        <TableRow key={idx} data-testid={`row-office-closed-${idx}`}>
-	                          <TableCell className="font-medium" data-testid={`cell-medication-${idx}`}>{getMedicationDisplayName(entry.medication)}</TableCell>
-                          <TableCell data-testid={`cell-date-${idx}`}>{entry.date}</TableCell>
-                          <TableCell data-testid={`cell-timeslot-${idx}`}>{entry.timeSlot}</TableCell>
+                        <TableRow key={idx} data-testid={`row-office-closed-${idx}`} className="border-border/20 hover:bg-muted/20 transition-colors">
+	                          <TableCell className="font-bold text-xs" data-testid={`cell-medication-${idx}`}>{getMedicationDisplayName(entry.medication)}</TableCell>
+                          <TableCell className="text-xs font-medium text-muted-foreground" data-testid={`cell-date-${idx}`}>{entry.date}</TableCell>
+                          <TableCell className="text-xs font-medium text-muted-foreground" data-testid={`cell-timeslot-${idx}`}>{entry.timeSlot}</TableCell>
                           <TableCell data-testid={`cell-code-${idx}`}>
-                            <Badge variant="outline" className="text-blue-400 border-blue-400/30">
+                            <Badge className="bg-blue-500/15 text-blue-500 border-blue-500/20 rounded-lg font-black text-[10px]">
                               {entry.code}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-blue-400" data-testid={`cell-closedby-${idx}`}>{entry.closedByStaff || 'Office Staff'}</TableCell>
-                          <TableCell className="text-muted-foreground" data-testid={`cell-closedtime-${idx}`}>{entry.closedTime || '-'}</TableCell>
+                          <TableCell className="text-blue-500 font-black text-[10px] uppercase tracking-tighter" data-testid={`cell-closedby-${idx}`}>{entry.closedByStaff || 'OFFICE'}</TableCell>
+                          <TableCell className="text-muted-foreground text-xs font-medium text-right" data-testid={`cell-closedtime-${idx}`}>{entry.closedTime || '-'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -3465,45 +3540,45 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card className="bg-card border-border">
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm">Themes & Trends</CardTitle>
+          <div className="grid md:grid-cols-2 gap-6 animate-slide-up stagger-8">
+            <Card className="glass-card overflow-hidden">
+              <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-primary/5">
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Consensus Intelligence</CardTitle>
                 <CopyButton text={result.themesAndTrends} label="themes" />
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{result.themesAndTrends}</p>
+              <CardContent className="pt-5">
+                <p className="text-sm font-medium text-foreground/80 leading-relaxed">{result.themesAndTrends}</p>
               </CardContent>
             </Card>
 
-            <Card className="bg-card border-border">
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm">Gaps in Knowledge</CardTitle>
+            <Card className="glass-card overflow-hidden">
+              <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-primary/5">
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Training Gaps identified</CardTitle>
                 <CopyButton text={result.gapsInKnowledge} label="gaps" />
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{result.gapsInKnowledge}</p>
+              <CardContent className="pt-5">
+                <p className="text-sm font-medium text-foreground/80 leading-relaxed">{result.gapsInKnowledge}</p>
               </CardContent>
             </Card>
           </div>
 
-          <Card className="bg-card border-border">
-            <CardContent className="p-6">
-              <CopyableBox label="Date of Audit" value={formatDate(new Date())} />
-            </CardContent>
-          </Card>
-          
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={removeActiveRecord} data-testid="button-start-new-emar">
-              Start New Audit
-            </Button>
-            <Button 
-              onClick={saveAudit} 
-              disabled={loading}
-              data-testid="button-save-emar-audit"
-            >
-              {loading ? "Saving..." : "Save Audit"}
-            </Button>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-10 border-t border-border/40 animate-slide-up stagger-9">
+            <div className="flex-1 w-full max-w-sm">
+              <CopyableBox label="Audit Finalization Sequence" value={formatDate(new Date())} className="glass-card border-border/40 bg-muted/10 shadow-xs" />
+            </div>
+            <div className="flex gap-4 w-full sm:w-auto">
+              <Button variant="outline" onClick={removeActiveRecord} className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-bold tracking-tight border-border/60 hover:bg-muted/40 transition-all" data-testid="button-start-new-emar">
+                RESET PIPELINE
+              </Button>
+              <Button
+                onClick={saveAudit}
+                disabled={loading}
+                className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-bold tracking-tight shadow-glow bg-gradient-to-r from-primary to-blue-600 border-0"
+                data-testid="button-save-emar-audit"
+              >
+                {loading ? "SAVING..." : "COMMIT AUDIT"}
+              </Button>
+            </div>
           </div>
         </div>
       )}
