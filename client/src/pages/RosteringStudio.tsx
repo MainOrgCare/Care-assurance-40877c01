@@ -47,6 +47,10 @@ import {
   Clock,
   Calendar,
 } from "lucide-react";
+import { GanttTimeline } from "@/components/rostering/GanttTimeline";
+import { MultiWorkerDashboard } from "@/components/rostering/MultiWorkerDashboard";
+import { RouteMapView } from "@/components/rostering/RouteMapView";
+import { buildAllWorkerLanes, buildWorkerLane, buildWorkerSummaries, type TimelineEntry } from "@/lib/rostering/rosterModel";
 
 // ===== ROSTERING CONSTANTS =====
 const DURATION_SHORTFALL_THRESHOLD_PERCENT = 80;
@@ -267,6 +271,13 @@ export default function RosteringStudio() {
   const [selectedWorkerCallKeys, setSelectedWorkerCallKeys] = useState<string[]>([]);
   const [careWorkerSearch, setCareWorkerSearch] = useState("");
   const [rosterCallSearch, setRosterCallSearch] = useState("");
+  const [entryOverrides, setEntryOverrides] = useState<Record<string, number>>({});
+  const [entryLaneOverrides, setEntryLaneOverrides] = useState<Record<string, string>>({});
+  const [showAllWorkers, setShowAllWorkers] = useState(false);
+  const [snapMinutes, setSnapMinutes] = useState(10);
+  const [showHalfHourTicks, setShowHalfHourTicks] = useState(true);
+  const [selectedTimelineEntryId, setSelectedTimelineEntryId] = useState<string | null>(null);
+  const [reassignWorkerKey, setReassignWorkerKey] = useState<string>("");
   
   // Template selection
   const [selectedTemplateWeek, setSelectedTemplateWeek] = useState<TemplateWeekKey>(DEFAULT_TEMPLATE_WEEK);
@@ -387,6 +398,192 @@ export default function RosteringStudio() {
     return selectedCareWorker?.callGroups || [];
   }, [selectedCareWorker]);
 
+  const workerSummaries = useMemo(() => buildWorkerSummaries(careWorkerRosters), [careWorkerRosters]);
+
+  const selectedWorkerLane = useMemo(() => buildWorkerLane(selectedCareWorker), [selectedCareWorker]);
+  const allWorkerLanes = useMemo(() => buildAllWorkerLanes(visibleCareWorkerRosters), [visibleCareWorkerRosters]);
+
+  const timelineLanes = useMemo(() => {
+    const lanes = showAllWorkers ? allWorkerLanes : selectedWorkerLane ? [selectedWorkerLane] : [];
+    const withTimeOverrides = lanes.map((lane) => ({
+      ...lane,
+      entries: lane.entries.map((entry) => {
+        const override = entryOverrides[entry.id];
+        return typeof override === "number" ? { ...entry, startMinutes: override } : entry;
+      }),
+    }));
+    if (!Object.keys(entryLaneOverrides).length) return withTimeOverrides;
+
+    const entryLookup = new Map<string, TimelineEntry>();
+    withTimeOverrides.forEach((lane) => {
+      lane.entries.forEach((entry) => entryLookup.set(entry.id, entry));
+    });
+
+    const nextLanes = withTimeOverrides.map((lane) => ({
+      ...lane,
+      entries: lane.entries.filter((entry) => entryLaneOverrides[entry.id] === undefined),
+    }));
+
+    Object.entries(entryLaneOverrides).forEach(([entryId, targetLaneId]) => {
+      const entry = entryLookup.get(entryId);
+      if (!entry) return;
+      const targetLane = nextLanes.find((lane) => lane.id === targetLaneId);
+      if (!targetLane) return;
+      targetLane.entries = [...targetLane.entries, entry];
+    });
+
+    return nextLanes;
+  }, [allWorkerLanes, entryLaneOverrides, entryOverrides, selectedWorkerLane, showAllWorkers]);
+
+  const mapEntries = useMemo(
+    () => timelineLanes.flatMap((lane) => lane.entries),
+    [timelineLanes]
+  );
+
+  const selectedTimelineEntry = useMemo<TimelineEntry | null>(() => {
+    if (!selectedTimelineEntryId) return null;
+    return mapEntries.find((entry) => entry.id === selectedTimelineEntryId) ?? null;
+  }, [mapEntries, selectedTimelineEntryId]);
+
+  const selectedEntryLaneKey = useMemo(() => {
+    if (!selectedTimelineEntryId) return null;
+    return (
+      entryLaneOverrides[selectedTimelineEntryId] ||
+      timelineLanes.find((lane) => lane.entries.some((entry) => entry.id === selectedTimelineEntryId))?.id ||
+      null
+    );
+  }, [entryLaneOverrides, selectedTimelineEntryId, timelineLanes]);
+
+  const timelineConflictCount = useMemo(() => {
+    let conflicts = 0;
+    timelineLanes.forEach((lane) => {
+      const sorted = [...lane.entries]
+        .filter((entry) => Number.isFinite(entry.startMinutes))
+        .sort((a, b) => a.startMinutes - b.startMinutes);
+      for (let i = 1; i < sorted.length; i += 1) {
+        const prev = sorted[i - 1];
+        const curr = sorted[i];
+        const prevEnd = prev.startMinutes + prev.durationMinutes;
+        if (curr.startMinutes < prevEnd) {
+          conflicts += 1;
+        }
+      }
+    });
+    return conflicts;
+  }, [timelineLanes]);
+
+  const applyOverrides = useCallback((updates: Record<string, number>) => {
+    setEntryOverrides((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  const buildPackedOverrides = useCallback(
+    (entries: TimelineEntry[], bufferMinutes: number) => {
+      const sorted = [...entries].sort((a, b) => a.startMinutes - b.startMinutes);
+      const updates: Record<string, number> = {};
+      let cursor = ROSTER_DAY_START_MINUTES;
+      sorted.forEach((entry) => {
+        const baseStart = entry.startMinutes;
+        const isTimeCritical = Boolean(entry.isTimeCritical);
+        let nextStart = isTimeCritical ? baseStart : Math.max(cursor, baseStart);
+        if (nextStart < ROSTER_DAY_START_MINUTES) nextStart = ROSTER_DAY_START_MINUTES;
+        if (nextStart > ROSTER_DAY_HARD_END_MINUTES - entry.durationMinutes) {
+          nextStart = Math.max(ROSTER_DAY_START_MINUTES, ROSTER_DAY_HARD_END_MINUTES - entry.durationMinutes);
+        }
+        updates[entry.id] = nextStart;
+        cursor = nextStart + entry.durationMinutes + bufferMinutes;
+      });
+      return updates;
+    },
+    []
+  );
+
+  const buildLaneDurationMap = useCallback((lanes: Array<{ id: string; entries: TimelineEntry[] }>) => {
+    return lanes.reduce<Record<string, number>>((acc, lane) => {
+      const total = lane.entries.reduce((sum, entry) => sum + entry.durationMinutes, 0);
+      acc[lane.id] = total;
+      return acc;
+    }, {});
+  }, []);
+
+  const handleReassignEntry = useCallback(
+    (entryId: string, targetLaneId: string) => {
+      setEntryLaneOverrides((prev) => ({ ...prev, [entryId]: targetLaneId }));
+      toast({
+        title: "Entry reassigned",
+        description: "The visit was moved to the selected worker lane.",
+      });
+    },
+    [toast]
+  );
+
+  const handleAutoBalance = useCallback(() => {
+    const updates: Record<string, number> = {};
+    const laneOverrides: Record<string, string> = {};
+    const lanesCopy = timelineLanes.map((lane) => ({
+      id: lane.id,
+      entries: [...lane.entries],
+    }));
+
+    const durationMap = buildLaneDurationMap(lanesCopy);
+    const maxIterations = 20;
+    for (let i = 0; i < maxIterations; i += 1) {
+      const entriesByLoad = [...lanesCopy].sort(
+        (a, b) => (durationMap[b.id] ?? 0) - (durationMap[a.id] ?? 0)
+      );
+      const mostLoaded = entriesByLoad[0];
+      const leastLoaded = entriesByLoad[entriesByLoad.length - 1];
+      if (!mostLoaded || !leastLoaded) break;
+      const gap = (durationMap[mostLoaded.id] ?? 0) - (durationMap[leastLoaded.id] ?? 0);
+      if (gap < 30) break;
+
+      const entryToMove = [...mostLoaded.entries].sort((a, b) => b.durationMinutes - a.durationMinutes)[0];
+      if (!entryToMove) break;
+
+      mostLoaded.entries = mostLoaded.entries.filter((entry) => entry.id !== entryToMove.id);
+      leastLoaded.entries = [...leastLoaded.entries, entryToMove];
+      durationMap[mostLoaded.id] = (durationMap[mostLoaded.id] ?? 0) - entryToMove.durationMinutes;
+      durationMap[leastLoaded.id] = (durationMap[leastLoaded.id] ?? 0) + entryToMove.durationMinutes;
+      laneOverrides[entryToMove.id] = leastLoaded.id;
+    }
+
+    lanesCopy.forEach((lane) => {
+      Object.assign(updates, buildPackedOverrides(lane.entries, 5));
+    });
+
+    setEntryLaneOverrides((prev) => ({ ...prev, ...laneOverrides }));
+    applyOverrides(updates);
+    toast({
+      title: "Workload balanced",
+      description: "Visits were redistributed to balance workload and reduce gaps.",
+    });
+  }, [applyOverrides, buildLaneDurationMap, buildPackedOverrides, timelineLanes, toast]);
+
+  const handleOptimizeTravel = useCallback(() => {
+    const updates: Record<string, number> = {};
+    timelineLanes.forEach((lane) => {
+      Object.assign(updates, buildPackedOverrides(lane.entries, 10));
+    });
+    applyOverrides(updates);
+    toast({
+      title: "Travel gaps optimized",
+      description: "Inserted buffer between visits to improve travel flow.",
+    });
+  }, [applyOverrides, buildPackedOverrides, timelineLanes, toast]);
+
+  const handleApplyRecommendedTimes = useCallback(() => {
+    const updates: Record<string, number> = {};
+    timelineLanes.forEach((lane) => {
+      lane.entries.forEach((entry) => {
+        updates[entry.id] = entry.startMinutes;
+      });
+    });
+    applyOverrides(updates);
+    toast({
+      title: "Recommended times applied",
+      description: "Timeline reset to recommended start times.",
+    });
+  }, [applyOverrides, timelineLanes, toast]);
+
   // Available template groups (those that have rows on the selected template day)
   const availableTemplateGroups = useMemo(() => {
     return selectedWorkerCallGroups.filter((g) => g.templatedWeekdayKeys.has(templateSelectionKey));
@@ -443,7 +640,12 @@ export default function RosteringStudio() {
   }
 
   return (
-    <div className="min-h-screen py-8 px-4 lg:px-10 max-w-[1600px] mx-auto">
+    <div className="min-h-screen py-8 px-4 lg:px-10 max-w-[1600px] mx-auto relative">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-32 right-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+        <div className="absolute top-40 left-0 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.08),transparent_55%)]" />
+      </div>
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-4">
@@ -621,31 +823,242 @@ export default function RosteringStudio() {
             <>
               {/* Workbook summary */}
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Card>
+                <Card className="border-border/60 bg-background/70 shadow-soft hover-elevate shimmer">
                   <CardContent className="pt-4">
                     <p className="text-xs uppercase text-muted-foreground">Total Rows</p>
                     <p className="text-2xl font-bold">{workbook.totalRows.toLocaleString()}</p>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="border-border/60 bg-background/70 shadow-soft hover-elevate shimmer">
                   <CardContent className="pt-4">
                     <p className="text-xs uppercase text-muted-foreground">Care Workers</p>
                     <p className="text-2xl font-bold">{workbook.careWorkerCount}</p>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="border-border/60 bg-background/70 shadow-soft hover-elevate shimmer">
                   <CardContent className="pt-4">
                     <p className="text-xs uppercase text-muted-foreground">Service Users</p>
                     <p className="text-2xl font-bold">{workbook.serviceUserCount}</p>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="border-border/60 bg-background/70 shadow-soft hover-elevate shimmer">
                   <CardContent className="pt-4">
                     <p className="text-xs uppercase text-muted-foreground">Call Groups</p>
                     <p className="text-2xl font-bold">{workbook.callGroupCount}</p>
                   </CardContent>
                 </Card>
               </div>
+
+              <MultiWorkerDashboard
+                workers={workerSummaries}
+                selectedWorkerKey={selectedCareWorkerKey}
+                onSelectWorker={(workerKey) => setSelectedCareWorkerKey(workerKey)}
+              />
+
+              <Card className="border-border/60 bg-background/70 shadow-medium">
+                <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <CardTitle className="text-base">Route Planner</CardTitle>
+                    <CardDescription>Timeline scheduling with optional map view.</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Switch
+                        id="toggle-all-workers"
+                        checked={showAllWorkers}
+                        onCheckedChange={setShowAllWorkers}
+                      />
+                      <label htmlFor="toggle-all-workers" className="text-xs font-medium">
+                        Show all workers
+                      </label>
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      {showAllWorkers ? "All workers" : selectedCareWorker?.workerName || "No worker selected"}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="rounded-xl border border-border/60 bg-background/60 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Snap interval</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {[5, 10, 15, 30].map((value) => (
+                          <Button
+                            key={value}
+                            type="button"
+                            size="sm"
+                            variant={snapMinutes === value ? "default" : "outline"}
+                            onClick={() => setSnapMinutes(value)}
+                          >
+                            {value} mins
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-background/60 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Timeline grid</p>
+                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                        <Switch
+                          id="toggle-half-hour"
+                          checked={showHalfHourTicks}
+                          onCheckedChange={setShowHalfHourTicks}
+                        />
+                        <label htmlFor="toggle-half-hour" className="text-xs font-medium">
+                          Show 30‑minute ticks
+                        </label>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-background/60 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Planner tips</p>
+                      <p className="text-xs text-muted-foreground mt-2">Drag blocks to reschedule. Use the snap interval for precision.</p>
+                    </div>
+                  </div>
+                  <Tabs defaultValue="timeline">
+                    <TabsList className="mb-4">
+                      <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                      <TabsTrigger value="map">Map</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="timeline">
+                      {timelineConflictCount > 0 && (
+                        <Alert className="mb-4">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>Schedule conflicts detected</AlertTitle>
+                          <AlertDescription>
+                            {timelineConflictCount} overlaps found in the current timeline. Drag visits to resolve conflicts.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                      <GanttTimeline
+                        lanes={timelineLanes}
+                        startMinutes={ROSTER_DAY_START_MINUTES}
+                        endMinutes={ROSTER_DAY_HARD_END_MINUTES}
+                        snapMinutes={snapMinutes}
+                        showHalfHourTicks={showHalfHourTicks}
+                        selectedEntryId={selectedTimelineEntryId}
+                        onSelectEntry={(entry) => setSelectedTimelineEntryId(entry.id)}
+                        onEntryMove={(entryId, newStartMinutes) =>
+                          setEntryOverrides((prev) => ({ ...prev, [entryId]: newStartMinutes }))
+                        }
+                      />
+                    </TabsContent>
+                    <TabsContent value="map">
+                      <RouteMapView entries={mapEntries} />
+                    </TabsContent>
+                  </Tabs>
+
+                  <div className="mt-6 grid gap-4 md:grid-cols-[1.2fr,0.8fr]">
+                    <Card className="border-border/60 bg-background/70">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">Selected Visit</CardTitle>
+                        <CardDescription>Click a block on the timeline to view details.</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {selectedTimelineEntry ? (
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <p className="font-semibold">{selectedTimelineEntry.title}</p>
+                              <Badge variant="outline" className="text-xs">
+                                {formatMinutesToTime(selectedTimelineEntry.startMinutes)}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {selectedTimelineEntry.callTypeLabel || "Call type unavailable"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Duration: {formatMinutesDisplay(selectedTimelineEntry.durationMinutes)}
+                            </p>
+                            {selectedTimelineEntry.address && (
+                              <p className="text-xs text-muted-foreground">{selectedTimelineEntry.address}</p>
+                            )}
+                            {selectedTimelineEntry.isTimeCritical && (
+                              <Badge variant="secondary" className="text-xs">
+                                Time critical
+                              </Badge>
+                            )}
+                            <div className="mt-3 space-y-2">
+                              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Assigned worker</p>
+                              <div className="flex items-center gap-2">
+                                <Select
+                                  value={reassignWorkerKey || selectedEntryLaneKey || ""}
+                                  onValueChange={setReassignWorkerKey}
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue placeholder="Select worker" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {workerSummaries.map((worker) => (
+                                      <SelectItem key={worker.key} value={worker.key}>
+                                        {worker.workerName}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    const target = reassignWorkerKey || selectedEntryLaneKey;
+                                    if (!target) return;
+                                    handleReassignEntry(selectedTimelineEntry.id, target);
+                                  }}
+                                >
+                                  Reassign
+                                </Button>
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setSelectedTimelineEntryId(null)}
+                            >
+                              Clear selection
+                            </Button>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No visit selected.</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                    <Card className="border-border/60 bg-background/70">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">Planner Actions</CardTitle>
+                        <CardDescription>Quick tools to refine the schedule.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="w-full"
+                          onClick={handleAutoBalance}
+                        >
+                          Auto-balance workload
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="w-full"
+                          onClick={handleOptimizeTravel}
+                        >
+                          Optimize travel gaps
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="w-full"
+                          onClick={handleApplyRecommendedTimes}
+                        >
+                          Apply recommended times
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Studio content - similar layout to TestingFeatures but with loaded data */}
               <Card>

@@ -32,6 +32,8 @@ const nullableBoundedText = (max: number) => z.string().trim().max(max).nullable
 const rotaEntrySchema = z.object({
   key: z.string().trim().min(1).max(MAX_ENTRY_KEY_LENGTH),
   serviceUserName: nullableBoundedText(MAX_LABEL_LENGTH),
+  serviceUserArea: nullableBoundedText(MAX_LABEL_LENGTH),
+  serviceUserAddress: nullableBoundedText(MAX_LABEL_LENGTH),
   callTypeLabel: nullableBoundedText(MAX_LABEL_LENGTH),
   timeBandLabel: nullableBoundedText(MAX_LABEL_LENGTH),
   requirementStartMinutes: nullableTimeOfDaySchema,
@@ -39,6 +41,8 @@ const rotaEntrySchema = z.object({
   scheduledEndMinutes: nullableMinuteValueSchema,
   durationMinutes: nullableMinuteValueSchema,
   shiftMinutes: nullableMinuteValueSchema,
+  recommendedStartMinutes: nullableTimeOfDaySchema,
+  travelMinutesEstimated: nullableMinuteValueSchema,
   isTimeCritical: z.boolean().optional(),
   isDoubleUp: z.boolean().optional(),
   windowStartMinutes: nullableTimeOfDaySchema,
@@ -122,6 +126,8 @@ export const normalizeRotaPayload = (payload: CareWorkerRotaPayload) => {
     .map((entry) => ({
       key: entry.key,
       serviceUserName: entry.serviceUserName ?? null,
+      serviceUserArea: (entry as any).serviceUserArea ?? null,
+      serviceUserAddress: (entry as any).serviceUserAddress ?? null,
       callTypeLabel: entry.callTypeLabel ?? null,
       timeBandLabel: entry.timeBandLabel ?? null,
       requirementStartMinutes: typeof entry.requirementStartMinutes === "number" ? entry.requirementStartMinutes : null,
@@ -129,6 +135,10 @@ export const normalizeRotaPayload = (payload: CareWorkerRotaPayload) => {
       scheduledEndMinutes: typeof entry.scheduledEndMinutes === "number" ? entry.scheduledEndMinutes : null,
       durationMinutes: typeof entry.durationMinutes === "number" ? entry.durationMinutes : null,
       shiftMinutes: typeof entry.shiftMinutes === "number" ? entry.shiftMinutes : null,
+      recommendedStartMinutes:
+        typeof (entry as any).recommendedStartMinutes === "number" ? (entry as any).recommendedStartMinutes : null,
+      travelMinutesEstimated:
+        typeof (entry as any).travelMinutesEstimated === "number" ? (entry as any).travelMinutesEstimated : null,
       isTimeCritical: Boolean(entry.isTimeCritical),
       isDoubleUp: Boolean(entry.isDoubleUp),
       windowStartMinutes: typeof entry.windowStartMinutes === "number" ? entry.windowStartMinutes : null,

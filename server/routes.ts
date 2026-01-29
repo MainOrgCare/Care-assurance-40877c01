@@ -25,6 +25,7 @@ import * as XLSX from "xlsx";
 import { convertPdfToImages } from "./services/pdfToImages";
 import { analyzeBillingRows } from "./services/billingAnalyzer";
 import { extractSupportPlanDataFromText, compareSupportPlanToServiceOrders, type ServiceOrderComparisonInput } from "./services/supportPlanCompare";
+import { geocodeAddress } from "./services/geocoding";
 import { parse as parseDateFns, format as formatDateFns } from "date-fns";
 // Use legacy build for Node.js (no DOM APIs required)
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
@@ -2875,6 +2876,24 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Rota not found" });
       }
       return res.json(rota);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Geocode an address (admin only, cached)
+  app.get("/api/admin/geocode", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const address = typeof req.query.address === "string" ? req.query.address.trim() : "";
+      if (!address) {
+        return res.status(400).json({ message: "Address is required" });
+      }
+      if (address.length > 240) {
+        return res.status(400).json({ message: "Address is too long" });
+      }
+
+      const result = await geocodeAddress(address);
+      return res.json({ address, result });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
     }

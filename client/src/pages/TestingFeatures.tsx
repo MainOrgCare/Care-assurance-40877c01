@@ -488,6 +488,8 @@ interface ShiftBarEntry {
 interface OptimizedRouteEntry {
   key: string;
   serviceUserName: string | null;
+  serviceUserArea: string | null;
+  serviceUserAddress: string | null;
   callTypeLabel: string;
   timeBandLabel: string;
   requirementStartMinutes: number | null;
@@ -495,6 +497,8 @@ interface OptimizedRouteEntry {
   scheduledEndMinutes: number | null;
   durationMinutes: number | null;
   shiftMinutes: number | null;
+  recommendedStartMinutes: number | null;
+  travelMinutesEstimated: number | null;
   isTimeCritical: boolean;
   isDoubleUp: boolean;
   windowStartMinutes: number | null;
@@ -3092,6 +3096,8 @@ export default function TestingFeatures() {
           optimized.push({
             key: group.key,
             serviceUserName: group.serviceUserName,
+            serviceUserArea: group.serviceUserArea ?? null,
+            serviceUserAddress: group.serviceUserAddress ?? null,
             callTypeLabel: group.callTypeLabel,
             timeBandLabel: group.effectiveTimeBandLabel,
             requirementStartMinutes: group.effectiveRequirementStartMinutes,
@@ -3099,6 +3105,8 @@ export default function TestingFeatures() {
             scheduledEndMinutes: null,
             durationMinutes: group.durationMinutes,
             shiftMinutes: null,
+            recommendedStartMinutes: null,
+            travelMinutesEstimated: null,
             isTimeCritical: group.isTimeCritical,
             isDoubleUp: isLockedDoubleUp,
             windowStartMinutes: null,
@@ -3165,6 +3173,8 @@ export default function TestingFeatures() {
         optimized.push({
           key: group.key,
           serviceUserName: group.serviceUserName,
+          serviceUserArea: group.serviceUserArea ?? null,
+          serviceUserAddress: group.serviceUserAddress ?? null,
           callTypeLabel: group.callTypeLabel,
           timeBandLabel: group.effectiveTimeBandLabel,
           requirementStartMinutes: requirementStart,
@@ -3172,6 +3182,8 @@ export default function TestingFeatures() {
           scheduledEndMinutes: scheduledEnd,
           durationMinutes,
           shiftMinutes: scheduledStart - requirementStart,
+          recommendedStartMinutes: suggestedStartMinutes ?? scheduledStart,
+          travelMinutesEstimated: null,
           isTimeCritical: group.isTimeCritical,
           isDoubleUp: isLockedDoubleUp,
           windowStartMinutes: windowStart,
@@ -3185,7 +3197,38 @@ export default function TestingFeatures() {
       currentEndOverall = cursor;
     });
 
-    return optimized;
+    const withRecommendations = optimized.map((entry) => ({
+      ...entry,
+      recommendedStartMinutes:
+        typeof entry.recommendedStartMinutes === "number"
+          ? entry.recommendedStartMinutes
+          : entry.suggestedStartMinutes ?? entry.scheduledStartMinutes ?? entry.requirementStartMinutes ?? null,
+    }));
+
+    const travelByKey = new Map<string, number | null>();
+    const scheduledSorted = [...withRecommendations]
+      .filter((entry) => typeof entry.scheduledStartMinutes === "number")
+      .sort((a, b) => (a.scheduledStartMinutes as number) - (b.scheduledStartMinutes as number));
+    let previous: OptimizedRouteEntry | null = null;
+    for (const entry of scheduledSorted) {
+      let travel: number | null = null;
+      if (previous) {
+        if (previous.serviceUserName && entry.serviceUserName && previous.serviceUserName === entry.serviceUserName) {
+          travel = 0;
+        } else if (previous.serviceUserArea && entry.serviceUserArea) {
+          travel = previous.serviceUserArea === entry.serviceUserArea ? 6 : 12;
+        } else {
+          travel = 10;
+        }
+      }
+      travelByKey.set(entry.key, travel);
+      previous = entry;
+    }
+
+    return withRecommendations.map((entry) => ({
+      ...entry,
+      travelMinutesEstimated: travelByKey.get(entry.key) ?? null,
+    }));
   }, [enforceTimeCriticalWindow, packCallsBackToBack, selectedCareWorker?.isAdminStaff, selectedWorkerGroups, shiftBarsForSelection, slotTrendLookup, useObservedAverages]);
 
   const rosterSummary = useMemo(() => {
@@ -3411,9 +3454,12 @@ export default function TestingFeatures() {
       "Requirement Time": deriveTimeLabel(entry.requirementStartMinutes, null) ?? "",
       "Scheduled Start": deriveTimeLabel(entry.scheduledStartMinutes, null) ?? "",
       "Scheduled End": deriveTimeLabel(entry.scheduledEndMinutes, null) ?? "",
+      "Recommended Start": deriveTimeLabel(entry.recommendedStartMinutes, null) ?? "",
       "Duration (mins)": typeof entry.durationMinutes === "number" ? Math.round(entry.durationMinutes) : "",
       "Shift (mins)":
         typeof entry.shiftMinutes === "number" ? Math.round(entry.shiftMinutes) : "",
+      "Travel Estimate (mins)":
+        typeof entry.travelMinutesEstimated === "number" ? Math.round(entry.travelMinutesEstimated) : "",
       "Time Critical": entry.isTimeCritical ? "Yes" : "No",
       "Double Up": entry.isDoubleUp ? "Yes" : "No",
       "Window Start": deriveTimeLabel(entry.windowStartMinutes, null) ?? "",
@@ -6134,6 +6180,8 @@ export default function TestingFeatures() {
                                         const requiredLabel = deriveTimeLabel(entry.requirementStartMinutes, null) || "—";
                                         const scheduledStart = deriveTimeLabel(entry.scheduledStartMinutes, null) || "—";
                                         const scheduledEnd = deriveTimeLabel(entry.scheduledEndMinutes, null) || "—";
+                                        const recommendedStart =
+                                          deriveTimeLabel(entry.recommendedStartMinutes, null) || "—";
                                         const shiftLabel = (() => {
                                           if (typeof entry.shiftMinutes !== "number") return "—";
                                           const rounded = Math.round(entry.shiftMinutes);
@@ -6141,6 +6189,10 @@ export default function TestingFeatures() {
                                           if (rounded < 0) return `${Math.abs(rounded)} mins earlier`;
                                           return "On time";
                                         })();
+                                        const travelLabel =
+                                          typeof entry.travelMinutesEstimated === "number"
+                                            ? `${Math.round(entry.travelMinutesEstimated)} mins travel`
+                                            : null;
                                         const windowLabel =
                                           entry.windowStartMinutes !== null && entry.windowEndMinutes !== null
                                             ? `${deriveTimeLabel(entry.windowStartMinutes, null)} → ${deriveTimeLabel(entry.windowEndMinutes, null)}`
@@ -6214,9 +6266,21 @@ export default function TestingFeatures() {
                                                     No scheduled time
                                                   </Badge>
                                                 )}
+                                                {recommendedStart !== "—" &&
+                                                  (entry.scheduledStartMinutes === null ||
+                                                    entry.recommendedStartMinutes !== entry.scheduledStartMinutes) && (
+                                                    <Badge variant="outline" className="text-xs font-semibold">
+                                                      Recommended {recommendedStart}
+                                                    </Badge>
+                                                  )}
                                                 <Badge variant="outline" className="text-xs font-semibold">
                                                   {shiftLabel}
                                                 </Badge>
+                                                {travelLabel && (
+                                                  <Badge variant="outline" className="text-xs font-semibold">
+                                                    {travelLabel}
+                                                  </Badge>
+                                                )}
                                                 {entry.isDoubleUp && (
                                                   <Badge variant="outline" className="text-xs font-semibold">
                                                     Double-up (locked)

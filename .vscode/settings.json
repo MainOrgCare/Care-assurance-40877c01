@@ -7,5 +7,6 @@
         "Github.copilot"
     ],
     "chat.agent.maxRequests": 250,
-    "git.ignoreLimitWarning": true
+    "git.ignoreLimitWarning": true,
+    "github.copilot.chat.anthropic.tools.websearch.enabled": true
 }
