@@ -323,14 +323,22 @@ const DATE_PATTERNS = [
   /(?<!:)\b(?:0?[1-9]|[12][0-9]|3[01])-(?:0?[1-9]|1[0-2])-(?:\d{2,4})\b(?!:)/g,
   /(?<!:)\b(?:0?[1-9]|[12][0-9]|3[01])\.(?:0?[1-9]|1[0-2])\.(?:\d{2,4})\b(?!:)/g,
 ];
-const TIME_RANGE_PATTERN = /\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g;
-const TIME_SLOT_PATTERN = TIME_RANGE_PATTERN;
-const TIME_TOKEN_PATTERN = /\b\d{1,2}[:.]\d{2}\b/g;
-const TIME_AMPM_PATTERN = /\b\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)\b/gi;
+const TIME_RANGE_PATTERN = /\b\d{1,2}[:.][0-5]\d\s*[-–]\s*\d{1,2}[:.][0-5]\d\b/g;
+const TIME_RANGE_COMPACT_PATTERN = /\b(?:[01]?\d|2[0-3])[0-5]\d\s*[-–]\s*(?:[01]?\d|2[0-3])[0-5]\d\b/g;
+const TIME_RANGE_AMPM_PATTERN = /\b\d{1,2}(?:[:.][0-5]\d)?\s*(?:am|pm)\s*[-–]\s*\d{1,2}(?:[:.][0-5]\d)?\s*(?:am|pm)\b/gi;
+const TIME_RANGE_ANY_PATTERN = new RegExp(
+  `${TIME_RANGE_PATTERN.source}|${TIME_RANGE_COMPACT_PATTERN.source}|${TIME_RANGE_AMPM_PATTERN.source}`,
+  "gi"
+);
+const TIME_SLOT_PATTERN = TIME_RANGE_ANY_PATTERN;
+const TIME_TOKEN_PATTERN = /\b\d{1,2}[:.][0-5]\d\b/g;
+const TIME_COMPACT_PATTERN = /\b(?:[01]?\d|2[0-3])[0-5]\d\b/g;
+const TIME_AMPM_PATTERN = /\b\d{1,2}(?:[:.][0-5]\d)?\s*(?:am|pm)\b/gi;
+const TIME_ANY_PATTERN = /\b(?:\d{1,2}[:.][0-5]\d\s*(?:am|pm)?|\d{1,2}\s*(?:am|pm)|(?:[01]?\d|2[0-3])[0-5]\d)\b/gi;
 const TIME_WORD_PATTERN = /\b(morning|noon|midday|lunch|afternoon|evening|night|bed(?:time)?|tea|breakfast|am|pm)\b/i;
 const CODE_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–]\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/gi;
 const CODE_PATTERN_SINGLE = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–]\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/i;
-const TIME_PATTERN = /\d{1,2}[:.]\d{2}/g;
+const TIME_PATTERN = /\d{1,2}[:.][0-5]\d/g;
 const INITIALS_PATTERN = /\b[A-Z]{2,3}\b/g;
 const INITIALS_WITH_DOTS_PATTERN = /\b(?:[A-Z]\.){2,3}\b/g;
 const CODE_INITIALS = new Set(["AD", "AS", "MU", "NH", "SA", "FA", "PRN", "NA"]);
@@ -350,6 +358,116 @@ const CODE_PRIORITY: Record<string, number> = {
   "P": 60,
   "N/A": 10,
   "BLANK": 0,
+};
+
+const pad2 = (value: number): string => String(value).padStart(2, "0");
+
+const parseTimeToken = (value: string): { hour: number; minute: number } | null => {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return null;
+
+  const ampmMatch = raw.match(/(am|pm)\b/);
+  const ampm = ampmMatch ? ampmMatch[1] : "";
+
+  const cleaned = raw
+    .replace(/(am|pm)\b/g, "")
+    .replace(/[()]/g, "")
+    .replace(/\s+/g, "");
+
+  if (!cleaned && !ampm) return null;
+
+  let hour: number | null = null;
+  let minute: number | null = null;
+
+  if (cleaned.includes(":") || cleaned.includes(".")) {
+    const parts = cleaned.split(/[:.]/).filter(Boolean);
+    if (parts.length >= 2) {
+      hour = Number(parts[0]);
+      minute = Number(parts[1]);
+    }
+  } else if (/^\d{3,4}$/.test(cleaned)) {
+    if (cleaned.length === 3) {
+      hour = Number(cleaned.slice(0, 1));
+      minute = Number(cleaned.slice(1));
+    } else {
+      hour = Number(cleaned.slice(0, 2));
+      minute = Number(cleaned.slice(2));
+    }
+  } else if (/^\d{1,2}$/.test(cleaned) && ampm) {
+    hour = Number(cleaned);
+    minute = 0;
+  }
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  if (hour === null || minute === null) return null;
+  if (minute < 0 || minute > 59) return null;
+
+  if (ampm) {
+    if (hour < 0 || hour > 12) return null;
+    if (hour === 12) {
+      hour = ampm === "am" ? 0 : 12;
+    } else if (ampm === "pm") {
+      hour += 12;
+    }
+  }
+
+  if (hour < 0 || hour > 23) return null;
+  return { hour, minute };
+};
+
+const normalizeTimeToken = (value: string): string => {
+  const parsed = parseTimeToken(value);
+  if (!parsed) return "";
+  return `${pad2(parsed.hour)}:${pad2(parsed.minute)}`;
+};
+
+const normalizeTimeRange = (value: string): string => {
+  const cleaned = String(value || "")
+    .replace(/[–—]/g, "-")
+    .replace(/\b(?:hrs?|hours?)\b/gi, "")
+    .replace(/[()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned.includes("-")) return "";
+  const parts = cleaned.split("-").map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 2) return "";
+
+  const startRaw = parts[0];
+  const endRaw = parts[1];
+  let start = normalizeTimeToken(startRaw);
+  let end = normalizeTimeToken(endRaw);
+  if (!start || !end) {
+    const startAmpm = startRaw.match(/\b(am|pm)\b/i)?.[1];
+    const endAmpm = endRaw.match(/\b(am|pm)\b/i)?.[1];
+    const inferredAmpm = startAmpm || endAmpm || "";
+    if (inferredAmpm) {
+      if (!start) start = normalizeTimeToken(`${startRaw}${inferredAmpm}`);
+      if (!end) end = normalizeTimeToken(`${endRaw}${inferredAmpm}`);
+    }
+  }
+  if (!start || !end) return "";
+  return `${start}-${end}`;
+};
+
+const stripTimeRangesFromText = (text: string): string => {
+  if (!text) return "";
+  const rangeRegex = new RegExp(TIME_RANGE_ANY_PATTERN.source, "gi");
+  return text.replace(rangeRegex, " ").replace(/\s+/g, " ").trim();
+};
+
+const extractFirstTimeToken = (text: string): string => {
+  if (!text) return "";
+  const cleaned = stripTimeRangesFromText(text);
+  if (!cleaned) return "";
+  const timeRegex = new RegExp(TIME_ANY_PATTERN.source, "gi");
+  const matches = cleaned.match(timeRegex);
+  if (!matches) return "";
+  for (const match of matches) {
+    const normalized = normalizeTimeToken(match);
+    if (normalized) return normalized;
+  }
+  return "";
 };
 
 const normalizeCodeText = (value: string): string => {
@@ -932,11 +1050,18 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
   const isTimeLabelOnly = (value: string): boolean => {
     const cleaned = (value || "").trim();
     if (!cleaned) return false;
-    const rangeRegex = new RegExp(`^${TIME_RANGE_PATTERN.source}$`, "i");
+    const rangeRegex = new RegExp(`^${TIME_SLOT_PATTERN.source}$`, "i");
     const ampmRegex = new RegExp(`^${TIME_AMPM_PATTERN.source}$`, "i");
     const tokenRegex = new RegExp(`^${TIME_TOKEN_PATTERN.source}$`, "i");
+    const compactRegex = new RegExp(`^${TIME_COMPACT_PATTERN.source}$`, "i");
     const wordRegex = new RegExp(`^${TIME_WORD_PATTERN.source}$`, "i");
-    return rangeRegex.test(cleaned) || ampmRegex.test(cleaned) || tokenRegex.test(cleaned) || wordRegex.test(cleaned);
+    return (
+      rangeRegex.test(cleaned) ||
+      ampmRegex.test(cleaned) ||
+      tokenRegex.test(cleaned) ||
+      compactRegex.test(cleaned) ||
+      wordRegex.test(cleaned)
+    );
   };
 
   interface SlotColumn {
@@ -972,13 +1097,21 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
   const transposedPageCells: GridCell[] = [];
   const transposedMedications: Array<{ name: string; row: number; instructions: string; timeSlots: string[] }> = [];
 
-  const normalizeSlot = (value: string) =>
-    (value || "")
+  const normalizeSlot = (value: string) => {
+    const cleaned = String(value || "")
       .trim()
       .replace(/[–—]/g, "-")
       .replace(/\./g, ":")
       .replace(/\s*-\s*/g, "-")
       .replace(/\s+/g, " ");
+
+    if (!cleaned) return "";
+    const normalizedRange = normalizeTimeRange(cleaned);
+    if (normalizedRange) return normalizedRange;
+
+    const normalizedSingle = normalizeTimeToken(cleaned);
+    return normalizedSingle || cleaned;
+  };
 
   const normalizeSlotWord = (value: string): string => {
     const key = value.toLowerCase();
@@ -1032,7 +1165,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
       return instructionIndicators.some(pattern => pattern.test(str));
     };
 
-    const rangeRegex = new RegExp(TIME_RANGE_PATTERN.source, "g");
+    const rangeRegex = new RegExp(TIME_RANGE_ANY_PATTERN.source, "gi");
     const rangeMatches = Array.from(cleaned.matchAll(rangeRegex)).map((m) => m[0]).filter(Boolean);
     if (rangeMatches.length > 0) {
       const leftover = cleaned
@@ -1059,14 +1192,19 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
     const ampmRegex = new RegExp(TIME_AMPM_PATTERN.source, "gi");
     const ampmMatches = Array.from(cleaned.matchAll(ampmRegex)).map((m) => m[0]).filter(Boolean);
     const tokenRegex = new RegExp(TIME_TOKEN_PATTERN.source, "g");
-    const tokenMatches =
+    const compactRegex = new RegExp(TIME_COMPACT_PATTERN.source, "g");
+    let tokenMatches =
       ampmMatches.length > 0
         ? ampmMatches
         : Array.from(cleaned.matchAll(tokenRegex)).map((m) => m[0]).filter(Boolean);
+    if (tokenMatches.length === 0) {
+      tokenMatches = Array.from(cleaned.matchAll(compactRegex)).map((m) => m[0]).filter(Boolean);
+    }
     if (tokenMatches.length > 0) {
       const leftover = cleaned
         .replace(ampmRegex, "")
         .replace(tokenRegex, "")
+        .replace(compactRegex, "")
         .replace(/\b(?:am|pm|hrs?|hours?)\b/gi, "")
         .replace(/[()]/g, " ")
         .replace(/\s+/g, " ")
@@ -1088,15 +1226,9 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
     return [];
   };
 
-  const stripTimeRanges = (text: string): string => {
-    if (!text) return "";
-    const rangeRegex = new RegExp(TIME_RANGE_PATTERN.source, "g");
-    return text.replace(rangeRegex, " ").replace(/\s+/g, " ").trim();
-  };
-
   const sanitizeInstructionText = (text: string): string => {
     if (!text) return "";
-    let cleaned = stripTimeRanges(text);
+    let cleaned = stripTimeRangesFromText(text);
     // Remove legend snippets like "AD - Administered (Level 3)" that bleed into instructions.
     cleaned = cleaned.replace(
       /\b(?:AD|AS|NH|MU|SA|FA|PRN)\s*[-–]\s*[A-Za-z ]+(?:\([^)]+\))?/gi,
@@ -2265,11 +2397,14 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
   // Filter cells to remove those with spurious time slots (word-only, AMPM-only, etc.)
   // This handles cases where cells were generated before the allTimeSlots was filtered
   const validTimeSlotSet = new Set(allTimeSlots);
+  const simpleTimePattern = /^\d{1,2}:\d{2}$/;
   const filteredCells = cells.filter((cell) => {
     // Always keep cells whose time slot is in the validated list
     if (validTimeSlotSet.has(cell.timeSlot)) return true;
     // If there's no validated slots, keep all cells (edge case)
     if (validTimeSlotSet.size === 0) return true;
+    // If range slots exist, drop stray single-time slots.
+    if (hasRangeSlots && simpleTimePattern.test(cell.timeSlot)) return false;
     // Filter out cells with spurious time slots
     const timeWordOnly = new RegExp(`^${TIME_WORD_PATTERN.source}$`, "i");
     const standaloneAmPm = new RegExp(`^${TIME_AMPM_PATTERN.source}$`, "i");
@@ -2666,10 +2801,9 @@ export function extractCodesFromCell(
   
   careWorker = extractCareWorkerInitials(content);
   
-  const timeMatch = content.match(/(\d{1,2}[:.]\d{2})/);
-  const slotRegex = new RegExp(TIME_SLOT_PATTERN.source, "i");
-  if (timeMatch && !slotRegex.test(content)) {
-    time = timeMatch[1].replace(".", ":");
+  const extractedTime = extractFirstTimeToken(content);
+  if (extractedTime) {
+    time = extractedTime;
   }
   
   return { code: foundCode, careWorker, time, keyMismatch: keyMismatch || undefined, detectedCode };

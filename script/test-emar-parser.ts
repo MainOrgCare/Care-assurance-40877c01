@@ -268,6 +268,9 @@ function testCodeExtraction(): void {
     { input: "A/D 08:00 IJ", expected: { code: "AD", careWorker: "IJ", time: "08:00" } },
     { input: "N/A", expected: { code: "N/A", careWorker: "", time: "" } },
     { input: "63225 HB 09:27 AD", expected: { code: "AD", careWorker: "HB", time: "09:27" } },
+    { input: "AD 8am", expected: { code: "AD", careWorker: "", time: "08:00" } },
+    { input: "AD 0830", expected: { code: "AD", careWorker: "", time: "08:30" } },
+    { input: "08:00-09:00 09:15 AD", expected: { code: "AD", careWorker: "", time: "09:15" } },
   ];
   
   let passed = 0;

@@ -5127,7 +5127,7 @@ Return JSON with EXACT shape:
         aiMissingStructure
       );
 
-      const TIME_RANGE_PATTERN = /\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g;
+      const TIME_RANGE_PATTERN = /\b(?:\d{1,2}[:.][0-5]\d|\d{1,2}\s*(?:am|pm)|(?:[01]?\d|2[0-3])[0-5]\d)\s*[-–]\s*(?:\d{1,2}[:.][0-5]\d|\d{1,2}\s*(?:am|pm)|(?:[01]?\d|2[0-3])[0-5]\d)\b/gi;
       const CODE_TOKEN_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|F|S\s*\/\s*A|S\s*[-–]\s*A|F\s*\/\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRNAD|PRNAS|PRNR|PRN|MISSED|N\/?A)\b/i;
 
       const normalizeCodeText = (value: string): string => {
@@ -5197,7 +5197,8 @@ Return JSON with EXACT shape:
       const hasExplicitTimeInCell = (cell: ParsedEMAR["cells"][number]) => {
         if (cell.time && cell.time.trim()) return true;
         const content = String(cell.content || "").replace(TIME_RANGE_PATTERN, " ");
-        return /\b\d{1,2}[:.]\d{2}\b/.test(content);
+        const timeRegex = /\b(?:\d{1,2}[:.][0-5]\d|\d{1,2}\s*(?:am|pm)|(?:[01]?\d|2[0-3])[0-5]\d)\b/i;
+        return timeRegex.test(content);
       };
 
       gridNonBlankCount = gridBaseline?.cells?.reduce((count, cell) => {
