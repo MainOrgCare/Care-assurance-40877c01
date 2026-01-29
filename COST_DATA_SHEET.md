@@ -239,7 +239,7 @@ Assuming average 10 service users per facility:
 ## 11. Cost Optimization Built-In
 
 1. **Virus Scanning:** Hash caching prevents duplicate scans
-2. **AI Processing:** GPT-5.2 unified model for all features
+2. **AI Processing:** Tiered approach using cost-efficient Mini models for extraction
 3. **Caching:** 90% discount on cached AI inputs
 4. **Database:** Scale-to-zero during inactive periods
 5. **Hosting:** Autoscale only charges when in use
