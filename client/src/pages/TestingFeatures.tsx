@@ -53,8 +53,10 @@ import {
   Shield,
   SlidersHorizontal,
   Timer,
+  TrendingUp,
   UploadCloud,
   Users,
+  Zap,
 } from "lucide-react";
 
 const ROW_BATCH_SIZE = 250;
@@ -532,6 +534,21 @@ export default function TestingFeatures() {
   const debouncedSearchTerm = useDebounce(searchTerm, 200);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ROWS);
   const [showDuplicateRows, setShowDuplicateRows] = useState(false);
+  // Filter presets state
+  const [filterPresets, setFilterPresets] = useState<Array<{
+    id: string;
+    name: string;
+    status: RowStatus | "all";
+    searchTerm: string;
+    showDuplicates: boolean;
+    includeCancelled: boolean;
+    includeMismatched: boolean;
+  }>>([]);
+  const [filterHistory, setFilterHistory] = useState<Array<{
+    status: RowStatus | "all";
+    searchTerm: string;
+    timestamp: number;
+  }>>([]);
   const [includeCancelledCalls, setIncludeCancelledCalls] = useState(false);
   const [includeMismatchedWorkers, setIncludeMismatchedWorkers] = useState(false);
   const [excludeOfficeStaffFromPdf, setExcludeOfficeStaffFromPdf] = useState(false);
@@ -555,6 +572,14 @@ export default function TestingFeatures() {
   const [isDragging, setIsDragging] = useState(false);
   const [rosteringFullscreen, setRosteringFullscreen] = useState(false);
   const [isSavingWorkbook, setIsSavingWorkbook] = useState(false);
+  // Comparison mode state
+  const [comparisonSnapshot, setComparisonSnapshot] = useState<{
+    fileMeta: FileMeta;
+    summary: typeof summary;
+    healthSummary: typeof healthSummary;
+    primaryRowCount: number;
+  } | null>(null);
+  const [isComparisonMode, setIsComparisonMode] = useState(false);
   const analysisJobRef = useRef<number>(0);
   const dragCounterRef = useRef(0);
   const showGlobalProgress = processingState === "parsing" || processingState === "analyzing";
@@ -639,6 +664,75 @@ export default function TestingFeatures() {
       URL.revokeObjectURL(url);
     };
   }, [convertedBlob]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+
+      const isMeta = e.metaKey || e.ctrlKey;
+
+      // Escape: Clear selection
+      if (e.key === "Escape") {
+        setSelectedRow(null);
+        return;
+      }
+
+      // 1/2/3: Quick filter status
+      if (e.key === "1" && !isMeta) {
+        e.preventDefault();
+        setFilterStatus("all");
+        return;
+      }
+      if (e.key === "2" && !isMeta) {
+        e.preventDefault();
+        setFilterStatus("clean");
+        return;
+      }
+      if (e.key === "3" && !isMeta) {
+        e.preventDefault();
+        setFilterStatus("attention");
+        return;
+      }
+
+      // D: Toggle duplicate rows
+      if (e.key === "d" && !isMeta) {
+        e.preventDefault();
+        setShowDuplicateRows((prev) => !prev);
+        return;
+      }
+
+      // R: Reset filters
+      if (e.key === "r" && !isMeta && e.shiftKey) {
+        e.preventDefault();
+        setFilterStatus("all");
+        setSearchTerm("");
+        setShowDuplicateRows(false);
+        toast({ title: "Filters reset" });
+        return;
+      }
+
+      // ?: Show keyboard shortcuts help
+      if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
+        e.preventDefault();
+        toast({
+          title: "Keyboard Shortcuts",
+          description: "1/2/3: Filter status | D: Toggle duplicates | Shift+R: Reset | Esc: Clear selection | ?: Help",
+        });
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toast]);
 
   const normalizeColumnLabel = useCallback((label: string, index: number) => {
     if (!label || label.startsWith("__EMPTY")) {
@@ -1485,51 +1579,137 @@ export default function TestingFeatures() {
   const healthSummary = useMemo(() => {
     if (!analysisResults.length || !coverage.total) return null;
 
-    const coverageValues = [
-      coverage.plannedTime,
-      coverage.actualTime,
-      coverage.plannedDuration,
-      coverage.actualDuration,
-      coverage.plannedWorker,
-      coverage.actualWorker,
-      coverage.serviceUser,
-      coverage.plannedDate,
-      coverage.callType,
-    ]
-      .map((count) => count / coverage.total)
-      .filter((value) => Number.isFinite(value));
-    const coverageAvg =
-      coverageValues.length > 0
-        ? coverageValues.reduce((acc, value) => acc + value, 0) / coverageValues.length
-        : 0;
-
-    const attentionRate = summary.totalPrimary
-      ? summary.attention / summary.totalPrimary
+    // ===== COMPLETENESS SCORE (how much data is present) =====
+    const coverageBreakdown = {
+      plannedTime: coverage.plannedTime / coverage.total,
+      actualTime: coverage.actualTime / coverage.total,
+      plannedDuration: coverage.plannedDuration / coverage.total,
+      actualDuration: coverage.actualDuration / coverage.total,
+      plannedWorker: coverage.plannedWorker / coverage.total,
+      actualWorker: coverage.actualWorker / coverage.total,
+      serviceUser: coverage.serviceUser / coverage.total,
+      plannedDate: coverage.plannedDate / coverage.total,
+      callType: coverage.callType / coverage.total,
+    };
+    const completenessValues = Object.values(coverageBreakdown).filter((v) => Number.isFinite(v));
+    const completenessScore = completenessValues.length > 0
+      ? completenessValues.reduce((a, b) => a + b, 0) / completenessValues.length
       : 0;
-    const duplicateRate = summary.total ? summary.duplicateCount / summary.total : 0;
-    const excludedRate = excludedCounts.total / analysisResults.length;
 
+    // ===== CONSISTENCY SCORE (duplicates, mismatches, excluded) =====
+    const duplicateRate = summary.total ? summary.duplicateCount / summary.total : 0;
+    const excludedRate = analysisResults.length ? excludedCounts.total / analysisResults.length : 0;
+    const mismatchRate = analysisResults.length ? excludedCounts.mismatched / analysisResults.length : 0;
+    const consistencyScore = Math.max(0, 1 - (duplicateRate * 0.4 + excludedRate * 0.35 + mismatchRate * 0.25));
+
+    // ===== TIMELINESS SCORE (schedule drift analysis) =====
+    const driftValues = primaryRows
+      .map((r) => r.scheduleDeltaMinutes)
+      .filter((v): v is number => v !== null && Number.isFinite(v))
+      .map(Math.abs);
+    
+    const sortedDrifts = [...driftValues].sort((a, b) => a - b);
+    const driftP50 = sortedDrifts.length ? sortedDrifts[Math.floor(sortedDrifts.length * 0.5)] : null;
+    const driftP90 = sortedDrifts.length ? sortedDrifts[Math.floor(sortedDrifts.length * 0.9)] : null;
+    const driftP99 = sortedDrifts.length ? sortedDrifts[Math.floor(sortedDrifts.length * 0.99)] : null;
+    const avgDrift = driftValues.length ? driftValues.reduce((a, b) => a + b, 0) / driftValues.length : 0;
+    const driftStdDev = driftValues.length > 1
+      ? Math.sqrt(driftValues.reduce((sum, v) => sum + Math.pow(v - avgDrift, 2), 0) / driftValues.length)
+      : 0;
+    
+    // Score based on median drift (under 30 min = good, over 2h = bad)
+    const timelinessScore = driftP50 !== null
+      ? Math.max(0, Math.min(1, 1 - (driftP50 / 120)))
+      : 1; // If no data, assume good
+
+    // ===== ACCURACY SCORE (duration fidelity) =====
+    const durationValues = primaryRows
+      .map((r) => r.durationMatchPercent)
+      .filter((v): v is number => v !== null && Number.isFinite(v));
+    
+    const sortedDurations = [...durationValues].sort((a, b) => a - b);
+    const durationP50 = sortedDurations.length ? sortedDurations[Math.floor(sortedDurations.length * 0.5)] : null;
+    const durationP10 = sortedDurations.length ? sortedDurations[Math.floor(sortedDurations.length * 0.1)] : null;
+    const durationP90 = sortedDurations.length ? sortedDurations[Math.floor(sortedDurations.length * 0.9)] : null;
+    const avgDuration = durationValues.length ? durationValues.reduce((a, b) => a + b, 0) / durationValues.length : 100;
+    const durationStdDev = durationValues.length > 1
+      ? Math.sqrt(durationValues.reduce((sum, v) => sum + Math.pow(v - avgDuration, 2), 0) / durationValues.length)
+      : 0;
+    
+    // Score based on how close median is to 100% (80-120% = good)
+    const accuracyScore = durationP50 !== null
+      ? Math.max(0, Math.min(1, 1 - Math.abs(durationP50 - 100) / 50))
+      : 1;
+
+    // ===== ATTENTION RATE =====
+    const attentionRate = summary.totalPrimary ? summary.attention / summary.totalPrimary : 0;
+
+    // ===== COMPOSITE DATA QUALITY INDEX =====
     const scoreRaw =
-      coverageAvg * 0.55 +
-      (1 - attentionRate) * 0.25 +
-      (1 - duplicateRate) * 0.1 +
-      (1 - excludedRate) * 0.1;
+      completenessScore * 0.30 +
+      consistencyScore * 0.25 +
+      timelinessScore * 0.20 +
+      accuracyScore * 0.15 +
+      (1 - attentionRate) * 0.10;
 
     const score = Math.round(Math.max(0, Math.min(1, scoreRaw)) * 100);
     const label =
-      score >= 85 ? "Excellent quality" : score >= 70 ? "Good quality" : score >= 55 ? "Needs attention" : "Critical quality";
+      score >= 90 ? "Excellent quality" :
+      score >= 80 ? "Very good quality" :
+      score >= 70 ? "Good quality" :
+      score >= 55 ? "Needs attention" :
+      "Critical quality";
     const tone: InsightTone = score >= 70 ? "default" : score >= 55 ? "warning" : "destructive";
+
+    // Grade letters for sub-scores
+    const gradeScore = (s: number) => 
+      s >= 0.9 ? "A" : s >= 0.8 ? "B" : s >= 0.7 ? "C" : s >= 0.55 ? "D" : "F";
 
     return {
       score,
       label,
       tone,
-      coverageAvg,
+      // Legacy fields for backwards compat
+      coverageAvg: completenessScore,
       attentionRate,
       duplicateRate,
       excludedRate,
+      // Enhanced breakdown
+      completeness: {
+        score: Math.round(completenessScore * 100),
+        grade: gradeScore(completenessScore),
+        breakdown: coverageBreakdown,
+      },
+      consistency: {
+        score: Math.round(consistencyScore * 100),
+        grade: gradeScore(consistencyScore),
+        duplicateRate,
+        excludedRate,
+        mismatchRate,
+      },
+      timeliness: {
+        score: Math.round(timelinessScore * 100),
+        grade: gradeScore(timelinessScore),
+        avgDrift,
+        driftStdDev,
+        driftP50,
+        driftP90,
+        driftP99,
+        outlierCount: driftValues.filter((v) => v > 120).length,
+      },
+      accuracy: {
+        score: Math.round(accuracyScore * 100),
+        grade: gradeScore(accuracyScore),
+        avgDuration,
+        durationStdDev,
+        durationP10,
+        durationP50,
+        durationP90,
+        underdeliveredCount: durationValues.filter((v) => v < 80).length,
+        overdeliveredCount: durationValues.filter((v) => v > 120).length,
+      },
     };
-  }, [analysisResults.length, coverage, excludedCounts.total, summary]);
+  }, [analysisResults.length, coverage, excludedCounts, summary, primaryRows]);
 
   const detectedColumns = useMemo(() => {
     if (!analysisResults.length) return [];
@@ -3980,6 +4160,21 @@ export default function TestingFeatures() {
 
   return (
     <div className="page-shell max-w-7xl mx-auto space-y-10 relative pb-6">
+      {/* Accessibility: Live region for status announcements */}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {processingState === "parsing" && "Parsing workbook file. Please wait."}
+        {processingState === "analyzing" && `Analyzing data. ${progress}% complete.`}
+        {processingState === "complete" && `Analysis complete. Found ${summary.totalPrimary} unique slots with ${summary.attention} rows needing attention.`}
+      </div>
+      
+      {/* Accessibility: Skip link for keyboard navigation */}
+      <a 
+        href="#tf-workbook" 
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md"
+      >
+        Skip to workbook section
+      </a>
+
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute -top-32 right-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute top-40 left-0 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
@@ -4232,6 +4427,143 @@ export default function TestingFeatures() {
         </Card>
       </div>
 
+      {/* Workbook Comparison Panel */}
+      {(comparisonSnapshot || (fileMeta && processingState === "complete")) && (
+        <Card className="relative overflow-hidden border-border/70 bg-background/70 shadow-soft hover-elevate motion-safe:animate-slide-up stagger-2">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_55%)]" />
+          <CardHeader className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-600">
+                <Copy className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle>Workbook Comparison</CardTitle>
+                <CardDescription>
+                  {comparisonSnapshot 
+                    ? `Comparing against: ${comparisonSnapshot.fileMeta.name}`
+                    : "Take a snapshot to compare against future uploads."}
+                </CardDescription>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {!comparisonSnapshot && fileMeta && processingState === "complete" && summary && healthSummary && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setComparisonSnapshot({
+                      fileMeta,
+                      summary: { ...summary },
+                      healthSummary: healthSummary ? { ...healthSummary } : null,
+                      primaryRowCount: primaryRows.length,
+                    });
+                    setIsComparisonMode(true);
+                    toast({
+                      title: "Snapshot saved",
+                      description: "Upload a new workbook to compare against this baseline.",
+                    });
+                  }}
+                  className="gap-2"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Save Snapshot
+                </Button>
+              )}
+              {comparisonSnapshot && (
+                <>
+                  <Badge variant="secondary" className="text-xs">
+                    Baseline: {comparisonSnapshot.fileMeta.name}
+                  </Badge>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setComparisonSnapshot(null);
+                      setIsComparisonMode(false);
+                      toast({
+                        title: "Snapshot cleared",
+                        description: "Comparison mode disabled.",
+                      });
+                    }}
+                  >
+                    Clear Snapshot
+                  </Button>
+                </>
+              )}
+            </div>
+          </CardHeader>
+          {comparisonSnapshot && fileMeta && processingState === "complete" && healthSummary && (
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <ComparisonMetric
+                  label="Quality Score"
+                  baseline={comparisonSnapshot.healthSummary?.score ?? 0}
+                  current={healthSummary.score}
+                  format={(v) => `${v}`}
+                  higherIsBetter={true}
+                />
+                <ComparisonMetric
+                  label="Total Rows"
+                  baseline={comparisonSnapshot.summary?.total ?? 0}
+                  current={summary.total}
+                  format={(v) => v.toLocaleString()}
+                  higherIsBetter={true}
+                />
+                <ComparisonMetric
+                  label="Clean Rows"
+                  baseline={comparisonSnapshot.summary?.clean ?? 0}
+                  current={summary.clean}
+                  format={(v) => v.toLocaleString()}
+                  higherIsBetter={true}
+                />
+                <ComparisonMetric
+                  label="Attention Rows"
+                  baseline={comparisonSnapshot.summary?.attention ?? 0}
+                  current={summary.attention}
+                  format={(v) => v.toLocaleString()}
+                  higherIsBetter={false}
+                />
+                <ComparisonMetric
+                  label="Duplicate Rate"
+                  baseline={Math.round((comparisonSnapshot.healthSummary?.duplicateRate ?? 0) * 100)}
+                  current={Math.round(healthSummary.duplicateRate * 100)}
+                  format={(v) => `${v}%`}
+                  higherIsBetter={false}
+                />
+                <ComparisonMetric
+                  label="Completeness"
+                  baseline={comparisonSnapshot.healthSummary?.completeness?.score ?? 0}
+                  current={healthSummary.completeness?.score ?? 0}
+                  format={(v) => `${v}`}
+                  higherIsBetter={true}
+                />
+                <ComparisonMetric
+                  label="Schedule Drift Alerts"
+                  baseline={comparisonSnapshot.summary?.scheduleAlerts ?? 0}
+                  current={summary.scheduleAlerts}
+                  format={(v) => v.toLocaleString()}
+                  higherIsBetter={false}
+                />
+                <ComparisonMetric
+                  label="Duration Alerts"
+                  baseline={comparisonSnapshot.summary?.durationAlerts ?? 0}
+                  current={summary.durationAlerts}
+                  format={(v) => v.toLocaleString()}
+                  higherIsBetter={false}
+                />
+              </div>
+              <Separator />
+              <p className="text-xs text-muted-foreground">
+                <TrendingUp className="h-3 w-3 inline mr-1" />
+                Green arrows indicate improvement from baseline. Red arrows indicate regression.
+              </p>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
       {showGlobalProgress && (
         <div className="z-30 mb-6 motion-safe:animate-fade-in">
           <div className="rounded-full h-2 bg-border/50 overflow-hidden">
@@ -4283,7 +4615,11 @@ export default function TestingFeatures() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div
-                className={`relative overflow-hidden rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
+                role="button"
+                tabIndex={0}
+                aria-label="Upload workbook file. Accepts CSV, XLS, and XLSX formats. You can also drag and drop files here."
+                aria-describedby="upload-instructions"
+                className={`relative overflow-hidden rounded-2xl border-2 border-dashed p-6 text-center transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
                   isDragging
                     ? "border-primary bg-primary/10 shadow-glow"
                     : "border-border bg-background/60 hover:bg-muted/20 hover:shadow-soft"
@@ -4292,6 +4628,12 @@ export default function TestingFeatures() {
                 onDragLeave={handleDragLeave}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    document.getElementById("testing-features-upload")?.click();
+                  }
+                }}
               >
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_55%)]" />
                 <input
@@ -4299,14 +4641,15 @@ export default function TestingFeatures() {
                   type="file"
                   accept=".csv,.xlsx,.xls"
                   className="hidden"
+                  aria-hidden="true"
                   onChange={handleFileChange}
                 />
                 <label htmlFor="testing-features-upload" className="relative z-10 cursor-pointer space-y-3 block">
                   <div className="flex items-center justify-center gap-3 text-muted-foreground">
-                    <UploadCloud className="h-5 w-5" />
+                    <UploadCloud className="h-5 w-5" aria-hidden="true" />
                     <span>{isDragging ? "Drop the file to start analysis" : "Click to choose a data file or drag it here"}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground/80">
+                  <p id="upload-instructions" className="text-xs text-muted-foreground/80">
                     We keep everything client-side so you can experiment safely.
                   </p>
                 </label>
@@ -4467,6 +4810,38 @@ export default function TestingFeatures() {
               helper="Under 80% or over 120%"
             />
           </div>
+          {/* Enhanced KPI Rate Metrics */}
+          {summary.totalPrimary > 0 && (
+            <>
+              <Separator className="my-6" />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <RateMetric
+                  label="Data Cleanliness Rate"
+                  value={Math.round((summary.clean / summary.totalPrimary) * 100)}
+                  target={90}
+                  description="Percentage of rows without issues"
+                />
+                <RateMetric
+                  label="Schedule Compliance Rate"
+                  value={summary.totalPrimary > 0 ? Math.round(((summary.totalPrimary - summary.scheduleAlerts) / summary.totalPrimary) * 100) : 100}
+                  target={95}
+                  description="Rows within 2h of planned time"
+                />
+                <RateMetric
+                  label="Duration Compliance Rate"
+                  value={summary.totalPrimary > 0 ? Math.round(((summary.totalPrimary - summary.durationAlerts) / summary.totalPrimary) * 100) : 100}
+                  target={90}
+                  description="Rows within 80-120% of plan"
+                />
+                <RateMetric
+                  label="Data Efficiency"
+                  value={summary.total > 0 ? Math.round((summary.totalPrimary / summary.total) * 100) : 100}
+                  target={95}
+                  description="Non-duplicate row ratio"
+                />
+              </div>
+            </>
+          )}
         </div>
       </section>
 
@@ -4486,45 +4861,141 @@ export default function TestingFeatures() {
         </div>
 
         {analysisResults.length > 0 && healthSummary && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card className="relative overflow-hidden border-border/70 bg-background/70 shadow-soft hover-elevate">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_55%)]" />
-            <CardHeader className="relative z-10 flex flex-row items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600">
-                <Shield className="h-5 w-5" />
-              </div>
-              <div>
-                <CardTitle>Data Health Score</CardTitle>
-                <CardDescription>Weighted quality score for this dataset.</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <>
+        {/* ===== ENHANCED DATA QUALITY DASHBOARD ===== */}
+        <Card className="relative overflow-hidden border-border/70 bg-background/70 shadow-soft hover-elevate">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_55%)]" />
+          <CardHeader className="relative z-10">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600">
+                  <Shield className="h-6 w-6" />
+                </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Overall</p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-semibold text-foreground">{healthSummary.score}</span>
-                    <Badge variant="outline" className={toneTextMap[healthSummary.tone]}>
-                      {healthSummary.label}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Coverage {Math.round(healthSummary.coverageAvg * 100)}% • Attention {Math.round(healthSummary.attentionRate * 100)}%
-                  </p>
-                </div>
-                <div className="flex-1 sm:pl-6">
-                  <Progress value={healthSummary.score} className="h-2" />
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <HealthStat label="Coverage" value={`${Math.round(healthSummary.coverageAvg * 100)}%`} />
-                    <HealthStat label="Attention rate" value={`${Math.round(healthSummary.attentionRate * 100)}%`} />
-                    <HealthStat label="Duplicate rate" value={`${Math.round(healthSummary.duplicateRate * 100)}%`} />
-                    <HealthStat label="Excluded rate" value={`${Math.round(healthSummary.excludedRate * 100)}%`} />
-                  </div>
+                  <CardTitle className="text-xl">Data Quality Dashboard</CardTitle>
+                  <CardDescription>Comprehensive quality assessment with multi-dimensional scoring.</CardDescription>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Overall Index</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-5xl font-bold text-foreground">{healthSummary.score}</span>
+                    <span className="text-lg text-muted-foreground">/100</span>
+                  </div>
+                </div>
+                <Badge variant="outline" className={`${toneTextMap[healthSummary.tone]} text-sm px-3 py-1`}>
+                  {healthSummary.label}
+                </Badge>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Overall Progress Bar */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Data Quality Index</span>
+                <span>{healthSummary.score}%</span>
+              </div>
+              <Progress value={healthSummary.score} className="h-3" />
+            </div>
 
+            {/* Quality Dimension Scores */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <QualityDimensionCard
+                title="Completeness"
+                score={healthSummary.completeness.score}
+                grade={healthSummary.completeness.grade}
+                description="Data field coverage"
+                icon={<FileSpreadsheet className="h-4 w-4" />}
+                details={[
+                  `${Math.round(healthSummary.completeness.breakdown.serviceUser * 100)}% service users`,
+                  `${Math.round(healthSummary.completeness.breakdown.plannedTime * 100)}% planned times`,
+                  `${Math.round(healthSummary.completeness.breakdown.actualTime * 100)}% actual times`,
+                ]}
+              />
+              <QualityDimensionCard
+                title="Consistency"
+                score={healthSummary.consistency.score}
+                grade={healthSummary.consistency.grade}
+                description="Data integrity"
+                icon={<CheckCircle2 className="h-4 w-4" />}
+                details={[
+                  `${Math.round(healthSummary.consistency.duplicateRate * 100)}% duplicates`,
+                  `${Math.round(healthSummary.consistency.mismatchRate * 100)}% mismatches`,
+                  `${Math.round(healthSummary.consistency.excludedRate * 100)}% excluded`,
+                ]}
+              />
+              <QualityDimensionCard
+                title="Timeliness"
+                score={healthSummary.timeliness.score}
+                grade={healthSummary.timeliness.grade}
+                description="Schedule adherence"
+                icon={<Clock4 className="h-4 w-4" />}
+                details={[
+                  healthSummary.timeliness.driftP50 !== null ? `P50 drift: ${Math.round(healthSummary.timeliness.driftP50)} min` : "No drift data",
+                  healthSummary.timeliness.driftP90 !== null ? `P90 drift: ${Math.round(healthSummary.timeliness.driftP90)} min` : "",
+                  `${healthSummary.timeliness.outlierCount} outliers (>2h)`,
+                ].filter(Boolean)}
+              />
+              <QualityDimensionCard
+                title="Accuracy"
+                score={healthSummary.accuracy.score}
+                grade={healthSummary.accuracy.grade}
+                description="Duration fidelity"
+                icon={<Timer className="h-4 w-4" />}
+                details={[
+                  healthSummary.accuracy.durationP50 !== null ? `Median: ${Math.round(healthSummary.accuracy.durationP50)}%` : "No duration data",
+                  `${healthSummary.accuracy.underdeliveredCount} under 80%`,
+                  `${healthSummary.accuracy.overdeliveredCount} over 120%`,
+                ]}
+              />
+            </div>
+
+            {/* Statistical Insights */}
+            <Separator />
+            <div className="space-y-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-2">
+                <TrendingUp className="h-3.5 w-3.5" />
+                Statistical Insights
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <StatInsightCard
+                  label="Schedule Drift"
+                  primary={healthSummary.timeliness.avgDrift !== null ? `${Math.round(healthSummary.timeliness.avgDrift)} min avg` : "—"}
+                  secondary={healthSummary.timeliness.driftStdDev ? `±${Math.round(healthSummary.timeliness.driftStdDev)} std dev` : ""}
+                />
+                <StatInsightCard
+                  label="Duration Fidelity"
+                  primary={healthSummary.accuracy.avgDuration !== null ? `${Math.round(healthSummary.accuracy.avgDuration)}% avg` : "—"}
+                  secondary={healthSummary.accuracy.durationStdDev ? `±${Math.round(healthSummary.accuracy.durationStdDev)}% std dev` : ""}
+                />
+                <StatInsightCard
+                  label="Drift Percentiles"
+                  primary={healthSummary.timeliness.driftP50 !== null ? `P50: ${Math.round(healthSummary.timeliness.driftP50)}m` : "—"}
+                  secondary={healthSummary.timeliness.driftP99 !== null ? `P99: ${Math.round(healthSummary.timeliness.driftP99)}m` : ""}
+                />
+                <StatInsightCard
+                  label="Duration Range"
+                  primary={healthSummary.accuracy.durationP10 !== null ? `P10: ${Math.round(healthSummary.accuracy.durationP10)}%` : "—"}
+                  secondary={healthSummary.accuracy.durationP90 !== null ? `P90: ${Math.round(healthSummary.accuracy.durationP90)}%` : ""}
+                />
+              </div>
+            </div>
+
+            {/* Legacy Stats Row for backwards compat */}
+            <Separator />
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <HealthStat label="Coverage" value={`${Math.round(healthSummary.coverageAvg * 100)}%`} />
+              <HealthStat label="Attention rate" value={`${Math.round(healthSummary.attentionRate * 100)}%`} />
+              <HealthStat label="Duplicate rate" value={`${Math.round(healthSummary.duplicateRate * 100)}%`} />
+              <HealthStat label="Excluded rate" value={`${Math.round(healthSummary.excludedRate * 100)}%`} />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Issue Breakdown - kept separate */}
+        <div className="grid gap-6 lg:grid-cols-2">
           <Card className="relative overflow-hidden border-border/70 bg-background/70 shadow-soft hover-elevate">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(251,146,60,0.18),transparent_55%)]" />
             <CardHeader className="relative z-10 flex flex-row items-center gap-3">
@@ -4552,7 +5023,77 @@ export default function TestingFeatures() {
               )}
             </CardContent>
           </Card>
+
+          {/* Anomaly Detection Panel */}
+          <Card className="relative overflow-hidden border-border/70 bg-background/70 shadow-soft hover-elevate">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.14),transparent_55%)]" />
+            <CardHeader className="relative z-10 flex flex-row items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-purple-500/15 text-purple-600">
+                <Zap className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle>Anomaly Detection</CardTitle>
+                <CardDescription>Statistical outliers that may need review.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {(() => {
+                const anomalies = [];
+                if (healthSummary.timeliness.outlierCount > 0) {
+                  anomalies.push({
+                    key: "drift-outliers",
+                    label: "Extreme schedule drift",
+                    count: healthSummary.timeliness.outlierCount,
+                    description: "Calls with >2 hour difference from planned time",
+                    severity: healthSummary.timeliness.outlierCount > 10 ? "high" : "medium",
+                  });
+                }
+                if (healthSummary.accuracy.underdeliveredCount > 0) {
+                  anomalies.push({
+                    key: "underdelivered",
+                    label: "Significantly underdelivered",
+                    count: healthSummary.accuracy.underdeliveredCount,
+                    description: "Calls with <80% of planned duration",
+                    severity: healthSummary.accuracy.underdeliveredCount > 20 ? "high" : "medium",
+                  });
+                }
+                if (healthSummary.accuracy.overdeliveredCount > 0) {
+                  anomalies.push({
+                    key: "overdelivered",
+                    label: "Significantly overdelivered",
+                    count: healthSummary.accuracy.overdeliveredCount,
+                    description: "Calls with >120% of planned duration",
+                    severity: healthSummary.accuracy.overdeliveredCount > 20 ? "high" : "low",
+                  });
+                }
+                if (healthSummary.timeliness.driftStdDev > 60) {
+                  anomalies.push({
+                    key: "high-variance",
+                    label: "High timing variance",
+                    count: Math.round(healthSummary.timeliness.driftStdDev),
+                    description: `Standard deviation of ${Math.round(healthSummary.timeliness.driftStdDev)} minutes indicates inconsistent scheduling`,
+                    severity: "medium",
+                  });
+                }
+                
+                return anomalies.length > 0 ? (
+                  anomalies.map((anomaly) => (
+                    <AnomalyRow
+                      key={anomaly.key}
+                      label={anomaly.label}
+                      count={anomaly.count}
+                      description={anomaly.description}
+                      severity={anomaly.severity as "high" | "medium" | "low"}
+                    />
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No statistical anomalies detected.</p>
+                );
+              })()}
+            </CardContent>
+          </Card>
         </div>
+        </>
         )}
 
       {coverage.total > 0 && (
@@ -5764,20 +6305,23 @@ export default function TestingFeatures() {
                     </div>
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
                     <div className="relative">
-                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                       <Input
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         placeholder="Search row or keyword"
+                        aria-label="Search rows by keyword"
                         className="pl-9 w-full md:w-64"
                       />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2" role="group" aria-label="Filter by status">
                       <Button
                         type="button"
                         size="sm"
                         variant={filterStatus === "all" ? "default" : "secondary"}
                         onClick={() => setFilterStatus("all")}
+                        aria-pressed={filterStatus === "all"}
+                        aria-label="Show all rows"
                       >
                         All
                       </Button>
@@ -5786,6 +6330,8 @@ export default function TestingFeatures() {
                         size="sm"
                         variant={filterStatus === "clean" ? "default" : "secondary"}
                         onClick={() => setFilterStatus("clean")}
+                        aria-pressed={filterStatus === "clean"}
+                        aria-label="Show only clean rows"
                       >
                         Clean
                       </Button>
@@ -5794,8 +6340,38 @@ export default function TestingFeatures() {
                         size="sm"
                         variant={filterStatus === "attention" ? "default" : "secondary"}
                         onClick={() => setFilterStatus("attention")}
+                        aria-pressed={filterStatus === "attention"}
+                        aria-label="Show only rows needing attention"
                       >
                         Needs Attention
+                      </Button>
+                      {/* Save Filter Preset */}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        title="Save current filter as preset"
+                        onClick={() => {
+                          const presetName = prompt("Enter a name for this filter preset:");
+                          if (presetName?.trim()) {
+                            const newPreset = {
+                              id: `preset-${Date.now()}`,
+                              name: presetName.trim(),
+                              status: filterStatus,
+                              searchTerm,
+                              showDuplicates: showDuplicateRows,
+                              includeCancelled: includeCancelledCalls,
+                              includeMismatched: includeMismatchedWorkers,
+                            };
+                            setFilterPresets((prev) => [...prev, newPreset]);
+                            toast({
+                              title: "Filter preset saved",
+                              description: `"${presetName}" has been saved.`,
+                            });
+                          }
+                        }}
+                      >
+                        <Save className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                     <Button
@@ -5815,6 +6391,46 @@ export default function TestingFeatures() {
                       </label>
                     </div>
                   </div>
+                  {/* Filter Presets Row */}
+                  {filterPresets.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border/60">
+                      <span className="text-xs text-muted-foreground uppercase tracking-wide">Presets:</span>
+                      {filterPresets.map((preset) => (
+                        <div key={preset.id} className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-xs h-7"
+                            onClick={() => {
+                              setFilterStatus(preset.status);
+                              setSearchTerm(preset.searchTerm);
+                              setShowDuplicateRows(preset.showDuplicates);
+                              setIncludeCancelledCalls(preset.includeCancelled);
+                              setIncludeMismatchedWorkers(preset.includeMismatched);
+                              toast({
+                                title: "Filter preset loaded",
+                                description: `Applied "${preset.name}"`,
+                              });
+                            }}
+                          >
+                            {preset.name}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => {
+                              setFilterPresets((prev) => prev.filter((p) => p.id !== preset.id));
+                            }}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -5876,8 +6492,8 @@ export default function TestingFeatures() {
                                     </InsightPill>
                                   )}
                                   {row.isDoubleUpSlot && row.doubleUpWorkers && (
-                                    <InsightPill tone="secondary" title={row.doubleUpWorkers.join(", ")}>
-                                      Double-up ({row.doubleUpWorkers.length} workers)
+                                    <InsightPill tone="default">
+                                      Double-up: {row.doubleUpWorkers.join(", ")}
                                     </InsightPill>
                                   )}
                                   {row.isDuplicateSlotRow && !row.isDoubleUpSlot && (
@@ -6578,6 +7194,215 @@ function HealthStat({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-border/70 bg-background/70 px-3 py-2 shadow-soft hover-elevate shimmer">
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="text-sm font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function QualityDimensionCard({
+  title,
+  score,
+  grade,
+  description,
+  icon,
+  details,
+}: {
+  title: string;
+  score: number;
+  grade: string;
+  description: string;
+  icon: ReactNode;
+  details: string[];
+}) {
+  const tone: InsightTone = score >= 70 ? "default" : score >= 55 ? "warning" : "destructive";
+  const gradeColor =
+    grade === "A" ? "text-emerald-600 dark:text-emerald-400" :
+    grade === "B" ? "text-sky-600 dark:text-sky-400" :
+    grade === "C" ? "text-amber-600 dark:text-amber-400" :
+    grade === "D" ? "text-orange-600 dark:text-orange-400" :
+    "text-red-600 dark:text-red-400";
+
+  return (
+    <div className={`group relative overflow-hidden rounded-2xl border p-4 ${toneSurfaceMap[tone]} hover-elevate`}>
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r ${toneGlowMap[tone]} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
+      />
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          {icon}
+          <span className="text-xs uppercase tracking-wide">{title}</span>
+        </div>
+        <span className={`text-2xl font-bold ${gradeColor}`}>{grade}</span>
+      </div>
+      <div className="mt-3">
+        <div className="flex items-baseline gap-2">
+          <span className="text-3xl font-semibold text-foreground">{score}</span>
+          <span className="text-sm text-muted-foreground">/100</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">{description}</p>
+      </div>
+      <div className="mt-3 pt-3 border-t border-border/50 space-y-1">
+        {details.map((detail, idx) => (
+          <p key={idx} className="text-xs text-muted-foreground">{detail}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StatInsightCard({
+  label,
+  primary,
+  secondary,
+}: {
+  label: string;
+  primary: string;
+  secondary?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background/70 p-3 shadow-soft hover-elevate shimmer">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-sm font-semibold text-foreground mt-1">{primary}</p>
+      {secondary && <p className="text-xs text-muted-foreground">{secondary}</p>}
+    </div>
+  );
+}
+
+function RateMetric({
+  label,
+  value,
+  target,
+  description,
+}: {
+  label: string;
+  value: number;
+  target: number;
+  description: string;
+}) {
+  const isAboveTarget = value >= target;
+  const tone: InsightTone = value >= target ? "default" : value >= target * 0.8 ? "warning" : "destructive";
+  const progressColor = isAboveTarget 
+    ? "bg-emerald-500" 
+    : value >= target * 0.8 
+    ? "bg-amber-500" 
+    : "bg-red-500";
+
+  return (
+    <div className={`rounded-2xl border p-4 ${toneSurfaceMap[tone]} hover-elevate`}>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+        </div>
+        <div className="text-right">
+          <span className={`text-2xl font-bold ${toneTextMap[tone]}`}>{value}%</span>
+          <p className="text-[10px] text-muted-foreground">Target: {target}%</p>
+        </div>
+      </div>
+      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-background/50">
+        <div
+          className={`h-full rounded-full ${progressColor} transition-all duration-500`}
+          style={{ width: `${Math.min(value, 100)}%` }}
+        />
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+        <span>0%</span>
+        <span className={isAboveTarget ? "text-emerald-600 dark:text-emerald-400" : ""}>
+          {isAboveTarget ? "✓ On target" : `${target - value}% below target`}
+        </span>
+        <span>100%</span>
+      </div>
+    </div>
+  );
+}
+
+function AnomalyRow({
+  label,
+  count,
+  description,
+  severity,
+}: {
+  label: string;
+  count: number;
+  description: string;
+  severity: "high" | "medium" | "low";
+}) {
+  const tone: InsightTone = severity === "high" ? "destructive" : severity === "medium" ? "warning" : "default";
+  const severityLabel = severity === "high" ? "High" : severity === "medium" ? "Medium" : "Low";
+
+  return (
+    <div className={`group relative overflow-hidden rounded-2xl border px-4 py-3 ${toneSurfaceMap[tone]} hover-elevate`}>
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r ${toneGlowMap[tone]} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
+      />
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <Zap className={`h-3.5 w-3.5 ${toneTextMap[tone]}`} />
+            <p className="text-sm font-medium text-foreground">{label}</p>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">{description}</p>
+        </div>
+        <div className="text-right">
+          <Badge variant="outline" className={toneTextMap[tone]}>
+            {count.toLocaleString()}
+          </Badge>
+          <p className="text-[10px] text-muted-foreground mt-1">{severityLabel} severity</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ComparisonMetric({
+  label,
+  baseline,
+  current,
+  format,
+  higherIsBetter,
+}: {
+  label: string;
+  baseline: number;
+  current: number;
+  format: (value: number) => string;
+  higherIsBetter: boolean;
+}) {
+  const diff = current - baseline;
+  const percentChange = baseline !== 0 ? Math.abs((diff / baseline) * 100) : 0;
+  const isImproved = higherIsBetter ? diff > 0 : diff < 0;
+  const isRegressed = higherIsBetter ? diff < 0 : diff > 0;
+  const isUnchanged = diff === 0;
+
+  const trendColor = isUnchanged
+    ? "text-muted-foreground"
+    : isImproved
+    ? "text-emerald-600 dark:text-emerald-400"
+    : "text-red-600 dark:text-red-400";
+
+  const trendIcon = isUnchanged ? "→" : isImproved ? "↑" : "↓";
+  const trendBg = isUnchanged
+    ? "bg-muted/50"
+    : isImproved
+    ? "bg-emerald-500/10"
+    : "bg-red-500/10";
+
+  return (
+    <div className={`rounded-2xl border border-border/70 p-4 shadow-soft hover-elevate shimmer ${trendBg}`}>
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <div className="mt-2 flex items-baseline justify-between">
+        <span className="text-2xl font-semibold text-foreground">{format(current)}</span>
+        <div className={`flex items-center gap-1 text-sm font-medium ${trendColor}`}>
+          <span>{trendIcon}</span>
+          {!isUnchanged && <span>{percentChange.toFixed(0)}%</span>}
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+        <span>Baseline: {format(baseline)}</span>
+        {!isUnchanged && (
+          <span className={trendColor}>
+            {diff > 0 ? "+" : ""}{format(diff)}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
