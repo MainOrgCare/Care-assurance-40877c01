@@ -3332,11 +3332,9 @@ export async function registerRoutes(
         });
 
         documentText = extracted.text;
-        if (allowSensitiveView) {
-          serviceUserFullName =
-            extractServiceUserFullName(documentText) ||
-            extractServiceUserFullName(gridBaseline?.rawText || "");
-        }
+        serviceUserFullName =
+          extractServiceUserFullName(documentText) ||
+          extractServiceUserFullName(gridBaseline?.rawText || "");
         console.log(`DEBUG: Final extracted text: ${documentText.length} chars from PDF (pdfjs-dist)`);
       } catch (textError: any) {
         console.error("PDF text extraction failed:", textError);
@@ -3688,7 +3686,16 @@ ${correctionExamples}
           
           // Convert agent result to the format expected by the rest of the code
           const metadata = agentResult.metadata;
-          metadata.serviceUserInitials = normalizeInitials(metadata.serviceUserInitials);
+          const gridInitials = normalizeInitials(gridBaseline?.serviceUserName);
+          const textInitials = normalizeInitials(serviceUserFullName);
+          const aiInitials = normalizeInitials(metadata.serviceUserInitials);
+          const derivedAgentInitials =
+            gridInitials !== "N.N."
+              ? gridInitials
+              : textInitials !== "N.N."
+                ? textInitials
+                : aiInitials;
+          metadata.serviceUserInitials = derivedAgentInitials;
           const allEntries = agentResult.entries.map((e: any) => ({
             ...e,
             medication: metadata.medications.find((m: any) => m.medicationId === e.medicationId)?.name || `Medication ${e.medicationId}`
@@ -5230,9 +5237,14 @@ Return JSON with EXACT shape:
       const gridServiceUserInitials = gridBaseline?.serviceUserName
         ? normalizeInitials(gridBaseline.serviceUserName)
         : "N.N.";
+      const textDerivedInitials = normalizeInitials(serviceUserFullName);
       const aiServiceUserInitials = normalizeInitials(metadata.serviceUserInitials);
       metadata.serviceUserInitials =
-        gridServiceUserInitials !== "N.N." ? gridServiceUserInitials : aiServiceUserInitials;
+        gridServiceUserInitials !== "N.N."
+          ? gridServiceUserInitials
+          : textDerivedInitials !== "N.N."
+          ? textDerivedInitials
+          : aiServiceUserInitials;
 
       sendProgress(25, "Count validation complete...", "count_complete");
 

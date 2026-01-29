@@ -77,6 +77,8 @@ const MEDICATION_NAME_INSTRUCTION_WORDS = new Set([
   "insert",
   "inhale",
   "use",
+  "dissolve",
+  "mix",
   "instill",
   "oral",
   "topical",

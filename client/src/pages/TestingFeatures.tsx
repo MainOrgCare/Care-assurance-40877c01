@@ -3887,72 +3887,74 @@ export default function TestingFeatures() {
         </p>
       </div>
 
-      <Alert className="border-amber-500/25 bg-amber-500/5 text-foreground shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10">
-        <AlertTitle>Volatile workspace</AlertTitle>
-        <AlertDescription>
-          Data stays in-memory only. Refreshing the page clears every upload, so export a PDF if you need a temporary record.
-        </AlertDescription>
-      </Alert>
+      <div className="grid gap-4 lg:grid-cols-2 items-start">
+        <Alert className="border-amber-500/25 bg-amber-500/5 text-foreground shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10">
+          <AlertTitle>Volatile workspace</AlertTitle>
+          <AlertDescription>
+            Data stays in-memory only. Refreshing the page clears every upload, so export a PDF if you need a temporary record.
+          </AlertDescription>
+        </Alert>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick navigation</CardTitle>
-          <CardDescription>Jump between workbook tools, KPIs, and insights.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={workbookNavDisabled}
-              onClick={() => scrollToAnchor("tf-workbook")}
-            >
-              Workbook
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={kpiNavDisabled}
-              onClick={() => scrollToAnchor("tf-kpi")}
-            >
-              KPI
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={insightsNavDisabled}
-              onClick={() => scrollToAnchor("tf-insights")}
-            >
-              Insights
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={studioNavDisabled}
-              onClick={() => scrollToAnchor("tf-studio")}
-            >
-              Studio
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={stacksNavDisabled}
-              onClick={() => scrollToAnchor("tf-stacks")}
-            >
-              Stacks
-            </Button>
-          </div>
-          <Separator />
-          <p className="text-xs text-muted-foreground">
-            Tip: sections appear as data is loaded (some anchors may not exist yet).
-          </p>
-        </CardContent>
-      </Card>
+        <Card className="h-full">
+          <CardHeader>
+            <CardTitle>Quick navigation</CardTitle>
+            <CardDescription>Jump between workbook tools, KPIs, and insights.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={workbookNavDisabled}
+                onClick={() => scrollToAnchor("tf-workbook")}
+              >
+                Workbook
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={kpiNavDisabled}
+                onClick={() => scrollToAnchor("tf-kpi")}
+              >
+                KPI
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={insightsNavDisabled}
+                onClick={() => scrollToAnchor("tf-insights")}
+              >
+                Insights
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={studioNavDisabled}
+                onClick={() => scrollToAnchor("tf-studio")}
+              >
+                Studio
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={stacksNavDisabled}
+                onClick={() => scrollToAnchor("tf-stacks")}
+              >
+                Stacks
+              </Button>
+            </div>
+            <Separator />
+            <p className="text-xs text-muted-foreground">
+              Tip: sections appear as data is loaded (some anchors may not exist yet).
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
       {showGlobalProgress && (
         <div className="z-30 mb-6">
@@ -3968,134 +3970,134 @@ export default function TestingFeatures() {
 
       <section id="tf-workbook" className="scroll-mt-24 space-y-6">
         <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle>Upload Workbook</CardTitle>
-              <CardDescription>Accepted formats: CSV, XLS, XLSX</CardDescription>
-            </div>
-            {processingState === "analyzing" && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div
-              className={`border border-dashed rounded-xl p-6 text-center transition-colors ${
-                isDragging ? "border-primary bg-primary/5" : "border-border bg-background/60 hover:bg-muted/20"
-              }`}
-              onDragEnter={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-            >
-              <input
-                id="testing-features-upload"
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-              <label htmlFor="testing-features-upload" className="cursor-pointer space-y-3 block">
-                <div className="flex items-center justify-center gap-3 text-muted-foreground">
-                  <UploadCloud className="h-5 w-5" />
-                  <span>{isDragging ? "Drop the file to start analysis" : "Click to choose a data file or drag it here"}</span>
-                </div>
-                <p className="text-xs text-muted-foreground/80">
-                  We keep everything client-side so you can experiment safely.
-                </p>
-              </label>
-            </div>
+          <Card className="lg:col-span-2">
+            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Upload Workbook</CardTitle>
+                <CardDescription>Accepted formats: CSV, XLS, XLSX</CardDescription>
+              </div>
+              {processingState === "analyzing" && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div
+                className={`border border-dashed rounded-xl p-6 text-center transition-colors ${
+                  isDragging ? "border-primary bg-primary/5" : "border-border bg-background/60 hover:bg-muted/20"
+                }`}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+              >
+                <input
+                  id="testing-features-upload"
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <label htmlFor="testing-features-upload" className="cursor-pointer space-y-3 block">
+                  <div className="flex items-center justify-center gap-3 text-muted-foreground">
+                    <UploadCloud className="h-5 w-5" />
+                    <span>{isDragging ? "Drop the file to start analysis" : "Click to choose a data file or drag it here"}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground/80">
+                    We keep everything client-side so you can experiment safely.
+                  </p>
+                </label>
+              </div>
 
-            {fileMeta && (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-lg border border-border bg-background/60 p-4">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Active file</p>
-                  <p className="font-medium text-sm mt-1">{fileMeta.name}</p>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
-                    <span>{fileMeta.type}</span>
-                    <span>•</span>
-                    <span>{formatBytes(fileMeta.size)}</span>
-                    <span>•</span>
-                    <span>{fileMeta.totalRows.toLocaleString()} rows</span>
+              {fileMeta && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-lg border border-border bg-background/60 p-4">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Active file</p>
+                    <p className="font-medium text-sm mt-1">{fileMeta.name}</p>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
+                      <span>{fileMeta.type}</span>
+                      <span>•</span>
+                      <span>{formatBytes(fileMeta.size)}</span>
+                      <span>•</span>
+                      <span>{fileMeta.totalRows.toLocaleString()} rows</span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background/60 p-4 space-y-3">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Actions</p>
+                    <div className="flex flex-wrap gap-2">
+                      {downloadUrl && (
+                        <Button size="sm" variant="secondary" asChild>
+                          <a href={downloadUrl} download={fileMeta?.name?.replace(/\.csv$/i, ".xlsx") || "converted.xlsx"}>
+                            <Download className="h-4 w-4 mr-2" /> Download converted Excel
+                          </a>
+                        </Button>
+                      )}
+                      {fileMeta && (
+                        <Button size="sm" variant="ghost" onClick={handleReset}>
+                          Reset
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="rounded-lg border border-border bg-background/60 p-4 space-y-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Actions</p>
-                  <div className="flex flex-wrap gap-2">
-                    {downloadUrl && (
-                      <Button size="sm" variant="secondary" asChild>
-                        <a href={downloadUrl} download={fileMeta?.name?.replace(/\.csv$/i, ".xlsx") || "converted.xlsx"}>
-                          <Download className="h-4 w-4 mr-2" /> Download converted Excel
-                        </a>
-                      </Button>
-                    )}
-                    {fileMeta && (
-                      <Button size="sm" variant="ghost" onClick={handleReset}>
-                        Reset
-                      </Button>
-                    )}
-                  </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Analysis Progress</CardTitle>
+              <CardDescription>
+                {processingState === "analyzing" && "Crunching rows in batches"}
+                {processingState === "parsing" && "Preparing workbook"}
+                {processingState === "complete" && "Analysis finished"}
+                {processingState === "idle" && "Awaiting upload"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between text-sm">
+                <span>{progress}%</span>
+                <Badge variant={processingState === "complete" ? "default" : "secondary"}>{processingState}</Badge>
+              </div>
+              <Progress value={progress} className="h-2" />
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>Rows analyzed: {analysisResults.length.toLocaleString()}</p>
+                <p>Unique slots: {summary.totalPrimary.toLocaleString()}</p>
+                {summary.duplicateCount > 0 && (
+                  <p>Duplicates ignored: {summary.duplicateCount.toLocaleString()}</p>
+                )}
+                {excludedCounts.total > 0 && (
+                  <p>
+                    Excluded rows: {excludedCounts.total.toLocaleString()} (cancelled{" "}
+                    {excludedCounts.cancelled.toLocaleString()}, mismatched{" "}
+                    {excludedCounts.mismatched.toLocaleString()})
+                  </p>
+                )}
+                <p>Flagged rows: {summary.attention.toLocaleString()}</p>
+                <p>Empty fields: {summary.totalEmpty.toLocaleString()}</p>
+              </div>
+              <div className="pt-3 border-t border-border/60 space-y-2">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Metrics filters</p>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <Label htmlFor="toggle-include-cancelled" className="font-medium">
+                    Include cancelled calls
+                  </Label>
+                  <Switch
+                    id="toggle-include-cancelled"
+                    checked={includeCancelledCalls}
+                    onCheckedChange={setIncludeCancelledCalls}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <Label htmlFor="toggle-include-mismatch" className="font-medium">
+                    Include mismatched carers
+                  </Label>
+                  <Switch
+                    id="toggle-include-mismatch"
+                    checked={includeMismatchedWorkers}
+                    onCheckedChange={setIncludeMismatchedWorkers}
+                  />
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Analysis Progress</CardTitle>
-            <CardDescription>
-              {processingState === "analyzing" && "Crunching rows in batches"}
-              {processingState === "parsing" && "Preparing workbook"}
-              {processingState === "complete" && "Analysis finished"}
-              {processingState === "idle" && "Awaiting upload"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between text-sm">
-              <span>{progress}%</span>
-              <Badge variant={processingState === "complete" ? "default" : "secondary"}>{processingState}</Badge>
-            </div>
-            <Progress value={progress} className="h-2" />
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <p>Rows analyzed: {analysisResults.length.toLocaleString()}</p>
-              <p>Unique slots: {summary.totalPrimary.toLocaleString()}</p>
-              {summary.duplicateCount > 0 && (
-                <p>Duplicates ignored: {summary.duplicateCount.toLocaleString()}</p>
-              )}
-              {excludedCounts.total > 0 && (
-                <p>
-                  Excluded rows: {excludedCounts.total.toLocaleString()} (cancelled{" "}
-                  {excludedCounts.cancelled.toLocaleString()}, mismatched{" "}
-                  {excludedCounts.mismatched.toLocaleString()})
-                </p>
-              )}
-              <p>Flagged rows: {summary.attention.toLocaleString()}</p>
-              <p>Empty fields: {summary.totalEmpty.toLocaleString()}</p>
-            </div>
-            <div className="pt-3 border-t border-border/60 space-y-2">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Metrics filters</p>
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <Label htmlFor="toggle-include-cancelled" className="font-medium">
-                  Include cancelled calls
-                </Label>
-                <Switch
-                  id="toggle-include-cancelled"
-                  checked={includeCancelledCalls}
-                  onCheckedChange={setIncludeCancelledCalls}
-                />
-              </div>
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <Label htmlFor="toggle-include-mismatch" className="font-medium">
-                  Include mismatched carers
-                </Label>
-                <Switch
-                  id="toggle-include-mismatch"
-                  checked={includeMismatchedWorkers}
-                  onCheckedChange={setIncludeMismatchedWorkers}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
         </div>
       </section>
 
@@ -4105,47 +4107,47 @@ export default function TestingFeatures() {
           <p className="text-sm text-muted-foreground">Snapshot of key totals and alerts.</p>
         </div>
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        <MetricCard
-          icon={<FileSpreadsheet className="h-4 w-4" />}
-          label="Total Rows"
-          value={summary.total.toLocaleString()}
-          helper={`${summary.totalPrimary.toLocaleString()} unique slots`}
-        />
-        <MetricCard
-          icon={<Users className="h-4 w-4 text-slate-600" />}
-          label="Duplicate Slot Rows"
-          value={summary.duplicateCount.toLocaleString()}
-          helper="Same user/date/time — ignored"
-        />
-        <MetricCard
-          icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
-          label="Clean Rows"
-          value={summary.clean.toLocaleString()}
-          helper="No warnings detected"
-        />
-        <MetricCard
-          icon={<AlertCircle className="h-4 w-4 text-orange-500" />}
-          label="Needs Attention"
-          value={summary.attention.toLocaleString()}
-          helper="Contains missing or risky values"
-        />
-        <MetricCard
-          icon={<Filter className="h-4 w-4" />}
-          label="Empty Cells"
-          value={summary.totalEmpty.toLocaleString()}
-        />
-        <MetricCard
-          icon={<Clock4 className="h-4 w-4 text-sky-500" />}
-          label="Schedule Drift Alerts"
-          value={summary.scheduleAlerts.toLocaleString()}
-          helper="Same carer moved >2h"
-        />
-        <MetricCard
-          icon={<Timer className="h-4 w-4 text-amber-500" />}
-          label="Duration Alerts"
-          value={summary.durationAlerts.toLocaleString()}
-          helper="Under 80% or over 120%"
-        />
+          <MetricCard
+            icon={<FileSpreadsheet className="h-4 w-4" />}
+            label="Total Rows"
+            value={summary.total.toLocaleString()}
+            helper={`${summary.totalPrimary.toLocaleString()} unique slots`}
+          />
+          <MetricCard
+            icon={<Users className="h-4 w-4 text-slate-600" />}
+            label="Duplicate Slot Rows"
+            value={summary.duplicateCount.toLocaleString()}
+            helper="Same user/date/time — ignored"
+          />
+          <MetricCard
+            icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
+            label="Clean Rows"
+            value={summary.clean.toLocaleString()}
+            helper="No warnings detected"
+          />
+          <MetricCard
+            icon={<AlertCircle className="h-4 w-4 text-orange-500" />}
+            label="Needs Attention"
+            value={summary.attention.toLocaleString()}
+            helper="Contains missing or risky values"
+          />
+          <MetricCard
+            icon={<Filter className="h-4 w-4" />}
+            label="Empty Cells"
+            value={summary.totalEmpty.toLocaleString()}
+          />
+          <MetricCard
+            icon={<Clock4 className="h-4 w-4 text-sky-500" />}
+            label="Schedule Drift Alerts"
+            value={summary.scheduleAlerts.toLocaleString()}
+            helper="Same carer moved >2h"
+          />
+          <MetricCard
+            icon={<Timer className="h-4 w-4 text-amber-500" />}
+            label="Duration Alerts"
+            value={summary.durationAlerts.toLocaleString()}
+            helper="Under 80% or over 120%"
+          />
         </div>
       </section>
 
@@ -4155,7 +4157,7 @@ export default function TestingFeatures() {
           <p className="text-sm text-muted-foreground">Deeper diagnostics once data is loaded.</p>
         </div>
 
-      {analysisResults.length > 0 && healthSummary && (
+        {analysisResults.length > 0 && healthSummary && (
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
@@ -4211,7 +4213,7 @@ export default function TestingFeatures() {
             </CardContent>
           </Card>
         </div>
-      )}
+        )}
 
       {coverage.total > 0 && (
         <Card>
@@ -4383,9 +4385,13 @@ export default function TestingFeatures() {
           )}
 
           {careWorkerRosters.length > 0 && (
-            <AccordionItem id="tf-studio" value="care-worker-route-optimizer" className="scroll-mt-24 mb-4 rounded-2xl border border-border/70 bg-card px-5 shadow-sm border-b-0">
+            <AccordionItem
+              id="tf-studio"
+              value="care-worker-route-optimizer"
+              className="scroll-mt-24 mb-4 rounded-2xl border border-border/70 bg-card/60 px-5 shadow-sm border-b-0 overflow-hidden"
+            >
               <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline">Rostering Studio</AccordionTrigger>
-              <AccordionContent className="relative">
+              <AccordionContent className="relative pb-5">
                 {rosteringFullscreen && (
                   <div
                     className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
@@ -4394,8 +4400,16 @@ export default function TestingFeatures() {
                   />
                 )}
                 <div className={rosteringFullscreen ? "fixed inset-4 z-50" : undefined}>
-                <Card className={rosteringFullscreen ? "h-[calc(100vh-2rem)]" : undefined}>
-                  <CardHeader className={`flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between ${rosteringFullscreen ? "sticky top-0 z-10 border-b border-border/60 bg-background/95 backdrop-blur" : ""}`}>
+                  <Card
+                    className={
+                      rosteringFullscreen
+                        ? "h-[calc(100vh-2rem)] border border-border/70 bg-background shadow-lg"
+                        : "border-0 bg-transparent shadow-none"
+                    }
+                  >
+                    <CardHeader
+                      className={`flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between ${rosteringFullscreen ? "sticky top-0 z-10 border-b border-border/60 bg-background/95 backdrop-blur" : ""}`}
+                    >
                     <div>
                       <CardTitle className="flex items-center gap-2">
                         <Route className="h-5 w-5 text-primary" />
@@ -4455,14 +4469,14 @@ export default function TestingFeatures() {
                         <Link href="/care-worker-rotas">Open rota library</Link>
                       </Button>
                     </div>
-                  </CardHeader>
-                  <CardContent
-                    className={`space-y-6 overflow-auto pr-2 ${
-                      rosteringFullscreen
-                        ? "h-[calc(100vh-12rem)]"
-                        : "max-h-[70vh]"
-                    }`}
-                  >
+                    </CardHeader>
+                    <CardContent
+                      className={`space-y-6 overflow-auto pr-2 ${
+                        rosteringFullscreen
+                          ? "h-[calc(100vh-12rem)]"
+                          : "max-h-[70vh]"
+                      }`}
+                    >
                     {!careWorkerHasMatch && (
                       <p className="text-xs text-muted-foreground">
                         No direct match found — showing the nearest care workers instead.
@@ -5370,8 +5384,8 @@ export default function TestingFeatures() {
                         )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
                 </div>
               </AccordionContent>
             </AccordionItem>
@@ -5595,11 +5609,15 @@ export default function TestingFeatures() {
           )}
 
           {serviceUserStacks.length > 0 && (
-            <AccordionItem id="tf-stacks" value="service-user-call-stacks" className="scroll-mt-24 mb-4 rounded-2xl border border-border/70 bg-card px-5 shadow-sm border-b-0">
+            <AccordionItem
+              id="tf-stacks"
+              value="service-user-call-stacks"
+              className="scroll-mt-24 mb-4 rounded-2xl border border-border/70 bg-card/60 px-5 shadow-sm border-b-0 overflow-hidden"
+            >
               <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline">Service User Call Stacks</AccordionTrigger>
-              <AccordionContent>
-                <Card>
-                  <CardHeader className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <AccordionContent className="pb-5">
+                <Card className="border-0 bg-transparent shadow-none">
+                  <CardHeader className="px-0 pt-0 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div>
                       <CardTitle>Service User Call Stacks</CardTitle>
                       <CardDescription>
@@ -5637,7 +5655,7 @@ export default function TestingFeatures() {
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-6">
+                  <CardContent className="px-0 pb-0 space-y-6">
                     {callGroupSearch.trim() && !hasSearchMatch && (
                       <p className="text-xs text-muted-foreground">
                         No direct match found — showing the nearest stacks instead.
@@ -5646,71 +5664,79 @@ export default function TestingFeatures() {
 
                     <Accordion type="single" collapsible className="w-full">
                       {visibleServiceUserStacks.map((stack) => {
-                const flaggedRows = stack.rows.filter((row) => row.scheduleFlag || row.durationFlag).length;
-                const driftValues = stack.rows
-                  .map((row) => (typeof row.scheduleDeltaMinutes === "number" ? Math.abs(row.scheduleDeltaMinutes) : null))
-                  .filter((value): value is number => value !== null);
-                const averageDrift = driftValues.length
-                  ? driftValues.reduce((acc, val) => acc + val, 0) / driftValues.length
-                  : null;
-                const durationValues = stack.rows
-                  .map((row) => (typeof row.durationMatchPercent === "number" ? row.durationMatchPercent : null))
-                  .filter((value): value is number => value !== null);
-                const averageDuration = durationValues.length
-                  ? durationValues.reduce((acc, val) => acc + val, 0) / durationValues.length
-                  : null;
-                const workerSet = new Set(
-                  stack.rows
-                    .map((row) => row.actualWorker || row.plannedWorker || undefined)
-                    .filter((value): value is string => Boolean(value))
-                );
+                        const flaggedRows = stack.rows.filter((row) => row.scheduleFlag || row.durationFlag).length;
+                        const driftValues = stack.rows
+                          .map((row) =>
+                            typeof row.scheduleDeltaMinutes === "number" ? Math.abs(row.scheduleDeltaMinutes) : null
+                          )
+                          .filter((value): value is number => value !== null);
+                        const averageDrift = driftValues.length
+                          ? driftValues.reduce((acc, val) => acc + val, 0) / driftValues.length
+                          : null;
+                        const durationValues = stack.rows
+                          .map((row) =>
+                            typeof row.durationMatchPercent === "number" ? row.durationMatchPercent : null
+                          )
+                          .filter((value): value is number => value !== null);
+                        const averageDuration = durationValues.length
+                          ? durationValues.reduce((acc, val) => acc + val, 0) / durationValues.length
+                          : null;
+                        const workerSet = new Set(
+                          stack.rows
+                            .map((row) => row.actualWorker || row.plannedWorker || undefined)
+                            .filter((value): value is string => Boolean(value))
+                        );
 
-                const callTypeGroups = (() => {
-                  const map = new Map<
-                    string,
-                    {
-                      key: string;
-                      callTypeLabel: string;
-                      plannedDurationMinutes: number | null;
-                      rows: RowAnalysis[];
-                    }
-                  >();
+                        const callTypeGroups = (() => {
+                          const map = new Map<
+                            string,
+                            {
+                              key: string;
+                              callTypeLabel: string;
+                              plannedDurationMinutes: number | null;
+                              rows: RowAnalysis[];
+                            }
+                          >();
 
-                  stack.rows.forEach((row) => {
-                    const normalizedType = normalizeCallTypeKey(row.callTypeLabel ?? null) || "unknown";
-                    const durationBucket =
-                      typeof row.plannedDurationMinutes === "number" && Number.isFinite(row.plannedDurationMinutes)
-                        ? roundToNearest(row.plannedDurationMinutes, 5)
-                        : null;
-                    const groupKey = `${normalizedType}|dur-${durationBucket ?? "unknown"}`;
-                    if (!map.has(groupKey)) {
-                      map.set(groupKey, {
-                        key: groupKey,
-                        callTypeLabel: row.callTypeLabel || "Unknown",
-                        plannedDurationMinutes: durationBucket,
-                        rows: [],
-                      });
-                    }
-                    map.get(groupKey)!.rows.push(row);
-                  });
+                          stack.rows.forEach((row) => {
+                            const normalizedType = normalizeCallTypeKey(row.callTypeLabel ?? null) || "unknown";
+                            const durationBucket =
+                              typeof row.plannedDurationMinutes === "number" && Number.isFinite(row.plannedDurationMinutes)
+                                ? roundToNearest(row.plannedDurationMinutes, 5)
+                                : null;
+                            const groupKey = `${normalizedType}|dur-${durationBucket ?? "unknown"}`;
+                            if (!map.has(groupKey)) {
+                              map.set(groupKey, {
+                                key: groupKey,
+                                callTypeLabel: row.callTypeLabel || "Unknown",
+                                plannedDurationMinutes: durationBucket,
+                                rows: [],
+                              });
+                            }
+                            map.get(groupKey)!.rows.push(row);
+                          });
 
-                  return Array.from(map.values())
-                    .map((group) => ({
-                      ...group,
-                      rows: [...group.rows].sort((a, b) => {
-                        const aDate = a.plannedDateKey || "";
-                        const bDate = b.plannedDateKey || "";
-                        if (aDate !== bDate) return aDate.localeCompare(bDate);
-                        const aTime = typeof a.plannedTimeMinutes === "number" ? a.plannedTimeMinutes : Number.POSITIVE_INFINITY;
-                        const bTime = typeof b.plannedTimeMinutes === "number" ? b.plannedTimeMinutes : Number.POSITIVE_INFINITY;
-                        if (aTime !== bTime) return aTime - bTime;
-                        return a.rowNumber - b.rowNumber;
-                      }),
-                    }))
-                    .sort((a, b) => b.rows.length - a.rows.length || a.callTypeLabel.localeCompare(b.callTypeLabel));
-                })();
+                          return Array.from(map.values())
+                            .map((group) => ({
+                              ...group,
+                              rows: [...group.rows].sort((a, b) => {
+                                const aDate = a.plannedDateKey || "";
+                                const bDate = b.plannedDateKey || "";
+                                if (aDate !== bDate) return aDate.localeCompare(bDate);
+                                const aTime =
+                                  typeof a.plannedTimeMinutes === "number" ? a.plannedTimeMinutes : Number.POSITIVE_INFINITY;
+                                const bTime =
+                                  typeof b.plannedTimeMinutes === "number" ? b.plannedTimeMinutes : Number.POSITIVE_INFINITY;
+                                if (aTime !== bTime) return aTime - bTime;
+                                return a.rowNumber - b.rowNumber;
+                              }),
+                            }))
+                            .sort((a, b) =>
+                              b.rows.length - a.rows.length || a.callTypeLabel.localeCompare(b.callTypeLabel)
+                            );
+                        })();
 
-                return (
+                        return (
                   <AccordionItem
                     key={stack.key}
                     value={stack.key}
