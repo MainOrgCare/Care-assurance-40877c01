@@ -73,40 +73,45 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
 
   const navLinkClass = (isActive: boolean) =>
     cn(
-      "flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group cursor-pointer",
-      isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground hover:bg-muted"
+      "flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 group cursor-pointer relative overflow-hidden",
+      isActive
+        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]"
+        : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
     );
 
   const subNavLinkClass = (isActive: boolean) =>
     cn(
-      "flex items-center gap-3 px-3.5 py-2 rounded-lg text-sm transition-all",
-      isActive ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/80"
+      "flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200",
+      isActive
+        ? "bg-primary/10 text-primary border-l-2 border-primary"
+        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
     );
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-sidebar">
       {/* Logo Section */}
-      <div className="px-4 pt-4 pb-3">
+      <div className="px-6 pt-8 pb-6">
         <Link href="/">
           <div 
             onClick={handleSecretClick}
-            className="flex items-center gap-3 cursor-pointer group"
+            className="flex items-center gap-4 cursor-pointer group"
           >
-            <div className="relative h-10 w-10 rounded-xl flex items-center justify-center shadow-md transition-all duration-300 bg-primary text-primary-foreground">
-              <ShieldCheck className="h-5 w-5" />
+            <div className="relative h-11 w-11 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-500 bg-gradient-to-br from-primary to-primary/80 group-hover:rotate-6 group-hover:scale-110">
+              <ShieldCheck className="h-6 w-6 text-white" />
+              <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
-            <div>
-              <h1 className="font-heading text-lg leading-none text-foreground">
-                <span className="font-bold">Care</span><span className="font-normal" style={{ color: '#64748b' }}>Assurance</span>
+            <div className="flex flex-col">
+              <h1 className="font-heading text-xl leading-none tracking-tighter">
+                <span className="font-black text-foreground">Care</span><span className="font-medium text-muted-foreground/80">Assurance</span>
               </h1>
-              <p className="text-[10px] mt-0.5 uppercase tracking-[0.15em] text-muted-foreground">Operations Platform</p>
+              <span className="text-[9px] mt-1 font-bold uppercase tracking-[0.25em] text-primary/70">OPERATIONS OS</span>
             </div>
           </div>
         </Link>
       </div>
 
       {/* Divider */}
-      <div className="mx-4 h-px bg-border/60" />
+      <div className="mx-6 h-px bg-border/40" />
 
       <nav className="flex-1 px-3 space-y-1 py-3 overflow-y-auto">
         
@@ -226,21 +231,21 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
       </nav>
 
       {/* Footer Actions */}
-      <div className="p-3 space-y-1 mt-auto border-t border-border/70">
+      <div className="px-3 pb-6 space-y-1 mt-auto border-t border-border/40 pt-4">
         <Link
           href="/settings"
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-muted"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-muted text-muted-foreground hover:text-foreground"
           data-testid="button-settings"
         >
-          <Settings size={18} className="text-muted-foreground" />
-          Settings
+          <Settings size={18} />
+          System Settings
         </Link>
         <button
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all text-red-500 hover:bg-red-50"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-destructive hover:bg-destructive/10"
           onClick={logout}
         >
           <LogOut size={18} />
-          Sign Out
+          Terminate Session
         </button>
       </div>
     </div>
@@ -272,26 +277,32 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="relative flex h-screen w-full overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-100">
+    <div className="relative flex h-screen w-full overflow-hidden bg-background">
+      {/* Background Decorative Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-primary/5 blur-[120px] animate-glow-pulse" />
+        <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] rounded-full bg-blue-500/5 blur-[120px] animate-glow-pulse stagger-3" />
+      </div>
+
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-[250px] flex-shrink-0 flex-col z-10 border-r border-border/80 bg-white/95 backdrop-blur">
+      <aside className="hidden md:flex w-[280px] flex-shrink-0 flex-col z-20 border-r border-border/50 bg-sidebar/40 backdrop-blur-xl">
         <SidebarContent location={location} handleSecretClick={handleSecretClick} logout={logout} />
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto flex flex-col w-full relative z-10">
+      <main className="flex-1 overflow-auto flex flex-col w-full relative z-10 scroll-smooth">
         {/* Header */}
-        <header className="h-14 px-4 md:px-6 flex items-center justify-between sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-border/80">
-          <div className="flex items-center gap-3">
+        <header className="h-16 px-6 md:px-8 flex items-center justify-between sticky top-0 z-30 bg-background/60 backdrop-blur-md border-b border-border/40">
+          <div className="flex items-center gap-4">
             {/* Mobile Menu Trigger */}
             <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden mr-2 -ml-2">
+                <Button variant="ghost" size="icon" className="md:hidden hover:bg-muted/80 rounded-xl transition-all">
                   <Menu className="h-5 w-5 text-foreground" />
                   <span className="sr-only">Toggle menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-[260px] border-r border-border/80 bg-white/95">
+              <SheetContent side="left" className="p-0 w-[280px] border-r border-border/80 bg-sidebar">
                 <SidebarContent
                   location={location}
                   handleSecretClick={handleSecretClick}
@@ -303,40 +314,41 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </SheetContent>
             </Sheet>
 
-            <div className="flex items-center">
-              <span className="text-sm font-heading font-semibold text-foreground">CareAssurance</span>
+            <div className="flex items-center gap-2 px-1">
+              <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+              <span className="text-xs font-bold tracking-widest text-muted-foreground uppercase">Network Operational</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-5">
+            <div className="flex items-center gap-3 bg-muted/30 pl-4 pr-1.5 py-1.5 rounded-2xl border border-border/40 hover:border-border/80 transition-all cursor-pointer group">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium leading-tight text-foreground">
+                <p className="text-xs font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
                   {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username}
                 </p>
-                <p className="text-[10px] capitalize leading-tight text-muted-foreground">{user?.role}</p>
+                <p className="text-[9px] font-black uppercase tracking-tighter leading-tight text-muted-foreground/60">{user?.role}</p>
               </div>
-              <div className="relative h-9 w-9 rounded-full flex items-center justify-center font-semibold uppercase text-xs bg-primary/10 text-primary border border-primary/20">
+              <div className="relative h-8 w-8 rounded-xl flex items-center justify-center font-black uppercase text-[10px] bg-primary text-primary-foreground shadow-sm shadow-primary/20 group-hover:scale-105 transition-transform">
                 {user?.firstName ? user.firstName.substring(0, 1) : user?.username?.substring(0, 1) || "?"}
                 {user?.lastName ? user.lastName.substring(0, 1) : ""}
-                <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 border-2 border-white" />
+                <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-success border-2 border-background shadow-xs" />
               </div>
             </div>
           </div>
         </header>
 
         {/* Page Content Area */}
-        <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-7xl mx-auto w-full flex-1 space-y-4">
-          <div className="rounded-2xl p-4 sm:p-6 lg:p-7 shadow-sm bg-white border border-border/70">
-            {/* Page Header */}
-            <div className="flex flex-wrap items-center gap-3 justify-between mb-4 sm:mb-5">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl flex items-center justify-center font-bold text-sm bg-primary/10 text-primary border border-primary/20">
+        <div className="px-6 sm:px-10 lg:px-12 py-8 sm:py-10 lg:py-12 max-w-7xl mx-auto w-full flex-1">
+          <div className="glass-card p-6 sm:p-10 lg:p-12 min-h-full flex flex-col shadow-strong animate-fade-in">
+            {/* Internal Page Brand Header */}
+            <div className="flex flex-wrap items-center gap-4 justify-between mb-8 sm:mb-10">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-2xl flex items-center justify-center font-black text-xs bg-muted border border-border/60 shadow-xs text-primary group-hover:bg-primary transition-all">
                   CA
                 </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-muted-foreground">Care Assurance</p>
-                  <p className="text-base font-heading text-foreground">Operational Intelligence</p>
+                <div className="space-y-0.5">
+                  <p className="text-[10px] uppercase font-black tracking-[0.3em] text-muted-foreground/50">Enterprise Intelligence</p>
+                  <p className="text-lg font-heading font-black tracking-tight text-foreground">Module Pipeline</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
