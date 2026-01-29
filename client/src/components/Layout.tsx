@@ -25,7 +25,7 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -363,7 +363,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <div className="h-px mb-4 sm:mb-5 bg-border/80" />
-            {children}
+            <Suspense fallback={
+              <div className="flex-1 flex flex-col gap-4 animate-pulse">
+                <div className="h-8 w-48 bg-muted rounded-lg" />
+                <div className="h-4 w-full max-w-md bg-muted/60 rounded" />
+                <div className="h-4 w-full max-w-sm bg-muted/40 rounded" />
+                <div className="mt-6 h-32 w-full bg-muted/30 rounded-xl" />
+              </div>
+            }>
+              {children}
+            </Suspense>
           </div>
         </div>
 

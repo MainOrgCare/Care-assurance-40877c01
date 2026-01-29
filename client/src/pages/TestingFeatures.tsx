@@ -6,6 +6,8 @@ import autoTable from "jspdf-autotable";
 import { Link } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createHash } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -40,10 +42,12 @@ import {
   FileSpreadsheet,
   Filter,
   FlaskConical,
+  Library,
   Loader2,
   Maximize2,
   Minimize2,
   Route,
+  Save,
   Search,
   Shield,
   SlidersHorizontal,
@@ -335,6 +339,9 @@ interface RowAnalysis {
   serviceUserAddress?: string | null;
   normalizedServiceUserKey?: string | null;
   isDuplicateSlotRow?: boolean;
+  isDoubleUpSlot?: boolean;
+  doubleUpWorkers?: string[];
+  doubleUpSlotKey?: string | null;
   excludeFromMetrics?: boolean;
   callTypeLabel?: string | null;
 }
@@ -542,9 +549,58 @@ export default function TestingFeatures() {
   const [isSavingRota, setIsSavingRota] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [rosteringFullscreen, setRosteringFullscreen] = useState(false);
+  const [isSavingWorkbook, setIsSavingWorkbook] = useState(false);
   const analysisJobRef = useRef<number>(0);
   const dragCounterRef = useRef(0);
   const showGlobalProgress = processingState === "parsing" || processingState === "analyzing";
+  const queryClient = useQueryClient();
+
+  // Save workbook mutation
+  const saveWorkbookMutation = useMutation({
+    mutationFn: async (payload: {
+      name: string;
+      fileName: string;
+      sourceHash: string;
+      totalRows: number;
+      careWorkerCount: number;
+      serviceUserCount: number;
+      callGroupCount: number;
+      rowAnalysis: RowAnalysis[];
+      callGroups: any[];
+      careWorkerRosters: any[];
+      doubleUpSlots: Record<string, string[]>;
+    }) => {
+      const res = await fetch("/api/admin/testing-features/workbooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ message: "Failed to save workbook" }));
+        throw new Error(error.message || "Failed to save workbook");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: data.deduped ? "Workbook already exists" : "Workbook saved",
+        description: data.deduped
+          ? "This workbook was already saved in the library."
+          : "Your workbook analysis has been saved to the library.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/testing-features/workbooks"] });
+      setIsSavingWorkbook(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Save failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      setIsSavingWorkbook(false);
+    },
+  });
 
   const scrollToAnchor = useCallback((anchorId: string) => {
     const target = document.getElementById(anchorId);
@@ -1142,28 +1198,71 @@ export default function TestingFeatures() {
     };
   }, [analysisResults, includeCancelledCalls, includeMismatchedWorkers]);
 
+  // Pre-compute double-up slot workers map for use in dedup
+  const precomputedDoubleUpWorkers = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    analysisResults.forEach((row) => {
+      if (row.isExcludedServiceDutyClass || row.isAdhocCall || row.isShiftBar) return;
+      const slotKey = buildDoubleUpSlotKey(row);
+      if (!slotKey) return;
+      const workerName = getRowAssignedWorkerName(row);
+      if (!workerName) return;
+      const set = map.get(slotKey) ?? new Set<string>();
+      set.add(workerName); // Store original name for display
+      map.set(slotKey, set);
+    });
+    return map;
+  }, [analysisResults]);
+
   const dedupedResults = useMemo(() => {
     if (!usableRows.length) return [];
     const seen = new Map<string, boolean>();
     return usableRows.map((row) => {
       const duplicateKey = buildDuplicateSlotKey(row);
+      const doubleUpSlotKey = buildDoubleUpSlotKey(row);
+      
+      // Check if this slot has multiple workers (double-up call)
+      const doubleUpWorkersSet = doubleUpSlotKey ? precomputedDoubleUpWorkers.get(doubleUpSlotKey) : null;
+      const isDoubleUp = doubleUpWorkersSet && doubleUpWorkersSet.size > 1;
+      const doubleUpWorkers = isDoubleUp ? Array.from(doubleUpWorkersSet!) : undefined;
+      
       if (!duplicateKey) {
-        return { ...row, isDuplicateSlotRow: false };
+        return { 
+          ...row, 
+          isDuplicateSlotRow: false,
+          isDoubleUpSlot: isDoubleUp || false,
+          doubleUpWorkers,
+          doubleUpSlotKey,
+        };
       }
       if (seen.has(duplicateKey)) {
+        // This is a duplicate row - for double-up calls, we still track but don't count
         return {
           ...row,
           status: "attention" as RowStatus,
           isDuplicateSlotRow: true,
-          issues: row.issues.includes("Duplicate care slot (possible double-up; ignored in totals)")
-            ? row.issues
-            : [...row.issues, "Duplicate care slot (possible double-up; ignored in totals)"],
+          isDoubleUpSlot: isDoubleUp || false,
+          doubleUpWorkers,
+          doubleUpSlotKey,
+          issues: isDoubleUp
+            ? (row.issues.includes(`Double-up call with ${doubleUpWorkers?.length} workers`)
+              ? row.issues
+              : [...row.issues, `Double-up call with ${doubleUpWorkers?.length} workers (showing once)`])
+            : (row.issues.includes("Duplicate care slot (possible double-up; ignored in totals)")
+              ? row.issues
+              : [...row.issues, "Duplicate care slot (possible double-up; ignored in totals)"]),
         };
       }
       seen.set(duplicateKey, true);
-      return { ...row, isDuplicateSlotRow: false };
+      return { 
+        ...row, 
+        isDuplicateSlotRow: false,
+        isDoubleUpSlot: isDoubleUp || false,
+        doubleUpWorkers,
+        doubleUpSlotKey,
+      };
     });
-  }, [usableRows]);
+  }, [usableRows, precomputedDoubleUpWorkers]);
 
   const primaryRows = useMemo(() => dedupedResults.filter((row) => !row.isDuplicateSlotRow), [dedupedResults]);
 
@@ -3960,18 +4059,100 @@ export default function TestingFeatures() {
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_55%)]" />
           <AlertTitle className="flex items-center gap-2 text-base">
             <Shield className="h-4 w-4 text-amber-500" />
-            Volatile workspace
+            {careWorkerRosters.length > 0 ? "Ready to save" : "Volatile workspace"}
           </AlertTitle>
           <AlertDescription className="text-sm">
-            Data stays in-memory only. Refreshing the page clears every upload, so export a PDF if you need a temporary record.
+            {careWorkerRosters.length > 0
+              ? "Save your analysis to the library for persistent storage and use in the dedicated Rostering Studio."
+              : "Data stays in-memory only. Refreshing the page clears every upload, so export a PDF if you need a temporary record."}
           </AlertDescription>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
-              In-memory only
-            </Badge>
-            <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
-              No server storage
-            </Badge>
+            {careWorkerRosters.length > 0 ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="default"
+                  disabled={isSavingWorkbook || saveWorkbookMutation.isPending}
+                  onClick={async () => {
+                    if (!fileMeta) return;
+                    setIsSavingWorkbook(true);
+                    try {
+                      // Create a deterministic hash from the file metadata
+                      const hashData = JSON.stringify({
+                        name: fileMeta.name,
+                        rows: primaryRows.length,
+                        workers: careWorkerRosters.map((r) => r.workerName).sort().join("|"),
+                      });
+                      const sourceHash = await createHash(hashData);
+
+                      // Convert Sets to arrays for JSON serialization
+                      const serializableRosters = careWorkerRosters.map((roster) => ({
+                        ...roster,
+                        callGroups: roster.callGroups.map((group) => ({
+                          ...group,
+                          templatedWeekdayKeys: Array.from(group.templatedWeekdayKeys),
+                          doubleUpWeekdayKeys: Array.from(group.doubleUpWeekdayKeys),
+                        })),
+                      }));
+
+                      // Convert doubleUpSlots from Set to array
+                      const serializableDoubleUpSlots: Record<string, string[]> = {};
+                      doubleUpSlots.forEach((slotKey) => {
+                        const workers = doubleUpSlotWorkers.get(slotKey);
+                        if (workers) {
+                          serializableDoubleUpSlots[slotKey] = Array.from(workers);
+                        }
+                      });
+
+                      saveWorkbookMutation.mutate({
+                        name: fileMeta.name.replace(/\.[^/.]+$/, ""), // Remove file extension
+                        fileName: fileMeta.name,
+                        sourceHash,
+                        totalRows: fileMeta.totalRows,
+                        careWorkerCount: careWorkerRosters.length,
+                        serviceUserCount: serviceUserStacks.length,
+                        callGroupCount: callGroups.length,
+                        rowAnalysis: primaryRows,
+                        callGroups: callGroups,
+                        careWorkerRosters: serializableRosters,
+                        doubleUpSlots: serializableDoubleUpSlots,
+                      });
+                    } catch (error) {
+                      toast({
+                        title: "Save failed",
+                        description: error instanceof Error ? error.message : "Unknown error",
+                        variant: "destructive",
+                      });
+                      setIsSavingWorkbook(false);
+                    }
+                  }}
+                  className="gap-2"
+                >
+                  {(isSavingWorkbook || saveWorkbookMutation.isPending) ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5" />
+                  )}
+                  Save to Library
+                </Button>
+                <Button type="button" size="sm" variant="outline" asChild>
+                  <Link href="/rostering-studio">
+                    <Route className="h-3.5 w-3.5 mr-2" />
+                    Open Rostering Studio
+                  </Link>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                  In-memory only
+                </Badge>
+                <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                  No server storage
+                </Badge>
+              </>
+            )}
           </div>
         </Alert>
 
@@ -5689,7 +5870,14 @@ export default function TestingFeatures() {
                                       {row.durationMatchPercent.toFixed(0)}% duration
                                     </InsightPill>
                                   )}
-                                  {row.isDuplicateSlotRow && <InsightPill tone="warning">Duplicate slot</InsightPill>}
+                                  {row.isDoubleUpSlot && row.doubleUpWorkers && (
+                                    <InsightPill tone="secondary" title={row.doubleUpWorkers.join(", ")}>
+                                      Double-up ({row.doubleUpWorkers.length} workers)
+                                    </InsightPill>
+                                  )}
+                                  {row.isDuplicateSlotRow && !row.isDoubleUpSlot && (
+                                    <InsightPill tone="warning">Duplicate slot</InsightPill>
+                                  )}
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-muted-foreground">

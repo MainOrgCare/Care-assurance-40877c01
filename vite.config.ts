@@ -35,6 +35,21 @@ export default defineConfig({
     commonjsOptions: {
       include: [/pako/, /node_modules/],
     },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core vendor libraries
+          'vendor-react': ['react', 'react-dom', 'wouter'],
+          'vendor-query': ['@tanstack/react-query'],
+          // Heavy libraries split separately
+          'vendor-xlsx': ['xlsx'],
+          'vendor-pdf': ['jspdf', 'html2canvas'],
+          'vendor-charts': ['recharts'],
+          // UI components
+          'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-accordion', '@radix-ui/react-select'],
+        },
+      },
+    },
   },
   server: {
     host: "0.0.0.0",

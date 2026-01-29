@@ -6,9 +6,6 @@ import NotFound from "@/pages/not-found";
 import Layout from "@/components/Layout";
 import Homepage from "@/pages/Homepage";
 import Dashboard from "@/pages/Dashboard";
-import SecretAdminPortal from "@/pages/SecretAdminPortal";
-import CallReconciliation from "@/pages/CallReconciliation";
-import EmailAssistant from "@/pages/EmailAssistant";
 import { AuthProvider } from "@/context/AuthContext";
 import { TemporaryDataProvider } from "@/context/TemporaryDataContext";
 import { SessionProvider } from "@/context/SessionContext";
@@ -20,23 +17,28 @@ import TermsConditions from "@/pages/TermsConditions";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import { useAuth } from "@/context/AuthContext";
 import { Redirect } from "wouter";
+import React, { Suspense } from "react";
 
-// New Pages
-import ServiceUserUpload from "@/pages/service-users/Upload";
-import CarePlanning from "@/pages/service-users/CarePlanning";
-import RiskAssessment from "@/pages/service-users/RiskAssessment";
-import PlanEnhancer from "@/pages/service-users/PlanEnhancer";
-import CarersList from "@/pages/care-workers/CarersList";
-import EMARAudit from "@/pages/care-workers/EMARAudit";
-import VisitAudit from "@/pages/care-workers/VisitAudit";
-import Performance from "@/pages/care-workers/Performance";
-import Settings from "@/pages/Settings";
-import Compliance from "@/pages/Compliance";
-import ROICalculator from "@/pages/ROICalculator";
-import TestingFeatures from "@/pages/TestingFeatures";
-import CareWorkerRotas from "@/pages/CareWorkerRotas";
-import BillingTool from "@/pages/BillingTool";
-import SystemLogs from "@/pages/SystemLogs";
+// Lazy loaded pages for code splitting - reduces initial bundle size
+const SecretAdminPortal = React.lazy(() => import("@/pages/SecretAdminPortal"));
+const CallReconciliation = React.lazy(() => import("@/pages/CallReconciliation"));
+const EmailAssistant = React.lazy(() => import("@/pages/EmailAssistant"));
+const ServiceUserUpload = React.lazy(() => import("@/pages/service-users/Upload"));
+const CarePlanning = React.lazy(() => import("@/pages/service-users/CarePlanning"));
+const RiskAssessment = React.lazy(() => import("@/pages/service-users/RiskAssessment"));
+const PlanEnhancer = React.lazy(() => import("@/pages/service-users/PlanEnhancer"));
+const CarersList = React.lazy(() => import("@/pages/care-workers/CarersList"));
+const EMARAudit = React.lazy(() => import("@/pages/care-workers/EMARAudit"));
+const VisitAudit = React.lazy(() => import("@/pages/care-workers/VisitAudit"));
+const Performance = React.lazy(() => import("@/pages/care-workers/Performance"));
+const Settings = React.lazy(() => import("@/pages/Settings"));
+const Compliance = React.lazy(() => import("@/pages/Compliance"));
+const ROICalculator = React.lazy(() => import("@/pages/ROICalculator"));
+const TestingFeatures = React.lazy(() => import("@/pages/TestingFeatures"));
+const RosteringStudio = React.lazy(() => import("@/pages/RosteringStudio"));
+const CareWorkerRotas = React.lazy(() => import("@/pages/CareWorkerRotas"));
+const BillingTool = React.lazy(() => import("@/pages/BillingTool"));
+const SystemLogs = React.lazy(() => import("@/pages/SystemLogs"));
 
 function HomeRoute() {
   const { user } = useAuth();
@@ -72,6 +74,7 @@ function Router() {
       <ProtectedRoute path="/compliance" component={Compliance} />
       <AdminRoute path="/roi-calculator" component={ROICalculator} />
       <AdminRoute path="/testing-features" component={TestingFeatures} />
+      <AdminRoute path="/rostering-studio" component={RosteringStudio} />
       <AdminRoute path="/system-logs" component={SystemLogs} />
       <AdminRoute path="/care-worker-rotas" component={CareWorkerRotas} />
       <AdminRoute path="/billing-tool" component={BillingTool} />

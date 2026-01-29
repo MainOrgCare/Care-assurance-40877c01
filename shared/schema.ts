@@ -466,3 +466,70 @@ export const insertContactMessageSchema = createInsertSchema(contactMessages).om
 
 export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;
 export type ContactMessage = typeof contactMessages.$inferSelect;
+
+// Testing Feature Workbooks - stores uploaded workbook analysis data
+export const testingFeatureWorkbooks = pgTable("testing_feature_workbooks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // User-defined name for the workbook
+  fileName: text("file_name").notNull(), // Original uploaded file name
+  sourceHash: text("source_hash").notNull().unique(), // SHA256 hash for deduplication
+  
+  // Parsed data counts for quick display
+  totalRows: integer("total_rows").notNull().default(0),
+  careWorkerCount: integer("care_worker_count").notNull().default(0),
+  serviceUserCount: integer("service_user_count").notNull().default(0),
+  callGroupCount: integer("call_group_count").notNull().default(0),
+  
+  // Full analysis data stored as JSONB
+  rowAnalysis: jsonb("row_analysis").notNull(), // Array of RowAnalysis objects
+  callGroups: jsonb("call_groups").notNull(), // Array of CallGroup objects
+  careWorkerRosters: jsonb("care_worker_rosters").notNull(), // Array of CareWorkerRoster objects
+  doubleUpSlots: jsonb("double_up_slots").notNull(), // Map of slot keys to worker arrays
+  
+  // Metadata
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByUsername: text("created_by_username"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertTestingFeatureWorkbookSchema = createInsertSchema(testingFeatureWorkbooks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertTestingFeatureWorkbook = z.infer<typeof insertTestingFeatureWorkbookSchema>;
+export type TestingFeatureWorkbook = typeof testingFeatureWorkbooks.$inferSelect;
+
+// Testing Feature Double-Up Links - tracks linked double-up calls that must move together
+export const testingFeatureDoubleUpLinks = pgTable(
+  "testing_feature_double_up_links",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    workbookId: varchar("workbook_id").notNull().references(() => testingFeatureWorkbooks.id, { onDelete: "cascade" }),
+    slotKey: text("slot_key").notNull(), // Unique identifier for the call slot (date+time+serviceUser)
+    linkedSlotKey: text("linked_slot_key").notNull(), // The partner slot key for double-up
+    primaryWorkerKey: text("primary_worker_key").notNull(),
+    secondaryWorkerKey: text("secondary_worker_key").notNull(),
+    scheduledStartMinutes: integer("scheduled_start_minutes").notNull(),
+    durationMinutes: integer("duration_minutes").notNull(),
+    serviceUserName: text("service_user_name").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueDoubleUpLink: uniqueIndex("testing_feature_double_up_links_unique").on(
+      table.workbookId,
+      table.slotKey,
+      table.primaryWorkerKey
+    ),
+  })
+);
+
+export const insertTestingFeatureDoubleUpLinkSchema = createInsertSchema(testingFeatureDoubleUpLinks).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertTestingFeatureDoubleUpLink = z.infer<typeof insertTestingFeatureDoubleUpLinkSchema>;
+export type TestingFeatureDoubleUpLink = typeof testingFeatureDoubleUpLinks.$inferSelect;

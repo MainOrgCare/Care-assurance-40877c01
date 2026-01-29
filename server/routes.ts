@@ -11643,5 +11643,161 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     }
   });
 
+  // =====================================================================
+  // TESTING FEATURE WORKBOOKS - Persists analysis data from Testing Features
+  // =====================================================================
+
+  const testingFeatureWorkbookSchema = z.object({
+    name: z.string().min(1).max(200),
+    fileName: z.string().min(1).max(500),
+    sourceHash: z.string().min(1).max(128),
+    totalRows: z.number().int().min(0).default(0),
+    careWorkerCount: z.number().int().min(0).default(0),
+    serviceUserCount: z.number().int().min(0).default(0),
+    callGroupCount: z.number().int().min(0).default(0),
+    rowAnalysis: z.array(z.any()).default([]),
+    callGroups: z.array(z.any()).default([]),
+    careWorkerRosters: z.array(z.any()).default([]),
+    doubleUpSlots: z.record(z.string(), z.array(z.string())).default({}),
+  });
+
+  // Save testing feature workbook (admin only)
+  app.post("/api/admin/testing-features/workbooks", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const payload = testingFeatureWorkbookSchema.parse(req.body);
+
+      const { workbook, deduped } = await storage.createTestingFeatureWorkbook({
+        name: payload.name,
+        fileName: payload.fileName,
+        sourceHash: payload.sourceHash,
+        totalRows: payload.totalRows,
+        careWorkerCount: payload.careWorkerCount,
+        serviceUserCount: payload.serviceUserCount,
+        callGroupCount: payload.callGroupCount,
+        rowAnalysis: payload.rowAnalysis,
+        callGroups: payload.callGroups,
+        careWorkerRosters: payload.careWorkerRosters,
+        doubleUpSlots: payload.doubleUpSlots,
+        createdBy: req.user?.id ?? null,
+        createdByUsername: req.user?.username ?? null,
+      });
+
+      console.log(`[TestingFeatures] Workbook saved: ${workbook.name} (deduped: ${deduped})`);
+      return res.status(201).json({ workbook, deduped });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      console.error("[TestingFeatures] Failed to save workbook:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get all testing feature workbooks (admin only)
+  app.get("/api/admin/testing-features/workbooks", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const workbooks = await storage.getAllTestingFeatureWorkbooks();
+      // Return summary data without the large JSON payloads
+      const summaries = workbooks.map((wb) => ({
+        id: wb.id,
+        name: wb.name,
+        fileName: wb.fileName,
+        totalRows: wb.totalRows,
+        careWorkerCount: wb.careWorkerCount,
+        serviceUserCount: wb.serviceUserCount,
+        callGroupCount: wb.callGroupCount,
+        createdBy: wb.createdBy,
+        createdByUsername: wb.createdByUsername,
+        createdAt: wb.createdAt,
+        updatedAt: wb.updatedAt,
+      }));
+      return res.json(summaries);
+    } catch (error: any) {
+      console.error("[TestingFeatures] Failed to fetch workbooks:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get a specific testing feature workbook with full data (admin only)
+  app.get("/api/admin/testing-features/workbooks/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const workbook = await storage.getTestingFeatureWorkbook(req.params.id);
+      if (!workbook) {
+        return res.status(404).json({ message: "Workbook not found" });
+      }
+      return res.json(workbook);
+    } catch (error: any) {
+      console.error("[TestingFeatures] Failed to fetch workbook:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update a testing feature workbook (admin only)
+  app.put("/api/admin/testing-features/workbooks/:id", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const existing = await storage.getTestingFeatureWorkbook(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Workbook not found" });
+      }
+
+      const payload = testingFeatureWorkbookSchema.partial().parse(req.body);
+      
+      const updated = await storage.updateTestingFeatureWorkbook(req.params.id, payload);
+      if (!updated) {
+        return res.status(404).json({ message: "Failed to update workbook" });
+      }
+
+      console.log(`[TestingFeatures] Workbook updated: ${updated.name}`);
+      return res.json({ workbook: updated });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      console.error("[TestingFeatures] Failed to update workbook:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete a testing feature workbook (admin only)
+  app.delete("/api/admin/testing-features/workbooks/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      const existing = await storage.getTestingFeatureWorkbook(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Workbook not found" });
+      }
+
+      await storage.deleteTestingFeatureWorkbook(req.params.id);
+      console.log(`[TestingFeatures] Workbook deleted: ${existing.name}`);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[TestingFeatures] Failed to delete workbook:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Double-up links endpoints
+  app.get("/api/admin/testing-features/workbooks/:id/double-up-links", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const links = await storage.getTestingFeatureDoubleUpLinks(req.params.id);
+      return res.json(links);
+    } catch (error: any) {
+      console.error("[TestingFeatures] Failed to fetch double-up links:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/testing-features/workbooks/:id/double-up-links", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      const link = await storage.createTestingFeatureDoubleUpLink({
+        ...req.body,
+        workbookId: req.params.id,
+      });
+      return res.status(201).json(link);
+    } catch (error: any) {
+      console.error("[TestingFeatures] Failed to create double-up link:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }
