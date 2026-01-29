@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, FileSpreadsheet, ArrowRightLeft, CheckCircle2, Download, Lock, Info, AlertCircle } from "lucide-react";
@@ -27,14 +27,14 @@ export default function CallReconciliation() {
     );
   }
 
-  const handleFileChange = (selectedFile: File | undefined) => {
+  const handleFileChange = useCallback((selectedFile: File | undefined) => {
     if (selectedFile) {
       setFile(selectedFile);
       setError(null);
     }
-  };
+  }, []);
 
-  const handleProcess = async () => {
+  const handleProcess = useCallback(async () => {
     if (!file) return;
     
     setStep("processing");
@@ -80,13 +80,13 @@ export default function CallReconciliation() {
         variant: "destructive",
       });
     }
-  };
+  }, [file, toast]);
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setStep("upload");
     setFile(null);
     setError(null);
-  };
+  }, []);
 
   return (
     <div className="page-shell max-w-6xl mx-auto">

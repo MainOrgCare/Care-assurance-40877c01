@@ -6,6 +6,7 @@ import autoTable from "jspdf-autotable";
 import { Link } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useDebounce } from "@/hooks/use-debounce";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createHash } from "@/lib/utils";
 import {
@@ -528,14 +529,18 @@ export default function TestingFeatures() {
   const [selectedRow, setSelectedRow] = useState<RowAnalysis | null>(null);
   const [filterStatus, setFilterStatus] = useState<RowStatus | "all">("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 200);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ROWS);
   const [showDuplicateRows, setShowDuplicateRows] = useState(false);
   const [includeCancelledCalls, setIncludeCancelledCalls] = useState(false);
   const [includeMismatchedWorkers, setIncludeMismatchedWorkers] = useState(false);
   const [excludeOfficeStaffFromPdf, setExcludeOfficeStaffFromPdf] = useState(false);
   const [callGroupSearch, setCallGroupSearch] = useState("");
+  const debouncedCallGroupSearch = useDebounce(callGroupSearch, 200);
   const [careWorkerSearch, setCareWorkerSearch] = useState("");
+  const debouncedCareWorkerSearch = useDebounce(careWorkerSearch, 200);
   const [rosterCallSearch, setRosterCallSearch] = useState("");
+  const debouncedRosterCallSearch = useDebounce(rosterCallSearch, 200);
   const [selectedTemplateWeek, setSelectedTemplateWeek] = useState<TemplateWeekKey>(DEFAULT_TEMPLATE_WEEK);
   const [selectedTemplateDay, setSelectedTemplateDay] = useState<WeekdayLabel>(DEFAULT_TEMPLATE_DAY);
   const [enforceTimeCriticalWindow, setEnforceTimeCriticalWindow] = useState(false);
@@ -1272,8 +1277,8 @@ export default function TestingFeatures() {
       rows = rows.filter((row) => row.status === filterStatus);
     }
 
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
+    if (debouncedSearchTerm.trim()) {
+      const term = debouncedSearchTerm.toLowerCase();
       rows = rows.filter((row) => {
         const matchesRowNumber = row.rowNumber.toString().includes(term);
         if (matchesRowNumber) return true;
@@ -1285,7 +1290,7 @@ export default function TestingFeatures() {
       });
     }
     return rows;
-  }, [dedupedResults, primaryRows, filterStatus, searchTerm, showDuplicateRows]);
+  }, [dedupedResults, primaryRows, filterStatus, debouncedSearchTerm, showDuplicateRows]);
 
   const visibleRows = filteredResults.slice(0, visibleCount);
 
@@ -2098,7 +2103,7 @@ export default function TestingFeatures() {
       return { visibleServiceUserStacks: [], hasSearchMatch: true };
     }
 
-    const term = callGroupSearch.trim().toLowerCase();
+    const term = debouncedCallGroupSearch.trim().toLowerCase();
     if (!term) {
       return { visibleServiceUserStacks: serviceUserStacks.slice(0, 3), hasSearchMatch: true };
     }
@@ -2126,7 +2131,7 @@ export default function TestingFeatures() {
       visibleServiceUserStacks: source.map((entry) => entry.stack).slice(0, 3),
       hasSearchMatch: matches.length > 0,
     };
-  }, [serviceUserStacks, callGroupSearch]);
+  }, [serviceUserStacks, debouncedCallGroupSearch]);
 
   const rosterRows = useMemo(() => {
     if (!analysisResults.length) return [];
@@ -2448,7 +2453,7 @@ export default function TestingFeatures() {
     if (!careWorkerRosters.length) {
       return { visibleCareWorkerRosters: [], careWorkerHasMatch: true };
     }
-    const term = careWorkerSearch.trim().toLowerCase();
+    const term = debouncedCareWorkerSearch.trim().toLowerCase();
     if (!term) {
       return {
         visibleCareWorkerRosters: careWorkerRosters.slice(0, rosteringFullscreen ? 16 : 8),
@@ -2472,7 +2477,7 @@ export default function TestingFeatures() {
         .slice(0, rosteringFullscreen ? 16 : 8),
       careWorkerHasMatch: matches.length > 0,
     };
-  }, [careWorkerRosters, careWorkerSearch, rosteringFullscreen]);
+  }, [careWorkerRosters, debouncedCareWorkerSearch, rosteringFullscreen]);
 
   const clearTemplateRecommendations = useCallback(
     async (workerKey: string, week: TemplateWeekKey, day: WeekdayLabel, groupKeys: string[]) => {
@@ -2755,7 +2760,7 @@ export default function TestingFeatures() {
 
   const filteredResolvedCallGroups = useMemo(() => {
     if (!resolvedCallGroups.length) return [];
-    const term = rosterCallSearch.trim().toLowerCase();
+    const term = debouncedRosterCallSearch.trim().toLowerCase();
     if (!term) return resolvedCallGroups;
     return resolvedCallGroups.filter((group) => {
       const haystack = [
@@ -2771,7 +2776,7 @@ export default function TestingFeatures() {
         .toLowerCase();
       return haystack.includes(term);
     });
-  }, [resolvedCallGroups, rosterCallSearch]);
+  }, [resolvedCallGroups, debouncedRosterCallSearch]);
 
   const availableTemplateGroups = useMemo(
     () => resolvedCallGroups.filter((group) => group.effectiveTemplateWeekdayKeys.has(templateSelectionKey)),

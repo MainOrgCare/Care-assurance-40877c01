@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +16,7 @@ export default function EmailAssistant() {
   const [outputText, setOutputText] = useState("");
   const { toast } = useToast();
 
-  const handleRewrite = async () => {
+  const handleRewrite = useCallback(async () => {
     if (!inputText.trim()) {
       toast({
         title: "Input Required",
@@ -57,15 +57,15 @@ export default function EmailAssistant() {
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [inputText, tone, toast]);
 
-  const copyToClipboard = () => {
+  const copyToClipboard = useCallback(() => {
     navigator.clipboard.writeText(outputText);
     toast({
       title: "Copied",
       description: "Email text copied to clipboard.",
     });
-  };
+  }, [outputText, toast]);
 
   return (
     <div className="page-shell max-w-5xl mx-auto">

@@ -2,6 +2,16 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Ensure fonts render with fallbacks immediately */
+@font-face {
+  font-family: 'Inter';
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-display: swap;
+}
+
 /* Dark variant works with .dark class OR any dark theme */
 @custom-variant dark (&:is(.dark *, .theme-dark *, .theme-midnight *, .theme-ocean *));
 

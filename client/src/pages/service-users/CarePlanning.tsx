@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -332,7 +332,7 @@ export default function CarePlanning() {
     return lines.join("\n");
   };
 
-  const toggleSection = (index: number) => {
+  const toggleSection = useCallback((index: number) => {
     setExpandedSections(prev => {
       const newSet = new Set(prev);
       if (newSet.has(index)) {
@@ -342,16 +342,16 @@ export default function CarePlanning() {
       }
       return newSet;
     });
-  };
+  }, []);
 
-  const copySection = async (section: CarePlanSection, index: number) => {
+  const copySection = useCallback(async (section: CarePlanSection, index: number) => {
     const scrubbedSection = carePlanScrubbed?.sections?.[index] || section;
     await navigator.clipboard.writeText(formatSectionForCopy(scrubbedSection));
     setCopiedSection(index);
     setTimeout(() => setCopiedSection(null), 2000);
-  };
+  }, [carePlanScrubbed]);
 
-  const copyAllPlan = async () => {
+  const copyAllPlan = useCallback(async () => {
     const copySource = carePlanScrubbed || carePlan;
     if (!copySource) return;
 
@@ -383,7 +383,7 @@ export default function CarePlanning() {
       title: "Copied",
       description: "Full care plan copied to clipboard",
     });
-  };
+  }, [carePlanScrubbed, carePlan, toast]);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {

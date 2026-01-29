@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,13 +58,13 @@ const ALL_WIDGETS: WidgetConfig[] = [
 
 const DEFAULT_WIDGETS = ["compliance_score", "audits_completed", "active_alerts", "plans_updated", "compliance_data", "recent_alerts"];
 
-function SortableWidgetItem({ widget, isActive, onToggle }: { widget: WidgetConfig; isActive: boolean; onToggle: () => void }) {
+function SortableWidgetItemBase({ widget, isActive, onToggle }: { widget: WidgetConfig; isActive: boolean; onToggle: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
   
-  const style = {
+  const style = useMemo(() => ({
     transform: CSS.Transform.toString(transform),
     transition,
-  };
+  }), [transform, transition]);
 
   return (
     <div
@@ -92,6 +92,8 @@ function SortableWidgetItem({ widget, isActive, onToggle }: { widget: WidgetConf
     </div>
   );
 }
+
+const SortableWidgetItem = memo(SortableWidgetItemBase);
 
 const QUICK_ACTIONS: { icon: LucideIcon; label: string; description: string; href: string; color: string; glow: string }[] = [
   { icon: Upload, label: "EMAR Audit", description: "Upload and analyze medication records", href: "/care-workers/emar-audit", color: "from-blue-500 to-cyan-500", glow: "shadow-blue-500/25" },
@@ -195,7 +197,7 @@ export default function Dashboard() {
   const stats = data?.stats;
   const recentAlerts = data?.recentAlerts || [];
 
-  const formatTimeAgo = (dateStr: string) => {
+  const formatTimeAgo = useCallback((dateStr: string) => {
     const date = new Date(dateStr);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -204,13 +206,13 @@ export default function Dashboard() {
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) return `${diffHours}h ago`;
     return `${Math.floor(diffHours / 24)}d ago`;
-  };
+  }, []);
 
-  const isWidgetActive = (id: string) => activeWidgets.includes(id);
+  const isWidgetActive = useCallback((id: string) => activeWidgets.includes(id), [activeWidgets]);
   
-  const sortedActiveWidgets = widgetOrder.filter(id => activeWidgets.includes(id));
-  const smallWidgets = sortedActiveWidgets.filter(id => !["compliance_data", "recent_alerts"].includes(id));
-  const largeWidgets = sortedActiveWidgets.filter(id => ["compliance_data", "recent_alerts"].includes(id));
+  const sortedActiveWidgets = useMemo(() => widgetOrder.filter(id => activeWidgets.includes(id)), [widgetOrder, activeWidgets]);
+  const smallWidgets = useMemo(() => sortedActiveWidgets.filter(id => !["compliance_data", "recent_alerts"].includes(id)), [sortedActiveWidgets]);
+  const largeWidgets = useMemo(() => sortedActiveWidgets.filter(id => ["compliance_data", "recent_alerts"].includes(id)), [sortedActiveWidgets]);
 
   const renderSmallWidget = (widgetId: string) => {
     switch (widgetId) {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -154,7 +154,7 @@ export default function BillingTool() {
     );
   }
 
-  const handleFilesAdded = (selected: FileList | null) => {
+  const handleFilesAdded = useCallback((selected: FileList | null) => {
     if (!selected) return;
     const incoming = Array.from(selected);
     const accepted = incoming.filter(
@@ -183,27 +183,27 @@ export default function BillingTool() {
     });
     setAnalysis(null);
     setError(null);
-  };
+  }, [toast]);
 
-  const handleRemoveFile = (index: number) => {
+  const handleRemoveFile = useCallback((index: number) => {
     setFiles((prev) => prev.filter((_, idx) => idx !== index));
     setAnalysis(null);
-  };
+  }, []);
 
-  const handleClearFiles = () => {
+  const handleClearFiles = useCallback(() => {
     setFiles([]);
     setAnalysis(null);
-  };
+  }, []);
 
-  const handleStatusChange = (value: string) => {
+  const handleStatusChange = useCallback((value: string) => {
     const current = value === "current";
     setIsCurrent(current);
     if (current) {
       setEndDate("");
     }
-  };
+  }, []);
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = useCallback(async () => {
     if (!canAnalyze) return;
     setStatus("processing");
     setError(null);
@@ -247,9 +247,9 @@ export default function BillingTool() {
         variant: "destructive",
       });
     }
-  };
+  }, [canAnalyze, files, isCurrent, endDate, toast]);
 
-  const handleSupportPlanSelect = (selected: FileList | null) => {
+  const handleSupportPlanSelect = useCallback((selected: FileList | null) => {
     if (!selected || selected.length === 0) return;
     const candidate = selected[0];
     const lower = candidate.name.toLowerCase();
@@ -269,9 +269,9 @@ export default function BillingTool() {
     setSupportPlanFile(candidate);
     setSupportPlanResult(null);
     setSupportPlanError(null);
-  };
+  }, [toast]);
 
-  const handleCompareSupportPlan = async () => {
+  const handleCompareSupportPlan = useCallback(async () => {
     if (!analysis || !supportPlanFile) return;
     setSupportPlanStatus("processing");
     setSupportPlanError(null);
@@ -328,9 +328,9 @@ export default function BillingTool() {
         variant: "destructive",
       });
     }
-  };
+  }, [analysis, supportPlanFile, toast]);
 
-  const handleExportPdf = () => {
+  const handleExportPdf = useCallback(() => {
     if (!analysis) return;
 
     const doc = new jsPDF();
@@ -587,7 +587,7 @@ export default function BillingTool() {
     });
 
     doc.save("billing-analysis.pdf");
-  };
+  }, [analysis]);
 
   return (
     <div className="page-shell max-w-6xl mx-auto" data-testid="billing-tool-page">
