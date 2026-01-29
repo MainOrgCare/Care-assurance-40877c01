@@ -3473,7 +3473,7 @@ ${generatedProtocol.additionalComments}`;
                       </div>
                     </div>
                   )}
-                </>
+                </div>
               )}
             </CardContent>
           </Card>
