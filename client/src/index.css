@@ -435,6 +435,27 @@
     background-color: color-mix(in srgb, var(--color-muted) 70%, transparent);
     box-shadow: 0 0 0 3px rgba(59, 180, 200, 0.1), 0 0 20px rgba(59, 180, 200, 0.05);
   }
+
+  /* Status Badge Components */
+  .ent-status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-black text-[10px] uppercase tracking-widest border transition-all;
+  }
+
+  .ent-status-success {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-black text-[10px] uppercase tracking-widest border transition-all bg-success/15 text-success border-success/20 shadow-lg shadow-success/5;
+  }
+
+  .ent-status-warning {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-black text-[10px] uppercase tracking-widest border transition-all bg-warning/15 text-warning border-warning/20 shadow-lg shadow-warning/5;
+  }
+
+  .ent-status-danger {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-black text-[10px] uppercase tracking-widest border transition-all bg-destructive/15 text-destructive border-destructive/20 shadow-lg shadow-destructive/5;
+  }
+
+  .ent-status-primary {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-black text-[10px] uppercase tracking-widest border transition-all bg-primary/15 text-primary border-primary/20 shadow-lg shadow-primary/5;
+  }
 }
 
 @keyframes float {
@@ -741,26 +762,6 @@ html.theme-light body::after {
 
   .ent-table-row {
     @apply border-b border-border/20 hover:bg-muted/10 transition-colors;
-  }
-
-  .ent-status-badge {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-black text-[10px] uppercase tracking-widest border transition-all;
-  }
-
-  .ent-status-success {
-    @apply ent-status-badge bg-success/15 text-success border-success/20 shadow-lg shadow-success/5;
-  }
-
-  .ent-status-warning {
-    @apply ent-status-badge bg-warning/15 text-warning border-warning/20 shadow-lg shadow-warning/5;
-  }
-
-  .ent-status-danger {
-    @apply ent-status-badge bg-destructive/15 text-destructive border-destructive/20 shadow-lg shadow-destructive/5;
-  }
-
-  .ent-status-primary {
-    @apply ent-status-badge bg-primary/15 text-primary border-primary/20 shadow-lg shadow-primary/5;
   }
 }
 
