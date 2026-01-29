@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type * as React from "react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -1068,7 +1069,7 @@ export default function TestingFeatures() {
   );
 
   const handleFileChange = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
+    async (event: any) => {
       const file = event.target.files?.[0];
       if (!file) return;
       await processFile(file);
@@ -1078,12 +1079,12 @@ export default function TestingFeatures() {
   );
 
   const handleDrop = useCallback(
-    async (event: React.DragEvent<HTMLDivElement>) => {
+    async (event: any) => {
       event.preventDefault();
       event.stopPropagation();
       dragCounterRef.current = 0;
       setIsDragging(false);
-      const file = event.dataTransfer.files?.[0];
+      const file = event.dataTransfer?.files?.[0];
       if (file) {
         await processFile(file);
       }
@@ -1091,14 +1092,14 @@ export default function TestingFeatures() {
     [processFile]
   );
 
-  const handleDragEnter = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+  const handleDragEnter = useCallback((event: any) => {
     event.preventDefault();
     event.stopPropagation();
     dragCounterRef.current += 1;
     setIsDragging(true);
   }, []);
 
-  const handleDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+  const handleDragLeave = useCallback((event: any) => {
     event.preventDefault();
     event.stopPropagation();
     dragCounterRef.current -= 1;
@@ -1108,7 +1109,7 @@ export default function TestingFeatures() {
     }
   }, []);
 
-  const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOver = useCallback((event: any) => {
     event.preventDefault();
     event.stopPropagation();
   }, []);

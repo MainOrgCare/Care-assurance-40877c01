@@ -338,12 +338,12 @@ const TIME_COMPACT_PATTERN = /\b(?:[01]?\d|2[0-3])[0-5]\d\b/g;
 const TIME_AMPM_PATTERN = /\b\d{1,2}(?:[:.][0-5]\d)?\s*(?:am|pm)\b/gi;
 const TIME_ANY_PATTERN = /\b(?:\d{1,2}[:.][0-5]\d\s*(?:am|pm)?|\d{1,2}\s*(?:am|pm)|(?:[01]?\d|2[0-3])[0-5]\d)\b/gi;
 const TIME_WORD_PATTERN = /\b(morning|noon|midday|lunch|afternoon|evening|night|bed(?:time)?|tea|breakfast|am|pm)\b/i;
-const CODE_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–]\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/gi;
-const CODE_PATTERN_SINGLE = /\b(AD|AS|P|R|MU|NH|SA|FA|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–]\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/i;
+const CODE_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|F|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–]\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/gi;
+const CODE_PATTERN_SINGLE = /\b(AD|AS|P|R|MU|NH|SA|FA|F|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–]\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/i;
 const TIME_PATTERN = /\d{1,2}[:.][0-5]\d/g;
 const INITIALS_PATTERN = /\b[A-Z]{2,3}\b/g;
 const INITIALS_WITH_DOTS_PATTERN = /\b(?:[A-Z]\.){2,3}\b/g;
-const CODE_INITIALS = new Set(["AD", "AS", "MU", "NH", "SA", "FA", "PRN", "NA"]);
+const CODE_INITIALS = new Set(["AD", "AS", "MU", "NH", "SA", "FA", "F", "PRN", "NA"]);
 const CODE_PRIORITY: Record<string, number> = {
   "PRN-R": 100,
   "R": 100,
