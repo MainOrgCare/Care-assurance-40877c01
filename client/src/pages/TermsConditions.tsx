@@ -24,131 +24,170 @@ export default function TermsConditions() {
                 Terms and Conditions
               </CardTitle>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono px-2 py-1 rounded" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>Version 1.0</span>
+                <span className="text-xs font-mono px-2 py-1 rounded" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>Version 1.1</span>
               </div>
             </div>
-            <p className="text-sm" style={{ color: '#64748b' }}>Last updated: January 2026</p>
+            <p className="text-sm" style={{ color: '#64748b' }}>Last updated: 29 January 2026</p>
           </CardHeader>
           <CardContent className="prose prose-sm max-w-none space-y-6" style={{ color: '#334155' }}>
-            
             <div className="rounded-lg p-4 mb-6" style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
               <div className="flex items-start gap-3">
                 <Shield className="h-6 w-6 flex-shrink-0 mt-0.5" style={{ color: '#2563eb' }} />
                 <div>
                   <p className="font-bold text-base mb-2" style={{ color: '#1d4ed8' }}>ABOUT THESE TERMS</p>
                   <p className="text-sm" style={{ color: '#334155' }}>
-                    CareAssurance is proprietary software owned by <strong>Lewis Barron</strong> and provided to authorised users under these Terms. The platform is an assistive tool and does not replace professional judgment. By continuing, you confirm you are authorised to use the service and will review all outputs before acting on them.
+                    These Terms govern access to and use of CareAssurance (the “Service”), proprietary software owned and operated by <strong>Lewis Barron</strong> (the “Owner/Operator”).
+                    The Service is intended for organisational use in care/compliance workflows and does not replace professional judgement.
                   </p>
                 </div>
               </div>
             </div>
 
             <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>1. Software Ownership and Rights</h3>
-              <div className="rounded-lg p-4 mb-4" style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                <div className="flex items-start gap-3">
-                  <Shield className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: '#3b82f6' }} />
-                  <div>
-                    <p className="font-medium mb-2" style={{ color: '#1d4ed8' }}>PROPRIETARY SOFTWARE</p>
-                    <p className="text-sm" style={{ color: '#334155' }}>
-                      CareAssurance is proprietary software owned by <strong>Lewis Barron</strong>. All intellectual property rights in the platform, its code, design, and materials are reserved. You receive a limited, non-transferable license to use the service as permitted by these Terms; no ownership is transferred.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <p style={{ color: '#64748b' }}>
-                If you have questions about permitted use or need a specific permission, please contact the owner using the channels provided to authorised users.
-              </p>
-            </section>
-
-            <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>1A. Independence</h3>
-              <p style={{ color: '#64748b' }}>
-                CareAssurance is provided by Lewis Barron in his personal capacity and is not offered on behalf of any employer or other organisation. Use of the platform does not confer any rights to the underlying intellectual property, brand, or design.
-              </p>
-            </section>
-
-            <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>2. Authorization and Access</h3>
-              <p style={{ color: '#64748b' }}>
-                Access is provided to authorised users to support their work. By using this software, you acknowledge and agree that:
-              </p>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>1. Definitions</h3>
               <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
-                <li>The Owner may suspend or revoke access where misuse, security risk, or breach of these Terms is reasonably suspected.</li>
-                <li>Where practicable, notice will be given before suspension or termination; urgent security or compliance issues may require immediate action.</li>
-                <li>Upon termination, access ends and cached or temporary data will be cleared in line with our retention approach.</li>
-                <li>If you believe access was ended in error, contact the Owner through the usual support channel for review.</li>
+                <li><strong>“Service”</strong> means the CareAssurance web application and related services.</li>
+                <li><strong>“Customer/Organisation”</strong> means the entity on whose behalf you use the Service.</li>
+                <li><strong>“User”</strong> means an individual authorised by the Customer/Organisation to access the Service.</li>
+                <li><strong>“Customer Data”</strong> means data uploaded to or generated within the Service by Users on behalf of the Customer/Organisation, including document contents.</li>
               </ul>
             </section>
 
             <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>3. Acceptance of Terms</h3>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>2. Eligibility and Authority</h3>
               <p style={{ color: '#64748b' }}>
-                By accessing, browsing, or using CareAssurance ("the Software," "the Platform," or "the Service"), you ("the User," "you," or "your") acknowledge that you have read, understood, and agree to be legally bound by these Terms and Conditions ("Terms"), along with our Privacy Policy, which is incorporated herein by reference.
-              </p>
-              <p style={{ color: '#64748b' }}>
-                If you do not agree to these Terms in their entirety, you must immediately cease all use of the Software. Your continued use of the Platform constitutes ongoing acceptance of these Terms and any subsequent modifications thereto.
-              </p>
-              <p style={{ color: '#64748b' }}>
-                These Terms constitute a legally binding agreement between you and Lewis Barron. If you are using this Software on behalf of an organization, you represent and warrant that you have the authority to bind that organization to these Terms.
+                You may use the Service only if you are authorised by your organisation and capable of forming a legally binding agreement. If you use the Service on behalf of an organisation, you confirm you have authority to bind that organisation to these Terms.
               </p>
             </section>
 
             <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>4. Service Description</h3>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>3. Licence and Permitted Use</h3>
               <p style={{ color: '#64748b' }}>
-                CareAssurance is a compliance management, document analysis, and audit assistance tool designed for use by care facilities, domiciliary care providers, and healthcare organizations. The Platform provides the following functionalities:
+                Subject to these Terms, the Owner grants you a limited, revocable, non-transferable, non-exclusive licence to access and use the Service for your organisation’s internal business purposes.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>4. Account Security</h3>
+              <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
+                <li>You must keep credentials confidential and not share accounts.</li>
+                <li>You are responsible for activity under your account unless caused by the Owner’s breach of security obligations.</li>
+                <li>Report suspected compromise promptly.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>5. Acceptable Use</h3>
+              <p style={{ color: '#64748b' }}>You must not:</p>
+              <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
+                <li>Use the Service unlawfully or in breach of applicable regulations.</li>
+                <li>Upload content without proper authority/legal basis (including where special category data is involved).</li>
+                <li>Attempt to bypass security controls, probe vulnerabilities, or interfere with service operation.</li>
+                <li>Reverse engineer or create derivative works except where permitted by mandatory law.</li>
+                <li>Use the Service to build a competing product using confidential information obtained through access.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>6. Data Protection and Customer Responsibilities</h3>
+              <p style={{ color: '#64748b' }}>
+                Where the Customer/Organisation uploads documents containing personal data (including health data), the Customer/Organisation is typically the Data Controller and is responsible for:
               </p>
               <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
-                <li>Document analysis and parsing of care-related documentation</li>
-                <li>Care plan enhancement and optimization suggestions</li>
-                <li>Risk assessment generation assistance</li>
-                <li>Electronic Medication Administration Record (EMAR) auditing</li>
-                <li>Visit record reconciliation and analysis</li>
-                <li>AI-powered compliance recommendations</li>
-                <li>Care worker performance analytics</li>
-                <li>Service user documentation management</li>
+                <li>Having an appropriate Article 6 legal basis and, where required, an Article 9 condition for special category data.</li>
+                <li>Providing required privacy information to data subjects.</li>
+                <li>Ensuring appropriate policies/consents and completing DPIAs where needed.</li>
               </ul>
               <p className="mt-4" style={{ color: '#64748b' }}>
-                <strong style={{ color: '#d97706' }}>Critical Understanding:</strong> This Software is designed exclusively as a <strong>decision-support and administrative assistance tool</strong>. It is NOT intended to replace, substitute, or override the professional judgment of qualified healthcare professionals, registered nurses, clinical practitioners, or any other licensed professional. All outputs from this system require human review and validation before implementation.
+                The Owner will process Customer Data as a processor where applicable, and in line with the Service’s documented functionality and any agreed processing terms.
               </p>
             </section>
 
             <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>5. Assistive Tool Disclaimer</h3>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>7. AI Features and Human Review</h3>
               <div className="rounded-lg p-4 mb-4" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                <p className="font-medium mb-2" style={{ color: '#d97706' }}>THIS SOFTWARE IS AN ASSISTIVE TOOL ONLY</p>
+                <p className="font-medium mb-2" style={{ color: '#d97706' }}>DECISION SUPPORT ONLY</p>
                 <p className="text-sm" style={{ color: '#78350f' }}>
-                  CareAssurance provides AI-generated suggestions, analyses, and recommendations that are intended solely to assist qualified professionals in their decision-making processes. Under no circumstances should the outputs of this system be considered as:
+                  The Service may generate outputs using automated processing (including AI). Outputs may be incomplete or inaccurate. You must review and validate outputs before acting on them.
                 </p>
-                <ul className="list-disc pl-6 text-sm space-y-1 mt-2" style={{ color: '#78350f' }}>
-                  <li>Medical advice, diagnosis, or treatment recommendations</li>
-                  <li>Legal advice or regulatory compliance certification</li>
-                  <li>A substitute for professional clinical assessment</li>
-                  <li>Authoritative guidance for care delivery</li>
-                  <li>Definitive compliance documentation</li>
-                </ul>
               </div>
               <p style={{ color: '#64748b' }}>
-                All users must independently verify, validate, and approve any outputs generated by this system before taking action. The responsibility for patient care, regulatory compliance, and professional standards rests entirely with the qualified professionals using this tool.
+                The Service is not medical advice, legal advice, or a substitute for qualified professional judgement.
               </p>
             </section>
 
             <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>6. User Responsibilities</h3>
-              <p style={{ color: '#64748b' }}>By using this Software, you agree to and accept the following responsibilities:</p>
-              <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
-                <li>Ensuring you have proper authorization, licensing, and professional qualifications to access and process the documents you upload</li>
-                <li>Obtaining all necessary consents from data subjects before uploading their personal or health information</li>
-                <li>Verifying and validating ALL AI-generated outputs before using them in any official, clinical, or regulatory capacity</li>
-                <li>Maintaining the confidentiality and security of your login credentials and access tokens</li>
-                <li>Complying with all applicable data protection regulations, including but not limited to the UK GDPR, Data Protection Act 2018, and relevant sector-specific regulations</li>
-                <li>Ensuring that your use of the Platform complies with your organization's policies and procedures</li>
-                <li>Immediately reporting any security incidents, unauthorized access, or data breaches to the platform administrator</li>
-                <li>Not sharing access credentials with unauthorized individuals</li>
-                <li>Using the Software only for its intended purposes as described in these Terms</li>
-                <li>Assuming full responsibility for any regulatory, legal, or professional consequences arising from your use of the Platform</li>
-              </ul>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>8. Volatile Processing and Retention</h3>
+              <p style={{ color: '#64748b' }}>
+                The Service is designed to minimise retention of uploaded documents and to clear temporary processing data after inactivity. Operational details may vary by deployment; always follow your organisation’s information governance requirements.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>9. Intellectual Property</h3>
+              <p style={{ color: '#64748b' }}>
+                The Service (including its code, design, and branding) is owned by the Owner. Except for the limited licence granted above, no rights are granted.
+              </p>
+              <p style={{ color: '#64748b' }}>
+                You retain rights in Customer Data. You grant the Owner a limited right to process Customer Data solely to provide, secure, and improve the Service.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>10. Confidentiality</h3>
+              <p style={{ color: '#64748b' }}>
+                You must keep non-public information about the Service (including implementation details and security controls) confidential and use it only for permitted purposes.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>11. Suspension and Termination</h3>
+              <p style={{ color: '#64748b' }}>
+                The Owner may suspend or terminate access where reasonably necessary to protect the Service, comply with law, address misuse, or respond to security incidents. Where practicable, notice will be provided.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>12. Disclaimer of Warranties</h3>
+              <div className="rounded-lg p-4 mb-4" style={{ backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }}>
+                <p className="text-sm" style={{ color: '#64748b' }}>
+                  The Service is provided “as is” and “as available”. To the fullest extent permitted by law, the Owner disclaims all warranties, whether express or implied, including fitness for a particular purpose and non-infringement.
+                </p>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>13. Limitation of Liability</h3>
+              <div className="rounded-lg p-4 mb-4" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                <p className="font-medium mb-2" style={{ color: '#dc2626' }}>IMPORTANT</p>
+                <p className="text-sm" style={{ color: '#7f1d1d' }}>
+                  Nothing in these Terms excludes or limits liability for death or personal injury caused by negligence, fraud/fraudulent misrepresentation, or any liability that cannot be excluded under applicable law.
+                </p>
+              </div>
+              <p style={{ color: '#64748b' }}>
+                Subject to the paragraph above, the Owner is not liable for indirect or consequential losses, or losses arising from reliance on outputs without appropriate professional review.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>14. Changes to the Terms</h3>
+              <p style={{ color: '#64748b' }}>
+                The Owner may update these Terms. Material changes will be posted in the Service. Continued use after the effective date means you accept the updated Terms.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>15. Governing Law</h3>
+              <p style={{ color: '#64748b' }}>
+                These Terms are governed by the laws of England and Wales, and the courts of England and Wales have exclusive jurisdiction.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>16. Contact</h3>
+              <p style={{ color: '#64748b' }}>
+                For questions about these Terms, please <a href="/#contact" className="font-semibold underline">Contact us</a> using the website contact form.
+              </p>
             </section>
 
             <section>

@@ -22,17 +22,16 @@ export default function PrivacyPolicy() {
               <Shield className="h-5 w-5" style={{ color: '#3b82f6' }} />
               Privacy Policy
             </CardTitle>
-            <p className="text-sm" style={{ color: '#64748b' }}>Last updated: January 2026</p>
+            <p className="text-sm" style={{ color: '#64748b' }}>Last updated: 29 January 2026</p>
           </CardHeader>
           <CardContent className="prose prose-sm max-w-none space-y-6" style={{ color: '#334155' }}>
-            
             <div className="rounded-lg p-4 mb-6" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
               <div className="flex items-start gap-3">
                 <Shield className="h-6 w-6 flex-shrink-0 mt-0.5" style={{ color: '#3b82f6' }} />
                 <div>
-                  <p className="font-bold text-base mb-2" style={{ color: '#3b82f6' }}>ABOUT THIS POLICY</p>
+                  <p className="font-bold text-base mb-2" style={{ color: '#3b82f6' }}>SUMMARY</p>
                   <p className="text-sm" style={{ color: '#334155' }}>
-                    This Privacy Policy explains how personal data is collected, used, and protected when using CareAssurance, which is proprietary software owned by <strong>Lewis Barron</strong>. The policy focuses on data handling and your rights.
+                    This Privacy Policy explains how CareAssurance handles personal data when you use the platform. It is written for UK users and aligns with the UK GDPR and the Data Protection Act 2018.
                   </p>
                 </div>
               </div>
@@ -42,157 +41,166 @@ export default function PrivacyPolicy() {
               <div className="flex items-start gap-3">
                 <Lock className="h-6 w-6 flex-shrink-0 mt-0.5" style={{ color: '#14b8a6' }} />
                 <div>
-                  <p className="font-bold text-base mb-2" style={{ color: '#14b8a6' }}>DATA PROTECTION APPROACH</p>
+                  <p className="font-bold text-base mb-2" style={{ color: '#14b8a6' }}>IMPORTANT NOTE</p>
                   <p className="text-sm" style={{ color: '#334155' }}>
-                    This Privacy Policy has been prepared with reference to the UK General Data Protection Regulation (UK GDPR), the Data Protection Act 2018, and guidance from the Information Commissioner's Office (ICO). We are committed to protecting your personal data and being transparent about how we collect and use it.
+                    If you use CareAssurance on behalf of a care provider or organisation, that organisation is usually the <strong>Data Controller</strong> for the personal data inside uploaded documents, and CareAssurance operates as a <strong>Data Processor</strong>.
                   </p>
                 </div>
               </div>
             </div>
 
             <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>1. Introduction and Scope</h3>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>1. Who We Are</h3>
               <p style={{ color: '#64748b' }}>
-                This Privacy Policy explains how CareAssurance, proprietary software owned by Lewis Barron ("the Platform," "the Software," "we," "us," or "our"), collects, uses, discloses, and protects personal data when you use our services.
+                CareAssurance is proprietary software owned and operated by <strong>Lewis Barron</strong> (the “Operator”).
               </p>
               <p style={{ color: '#64748b' }}>
-                This Policy applies to all users of the Platform, including care facility staff, administrators, and any other individuals who access or interact with the Software. It also addresses the processing of personal data contained within documents uploaded to the Platform, including data relating to service users, patients, and care workers.
-              </p>
-              <p style={{ color: '#64748b' }}>
-                By using CareAssurance, you acknowledge that you have read and understood this Privacy Policy and agree to the collection and use of information in accordance with this Policy.
+                This Privacy Policy applies to the CareAssurance web application and related services (together, the “Service”).
               </p>
             </section>
 
             <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>2. Data Controller and Ownership</h3>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>2. Roles: Controller vs Processor</h3>
               <p style={{ color: '#64748b' }}>
-                For the purposes of UK GDPR and the Data Protection Act 2018:
+                The terms “controller” and “processor” have the meanings given in UK GDPR.
               </p>
               <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
-                <li><strong>Software Owner:</strong> CareAssurance is wholly owned by Lewis Barron. All intellectual property rights, data processing decisions, and operational control of the Platform rest with Lewis Barron.</li>
-                <li><strong>Data Controller (User Data):</strong> The organization (care facility, healthcare provider, or other entity) that uses the CareAssurance platform is the Data Controller for any personal data they upload to the Platform. The Data Controller determines the purposes and means of processing personal data.</li>
-                <li><strong>Data Processor:</strong> Lewis Barron, as the operator of the CareAssurance platform, acts as a Data Processor, processing personal data only on behalf of and under the instructions of the Data Controller. We process data solely for the purposes of providing the Software as described in our Terms and Conditions.</li>
+                <li>
+                  <strong>Your organisation</strong> is typically the <strong>Data Controller</strong> for personal data contained in uploaded care documents.
+                </li>
+                <li>
+                  <strong>CareAssurance (Operator)</strong> typically acts as a <strong>Data Processor</strong>, processing that data only on documented instructions from the Controller and to provide the Service.
+                </li>
+                <li>
+                  For limited account/admin/security information (e.g. platform authentication and security logs), the Operator may act as a <strong>Controller</strong>.
+                </li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>3. Categories of Data We Process</h3>
+              <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
+                <li><strong>Account data:</strong> username, name, role, organisation, access status, audit/terms acceptance metadata.</li>
+                <li><strong>Uploaded document content:</strong> the text/structure of uploaded care documents, which may include special category (health) data.</li>
+                <li><strong>Usage and security data:</strong> session identifiers, access times, high-level event logs, and security telemetry.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>4. Purposes and Legal Bases</h3>
+              <p style={{ color: '#64748b' }}>
+                When acting as Controller (for platform administration/security), the Operator processes personal data to:
+              </p>
+              <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
+                <li>Provide and secure the Service (Article 6(1)(b) contract, and/or Article 6(1)(f) legitimate interests).</li>
+                <li>Prevent fraud/abuse, maintain audit trails, and investigate incidents (Article 6(1)(f) legitimate interests; and Article 6(1)(c) where a legal obligation applies).</li>
               </ul>
               <p className="mt-4" style={{ color: '#64748b' }}>
-                As the Data Controller, your organization is responsible for ensuring that appropriate legal bases exist for processing, that data subjects have been informed of the processing, and that all necessary consents have been obtained where required.
+                When acting as Processor (for uploaded documents), the Operator processes data on the Controller’s instructions. The Controller is responsible for identifying the appropriate Article 6 basis and, where applicable, an Article 9 condition for special category data.
               </p>
             </section>
 
             <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>3. Owner's Rights Regarding Access</h3>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>5. Special Category (Health) Data</h3>
               <div className="rounded-lg p-4 mb-4" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
                   <div>
-                    <p className="font-medium mb-2" style={{ color: '#d97706' }}>Access at Owner's Discretion</p>
+                    <p className="font-medium mb-2" style={{ color: '#d97706' }}>Health data may be included</p>
                     <p className="text-sm" style={{ color: '#78350f' }}>
-                      Lewis Barron reserves the absolute right to grant, modify, suspend, or terminate access to the Platform at any time, for any reason or no reason, without prior notice. This right exists independently of any data protection rights and is a condition of using the Software.
+                      Uploaded documents may include health and care information. CareAssurance is designed to minimise retention and to apply access controls appropriate to this category of data.
                     </p>
                   </div>
                 </div>
               </div>
               <p style={{ color: '#64748b' }}>
-                Upon termination of access, any personal data stored in your user account may be deleted in accordance with our data retention policies. Uploaded documents processed in volatile memory will be automatically deleted within 30 minutes regardless of access status.
+                If your organisation uploads special category data, your organisation (as Controller) must ensure a valid Article 9 condition applies (for example, health or social care provision/management, or substantial public interest where relevant).
               </p>
             </section>
 
             <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>4. Categories of Personal Data Collected</h3>
-              <p style={{ color: '#64748b' }}>We may collect and process the following categories of personal data:</p>
-              
-              <h4 className="text-md font-medium mt-4" style={{ color: '#0f172a' }}>4.1 User Account Data</h4>
-              <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
-                <li>Username and login credentials (password stored in hashed format)</li>
-                <li>Full name and job title</li>
-                <li>Role and access permissions</li>
-                <li>Organization affiliation</li>
-                <li>Contact information (if provided)</li>
-              </ul>
-
-              <h4 className="text-md font-medium mt-4" style={{ color: '#0f172a' }}>4.2 Uploaded Document Data (Volatile/Temporary)</h4>
-              <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
-                <li>Care plans and care assessments</li>
-                <li>Electronic Medication Administration Records (EMAR)</li>
-                <li>Visit logs and call records</li>
-                <li>Risk assessments and care reviews</li>
-                <li>Service user personal and health information contained within uploaded documents</li>
-                <li>Care worker information contained within uploaded documents</li>
-              </ul>
-
-              <h4 className="text-md font-medium mt-4" style={{ color: '#0f172a' }}>4.3 Technical and Usage Data</h4>
-              <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
-                <li>IP addresses and device identifiers</li>
-                <li>Browser type and version</li>
-                <li>Operating system information</li>
-                <li>Access times and dates</li>
-                <li>Pages visited and features used</li>
-                <li>Session duration and activity logs</li>
-              </ul>
-
-              <h4 className="text-md font-medium mt-4" style={{ color: '#0f172a' }}>4.4 Audit and Compliance Data</h4>
-              <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
-                <li>Audit results and compliance scores</li>
-                <li>Analysis outputs and recommendations (may be anonymized)</li>
-                <li>Reference identifiers for processed documents</li>
-              </ul>
-            </section>
-
-            <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>5. Special Category Data</h3>
-              <div className="rounded-lg p-4 mb-4" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
-                  <div>
-                    <p className="font-medium mb-2" style={{ color: '#d97706' }}>Health Data Processing</p>
-                    <p className="text-sm" style={{ color: '#78350f' }}>
-                      Documents uploaded to CareAssurance may contain special category data, including health information, medication records, and care needs. This data is processed solely for the legitimate purposes of care compliance, quality assurance, and audit functions. Such processing is subject to strict safeguards and temporary storage only.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <p style={{ color: '#64748b' }}>
-                Where special category data is processed, we rely on the following conditions under Article 9 of UK GDPR:
-              </p>
-              <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
-                <li>Processing is necessary for reasons of substantial public interest (quality and safety of health or social care)</li>
-                <li>Processing is necessary for the provision of health or social care services</li>
-                <li>Explicit consent from the Data Controller where appropriate</li>
-              </ul>
-            </section>
-
-            <section>
-              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>6. Volatile Data Processing and Automatic Deletion</h3>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>6. Volatile Processing and Retention</h3>
               <div className="rounded-lg p-4 mb-4" style={{ backgroundColor: 'rgba(20, 184, 166, 0.1)', border: '1px solid rgba(20, 184, 166, 0.2)' }}>
                 <div className="flex items-start gap-3">
                   <Clock className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: '#14b8a6' }} />
                   <div>
-                    <p className="font-medium mb-2" style={{ color: '#0d9488' }}>30-Minute Auto-Deletion</p>
+                    <p className="font-medium mb-2" style={{ color: '#0d9488' }}>30-minute deletion model</p>
                     <p className="text-sm" style={{ color: '#115e59' }}>
-                      This platform implements "Privacy by Design" and "Data Minimization" principles. All uploaded documents containing personal data are processed in volatile (temporary) memory only and are <strong>automatically and permanently deleted within 30 minutes of inactivity</strong> or when you leave the relevant section.
+                      Uploaded document content is designed to be processed temporarily and automatically cleared after inactivity. Operational details may vary depending on deployment configuration.
                     </p>
                   </div>
                 </div>
               </div>
               <p style={{ color: '#64748b' }}>
-                <strong>How Volatile Processing Works:</strong>
+                Account records and security logs may be retained longer to operate the Service safely and to meet operational/security needs.
               </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>7. AI and Subprocessors</h3>
+              <div className="rounded-lg p-4 mb-4" style={{ backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }}>
+                <div className="flex items-start gap-3">
+                  <Database className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: '#3b82f6' }} />
+                  <div>
+                    <p className="font-medium mb-2" style={{ color: '#0f172a' }}>Third-party processing</p>
+                    <p className="text-sm" style={{ color: '#64748b' }}>
+                      Some features may send relevant text to third-party service providers (for example, AI model providers) to generate analyses or summaries.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <p style={{ color: '#64748b' }}>
+                Where third parties process personal data on our behalf, we put contractual safeguards in place (such as data processing terms) and require appropriate security measures.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>8. International Transfers</h3>
+              <p style={{ color: '#64748b' }}>
+                If a third-party provider processes data outside the UK, we rely on appropriate safeguards (for example, the UK Addendum to the EU Standard Contractual Clauses, or other recognised transfer mechanisms).
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>9. Security</h3>
               <ul className="list-disc pl-6 space-y-2" style={{ color: '#64748b' }}>
-                <li><strong>Upload:</strong> When you upload a document, it is loaded into temporary server memory for processing</li>
-                <li><strong>Processing:</strong> AI analysis and document parsing occur in real-time</li>
-                <li><strong>Timer:</strong> A 30-minute inactivity timer begins upon upload</li>
-                <li><strong>Auto-Deletion:</strong> Data is permanently and irreversibly deleted when:
-                  <ul className="list-disc pl-6 mt-2 space-y-1">
-                    <li>30 minutes pass without activity</li>
-                    <li>You navigate away from the processing section</li>
-                    <li>You log out of the Platform</li>
-                    <li>Your browser session ends</li>
-                    <li>You manually trigger deletion</li>
-                  </ul>
-                </li>
-                <li><strong>No Backup:</strong> Deleted data cannot be recovered as it is never written to permanent storage</li>
+                <li>Encryption in transit (HTTPS/TLS).</li>
+                <li>Role-based access controls.</li>
+                <li>Authentication and session controls.</li>
+                <li>Security logging for incident investigation.</li>
               </ul>
               <p className="mt-4" style={{ color: '#64748b' }}>
-                This approach significantly reduces data protection risks by ensuring sensitive personal and health data exists only for the minimum time necessary to provide the Software.
+                No system is completely secure; we work to reduce risk and respond appropriately to incidents.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>10. Your Rights and Complaints</h3>
+              <p style={{ color: '#64748b' }}>
+                Individuals have rights under UK GDPR (including access, rectification, erasure, restriction, objection, and data portability) subject to legal conditions.
+              </p>
+              <p style={{ color: '#64748b' }}>
+                If you are a user acting for a Controller organisation, requests about the content of care documents should normally be directed to your organisation.
+              </p>
+              <p className="mt-4" style={{ color: '#64748b' }}>
+                You can complain to the ICO: <a href="https://ico.org.uk" className="hover:underline" style={{ color: '#14b8a6' }}>ico.org.uk</a>
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>11. Cookies</h3>
+              <p style={{ color: '#64748b' }}>
+                The Service uses essential cookies for login/session management and security. It does not use advertising cookies.
+              </p>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-semibold" style={{ color: '#0f172a' }}>12. Contact</h3>
+              <p style={{ color: '#64748b' }}>
+                For privacy questions, please <a href="/#contact" className="font-semibold underline">Contact us</a> using the website contact form.
+              </p>
+              <p className="mt-4" style={{ color: '#64748b' }}>
+                For requests about patient/service user data uploaded by your organisation, contact your organisation’s Data Protection Officer or privacy contact.
               </p>
             </section>
 
