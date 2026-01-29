@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Copy, FileText, Check, X, AlertTriangle, Loader2, TableIcon, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, UserPlus, Users, Sparkles, RefreshCw, Pencil, Undo2, Save, Download } from "lucide-react";
+import { Upload, Copy, FileText, Check, X, AlertTriangle, Loader2, TableIcon, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, UserPlus, Users, Sparkles, RefreshCw, Pencil, Undo2, Save, Download, Brain, Activity, Clock, Pill } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import UploadDisclaimer from "@/components/UploadDisclaimer";
@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 interface CareWorker {
   id: string;

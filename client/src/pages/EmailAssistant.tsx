@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mail, Sparkles, Copy, RefreshCw, Send, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 export default function EmailAssistant() {
   const [inputText, setInputText] = useState("");

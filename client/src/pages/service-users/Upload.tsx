@@ -5,6 +5,7 @@ import { Upload, FileText, CheckCircle, Shield, AlertCircle, Loader2, CloudUploa
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useToast } from "@/hooks/use-toast";
 import UploadDisclaimer from "@/components/UploadDisclaimer";
+import { cn } from "@/lib/utils";
 
 const formatBytes = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;

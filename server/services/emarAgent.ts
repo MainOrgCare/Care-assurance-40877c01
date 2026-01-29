@@ -259,6 +259,76 @@ const normalizeInitials = (value: unknown): string =>
     .replace(/[^A-Z]/g, "")
     .slice(0, 4);
 
+const normalizeSlotKey = (entry: any): string =>
+  [
+    String(entry?.medicationId ?? ""),
+    normalizeDate(entry?.date),
+    normalizeTimeSlot(entry?.timeSlot),
+  ].join("|");
+
+const codePriority: Record<string, number> = {
+  "PRN-R": 90,
+  "PRN-AD": 82,
+  "PRN-AS": 82,
+  PRN: 80,
+  AD: 65,
+  AS: 65,
+  P: 60,
+  "N/A": 10,
+  BLANK: 0,
+};
+
+const computeEntryScore = (entry: any): number => {
+  const code = normalizeCode(entry?.code || "");
+  let score = codePriority[code] ?? (code ? 60 : 0);
+  if (computeHasTime(entry)) score += 5;
+  const initials = String(entry?.careWorkerInitials || "").toUpperCase().trim();
+  if (initials && initials !== "MANUAL") score += 3;
+  if (String(entry?.time || "").trim()) score += 1;
+  return score;
+};
+
+const shouldReplaceEntry = (current: any, candidate: any): boolean => {
+  const currentScore = computeEntryScore(current);
+  const candidateScore = computeEntryScore(candidate);
+  if (candidateScore !== currentScore) return candidateScore > currentScore;
+
+  const currentHasTime = computeHasTime(current);
+  const candidateHasTime = computeHasTime(candidate);
+  if (currentHasTime !== candidateHasTime) return candidateHasTime;
+
+  const currentInitials = String(current?.careWorkerInitials || "").toUpperCase().trim();
+  const candidateInitials = String(candidate?.careWorkerInitials || "").toUpperCase().trim();
+  if (currentInitials !== candidateInitials) {
+    if (candidateInitials && candidateInitials !== "MANUAL") return true;
+    if (currentInitials && !candidateInitials) return false;
+  }
+
+  const currentCode = normalizeCode(current?.code || "");
+  const candidateCode = normalizeCode(candidate?.code || "");
+  if (candidateCode !== currentCode) {
+    return candidateCode.length > currentCode.length;
+  }
+
+  return false;
+};
+
+const deduplicateEntries = (entries: any[]): any[] => {
+  const bestByKey = new Map<string, any>();
+  for (const entry of entries) {
+    const key = normalizeSlotKey(entry);
+    if (!bestByKey.has(key)) {
+      bestByKey.set(key, entry);
+      continue;
+    }
+    const existing = bestByKey.get(key);
+    if (shouldReplaceEntry(existing, entry)) {
+      bestByKey.set(key, entry);
+    }
+  }
+  return Array.from(bestByKey.values());
+};
+
 const uniqueStrings = (items: unknown[]): string[] => {
   const result: string[] = [];
   const seen = new Set<string>();

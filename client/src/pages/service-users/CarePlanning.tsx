@@ -1,17 +1,18 @@
 import { useState, useMemo } from "react";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useAuth } from "@/context/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from "@/components/ui/switch";
-import { FileText, ArrowRight, AlertTriangle, Loader2, CheckCircle2, Sparkles, ChevronDown, ChevronUp, Copy, Check, Search } from "lucide-react";
+import { FileText, ArrowRight, AlertTriangle, Loader2, CheckCircle2, Sparkles, ChevronDown, ChevronUp, Copy, Check, Search, Clock, Activity, Shield, Zap } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface CarePlanSection {
   title: string;
