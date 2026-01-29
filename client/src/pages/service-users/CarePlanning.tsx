@@ -415,86 +415,96 @@ export default function CarePlanning() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-heading font-bold text-foreground" data-testid="text-page-title">Care Planning</h2>
-          <p className="text-muted-foreground mt-2">
-            Generate detailed, first-person care plans based on uploaded documentation.
-          </p>
+    <div className="page-shell">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
+        <div className="space-y-1">
+          <h1 className="page-title leading-tight" data-testid="text-page-title">Care Planning</h1>
+          <p className="page-subtitle">Generate detailed, first-person care plans based on uploaded documentation.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {isAdmin && (
-            <div className="flex flex-col items-start gap-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col items-start gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-2 text-xs text-muted-foreground glass-card">
+              <div className="flex items-center gap-3">
                 <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
-                <span>Show full names (admin view)</span>
+                <span className="font-semibold tracking-tight">Show full names (admin view)</span>
               </div>
-              <span className="text-[11px] text-muted-foreground/80">Copies and saves use initials only.</span>
+              <span className="text-[10px] text-muted-foreground/60 font-medium">Copies and saves use initials only.</span>
             </div>
           )}
           {carePlan && (
-            <Button variant="outline" onClick={copyAllPlan} className="gap-2" data-testid="button-copy-all">
+            <Button variant="outline" onClick={copyAllPlan} className="gap-2.5 rounded-xl border-border/60 font-bold tracking-tight shadow-sm" data-testid="button-copy-all">
               <Copy size={16} /> Copy Full Plan
             </Button>
           )}
         </div>
       </div>
 
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText size={20} />
+      <Card className="glass-card animate-slide-up stagger-2 overflow-hidden">
+        <CardHeader className="border-b border-border/40 pb-6">
+          <CardTitle className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10 shadow-xs">
+              <FileText size={18} className="text-primary" />
+            </div>
             Source Documents
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4 pt-6">
           {serviceUserData.socialWork && (
-            <div className="p-3 rounded-lg bg-background border border-border text-sm text-muted-foreground flex items-center gap-2" data-testid="text-social-work-doc">
-              {serviceUserData.socialWork.isParsing ? (
-                <Loader2 size={16} className="animate-spin text-blue-400" />
-              ) : (
-                <CheckCircle2 size={16} className="text-emerald-400" />
-              )}
-              <strong>Social Work:</strong> {serviceUserData.socialWork.name}
+            <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm text-foreground flex items-center gap-3 group transition-colors hover:bg-muted/30" data-testid="text-social-work-doc">
+              <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50 shadow-xs">
+                {serviceUserData.socialWork.isParsing ? (
+                  <Loader2 size={16} className="animate-spin text-primary" />
+                ) : (
+                  <CheckCircle2 size={16} className="text-success" />
+                )}
+              </div>
+              <div>
+                <p className="font-bold tracking-tight">Social Work</p>
+                <p className="text-xs text-muted-foreground font-medium">{serviceUserData.socialWork.name}</p>
+              </div>
               {serviceUserData.socialWork.parseError && (
-                <span className="text-xs text-red-400 ml-auto">Parsing failed</span>
+                <span className="text-xs text-destructive font-bold ml-auto bg-destructive/10 px-2 py-1 rounded-lg">Parsing failed</span>
               )}
               {serviceUserData.socialWork.content && !serviceUserData.socialWork.parseError && (
-                <span className="text-xs text-muted-foreground ml-auto">
-                  {serviceUserData.socialWork.content.length.toLocaleString()} chars
+                <span className="text-xs font-bold text-muted-foreground ml-auto bg-muted/40 px-2.5 py-1 rounded-lg tracking-tighter">
+                  {serviceUserData.socialWork.content.length.toLocaleString()} CHR
                 </span>
               )}
             </div>
           )}
           {serviceUserData.initialAssessment && (
-            <div className="p-3 rounded-lg bg-background border border-border text-sm text-muted-foreground flex items-center gap-2" data-testid="text-initial-assessment-doc">
-              {serviceUserData.initialAssessment.isParsing ? (
-                <Loader2 size={16} className="animate-spin text-blue-400" />
-              ) : (
-                <CheckCircle2 size={16} className="text-emerald-400" />
-              )}
-              <strong>Initial Assessment:</strong> {serviceUserData.initialAssessment.name}
+            <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm text-foreground flex items-center gap-3 group transition-colors hover:bg-muted/30" data-testid="text-initial-assessment-doc">
+              <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50 shadow-xs">
+                {serviceUserData.initialAssessment.isParsing ? (
+                  <Loader2 size={16} className="animate-spin text-primary" />
+                ) : (
+                  <CheckCircle2 size={16} className="text-success" />
+                )}
+              </div>
+              <div>
+                <p className="font-bold tracking-tight">Initial Assessment</p>
+                <p className="text-xs text-muted-foreground font-medium">{serviceUserData.initialAssessment.name}</p>
+              </div>
               {serviceUserData.initialAssessment.parseError && (
-                <span className="text-xs text-red-400 ml-auto">Parsing failed</span>
+                <span className="text-xs text-destructive font-bold ml-auto bg-destructive/10 px-2 py-1 rounded-lg">Parsing failed</span>
               )}
               {serviceUserData.initialAssessment.content && !serviceUserData.initialAssessment.parseError && (
-                <span className="text-xs text-muted-foreground ml-auto">
-                  {serviceUserData.initialAssessment.content.length.toLocaleString()} chars
+                <span className="text-xs font-bold text-muted-foreground ml-auto bg-muted/40 px-2.5 py-1 rounded-lg tracking-tighter">
+                  {serviceUserData.initialAssessment.content.length.toLocaleString()} CHR
                 </span>
               )}
             </div>
           )}
           {parseErrors.length > 0 && (
-            <div className="rounded-lg border border-red-900/40 bg-red-950/20 p-3 text-xs text-red-200/80">
-              <div className="flex items-center gap-2 text-red-300 font-semibold">
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-xs text-destructive/80">
+              <div className="flex items-center gap-2 text-destructive font-bold uppercase tracking-wider mb-2">
                 <AlertTriangle size={14} />
                 Parsing issues detected
               </div>
-              <div className="mt-2 space-y-1">
+              <div className="space-y-1">
                 {parseErrors.map((error) => (
-                  <div key={error.label} className="flex items-start gap-2">
-                    <span className="text-red-400">-</span>
+                  <div key={error.label} className="flex items-start gap-2 font-medium">
+                    <span className="text-destructive">•</span>
                     <span>{error.label}: {error.message}</span>
                   </div>
                 ))}
@@ -505,86 +515,85 @@ export default function CarePlanning() {
           <Button 
             onClick={() => generateMutation.mutate()}
             disabled={generateMutation.isPending || isAnyParsing()}
-            className="w-full mt-4 gap-2"
+            className="w-full mt-2 gap-2.5 h-12 rounded-xl font-bold tracking-tight shadow-glow"
             data-testid="button-generate-care-plan"
           >
             {generateMutation.isPending ? (
               <>
-                <Loader2 size={16} className="animate-spin" />
-                Generating Detailed Care Plan...
+                <Loader2 size={18} className="animate-spin" />
+                Generating Operational Directives...
               </>
             ) : (
               <>
-                <Sparkles size={16} />
-                Generate First-Person Care Plan
+                <Sparkles size={18} />
+                Generate Intelligence-Led Care Plan
               </>
             )}
           </Button>
 
           {generateMutation.isPending && (
-            <div className="space-y-3 p-4 bg-blue-950/20 border border-blue-900/30 rounded-lg" data-testid="progress-container">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Loader2 size={16} className="animate-spin text-blue-400" />
-                  <span className="text-sm text-muted-foreground">{progressStatus}</span>
+            <div className="space-y-4 p-5 bg-primary/5 border border-primary/10 rounded-xl" data-testid="progress-container">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-3">
+                  <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-primary">{progressStatus}</span>
                 </div>
-                <span className="text-sm font-medium text-foreground">{Math.round(progress)}%</span>
+                <span className="text-sm font-black text-primary">{Math.round(progress)}%</span>
               </div>
-              <Progress value={progress} className="h-2" />
+              <Progress value={progress} className="h-1.5 bg-primary/10" />
             </div>
           )}
           
           {isAnyParsing() && (
-            <p className="text-xs text-amber-400 text-center">
-              Please wait for documents to finish parsing...
+            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest text-center mt-2 animate-pulse">
+              System busy: parsing baseline documents...
             </p>
           )}
         </CardContent>
       </Card>
 
       {carePlan && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-foreground" data-testid="text-care-plan-title">
-              Care Plan for {carePlan.serviceUserInitials}
+        <div className="space-y-6 animate-slide-up">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-xl font-black tracking-tight text-foreground" data-testid="text-care-plan-title">
+              Operational Plan: {carePlan.serviceUserInitials}
             </h3>
-            <span className="text-sm text-muted-foreground">Generated: {carePlan.generatedDate}</span>
+            <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest bg-muted/40 px-3 py-1 rounded-full border border-border/40">
+              <Clock size={12} className="text-primary" />
+              TIMESTAMP: {carePlan.generatedDate}
+            </div>
           </div>
 
-          <Card className="bg-card border-border">
-            <CardHeader className="space-y-3">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <Card className="glass-card overflow-hidden">
+            <CardHeader className="border-b border-border/40 pb-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <CardTitle>Plan Overview</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Showing {visibleSections.length} of {sectionStats.total} sections
-                  </p>
+                  <CardTitle className="text-lg">Intelligence Feed</CardTitle>
+                  <CardDescription className="text-xs font-medium">
+                    Showing {visibleSections.length} of {sectionStats.total} mapped operational vectors.
+                  </CardDescription>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">Sections {sectionStats.total}</Badge>
-                  <Badge variant="destructive">High {sectionStats.high}</Badge>
-                  <Badge variant="warning">Medium {sectionStats.medium}</Badge>
-                  <Badge variant="success">Low {sectionStats.low}</Badge>
-                  <Badge variant="muted">Steps {sectionStats.steps}</Badge>
-                  <Badge variant="muted">Risks {sectionStats.risks}</Badge>
-                  <Badge variant="muted">Equipment {sectionStats.equipment}</Badge>
+                  <Badge variant="outline" className="rounded-lg font-bold">TOTAL {sectionStats.total}</Badge>
+                  <Badge className="rounded-lg font-bold bg-destructive/15 text-destructive border-destructive/20">HIGH {sectionStats.high}</Badge>
+                  <Badge className="rounded-lg font-bold bg-amber-500/15 text-amber-500 border-amber-500/20">MED {sectionStats.medium}</Badge>
+                  <Badge className="rounded-lg font-bold bg-success/15 text-success border-success/20">LOW {sectionStats.low}</Badge>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 lg:grid-cols-[1.6fr_1fr]">
+            <CardContent className="space-y-6 pt-6">
+              <div className="grid gap-4 lg:grid-cols-[1.8fr_1fr]">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-muted-foreground/60" />
                   <Input
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search sections, steps, risks, or equipment..."
-                    className="pl-9"
+                    placeholder="Filter vectors by keywords, risks, or gear..."
+                    className="pl-11 h-11 rounded-xl bg-muted/20 border-border/40 font-medium"
                     data-testid="input-care-plan-search"
                   />
                 </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                  <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Priority</span>
+                <div className="flex flex-col gap-2 justify-center">
                   <ToggleGroup
                     type="single"
                     value={priorityFilter}
@@ -593,18 +602,18 @@ export default function CarePlanning() {
                     }
                     variant="outline"
                     size="sm"
-                    className="flex-wrap justify-start sm:justify-end"
+                    className="justify-start sm:justify-end"
                   >
-                    <ToggleGroupItem value="all">All</ToggleGroupItem>
-                    <ToggleGroupItem value="high">High</ToggleGroupItem>
-                    <ToggleGroupItem value="medium">Medium</ToggleGroupItem>
-                    <ToggleGroupItem value="low">Low</ToggleGroupItem>
+                    <ToggleGroupItem value="all" className="rounded-lg font-bold text-[10px]">ALL</ToggleGroupItem>
+                    <ToggleGroupItem value="high" className="rounded-lg font-bold text-[10px]">HIGH</ToggleGroupItem>
+                    <ToggleGroupItem value="medium" className="rounded-lg font-bold text-[10px]">MED</ToggleGroupItem>
+                    <ToggleGroupItem value="low" className="rounded-lg font-bold text-[10px]">LOW</ToggleGroupItem>
                   </ToggleGroup>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-border/40">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Sort</span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Sequence</span>
                   <ToggleGroup
                     type="single"
                     value={sortMode}
@@ -614,8 +623,8 @@ export default function CarePlanning() {
                     variant="outline"
                     size="sm"
                   >
-                    <ToggleGroupItem value="default">Original</ToggleGroupItem>
-                    <ToggleGroupItem value="priority">Priority First</ToggleGroupItem>
+                    <ToggleGroupItem value="default" className="rounded-lg font-bold text-[10px]">LOGICAL</ToggleGroupItem>
+                    <ToggleGroupItem value="priority" className="rounded-lg font-bold text-[10px]">CRITICAL FIRST</ToggleGroupItem>
                   </ToggleGroup>
                   {hasActiveFilters && (
                     <Button
@@ -626,12 +635,13 @@ export default function CarePlanning() {
                         setPriorityFilter("all");
                         setSortMode("default");
                       }}
+                      className="text-[10px] font-bold text-primary uppercase tracking-widest"
                     >
-                      Reset Filters
+                      Reset Directives
                     </Button>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <Button
                     variant="outline"
                     size="sm"
@@ -642,6 +652,7 @@ export default function CarePlanning() {
                         return next;
                       });
                     }}
+                    className="rounded-lg font-bold text-[10px] uppercase border-border/60"
                   >
                     Expand All
                   </Button>
@@ -655,6 +666,7 @@ export default function CarePlanning() {
                         return next;
                       });
                     }}
+                    className="rounded-lg font-bold text-[10px] uppercase text-muted-foreground"
                   >
                     Collapse All
                   </Button>
@@ -663,130 +675,169 @@ export default function CarePlanning() {
             </CardContent>
           </Card>
 
-          {visibleSections.length === 0 ? (
-            <Card className="bg-card border-border border-dashed">
-              <CardContent className="py-8 text-center space-y-3">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                  <AlertTriangle size={20} className="text-muted-foreground" />
+          <div className="grid gap-5">
+            {visibleSections.length === 0 ? (
+              <div className="py-20 text-center glass-card rounded-2xl border-dashed">
+                <div className="h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-6">
+                  <Search size={24} className="text-muted-foreground/40" />
                 </div>
-                <div>
-                  <p className="text-sm text-foreground">No sections match your filters.</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Reset filters or adjust your search terms to see more results.
-                  </p>
-                </div>
+                <p className="text-lg font-bold text-foreground mb-1">No vectors found</p>
+                <p className="text-sm text-muted-foreground font-medium max-w-xs mx-auto">
+                  Adjust your search parameters or priority filters to find directives.
+                </p>
                 {hasActiveFilters && (
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant="link"
                     onClick={() => {
                       setSearchQuery("");
                       setPriorityFilter("all");
                       setSortMode("default");
                     }}
+                    className="mt-4 font-bold tracking-tight text-primary uppercase text-xs"
                   >
-                    Reset Filters
+                    Clear Search Directives
                   </Button>
                 )}
-              </CardContent>
-            </Card>
-          ) : (
-            visibleSections.map(({ section, index }) => (
-              <Card 
-                key={index} 
-                className={`bg-card border-border overflow-hidden ${section.priority === 'high' ? 'ring-1 ring-red-900/50' : ''}`}
-                data-testid={`card-section-${index}`}
-              >
-                <CardHeader 
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => toggleSection(index)}
+              </div>
+            ) : (
+              visibleSections.map(({ section, index }) => (
+                <Card
+                  key={index}
+                  className={cn(
+                    "glass-card-interactive group overflow-hidden transition-all duration-500",
+                    section.priority === 'high' ? 'border-destructive/30 shadow-destructive/5' : '',
+                    expandedSections.has(index) ? 'shadow-medium' : ''
+                  )}
+                  data-testid={`card-section-${index}`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {section.title.toLowerCase().includes('warning') && (
-                        <AlertTriangle size={20} className="text-red-400" />
-                      )}
-                      <CardTitle className="text-lg">{section.title}</CardTitle>
-                      <span className={`text-xs px-2 py-1 rounded border ${getPriorityColor(section.priority)}`}>
-                        {section.priority}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copySection(section, index);
-                        }}
-                        className="h-8 w-8 p-0"
-                        data-testid={`button-copy-section-${index}`}
-                      >
-                        {copiedSection === index ? <Check size={14} /> : <Copy size={14} />}
-                      </Button>
-                      {expandedSections.has(index) ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                    </div>
-                  </div>
-                </CardHeader>
-                
-                {expandedSections.has(index) && (
-                  <CardContent className="pt-0 space-y-4">
-                    <div className="prose prose-invert max-w-none">
-                      <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap" data-testid={`text-section-content-${index}`}>
-                        {section.content || "No content available for this section."}
-                      </p>
-                    </div>
-
-                    {Array.isArray(section.steps) && section.steps.length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="text-sm font-semibold text-foreground mb-2">Step-by-Step Instructions:</h4>
-                        <ol className="list-decimal list-inside space-y-2">
-                          {section.steps.map((step, stepIndex) => (
-                            <li key={stepIndex} className="text-sm text-muted-foreground" data-testid={`text-step-${index}-${stepIndex}`}>
-                              {step}
-                            </li>
-                          ))}
-                        </ol>
+                  <CardHeader
+                    className="cursor-pointer py-5"
+                    onClick={() => toggleSection(index)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          "h-10 w-10 rounded-xl flex items-center justify-center border transition-all duration-500 group-hover:scale-110 shadow-xs",
+                          section.priority === 'high' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                          section.priority === 'medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
+                          'bg-success/10 border-success/20 text-success'
+                        )}>
+                          {section.title.toLowerCase().includes('warning') || section.priority === 'high' ? (
+                            <AlertTriangle size={20} />
+                          ) : (
+                            <Sparkles size={18} />
+                          )}
+                        </div>
+                        <div>
+                          <CardTitle className="text-base font-bold tracking-tight group-hover:text-primary transition-colors">{section.title}</CardTitle>
+                          <span className={cn(
+                            "text-[10px] font-black uppercase tracking-widest",
+                            section.priority === 'high' ? 'text-destructive' :
+                            section.priority === 'medium' ? 'text-amber-500' :
+                            'text-success'
+                          )}>
+                            PRIORITY: {section.priority}
+                          </span>
+                        </div>
                       </div>
-                    )}
-
-                    <div className="flex flex-wrap gap-4 mt-4">
-                      {Array.isArray(section.risks) && section.risks.length > 0 && (
-                        <div className="flex-1 min-w-[200px]">
-                          <h4 className="text-sm font-semibold text-red-400 mb-2">Risks:</h4>
-                          <ul className="text-xs text-muted-foreground space-y-1">
-                            {section.risks.map((risk, riskIndex) => (
-                              <li key={riskIndex} className="flex items-start gap-1">
-                                <AlertTriangle size={12} className="mt-0.5 text-red-400 flex-shrink-0" />
-                                {risk}
-                              </li>
-                            ))}
-                          </ul>
+                      <div className="flex items-center gap-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copySection(section, index);
+                          }}
+                          className="h-9 w-9 p-0 rounded-lg border-border/60 hover:bg-muted/50"
+                          data-testid={`button-copy-section-${index}`}
+                        >
+                          {copiedSection === index ? <Check size={14} className="text-success" /> : <Copy size={14} className="text-muted-foreground" />}
+                        </Button>
+                        <div className={cn(
+                          "h-9 w-9 rounded-lg border border-border/60 flex items-center justify-center transition-transform duration-500",
+                          expandedSections.has(index) ? "rotate-180 bg-muted/50" : ""
+                        )}>
+                          <ChevronDown size={18} className="text-muted-foreground" />
                         </div>
-                      )}
-                      {Array.isArray(section.equipment) && section.equipment.length > 0 && (
-                        <div className="flex-1 min-w-[200px]">
-                          <h4 className="text-sm font-semibold text-blue-400 mb-2">Equipment Needed:</h4>
-                          <ul className="text-xs text-muted-foreground space-y-1">
-                            {section.equipment.map((item, eqIndex) => (
-                              <li key={eqIndex}>- {item}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                      </div>
                     </div>
-                  </CardContent>
-                )}
-              </Card>
-            ))
-          )}
+                  </CardHeader>
+
+                  {expandedSections.has(index) && (
+                    <CardContent className="pt-2 pb-8 px-6 space-y-6 animate-slide-up">
+                      <div className="relative">
+                        <div className="absolute -left-4 top-0 bottom-0 w-1 bg-primary/20 rounded-full" />
+                        <p className="text-sm font-medium text-foreground leading-relaxed whitespace-pre-wrap pl-2" data-testid={`text-section-content-${index}`}>
+                          {section.content || "No content available for this section."}
+                        </p>
+                      </div>
+
+                      {Array.isArray(section.steps) && section.steps.length > 0 && (
+                        <div className="bg-muted/20 rounded-2xl p-5 border border-border/40">
+                          <h4 className="text-xs font-black uppercase tracking-widest text-foreground mb-4 flex items-center gap-2">
+                            <Activity size={14} className="text-primary" />
+                            Operational Protocol
+                          </h4>
+                          <div className="space-y-4">
+                            {section.steps.map((step, stepIndex) => (
+                              <div key={stepIndex} className="flex gap-4 group/step" data-testid={`text-step-${index}-${stepIndex}`}>
+                                <div className="h-6 w-6 rounded-full bg-background border border-border/60 flex items-center justify-center shrink-0 text-[10px] font-black group-hover/step:border-primary group-hover/step:text-primary transition-colors">
+                                  {stepIndex + 1}
+                                </div>
+                                <p className="text-sm font-medium text-muted-foreground leading-snug pt-0.5">{step}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid gap-5 md:grid-cols-2">
+                        {Array.isArray(section.risks) && section.risks.length > 0 && (
+                          <div className="bg-destructive/5 rounded-2xl p-5 border border-destructive/10">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-destructive mb-3 flex items-center gap-2">
+                              <Shield size={14} />
+                              Risk Vectors
+                            </h4>
+                            <ul className="space-y-2.5">
+                              {section.risks.map((risk, riskIndex) => (
+                                <li key={riskIndex} className="flex items-start gap-3">
+                                  <div className="h-1.5 w-1.5 rounded-full bg-destructive mt-1.5 shrink-0 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+                                  <p className="text-xs font-semibold text-destructive/80 leading-relaxed">{risk}</p>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {Array.isArray(section.equipment) && section.equipment.length > 0 && (
+                          <div className="bg-blue-500/5 rounded-2xl p-5 border border-blue-500/10">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-3 flex items-center gap-2">
+                              <Zap size={14} />
+                              Logistics Needed
+                            </h4>
+                            <ul className="space-y-2.5">
+                              {section.equipment.map((item, eqIndex) => (
+                                <li key={eqIndex} className="flex items-start gap-3">
+                                  <div className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                                  <p className="text-xs font-semibold text-blue-500/80 leading-relaxed">{item}</p>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              ))
+            )}
+          </div>
 
           {(carePlan.emergencyContacts || carePlan.gpDetails || carePlan.additionalNotes) && (
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle>Additional Information</CardTitle>
+            <Card className="glass-card overflow-hidden">
+              <CardHeader className="border-b border-border/40">
+                <CardTitle className="text-base">Logistical Meta-Data</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <CardContent className="space-y-4 pt-6 text-sm">
                 {carePlan.emergencyContacts && carePlan.emergencyContacts !== "Information not found in documents" && (
                   <div>
                     <strong className="text-foreground">Emergency Contacts:</strong> {carePlan.emergencyContacts}

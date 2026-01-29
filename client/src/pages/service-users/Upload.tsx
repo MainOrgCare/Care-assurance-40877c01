@@ -60,24 +60,25 @@ export default function ServiceUserUpload() {
   };
 
   return (
-    <div className="page-shell">
-      <div>
-        <h2 className="text-2xl font-heading font-bold text-foreground">Service User Data Upload</h2>
-        <p className="text-sm text-muted-foreground/80 mt-1.5">
-          Securely upload critical documentation. Data is temporarily stored for 30 minutes before permanent deletion.
+    <div className="page-shell max-w-6xl mx-auto">
+      <div className="animate-slide-up stagger-1">
+        <h1 className="page-title text-3xl">Secure Intake Portal</h1>
+        <p className="page-subtitle max-w-2xl">
+          Establishing a temporal data link for clinical documentation. Ingested payloads are volatile and will self-terminate after 30 minutes of inactivity.
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-slide-up stagger-2">
         {/* Box 1: Social Work */}
         <Card 
-          className={`relative overflow-hidden transition-all duration-300 ${
+          className={cn(
+            "relative overflow-hidden transition-all duration-500 group",
             serviceUserData.socialWork 
-              ? 'border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_30px_rgba(16,185,129,0.1)]' 
+              ? 'border-success/40 bg-success/5 shadow-glow'
               : dragOver === 'socialWork'
-                ? 'border-blue-500/50 bg-blue-500/5 border-dashed border-2 scale-[1.02]'
-                : 'border-dashed border-2 border-border/60 hover:border-blue-500/40 hover:bg-muted/30'
-          }`}
+                ? 'border-primary/50 bg-primary/5 border-dashed border-2 scale-[1.03]'
+                : 'border-dashed border-2 border-border/60 hover:border-primary/40 hover:bg-muted/30'
+          )}
           onDrop={(e) => handleDrop("socialWork", e)}
           onDragOver={(e) => handleDragOver("socialWork", e)}
           onDragLeave={handleDragLeave}
@@ -138,13 +139,14 @@ export default function ServiceUserUpload() {
 
         {/* Box 2: Initial Assessment */}
         <Card 
-          className={`relative overflow-hidden transition-all duration-300 ${
+          className={cn(
+            "relative overflow-hidden transition-all duration-500 group",
             serviceUserData.initialAssessment 
-              ? 'border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_30px_rgba(16,185,129,0.1)]' 
+              ? 'border-success/40 bg-success/5 shadow-glow'
               : dragOver === 'initialAssessment'
-                ? 'border-violet-500/50 bg-violet-500/5 border-dashed border-2 scale-[1.02]'
+                ? 'border-violet-500/50 bg-violet-500/5 border-dashed border-2 scale-[1.03]'
                 : 'border-dashed border-2 border-border/60 hover:border-violet-500/40 hover:bg-muted/30'
-          }`}
+          )}
           onDrop={(e) => handleDrop("initialAssessment", e)}
           onDragOver={(e) => handleDragOver("initialAssessment", e)}
           onDragLeave={handleDragLeave}
