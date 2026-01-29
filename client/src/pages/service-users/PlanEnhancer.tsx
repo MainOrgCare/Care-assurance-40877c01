@@ -284,132 +284,165 @@ export default function PlanEnhancer() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div>
-        <h2 className="text-3xl font-heading font-bold text-foreground" data-testid="text-page-title">Plan Enhancer</h2>
-        <p className="text-muted-foreground mt-2">
-          Generate a complete Initial Assessment/Care Plan template from uploaded documents.
-        </p>
-        {isAdmin && (
-          <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
-            <span>Show full names (admin view). Copies use initials only.</span>
-          </div>
-        )}
+    <div className="page-shell">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
+        <div className="space-y-1">
+          <h1 className="page-title leading-tight" data-testid="text-page-title">Plan Enhancer</h1>
+          <p className="page-subtitle">Synthesize complete care templates from multi-source documentation.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {isAdmin && (
+            <div className="flex flex-col items-start gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-2 text-xs text-muted-foreground glass-card">
+              <div className="flex items-center gap-3">
+                <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
+                <span className="font-semibold tracking-tight">Show full names (admin view)</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground/60 font-medium">Internal review only. Copies use initials.</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles size={20} />
-            Documents to Process
+      <Card className="glass-card animate-slide-up stagger-2 overflow-hidden mt-6">
+        <CardHeader className="border-b border-border/40 pb-6">
+          <CardTitle className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10 shadow-xs">
+              <Sparkles size={18} className="text-primary" />
+            </div>
+            Pipeline Configuration
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {serviceUserData.carePlan && (
-            <div className="p-3 rounded-lg bg-emerald-950/20 border border-emerald-900/50 text-sm text-muted-foreground flex items-center gap-2" data-testid="text-care-plan-doc">
-              {serviceUserData.carePlan.isParsing ? (
-                <Loader2 size={16} className="animate-spin text-blue-400" />
-              ) : (
-                <Sparkles size={16} className="text-emerald-400" />
-              )}
-              <strong className="text-emerald-400">Care Plan:</strong> {serviceUserData.carePlan.name}
-            </div>
-          )}
-          {serviceUserData.socialWork && (
-            <div className="p-3 rounded-lg bg-background border border-border text-sm text-muted-foreground flex items-center gap-2" data-testid="text-social-work-doc">
-              <strong>Social Work:</strong> {serviceUserData.socialWork.name}
-            </div>
-          )}
-          {serviceUserData.initialAssessment && (
-            <div className="p-3 rounded-lg bg-background border border-border text-sm text-muted-foreground flex items-center gap-2" data-testid="text-initial-assessment-doc">
-              <strong>Initial Assessment:</strong> {serviceUserData.initialAssessment.name}
-            </div>
-          )}
+        <CardContent className="space-y-4 pt-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {serviceUserData.carePlan && (
+              <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-sm flex items-center gap-3" data-testid="text-care-plan-doc">
+                <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 shadow-sm">
+                  <FileText size={16} />
+                </div>
+                <div>
+                  <p className="font-bold text-emerald-500 tracking-tight">Legacy Plan</p>
+                  <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.carePlan.name}</p>
+                </div>
+              </div>
+            )}
+            {serviceUserData.socialWork && (
+              <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-social-work-doc">
+                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground shadow-xs">
+                  <FileText size={16} />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground tracking-tight">Social Work</p>
+                  <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.socialWork.name}</p>
+                </div>
+              </div>
+            )}
+            {serviceUserData.initialAssessment && (
+              <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-initial-assessment-doc">
+                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground shadow-xs">
+                  <FileText size={16} />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground tracking-tight">Assessment</p>
+                  <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.initialAssessment.name}</p>
+                </div>
+              </div>
+            )}
+          </div>
           
-          <div className="p-3 bg-blue-950/20 border border-blue-900/30 rounded-lg text-sm text-blue-300">
-            <p>This will generate content for the complete care plan template:</p>
-            <ul className="mt-2 space-y-1 text-xs grid grid-cols-2 gap-x-4">
-              <li>• This Is Me section</li>
-              <li>• My Goal Setting</li>
-              <li>• My Care Plan</li>
-              <li>• Advance Decisions</li>
-              <li>• Risk Assessment Sections 1-11</li>
-              <li>• Service User Bands</li>
-            </ul>
+          <div className="p-5 bg-primary/5 border border-primary/10 rounded-2xl">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-3">Intelligence Scope</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-6">
+              {[
+                "Personal Biography",
+                "Strategic Goal Mapping",
+                "Clinical Care Vectors",
+                "Legal & Advance Directives",
+                "Full-Spectrum Risk Matrix",
+                "Operational Tiering (Bands)"
+              ].map((item, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                  <div className="h-1 w-1 rounded-full bg-primary/50" />
+                  {item}
+                </div>
+              ))}
+            </div>
           </div>
           
           <Button 
             onClick={() => enhanceMutation.mutate()}
             disabled={enhanceMutation.isPending || isAnyParsing()}
-            className="w-full mt-4 gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 transition-opacity"
+            className="w-full mt-2 h-12 rounded-xl font-bold tracking-tight shadow-glow bg-gradient-to-r from-violet-600 to-indigo-600 border-0"
             data-testid="button-enhance-plan"
           >
             {enhanceMutation.isPending ? (
               <>
-                <Loader2 size={16} className="animate-spin" />
-                Generating Complete Template...
+                <Loader2 size={18} className="animate-spin" />
+                SYNTHESIZING COMPOSITE TEMPLATE...
               </>
             ) : (
               <>
-                <Sparkles size={16} />
-                Generate Care Plan Template
+                <Sparkles size={18} />
+                GENERATE ENHANCED TEMPLATE
               </>
             )}
           </Button>
 
           {enhanceMutation.isPending && (
-            <div className="space-y-3 p-4 bg-blue-950/20 border border-blue-900/30 rounded-lg" data-testid="progress-container">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Loader2 size={16} className="animate-spin text-blue-400" />
-                  <span className="text-sm text-muted-foreground">{progressStatus}</span>
+            <div className="space-y-4 p-5 bg-primary/5 border border-primary/10 rounded-2xl animate-pulse" data-testid="progress-container">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-3">
+                  <div className="h-2 w-2 rounded-full bg-primary animate-ping" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-primary">{progressStatus}</span>
                 </div>
-                <span className="text-sm font-medium text-foreground">{Math.round(progress)}%</span>
+                <span className="text-sm font-black text-primary">{Math.round(progress)}%</span>
               </div>
-              <Progress value={progress} className="h-2" />
+              <Progress value={progress} className="h-1.5 bg-primary/10" />
             </div>
           )}
           
           {isAnyParsing() && (
-            <p className="text-xs text-amber-400 text-center">
-              Please wait for documents to finish parsing...
+            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest text-center mt-2 animate-pulse">
+              System busy: extracting document context...
             </p>
           )}
         </CardContent>
       </Card>
 
       {displayResult && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
-              <Check className="text-green-400" size={20} />
-              Generated Care Plan Template
+        <div className="space-y-6 animate-slide-up">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-1">
+            <h3 className="text-xl font-black tracking-tight text-foreground flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-success/15 flex items-center justify-center text-success">
+                <Check size={18} />
+              </div>
+              Composite Output
             </h3>
             
-            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "enhanced" | "comparison")}>
-              <TabsList>
-                <TabsTrigger value="enhanced" className="gap-2" data-testid="tab-enhanced-view">
-                  <FileText size={14} />
-                  Enhanced Only
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "enhanced" | "comparison")} className="bg-muted/20 p-1 rounded-xl border border-border/40">
+              <TabsList className="bg-transparent border-0 h-9 p-0">
+                <TabsTrigger value="enhanced" className="rounded-lg font-bold text-[10px] uppercase gap-2 h-7" data-testid="tab-enhanced-view">
+                  <FileText size={12} />
+                  Enhanced
                 </TabsTrigger>
-                <TabsTrigger value="comparison" className="gap-2" data-testid="tab-comparison-view">
-                  <Columns size={14} />
-                  Compare Before/After
+                <TabsTrigger value="comparison" className="rounded-lg font-bold text-[10px] uppercase gap-2 h-7" data-testid="tab-comparison-view">
+                  <Columns size={12} />
+                  Comparison
                 </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
 
           {viewMode === "comparison" && originalContent && (
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Columns size={18} />
-                  Side-by-Side Comparison
+            <Card className="glass-card overflow-hidden border-primary/20">
+              <CardHeader className="border-b border-border/40 pb-6 bg-primary/5">
+                <CardTitle className="text-base font-bold flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Columns size={16} className="text-primary" />
+                  </div>
+                  Diff Analysis
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 pb-2 border-b border-border">

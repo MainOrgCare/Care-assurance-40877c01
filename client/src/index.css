@@ -32,20 +32,22 @@
   --color-popover-foreground: hsl(222 47% 11%);
 
   /* Muted - Soft grays */
-  --color-muted: hsl(210 40% 96%);
-  --color-muted-foreground: hsl(215 16% 47%);
+  --color-muted: hsl(210 40% 96.1%);
+  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
 
   /* Accent: Soft blue tint */
-  --color-accent: hsl(210 40% 96%);
-  --color-accent-foreground: hsl(217 91% 60%);
+  --color-accent: hsl(210 40% 96.1%);
+  --color-accent-foreground: hsl(222.2 47.4% 11.2%);
 
-  /* Destructive: Error Red */
-  --color-destructive: hsl(0 84% 60%);
-  --color-destructive-foreground: hsl(0 0% 98%);
+  /* Status Colors */
+  --color-destructive: hsl(0 84.2% 60.2%);
+  --color-destructive-foreground: hsl(210 40% 98%);
 
-  /* Success color */
-  --color-success: hsl(142 76% 36%);
-  --color-success-foreground: hsl(0 0% 100%);
+  --color-warning: hsl(38 92% 50%);
+  --color-warning-foreground: hsl(48 96% 89%);
+
+  --color-success: hsl(142.1 76.2% 36.3%);
+  --color-success-foreground: hsl(355.7 100% 97.3%);
 
   /* Borders - Light gray */
   --color-border: hsl(214 32% 91%);
@@ -81,22 +83,24 @@
   /* Border radius */
   --radius: 0.875rem;
 
-  /* Shadows - Subtle for light theme */
+  /* Shadows - Improved depth */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.08);
-  --shadow-medium: 0 8px 24px rgba(0, 0, 0, 0.1);
-  --shadow-strong: 0 12px 32px rgba(0, 0, 0, 0.12);
-  --shadow-glow: 0 0 24px rgba(59, 130, 246, 0.1);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1);
+  --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.08), 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+  --shadow-medium: 0 12px 32px -4px rgba(0, 0, 0, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.06);
+  --shadow-strong: 0 24px 48px -8px rgba(0, 0, 0, 0.16), 0 8px 24px -4px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 0 32px -4px rgba(59, 130, 246, 0.15);
   
   /* Surface effects */
   --surface-highlight: hsl(217 91% 60% / 0.05);
   --surface-glow: hsl(217 91% 60% / 0.02);
+  --glass-reflection: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%);
 }
 
 @layer base {
   * {
     @apply border-border;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   }
   ::selection {
     background-color: hsl(192 82% 48% / 0.35);
@@ -729,6 +733,35 @@ html.theme-light body::after {
     outline: none;
     box-shadow: 0 0 0 3px rgba(59, 180, 200, 0.2), 0 0 20px rgba(59, 180, 200, 0.1);
   }
+
+  /* Enterprise Table Utilities */
+  .ent-table-header {
+    @apply font-black text-[10px] uppercase tracking-widest text-muted-foreground/70 bg-muted/30 border-b border-border/40;
+  }
+
+  .ent-table-row {
+    @apply border-b border-border/20 hover:bg-muted/10 transition-colors;
+  }
+
+  .ent-status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-black text-[10px] uppercase tracking-widest border transition-all;
+  }
+
+  .ent-status-success {
+    @apply ent-status-badge bg-success/15 text-success border-success/20 shadow-lg shadow-success/5;
+  }
+
+  .ent-status-warning {
+    @apply ent-status-badge bg-warning/15 text-warning border-warning/20 shadow-lg shadow-warning/5;
+  }
+
+  .ent-status-danger {
+    @apply ent-status-badge bg-destructive/15 text-destructive border-destructive/20 shadow-lg shadow-destructive/5;
+  }
+
+  .ent-status-primary {
+    @apply ent-status-badge bg-primary/15 text-primary border-primary/20 shadow-lg shadow-primary/5;
+  }
 }
 
 /* Scrollbars - Refined styling */
@@ -910,6 +943,29 @@ html.theme-ocean {
   --glass-border-subtle: rgba(80, 200, 180, 0.06);
   --glass-shadow: 0 10px 36px rgba(16, 60, 80, 0.35);
   --surface-glow: rgba(80, 200, 180, 0.03);
+}
+
+/* Default Dark Theme Overrides */
+.dark, .theme-dark {
+  --color-background: hsl(222.2 84% 4.9%);
+  --color-foreground: hsl(210 40% 98%);
+  --color-card: hsl(222.2 84% 4.9%);
+  --color-card-foreground: hsl(210 40% 98%);
+  --color-popover: hsl(222.2 84% 4.9%);
+  --color-popover-foreground: hsl(210 40% 98%);
+  --color-primary: hsl(217.2 91.2% 59.8%);
+  --color-primary-foreground: hsl(222.2 47.4% 11.2%);
+  --color-secondary: hsl(217.2 32.6% 17.5%);
+  --color-secondary-foreground: hsl(210 40% 98%);
+  --color-muted: hsl(217.2 32.6% 17.5%);
+  --color-muted-foreground: hsl(215 20.2% 65.1%);
+  --color-accent: hsl(217.2 32.6% 17.5%);
+  --color-accent-foreground: hsl(210 40% 98%);
+  --color-destructive: hsl(0 62.8% 30.6%);
+  --color-destructive-foreground: hsl(210 40% 98%);
+  --color-border: hsl(217.2 32.6% 17.5%);
+  --color-input: hsl(217.2 32.6% 17.5%);
+  --color-ring: hsl(224.3 76.3% 48%);
 }
 
 /* Theme: Midnight - Deep purple tones */
