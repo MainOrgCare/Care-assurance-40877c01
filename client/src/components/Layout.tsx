@@ -25,7 +25,7 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, memo, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -33,16 +33,16 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 
-const SidebarContent = ({ location, handleSecretClick, logout }: { location: string, handleSecretClick: (e: React.MouseEvent) => void, logout: () => void }) => {
+const SidebarContent = memo(function SidebarContent({ location, handleSecretClick, logout }: { location: string, handleSecretClick: (e: React.MouseEvent) => void, logout: () => void }) {
   const { user } = useAuth();
   const { timeLeft } = useTemporaryData();
   const isAdminUser = user?.role === "admin";
   
-  const formatTime = (seconds: number) => {
+  const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  }, []);
 
   const [openServiceUsers, setOpenServiceUsers] = useState(location.startsWith("/service-users"));
   const [openCareWorkers, setOpenCareWorkers] = useState(location.startsWith("/care-workers"));
@@ -69,23 +69,23 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
       ) {
         setOpenAdmin(true);
       }
-  }, [location]);
+  }, [location, isAdminUser]);
 
-  const navLinkClass = (isActive: boolean) =>
+  const navLinkClass = useCallback((isActive: boolean) =>
     cn(
       "flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 group cursor-pointer relative overflow-hidden",
       isActive
         ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]"
         : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
-    );
+    ), []);
 
-  const subNavLinkClass = (isActive: boolean) =>
+  const subNavLinkClass = useCallback((isActive: boolean) =>
     cn(
       "flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200",
       isActive
         ? "bg-primary/10 text-primary border-l-2 border-primary"
         : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-    );
+    ), []);
 
   return (
     <div className="flex flex-col h-full bg-sidebar">
@@ -250,7 +250,7 @@ const SidebarContent = ({ location, handleSecretClick, logout }: { location: str
       </div>
     </div>
   );
-};
+});
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();

@@ -49,7 +49,8 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       // Keep data reasonably fresh without forcing a visible loading state on navigation.
       // When cached data exists, React Query will show it immediately and refetch in the background.
-      staleTime: 30_000,
+      staleTime: 60_000, // 1 minute - data is fresh for longer
+      gcTime: 5 * 60_000, // 5 minutes - keep data in cache longer for back navigation
       retry: false,
     },
     mutations: {

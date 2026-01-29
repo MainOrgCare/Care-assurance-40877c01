@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from "react";
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import { SAMPLE_CARE_PLAN_CONTENT, SAMPLE_SOCIAL_WORK_CONTENT } from "@/lib/sampleDemoData";
 
@@ -279,22 +279,22 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     console.log("Secure Wipe: Service User Data Cleared from Memory.");
   };
 
-  const removeAdditionalDocument = (id: string) => {
+  const removeAdditionalDocument = useCallback((id: string) => {
     setServiceUserData(prev => ({
       ...prev,
       additionalDocuments: (prev.additionalDocuments || []).filter(doc => doc.id !== id),
     }));
-  };
+  }, []);
 
-  const startTimer = () => {
+  const startTimer = useCallback(() => {
     setTimeLeft(30 * 60); // 30 minutes in seconds
-  };
+  }, []);
 
-  const resetTimer = () => {
+  const resetTimer = useCallback(() => {
     setTimeLeft(30 * 60);
-  };
+  }, []);
 
-  const getAllDocumentContent = (): string => {
+  const getAllDocumentContent = useCallback((): string => {
     const parts: string[] = [];
     
     if (serviceUserData.socialWork?.content) {
@@ -318,9 +318,9 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     }
     
     return parts.join("\n\n");
-  };
+  }, [serviceUserData]);
 
-  const isAnyParsing = (): boolean => {
+  const isAnyParsing = useCallback((): boolean => {
     return Boolean(
       serviceUserData.socialWork?.isParsing ||
       serviceUserData.initialAssessment?.isParsing ||
@@ -328,7 +328,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
       serviceUserData.movingHandling?.isParsing ||
       serviceUserData.additionalDocuments?.some(doc => doc.isParsing)
     );
-  };
+  }, [serviceUserData]);
 
   const loadDemoData = useCallback(() => {
     if (demoDataLoadedRef.current) {
@@ -359,21 +359,23 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     });
     startTimer();
     console.log("Demo Mode: Sample data loaded.");
-  }, []);
+  }, [startTimer]);
+
+  const contextValue = useMemo(() => ({
+    serviceUserData,
+    uploadFile,
+    removeAdditionalDocument,
+    clearServiceUserData,
+    timeLeft,
+    startTimer,
+    resetTimer,
+    getAllDocumentContent,
+    isAnyParsing,
+    loadDemoData,
+  }), [serviceUserData, uploadFile, removeAdditionalDocument, clearServiceUserData, timeLeft, startTimer, resetTimer, getAllDocumentContent, isAnyParsing, loadDemoData]);
 
   return (
-    <TemporaryDataContext.Provider value={{ 
-      serviceUserData, 
-      uploadFile, 
-      removeAdditionalDocument,
-      clearServiceUserData, 
-      timeLeft,
-      startTimer,
-      resetTimer,
-      getAllDocumentContent,
-      isAnyParsing,
-      loadDemoData,
-    }}>
+    <TemporaryDataContext.Provider value={contextValue}>
       {children}
     </TemporaryDataContext.Provider>
   );

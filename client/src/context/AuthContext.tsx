@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkSession();
   }, []);
 
-  const checkSession = async () => {
+  const checkSession = useCallback(async () => {
     try {
       const response = await fetch("/api/auth/me", {
         credentials: "include",
@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const mapSystemLog = (log: any) => {
     const details = log?.details && typeof log.details === "object" ? log.details : {};
@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refetchUser = async () => {
+  const refetchUser = useCallback(async () => {
     try {
       const response = await fetch("/api/auth/me", {
         credentials: "include",
@@ -113,9 +113,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Refetch user failed:", error);
     }
-  };
+  }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const response = await fetch("/api/users", {
         credentials: "include",
@@ -128,9 +128,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Failed to fetch users:", error);
     }
-  };
+  }, []);
 
-  const logAction = (action: string, target: string, status: "Authorized" | "Flagged" | "Blocked" | "System" = "Authorized", alert?: string, details?: Record<string, any>) => {
+  const logAction = useCallback((action: string, target: string, status: "Authorized" | "Flagged" | "Blocked" | "System" = "Authorized", alert?: string, details?: Record<string, any>) => {
     const newLog = {
       id: Date.now(),
       user: user?.username || "Unknown",
@@ -157,9 +157,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }).catch((error) => {
       console.error("Failed to record system log:", error);
     });
-  };
+  }, [user?.username]);
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
@@ -229,9 +229,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       return false;
     }
-  };
+  }, [toast, logAction, fetchUsers]);
 
-  const loginDemo = async (): Promise<boolean> => {
+  const loginDemo = useCallback(async (): Promise<boolean> => {
     try {
       const response = await fetch("/api/auth/demo", {
         method: "POST",
@@ -261,9 +261,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       return false;
     }
-  };
+  }, [toast, logAction]);
 
-  const signup = async (username: string, password: string) => {
+  const signup = useCallback(async (username: string, password: string) => {
     try {
       const response = await fetch("/api/auth/register", {
         method: "POST",
@@ -297,9 +297,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         variant: "destructive"
       });
     }
-  };
+  }, [toast, logAction]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await fetch("/api/auth/logout", {
         method: "POST",
@@ -313,9 +313,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Logout failed:", error);
     }
-  };
+  }, [logAction, setLocation]);
 
-  const approveUser = async (id: string) => {
+  const approveUser = useCallback(async (id: string) => {
     try {
       const response = await fetch(`/api/users/${id}/approve`, {
         method: "PATCH",
@@ -341,9 +341,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         variant: "destructive"
       });
     }
-  };
+  }, [fetchUsers, logAction, toast]);
 
-  const rejectUser = async (id: string) => {
+  const rejectUser = useCallback(async (id: string) => {
     try {
       const response = await fetch(`/api/users/${id}`, {
         method: "DELETE",
@@ -369,9 +369,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         variant: "destructive"
       });
     }
-  };
+  }, [fetchUsers, logAction, toast]);
 
-  const createUser = async (username: string, password: string, role: string) => {
+  const createUser = useCallback(async (username: string, password: string, role: string) => {
     try {
       const response = await fetch("/api/users", {
         method: "POST",
@@ -406,25 +406,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         variant: "destructive"
       });
     }
-  };
+  }, [fetchUsers, logAction, toast]);
+
+  const contextValue = useMemo(() => ({
+    user,
+    login,
+    loginDemo,
+    signup,
+    logout,
+    users: allUsers,
+    approveUser,
+    rejectUser,
+    createUser,
+    fetchUsers,
+    refetchUser,
+    logAction,
+    auditLogs,
+    loading,
+  }), [user, login, loginDemo, signup, logout, allUsers, approveUser, rejectUser, createUser, fetchUsers, refetchUser, logAction, auditLogs, loading]);
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      login,
-      loginDemo,
-      signup, 
-      logout, 
-      users: allUsers, 
-      approveUser, 
-      rejectUser, 
-      createUser,
-      fetchUsers,
-      refetchUser,
-      logAction, 
-      auditLogs,
-      loading 
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

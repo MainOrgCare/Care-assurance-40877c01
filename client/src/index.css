@@ -100,7 +100,6 @@
 @layer base {
   * {
     @apply border-border;
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   }
   ::selection {
     background-color: hsl(192 82% 48% / 0.35);
@@ -126,6 +125,7 @@
     background: radial-gradient(ellipse 80% 60% at 8% 15%, hsla(192, 82%, 48%, 0.12), transparent 50%),
                 radial-gradient(ellipse 60% 50% at 90% 10%, hsla(32, 95%, 54%, 0.08), transparent 45%),
                 radial-gradient(ellipse 70% 70% at 50% 95%, hsla(220, 50%, 45%, 0.06), transparent 55%);
+    will-change: auto;
   }
   body::after {
     background-image: radial-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px);
@@ -184,7 +184,6 @@
     filter: blur(40px);
     opacity: 0.7;
     z-index: 0;
-    animation: surface-glow 20s ease-in-out infinite alternate;
   }
   .app-surface::after {
     content: "";
@@ -200,7 +199,7 @@
     z-index: 1;
   }
 
-  /* Enhanced glass card with better depth */
+  /* Glass card with better depth - optimized transitions */
   .glass-card {
     position: relative;
     overflow: hidden;
@@ -212,7 +211,8 @@
       0 0 0 1px rgba(255, 255, 255, 0.02) inset,
       0 12px 40px -8px rgba(0, 0, 0, 0.28),
       0 0 60px rgba(59, 180, 200, 0.03);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    will-change: transform;
   }
   .glass-card::before {
     content: "";
@@ -221,7 +221,6 @@
     background: linear-gradient(165deg, rgba(255,255,255,0.06), transparent 50%);
     opacity: 0.7;
     pointer-events: none;
-    transition: opacity 0.3s ease;
   }
   .glass-card::after {
     content: "";
@@ -230,7 +229,6 @@
     background: radial-gradient(ellipse at 20% 0%, var(--surface-highlight), transparent 55%);
     opacity: 0.5;
     pointer-events: none;
-    transition: opacity 0.3s ease;
   }
   .glass-card:hover {
     border-color: rgba(255, 255, 255, 0.15);
@@ -239,9 +237,6 @@
       0 20px 50px -10px rgba(0, 0, 0, 0.32),
       0 0 80px rgba(59, 180, 200, 0.06);
     transform: translateY(-2px);
-  }
-  .glass-card:hover::before {
-    opacity: 0.9;
   }
 
   /* Interactive card variant - extends glass-card manually */
@@ -485,17 +480,17 @@
 }
 
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes scale-in {
-  from { opacity: 0; transform: scale(0.96); }
+  from { opacity: 0; transform: scale(0.98); }
   to { opacity: 1; transform: scale(1); }
 }
 
 @keyframes slide-up {
-  from { transform: translateY(16px); opacity: 0; }
+  from { transform: translateY(8px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 
@@ -555,18 +550,20 @@ html.theme-light body::after {
 }
 
 @layer utilities {
-  /* Page layouts */
+  /* Page layouts - with paint containment */
   .page-shell {
     display: flex;
     flex-direction: column;
     gap: 2rem;
-    animation: fade-in 0.5s ease-out forwards;
+    animation: fade-in 0.3s ease-out forwards;
+    contain: layout style;
   }
   .page-shell-compact {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
-    animation: fade-in 0.5s ease-out forwards;
+    animation: fade-in 0.3s ease-out forwards;
+    contain: layout style;
   }
   .page-title {
     font-family: var(--font-heading);
@@ -642,15 +639,15 @@ html.theme-light body::after {
     box-shadow: var(--shadow-medium), 0 0 30px rgba(59, 180, 200, 0.08);
   }
 
-  /* Animation utilities */
+  /* Animation utilities - optimized */
   .animate-fade-in {
-    animation: fade-in 0.4s ease-out forwards;
+    animation: fade-in 0.25s ease-out forwards;
   }
   .animate-scale-in {
-    animation: scale-in 0.3s ease-out forwards;
+    animation: scale-in 0.2s ease-out forwards;
   }
   .animate-slide-up {
-    animation: slide-up 0.4s ease-out forwards;
+    animation: slide-up 0.25s ease-out forwards;
   }
   .animate-slide-in-right {
     animation: slide-in-right 0.4s ease-out forwards;

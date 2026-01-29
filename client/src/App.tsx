@@ -17,7 +17,7 @@ import TermsConditions from "@/pages/TermsConditions";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import { useAuth } from "@/context/AuthContext";
 import { Redirect } from "wouter";
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect } from "react";
 
 // Lazy loaded pages for code splitting - reduces initial bundle size
 const SecretAdminPortal = React.lazy(() => import("@/pages/SecretAdminPortal"));
@@ -40,8 +40,33 @@ const CareWorkerRotas = React.lazy(() => import("@/pages/CareWorkerRotas"));
 const BillingTool = React.lazy(() => import("@/pages/BillingTool"));
 const SystemLogs = React.lazy(() => import("@/pages/SystemLogs"));
 
+// Preload common routes when browser is idle
+const preloadRoutes = () => {
+  const preload = (importFn: () => Promise<unknown>) => {
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => importFn(), { timeout: 3000 });
+    } else {
+      setTimeout(() => importFn(), 2000);
+    }
+  };
+  
+  // Preload most commonly visited pages after login
+  preload(() => import("@/pages/EmailAssistant"));
+  preload(() => import("@/pages/Compliance"));
+  preload(() => import("@/pages/service-users/Upload"));
+  preload(() => import("@/pages/Settings"));
+};
+
 function HomeRoute() {
   const { user } = useAuth();
+  
+  // Preload common routes when user is logged in
+  useEffect(() => {
+    if (user) {
+      preloadRoutes();
+    }
+  }, [user]);
+  
   if (user) {
     return <Redirect to="/dashboard" />;
   }

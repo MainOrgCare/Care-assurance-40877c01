@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from "react";
 
 export type FontSize = "small" | "medium" | "large";
 
@@ -58,25 +58,25 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return saved !== "false";
   });
 
-  const setAutoExpandSections = (expand: boolean) => {
+  const setAutoExpandSections = useCallback((expand: boolean) => {
     setAutoExpandSectionsState(expand);
     setStorageItem("lewis-auto-expand", String(expand));
-  };
+  }, []);
 
-  const setFontSize = (size: FontSize) => {
+  const setFontSize = useCallback((size: FontSize) => {
     setFontSizeState(size);
     setStorageItem("lewis-font-size", size);
-  };
+  }, []);
 
-  const setCompactMode = (compact: boolean) => {
+  const setCompactMode = useCallback((compact: boolean) => {
     setCompactModeState(compact);
     setStorageItem("lewis-compact-mode", String(compact));
-  };
+  }, []);
 
-  const setShowCopyConfirmation = (show: boolean) => {
+  const setShowCopyConfirmation = useCallback((show: boolean) => {
     setShowCopyConfirmationState(show);
     setStorageItem("lewis-copy-confirmation", String(show));
-  };
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.remove("font-small", "font-medium", "font-large");
@@ -91,17 +91,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   }, [compactMode]);
 
+  const contextValue = useMemo(() => ({
+    fontSize,
+    setFontSize,
+    compactMode,
+    setCompactMode,
+    showCopyConfirmation,
+    setShowCopyConfirmation,
+    autoExpandSections,
+    setAutoExpandSections,
+  }), [fontSize, setFontSize, compactMode, setCompactMode, showCopyConfirmation, setShowCopyConfirmation, autoExpandSections, setAutoExpandSections]);
+
   return (
-    <SettingsContext.Provider value={{
-      fontSize,
-      setFontSize,
-      compactMode,
-      setCompactMode,
-      showCopyConfirmation,
-      setShowCopyConfirmation,
-      autoExpandSections,
-      setAutoExpandSections,
-    }}>
+    <SettingsContext.Provider value={contextValue}>
       {children}
     </SettingsContext.Provider>
   );
