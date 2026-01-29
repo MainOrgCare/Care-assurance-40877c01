@@ -109,6 +109,45 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     };
   };
 
+  const readServerErrorMessage = async (response: Response): Promise<string | null> => {
+    try {
+      const contentType = (response.headers.get("content-type") || "").toLowerCase();
+
+      // Prefer JSON when the server indicates it.
+      if (contentType.includes("json")) {
+        const data: any = await response
+          .clone()
+          .json()
+          .catch(() => null);
+        const message = typeof data?.message === "string" ? data.message.trim() : "";
+        if (message) return message;
+      }
+
+      // Otherwise read as text, and opportunistically parse JSON bodies even if the
+      // content-type isn't set correctly.
+      const text = await response
+        .clone()
+        .text()
+        .catch(() => "");
+      const trimmed = text.trim();
+      if (!trimmed) return null;
+
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+        try {
+          const data: any = JSON.parse(trimmed);
+          const message = typeof data?.message === "string" ? data.message.trim() : "";
+          if (message) return message;
+        } catch {
+          // Fall back to returning the raw text.
+        }
+      }
+
+      return trimmed;
+    } catch {
+      return null;
+    }
+  };
+
   const uploadFile = async (section: UploadSection, file: File) => {
     if (section === "additionalDocuments") {
       const entryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -136,7 +175,8 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
           credentials: "include",
         });
         if (!response.ok) {
-          throw new Error("Failed to parse PDF");
+          const serverMessage = await readServerErrorMessage(response);
+          throw new Error(serverMessage || `Failed to parse document (HTTP ${response.status})`);
         }
         const data = await response.json();
         setServiceUserData(prev => ({
@@ -193,7 +233,8 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to parse PDF");
+        const serverMessage = await readServerErrorMessage(response);
+        throw new Error(serverMessage || `Failed to parse document (HTTP ${response.status})`);
       }
 
       const data = await response.json();

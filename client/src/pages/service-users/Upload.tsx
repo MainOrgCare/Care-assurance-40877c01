@@ -132,7 +132,7 @@ export default function ServiceUserUpload() {
                     </div>
                     <span className="text-xs text-muted-foreground/70 group-hover:text-foreground/70 transition-colors">Drop file here or click to browse</span>
                  </label>
-                 <input id="upload-social" type="file" accept=".pdf,.docx" className="hidden" onChange={(e) => handleUpload("socialWork", e)} data-testid="input-upload-social" />
+                 <input id="upload-social" type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={(e) => handleUpload("socialWork", e)} data-testid="input-upload-social" />
                </div>
              )}
           </CardContent>
@@ -176,7 +176,7 @@ export default function ServiceUserUpload() {
                ref={initialAssessmentInputRef}
                id="upload-assess"
                type="file"
-               accept=".pdf,.docx"
+               accept=".pdf,.doc,.docx"
                className="hidden"
                onChange={(e) => handleUpload("initialAssessment", e)}
                data-testid="input-upload-assessment"
@@ -311,7 +311,7 @@ export default function ServiceUserUpload() {
                     </div>
                     <span className="text-xs text-muted-foreground/70 group-hover:text-foreground/70 transition-colors">Drop file here or click to browse</span>
                  </label>
-                 <input id="upload-plan" type="file" accept=".pdf" className="hidden" onChange={(e) => handleUpload("carePlan", e)} data-testid="input-upload-careplan" />
+                 <input id="upload-plan" type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={(e) => handleUpload("carePlan", e)} data-testid="input-upload-careplan" />
                </div>
              )}
           </CardContent>
@@ -392,7 +392,7 @@ export default function ServiceUserUpload() {
                 <input
                   id="upload-moving-handling"
                   type="file"
-                  accept=".pdf,.docx"
+                  accept=".pdf,.doc,.docx"
                   className="hidden"
                   onChange={(e) => handleUpload("movingHandling", e)}
                   data-testid="input-upload-moving-handling"
@@ -442,7 +442,7 @@ export default function ServiceUserUpload() {
               <input
                 id="upload-additional"
                 type="file"
-                accept=".pdf,.docx"
+                accept=".pdf,.doc,.docx"
                 multiple
                 className="hidden"
                 onChange={(e) => handleUpload("additionalDocuments", e)}

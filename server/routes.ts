@@ -3237,16 +3237,50 @@ export async function registerRoutes(
         return res.status(400).json({ message: scanCheck.error });
       }
 
-      const isDocx = req.file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || req.file.originalname.toLowerCase().endsWith(".docx");
+      const lowerName = req.file.originalname.toLowerCase();
+      const isPdf = req.file.mimetype === "application/pdf" || lowerName.endsWith(".pdf");
+      const isDocx =
+        req.file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        lowerName.endsWith(".docx");
+      const isDoc = (req.file.mimetype === "application/msword" || lowerName.endsWith(".doc")) && !isDocx;
 
       let text = "";
 
       if (isDocx) {
         const result = await mammoth.extractRawText({ buffer: req.file.buffer });
-        text = result.value;
-      } else {
+        text = result.value || "";
+
+        // Some DOCX files (esp. exported/scanned or heavily formatted) can yield empty output in mammoth.
+        // Fallback: convert DOCX -> PDF (LibreOffice) and extract via pdf.js.
+        if (!text.trim()) {
+          const pdfBuffer = await tryConvertOfficeToPdf(req.file.buffer, req.file.originalname);
+          if (pdfBuffer) {
+            const extracted = await extractPdfTextWithPdfjs(pdfBuffer);
+            text = extracted.text || "";
+          }
+        }
+      } else if (isDoc) {
+        const pdfBuffer = await tryConvertOfficeToPdf(req.file.buffer, req.file.originalname);
+        if (!pdfBuffer) {
+          return res.status(422).json({
+            message:
+              "Could not convert .doc file for text extraction. Please save/export the document as PDF or DOCX and try again.",
+          });
+        }
+        const extracted = await extractPdfTextWithPdfjs(pdfBuffer);
+        text = extracted.text || "";
+      } else if (isPdf) {
         const extracted = await extractPdfTextWithPdfjs(req.file.buffer);
-        text = extracted.text;
+        text = extracted.text || "";
+      } else {
+        return res.status(400).json({ message: "Unsupported file type" });
+      }
+
+      if (!text || !text.trim()) {
+        return res.status(422).json({
+          message:
+            "No readable text could be extracted from this document. If it is a scanned image, please upload a text-based PDF (with selectable text) or run OCR before uploading.",
+        });
       }
 
       res.json({ text });

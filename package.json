@@ -9,6 +9,7 @@
     "build": "npm ci --include=dev && npx vite build && npm run build:server",
     "build:server": "npx esbuild server/index.ts --bundle --platform=node --packages=external --format=cjs --outfile=dist/index.cjs --external:./vite.config --external:./vite",
     "start": "NODE_ENV=production node dist/index.cjs",
+    "test": "node --import tsx --test",
     "check": "tsc",
     "db:push": "drizzle-kit push"
   },

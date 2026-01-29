@@ -39,6 +39,8 @@ const DETERMINISTIC_SEED = 42;
 const clampNumber = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
+const normalizeKeyString = (value: unknown): string => String(value || "").trim().toLowerCase();
+
 const estimatePageCount = (text: string): number => {
   const matches = text.match(/--- PAGE BREAK ---/g);
   if (matches && matches.length > 0) {
@@ -262,8 +264,8 @@ const normalizeInitials = (value: unknown): string =>
 const normalizeSlotKey = (entry: any): string =>
   [
     String(entry?.medicationId ?? ""),
-    normalizeDate(entry?.date),
-    normalizeTimeSlot(entry?.timeSlot),
+    normalizeKeyString(normalizeDate(entry?.date)),
+    normalizeKeyString(normalizeTimeSlot(entry?.timeSlot)),
   ].join("|");
 
 const codePriority: Record<string, number> = {
@@ -404,7 +406,8 @@ const resolveTimeSlot = (timeSlot: string, time: string, timeSlots: string[]): s
     if (rangeMatch) {
       const start = parseTimeToMinutes(rangeMatch[1]);
       const end = parseTimeToMinutes(rangeMatch[2]);
-      if (start !== null && end !== null && timeMinutes >= start && timeMinutes <= end) {
+      // End is exclusive to avoid boundary double-matches (e.g. 09:00 matching both 08:00-09:00 and 09:00-10:00)
+      if (start !== null && end !== null && timeMinutes >= start && timeMinutes < end) {
         return normalized;
       }
     } else {
@@ -426,7 +429,7 @@ const reconcileConsensusEntries = (passResults: any[][]): any[] => {
   for (let i = 0; i < passResults.length; i++) {
     const pass = passResults[i];
     for (const entry of pass) {
-      const key = `${entry.medicationId}|${String(entry.date || "").toLowerCase()}|${String(entry.timeSlot || "").toLowerCase()}`;
+      const key = normalizeSlotKey(entry);
       if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key)!.push(entry);
     }
@@ -643,14 +646,16 @@ export const emarAgent = {
           const isPRN = isPrnFromText(`${name} ${instructionText}`) || gridPrnStrong;
           const inferredGap = inferRequiredGapHoursFromText(`${name} ${String(med?.instructions || "")}`);
 
-          const scheduledSlots = uniqueStrings(Array.isArray(med?.timeSlots) ? med.timeSlots : []);
+          const scheduledSlots = uniqueStrings(Array.isArray(med?.timeSlots) ? med.timeSlots : [])
+            .map(normalizeTimeSlot)
+            .filter(Boolean);
           return {
             medicationId,
             name,
             genericName: inferGenericNameFromMedicationLabel(name),
             isPRN,
             instructions: instructionText,
-            requiredGapHours: inferredGap ?? 4,
+            requiredGapHours: clampNumber(Math.round(inferredGap ?? 4), 1, 24),
             scheduledTimeSlots: (scheduledSlots.length > 0 ? scheduledSlots : gridTimeSlots),
           };
         })
@@ -660,7 +665,9 @@ export const emarAgent = {
       for (const med of medsWithIds) {
         const key = normalizeMedicationKey(med.name);
         if (!key) continue;
-        const scheduled = uniqueStrings(Array.isArray(med?.scheduledTimeSlots) ? med.scheduledTimeSlots : []);
+        const scheduled = uniqueStrings(Array.isArray(med?.scheduledTimeSlots) ? med.scheduledTimeSlots : [])
+          .map(normalizeTimeSlot)
+          .filter(Boolean);
         const candidates = medCandidatesByKey.get(key) || [];
         candidates.push({ medicationId: med.medicationId, scheduledTimeSlots: scheduled });
         medCandidatesByKey.set(key, candidates);
@@ -851,10 +858,18 @@ export const emarAgent = {
       const next = {
         name,
         genericName: String(med?.genericName || "").trim(),
-        isPRN: typeof med?.isPRN === "boolean" ? med.isPRN : isPrnFromText(String(med?.instructions || "")),
+        isPRN:
+          typeof med?.isPRN === "boolean" ? med.isPRN : isPrnFromText(`${name} ${String(med?.instructions || "")}`),
         instructions,
-        requiredGapHours: Number(med?.requiredGapHours || 0) || 4,
-        scheduledTimeSlots: uniqueStrings(Array.isArray(med?.scheduledTimeSlots) ? med.scheduledTimeSlots : []),
+        requiredGapHours: (() => {
+          const rawGap = Number(med?.requiredGapHours);
+          const inferred = inferRequiredGapHoursFromText(`${name} ${instructions}`);
+          const gap = Number.isFinite(rawGap) && rawGap >= 1 && rawGap <= 24 ? rawGap : inferred ?? 4;
+          return clampNumber(Math.round(gap), 1, 24);
+        })(),
+        scheduledTimeSlots: uniqueStrings(Array.isArray(med?.scheduledTimeSlots) ? med.scheduledTimeSlots : [])
+          .map(normalizeTimeSlot)
+          .filter(Boolean),
       };
       if (!existing) {
         medByKey.set(key, next);
@@ -901,7 +916,7 @@ export const emarAgent = {
       ...med,
       medicationId: index + 1,
       scheduledTimeSlots: med.scheduledTimeSlots.length > 0 ? med.scheduledTimeSlots : mergedMetadata.timeSlots,
-      requiredGapHours: Number(med.requiredGapHours || 0) || 4,
+      requiredGapHours: clampNumber(Math.round(Number(med.requiredGapHours || 0) || 4), 1, 24),
     }));
 
     const expectedEntriesCount =
