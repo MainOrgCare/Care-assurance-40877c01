@@ -16,7 +16,7 @@ const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema, insertSystemLogSchema } from "@shared/schema";
 import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, type AiUserContext, type AiProvider } from "./services/aiClient";
-import { emarAgent } from "./services/emarAgent";
+import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
 import { careWorkerRotaPayloadSchema, computeRotaSourceHash, rotaWeekdayEnum } from "./services/careWorkerRota";
 import multer from "multer";
 import mammoth from "mammoth";
@@ -3785,37 +3785,27 @@ ${correctionExamples}
             return code;
           };
           
-          // Build medication scheduled slot counts for time gap detection
-          const agentMedScheduledSlotsById = new Map<number, number>();
+          // Build per-medication required gap lookup (prefer explicit instruction rules)
           const agentMedGapHoursById = new Map<number, number>();
-          const agentMedScheduledSlotsByName = new Map<string, number>(); // fallback
           const agentMedGapHoursByName = new Map<string, number>(); // fallback
           agentMedications.forEach((m: any) => {
-            const slots = m.scheduledTimeSlots?.length || agentTimeSlots.length;
-            const gapHours = m.requiredGapHours || 4;
+            const rawGap = Number(m?.requiredGapHours);
+            const inferredGap = inferRequiredGapHoursFromText(`${m?.name || ""} ${m?.instructions || ""}`);
+            const normalizedRaw =
+              Number.isFinite(rawGap) && rawGap >= 1 && rawGap <= 24 ? rawGap : null;
+            const gapHours =
+              typeof inferredGap === "number" && Number.isFinite(inferredGap) && (normalizedRaw == null || normalizedRaw === 4)
+                ? inferredGap
+                : normalizedRaw ?? 4;
             const medId = Number(m.medicationId) || 0;
             if (m?.name) {
-              agentMedScheduledSlotsByName.set(m.name, slots);
               agentMedGapHoursByName.set(m.name, gapHours);
             }
             if (medId) {
-              agentMedScheduledSlotsById.set(medId, slots);
               agentMedGapHoursById.set(medId, gapHours);
             }
           });
 
-          const timeCriticalAgentMedIds = new Set<number>();
-          const timeCriticalAgentMedNames = new Set<string>();
-          const timeCriticalToken = /\b(?:0?[0-9]|1[0-9]|2[0-3])(?::[0-5][0-9])?\s*(?:am|pm)\b|\b(?:0?[0-9]|1[0-9]|2[0-3]):[0-5][0-9]\b/i;
-          agentMedications.forEach((m: any) => {
-            const text = `${m?.instructions || ""} ${m?.name || ""}`;
-            if (timeCriticalToken.test(text)) {
-              const medId = Number(m.medicationId) || 0;
-              if (medId) timeCriticalAgentMedIds.add(medId);
-              if (m?.name) timeCriticalAgentMedNames.add(m.name);
-            }
-          });
-          
           const agentDiscrepancies: any[] = [];
           const agentWarnings: any[] = [];
           const agentVerificationItems: any[] = [];
@@ -3980,7 +3970,7 @@ ${correctionExamples}
           console.log(`Agent: Found ${mainRefusalDiscrepancies.length} main non-admin codes, ${prnRefusalDiscrepancies.length} PRN non-admin codes`);
           
           // =====================================================================
-          // TIME GAP DETECTION (for medications with 2+ slots/day)
+          // TIME GAP DETECTION (all administered medications with 2+ entries per day)
           // =====================================================================
           const administrationCodes = ['AD', 'AS', 'P', 'G', 'A', 'PRN', 'PRN-AD', 'PRN-AS'];
           const medDateEntriesForGap = new Map<string, any[]>();
@@ -3995,13 +3985,7 @@ ${correctionExamples}
               return;
             }
             
-            // Only enforce gaps for time-critical medications with explicit admin times
             const entryMedId = Number(entry.medicationId) || 0;
-            const entryMedName = entry.medication || "";
-            const isTimeCritical =
-              (entryMedId > 0 && timeCriticalAgentMedIds.has(entryMedId)) ||
-              (entryMedName && timeCriticalAgentMedNames.has(entryMedName));
-            if (!isTimeCritical) return;
 
             // Only use explicit admin times recorded in the cell (ignore service order time slots)
             const timeValue = String(entry.time || "").trim();
@@ -4045,14 +4029,6 @@ ${correctionExamples}
                   ? medKeyPart.slice(5)
                   : dayEntries[0]?.medication || '';
 
-            const scheduledSlots =
-              medId > 0
-                ? agentMedScheduledSlotsById.get(medId) || 1
-                : agentMedScheduledSlotsByName.get(medication) || 1;
-            
-            // Skip once-daily medications
-            if (scheduledSlots <= 1) return;
-            
             const requiredGap =
               medId > 0
                 ? agentMedGapHoursById.get(medId) || 4
@@ -6715,7 +6691,17 @@ CARE WORKER INITIALS (IMPORTANT):
           if (medId) prnMedIds.add(medId);
         }
 
-        if (medId && med.requiredGapHours) medGapHoursById.set(medId, med.requiredGapHours);
+        if (medId) {
+          const rawGap = Number(med?.requiredGapHours);
+          const inferredGap = inferRequiredGapHoursFromText(`${med?.name || ""} ${med?.instructions || ""}`);
+          const normalizedRaw =
+            Number.isFinite(rawGap) && rawGap >= 1 && rawGap <= 24 ? rawGap : null;
+          const gapHours =
+            typeof inferredGap === "number" && Number.isFinite(inferredGap) && (normalizedRaw == null || normalizedRaw === 4)
+              ? inferredGap
+              : normalizedRaw ?? 4;
+          medGapHoursById.set(medId, gapHours);
+        }
 
         // Track scheduled time slot count for time gap validation
         // Prefer per-medication slots, only default to 1 if not specified (assume once-daily)
@@ -7732,18 +7718,6 @@ If no equivalences found, return: {"equivalences": []}`
       // Excluded codes: BLANK, EMPTY, MU, NH, R, FA, MISSED, SA (self-admin)
       // =====================================================================
       
-      const timeCriticalMedIds = new Set<number>();
-      const timeCriticalMedNames = new Set<string>();
-      const timeCriticalToken = /\b(?:0?[0-9]|1[0-9]|2[0-3])(?::[0-5][0-9])?\s*(?:am|pm)\b|\b(?:0?[0-9]|1[0-9]|2[0-3]):[0-5][0-9]\b/i;
-      (medications || []).forEach((med: any) => {
-        const text = `${med?.instructions || ""} ${med?.name || ""}`;
-        if (timeCriticalToken.test(text)) {
-          const medId = Number(med?.medicationId) || 0;
-          if (medId) timeCriticalMedIds.add(medId);
-          if (med?.name) timeCriticalMedNames.add(med.name);
-        }
-      });
-
       // Helper to extract time from entry - check both time field and timeSlot
       const extractTimeFromEntry = (entry: any): string | null => {
         // Only use explicit admin times recorded in the cell (not time-slot ranges).
@@ -7796,13 +7770,7 @@ If no equivalences found, return: {"equivalences": []}`
         // Only include entries where medication was actually administered
         if (!isAdministeredCode(code)) return;
 
-        // Only enforce gaps for time-critical medications
         const entryMedId = Number(entry.medicationId) || 0;
-        const entryMedName = entry.medication || "";
-        const isTimeCritical =
-          (entryMedId > 0 && timeCriticalMedIds.has(entryMedId)) ||
-          (entryMedName && timeCriticalMedNames.has(entryMedName));
-        if (!isTimeCritical) return;
         
         // Skip office-closed entries from time gap checks (manually closed by office staff)
         if (entry.isOfficeClosed) {
@@ -7926,14 +7894,7 @@ If no equivalences found, return: {"equivalences": []}`
               ? medKeyPart.slice(5)
               : dayEntries[0]?.medication || "";
         
-        // SKIP: Once-daily medications should not trigger time gap checks
-        // If a medication has only 1 scheduled time slot, it's once-daily and 
-        // any multiple entries are likely duplicate extractions from different time slot rows
         const scheduledSlots = medId > 0 ? medScheduledSlotCountById.get(medId) || 1 : 1;
-        if (scheduledSlots <= 1) {
-          console.log(`DEBUG: Skipping time gap check for once-daily medication "${medication}" (${scheduledSlots} scheduled slot)`);
-          return;
-        }
         
         // Use configured gap if available, otherwise 4 hours for PRN, 4 hours for regular meds
         const requiredGap = medId > 0 ? medGapHoursById.get(medId) || 4 : 4; // Default 4 hours minimum between doses

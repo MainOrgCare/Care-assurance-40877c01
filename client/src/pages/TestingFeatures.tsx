@@ -3875,33 +3875,112 @@ export default function TestingFeatures() {
   const stacksNavDisabled = serviceUserStacks.length === 0;
 
   return (
-    <div className="page-shell max-w-7xl mx-auto">
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 text-primary">
-          <FlaskConical className="h-5 w-5" />
-          <p className="text-sm font-medium uppercase tracking-wide">Admin Sandbox</p>
-        </div>
-        <h1 className="text-3xl font-heading font-bold text-foreground">Testing Features</h1>
-        <p className="text-muted-foreground max-w-3xl">
-          Upload large CSV or Excel workbooks, automatically convert CSV files to Excel, and
-          inspect every row with automated data quality checks before pushing experiments to production.
-        </p>
+    <div className="page-shell max-w-7xl mx-auto space-y-10 relative pb-6">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-32 right-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+        <div className="absolute top-40 left-0 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.08),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(56,189,248,0.08),transparent_35%)]" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2 items-start">
-        <Alert className="border-amber-500/25 bg-amber-500/5 text-foreground shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10">
-          <AlertTitle>Volatile workspace</AlertTitle>
-          <AlertDescription>
+      <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/80 p-6 shadow-medium backdrop-blur-xl hover-elevate shimmer motion-safe:animate-slide-up stagger-1 md:p-10">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_55%),radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.12),transparent_45%)]" />
+        <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute -left-24 -bottom-32 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="relative z-10 space-y-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-3 rounded-full border border-primary/20 bg-primary/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    processingState === "analyzing" ? "bg-emerald-500 animate-pulse" : "bg-primary"
+                  }`}
+                />
+                Admin Sandbox
+                <Badge variant="secondary" className="ml-2 text-[10px] uppercase tracking-wide">
+                  Experimental
+                </Badge>
+              </div>
+              <div>
+                <h1 className="text-3xl font-heading font-bold text-foreground md:text-4xl">
+                  Testing <span className="gradient-text">Features</span>
+                </h1>
+                <p className="text-muted-foreground max-w-2xl mt-2">
+                  Upload large CSV or Excel workbooks, automatically convert CSV files to Excel, and
+                  inspect every row with automated data quality checks before pushing experiments to production.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
+                  <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />
+                  {summary.totalPrimary.toLocaleString()} unique slots
+                </Badge>
+                <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
+                  <AlertCircle className="mr-2 h-3.5 w-3.5 text-amber-500" />
+                  {summary.attention.toLocaleString()} flagged rows
+                </Badge>
+                <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
+                  <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-emerald-500" />
+                  {summary.clean.toLocaleString()} clean rows
+                </Badge>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:w-[360px]">
+              <div className="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-soft hover-elevate shimmer">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Active file</p>
+                <p className="text-sm font-semibold text-foreground mt-2">
+                  {fileMeta?.name || "No workbook loaded"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {fileMeta ? `${fileMeta.totalRows.toLocaleString()} rows • ${formatBytes(fileMeta.size)}` : "Upload a file to begin analysis."}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-soft hover-elevate shimmer">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Pipeline status</p>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-sm font-semibold capitalize">{processingState}</span>
+                  <Badge variant={processingState === "complete" ? "default" : "secondary"} className="text-[10px] uppercase">
+                    {processingState === "complete" ? "Ready" : "Running"}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {processingState === "idle" && "Waiting for workbook upload"}
+                  {processingState === "parsing" && "Parsing workbook structure"}
+                  {processingState === "analyzing" && "Scanning rows in batches"}
+                  {processingState === "complete" && "Insights available below"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] items-stretch motion-safe:animate-slide-up stagger-2">
+        <Alert className="relative overflow-hidden border-amber-500/25 bg-amber-500/5 text-foreground shadow-soft backdrop-blur-xl hover-elevate dark:border-amber-500/30 dark:bg-amber-500/10">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_55%)]" />
+          <AlertTitle className="flex items-center gap-2 text-base">
+            <Shield className="h-4 w-4 text-amber-500" />
+            Volatile workspace
+          </AlertTitle>
+          <AlertDescription className="text-sm">
             Data stays in-memory only. Refreshing the page clears every upload, so export a PDF if you need a temporary record.
           </AlertDescription>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+              In-memory only
+            </Badge>
+            <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+              No server storage
+            </Badge>
+          </div>
         </Alert>
 
-        <Card className="h-full">
+        <Card className="h-full border-border/60 bg-background/70 hover-elevate shimmer">
           <CardHeader>
             <CardTitle>Quick navigation</CardTitle>
             <CardDescription>Jump between workbook tools, KPIs, and insights.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -3909,7 +3988,9 @@ export default function TestingFeatures() {
                 size="sm"
                 disabled={workbookNavDisabled}
                 onClick={() => scrollToAnchor("tf-workbook")}
+                className="gap-2"
               >
+                <FileSpreadsheet className="h-3.5 w-3.5" />
                 Workbook
               </Button>
               <Button
@@ -3918,7 +3999,9 @@ export default function TestingFeatures() {
                 size="sm"
                 disabled={kpiNavDisabled}
                 onClick={() => scrollToAnchor("tf-kpi")}
+                className="gap-2"
               >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
                 KPI
               </Button>
               <Button
@@ -3927,7 +4010,9 @@ export default function TestingFeatures() {
                 size="sm"
                 disabled={insightsNavDisabled}
                 onClick={() => scrollToAnchor("tf-insights")}
+                className="gap-2"
               >
+                <Search className="h-3.5 w-3.5" />
                 Insights
               </Button>
               <Button
@@ -3936,7 +4021,9 @@ export default function TestingFeatures() {
                 size="sm"
                 disabled={studioNavDisabled}
                 onClick={() => scrollToAnchor("tf-studio")}
+                className="gap-2"
               >
+                <Route className="h-3.5 w-3.5" />
                 Studio
               </Button>
               <Button
@@ -3945,7 +4032,9 @@ export default function TestingFeatures() {
                 size="sm"
                 disabled={stacksNavDisabled}
                 onClick={() => scrollToAnchor("tf-stacks")}
+                className="gap-2"
               >
+                <Users className="h-3.5 w-3.5" />
                 Stacks
               </Button>
             </div>
@@ -3958,10 +4047,10 @@ export default function TestingFeatures() {
       </div>
 
       {showGlobalProgress && (
-        <div className="z-30 mb-6">
+        <div className="z-30 mb-6 motion-safe:animate-fade-in">
           <div className="rounded-full h-2 bg-border/50 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-primary via-primary/80 to-primary/60 transition-all duration-200"
+              className="h-full bg-gradient-to-r from-primary via-sky-400/70 to-emerald-400/60 transition-all duration-200 motion-safe:animate-glow-pulse"
               style={{ width: `${Math.min(Math.max(progress, 5), 100)}%` }}
             />
           </div>
@@ -3969,26 +4058,56 @@ export default function TestingFeatures() {
         </div>
       )}
 
-      <section id="tf-workbook" className="scroll-mt-24 space-y-6">
+      <section id="tf-workbook" className="scroll-mt-24 space-y-6 motion-safe:animate-slide-up stagger-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-primary">
+              <UploadCloud className="h-4 w-4" />
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]">Workbook Lab</span>
+            </div>
+            <h2 className="text-2xl font-heading font-semibold text-foreground">Workbook command center</h2>
+            <p className="text-sm text-muted-foreground">
+              Load raw files, monitor batch progress, and validate the pipeline before sharing results.
+            </p>
+          </div>
+          {fileMeta && (
+            <Badge variant="outline" className="bg-background/70 text-xs">
+              {fileMeta.type} • {fileMeta.totalRows.toLocaleString()} rows
+            </Badge>
+          )}
+        </div>
         <div className="grid gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle>Upload Workbook</CardTitle>
-                <CardDescription>Accepted formats: CSV, XLS, XLSX</CardDescription>
+          <Card className="lg:col-span-2 border-border/60 bg-background/70 shadow-medium hover-elevate shimmer">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <UploadCloud className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle>Upload Workbook</CardTitle>
+                  <CardDescription>Accepted formats: CSV, XLS, XLSX</CardDescription>
+                </div>
               </div>
-              {processingState === "analyzing" && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+              {processingState === "analyzing" && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  Analyzing
+                </div>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               <div
-                className={`border border-dashed rounded-xl p-6 text-center transition-colors ${
-                  isDragging ? "border-primary bg-primary/5" : "border-border bg-background/60 hover:bg-muted/20"
+                className={`relative overflow-hidden rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
+                  isDragging
+                    ? "border-primary bg-primary/10 shadow-glow"
+                    : "border-border bg-background/60 hover:bg-muted/20 hover:shadow-soft"
                 }`}
                 onDragEnter={handleDragEnter}
                 onDragLeave={handleDragLeave}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
               >
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_55%)]" />
                 <input
                   id="testing-features-upload"
                   type="file"
@@ -3996,7 +4115,7 @@ export default function TestingFeatures() {
                   className="hidden"
                   onChange={handleFileChange}
                 />
-                <label htmlFor="testing-features-upload" className="cursor-pointer space-y-3 block">
+                <label htmlFor="testing-features-upload" className="relative z-10 cursor-pointer space-y-3 block">
                   <div className="flex items-center justify-center gap-3 text-muted-foreground">
                     <UploadCloud className="h-5 w-5" />
                     <span>{isDragging ? "Drop the file to start analysis" : "Click to choose a data file or drag it here"}</span>
@@ -4009,7 +4128,7 @@ export default function TestingFeatures() {
 
               {fileMeta && (
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-lg border border-border bg-background/60 p-4">
+                  <div className="rounded-2xl border border-border bg-background/60 p-4 shadow-soft">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Active file</p>
                     <p className="font-medium text-sm mt-1">{fileMeta.name}</p>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
@@ -4020,7 +4139,7 @@ export default function TestingFeatures() {
                       <span>{fileMeta.totalRows.toLocaleString()} rows</span>
                     </div>
                   </div>
-                  <div className="rounded-lg border border-border bg-background/60 p-4 space-y-3">
+                  <div className="rounded-2xl border border-border bg-background/60 p-4 space-y-3 shadow-soft">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Actions</p>
                     <div className="flex flex-wrap gap-2">
                       {downloadUrl && (
@@ -4042,7 +4161,7 @@ export default function TestingFeatures() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-border/60 bg-background/70 shadow-medium hover-elevate">
             <CardHeader>
               <CardTitle>Analysis Progress</CardTitle>
               <CardDescription>
@@ -4054,8 +4173,10 @@ export default function TestingFeatures() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between text-sm">
-                <span>{progress}%</span>
-                <Badge variant={processingState === "complete" ? "default" : "secondary"}>{processingState}</Badge>
+                <span className="font-semibold">{progress}%</span>
+                <Badge variant={processingState === "complete" ? "default" : "secondary"} className="capitalize">
+                  {processingState}
+                </Badge>
               </div>
               <Progress value={progress} className="h-2" />
               <div className="space-y-2 text-sm text-muted-foreground">
@@ -4102,68 +4223,94 @@ export default function TestingFeatures() {
         </div>
       </section>
 
-      <section id="tf-kpi" className="scroll-mt-24 space-y-6">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-foreground">KPI</h2>
-          <p className="text-sm text-muted-foreground">Snapshot of key totals and alerts.</p>
+      <section id="tf-kpi" className="scroll-mt-24 space-y-6 motion-safe:animate-slide-up stagger-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-primary">
+              <SlidersHorizontal className="h-4 w-4" />
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]">KPI</span>
+            </div>
+            <h2 className="text-2xl font-heading font-semibold text-foreground">Performance snapshot</h2>
+            <p className="text-sm text-muted-foreground">Totals, trends, and alert volume at a glance.</p>
+          </div>
+          <Badge variant="outline" className="bg-background/70 text-xs">
+            Updated with workbook analysis
+          </Badge>
         </div>
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-          <MetricCard
-            icon={<FileSpreadsheet className="h-4 w-4" />}
-            label="Total Rows"
-            value={summary.total.toLocaleString()}
-            helper={`${summary.totalPrimary.toLocaleString()} unique slots`}
-          />
-          <MetricCard
-            icon={<Users className="h-4 w-4 text-slate-600" />}
-            label="Duplicate Slot Rows"
-            value={summary.duplicateCount.toLocaleString()}
-            helper="Same user/date/time — ignored"
-          />
-          <MetricCard
-            icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
-            label="Clean Rows"
-            value={summary.clean.toLocaleString()}
-            helper="No warnings detected"
-          />
-          <MetricCard
-            icon={<AlertCircle className="h-4 w-4 text-orange-500" />}
-            label="Needs Attention"
-            value={summary.attention.toLocaleString()}
-            helper="Contains missing or risky values"
-          />
-          <MetricCard
-            icon={<Filter className="h-4 w-4" />}
-            label="Empty Cells"
-            value={summary.totalEmpty.toLocaleString()}
-          />
-          <MetricCard
-            icon={<Clock4 className="h-4 w-4 text-sky-500" />}
-            label="Schedule Drift Alerts"
-            value={summary.scheduleAlerts.toLocaleString()}
-            helper="Same carer moved >2h"
-          />
-          <MetricCard
-            icon={<Timer className="h-4 w-4 text-amber-500" />}
-            label="Duration Alerts"
-            value={summary.durationAlerts.toLocaleString()}
-            helper="Under 80% or over 120%"
-          />
+        <div className="rounded-3xl border border-border/60 bg-background/70 p-4 shadow-medium hover-elevate shimmer md:p-6">
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+            <MetricCard
+              icon={<FileSpreadsheet className="h-4 w-4" />}
+              label="Total Rows"
+              value={summary.total.toLocaleString()}
+              helper={`${summary.totalPrimary.toLocaleString()} unique slots`}
+            />
+            <MetricCard
+              icon={<Users className="h-4 w-4 text-slate-600" />}
+              label="Duplicate Slot Rows"
+              value={summary.duplicateCount.toLocaleString()}
+              helper="Same user/date/time — ignored"
+            />
+            <MetricCard
+              icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
+              label="Clean Rows"
+              value={summary.clean.toLocaleString()}
+              helper="No warnings detected"
+            />
+            <MetricCard
+              icon={<AlertCircle className="h-4 w-4 text-orange-500" />}
+              label="Needs Attention"
+              value={summary.attention.toLocaleString()}
+              helper="Contains missing or risky values"
+            />
+            <MetricCard
+              icon={<Filter className="h-4 w-4" />}
+              label="Empty Cells"
+              value={summary.totalEmpty.toLocaleString()}
+            />
+            <MetricCard
+              icon={<Clock4 className="h-4 w-4 text-sky-500" />}
+              label="Schedule Drift Alerts"
+              value={summary.scheduleAlerts.toLocaleString()}
+              helper="Same carer moved >2h"
+            />
+            <MetricCard
+              icon={<Timer className="h-4 w-4 text-amber-500" />}
+              label="Duration Alerts"
+              value={summary.durationAlerts.toLocaleString()}
+              helper="Under 80% or over 120%"
+            />
+          </div>
         </div>
       </section>
 
-      <section id="tf-insights" className="scroll-mt-24 space-y-6">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-foreground">Insights</h2>
-          <p className="text-sm text-muted-foreground">Deeper diagnostics once data is loaded.</p>
+      <section id="tf-insights" className="scroll-mt-24 space-y-6 motion-safe:animate-slide-up stagger-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-primary">
+              <Search className="h-4 w-4" />
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]">Insights</span>
+            </div>
+            <h2 className="text-2xl font-heading font-semibold text-foreground">Deep diagnostics</h2>
+            <p className="text-sm text-muted-foreground">Root-cause signals and confidence checks once data is loaded.</p>
+          </div>
+          <Badge variant="outline" className="bg-background/70 text-xs">
+            Powered by data health scoring
+          </Badge>
         </div>
 
         {analysisResults.length > 0 && healthSummary && (
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Data Health Score</CardTitle>
-              <CardDescription>Weighted quality score for this dataset.</CardDescription>
+          <Card className="relative overflow-hidden border-border/70 bg-background/70 shadow-soft hover-elevate">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_55%)]" />
+            <CardHeader className="relative z-10 flex flex-row items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600">
+                <Shield className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle>Data Health Score</CardTitle>
+                <CardDescription>Weighted quality score for this dataset.</CardDescription>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -4192,10 +4339,16 @@ export default function TestingFeatures() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Issue Breakdown</CardTitle>
-              <CardDescription>Top risk signals across the dataset.</CardDescription>
+          <Card className="relative overflow-hidden border-border/70 bg-background/70 shadow-soft hover-elevate">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(251,146,60,0.18),transparent_55%)]" />
+            <CardHeader className="relative z-10 flex flex-row items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle>Issue Breakdown</CardTitle>
+                <CardDescription>Top risk signals across the dataset.</CardDescription>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {issueHighlights.length ? (
@@ -4217,10 +4370,16 @@ export default function TestingFeatures() {
         )}
 
       {coverage.total > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Data Coverage</CardTitle>
-            <CardDescription>How many of the unique slots contain each key signal.</CardDescription>
+        <Card className="relative overflow-hidden border-border/70 bg-background/70 shadow-soft hover-elevate">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_55%)]" />
+          <CardHeader className="relative z-10 flex flex-row items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <FileSpreadsheet className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle>Data Coverage</CardTitle>
+              <CardDescription>How many of the unique slots contain each key signal.</CardDescription>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -4239,10 +4398,16 @@ export default function TestingFeatures() {
       )}
 
       {detectedColumns.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Detected Columns</CardTitle>
-            <CardDescription>Auto-mapped columns used in this analysis.</CardDescription>
+        <Card className="relative overflow-hidden border-border/70 bg-background/70 shadow-soft hover-elevate">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.1),transparent_60%)]" />
+          <CardHeader className="relative z-10 flex flex-row items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Search className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle>Detected Columns</CardTitle>
+              <CardDescription>Auto-mapped columns used in this analysis.</CardDescription>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 md:grid-cols-2">
@@ -4273,8 +4438,10 @@ export default function TestingFeatures() {
       {analysisResults.length > 0 && (
         <Accordion type="multiple" className="w-full">
           {summary.total > 0 && (
-            <AccordionItem value="timing-insights" className="mb-4 rounded-2xl border border-border/70 bg-card px-5 shadow-sm border-b-0">
-              <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline">Timing Insights</AccordionTrigger>
+            <AccordionItem value="timing-insights" className="mb-4 rounded-2xl border border-border/60 bg-card/60 px-5 shadow-soft hover-elevate border-b-0">
+              <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline transition-colors data-[state=open]:text-primary">
+                Timing Insights
+              </AccordionTrigger>
               <AccordionContent className="pb-5">
                 <Card className="border border-primary/20 bg-card">
                   <CardHeader>
@@ -4325,8 +4492,10 @@ export default function TestingFeatures() {
           )}
 
           {slotTrends.length > 0 && (
-            <AccordionItem value="call-type-trends" className="mb-4 rounded-2xl border border-border/70 bg-card px-5 shadow-sm border-b-0">
-              <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline">Recurring Call Type Trends</AccordionTrigger>
+            <AccordionItem value="call-type-trends" className="mb-4 rounded-2xl border border-border/60 bg-card/60 px-5 shadow-soft hover-elevate border-b-0">
+              <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline transition-colors data-[state=open]:text-primary">
+                Recurring Call Type Trends
+              </AccordionTrigger>
               <AccordionContent className="pb-5">
                 <Card>
                   <CardHeader>
@@ -4389,9 +4558,11 @@ export default function TestingFeatures() {
             <AccordionItem
               id="tf-studio"
               value="care-worker-route-optimizer"
-              className="scroll-mt-24 mb-4 rounded-2xl border border-border/70 bg-card/60 px-5 shadow-sm border-b-0 overflow-hidden"
+              className="scroll-mt-24 mb-4 rounded-2xl border border-border/60 bg-card/60 px-5 shadow-soft hover-elevate border-b-0 overflow-hidden"
             >
-              <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline">Rostering Studio</AccordionTrigger>
+              <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline transition-colors data-[state=open]:text-primary">
+                Rostering Studio
+              </AccordionTrigger>
               <AccordionContent className="relative pb-5">
                 {rosteringFullscreen && (
                   <div
@@ -5392,8 +5563,10 @@ export default function TestingFeatures() {
             </AccordionItem>
           )}
 
-            <AccordionItem value="row-level-analysis">
-              <AccordionTrigger>Row-Level Analysis</AccordionTrigger>
+            <AccordionItem value="row-level-analysis" className="mt-4 rounded-2xl border border-border/60 bg-card/60 px-5 shadow-soft hover-elevate border-b-0">
+              <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline transition-colors data-[state=open]:text-primary">
+                Row-Level Analysis
+              </AccordionTrigger>
               <AccordionContent>
                 <Card>
                   <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -5540,8 +5713,10 @@ export default function TestingFeatures() {
           </AccordionItem>
 
           {duplicateClusters.length > 0 && (
-            <AccordionItem value="duplicate-slot-review">
-              <AccordionTrigger>Duplicate Slot Review</AccordionTrigger>
+            <AccordionItem value="duplicate-slot-review" className="mt-4 rounded-2xl border border-border/60 bg-card/60 px-5 shadow-soft hover-elevate border-b-0">
+              <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline transition-colors data-[state=open]:text-primary">
+                Duplicate Slot Review
+              </AccordionTrigger>
               <AccordionContent>
                 <Card>
                   <CardHeader>
@@ -5956,8 +6131,10 @@ export default function TestingFeatures() {
           )}
 
           {selectedRow && (
-            <AccordionItem value="selected-row-details">
-              <AccordionTrigger>Selected Row Details (Row {selectedRow.rowNumber})</AccordionTrigger>
+            <AccordionItem value="selected-row-details" className="mt-4 rounded-2xl border border-border/60 bg-card/60 px-5 shadow-soft hover-elevate border-b-0">
+              <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline transition-colors data-[state=open]:text-primary">
+                Selected Row Details (Row {selectedRow.rowNumber})
+              </AccordionTrigger>
               <AccordionContent>
                 <Card>
                   <CardHeader>
@@ -6092,15 +6269,30 @@ export default function TestingFeatures() {
 type InsightTone = "default" | "warning" | "destructive";
 
 const toneSurfaceMap: Record<InsightTone, string> = {
-  default: "border-emerald-500/30 bg-card shadow-sm",
-  warning: "border-amber-500/30 bg-card shadow-sm",
-  destructive: "border-red-500/30 bg-card shadow-sm",
+  default:
+    "border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-background/80 to-background shadow-soft backdrop-blur-xl",
+  warning:
+    "border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-background/80 to-background shadow-soft backdrop-blur-xl",
+  destructive:
+    "border-red-500/30 bg-gradient-to-br from-red-500/10 via-background/80 to-background shadow-soft backdrop-blur-xl",
 };
 
 const toneTextMap: Record<InsightTone, string> = {
   default: "text-emerald-600 dark:text-emerald-400",
   warning: "text-amber-600 dark:text-amber-400",
   destructive: "text-red-600 dark:text-red-400",
+};
+
+const toneGlowMap: Record<InsightTone, string> = {
+  default: "from-emerald-400/50 via-emerald-400/15 to-transparent",
+  warning: "from-amber-400/50 via-amber-400/15 to-transparent",
+  destructive: "from-red-400/50 via-red-400/15 to-transparent",
+};
+
+const toneBarMap: Record<InsightTone, string> = {
+  default: "from-emerald-400/80 via-emerald-400/40 to-transparent",
+  warning: "from-amber-400/80 via-amber-400/40 to-transparent",
+  destructive: "from-red-400/80 via-red-400/40 to-transparent",
 };
 
 function TimingStat({
@@ -6117,7 +6309,10 @@ function TimingStat({
   badge?: string;
 }) {
   return (
-    <div className={`rounded-2xl border p-4 ${toneSurfaceMap[tone]}`}>
+    <div className={`group relative overflow-hidden rounded-2xl border p-4 ${toneSurfaceMap[tone]} hover-elevate`}>
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r ${toneGlowMap[tone]} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
+      />
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{title}</p>
       <div className="flex items-baseline gap-2 mt-2">
         <span className="text-2xl font-semibold text-foreground">{value}</span>
@@ -6140,14 +6335,23 @@ function MetricCard({
   helper?: string;
 }) {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        <div className="text-muted-foreground">{icon}</div>
+    <Card className="group relative overflow-hidden border-border/70 bg-background/70 shadow-soft hover-elevate shimmer">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_55%)]" />
+      <div className="pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full bg-primary/15 blur-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-primary/40 via-primary/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+      <CardHeader className="relative z-10 flex flex-row items-center justify-between space-y-0 pb-2">
+        <div className="flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            {icon}
+          </div>
+          <CardTitle className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            {label}
+          </CardTitle>
+        </div>
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {helper && <p className="text-xs text-muted-foreground mt-1">{helper}</p>}
+      <CardContent className="relative z-10">
+        <div className="text-3xl font-semibold text-foreground tracking-tight">{value}</div>
+        {helper && <p className="text-xs text-muted-foreground/80 mt-2">{helper}</p>}
       </CardContent>
     </Card>
   );
@@ -6165,7 +6369,10 @@ function GroupMetric({
   tone?: InsightTone;
 }) {
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${toneSurfaceMap[tone]}`}>
+    <div className={`group relative overflow-hidden rounded-2xl border px-4 py-3 ${toneSurfaceMap[tone]} hover-elevate`}>
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r ${toneGlowMap[tone]} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
+      />
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="text-lg font-semibold text-foreground mt-1">{value}</p>
       <p className="text-xs text-muted-foreground mt-1">{helper}</p>
@@ -6175,7 +6382,7 @@ function GroupMetric({
 
 function HealthStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border/70 bg-background/60 px-3 py-2">
+    <div className="rounded-2xl border border-border/70 bg-background/70 px-3 py-2 shadow-soft hover-elevate shimmer">
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="text-sm font-semibold text-foreground">{value}</p>
     </div>
@@ -6197,7 +6404,10 @@ function IssueBreakdownRow({
   const tone: InsightTone = percent >= 40 ? "destructive" : percent >= 20 ? "warning" : "default";
 
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${toneSurfaceMap[tone]}`}>
+    <div className={`group relative overflow-hidden rounded-2xl border px-4 py-3 ${toneSurfaceMap[tone]} hover-elevate`}>
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r ${toneGlowMap[tone]} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
+      />
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-foreground">{label}</p>
@@ -6209,8 +6419,11 @@ function IssueBreakdownRow({
           {percent}%
         </Badge>
       </div>
-      <div className="mt-2">
-        <Progress value={percent} className="h-1" />
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-border/50">
+        <div
+          className={`h-full rounded-full bg-gradient-to-r ${toneBarMap[tone]}`}
+          style={{ width: `${percent}%` }}
+        />
       </div>
     </div>
   );
@@ -6226,6 +6439,7 @@ function CoverageStat({
   total: number;
 }) {
   const percent = total > 0 ? Math.round((count / total) * 100) : null;
+  const percentValue = percent ?? 0;
   const tone: InsightTone =
     percent === null
       ? "warning"
@@ -6236,7 +6450,10 @@ function CoverageStat({
       : "default";
 
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${toneSurfaceMap[tone]}`}>
+    <div className={`group relative overflow-hidden rounded-2xl border px-4 py-3 ${toneSurfaceMap[tone]} hover-elevate`}>
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r ${toneGlowMap[tone]} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
+      />
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <div className="flex items-baseline gap-2 mt-1">
         <span className="text-lg font-semibold text-foreground">{percent !== null ? `${percent}%` : "—"}</span>
@@ -6246,12 +6463,17 @@ function CoverageStat({
           </span>
         )}
       </div>
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-border/50">
+        <div
+          className={`h-full rounded-full bg-gradient-to-r ${toneBarMap[tone]}`}
+          style={{ width: `${percentValue}%` }}
+        />
+      </div>
     </div>
   );
 }
 
 function DiagnosticStat({
-
   title,
   value,
   helper,
@@ -6265,7 +6487,10 @@ function DiagnosticStat({
   tone: InsightTone;
 }) {
   return (
-    <div className={`rounded-2xl border p-4 ${toneSurfaceMap[tone]}`}>
+    <div className={`group relative overflow-hidden rounded-2xl border p-4 ${toneSurfaceMap[tone]} hover-elevate`}>
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r ${toneGlowMap[tone]} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
+      />
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{title}</p>
       <p className="text-2xl font-semibold text-foreground mt-1">{value}</p>
       <p className="text-xs text-muted-foreground mt-1">{helper}</p>
@@ -6288,7 +6513,9 @@ function InsightPill({ tone = "default", children }: { tone?: InsightTone; child
     destructive: "bg-red-500/15 text-red-600 dark:text-red-400",
   };
   return (
-    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1 ${toneClass[tone]}`}>
+    <span
+      className={`text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1 border border-white/10 shadow-soft backdrop-blur ${toneClass[tone]}`}
+    >
       {children}
     </span>
   );

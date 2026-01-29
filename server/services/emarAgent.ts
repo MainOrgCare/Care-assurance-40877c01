@@ -166,27 +166,64 @@ const buildMedicationVariantKey = (name: string, instructions: string): string =
   return signatureKey ? `${base}|${signatureKey}` : base;
 };
 
-const inferRequiredGapHoursFromText = (text: string): number | null => {
+export const inferRequiredGapHoursFromText = (text: string): number | null => {
   const lower = String(text || "").toLowerCase();
   if (!lower) return null;
 
   const candidates: Array<number | null> = [];
+  const wordToNumber: Record<string, number> = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+    eleven: 11,
+    twelve: 12,
+    thirteen: 13,
+    fourteen: 14,
+    fifteen: 15,
+    sixteen: 16,
+    eighteen: 18,
+    twenty: 20,
+    twentyfour: 24,
+  };
 
-  // "must be 12 hours apart", "12 hours apart"
-  const apartMatch = lower.match(/\b(\d{1,2})\s*hours?\s*apart\b/);
+  // "must be 12 hours apart", "12 hours apart", "12 hrs apart"
+  const apartMatch = lower.match(/\b(\d{1,2})\s*(?:hours?|hrs?|hr)\s*apart\b/);
   if (apartMatch) candidates.push(Number(apartMatch[1]));
 
+  // "at least 6 hours between doses", "minimum 6 hours"
+  const minMatch = lower.match(
+    /\b(?:at\s*least|minimum|min\.?|no\s*less\s*than|not\s*less\s*than)\s*(\d{1,2})\s*(?:hours?|hrs?|hr)\b/
+  );
+  if (minMatch) candidates.push(Number(minMatch[1]));
+
+  // "6 hours between doses"
+  const betweenMatch = lower.match(/\b(\d{1,2})\s*(?:hours?|hrs?|hr)\s*between\b/);
+  if (betweenMatch) candidates.push(Number(betweenMatch[1]));
+
   // "every 8 hours", "every 6 hour"
-  const everyMatch = lower.match(/\bevery\s*(\d{1,2})\s*hours?\b/);
+  const everyMatch = lower.match(/\bevery\s*(\d{1,2})\s*(?:hours?|hrs?|hr|h)\b/);
   if (everyMatch) candidates.push(Number(everyMatch[1]));
+  const everyWordMatch = lower.match(/\bevery\s*(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s*(?:hours?|hrs?|hr)\b/);
+  if (everyWordMatch) candidates.push(wordToNumber[everyWordMatch[1]]);
 
   // "4-6 hourly", "4 - 6 hours"
-  const rangeMatch = lower.match(/\b(\d{1,2})\s*[-–]\s*(\d{1,2})\s*(?:hours?|hourly)\b/);
+  const rangeMatch = lower.match(/\b(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\s*(?:hours?|hrs?|hr|hourly|hrly)\b/);
   if (rangeMatch) candidates.push(Number(rangeMatch[1]));
 
   // "6 hourly"
-  const hourlyMatch = lower.match(/\b(\d{1,2})\s*hourly\b/);
+  const hourlyMatch = lower.match(/\b(\d{1,2})\s*[- ]?\s*(?:hourly|hrly)\b/);
   if (hourlyMatch) candidates.push(Number(hourlyMatch[1]));
+
+  // "q6h", "q6hr", "q6 hrs", "q4-6h"
+  const qMatch = lower.match(/\bq\s*(\d{1,2})(?:\s*(?:-|–|to)\s*(\d{1,2}))?\s*(?:h|hr|hrs|hours)\b/);
+  if (qMatch) candidates.push(Number(qMatch[1]));
 
   const cleaned = candidates
     .filter((value): value is number => Number.isFinite(value))
