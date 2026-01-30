@@ -1,8 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, ChevronRight, Clock, Users as UsersIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -269,6 +268,9 @@ export function WeeklyPlannerGrid({
 }: WeeklyPlannerGridProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedWeek, setSelectedWeek] = useState<"week1" | "week2">("week1");
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(360);
 
   // Filter rotas by selected week
   const weekRotas = useMemo(
@@ -291,6 +293,16 @@ export function WeeklyPlannerGrid({
   // Stats
   const totalWorkers = workerGroups.length;
   const totalRotas = weekRotas.length;
+
+  useEffect(() => {
+    const node = listRef.current;
+    if (!node) return;
+    const update = () => setViewportHeight(node.clientHeight || 360);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -338,7 +350,11 @@ export function WeeklyPlannerGrid({
       </div>
 
       {/* Grid body */}
-      <ScrollArea className="flex-1">
+      <div
+        ref={listRef}
+        className="flex-1 overflow-auto"
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      >
         <div className="px-4 py-1">
           {loading ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
@@ -349,18 +365,41 @@ export function WeeklyPlannerGrid({
               {searchTerm ? "No workers match your search." : "No rotas saved for this week."}
             </div>
           ) : (
-            filteredWorkers.map((worker) => (
-              <WorkerRow
-                key={worker.workerKey}
-                workerName={worker.workerName}
-                rotasByDay={worker.rotasByDay}
-                selectedRotaId={selectedRotaId}
-                onSelectRota={onSelectRota}
-              />
-            ))
+            (() => {
+              const rowHeight = 60;
+              const overscan = 6;
+              const totalRows = filteredWorkers.length;
+              const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+              const endIndex = Math.min(
+                totalRows,
+                Math.ceil((scrollTop + viewportHeight) / rowHeight) + overscan
+              );
+              const visibleWorkers = filteredWorkers.slice(startIndex, endIndex);
+              return (
+                <div className="relative" style={{ height: `${totalRows * rowHeight}px` }}>
+                  {visibleWorkers.map((worker, idx) => {
+                    const rowIndex = startIndex + idx;
+                    return (
+                      <div
+                        key={worker.workerKey}
+                        className="absolute left-0 right-0"
+                        style={{ top: `${rowIndex * rowHeight}px` }}
+                      >
+                        <WorkerRow
+                          workerName={worker.workerName}
+                          rotasByDay={worker.rotasByDay}
+                          selectedRotaId={selectedRotaId}
+                          onSelectRota={onSelectRota}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
           )}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-3 px-4 py-2 border-t bg-muted/20 text-[10px]">

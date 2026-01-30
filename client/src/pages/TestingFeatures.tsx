@@ -536,6 +536,9 @@ export default function TestingFeatures() {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 200);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ROWS);
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const [tableScrollTop, setTableScrollTop] = useState(0);
+  const [tableViewportHeight, setTableViewportHeight] = useState(480);
   const [showDuplicateRows, setShowDuplicateRows] = useState(false);
   // Filter presets state
   const [filterPresets, setFilterPresets] = useState<Array<{
@@ -646,6 +649,16 @@ export default function TestingFeatures() {
   useEffect(() => {
     setVisibleCount(INITIAL_VISIBLE_ROWS);
   }, [filterStatus, searchTerm, fileMeta?.name]);
+
+  useEffect(() => {
+    const node = tableRef.current;
+    if (!node) return;
+    const update = () => setTableViewportHeight(node.clientHeight || 480);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     setSelectedRow(null);
@@ -6920,7 +6933,11 @@ export default function TestingFeatures() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <ScrollArea className="max-h-[480px] rounded-md border border-border/80">
+                    <div
+                      ref={tableRef}
+                      className="max-h-[480px] rounded-md border border-border/80 overflow-auto"
+                      onScroll={(event) => setTableScrollTop(event.currentTarget.scrollTop)}
+                    >
                       <table className="w-full text-sm">
                         <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
                           <tr>
@@ -6931,76 +6948,91 @@ export default function TestingFeatures() {
                           </tr>
                         </thead>
                         <tbody>
-                          {visibleRows.map((row) => (
-                            <tr
-                              key={row.rowNumber}
-                              className="border-t border-border/60 hover:bg-muted/30 cursor-pointer"
-                              onClick={() => setSelectedRow(row)}
-                            >
-                              <td className="px-4 py-3 font-mono text-xs text-muted-foreground">#{row.rowNumber}</td>
-                              <td className="px-4 py-3">
-                                <Badge variant={row.status === "clean" ? "outline" : "destructive"}>
-                                  {row.status === "clean" ? "Clean" : "Needs attention"}
-                                </Badge>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex flex-wrap gap-1">
-                                  {row.callTypeLabel && <Badge variant="outline">{row.callTypeLabel}</Badge>}
-                                  {row.emptyFields.length > 0 && (
-                                    <Badge variant="secondary">{row.emptyFields.length} empty</Badge>
-                                  )}
-                                  {row.numericWarnings.length > 0 && (
-                                    <Badge variant="secondary">{row.numericWarnings.length} negative</Badge>
-                                  )}
-                                  {row.textWarnings.length > 0 && (
-                                    <Badge variant="secondary">{row.textWarnings.length} long</Badge>
-                                  )}
-                                </div>
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  {typeof row.scheduleDeltaMinutes === "number" && (
-                                    <InsightPill tone={row.scheduleFlag ? "destructive" : "default"}>
-                                      Δ {formatSignedMinutes(row.scheduleDeltaMinutes)}
-                                    </InsightPill>
-                                  )}
-                                  {typeof row.durationMatchPercent === "number" && (
-                                    <InsightPill
-                                      tone={
-                                        row.durationFlag
-                                          ? "destructive"
-                                          : row.durationOverrunFlag
-                                          ? "warning"
-                                          : row.durationMatchPercent < 90
-                                          ? "warning"
-                                          : "default"
-                                      }
-                                    >
-                                      {row.durationMatchPercent.toFixed(0)}% duration
-                                    </InsightPill>
-                                  )}
-                                  {row.isDoubleUpSlot && row.doubleUpWorkers && (
-                                    <InsightPill tone="default">
-                                      Double-up: {row.doubleUpWorkers.join(", ")}
-                                    </InsightPill>
-                                  )}
-                                  {row.isDuplicateSlotRow && !row.isDoubleUpSlot && (
-                                    <InsightPill tone="warning">Duplicate slot</InsightPill>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground">
-                                {row.issues.length ? row.issues.join(", ") : "No issues detected"}
-                              </td>
-                            </tr>
-                          ))}
+                          {(() => {
+                            const rowHeight = 72;
+                            const overscan = 8;
+                            const totalRows = filteredResults.length;
+                            const startIndex = Math.max(0, Math.floor(tableScrollTop / rowHeight) - overscan);
+                            const endIndex = Math.min(
+                              totalRows,
+                              Math.ceil((tableScrollTop + tableViewportHeight) / rowHeight) + overscan
+                            );
+                            const visible = filteredResults.slice(startIndex, endIndex);
+                            return (
+                              <>
+                                <tr style={{ height: `${startIndex * rowHeight}px` }}>
+                                  <td colSpan={4} />
+                                </tr>
+                                {visible.map((row) => (
+                                  <tr
+                                    key={row.rowNumber}
+                                    className="border-t border-border/60 hover:bg-muted/30 cursor-pointer"
+                                    onClick={() => setSelectedRow(row)}
+                                  >
+                                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">#{row.rowNumber}</td>
+                                    <td className="px-4 py-3">
+                                      <Badge variant={row.status === "clean" ? "outline" : "destructive"}>
+                                        {row.status === "clean" ? "Clean" : "Needs attention"}
+                                      </Badge>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="flex flex-wrap gap-1">
+                                        {row.callTypeLabel && <Badge variant="outline">{row.callTypeLabel}</Badge>}
+                                        {row.emptyFields.length > 0 && (
+                                          <Badge variant="secondary">{row.emptyFields.length} empty</Badge>
+                                        )}
+                                        {row.numericWarnings.length > 0 && (
+                                          <Badge variant="secondary">{row.numericWarnings.length} negative</Badge>
+                                        )}
+                                        {row.textWarnings.length > 0 && (
+                                          <Badge variant="secondary">{row.textWarnings.length} long</Badge>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-wrap gap-2 mt-2">
+                                        {typeof row.scheduleDeltaMinutes === "number" && (
+                                          <InsightPill tone={row.scheduleFlag ? "destructive" : "default"}>
+                                            Δ {formatSignedMinutes(row.scheduleDeltaMinutes)}
+                                          </InsightPill>
+                                        )}
+                                        {typeof row.durationMatchPercent === "number" && (
+                                          <InsightPill
+                                            tone={
+                                              row.durationFlag
+                                                ? "destructive"
+                                                : row.durationOverrunFlag
+                                                ? "warning"
+                                                : row.durationMatchPercent < 90
+                                                ? "warning"
+                                                : "default"
+                                            }
+                                          >
+                                            {row.durationMatchPercent.toFixed(0)}% duration
+                                          </InsightPill>
+                                        )}
+                                        {row.isDoubleUpSlot && row.doubleUpWorkers && (
+                                          <InsightPill tone="default">
+                                            Double-up: {row.doubleUpWorkers.join(", ")}
+                                          </InsightPill>
+                                        )}
+                                        {row.isDuplicateSlotRow && !row.isDoubleUpSlot && (
+                                          <InsightPill tone="warning">Duplicate slot</InsightPill>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-muted-foreground">
+                                      {row.issues.length ? row.issues.join(", ") : "No issues detected"}
+                                    </td>
+                                  </tr>
+                                ))}
+                                <tr style={{ height: `${Math.max(0, totalRows - endIndex) * rowHeight}px` }}>
+                                  <td colSpan={4} />
+                                </tr>
+                              </>
+                            );
+                          })()}
                         </tbody>
                       </table>
-                    </ScrollArea>
-
-                    {visibleRows.length < filteredResults.length && (
-                      <Button onClick={handleLoadMore} variant="secondary" className="w-full">
-                        Load {Math.min(INITIAL_VISIBLE_ROWS, filteredResults.length - visibleRows.length)} more rows
-                      </Button>
-                    )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
