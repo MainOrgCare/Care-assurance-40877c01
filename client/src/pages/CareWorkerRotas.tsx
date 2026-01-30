@@ -471,7 +471,7 @@ export default function CareWorkerRotas() {
       for (const workbook of sorted) {
         const data = await fetchWorkbook(workbook.id);
         if (!data?.careWorkerRosters?.length) continue;
-        const hasTemplate = data.careWorkerRosters.some((worker) =>
+        const hasTemplate = data.careWorkerRosters.some((worker: WorkbookCareWorkerRoster) =>
           (worker.callGroups || []).some((group) =>
             Array.isArray(group.templatedWeekdayKeys)
               ? group.templatedWeekdayKeys.includes(templateKey)
