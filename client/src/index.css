@@ -118,29 +118,9 @@
   body {
     @apply font-sans antialiased text-foreground;
     background-color: var(--color-background);
-    background-attachment: fixed;
     min-height: 100vh;
     overflow-x: hidden;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-  }
-  body::before,
-  body::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: -1;
-  }
-  body::before {
-    background: radial-gradient(ellipse 80% 60% at 8% 15%, hsla(192, 82%, 48%, 0.12), transparent 50%),
-                radial-gradient(ellipse 60% 50% at 90% 10%, hsla(32, 95%, 54%, 0.08), transparent 45%),
-                radial-gradient(ellipse 70% 70% at 50% 95%, hsla(220, 50%, 45%, 0.06), transparent 55%);
-    will-change: auto;
-  }
-  body::after {
-    background-image: radial-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-    background-size: 48px 48px;
-    opacity: 0.4;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading font-bold tracking-tight;
@@ -172,114 +152,54 @@
 }
 
 @layer components {
-  /* Enhanced app surface with improved glass effect */
+  /* App surface - simplified for performance */
   .app-surface {
     position: relative;
     width: 100%;
     overflow: hidden;
     border-radius: 1rem;
-    border: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
-    background-color: color-mix(in srgb, var(--color-card) 90%, transparent);
-    backdrop-filter: blur(24px);
-    box-shadow: 
-      0 0 0 1px rgba(255, 255, 255, 0.03) inset,
-      0 20px 50px -12px rgba(0, 0, 0, 0.35),
-      0 0 80px rgba(59, 180, 200, 0.04);
-  }
-  .app-surface::before {
-    content: "";
-    position: absolute;
-    inset: -50%;
-    background: radial-gradient(ellipse at 25% 20%, rgba(255, 255, 255, 0.06), transparent 50%);
-    filter: blur(40px);
-    opacity: 0.7;
-    z-index: 0;
-  }
-  .app-surface::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(175deg, rgba(255, 255, 255, 0.04), transparent 40%);
-    opacity: 0.6;
-    z-index: 0;
-    pointer-events: none;
-  }
-  .app-surface > * {
-    position: relative;
-    z-index: 1;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-card);
+    box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.15);
+    contain: layout style;
   }
 
-  /* Glass card with better depth - optimized transitions */
+  /* Glass card - optimized for performance */
   .glass-card {
     position: relative;
     overflow: hidden;
     border-radius: 1rem;
-    border: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
-    background-color: color-mix(in srgb, var(--color-card) 80%, transparent);
-    backdrop-filter: blur(24px);
-    box-shadow: 
-      0 0 0 1px rgba(255, 255, 255, 0.02) inset,
-      0 12px 40px -8px rgba(0, 0, 0, 0.28),
-      0 0 60px rgba(59, 180, 200, 0.03);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    will-change: transform;
-  }
-  .glass-card::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(165deg, rgba(255,255,255,0.06), transparent 50%);
-    opacity: 0.7;
-    pointer-events: none;
-  }
-  .glass-card::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse at 20% 0%, var(--surface-highlight), transparent 55%);
-    opacity: 0.5;
-    pointer-events: none;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-card);
+    box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.12);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    contain: layout style;
   }
   .glass-card:hover {
-    border-color: rgba(255, 255, 255, 0.15);
-    box-shadow: 
-      0 0 0 1px rgba(255, 255, 255, 0.04) inset,
-      0 20px 50px -10px rgba(0, 0, 0, 0.32),
-      0 0 80px rgba(59, 180, 200, 0.06);
-    transform: translateY(-2px);
+    border-color: var(--color-primary);
+    box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.16);
+    transform: translateY(-1px);
   }
 
-  /* Interactive card variant - extends glass-card manually */
+  /* Interactive card variant - performance optimized */
   .glass-card-interactive {
     position: relative;
     overflow: hidden;
     border-radius: 1rem;
     border: 1px solid var(--color-border);
     background-color: var(--color-card);
-    backdrop-filter: blur(24px);
     cursor: pointer;
-    box-shadow: 
-      0 0 0 1px rgba(255, 255, 255, 0.02) inset,
-      0 12px 40px -8px rgba(0, 0, 0, 0.28),
-      0 0 60px rgba(59, 180, 200, 0.03);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .glass-card-interactive::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(165deg, rgba(255,255,255,0.06), transparent 50%);
-    opacity: 0.7;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
+    box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.12);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    contain: layout style;
   }
   .glass-card-interactive:hover {
-    border-color: rgba(255, 255, 255, 0.15);
-    transform: translateY(-2px);
+    border-color: var(--color-primary);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.16);
   }
   .glass-card-interactive:active {
-    transform: translateY(0) scale(0.995);
-    transition-duration: 0.1s;
+    transform: translateY(0) scale(0.99);
   }
 
   /* Enhanced pill badges - base styles */
@@ -396,20 +316,20 @@
     color: var(--color-muted-foreground);
   }
 
-  /* Enhanced stat card */
+  /* Enhanced stat card - simplified */
   .stat-card {
     position: relative;
     overflow: hidden;
     border-radius: 1rem;
     border: 1px solid var(--color-border);
     background-color: var(--color-card);
-    backdrop-filter: blur(24px);
     padding: 1.25rem;
-    box-shadow: 
-      0 0 0 1px rgba(255, 255, 255, 0.02) inset,
-      0 12px 40px -8px rgba(0, 0, 0, 0.28),
-      0 0 60px rgba(59, 180, 200, 0.03);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.15s ease;
+    contain: layout style;
+  }
+  .stat-card:hover {
+    box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.14);
   }
   .stat-card-value {
     font-size: 1.875rem;
@@ -463,30 +383,10 @@
   }
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  33% { transform: translateY(-8px) rotate(0.5deg); }
-  66% { transform: translateY(4px) rotate(-0.5deg); }
-}
-
-@keyframes surface-glow {
-  0% { transform: translate(-10%, -10%); }
-  100% { transform: translate(10%, 10%); }
-}
-
+/* Animations - simplified for performance */
 @keyframes shimmer {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
-}
-
-@keyframes pulse-subtle {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-@keyframes gradient-shift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
 }
 
 @keyframes fade-in {
@@ -509,54 +409,24 @@
   to { transform: translateX(0); opacity: 1; }
 }
 
-@keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(59, 180, 200, 0.15); }
-  50% { box-shadow: 0 0 40px rgba(59, 180, 200, 0.25); }
-}
+/* Removed heavy glow animations for performance */
 
-@keyframes border-glow {
-  0%, 100% { border-color: rgba(59, 180, 200, 0.2); }
-  50% { border-color: rgba(59, 180, 200, 0.4); }
-}
-
-/* Theme-specific body backgrounds */
+/* Simplified theme-specific body backgrounds */
 .theme-dark body,
 html:not(.theme-light):not(.theme-midnight):not(.theme-ocean) body {
-  background-image: radial-gradient(ellipse 80% 60% at 0% 0%, hsla(222, 20%, 12%, 1) 0px, transparent 50%),
-                    radial-gradient(ellipse 60% 50% at 100% 5%, hsla(192, 50%, 14%, 1) 0px, transparent 45%),
-                    radial-gradient(ellipse 70% 60% at 100% 100%, hsla(222, 20%, 10%, 1) 0px, transparent 50%),
-                    radial-gradient(ellipse 50% 50% at 0% 100%, hsla(32, 50%, 12%, 1) 0px, transparent 50%);
+  background-color: hsl(222, 20%, 8%);
 }
 
 html.theme-midnight body {
-  background-image: radial-gradient(ellipse 70% 60% at 0% 0%, hsla(240, 22%, 10%, 1) 0px, transparent 50%),
-                    radial-gradient(ellipse 60% 50% at 100% 5%, hsla(220, 35%, 10%, 1) 0px, transparent 45%),
-                    radial-gradient(ellipse 60% 60% at 100% 100%, hsla(235, 22%, 8%, 1) 0px, transparent 50%),
-                    radial-gradient(ellipse 50% 50% at 0% 100%, hsla(260, 30%, 10%, 1) 0px, transparent 50%);
+  background-color: hsl(220, 25%, 7%);
 }
 
 html.theme-ocean body {
-  background-image: radial-gradient(ellipse 70% 60% at 0% 0%, hsla(200, 45%, 12%, 1) 0px, transparent 50%),
-                    radial-gradient(ellipse 60% 50% at 100% 5%, hsla(168, 45%, 10%, 1) 0px, transparent 45%),
-                    radial-gradient(ellipse 60% 60% at 100% 100%, hsla(190, 38%, 8%, 1) 0px, transparent 50%),
-                    radial-gradient(ellipse 50% 50% at 0% 100%, hsla(168, 38%, 8%, 1) 0px, transparent 50%);
+  background-color: hsl(200, 35%, 10%);
 }
 
 html.theme-light body {
-  background-image: none;
   background-color: hsl(220 20% 97%);
-}
-
-html.theme-light body::before {
-  background: radial-gradient(ellipse 80% 60% at 8% 15%, hsla(217, 91%, 60%, 0.06), transparent 50%),
-              radial-gradient(ellipse 60% 50% at 90% 10%, hsla(142, 76%, 36%, 0.04), transparent 45%),
-              radial-gradient(ellipse 70% 70% at 50% 95%, hsla(217, 50%, 50%, 0.03), transparent 55%);
-}
-
-html.theme-light body::after {
-  background-image: radial-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 1px);
-  background-size: 48px 48px;
-  opacity: 0.3;
 }
 
 @layer utilities {
@@ -588,25 +458,22 @@ html.theme-light body::after {
     line-height: 1.625;
   }
 
-  /* Glass panel variant */
+  /* Glass panel variant - simplified */
   .glass-panel {
     background-color: var(--color-muted);
-    background-image: linear-gradient(125deg, var(--glass-highlight), transparent 65%);
-    backdrop-filter: blur(16px) saturate(140%);
-    border: 1px solid var(--glass-border-subtle);
+    border: 1px solid var(--color-border);
   }
 
-  /* Hover effects */
+  /* Hover effects - simplified */
   .hover-elevate {
-    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
   .hover-elevate:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-medium);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.12);
   }
   .hover-elevate:active {
     transform: translateY(-1px);
-    box-shadow: var(--shadow-soft);
   }
 
   /* Text effects */
@@ -622,48 +489,32 @@ html.theme-light body::after {
     text-shadow: 0 0 20px rgba(59, 180, 200, 0.3);
   }
 
-  /* Shimmer effect */
+  /* Shimmer effect - simplified */
   .shimmer {
     position: relative;
     overflow: hidden;
   }
-  .shimmer::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
-    animation: none;
-  }
-  .shimmer:hover::after {
-    animation: shimmer 1s ease-in-out 1;
-  }
 
-  /* Glow effects */
+  /* Glow effects - simplified */
   .glow-on-hover {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: box-shadow 0.15s ease;
   }
   .glow-on-hover:hover {
-    box-shadow: var(--shadow-medium), 0 0 30px rgba(59, 180, 200, 0.08);
+    box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.15);
   }
 
-  /* Animation utilities - optimized */
+  /* Animation utilities - optimized for performance */
   .animate-fade-in {
-    animation: fade-in 0.25s ease-out forwards;
+    animation: fade-in 0.2s ease-out forwards;
   }
   .animate-scale-in {
-    animation: scale-in 0.2s ease-out forwards;
+    animation: scale-in 0.15s ease-out forwards;
   }
   .animate-slide-up {
-    animation: slide-up 0.25s ease-out forwards;
+    animation: slide-up 0.2s ease-out forwards;
   }
   .animate-slide-in-right {
-    animation: slide-in-right 0.4s ease-out forwards;
-  }
-  .animate-glow-pulse {
-    animation: glow-pulse 3s ease-in-out infinite;
+    animation: slide-in-right 0.3s ease-out forwards;
   }
 
   /* Stagger animation delays */
@@ -710,36 +561,24 @@ html.theme-light body::after {
     box-shadow: 0 0 10px rgba(251, 113, 133, 0.6);
   }
 
-  /* Quantum button effect */
+  /* Quantum button effect - simplified */
   .quantum-button {
     position: relative;
     overflow: hidden;
+    transition: transform 0.15s ease;
   }
-  .quantum-button::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    opacity: 0;
-    background: radial-gradient(circle, rgba(59, 180, 200, 0.15) 0%, transparent 60%);
-    transition: width 0.35s ease, height 0.35s ease, opacity 0.25s ease;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
+  .quantum-button:hover {
+    transform: translateY(-1px);
   }
-  .quantum-button:hover::before {
-    opacity: 1;
-    width: 180px;
-    height: 180px;
+  .quantum-button:active {
+    transform: translateY(0);
   }
 
-  /* Glass morphism */
+  /* Glass morphism - simplified */
   .glass-morphism {
-    background: rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: var(--shadow-soft);
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.1);
   }
 
   /* Premium gradient */
@@ -747,13 +586,12 @@ html.theme-light body::after {
     background: linear-gradient(135deg, hsl(192 82% 48%) 0%, hsl(192 70% 42%) 50%, hsl(200 80% 45%) 100%);
   }
 
-  /* Magnetic hover - subtle lift */
+  /* Magnetic hover - simplified */
   .magnetic-hover {
-    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    transition: transform 0.15s ease;
   }
   .magnetic-hover:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-soft);
+    transform: translateY(-1px);
   }
 
   /* Focus glow ring */
@@ -881,46 +719,19 @@ html.theme-light body::after {
   }
 }
 
-/* Theme transition effects */
+/* Theme transition effects - simplified */
 .theme-transitioning * {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
+  transition: background-color 0.2s ease, color 0.2s ease !important;
 }
 
-.theme-transitioning .glass-card,
-.theme-transitioning .glass-morphism {
-  transition: background-color 0.3s ease, backdrop-filter 0.3s ease, border-color 0.3s ease !important;
-}
-
-/* Enhanced theme previews */
+/* Enhanced theme previews - simplified */
 .theme-preview {
   position: relative;
   overflow: hidden;
   border-radius: 8px;
   height: 60px;
   background: linear-gradient(135deg, var(--preview-bg-1), var(--preview-bg-2));
-  transition: all 0.3s ease;
-}
-
-.theme-preview::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at 30% 30%, var(--preview-accent-1) 0%, transparent 50%),
-              radial-gradient(circle at 70% 70%, var(--preview-accent-2) 0%, transparent 50%);
-  opacity: 0.6;
-}
-
-.theme-preview::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--preview-accent-1), var(--preview-accent-2));
+  transition: border-color 0.15s ease;
 }
 
 /* Theme-specific preview colors */
@@ -1365,40 +1176,23 @@ html.theme-light .bg-violet-500\/10 {
   background-color: hsl(280 60% 55% / 0.05) !important;
 }
 
-/* Light theme glass card improvements */
+/* Light theme glass card - simplified */
 html.theme-light .glass-card {
   background-color: rgba(255, 255, 255, 0.98);
   border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 
-    0 1px 3px rgba(0, 0, 0, 0.04),
-    0 4px 16px rgba(0, 0, 0, 0.06);
-}
-
-html.theme-light .glass-card::before {
-  background: linear-gradient(165deg, rgba(255, 255, 255, 0.5), transparent 50%);
-}
-
-html.theme-light .glass-card::after {
-  background: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 html.theme-light .glass-card:hover {
   border-color: rgba(59, 130, 246, 0.2);
-  box-shadow: 
-    0 2px 4px rgba(0, 0, 0, 0.04),
-    0 8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
-/* Light theme app surface */
+/* Light theme app surface - simplified */
 html.theme-light .app-surface {
   background-color: rgba(255, 255, 255, 0.98);
   border-color: rgba(0, 0, 0, 0.06);
-  box-shadow: 
-    0 4px 24px rgba(0, 0, 0, 0.06);
-}
-
-html.theme-light .app-surface::before {
-  background: radial-gradient(ellipse at 25% 20%, rgba(59, 130, 246, 0.03), transparent 50%);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
 
 /* Light theme sidebar styling */

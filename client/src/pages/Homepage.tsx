@@ -255,10 +255,10 @@ export default function Homepage() {
       prefersReducedMotion
         ? {}
         : {
-            initial: { opacity: 0, y: 20 },
+            initial: { opacity: 0, y: 12 },
             whileInView: { opacity: 1, y: 0 },
-            viewport: { once: true },
-            transition: { duration: 0.6, delay },
+            viewport: { once: true, margin: "-50px" },
+            transition: { duration: 0.3, delay: Math.min(delay, 0.1) },
           },
     [prefersReducedMotion]
   );

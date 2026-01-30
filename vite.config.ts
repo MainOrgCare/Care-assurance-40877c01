@@ -29,9 +29,11 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
-    minify: true,
+    minify: 'esbuild',
     sourcemap: false,
     chunkSizeWarningLimit: 1500,
+    target: 'es2020',
+    cssMinify: true,
     commonjsOptions: {
       include: [/pako/, /node_modules/],
     },
@@ -47,6 +49,8 @@ export default defineConfig({
           'vendor-charts': ['recharts'],
           // UI components
           'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-accordion', '@radix-ui/react-select'],
+          // Framer motion separate chunk
+          'vendor-motion': ['framer-motion'],
         },
       },
     },

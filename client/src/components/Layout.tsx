@@ -278,21 +278,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative flex h-screen w-full overflow-hidden bg-background">
-      {/* Background Decorative Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-primary/5 blur-[120px] animate-glow-pulse" />
-        <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] rounded-full bg-blue-500/5 blur-[120px] animate-glow-pulse stagger-3" />
-      </div>
-
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-[280px] flex-shrink-0 flex-col z-20 border-r border-border/50 bg-sidebar/40 backdrop-blur-xl">
+      <aside className="hidden md:flex w-[280px] flex-shrink-0 flex-col z-20 border-r border-border/50 bg-sidebar">
         <SidebarContent location={location} handleSecretClick={handleSecretClick} logout={logout} />
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto flex flex-col w-full relative z-10 scroll-smooth">
         {/* Header */}
-        <header className="h-16 px-6 md:px-8 flex items-center justify-between sticky top-0 z-30 bg-background/60 backdrop-blur-md border-b border-border/40">
+        <header className="h-16 px-6 md:px-8 flex items-center justify-between sticky top-0 z-30 bg-background/95 border-b border-border/40">
           <div className="flex items-center gap-4">
             {/* Mobile Menu Trigger */}
             <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -339,7 +333,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Page Content Area */}
         <div className="px-6 sm:px-10 lg:px-12 py-8 sm:py-10 lg:py-12 max-w-7xl mx-auto w-full flex-1">
-          <div className="glass-card p-6 sm:p-10 lg:p-12 min-h-full flex flex-col shadow-strong animate-fade-in">
+            <div className="glass-card p-6 sm:p-10 lg:p-12 min-h-full flex flex-col shadow-lg animate-fade-in">
             {/* Internal Page Brand Header */}
             <div className="flex flex-wrap items-center gap-4 justify-between mb-8 sm:mb-10">
               <div className="flex items-center gap-4">
@@ -377,7 +371,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Footer */}
-        <footer className="px-4 py-3 border-t border-border/80 bg-white/90 backdrop-blur">
+        <footer className="px-4 py-3 border-t border-border/80 bg-background">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-muted-foreground">
             <div className="flex items-center gap-1.5 font-medium">
               <span>{new Date().getFullYear()} CareAssurance</span>
