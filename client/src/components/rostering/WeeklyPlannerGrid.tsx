@@ -13,17 +13,11 @@ type OptimizedRouteEntry = {
   serviceUserName: string | null;
   callTypeLabel: string | null;
   timeBandLabel: string | null;
-  requirementStartMinutes: number | null;
   scheduledStartMinutes: number | null;
   scheduledEndMinutes: number | null;
   durationMinutes: number | null;
-  shiftMinutes: number | null;
   isTimeCritical?: boolean;
   isDoubleUp?: boolean;
-  windowStartMinutes?: number | null;
-  windowEndMinutes?: number | null;
-  isOutsideWindow?: boolean;
-  hasWindowConflict?: boolean;
 };
 
 type CareWorkerRotaPayload = {

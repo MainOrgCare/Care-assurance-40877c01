@@ -515,8 +515,6 @@ interface CareWorkerRotaPayload {
   templateDay: WeekdayLabel;
   timeCriticalWindowEnforced: boolean;
   shiftBars: ShiftBarEntry[];
-  selectedGroupKeys: string[];
-  overrides: Record<string, TemplateOverride>;
   optimizedRun: OptimizedRouteEntry[];
 }
 
@@ -3317,32 +3315,17 @@ export default function TestingFeatures() {
       return;
     }
 
-    const overridePrefix = `${selectedCareWorker.key}::`;
-    const overrides = Object.entries(templateOverrides)
-      .filter(([key]) => key.startsWith(overridePrefix))
-      .reduce<Record<string, TemplateOverride>>((acc, [key, value]) => {
-        const groupKey = key.slice(overridePrefix.length);
-        acc[groupKey] = value;
-        return acc;
-      }, {});
-
     // Create minimal payload - only essential fields for storage
     const minimalOptimizedRun = optimizedRun.map((entry) => ({
       key: entry.key,
       serviceUserName: entry.serviceUserName,
       callTypeLabel: entry.callTypeLabel,
       timeBandLabel: entry.timeBandLabel,
-      requirementStartMinutes: entry.requirementStartMinutes,
       scheduledStartMinutes: entry.scheduledStartMinutes,
       scheduledEndMinutes: entry.scheduledEndMinutes,
       durationMinutes: entry.durationMinutes,
-      shiftMinutes: entry.shiftMinutes,
       isTimeCritical: entry.isTimeCritical,
       isDoubleUp: entry.isDoubleUp,
-      windowStartMinutes: entry.windowStartMinutes,
-      windowEndMinutes: entry.windowEndMinutes,
-      isOutsideWindow: entry.isOutsideWindow,
-      hasWindowConflict: entry.hasWindowConflict,
     }));
 
     const payload = {
@@ -3639,17 +3622,11 @@ export default function TestingFeatures() {
           serviceUserName: entry.serviceUserName,
           callTypeLabel: entry.callTypeLabel,
           timeBandLabel: entry.timeBandLabel,
-          requirementStartMinutes: entry.requirementStartMinutes,
           scheduledStartMinutes: entry.scheduledStartMinutes,
           scheduledEndMinutes: entry.scheduledEndMinutes,
           durationMinutes: entry.durationMinutes,
-          shiftMinutes: entry.shiftMinutes,
           isTimeCritical: entry.isTimeCritical,
           isDoubleUp: entry.isDoubleUp,
-          windowStartMinutes: entry.windowStartMinutes,
-          windowEndMinutes: entry.windowEndMinutes,
-          isOutsideWindow: entry.isOutsideWindow,
-          hasWindowConflict: entry.hasWindowConflict,
         }));
 
         const payload = {

@@ -18,18 +18,11 @@ type OptimizedRouteEntry = {
   serviceUserName: string | null;
   callTypeLabel: string | null;
   timeBandLabel: string | null;
-  requirementStartMinutes: number | null;
   scheduledStartMinutes: number | null;
   scheduledEndMinutes: number | null;
   durationMinutes: number | null;
-  shiftMinutes: number | null;
   isTimeCritical?: boolean;
   isDoubleUp?: boolean;
-  windowStartMinutes?: number | null;
-  windowEndMinutes?: number | null;
-  isOutsideWindow?: boolean;
-  hasWindowConflict?: boolean;
-  suggestedStartMinutes?: number | null;
 };
 
 type ShiftBarEntry = {
@@ -46,8 +39,6 @@ type CareWorkerRotaPayload = {
   timeCriticalWindowEnforced?: boolean;
   shiftBars?: ShiftBarEntry[];
   optimizedRun: OptimizedRouteEntry[];
-  selectedGroupKeys?: string[];
-  overrides?: Record<string, any>;
   workerStartMinutes?: number | null;
   workerEndMinutes?: number | null;
 };
@@ -232,8 +223,6 @@ export default function CareWorkerRotas() {
     const afterHardCount = scheduledEntries.filter(
       (entry) => (entry.scheduledEndMinutes as number) > ROSTER_DAY_HARD_END_MINUTES
     ).length;
-    const outsideWindowCount = scheduledEntries.filter((entry) => entry.isOutsideWindow).length;
-    const windowConflictCount = scheduledEntries.filter((entry) => entry.hasWindowConflict).length;
     const timeCriticalCount = entries.filter((entry) => entry.isTimeCritical).length;
     const doubleUpCount = entries.filter((entry) => entry.isDoubleUp).length;
 
@@ -248,8 +237,6 @@ export default function CareWorkerRotas() {
       beforeStartCount,
       afterSoftCount,
       afterHardCount,
-      outsideWindowCount,
-      windowConflictCount,
       timeCriticalCount,
       doubleUpCount,
     };
@@ -293,19 +280,8 @@ export default function CareWorkerRotas() {
     if (!selectedRota || !draftPayload) return;
     setSavingEdit(true);
     try {
-      const normalizedRun = draftPayload.optimizedRun.map((entry) => {
-        const hasWindow = typeof entry.windowStartMinutes === "number" && typeof entry.windowEndMinutes === "number";
-        const isTimeCritical = hasWindow ? Boolean(entry.isTimeCritical) : false;
-        return {
-          ...entry,
-          isTimeCritical,
-          suggestedStartMinutes: hasWindow ? entry.suggestedStartMinutes ?? null : null,
-        } as OptimizedRouteEntry;
-      });
-
       const payloadToSave: CareWorkerRotaPayload = {
         ...draftPayload,
-        optimizedRun: normalizedRun,
         workerStartMinutes:
           typeof draftPayload.workerStartMinutes === "number" ? draftPayload.workerStartMinutes : null,
         workerEndMinutes: typeof draftPayload.workerEndMinutes === "number" ? draftPayload.workerEndMinutes : null,
@@ -407,18 +383,11 @@ export default function CareWorkerRotas() {
       "Service User": entry.serviceUserName ?? "",
       "Call Type": entry.callTypeLabel ?? "",
       "Time Band": entry.timeBandLabel ?? "",
-      "Requirement Time": formatMinutesLabel(entry.requirementStartMinutes),
       "Scheduled Start": formatMinutesLabel(entry.scheduledStartMinutes),
       "Scheduled End": formatMinutesLabel(entry.scheduledEndMinutes),
       "Duration (mins)": typeof entry.durationMinutes === "number" ? Math.round(entry.durationMinutes) : "",
-      "Shift (mins)": typeof entry.shiftMinutes === "number" ? Math.round(entry.shiftMinutes) : "",
       "Time Critical": entry.isTimeCritical ? "Yes" : "No",
       "Double Up": entry.isDoubleUp ? "Yes" : "No",
-      "Window Start": formatMinutesLabel(entry.windowStartMinutes),
-      "Window End": formatMinutesLabel(entry.windowEndMinutes),
-      "Outside Window": entry.isOutsideWindow ? "Yes" : "No",
-      "Window Conflict": entry.hasWindowConflict ? "Yes" : "No",
-      "Suggested Start": formatMinutesLabel(entry.suggestedStartMinutes ?? null),
     }));
   }, []);
 
@@ -638,7 +607,7 @@ export default function CareWorkerRotas() {
                   />
                   <SummaryMetric
                     label="Warnings"
-                    value={`${rosterSummary.windowConflictCount + rosterSummary.outsideWindowCount + rosterSummary.afterHardCount}`}
+                    value={`${rosterSummary.beforeStartCount + rosterSummary.afterSoftCount + rosterSummary.afterHardCount}`}
                   />
                 </div>
               )}
@@ -708,9 +677,6 @@ export default function CareWorkerRotas() {
                           {isAfterHardLimit && (
                             <Badge variant="destructive" className="text-[10px]">Late</Badge>
                           )}
-                          {entry.isOutsideWindow && (
-                            <Badge variant="destructive" className="text-[10px]">Out</Badge>
-                          )}
                         </div>
                       </div>
 
@@ -765,7 +731,7 @@ export default function CareWorkerRotas() {
                             const left = Math.max(0, Math.min(98, (startOffset / timelineRange) * 100));
                             const width = Math.max(2, Math.min(100 - left, ((endOffset - startOffset) / timelineRange) * 100));
                             const color =
-                              isAfterHardLimit || entry.isOutsideWindow
+                              isAfterHardLimit
                                 ? "bg-red-500"
                                 : entry.isDoubleUp
                                 ? "bg-emerald-500"
