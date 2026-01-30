@@ -523,6 +523,7 @@ export default function TestingFeatures() {
   const { toast } = useToast();
   const isAdmin = user?.role === "admin";
   const [fileMeta, setFileMeta] = useState<FileMeta | null>(null);
+  const [sourceHash, setSourceHash] = useState<string | null>(null);
   const [analysisResults, setAnalysisResults] = useState<RowAnalysis[]>([]);
   const [processingState, setProcessingState] = useState<
     "idle" | "parsing" | "analyzing" | "complete"
@@ -1150,6 +1151,7 @@ export default function TestingFeatures() {
       setProcessingState("parsing");
       setProgress(0);
       setFileMeta(null);
+      setSourceHash(null);
       setConvertedBlob(null);
       setSelectedRow(null);
       setAnalysisResults([]);
@@ -1172,9 +1174,11 @@ export default function TestingFeatures() {
       try {
         const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
         let workbook: XLSX.WorkBook;
+        let fileSourceHash: string | null = null;
 
         if (isCsv) {
           const text = await file.text();
+          fileSourceHash = await createHash(text);
           workbook = XLSX.read(text, { type: "string" });
 
           const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
@@ -1185,6 +1189,7 @@ export default function TestingFeatures() {
           );
         } else {
           const data = await file.arrayBuffer();
+          fileSourceHash = await createHash(data);
           workbook = XLSX.read(data, { type: "array" });
           setConvertedBlob(null);
         }
@@ -1196,6 +1201,7 @@ export default function TestingFeatures() {
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: "" });
 
+        setSourceHash(fileSourceHash);
         setFileMeta({
           name: file.name,
           size: file.size,
@@ -1216,6 +1222,7 @@ export default function TestingFeatures() {
         }
       } catch (error) {
         console.error(error);
+        setSourceHash(null);
         toast({
           title: "Unable to process file",
           description: error instanceof Error ? error.message : "Unexpected error occurred.",
@@ -3710,6 +3717,7 @@ export default function TestingFeatures() {
   const handleReset = useCallback(() => {
     analysisJobRef.current = Date.now();
     setFileMeta(null);
+    setSourceHash(null);
     setConvertedBlob(null);
     setDownloadUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -4650,13 +4658,9 @@ export default function TestingFeatures() {
                     if (!fileMeta) return;
                     setIsSavingWorkbook(true);
                     try {
-                      // Create a deterministic hash from the file metadata
-                      const hashData = JSON.stringify({
-                        name: fileMeta.name,
-                        rows: primaryRows.length,
-                        workers: careWorkerRosters.map((r) => r.workerName).sort().join("|"),
-                      });
-                      const sourceHash = await createHash(hashData);
+                      if (!sourceHash) {
+                        throw new Error("File hash not available. Re-upload the workbook and try again.");
+                      }
 
                       // Convert Sets to arrays for JSON serialization
                       const serializableRosters = careWorkerRosters.map((roster) => ({
