@@ -5,11 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Search, RefreshCw, Shield, X, Download, Copy, Pencil, Calendar, Clock, Users } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RefreshCw, Shield, Download, Copy, Pencil, Calendar, Users } from "lucide-react";
 import { Link } from "wouter";
 import { WeeklyPlannerGrid } from "@/components/rostering/WeeklyPlannerGrid";
 
@@ -68,9 +69,40 @@ const TEMPLATE_WEEK_LABELS: Record<string, string> = {
   week1: "Week 1 (starts 05/01/26)",
   week2: "Week 2 (starts 12/01/26)",
 };
+const PLANNER_DAY_START_MINUTES = 0;
+const PLANNER_DAY_END_MINUTES = 24 * 60;
+const WEEKDAY_OPTIONS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
 const ROSTER_DAY_START_MINUTES = 6 * 60;
 const ROSTER_DAY_SOFT_END_MINUTES = 22 * 60;
 const ROSTER_DAY_HARD_END_MINUTES = 23 * 60;
+
+const getCallTypeTone = (callTypeLabel: string | null | undefined) => {
+  const label = (callTypeLabel || "").toLowerCase();
+  if (label.includes("am") || label.includes("morning")) {
+    return "bg-emerald-400 border-emerald-600 text-emerald-900";
+  }
+  if (label.includes("lunch")) {
+    return "bg-amber-300 border-amber-500 text-amber-900";
+  }
+  if (label.includes("tea")) {
+    return "bg-orange-300 border-orange-500 text-orange-900";
+  }
+  if (label.includes("evening") || label.includes("pm")) {
+    return "bg-lime-300 border-lime-500 text-lime-900";
+  }
+  if (label.includes("night")) {
+    return "bg-sky-300 border-sky-500 text-sky-900";
+  }
+  return "bg-yellow-300 border-yellow-500 text-yellow-900";
+};
 
 function formatMinutesLabel(minutes: number | null | undefined): string {
   if (typeof minutes !== "number" || Number.isNaN(minutes)) return "—";
@@ -131,6 +163,9 @@ export default function CareWorkerRotas() {
   const [isEditing, setIsEditing] = useState(false);
   const [draftPayload, setDraftPayload] = useState<CareWorkerRotaPayload | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [plannerWeek, setPlannerWeek] = useState<"week1" | "week2">("week1");
+  const [plannerDay, setPlannerDay] = useState<(typeof WEEKDAY_OPTIONS)[number]>("Monday");
+  const [selectedPlannerEntryId, setSelectedPlannerEntryId] = useState<string | null>(null);
 
   const fetchRotas = useCallback(async () => {
     setLoading(true);
@@ -194,6 +229,20 @@ export default function CareWorkerRotas() {
     }
   }, [selectedRota?.id, selectedRota?.payload]);
 
+  useEffect(() => {
+    if (!selectedRota) return;
+    if (selectedRota.templateWeek === "week1" || selectedRota.templateWeek === "week2") {
+      setPlannerWeek(selectedRota.templateWeek);
+    }
+    if (WEEKDAY_OPTIONS.includes(selectedRota.templateDay as (typeof WEEKDAY_OPTIONS)[number])) {
+      setPlannerDay(selectedRota.templateDay as (typeof WEEKDAY_OPTIONS)[number]);
+    }
+  }, [selectedRota]);
+
+  useEffect(() => {
+    setSelectedPlannerEntryId(null);
+  }, [plannerWeek, plannerDay]);
+
   const rosterSummary = useMemo(() => {
     const entries = activePayload?.optimizedRun ?? [];
     if (!entries.length) return null;
@@ -251,6 +300,116 @@ export default function CareWorkerRotas() {
       doubleUpCount,
     };
   }, [activePayload?.optimizedRun]);
+
+  const plannerRotas = useMemo(() => {
+    const filtered = rotas.filter(
+      (rota) => rota.templateWeek === plannerWeek && rota.templateDay === plannerDay
+    );
+    const byWorker = new Map<string, CareWorkerRotaRecord>();
+    filtered.forEach((rota) => {
+      const existing = byWorker.get(rota.workerKey);
+      if (!existing) {
+        byWorker.set(rota.workerKey, rota);
+        return;
+      }
+      const existingTime = new Date(existing.createdAt).getTime();
+      const nextTime = new Date(rota.createdAt).getTime();
+      if (Number.isFinite(nextTime) && nextTime > existingTime) {
+        byWorker.set(rota.workerKey, rota);
+      }
+    });
+    return Array.from(byWorker.values()).sort((a, b) =>
+      a.workerName.localeCompare(b.workerName)
+    );
+  }, [plannerDay, plannerWeek, rotas]);
+
+  const { plannerLanes, plannerUnscheduled, plannerEntryToRota } = useMemo(() => {
+    const entryToRota = new Map<string, CareWorkerRotaRecord>();
+    const unscheduled: Array<{
+      rota: CareWorkerRotaRecord;
+      entry: OptimizedRouteEntry;
+    }> = [];
+
+    const lanes = plannerRotas.map((rota) => {
+      const entries = (rota.payload?.optimizedRun ?? []).flatMap((entry) => {
+        const start = entry.scheduledStartMinutes;
+        const end = entry.scheduledEndMinutes;
+        if (typeof start !== "number" || typeof end !== "number") {
+          unscheduled.push({ rota, entry });
+          return [];
+        }
+        let duration =
+          typeof entry.durationMinutes === "number"
+            ? entry.durationMinutes
+            : end - start;
+        if (duration < 0) duration += 24 * 60;
+        const id = `${rota.id}::${entry.key}`;
+        entryToRota.set(id, rota);
+        return [
+          {
+            id,
+            title: entry.serviceUserName || entry.callTypeLabel || "Visit",
+            startMinutes: start,
+            durationMinutes: Math.max(5, duration || 0),
+            serviceUserName: entry.serviceUserName,
+            callTypeLabel: entry.callTypeLabel,
+            isTimeCritical: entry.isTimeCritical,
+            address: entry.serviceUserAddress ?? null,
+          },
+        ];
+      });
+
+      return {
+        id: rota.workerKey,
+        label: rota.workerName,
+        entries,
+      };
+    });
+
+    return { plannerLanes: lanes, plannerUnscheduled: unscheduled, plannerEntryToRota: entryToRota };
+  }, [plannerRotas]);
+
+  const plannerSummary = useMemo(() => {
+    const totalCalls = plannerLanes.reduce((acc, lane) => acc + lane.entries.length, 0);
+    return {
+      totalWorkers: plannerLanes.length,
+      totalCalls,
+      unscheduledCount: plannerUnscheduled.length,
+    };
+  }, [plannerLanes, plannerUnscheduled.length]);
+
+  const plannerDayRows = useMemo(() => {
+    const totals = WEEKDAY_OPTIONS.map((day) => ({
+      day,
+      unallocated: 0,
+      allocated: 0,
+    }));
+    const dayIndex = new Map(WEEKDAY_OPTIONS.map((day, idx) => [day, idx]));
+    rotas
+      .filter((rota) => rota.templateWeek === plannerWeek)
+      .forEach((rota) => {
+        const idx = dayIndex.get(rota.templateDay as (typeof WEEKDAY_OPTIONS)[number]);
+        if (typeof idx !== "number") return;
+        const rows = rota.payload?.optimizedRun ?? [];
+        rows.forEach((entry) => {
+          const hasSchedule =
+            typeof entry.scheduledStartMinutes === "number" &&
+            typeof entry.scheduledEndMinutes === "number";
+          if (hasSchedule) totals[idx].allocated += 1;
+          else totals[idx].unallocated += 1;
+        });
+      });
+    return totals;
+  }, [plannerWeek, rotas]);
+
+  const plannerLaneStats = useMemo(() => {
+    const map = new Map<string, { totalMinutes: number; callCount: number }>();
+    plannerLanes.forEach((lane) => {
+      const totalMinutes = lane.entries.reduce((acc, entry) => acc + entry.durationMinutes, 0);
+      map.set(lane.id, { totalMinutes, callCount: lane.entries.length });
+    });
+    return map;
+  }, [plannerLanes]);
 
   const handleUpdateEntry = useCallback(
     (entryKey: string, updates: Partial<OptimizedRouteEntry>) => {
@@ -484,7 +643,7 @@ export default function CareWorkerRotas() {
           <p className="text-sm font-medium uppercase tracking-wide text-primary">Admin Library</p>
           <h1 className="text-3xl font-heading font-bold text-foreground">Care Worker Rotas</h1>
           <p className="text-muted-foreground">
-            Weekly planner grid showing all saved rotas by care worker and day.
+            Daily planner timeline and weekly grid for saved care worker rotas.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -517,18 +676,268 @@ export default function CareWorkerRotas() {
       </div>
 
       {/* Main grid card */}
-      <Card className="overflow-hidden">
-        <CardContent className="p-0">
-          <div className="h-[calc(100vh-220px)] min-h-[500px]">
-            <WeeklyPlannerGrid
-              rotas={rotas}
-              selectedRotaId={selectedRotaId}
-              onSelectRota={setSelectedRotaId}
-              loading={loading}
-            />
+      <Tabs defaultValue="planner" className="space-y-3">
+        <TabsList>
+          <TabsTrigger value="planner">Daily planner</TabsTrigger>
+          <TabsTrigger value="weekly">Weekly grid</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="planner">
+          <div className="space-y-3">
+            <Card className="border-border/60">
+              <CardContent className="p-3">
+                <div className="grid gap-3 md:grid-cols-[1.2fr_1fr_1fr_1fr] items-end">
+                  <div className="space-y-1">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Branch</p>
+                    <Select defaultValue="all">
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Branch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Area</p>
+                    <Select defaultValue="all">
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Area" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Type</p>
+                    <Select defaultValue="all">
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Date</p>
+                    <div className="flex gap-2">
+                      <Select value={plannerWeek} onValueChange={(value) => setPlannerWeek(value as "week1" | "week2")}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Week" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="week1">{TEMPLATE_WEEK_LABELS.week1}</SelectItem>
+                          <SelectItem value="week2">{TEMPLATE_WEEK_LABELS.week2}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={plannerDay} onValueChange={(value) => setPlannerDay(value as (typeof WEEKDAY_OPTIONS)[number])}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Day" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {WEEKDAY_OPTIONS.map((day) => (
+                            <SelectItem key={day} value={day}>
+                              {day}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="grid gap-3 xl:grid-cols-[1fr_320px]">
+              <Card className="border-border/60 overflow-hidden">
+                <CardHeader className="border-b bg-muted/20">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <CardTitle className="text-base">Employees</CardTitle>
+                      <CardDescription>
+                        {plannerDay} • {TEMPLATE_WEEK_LABELS[plannerWeek]}
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-md border px-3 py-1.5 text-xs text-muted-foreground">
+                      <span>{plannerSummary.totalWorkers} workers</span>
+                      <span>•</span>
+                      <span>{plannerSummary.totalCalls} visits</span>
+                      <span>•</span>
+                      <span>{plannerSummary.unscheduledCount} unallocated</span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="max-h-[calc(100vh-340px)] min-h-[520px] overflow-auto">
+                    <div className="min-w-[1200px]">
+                      <div className="flex border-b bg-muted/30 text-[11px] font-medium text-muted-foreground">
+                        <div className="w-[260px] px-3 py-2 border-r">Employees</div>
+                        <div className="relative flex-1">
+                          <div className="h-8">
+                            {Array.from({ length: 25 }).map((_, idx) => {
+                              const minutes = PLANNER_DAY_START_MINUTES + idx * 60;
+                              const left = ((minutes - PLANNER_DAY_START_MINUTES) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
+                              return (
+                                <div
+                                  key={`tick-${idx}`}
+                                  className="absolute inset-y-0 flex items-center"
+                                  style={{ left: `${left}%` }}
+                                >
+                                  <div className="h-8 w-px bg-border/60" />
+                                  <span className="ml-1">{formatMinutesLabel(minutes)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {plannerLanes.length === 0 ? (
+                        <div className="px-4 py-8 text-sm text-muted-foreground">No saved rotas for this day.</div>
+                      ) : (
+                        plannerLanes.map((lane, idx) => {
+                          const stats = plannerLaneStats.get(lane.id);
+                          return (
+                            <div
+                              key={lane.id}
+                              className={`flex border-b ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"}`}
+                            >
+                              <div className="w-[260px] border-r px-3 py-3">
+                                <p className="text-sm font-semibold">{lane.label}</p>
+                                <p className="text-[11px] text-muted-foreground">
+                                  {stats?.callCount ?? 0} visits • {formatDurationLabel(stats?.totalMinutes ?? 0)}
+                                </p>
+                              </div>
+                              <div className="relative flex-1 h-14">
+                                {Array.from({ length: 25 }).map((_, idx2) => {
+                                  const minutes = PLANNER_DAY_START_MINUTES + idx2 * 60;
+                                  const left = ((minutes - PLANNER_DAY_START_MINUTES) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
+                                  return (
+                                    <div
+                                      key={`grid-${lane.id}-${idx2}`}
+                                      className="absolute inset-y-0 w-px bg-border/30"
+                                      style={{ left: `${left}%` }}
+                                    />
+                                  );
+                                })}
+                                {lane.entries.map((entry) => {
+                                  const start = Math.max(entry.startMinutes, PLANNER_DAY_START_MINUTES);
+                                  const end = Math.min(entry.startMinutes + entry.durationMinutes, PLANNER_DAY_END_MINUTES);
+                                  const left = ((start - PLANNER_DAY_START_MINUTES) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
+                                  const width = ((end - start) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
+                                  const tone = getCallTypeTone(entry.callTypeLabel);
+                                  const isSelected = selectedPlannerEntryId === entry.id;
+                                  return (
+                                    <button
+                                      key={entry.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedPlannerEntryId(entry.id);
+                                        const rota = plannerEntryToRota.get(entry.id);
+                                        if (rota) setSelectedRotaId(rota.id);
+                                      }}
+                                      className={`absolute top-1 h-12 rounded-md border-l-4 px-2 text-left text-[11px] font-semibold shadow-sm transition hover:brightness-105 ${tone} ${
+                                        isSelected ? "ring-2 ring-primary/40" : ""
+                                      }`}
+                                      style={{ left: `${left}%`, width: `${Math.max(width, 1.5)}%` }}
+                                    >
+                                      <div className="truncate">{entry.title}</div>
+                                      <div className="text-[10px] font-normal opacity-80">
+                                        {formatMinutesLabel(entry.startMinutes)} • {Math.round(entry.durationMinutes)}m
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="space-y-3">
+                <Card className="border-border/60">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Info</CardTitle>
+                    <CardDescription>Allocated vs unallocated visits.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-xs">
+                    <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 text-[11px] font-semibold text-muted-foreground">
+                      <span>Date</span>
+                      <span className="text-right">Unallocated</span>
+                      <span className="text-right">Allocated</span>
+                    </div>
+                    {plannerDayRows.map((row) => (
+                      <div key={row.day} className="grid grid-cols-[1fr_1fr_1fr] gap-2 text-xs">
+                        <span className={row.day === plannerDay ? "font-semibold text-foreground" : "text-muted-foreground"}>
+                          {row.day.slice(0, 3)}
+                        </span>
+                        <span className="text-right text-red-500">{row.unallocated}</span>
+                        <span className="text-right text-emerald-600">{row.allocated}</span>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border/60">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Unallocated calls</CardTitle>
+                    <CardDescription>
+                      Calls without scheduled times for {plannerDay}.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {plannerUnscheduled.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">All calls are scheduled.</p>
+                    ) : (
+                      plannerUnscheduled.map(({ rota, entry }) => (
+                        <button
+                          key={`${rota.id}-${entry.key}`}
+                          type="button"
+                          onClick={() => setSelectedRotaId(rota.id)}
+                          className="w-full rounded-lg border bg-background px-3 py-2 text-left transition hover:bg-muted/40"
+                        >
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium truncate">{entry.serviceUserName || "Unknown"}</p>
+                            {entry.isTimeCritical && (
+                              <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-600">
+                                TC
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {rota.workerName} • {entry.callTypeLabel || "Visit"}
+                          </p>
+                        </button>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        </TabsContent>
+
+        <TabsContent value="weekly">
+          <Card className="overflow-hidden">
+            <CardContent className="p-0">
+              <div className="h-[calc(100vh-220px)] min-h-[500px]">
+                <WeeklyPlannerGrid
+                  rotas={rotas}
+                  selectedRotaId={selectedRotaId}
+                  onSelectRota={setSelectedRotaId}
+                  loading={loading}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Detail sheet (slide-out panel) */}
       <Sheet open={!!selectedRota} onOpenChange={(open) => !open && setSelectedRotaId(null)}>

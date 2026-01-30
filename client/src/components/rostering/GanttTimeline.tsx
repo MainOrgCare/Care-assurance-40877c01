@@ -23,6 +23,7 @@ export interface GanttTimelineProps {
   selectedEntryId?: string | null;
   showConflicts?: boolean;
   showTravelGaps?: boolean;
+  enableDrag?: boolean;
 }
 
 const formatTimeLabel = (minutes: number) => {
@@ -92,6 +93,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   selectedEntryId,
   showConflicts = true,
   showTravelGaps = true,
+  enableDrag = true,
 }) => {
   const totalMinutes = Math.max(endMinutes - startMinutes, 1);
   const hours = Math.ceil(totalMinutes / 60);
@@ -324,6 +326,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                           onSelect={onSelectEntry}
                           isSelected={selectedEntryId === entry.id}
                           hasConflict={allConflicts.has(entry.id)}
+                          enableDrag={enableDrag}
                         />
                       ))}
                     </div>
@@ -346,6 +349,7 @@ interface DraggableEntryProps {
   onSelect?: (entry: TimelineEntry) => void;
   isSelected?: boolean;
   hasConflict?: boolean;
+  enableDrag?: boolean;
 }
 
 const DraggableEntry: React.FC<DraggableEntryProps> = ({
@@ -356,8 +360,12 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
   onSelect,
   isSelected = false,
   hasConflict = false,
+  enableDrag = true,
 }) => {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: entry.id });
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: entry.id,
+    disabled: !enableDrag,
+  });
   const start = clamp(entry.startMinutes, startMinutes, endMinutes);
   const end = clamp(entry.startMinutes + entry.durationMinutes, startMinutes, endMinutes);
   const left = ((start - startMinutes) / totalMinutes) * 100;
