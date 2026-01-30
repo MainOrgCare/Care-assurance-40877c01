@@ -437,6 +437,8 @@ html.theme-light body {
     gap: 2rem;
     animation: fade-in 0.3s ease-out forwards;
     contain: layout style;
+    min-height: 100%;
+    flex: 1 1 auto;
   }
   .page-shell-compact {
     display: flex;
@@ -444,6 +446,8 @@ html.theme-light body {
     gap: 1.5rem;
     animation: fade-in 0.3s ease-out forwards;
     contain: layout style;
+    min-height: 100%;
+    flex: 1 1 auto;
   }
   .page-title {
     font-family: var(--font-heading);

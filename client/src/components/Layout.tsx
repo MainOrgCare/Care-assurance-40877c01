@@ -332,8 +332,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page Content Area */}
-        <div className="px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6 w-full flex-1">
-            <div className="glass-card rounded-lg border border-border/70 p-4 sm:p-6 lg:p-8 min-h-full flex flex-col shadow-md animate-fade-in w-full">
+        <div className="px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6 w-full flex-1 min-h-0">
+            <div className="glass-card rounded-lg border border-border/70 p-4 sm:p-6 lg:p-8 flex-1 min-h-0 flex flex-col shadow-md animate-fade-in w-full">
             {/* Internal Page Brand Header */}
             <div className="flex flex-wrap items-center gap-4 justify-between mb-8 sm:mb-10">
               <div className="flex items-center gap-4">
@@ -365,7 +365,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <div className="mt-6 h-32 w-full bg-muted/30 rounded-xl" />
               </div>
             }>
-              {children}
+              <div className="flex-1 min-h-0 flex flex-col">
+                {children}
+              </div>
             </Suspense>
           </div>
         </div>
