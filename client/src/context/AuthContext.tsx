@@ -92,7 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: "include",
       });
       if (response.ok) {
-        const logs = await response.json();
+        const payload = await response.json();
+        const logs = Array.isArray(payload) ? payload : Array.isArray(payload?.logs) ? payload.logs : [];
         setAuditLogs(logs.map(mapSystemLog));
       }
     } catch (error) {
