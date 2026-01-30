@@ -113,3 +113,34 @@ test("careWorkerRota: rejects too many selectedGroupKeys", () => {
     });
   });
 });
+
+test("careWorkerRota: rejects overlapping calls", () => {
+  assert.throws(() => {
+    careWorkerRotaPayloadSchema.parse({
+      workerName: "Alice",
+      workerKey: "alice",
+      templateWeek: "week1",
+      templateDay: "Monday",
+      optimizedRun: [
+        {
+          key: "k1",
+          serviceUserName: "Sue",
+          callTypeLabel: "AM",
+          timeBandLabel: "AM",
+          scheduledStartMinutes: 540,
+          scheduledEndMinutes: 600,
+          durationMinutes: 60,
+        },
+        {
+          key: "k2",
+          serviceUserName: "Bob",
+          callTypeLabel: "AM",
+          timeBandLabel: "AM",
+          scheduledStartMinutes: 590,
+          scheduledEndMinutes: 630,
+          durationMinutes: 40,
+        },
+      ],
+    });
+  });
+});

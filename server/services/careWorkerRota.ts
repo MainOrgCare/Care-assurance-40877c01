@@ -52,6 +52,39 @@ const rotaEntrySchema = z.object({
   suggestedStartMinutes: nullableTimeOfDaySchema,
 });
 
+const computeEntryRange = (entry: z.infer<typeof rotaEntrySchema>): { start: number; end: number } | null => {
+  const start = typeof entry.scheduledStartMinutes === "number" ? entry.scheduledStartMinutes : null;
+  if (typeof start !== "number") return null;
+  let end: number | null = null;
+  if (typeof entry.scheduledEndMinutes === "number") {
+    end = entry.scheduledEndMinutes;
+  } else if (typeof entry.durationMinutes === "number") {
+    end = start + entry.durationMinutes;
+  }
+  if (typeof end !== "number") return null;
+  if (end < start) end += 24 * 60;
+  return { start, end };
+};
+
+const findFirstOverlap = (entries: z.infer<typeof rotaEntrySchema>[]) => {
+  const ranges = entries
+    .map((entry) => {
+      const range = computeEntryRange(entry);
+      if (!range) return null;
+      return { entry, ...range };
+    })
+    .filter(Boolean) as Array<{ entry: z.infer<typeof rotaEntrySchema>; start: number; end: number }>;
+  ranges.sort((a, b) => a.start - b.start);
+  for (let i = 1; i < ranges.length; i++) {
+    const prev = ranges[i - 1];
+    const curr = ranges[i];
+    if (curr.start < prev.end) {
+      return { first: prev.entry, second: curr.entry };
+    }
+  }
+  return null;
+};
+
 const rotaOverrideSchema = z.object({
   week1Days: z.array(rotaWeekdayEnum).max(7).default([]),
   week2Days: z.array(rotaWeekdayEnum).max(7).default([]),
@@ -89,6 +122,15 @@ export const careWorkerRotaPayloadSchema = z.object({
   selectedGroupKeys: z.array(z.string().trim().min(1).max(MAX_ENTRY_KEY_LENGTH)).max(MAX_GROUP_KEYS).default([]),
   optimizedRun: z.array(rotaEntrySchema).max(MAX_OPTIMIZED_RUN_ENTRIES).default([]),
   overrides: overridesSchema,
+}).superRefine((payload, ctx) => {
+  const overlap = findFirstOverlap(payload.optimizedRun || []);
+  if (overlap) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Overlapping calls detected (${overlap.first.key} overlaps ${overlap.second.key}).`,
+      path: ["optimizedRun"],
+    });
+  }
 });
 
 export type CareWorkerRotaPayload = z.infer<typeof careWorkerRotaPayloadSchema>;

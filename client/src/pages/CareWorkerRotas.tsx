@@ -65,6 +65,48 @@ type CareWorkerRotaRecord = {
   createdAt: string;
 };
 
+type WorkbookSummary = {
+  id: string;
+  name: string;
+  fileName: string;
+  totalRows: number;
+  careWorkerCount: number;
+  serviceUserCount: number;
+  callGroupCount: number;
+  createdByUsername?: string | null;
+  createdAt: string;
+};
+
+type WorkerCallGroup = {
+  key: string;
+  serviceUserName: string | null;
+  serviceUserArea?: string | null;
+  serviceUserAddress?: string | null;
+  normalizedServiceUserKey?: string | null;
+  callTypeLabel: string | null;
+  timeBandLabel?: string | null;
+  requirementStartMinutes: number | null;
+  durationMinutes: number | null;
+  totalCalls: number;
+  isTimeCritical: boolean;
+};
+
+type WorkbookCareWorkerRoster = {
+  key: string;
+  workerName: string;
+  workerNameNormalized: string;
+  callGroups: WorkerCallGroup[];
+  shiftBars?: ShiftBarEntry[];
+};
+
+type WorkbookFull = {
+  id: string;
+  name: string;
+  fileName: string;
+  careWorkerRosters: WorkbookCareWorkerRoster[];
+  createdAt: string;
+};
+
 const TEMPLATE_WEEK_LABELS: Record<string, string> = {
   week1: "Week 1",
   week2: "Week 2",
@@ -137,6 +179,38 @@ function formatDurationLabel(minutes: number | null | undefined): string {
   return parts.join(" ");
 }
 
+function buildScheduledEnd(
+  startMinutes: number | null,
+  scheduledEndMinutes: number | null | undefined,
+  durationMinutes: number | null | undefined
+): number | null {
+  if (typeof startMinutes !== "number") return null;
+  if (typeof scheduledEndMinutes === "number") return scheduledEndMinutes;
+  if (typeof durationMinutes === "number") return startMinutes + durationMinutes;
+  return null;
+}
+
+function findOverlap(entries: OptimizedRouteEntry[]): { first: OptimizedRouteEntry; second: OptimizedRouteEntry } | null {
+  const scheduled = entries
+    .map((entry) => {
+      const start = typeof entry.scheduledStartMinutes === "number" ? entry.scheduledStartMinutes : null;
+      const end = buildScheduledEnd(start, entry.scheduledEndMinutes, entry.durationMinutes);
+      if (typeof start !== "number" || typeof end !== "number") return null;
+      const normalizedEnd = end < start ? end + 24 * 60 : end;
+      return { entry, start, end: normalizedEnd };
+    })
+    .filter(Boolean) as Array<{ entry: OptimizedRouteEntry; start: number; end: number }>;
+  scheduled.sort((a, b) => a.start - b.start);
+  for (let i = 1; i < scheduled.length; i++) {
+    const prev = scheduled[i - 1];
+    const curr = scheduled[i];
+    if (curr.start < prev.end) {
+      return { first: prev.entry, second: curr.entry };
+    }
+  }
+  return null;
+}
+
 function formatDateLabel(isoString: string | null | undefined): string {
   if (!isoString) return "—";
   const date = new Date(isoString);
@@ -167,6 +241,12 @@ export default function CareWorkerRotas() {
   const [plannerDay, setPlannerDay] = useState<(typeof WEEKDAY_OPTIONS)[number]>("Monday");
   const [selectedPlannerEntryId, setSelectedPlannerEntryId] = useState<string | null>(null);
   const [plannerZoom, setPlannerZoom] = useState(1);
+  const [workbooks, setWorkbooks] = useState<WorkbookSummary[]>([]);
+  const [workbooksLoading, setWorkbooksLoading] = useState(false);
+  const [selectedWorkbookId, setSelectedWorkbookId] = useState<string | null>(null);
+  const [selectedWorkbook, setSelectedWorkbook] = useState<WorkbookFull | null>(null);
+  const [selectedWorkbookWorkerKey, setSelectedWorkbookWorkerKey] = useState<string | null>(null);
+  const [isCreatingRota, setIsCreatingRota] = useState(false);
 
   const fetchRotas = useCallback(async () => {
     setLoading(true);
@@ -210,6 +290,64 @@ export default function CareWorkerRotas() {
     fetchRotas();
   }, [fetchRotas]);
 
+  const fetchWorkbooks = useCallback(async () => {
+    setWorkbooksLoading(true);
+    try {
+      const response = await fetch("/api/admin/testing-features/workbooks", {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error(`Unable to load workbooks (HTTP ${response.status}).`);
+      }
+      const data = await response.json();
+      setWorkbooks(Array.isArray(data) ? data : []);
+    } catch (error: any) {
+      toast({
+        title: "Workbook load failed",
+        description: error.message || "Unable to load saved workbooks.",
+        variant: "destructive",
+      });
+    } finally {
+      setWorkbooksLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchWorkbooks();
+  }, [fetchWorkbooks]);
+
+  const fetchWorkbook = useCallback(
+    async (id: string) => {
+      try {
+        const response = await fetch(`/api/admin/testing-features/workbooks/${id}`, {
+          credentials: "include",
+        });
+        if (!response.ok) {
+          throw new Error(`Unable to load workbook details (HTTP ${response.status}).`);
+        }
+        const data = await response.json();
+        setSelectedWorkbook(data);
+      } catch (error: any) {
+        setSelectedWorkbook(null);
+        toast({
+          title: "Workbook load failed",
+          description: error.message || "Unable to load workbook details.",
+          variant: "destructive",
+        });
+      }
+    },
+    [toast]
+  );
+
+  useEffect(() => {
+    if (!selectedWorkbookId) {
+      setSelectedWorkbook(null);
+      setSelectedWorkbookWorkerKey(null);
+      return;
+    }
+    fetchWorkbook(selectedWorkbookId);
+  }, [fetchWorkbook, selectedWorkbookId]);
+
   const selectedRota = useMemo(
     () => rotas.find((rota) => rota.id === selectedRotaId) ?? null,
     [rotas, selectedRotaId]
@@ -243,6 +381,20 @@ export default function CareWorkerRotas() {
   useEffect(() => {
     setSelectedPlannerEntryId(null);
   }, [plannerWeek, plannerDay]);
+
+  useEffect(() => {
+    if (!selectedWorkbook?.careWorkerRosters?.length) {
+      setSelectedWorkbookWorkerKey(null);
+      return;
+    }
+    if (
+      selectedWorkbookWorkerKey &&
+      selectedWorkbook.careWorkerRosters.some((worker) => worker.key === selectedWorkbookWorkerKey)
+    ) {
+      return;
+    }
+    setSelectedWorkbookWorkerKey(selectedWorkbook.careWorkerRosters[0]?.key ?? null);
+  }, [selectedWorkbook, selectedWorkbookWorkerKey]);
 
   const rosterSummary = useMemo(() => {
     const entries = activePayload?.optimizedRun ?? [];
@@ -412,6 +564,133 @@ export default function CareWorkerRotas() {
     return map;
   }, [plannerLanes]);
 
+  const buildNonOverlappingRun = useCallback((entries: OptimizedRouteEntry[]) => {
+    const scheduled = entries
+      .map((entry) => ({
+        ...entry,
+        scheduledStartMinutes: typeof entry.scheduledStartMinutes === "number" ? entry.scheduledStartMinutes : null,
+        durationMinutes: typeof entry.durationMinutes === "number" ? entry.durationMinutes : null,
+      }))
+      .sort((a, b) => {
+        const aStart = typeof a.scheduledStartMinutes === "number" ? a.scheduledStartMinutes : Number.POSITIVE_INFINITY;
+        const bStart = typeof b.scheduledStartMinutes === "number" ? b.scheduledStartMinutes : Number.POSITIVE_INFINITY;
+        return aStart - bStart;
+      });
+
+    let cursor = 0;
+    return scheduled.map((entry) => {
+      if (typeof entry.scheduledStartMinutes !== "number") {
+        return { ...entry, scheduledEndMinutes: null };
+      }
+      const duration = typeof entry.durationMinutes === "number" ? entry.durationMinutes : 30;
+      const start = Math.max(entry.scheduledStartMinutes, cursor);
+      const end = Math.min(24 * 60, start + duration);
+      cursor = end;
+      if (start >= 24 * 60) {
+        return { ...entry, scheduledStartMinutes: null, scheduledEndMinutes: null };
+      }
+      return { ...entry, scheduledStartMinutes: start, scheduledEndMinutes: end };
+    });
+  }, []);
+
+  const handleCreateRota = useCallback(async () => {
+    if (!selectedWorkbook || !selectedWorkbookWorkerKey) {
+      toast({
+        title: "Select a workbook",
+        description: "Choose a saved workbook and care worker to build a rota.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const roster = selectedWorkbook.careWorkerRosters.find((worker) => worker.key === selectedWorkbookWorkerKey);
+    if (!roster) {
+      toast({
+        title: "Care worker missing",
+        description: "The selected care worker was not found in this workbook.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const baseEntries: OptimizedRouteEntry[] = roster.callGroups.map((group) => {
+      const startMinutes = typeof group.requirementStartMinutes === "number" ? group.requirementStartMinutes : null;
+      const duration = typeof group.durationMinutes === "number" ? group.durationMinutes : null;
+      return {
+        key: group.key,
+        serviceUserName: group.serviceUserName ?? null,
+        serviceUserArea: group.serviceUserArea ?? null,
+        serviceUserAddress: group.serviceUserAddress ?? null,
+        callTypeLabel: group.callTypeLabel ?? null,
+        timeBandLabel: group.timeBandLabel ?? null,
+        requirementStartMinutes: startMinutes,
+        scheduledStartMinutes: startMinutes,
+        scheduledEndMinutes: startMinutes !== null && duration !== null ? startMinutes + duration : null,
+        durationMinutes: duration,
+        shiftMinutes: null,
+        travelMinutesEstimated: null,
+        isTimeCritical: group.isTimeCritical,
+        isDoubleUp: false,
+        windowStartMinutes: null,
+        windowEndMinutes: null,
+        isOutsideWindow: false,
+        hasWindowConflict: false,
+        suggestedStartMinutes: null,
+      };
+    });
+
+    const scheduledRun = buildNonOverlappingRun(baseEntries);
+    const overlap = findOverlap(scheduledRun);
+    if (overlap) {
+      toast({
+        title: "Overlapping calls",
+        description: "Unable to build a rota without overlapping visits.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreatingRota(true);
+    try {
+      const payload: CareWorkerRotaPayload = {
+        workerName: roster.workerName,
+        workerKey: roster.key,
+        templateWeek: plannerWeek,
+        templateDay: plannerDay,
+        timeCriticalWindowEnforced: false,
+        shiftBars: roster.shiftBars ?? [],
+        optimizedRun: scheduledRun,
+      };
+
+      const response = await fetch("/api/admin/care-worker-rotas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Unable to save rota.");
+      }
+
+      toast({
+        title: result.deduped ? "Rota already exists" : "Rota created",
+        description: result.deduped
+          ? "An identical rota already exists in the library."
+          : "The new rota has been saved to the library.",
+      });
+      fetchRotas();
+      setSelectedRotaId(result.rota?.id ?? null);
+    } catch (error: any) {
+      toast({
+        title: "Create failed",
+        description: error.message || "Unable to create a rota.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingRota(false);
+    }
+  }, [buildNonOverlappingRun, fetchRotas, plannerDay, plannerWeek, selectedWorkbook, selectedWorkbookWorkerKey, toast]);
+
   const handleUpdateEntry = useCallback(
     (entryKey: string, updates: Partial<OptimizedRouteEntry>) => {
       setDraftPayload((prev) => {
@@ -448,6 +727,15 @@ export default function CareWorkerRotas() {
 
   const handleSaveEdits = useCallback(async () => {
     if (!selectedRota || !draftPayload) return;
+    const overlap = findOverlap(draftPayload.optimizedRun ?? []);
+    if (overlap) {
+      toast({
+        title: "Overlapping calls",
+        description: "Adjust the rota times so no visits overlap.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSavingEdit(true);
     try {
       const payloadToSave: CareWorkerRotaPayload = {
@@ -677,6 +965,108 @@ export default function CareWorkerRotas() {
       </div>
 
       {/* Main grid card */}
+      <Card className="border-border/60">
+        <CardHeader className="border-b bg-muted/20">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <CardTitle className="text-base">Create rota from saved workbook</CardTitle>
+              <CardDescription>
+                Use analyzed workbook data to generate a new rota in this library.
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={fetchWorkbooks}
+              disabled={workbooksLoading}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${workbooksLoading ? "animate-spin" : ""}`} />
+              Refresh workbooks
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-[1.2fr_1fr_1fr_auto] items-end p-4">
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Workbook</p>
+            <Select
+              value={selectedWorkbookId ?? ""}
+              onValueChange={(value) => setSelectedWorkbookId(value)}
+            >
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Select a saved workbook" />
+              </SelectTrigger>
+              <SelectContent>
+                {workbooks.length === 0 && (
+                  <SelectItem value="none" disabled>
+                    No saved workbooks
+                  </SelectItem>
+                )}
+                {workbooks.map((workbook) => (
+                  <SelectItem key={workbook.id} value={workbook.id}>
+                    {workbook.name || workbook.fileName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Care worker</p>
+            <Select
+              value={selectedWorkbookWorkerKey ?? ""}
+              onValueChange={(value) => setSelectedWorkbookWorkerKey(value)}
+              disabled={!selectedWorkbook?.careWorkerRosters?.length}
+            >
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Select a care worker" />
+              </SelectTrigger>
+              <SelectContent>
+                {(selectedWorkbook?.careWorkerRosters ?? []).map((worker) => (
+                  <SelectItem key={worker.key} value={worker.key}>
+                    {worker.workerName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Template</p>
+            <div className="flex gap-2">
+              <Select value={plannerWeek} onValueChange={(value) => setPlannerWeek(value as "week1" | "week2")}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Week" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="week1">{TEMPLATE_WEEK_LABELS.week1}</SelectItem>
+                  <SelectItem value="week2">{TEMPLATE_WEEK_LABELS.week2}</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={plannerDay} onValueChange={(value) => setPlannerDay(value as (typeof WEEKDAY_OPTIONS)[number])}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Day" />
+                </SelectTrigger>
+                <SelectContent>
+                  {WEEKDAY_OPTIONS.map((day) => (
+                    <SelectItem key={day} value={day}>
+                      {day}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            className="h-9"
+            onClick={handleCreateRota}
+            disabled={isCreatingRota || !selectedWorkbookId || !selectedWorkbookWorkerKey}
+          >
+            {isCreatingRota ? "Creating..." : "Create rota"}
+          </Button>
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="planner" className="space-y-3">
         <TabsList>
           <TabsTrigger value="planner">Daily planner</TabsTrigger>
