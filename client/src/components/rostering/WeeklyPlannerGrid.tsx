@@ -11,13 +11,23 @@ import { cn } from "@/lib/utils";
 type OptimizedRouteEntry = {
   key: string;
   serviceUserName: string | null;
+  serviceUserArea?: string | null;
+  serviceUserAddress?: string | null;
   callTypeLabel: string | null;
   timeBandLabel: string | null;
+  requirementStartMinutes?: number | null;
   scheduledStartMinutes: number | null;
   scheduledEndMinutes: number | null;
   durationMinutes: number | null;
+  shiftMinutes?: number | null;
+  travelMinutesEstimated?: number | null;
   isTimeCritical?: boolean;
   isDoubleUp?: boolean;
+  windowStartMinutes?: number | null;
+  windowEndMinutes?: number | null;
+  isOutsideWindow?: boolean;
+  hasWindowConflict?: boolean;
+  suggestedStartMinutes?: number | null;
 };
 
 type CareWorkerRotaPayload = {

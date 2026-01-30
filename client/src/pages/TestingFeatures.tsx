@@ -3319,13 +3319,23 @@ export default function TestingFeatures() {
     const minimalOptimizedRun = optimizedRun.map((entry) => ({
       key: entry.key,
       serviceUserName: entry.serviceUserName,
+      serviceUserArea: entry.serviceUserArea,
+      serviceUserAddress: entry.serviceUserAddress,
       callTypeLabel: entry.callTypeLabel,
       timeBandLabel: entry.timeBandLabel,
+      requirementStartMinutes: entry.requirementStartMinutes,
       scheduledStartMinutes: entry.scheduledStartMinutes,
       scheduledEndMinutes: entry.scheduledEndMinutes,
       durationMinutes: entry.durationMinutes,
+      shiftMinutes: entry.shiftMinutes,
+      travelMinutesEstimated: entry.travelMinutesEstimated,
       isTimeCritical: entry.isTimeCritical,
       isDoubleUp: entry.isDoubleUp,
+      windowStartMinutes: entry.windowStartMinutes,
+      windowEndMinutes: entry.windowEndMinutes,
+      isOutsideWindow: entry.isOutsideWindow,
+      hasWindowConflict: entry.hasWindowConflict,
+      suggestedStartMinutes: entry.suggestedStartMinutes ?? null,
     }));
 
     const payload = {
@@ -3620,13 +3630,23 @@ export default function TestingFeatures() {
         const minimalOptimizedRun = optimized.map((entry) => ({
           key: entry.key,
           serviceUserName: entry.serviceUserName,
+          serviceUserArea: entry.serviceUserArea,
+          serviceUserAddress: entry.serviceUserAddress,
           callTypeLabel: entry.callTypeLabel,
           timeBandLabel: entry.timeBandLabel,
+          requirementStartMinutes: entry.requirementStartMinutes,
           scheduledStartMinutes: entry.scheduledStartMinutes,
           scheduledEndMinutes: entry.scheduledEndMinutes,
           durationMinutes: entry.durationMinutes,
+          shiftMinutes: entry.shiftMinutes,
+          travelMinutesEstimated: entry.travelMinutesEstimated,
           isTimeCritical: entry.isTimeCritical,
           isDoubleUp: entry.isDoubleUp,
+          windowStartMinutes: entry.windowStartMinutes,
+          windowEndMinutes: entry.windowEndMinutes,
+          isOutsideWindow: entry.isOutsideWindow,
+          hasWindowConflict: entry.hasWindowConflict,
+          suggestedStartMinutes: entry.suggestedStartMinutes ?? null,
         }));
 
         const payload = {
