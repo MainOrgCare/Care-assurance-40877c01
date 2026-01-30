@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,16 @@ import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { RefreshCw, Shield, Download, Copy, Pencil, Calendar, Users } from "lucide-react";
 import { Link } from "wouter";
 import { WeeklyPlannerGrid } from "@/components/rostering/WeeklyPlannerGrid";
@@ -34,6 +44,7 @@ type OptimizedRouteEntry = {
   isOutsideWindow?: boolean;
   hasWindowConflict?: boolean;
   suggestedStartMinutes?: number | null;
+  recommendedStartMinutes?: number | null;
 };
 
 type ShiftBarEntry = {
@@ -89,6 +100,9 @@ type WorkerCallGroup = {
   durationMinutes: number | null;
   totalCalls: number;
   isTimeCritical: boolean;
+  templatedWeekdayKeys?: string[];
+  templatedRows?: number;
+  doubleUpWeekdayKeys?: string[];
 };
 
 type WorkbookCareWorkerRoster = {
@@ -211,6 +225,87 @@ function findOverlap(entries: OptimizedRouteEntry[]): { first: OptimizedRouteEnt
   return null;
 }
 
+function applyFixedDoubleUp(
+  entries: OptimizedRouteEntry[],
+  fixedKey: string,
+  fixedStart: number,
+  fixedEnd: number
+): OptimizedRouteEntry[] {
+  const durationFallback = 30;
+  const fixedDuration = Math.max(0, fixedEnd - fixedStart);
+  const withFixed = entries.map((entry) =>
+    entry.key === fixedKey
+      ? {
+          ...entry,
+          scheduledStartMinutes: fixedStart,
+          scheduledEndMinutes: fixedEnd,
+          durationMinutes: fixedDuration || entry.durationMinutes || durationFallback,
+        }
+      : entry
+  );
+
+  const sorted = [...withFixed].sort((a, b) => {
+    const aStart = typeof a.scheduledStartMinutes === "number" ? a.scheduledStartMinutes : Number.POSITIVE_INFINITY;
+    const bStart = typeof b.scheduledStartMinutes === "number" ? b.scheduledStartMinutes : Number.POSITIVE_INFINITY;
+    return aStart - bStart;
+  });
+
+  let cursor = fixedEnd;
+  const updated = sorted.map((entry) => {
+    if (entry.key === fixedKey) return entry;
+    if (typeof entry.scheduledStartMinutes !== "number") return entry;
+    const duration = typeof entry.durationMinutes === "number" ? entry.durationMinutes : durationFallback;
+    const start = Math.max(entry.scheduledStartMinutes, cursor);
+    const end = Math.min(24 * 60, start + duration);
+    cursor = end;
+    return { ...entry, scheduledStartMinutes: start, scheduledEndMinutes: end };
+  });
+
+  const updatedMap = new Map(updated.map((entry) => [entry.key, entry]));
+  return entries.map((entry) => updatedMap.get(entry.key) ?? entry);
+}
+
+function buildChangePreview(
+  before: OptimizedRouteEntry[],
+  after: OptimizedRouteEntry[]
+): Array<{
+  key: string;
+  name: string;
+  beforeStart: number | null;
+  beforeEnd: number | null;
+  afterStart: number | null;
+  afterEnd: number | null;
+}> {
+  const afterMap = new Map(after.map((entry) => [entry.key, entry]));
+  const changes: Array<{
+    key: string;
+    name: string;
+    beforeStart: number | null;
+    beforeEnd: number | null;
+    afterStart: number | null;
+    afterEnd: number | null;
+  }> = [];
+  before.forEach((entry) => {
+    const next = afterMap.get(entry.key);
+    if (!next) return;
+    const beforeStart = typeof entry.scheduledStartMinutes === "number" ? entry.scheduledStartMinutes : null;
+    const beforeEnd = typeof entry.scheduledEndMinutes === "number" ? entry.scheduledEndMinutes : null;
+    const afterStart = typeof next.scheduledStartMinutes === "number" ? next.scheduledStartMinutes : null;
+    const afterEnd = typeof next.scheduledEndMinutes === "number" ? next.scheduledEndMinutes : null;
+    if (beforeStart !== afterStart || beforeEnd !== afterEnd) {
+      changes.push({
+        key: entry.key,
+        name: entry.serviceUserName || entry.callTypeLabel || "Visit",
+        beforeStart,
+        beforeEnd,
+        afterStart,
+        afterEnd,
+      });
+    }
+  });
+  return changes;
+}
+
 function formatDateLabel(isoString: string | null | undefined): string {
   if (!isoString) return "—";
   const date = new Date(isoString);
@@ -243,10 +338,23 @@ export default function CareWorkerRotas() {
   const [plannerZoom, setPlannerZoom] = useState(1);
   const [workbooks, setWorkbooks] = useState<WorkbookSummary[]>([]);
   const [workbooksLoading, setWorkbooksLoading] = useState(false);
-  const [selectedWorkbookId, setSelectedWorkbookId] = useState<string | null>(null);
   const [selectedWorkbook, setSelectedWorkbook] = useState<WorkbookFull | null>(null);
   const [selectedWorkbookWorkerKey, setSelectedWorkbookWorkerKey] = useState<string | null>(null);
   const [isCreatingRota, setIsCreatingRota] = useState(false);
+  const workbookCacheRef = useRef<Map<string, WorkbookFull>>(new Map());
+  const templateKey = useMemo(() => `${plannerWeek}|${plannerDay}`, [plannerDay, plannerWeek]);
+  const [linkedUpdates, setLinkedUpdates] = useState<Record<string, CareWorkerRotaPayload>>({});
+  const [doubleUpConflict, setDoubleUpConflict] = useState<{
+    targetRotaId: string;
+    targetWorkerName: string;
+    updatedPayload: CareWorkerRotaPayload;
+    originalPayload: CareWorkerRotaPayload;
+    conflictWith?: OptimizedRouteEntry | null;
+    fixedKey: string;
+    fixedStart: number;
+    fixedEnd: number;
+    sourceEntrySnapshot?: OptimizedRouteEntry;
+  } | null>(null);
 
   const fetchRotas = useCallback(async () => {
     setLoading(true);
@@ -319,6 +427,11 @@ export default function CareWorkerRotas() {
   const fetchWorkbook = useCallback(
     async (id: string) => {
       try {
+        const cached = workbookCacheRef.current.get(id);
+        if (cached) {
+          setSelectedWorkbook(cached);
+          return cached;
+        }
         const response = await fetch(`/api/admin/testing-features/workbooks/${id}`, {
           credentials: "include",
         });
@@ -327,6 +440,8 @@ export default function CareWorkerRotas() {
         }
         const data = await response.json();
         setSelectedWorkbook(data);
+        workbookCacheRef.current.set(id, data);
+        return data;
       } catch (error: any) {
         setSelectedWorkbook(null);
         toast({
@@ -334,19 +449,41 @@ export default function CareWorkerRotas() {
           description: error.message || "Unable to load workbook details.",
           variant: "destructive",
         });
+        return null;
       }
     },
     [toast]
   );
 
   useEffect(() => {
-    if (!selectedWorkbookId) {
+    if (!workbooks.length) {
       setSelectedWorkbook(null);
       setSelectedWorkbookWorkerKey(null);
       return;
     }
-    fetchWorkbook(selectedWorkbookId);
-  }, [fetchWorkbook, selectedWorkbookId]);
+    const resolveWorkbookForTemplate = async () => {
+      const sorted = [...workbooks].sort((a, b) => {
+        const aTime = new Date(a.createdAt).getTime();
+        const bTime = new Date(b.createdAt).getTime();
+        return bTime - aTime;
+      });
+      for (const workbook of sorted) {
+        const data = await fetchWorkbook(workbook.id);
+        if (!data?.careWorkerRosters?.length) continue;
+        const hasTemplate = data.careWorkerRosters.some((worker) =>
+          (worker.callGroups || []).some((group) =>
+            Array.isArray(group.templatedWeekdayKeys)
+              ? group.templatedWeekdayKeys.includes(templateKey)
+              : true
+          )
+        );
+        if (hasTemplate) {
+          return;
+        }
+      }
+    };
+    void resolveWorkbookForTemplate();
+  }, [fetchWorkbook, templateKey, workbooks]);
 
   const selectedRota = useMemo(
     () => rotas.find((rota) => rota.id === selectedRotaId) ?? null,
@@ -522,6 +659,16 @@ export default function CareWorkerRotas() {
     return { plannerLanes: lanes, plannerUnscheduled: unscheduled, plannerEntryToRota: entryToRota };
   }, [plannerRotas]);
 
+  const plannerShiftBars = useMemo(() => {
+    const map = new Map<string, ShiftBarEntry[]>();
+    plannerRotas.forEach((rota) => {
+      if (Array.isArray(rota.payload?.shiftBars) && rota.payload.shiftBars.length > 0) {
+        map.set(rota.workerKey, rota.payload.shiftBars);
+      }
+    });
+    return map;
+  }, [plannerRotas]);
+
   const plannerSummary = useMemo(() => {
     const totalCalls = plannerLanes.reduce((acc, lane) => acc + lane.entries.length, 0);
     return {
@@ -570,6 +717,12 @@ export default function CareWorkerRotas() {
         ...entry,
         scheduledStartMinutes: typeof entry.scheduledStartMinutes === "number" ? entry.scheduledStartMinutes : null,
         durationMinutes: typeof entry.durationMinutes === "number" ? entry.durationMinutes : null,
+        suggestedStartMinutes:
+          typeof entry.suggestedStartMinutes === "number"
+            ? entry.suggestedStartMinutes
+            : typeof entry.scheduledStartMinutes === "number"
+            ? entry.scheduledStartMinutes
+            : null,
       }))
       .sort((a, b) => {
         const aStart = typeof a.scheduledStartMinutes === "number" ? a.scheduledStartMinutes : Number.POSITIVE_INFINITY;
@@ -612,9 +765,22 @@ export default function CareWorkerRotas() {
       return;
     }
 
-    const baseEntries: OptimizedRouteEntry[] = roster.callGroups.map((group) => {
+    const eligibleGroups = roster.callGroups;
+
+    if (!eligibleGroups.length) {
+      toast({
+        title: "No template calls",
+        description: "No calls were found for the selected Week/Day template.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const baseEntries: OptimizedRouteEntry[] = eligibleGroups.map((group) => {
       const startMinutes = typeof group.requirementStartMinutes === "number" ? group.requirementStartMinutes : null;
       const duration = typeof group.durationMinutes === "number" ? group.durationMinutes : null;
+      const isDoubleUp =
+        Array.isArray(group.doubleUpWeekdayKeys) && group.doubleUpWeekdayKeys.includes(templateKey);
       return {
         key: group.key,
         serviceUserName: group.serviceUserName ?? null,
@@ -629,16 +795,20 @@ export default function CareWorkerRotas() {
         shiftMinutes: null,
         travelMinutesEstimated: null,
         isTimeCritical: group.isTimeCritical,
-        isDoubleUp: false,
+        isDoubleUp,
         windowStartMinutes: null,
         windowEndMinutes: null,
         isOutsideWindow: false,
         hasWindowConflict: false,
-        suggestedStartMinutes: null,
+        suggestedStartMinutes: startMinutes,
       };
     });
 
-    const scheduledRun = buildNonOverlappingRun(baseEntries);
+    const scheduledRun = buildNonOverlappingRun(baseEntries).map((entry) => ({
+      ...entry,
+      recommendedStartMinutes:
+        typeof entry.scheduledStartMinutes === "number" ? entry.scheduledStartMinutes : entry.recommendedStartMinutes ?? null,
+    }));
     const overlap = findOverlap(scheduledRun);
     if (overlap) {
       toast({
@@ -651,15 +821,15 @@ export default function CareWorkerRotas() {
 
     setIsCreatingRota(true);
     try {
-      const payload: CareWorkerRotaPayload = {
-        workerName: roster.workerName,
-        workerKey: roster.key,
-        templateWeek: plannerWeek,
-        templateDay: plannerDay,
-        timeCriticalWindowEnforced: false,
-        shiftBars: roster.shiftBars ?? [],
-        optimizedRun: scheduledRun,
-      };
+    const payload: CareWorkerRotaPayload = {
+      workerName: roster.workerName,
+      workerKey: roster.key,
+      templateWeek: plannerWeek,
+      templateDay: plannerDay,
+      timeCriticalWindowEnforced: false,
+      shiftBars: roster.shiftBars ?? [],
+      optimizedRun: scheduledRun,
+    };
 
       const response = await fetch("/api/admin/care-worker-rotas", {
         method: "POST",
@@ -689,7 +859,7 @@ export default function CareWorkerRotas() {
     } finally {
       setIsCreatingRota(false);
     }
-  }, [buildNonOverlappingRun, fetchRotas, plannerDay, plannerWeek, selectedWorkbook, selectedWorkbookWorkerKey, toast]);
+  }, [buildNonOverlappingRun, fetchRotas, plannerDay, plannerWeek, selectedWorkbook, selectedWorkbookWorkerKey, templateKey, toast]);
 
   const handleUpdateEntry = useCallback(
     (entryKey: string, updates: Partial<OptimizedRouteEntry>) => {
@@ -698,22 +868,79 @@ export default function CareWorkerRotas() {
         const idx = prev.optimizedRun.findIndex((entry) => entry.key === entryKey);
         if (idx === -1) return prev;
         const nextEntries = [...prev.optimizedRun];
-        const nextEntry = { ...nextEntries[idx], ...updates } as OptimizedRouteEntry;
+        const currentEntry = nextEntries[idx];
+        const nextEntry = { ...currentEntry, ...updates } as OptimizedRouteEntry;
 
         if (
           typeof nextEntry.scheduledStartMinutes === "number" &&
           typeof nextEntry.scheduledEndMinutes === "number"
         ) {
           let duration = nextEntry.scheduledEndMinutes - nextEntry.scheduledStartMinutes;
-          if (duration < 0) duration += 24 * 60; // handle cross-midnight edits
+          if (duration < 0) duration += 24 * 60;
           nextEntry.durationMinutes = duration;
         }
 
         nextEntries[idx] = nextEntry;
-        return { ...prev, optimizedRun: nextEntries };
+        const nextPayload = { ...prev, optimizedRun: nextEntries };
+
+        if (nextEntry.isDoubleUp && selectedRota) {
+          const peers = rotas.filter(
+            (rota) =>
+              rota.id !== selectedRota.id &&
+              rota.templateWeek === selectedRota.templateWeek &&
+              rota.templateDay === selectedRota.templateDay
+          );
+          const peer = peers.find((rota) =>
+            rota.payload.optimizedRun?.some(
+              (entry) => entry.key === entryKey && entry.isDoubleUp
+            )
+          );
+          if (peer) {
+            const start = nextEntry.scheduledStartMinutes;
+            const end = nextEntry.scheduledEndMinutes;
+            if (typeof start === "number" && typeof end === "number") {
+              const peerEntries = peer.payload.optimizedRun.map((entry) =>
+                entry.key === entryKey
+                  ? { ...entry, scheduledStartMinutes: start, scheduledEndMinutes: end }
+                  : entry
+              );
+              const overlap = findOverlap(peerEntries);
+              if (overlap) {
+                setDoubleUpConflict({
+                  targetRotaId: peer.id,
+                  targetWorkerName: peer.workerName,
+                  updatedPayload: {
+                    ...peer.payload,
+                    optimizedRun: peerEntries,
+                  },
+                  originalPayload: peer.payload,
+                  conflictWith: overlap.second,
+                  fixedKey: entryKey,
+                  fixedStart: start,
+                  fixedEnd: end,
+                  sourceEntrySnapshot: currentEntry,
+                });
+              } else {
+                setLinkedUpdates((prevLinked) => ({
+                  ...prevLinked,
+                  [peer.id]: { ...peer.payload, optimizedRun: peerEntries },
+                }));
+                setRotas((prevRotas) =>
+                  prevRotas.map((rota) =>
+                    rota.id === peer.id
+                      ? { ...rota, payload: { ...rota.payload, optimizedRun: peerEntries } }
+                      : rota
+                  )
+                );
+              }
+            }
+          }
+        }
+
+        return nextPayload;
       });
     },
-    []
+    [rotas, selectedRota]
   );
 
   const handleCancelEdits = useCallback(() => {
@@ -795,6 +1022,18 @@ export default function CareWorkerRotas() {
         : "No differences detected to save.";
 
       toast({ title: result?.deduped ? "Duplicate rota" : updatedLabel, description });
+      if (Object.keys(linkedUpdates).length > 0) {
+        const updateEntries = Object.entries(linkedUpdates);
+        for (const [rotaId, payload] of updateEntries) {
+          await fetch(`/api/admin/care-worker-rotas/${rotaId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(payload),
+          });
+        }
+        setLinkedUpdates({});
+      }
     } catch (error: any) {
       toast({
         title: "Update failed",
@@ -804,7 +1043,7 @@ export default function CareWorkerRotas() {
     } finally {
       setSavingEdit(false);
     }
-  }, [draftPayload, selectedRota, toast]);
+  }, [draftPayload, linkedUpdates, selectedRota, toast]);
 
   const addShiftBar = useCallback(
     (startMinutes: number) => {
@@ -969,9 +1208,9 @@ export default function CareWorkerRotas() {
         <CardHeader className="border-b bg-muted/20">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <CardTitle className="text-base">Create rota from saved workbook</CardTitle>
+              <CardTitle className="text-base">Create rota from latest workbook</CardTitle>
               <CardDescription>
-                Use analyzed workbook data to generate a new rota in this library.
+                Automatically uses the most recent Week 1 / Week 2 templates.
               </CardDescription>
             </div>
             <Button
@@ -982,34 +1221,11 @@ export default function CareWorkerRotas() {
               disabled={workbooksLoading}
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${workbooksLoading ? "animate-spin" : ""}`} />
-              Refresh workbooks
+              Refresh workbook
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-[1.2fr_1fr_1fr_auto] items-end p-4">
-          <div className="space-y-1">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Workbook</p>
-            <Select
-              value={selectedWorkbookId ?? ""}
-              onValueChange={(value) => setSelectedWorkbookId(value)}
-            >
-              <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Select a saved workbook" />
-              </SelectTrigger>
-              <SelectContent>
-                {workbooks.length === 0 && (
-                  <SelectItem value="none" disabled>
-                    No saved workbooks
-                  </SelectItem>
-                )}
-                {workbooks.map((workbook) => (
-                  <SelectItem key={workbook.id} value={workbook.id}>
-                    {workbook.name || workbook.fileName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <CardContent className="grid gap-4 md:grid-cols-[1.4fr_1fr_auto] items-end p-4">
           <div className="space-y-1">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Care worker</p>
             <Select
@@ -1018,7 +1234,7 @@ export default function CareWorkerRotas() {
               disabled={!selectedWorkbook?.careWorkerRosters?.length}
             >
               <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Select a care worker" />
+                <SelectValue placeholder={selectedWorkbook ? "Select a care worker" : "No workbook available"} />
               </SelectTrigger>
               <SelectContent>
                 {(selectedWorkbook?.careWorkerRosters ?? []).map((worker) => (
@@ -1060,7 +1276,7 @@ export default function CareWorkerRotas() {
             size="sm"
             className="h-9"
             onClick={handleCreateRota}
-            disabled={isCreatingRota || !selectedWorkbookId || !selectedWorkbookWorkerKey}
+            disabled={isCreatingRota || !selectedWorkbook || !selectedWorkbookWorkerKey}
           >
             {isCreatingRota ? "Creating..." : "Create rota"}
           </Button>
@@ -1216,6 +1432,7 @@ export default function CareWorkerRotas() {
                       ) : (
                         plannerLanes.map((lane, idx) => {
                           const stats = plannerLaneStats.get(lane.id);
+                          const shiftBars = plannerShiftBars.get(lane.id) ?? [];
                           return (
                             <div
                               key={lane.id}
@@ -1236,6 +1453,25 @@ export default function CareWorkerRotas() {
                                       key={`grid-${lane.id}-${idx2}`}
                                       className="absolute inset-y-0 w-px bg-border/30"
                                       style={{ left: `${left}%` }}
+                                    />
+                                  );
+                                })}
+                                {shiftBars.map((bar, barIdx) => {
+                                  const start = typeof bar.startMinutes === "number" ? bar.startMinutes : null;
+                                  const end =
+                                    typeof bar.endMinutes === "number"
+                                      ? bar.endMinutes
+                                      : typeof bar.startMinutes === "number" && typeof bar.durationMinutes === "number"
+                                      ? bar.startMinutes + bar.durationMinutes
+                                      : null;
+                                  if (start === null || end === null) return null;
+                                  const left = ((start - PLANNER_DAY_START_MINUTES) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
+                                  const width = ((end - start) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
+                                  return (
+                                    <div
+                                      key={`shift-${lane.id}-${barIdx}`}
+                                      className="absolute top-1 h-12 bg-slate-200/70 border border-slate-300"
+                                      style={{ left: `${left}%`, width: `${Math.max(width, 1.5)}%` }}
                                     />
                                   );
                                 })}
@@ -1478,6 +1714,8 @@ export default function CareWorkerRotas() {
                 {(activePayload.optimizedRun || []).map((entry) => {
                   const scheduledStart = formatMinutesLabel(entry.scheduledStartMinutes);
                   const scheduledEnd = formatMinutesLabel(entry.scheduledEndMinutes);
+                  const templateTime = formatMinutesLabel(entry.requirementStartMinutes ?? entry.suggestedStartMinutes ?? null);
+                  const recommendedTime = formatMinutesLabel(entry.recommendedStartMinutes ?? entry.scheduledStartMinutes);
                   const hasSchedule =
                     typeof entry.scheduledStartMinutes === "number" &&
                     typeof entry.scheduledEndMinutes === "number";
@@ -1495,6 +1733,9 @@ export default function CareWorkerRotas() {
                           <p className="text-sm font-medium truncate">{entry.serviceUserName || "Unknown"}</p>
                           <p className="text-xs text-muted-foreground">
                             {entry.callTypeLabel} • {entry.timeBandLabel}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            Template: {templateTime} • Recommended: {recommendedTime}
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-1 shrink-0">
@@ -1592,6 +1833,98 @@ export default function CareWorkerRotas() {
           )}
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={Boolean(doubleUpConflict)} onOpenChange={() => setDoubleUpConflict(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Double‑up conflict detected</AlertDialogTitle>
+            <AlertDialogDescription>
+              This double‑up call would overlap another visit for {doubleUpConflict?.targetWorkerName}.
+              Review the conflict and choose to optimise or cancel.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {doubleUpConflict?.conflictWith && (
+            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+              Conflicts with: {doubleUpConflict.conflictWith.serviceUserName || "Unknown"}{" "}
+              ({formatMinutesLabel(doubleUpConflict.conflictWith.scheduledStartMinutes)} →
+              {formatMinutesLabel(doubleUpConflict.conflictWith.scheduledEndMinutes)}). Proposed double‑up time:{" "}
+              {formatMinutesLabel(doubleUpConflict.fixedStart)} → {formatMinutesLabel(doubleUpConflict.fixedEnd)}.
+            </div>
+          )}
+          {doubleUpConflict && (() => {
+            const previewRun = applyFixedDoubleUp(
+              doubleUpConflict.updatedPayload.optimizedRun,
+              doubleUpConflict.fixedKey,
+              doubleUpConflict.fixedStart,
+              doubleUpConflict.fixedEnd
+            );
+            const changes = buildChangePreview(doubleUpConflict.originalPayload.optimizedRun, previewRun);
+            if (!changes.length) return null;
+            return (
+              <div className="rounded-md border bg-background p-3 text-xs">
+                <p className="font-semibold text-foreground mb-2">Preview changes</p>
+                <div className="space-y-1 max-h-40 overflow-auto">
+                  {changes.slice(0, 8).map((change) => (
+                    <div key={change.key} className="flex items-center justify-between gap-2 text-muted-foreground">
+                      <span className="truncate">{change.name}</span>
+                      <span className="text-[11px]">
+                        {formatMinutesLabel(change.beforeStart)} → {formatMinutesLabel(change.beforeEnd)}{" "}
+                        <span className="mx-1">→</span>
+                        {formatMinutesLabel(change.afterStart)} → {formatMinutesLabel(change.afterEnd)}
+                      </span>
+                    </div>
+                  ))}
+                  {changes.length > 8 && (
+                    <p className="text-[11px] text-muted-foreground">+{changes.length - 8} more changes</p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                if (doubleUpConflict?.sourceEntrySnapshot) {
+                  setDraftPayload((prev) => {
+                    if (!prev) return prev;
+                    const nextEntries = prev.optimizedRun.map((entry) =>
+                      entry.key === doubleUpConflict.sourceEntrySnapshot?.key
+                        ? doubleUpConflict.sourceEntrySnapshot!
+                        : entry
+                    );
+                    return { ...prev, optimizedRun: nextEntries };
+                  });
+                }
+                setDoubleUpConflict(null);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!doubleUpConflict) return;
+                const { updatedPayload, targetRotaId, fixedKey, fixedStart, fixedEnd } = doubleUpConflict;
+                const optimizedRun = applyFixedDoubleUp(
+                  updatedPayload.optimizedRun,
+                  fixedKey,
+                  fixedStart,
+                  fixedEnd
+                );
+                const payload = { ...updatedPayload, optimizedRun };
+                setLinkedUpdates((prevLinked) => ({ ...prevLinked, [targetRotaId]: payload }));
+                setRotas((prevRotas) =>
+                  prevRotas.map((rota) =>
+                    rota.id === targetRotaId ? { ...rota, payload } : rota
+                  )
+                );
+                setDoubleUpConflict(null);
+              }}
+            >
+              Optimize & Accept
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
