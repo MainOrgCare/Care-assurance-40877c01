@@ -1780,10 +1780,7 @@ export async function registerRoutes(
     await storage.updateSessionActivity(req.sessionID);
     
     req.user = user;
-    const shouldLog = req.path.startsWith("/api") &&
-      !req.path.startsWith("/api/system-logs") &&
-      req.path !== "/api/auth/me" &&
-      req.method !== "OPTIONS";
+    const shouldLog = false;
     if (shouldLog) {
       storage.createSystemLog({
         eventType: "api_request",

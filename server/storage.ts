@@ -944,6 +944,9 @@ export class DatabaseStorage implements IStorage {
     // Build conditions array
     const conditions: any[] = [];
 
+    // Hide noisy request logs from the activity feed
+    conditions.push(sql`${systemLogs.eventType} != 'api_request'`);
+
     // Search filter - searches across username, eventType, and details (as text)
     if (search && search.trim()) {
       const searchPattern = `%${search.trim().toLowerCase()}%`;
