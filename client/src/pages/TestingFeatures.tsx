@@ -573,6 +573,8 @@ export default function TestingFeatures() {
   const [selectedWorkerCallKeys, setSelectedWorkerCallKeys] = useState<string[]>([]);
   const [recommendedTemplates, setRecommendedTemplates] = useState<Record<string, string[]>>({});
   const [isSavingRota, setIsSavingRota] = useState(false);
+  const [isSavingAllRotas, setIsSavingAllRotas] = useState(false);
+  const [bulkSaveProgress, setBulkSaveProgress] = useState<{ saved: number; skipped: number; total: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [rosteringFullscreen, setRosteringFullscreen] = useState(false);
   const [isSavingWorkbook, setIsSavingWorkbook] = useState(false);
@@ -3377,6 +3379,302 @@ export default function TestingFeatures() {
     toast,
   ]);
 
+  const handleSaveAllRotas = useCallback(async () => {
+    if (!careWorkerRosters.length) {
+      toast({
+        title: "No workers to save",
+        description: "Upload a workbook first to extract care worker rotas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSavingAllRotas(true);
+    setBulkSaveProgress({ saved: 0, skipped: 0, total: careWorkerRosters.length });
+
+    const bandOrder = ["AM", "Lunch", "Tea", "Evening", "Night", "Unscheduled"];
+    const DAY_START_MINUTES = ROSTER_DAY_START_MINUTES;
+    let savedCount = 0;
+    let skippedCount = 0;
+
+    for (const worker of careWorkerRosters) {
+      try {
+        // Get call groups for this worker on the selected day
+        const workerCallGroups = worker.callGroups.map((group) => {
+          const overrideKey = buildTemplateOverrideKey(worker.key, group.key);
+          const override = templateOverrides[overrideKey];
+          const baseDays = splitTemplateWeekdayKeys(group.templatedWeekdayKeys);
+          const week1Days = override?.week1Days ?? baseDays.week1Days;
+          const week2Days = override?.week2Days ?? baseDays.week2Days;
+          const effectiveTemplateWeekdayKeys = new Set<string>();
+          week1Days.forEach((day) => effectiveTemplateWeekdayKeys.add(buildTemplateWeekdayKey("week1", day)));
+          week2Days.forEach((day) => effectiveTemplateWeekdayKeys.add(buildTemplateWeekdayKey("week2", day)));
+          const effectiveRequirementStartMinutes =
+            typeof override?.requirementStartMinutes === "number"
+              ? override.requirementStartMinutes
+              : group.requirementStartMinutes;
+          const effectiveTimeBandLabel = deriveTimeBandLabel(effectiveRequirementStartMinutes);
+          const isDoubleUpForSelection = group.doubleUpWeekdayKeys.has(templateSelectionKey);
+          return {
+            ...group,
+            effectiveTemplateWeekdayKeys,
+            effectiveRequirementStartMinutes,
+            effectiveTimeBandLabel,
+            isDoubleUpForSelection,
+          };
+        });
+
+        // Filter to call groups matching the template day
+        const availableGroups = workerCallGroups.filter((group) =>
+          group.effectiveTemplateWeekdayKeys.has(templateSelectionKey)
+        );
+
+        if (!availableGroups.length) {
+          skippedCount += 1;
+          setBulkSaveProgress({ saved: savedCount, skipped: skippedCount, total: careWorkerRosters.length });
+          continue;
+        }
+
+        // Get shift bars for this worker
+        const workerShiftBars = shiftBarsByWorker.get(worker.key) ?? [];
+        const shiftBarsForWorker = workerShiftBars.filter((bar) => bar.templateKey === templateSelectionKey);
+        const shiftBarsPayload: ShiftBarEntry[] = shiftBarsForWorker.map((bar) => ({
+          startMinutes: bar.startMinutes,
+          endMinutes: bar.endMinutes,
+          durationMinutes: bar.durationMinutes,
+        }));
+
+        // Compute blocked intervals for admin staff
+        const blockedIntervals = (() => {
+          if (!worker.isAdminStaff) return [] as Array<{ start: number; end: number }>;
+          const intervals = shiftBarsForWorker
+            .map((bar) => {
+              if (typeof bar.startMinutes !== "number" || typeof bar.endMinutes !== "number") return null;
+              return { start: bar.startMinutes, end: bar.endMinutes };
+            })
+            .filter(Boolean) as Array<{ start: number; end: number }>;
+          intervals.sort((a, b) => a.start - b.start || a.end - b.end);
+          return intervals;
+        })();
+
+        const shiftPastBlocked = (start: number, durationMinutes: number) => {
+          if (!blockedIntervals.length) return { start, shifted: false };
+          let candidate = start;
+          let shifted = false;
+          for (let i = 0; i < blockedIntervals.length + 2; i += 1) {
+            const end = candidate + durationMinutes;
+            const overlap = blockedIntervals.find((interval) => candidate < interval.end && end > interval.start);
+            if (!overlap) break;
+            candidate = overlap.end;
+            shifted = true;
+          }
+          return { start: candidate, shifted };
+        };
+
+        // Group by time band
+        const groupsByBand = bandOrder.reduce<Record<string, typeof availableGroups>>((acc, band) => {
+          acc[band] = [];
+          return acc;
+        }, {});
+        availableGroups.forEach((group) => {
+          const band = group.effectiveTimeBandLabel;
+          if (!groupsByBand[band]) groupsByBand[band] = [];
+          groupsByBand[band].push(group);
+        });
+
+        // Optimize the run
+        const optimized: OptimizedRouteEntry[] = [];
+        let currentEndOverall: number | null = null;
+
+        bandOrder.forEach((band) => {
+          const bandGroups = groupsByBand[band] ?? [];
+          if (!bandGroups.length) return;
+
+          const bandGroupsWithTimes = bandGroups.filter(
+            (group) => typeof group.effectiveRequirementStartMinutes === "number"
+          );
+          const bandMinRequirement = bandGroupsWithTimes.reduce<number | null>((acc, group) => {
+            const minutes = group.effectiveRequirementStartMinutes as number;
+            if (acc === null || minutes < acc) return minutes;
+            return acc;
+          }, null);
+
+          const bandAnchorStart =
+            typeof bandMinRequirement === "number"
+              ? Math.max(DAY_START_MINUTES, bandMinRequirement)
+              : DAY_START_MINUTES;
+          let cursor = currentEndOverall;
+          if (cursor === null || cursor < bandAnchorStart) cursor = bandAnchorStart;
+
+          const sorted = [...bandGroups].sort((a, b) => {
+            const aStart =
+              typeof a.effectiveRequirementStartMinutes === "number"
+                ? a.effectiveRequirementStartMinutes
+                : Number.POSITIVE_INFINITY;
+            const bStart =
+              typeof b.effectiveRequirementStartMinutes === "number"
+                ? b.effectiveRequirementStartMinutes
+                : Number.POSITIVE_INFINITY;
+            if (aStart !== bStart) return aStart - bStart;
+            return (a.serviceUserName || "").localeCompare(b.serviceUserName || "");
+          });
+
+          sorted.forEach((group) => {
+            const durationMinutes =
+              typeof group.durationMinutes === "number" ? group.durationMinutes : DEFAULT_ROUTE_DURATION_MINUTES;
+            const isLockedDoubleUp = group.isDoubleUpForSelection;
+
+            if (typeof group.effectiveRequirementStartMinutes !== "number") {
+              optimized.push({
+                key: group.key,
+                serviceUserName: group.serviceUserName,
+                serviceUserArea: group.serviceUserArea ?? null,
+                serviceUserAddress: group.serviceUserAddress ?? null,
+                callTypeLabel: group.callTypeLabel,
+                timeBandLabel: group.effectiveTimeBandLabel,
+                requirementStartMinutes: group.effectiveRequirementStartMinutes,
+                scheduledStartMinutes: null,
+                scheduledEndMinutes: null,
+                durationMinutes: group.durationMinutes,
+                shiftMinutes: null,
+                recommendedStartMinutes: null,
+                travelMinutesEstimated: null,
+                isTimeCritical: group.isTimeCritical,
+                isDoubleUp: isLockedDoubleUp,
+                windowStartMinutes: null,
+                windowEndMinutes: null,
+                isOutsideWindow: false,
+                hasWindowConflict: false,
+              });
+              return;
+            }
+
+            const requirementStart = group.effectiveRequirementStartMinutes;
+            const windowStart = group.isTimeCritical ? requirementStart - TIME_CRITICAL_WINDOW_MINUTES : null;
+            const windowEnd = group.isTimeCritical ? requirementStart + TIME_CRITICAL_WINDOW_MINUTES : null;
+
+            let scheduledStart: number;
+            let hasWindowConflict = false;
+
+            if (isLockedDoubleUp) {
+              scheduledStart = Math.max(DAY_START_MINUTES, requirementStart);
+              if (cursor !== null && scheduledStart < cursor) {
+                hasWindowConflict = true;
+              }
+            } else {
+              const allowEarlyStart = packCallsBackToBack && !group.isTimeCritical;
+              const baselineStart = allowEarlyStart
+                ? cursor ?? requirementStart
+                : Math.max(cursor ?? requirementStart, requirementStart);
+              scheduledStart = Math.max(baselineStart, DAY_START_MINUTES);
+            }
+
+            if (worker.isAdminStaff) {
+              const adjusted = shiftPastBlocked(scheduledStart, durationMinutes);
+              if (adjusted.shifted) scheduledStart = adjusted.start;
+            }
+
+            const scheduledEnd = scheduledStart + durationMinutes;
+            const shiftMinutes = scheduledStart - requirementStart;
+            const isOutsideWindow =
+              enforceTimeCriticalWindow && group.isTimeCritical && windowStart !== null && windowEnd !== null
+                ? scheduledStart < windowStart || scheduledStart > windowEnd
+                : false;
+
+            optimized.push({
+              key: group.key,
+              serviceUserName: group.serviceUserName,
+              serviceUserArea: group.serviceUserArea ?? null,
+              serviceUserAddress: group.serviceUserAddress ?? null,
+              callTypeLabel: group.callTypeLabel,
+              timeBandLabel: group.effectiveTimeBandLabel,
+              requirementStartMinutes: requirementStart,
+              scheduledStartMinutes: scheduledStart,
+              scheduledEndMinutes: scheduledEnd,
+              durationMinutes,
+              shiftMinutes,
+              recommendedStartMinutes: null,
+              travelMinutesEstimated: null,
+              isTimeCritical: group.isTimeCritical,
+              isDoubleUp: isLockedDoubleUp,
+              windowStartMinutes: windowStart,
+              windowEndMinutes: windowEnd,
+              isOutsideWindow,
+              hasWindowConflict,
+            });
+
+            if (!isLockedDoubleUp) {
+              cursor = scheduledEnd;
+              if (typeof currentEndOverall !== "number" || scheduledEnd > currentEndOverall) {
+                currentEndOverall = scheduledEnd;
+              }
+            }
+          });
+        });
+
+        if (!optimized.length) {
+          skippedCount += 1;
+          setBulkSaveProgress({ saved: savedCount, skipped: skippedCount, total: careWorkerRosters.length });
+          continue;
+        }
+
+        // Build payload and save
+        const payload: CareWorkerRotaPayload = {
+          workerName: worker.workerName,
+          workerKey: worker.key,
+          templateWeek: selectedTemplateWeek,
+          templateDay: selectedTemplateDay,
+          timeCriticalWindowEnforced: enforceTimeCriticalWindow,
+          shiftBars: shiftBarsPayload,
+          selectedGroupKeys: availableGroups.map((g) => g.key),
+          overrides: {},
+          optimizedRun: optimized,
+        };
+
+        const response = await fetch("/api/admin/care-worker-rotas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+          console.warn(`Failed to save rota for ${worker.workerName}:`, result.message);
+          skippedCount += 1;
+        } else if (result.deduped) {
+          skippedCount += 1;
+        } else {
+          savedCount += 1;
+        }
+
+        setBulkSaveProgress({ saved: savedCount, skipped: skippedCount, total: careWorkerRosters.length });
+      } catch (error: any) {
+        console.warn(`Error saving rota for ${worker.workerName}:`, error);
+        skippedCount += 1;
+        setBulkSaveProgress({ saved: savedCount, skipped: skippedCount, total: careWorkerRosters.length });
+      }
+    }
+
+    toast({
+      title: savedCount > 0 ? "Rotas saved" : "No new rotas saved",
+      description: `${savedCount} saved, ${skippedCount} skipped (duplicates or no calls).`,
+    });
+
+    setIsSavingAllRotas(false);
+    setBulkSaveProgress(null);
+  }, [
+    careWorkerRosters,
+    enforceTimeCriticalWindow,
+    packCallsBackToBack,
+    selectedTemplateDay,
+    selectedTemplateWeek,
+    shiftBarsByWorker,
+    templateOverrides,
+    templateSelectionKey,
+    toast,
+  ]);
+
   const handleLoadMore = () => {
     setVisibleCount((prev) => Math.min(filteredResults.length, prev + INITIAL_VISIBLE_ROWS));
   };
@@ -6169,6 +6467,27 @@ export default function TestingFeatures() {
                                           </>
                                         ) : (
                                           "Save rota"
+                                        )}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="default"
+                                        onClick={handleSaveAllRotas}
+                                        disabled={!careWorkerRosters.length || isSavingAllRotas}
+                                      >
+                                        {isSavingAllRotas ? (
+                                          <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            {bulkSaveProgress
+                                              ? `${bulkSaveProgress.saved + bulkSaveProgress.skipped}/${bulkSaveProgress.total}`
+                                              : "Saving all..."}
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Users className="h-4 w-4 mr-2" />
+                                            Save all workers
+                                          </>
                                         )}
                                       </Button>
                                     </div>
