@@ -4074,8 +4074,6 @@ ${correctionExamples}
             }
             
             const entryMedId = Number(entry.medicationId) || 0;
-
-            const entryMedId = Number(entry.medicationId) || 0;
             const entryMedication = entry.medication || "";
             const requiredGap =
               entryMedId > 0
