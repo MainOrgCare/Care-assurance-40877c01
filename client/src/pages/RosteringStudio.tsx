@@ -46,11 +46,19 @@ import {
   Library,
   Clock,
   Calendar,
+  Keyboard,
+  Zap,
 } from "lucide-react";
 import { GanttTimeline } from "@/components/rostering/GanttTimeline";
 import { MultiWorkerDashboard } from "@/components/rostering/MultiWorkerDashboard";
 import { RouteMapView } from "@/components/rostering/RouteMapView";
+import { OptimizationScore } from "@/components/rostering/OptimizationScore";
+import { ConflictSummary } from "@/components/rostering/ConflictAlert";
+import { CallTypeChip } from "@/components/rostering/CallTypeChip";
+import { TravelTimeIndicator } from "@/components/rostering/TravelTimeIndicator";
 import { buildAllWorkerLanes, buildWorkerLane, buildWorkerSummaries, type TimelineEntry } from "@/lib/rostering/rosterModel";
+import { calculateTravelSegments, calculateOptimizationMetrics, type TravelCategory } from "@/lib/rostering/travelUtils";
+import { useRosteringKeyboardShortcuts, buildRosteringShortcuts, formatShortcutKey } from "@/hooks/useRosteringKeyboardShortcuts";
 
 // ===== ROSTERING CONSTANTS =====
 const DURATION_SHORTFALL_THRESHOLD_PERCENT = 80;
@@ -620,6 +628,36 @@ export default function RosteringStudio() {
     deleteMutation.mutate(selectedWorkbookId);
   }, [selectedWorkbookId, deleteMutation]);
 
+  // Calculate optimization metrics
+  const optimizationMetrics = useMemo(() => {
+    const allEntries = mapEntries.map((entry) => ({
+      id: entry.id,
+      startMinutes: entry.startMinutes,
+      durationMinutes: entry.durationMinutes,
+      lat: null as number | null,
+      lon: null as number | null,
+    }));
+    const segments = calculateTravelSegments(allEntries);
+    return calculateOptimizationMetrics(segments, timelineConflictCount);
+  }, [mapEntries, timelineConflictCount]);
+
+  // Conflict summary for UI
+  const conflictSummaryData = useMemo(() => {
+    return [
+      { type: "overlap" as const, count: timelineConflictCount },
+    ];
+  }, [timelineConflictCount]);
+
+  // Keyboard shortcuts
+  const keyboardShortcuts = useMemo(() => buildRosteringShortcuts({
+    onClearSelection: () => setSelectedTimelineEntryId(null),
+    onOptimize: handleOptimizeTravel,
+    onZoomIn: () => setSnapMinutes((prev) => Math.max(5, prev - 5)),
+    onZoomOut: () => setSnapMinutes((prev) => Math.min(30, prev + 5)),
+  }), [handleOptimizeTravel]);
+
+  useRosteringKeyboardShortcuts(keyboardShortcuts, !!workbook);
+
   // Access check
   if (user?.role !== "admin") {
     return (
@@ -849,6 +887,33 @@ export default function RosteringStudio() {
                 </Card>
               </div>
 
+              {/* Optimization Score & Conflicts */}
+              <div className="grid gap-4 lg:grid-cols-[1fr,300px]">
+                <OptimizationScore metrics={optimizationMetrics} showDetails={true} />
+                <Card className="border-border/60 bg-background/70">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-primary" />
+                      Schedule Status
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <ConflictSummary conflicts={conflictSummaryData} />
+                    <div className="pt-2 border-t">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">Keyboard shortcuts</p>
+                      <div className="grid grid-cols-2 gap-1 text-[10px]">
+                        <span className="text-muted-foreground">Escape</span>
+                        <span>Clear selection</span>
+                        <span className="text-muted-foreground">Ctrl+O</span>
+                        <span>Optimize</span>
+                        <span className="text-muted-foreground">+/-</span>
+                        <span>Zoom</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
               <MultiWorkerDashboard
                 workers={workerSummaries}
                 selectedWorkerKey={selectedCareWorkerKey}
@@ -954,28 +1019,32 @@ export default function RosteringStudio() {
                       </CardHeader>
                       <CardContent>
                         {selectedTimelineEntry ? (
-                          <div className="space-y-2 text-sm">
+                          <div className="space-y-3 text-sm">
                             <div className="flex items-center justify-between">
                               <p className="font-semibold">{selectedTimelineEntry.title}</p>
                               <Badge variant="outline" className="text-xs">
                                 {formatMinutesToTime(selectedTimelineEntry.startMinutes)}
                               </Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              {selectedTimelineEntry.callTypeLabel || "Call type unavailable"}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Duration: {formatMinutesDisplay(selectedTimelineEntry.durationMinutes)}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              {selectedTimelineEntry.callTypeLabel && (
+                                <CallTypeChip callType={selectedTimelineEntry.callTypeLabel} size="sm" />
+                              )}
+                              <span className="text-xs text-muted-foreground">
+                                {formatMinutesDisplay(selectedTimelineEntry.durationMinutes)}
+                              </span>
+                              {selectedTimelineEntry.isTimeCritical && (
+                                <Badge variant="secondary" className="text-[10px]">
+                                  ⚡ Time critical
+                                </Badge>
+                              )}
+                            </div>
                             {selectedTimelineEntry.address && (
-                              <p className="text-xs text-muted-foreground">{selectedTimelineEntry.address}</p>
+                              <p className="text-xs text-muted-foreground border-l-2 border-primary/30 pl-2">
+                                {selectedTimelineEntry.address}
+                              </p>
                             )}
-                            {selectedTimelineEntry.isTimeCritical && (
-                              <Badge variant="secondary" className="text-xs">
-                                Time critical
-                              </Badge>
-                            )}
-                            <div className="mt-3 space-y-2">
+                            <div className="pt-2 border-t space-y-2">
                               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Assigned worker</p>
                               <div className="flex items-center gap-2">
                                 <Select
