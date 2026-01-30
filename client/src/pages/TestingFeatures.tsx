@@ -3326,16 +3326,33 @@ export default function TestingFeatures() {
         return acc;
       }, {});
 
-    const payload: CareWorkerRotaPayload = {
+    // Create minimal payload - only essential fields for storage
+    const minimalOptimizedRun = optimizedRun.map((entry) => ({
+      key: entry.key,
+      serviceUserName: entry.serviceUserName,
+      callTypeLabel: entry.callTypeLabel,
+      timeBandLabel: entry.timeBandLabel,
+      requirementStartMinutes: entry.requirementStartMinutes,
+      scheduledStartMinutes: entry.scheduledStartMinutes,
+      scheduledEndMinutes: entry.scheduledEndMinutes,
+      durationMinutes: entry.durationMinutes,
+      shiftMinutes: entry.shiftMinutes,
+      isTimeCritical: entry.isTimeCritical,
+      isDoubleUp: entry.isDoubleUp,
+      windowStartMinutes: entry.windowStartMinutes,
+      windowEndMinutes: entry.windowEndMinutes,
+      isOutsideWindow: entry.isOutsideWindow,
+      hasWindowConflict: entry.hasWindowConflict,
+    }));
+
+    const payload = {
       workerName: selectedCareWorker.workerName,
       workerKey: selectedCareWorker.key,
       templateWeek: selectedTemplateWeek,
       templateDay: selectedTemplateDay,
       timeCriticalWindowEnforced: enforceTimeCriticalWindow,
       shiftBars: shiftBarsForPayload,
-      selectedGroupKeys: selectedWorkerGroups.map((group) => group.key),
-      overrides,
-      optimizedRun,
+      optimizedRun: minimalOptimizedRun,
     };
 
     setIsSavingRota(true);
@@ -3373,9 +3390,7 @@ export default function TestingFeatures() {
     selectedCareWorker,
     selectedTemplateDay,
     selectedTemplateWeek,
-    selectedWorkerGroups,
     shiftBarsForPayload,
-    templateOverrides,
     toast,
   ]);
 
@@ -3618,17 +3633,33 @@ export default function TestingFeatures() {
           continue;
         }
 
-        // Build payload and save
-        const payload: CareWorkerRotaPayload = {
+        // Build minimal payload - only essential fields for storage
+        const minimalOptimizedRun = optimized.map((entry) => ({
+          key: entry.key,
+          serviceUserName: entry.serviceUserName,
+          callTypeLabel: entry.callTypeLabel,
+          timeBandLabel: entry.timeBandLabel,
+          requirementStartMinutes: entry.requirementStartMinutes,
+          scheduledStartMinutes: entry.scheduledStartMinutes,
+          scheduledEndMinutes: entry.scheduledEndMinutes,
+          durationMinutes: entry.durationMinutes,
+          shiftMinutes: entry.shiftMinutes,
+          isTimeCritical: entry.isTimeCritical,
+          isDoubleUp: entry.isDoubleUp,
+          windowStartMinutes: entry.windowStartMinutes,
+          windowEndMinutes: entry.windowEndMinutes,
+          isOutsideWindow: entry.isOutsideWindow,
+          hasWindowConflict: entry.hasWindowConflict,
+        }));
+
+        const payload = {
           workerName: worker.workerName,
           workerKey: worker.key,
           templateWeek: selectedTemplateWeek,
           templateDay: selectedTemplateDay,
           timeCriticalWindowEnforced: enforceTimeCriticalWindow,
           shiftBars: shiftBarsPayload,
-          selectedGroupKeys: availableGroups.map((g) => g.key),
-          overrides: {},
-          optimizedRun: optimized,
+          optimizedRun: minimalOptimizedRun,
         };
 
         const response = await fetch("/api/admin/care-worker-rotas", {
