@@ -66,8 +66,8 @@ type CareWorkerRotaRecord = {
 };
 
 const TEMPLATE_WEEK_LABELS: Record<string, string> = {
-  week1: "Week 1 (starts 05/01/26)",
-  week2: "Week 2 (starts 12/01/26)",
+  week1: "Week 1",
+  week2: "Week 2",
 };
 const PLANNER_DAY_START_MINUTES = 0;
 const PLANNER_DAY_END_MINUTES = 24 * 60;
@@ -166,6 +166,7 @@ export default function CareWorkerRotas() {
   const [plannerWeek, setPlannerWeek] = useState<"week1" | "week2">("week1");
   const [plannerDay, setPlannerDay] = useState<(typeof WEEKDAY_OPTIONS)[number]>("Monday");
   const [selectedPlannerEntryId, setSelectedPlannerEntryId] = useState<string | null>(null);
+  const [plannerZoom, setPlannerZoom] = useState(1);
 
   const fetchRotas = useCallback(async () => {
     setLoading(true);
@@ -753,25 +754,40 @@ export default function CareWorkerRotas() {
             <div className="grid gap-3 xl:grid-cols-[1fr_320px]">
               <Card className="border-border/60 overflow-hidden">
                 <CardHeader className="border-b bg-muted/20">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <CardTitle className="text-base">Employees</CardTitle>
-                      <CardDescription>
-                        {plannerDay} • {TEMPLATE_WEEK_LABELS[plannerWeek]}
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-3 rounded-md border px-3 py-1.5 text-xs text-muted-foreground">
-                      <span>{plannerSummary.totalWorkers} workers</span>
-                      <span>•</span>
-                      <span>{plannerSummary.totalCalls} visits</span>
-                      <span>•</span>
-                      <span>{plannerSummary.unscheduledCount} unallocated</span>
-                    </div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base">Employees</CardTitle>
+                    <CardDescription>
+                      {plannerDay} • {TEMPLATE_WEEK_LABELS[plannerWeek]}
+                    </CardDescription>
                   </div>
-                </CardHeader>
-                <CardContent className="p-0">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-3 rounded-md border px-3 py-1.5 text-xs text-muted-foreground">
+                        <span>{plannerSummary.totalWorkers} workers</span>
+                        <span>•</span>
+                        <span>{plannerSummary.totalCalls} visits</span>
+                        <span>•</span>
+                        <span>{plannerSummary.unscheduledCount} unallocated</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Zoom</span>
+                        <input
+                          type="range"
+                          min="0.8"
+                          max="1.6"
+                          step="0.1"
+                          value={plannerZoom}
+                          onChange={(event) => setPlannerZoom(Number(event.target.value))}
+                          className="w-28"
+                        />
+                        <span className="w-8 text-right">{Math.round(plannerZoom * 100)}%</span>
+                      </div>
+                    </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
                   <div className="max-h-[calc(100vh-340px)] min-h-[520px] overflow-auto">
-                    <div className="min-w-[1200px]">
+                    <div style={{ minWidth: `${1200 * plannerZoom}px` }}>
                       <div className="flex border-b bg-muted/30 text-[11px] font-medium text-muted-foreground">
                         <div className="w-[260px] px-3 py-2 border-r">Employees</div>
                         <div className="relative flex-1">
@@ -779,6 +795,10 @@ export default function CareWorkerRotas() {
                             {Array.from({ length: 25 }).map((_, idx) => {
                               const minutes = PLANNER_DAY_START_MINUTES + idx * 60;
                               const left = ((minutes - PLANNER_DAY_START_MINUTES) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
+                              const labelStride = plannerZoom < 1 ? 2 : 1;
+                              const showLabel = idx % labelStride === 0;
+                              const isFirst = idx === 0;
+                              const isLast = idx === 24;
                               return (
                                 <div
                                   key={`tick-${idx}`}
@@ -786,7 +806,14 @@ export default function CareWorkerRotas() {
                                   style={{ left: `${left}%` }}
                                 >
                                   <div className="h-8 w-px bg-border/60" />
-                                  <span className="ml-1">{formatMinutesLabel(minutes)}</span>
+                                  {showLabel && (
+                                    <span
+                                      className="ml-1 px-1.5 py-0.5 rounded-sm bg-background/80 text-[10px] text-muted-foreground shadow-sm"
+                                      style={{ transform: isFirst ? "translateX(0)" : isLast ? "translateX(-70%)" : "translateX(-50%)" }}
+                                    >
+                                      {formatMinutesLabel(minutes)}
+                                    </span>
+                                  )}
                                 </div>
                               );
                             })}
@@ -838,7 +865,7 @@ export default function CareWorkerRotas() {
                                         const rota = plannerEntryToRota.get(entry.id);
                                         if (rota) setSelectedRotaId(rota.id);
                                       }}
-                                      className={`absolute top-1 h-12 rounded-md border-l-4 px-2 text-left text-[11px] font-semibold shadow-sm transition hover:brightness-105 ${tone} ${
+                                      className={`absolute top-1 h-12 rounded-none border-l-4 px-2 text-left text-[11px] font-semibold shadow-sm transition hover:brightness-105 ${tone} ${
                                         isSelected ? "ring-2 ring-primary/40" : ""
                                       }`}
                                       style={{ left: `${left}%`, width: `${Math.max(width, 1.5)}%` }}
@@ -987,8 +1014,7 @@ export default function CareWorkerRotas() {
 
               {/* Metadata */}
               <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                <span>Saved: {formatDateLabel(selectedRota.createdAt)}</span>
-                {selectedRota.createdByUsername && <span>• by {selectedRota.createdByUsername}</span>}
+                {selectedRota.createdByUsername && <span>Saved by {selectedRota.createdByUsername}</span>}
               </div>
 
               {/* Edit mode controls */}

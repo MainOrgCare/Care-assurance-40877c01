@@ -332,8 +332,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page Content Area */}
-        <div className="px-6 sm:px-10 lg:px-12 py-8 sm:py-10 lg:py-12 max-w-7xl mx-auto w-full flex-1">
-            <div className="glass-card p-6 sm:p-10 lg:p-12 min-h-full flex flex-col shadow-lg animate-fade-in">
+        <div className="px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6 w-full flex-1">
+            <div className="glass-card rounded-lg border border-border/70 p-4 sm:p-6 lg:p-8 min-h-full flex flex-col shadow-md animate-fade-in w-full">
             {/* Internal Page Brand Header */}
             <div className="flex flex-wrap items-center gap-4 justify-between mb-8 sm:mb-10">
               <div className="flex items-center gap-4">
