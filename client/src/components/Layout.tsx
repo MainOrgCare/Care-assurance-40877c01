@@ -51,6 +51,7 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
     location === "/shadow-admin-portal" ||
     location === "/testing-features" ||
     location === "/care-worker-rotas" ||
+    location === "/rostering-studio" ||
     location === "/billing-tool" ||
     location === "/system-logs";
   const [openAdmin, setOpenAdmin] = useState(isAdminUser && isAdminRoute);
@@ -64,6 +65,7 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
           location === "/shadow-admin-portal" ||
           location === "/testing-features" ||
           location === "/care-worker-rotas" ||
+          location === "/rostering-studio" ||
           location === "/billing-tool" ||
           location === "/system-logs")
       ) {
@@ -219,8 +221,11 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
               <Link href="/system-logs" className={subNavLinkClass(location === "/system-logs")}>
                 <Terminal size={15} /> System Logs
               </Link>
-              <Link href="/care-worker-rotas" className={subNavLinkClass(location === "/care-worker-rotas")}>
-                <ClipboardList size={15} /> Care Worker Rotas
+              <Link
+                href="/care-worker-rotas"
+                className={subNavLinkClass(location === "/care-worker-rotas" || location === "/rostering-studio")}
+              >
+                <ClipboardList size={15} /> Rostering Hub
               </Link>
               <Link href="/billing-tool" className={subNavLinkClass(location === "/billing-tool")} data-testid="link-billing-tool">
                 <FileSpreadsheet size={15} /> Billing Tool

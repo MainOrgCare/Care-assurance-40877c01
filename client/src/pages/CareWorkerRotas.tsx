@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,8 +21,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { RefreshCw, Shield, Download, Copy, Pencil, Calendar, Users, Trash2, AlertTriangle, ChevronDown } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { WeeklyPlannerGrid } from "@/components/rostering/WeeklyPlannerGrid";
+
+const RosteringStudio = lazy(() => import("@/pages/RosteringStudio"));
 
 type OptimizedRouteEntry = {
   key: string;
@@ -53,16 +55,24 @@ type ShiftBarEntry = {
   durationMinutes: number | null;
 };
 
+type RotaOverride = {
+  week1Days: string[];
+  week2Days: string[];
+  requirementStartMinutes?: number | null;
+};
+
 type CareWorkerRotaPayload = {
   workerName: string;
   workerKey: string;
   templateWeek: "week1" | "week2";
   templateDay: string;
-  timeCriticalWindowEnforced?: boolean;
-  shiftBars?: ShiftBarEntry[];
-  optimizedRun: OptimizedRouteEntry[];
   workerStartMinutes?: number | null;
   workerEndMinutes?: number | null;
+  timeCriticalWindowEnforced?: boolean;
+  shiftBars?: ShiftBarEntry[];
+  selectedGroupKeys?: string[];
+  optimizedRun: OptimizedRouteEntry[];
+  overrides?: Record<string, RotaOverride>;
 };
 
 type CareWorkerRotaRecord = {
@@ -140,6 +150,48 @@ const ROSTER_DAY_START_MINUTES = 6 * 60;
 const ROSTER_DAY_SOFT_END_MINUTES = 22 * 60;
 const ROSTER_DAY_HARD_END_MINUTES = 23 * 60;
 
+type RotaIdentity = {
+  workerName?: string;
+  workerKey?: string;
+  templateWeek?: string;
+  templateDay?: string;
+};
+
+const normalizeTemplateWeek = (value?: string, fallback?: string): "week1" | "week2" => {
+  if (value === "week1" || value === "week2") return value;
+  if (fallback === "week1" || fallback === "week2") return fallback;
+  return "week1";
+};
+
+const normalizeTemplateDay = (value?: string, fallback?: string): (typeof WEEKDAY_OPTIONS)[number] => {
+  if (value && WEEKDAY_OPTIONS.includes(value as (typeof WEEKDAY_OPTIONS)[number])) {
+    return value as (typeof WEEKDAY_OPTIONS)[number];
+  }
+  if (fallback && WEEKDAY_OPTIONS.includes(fallback as (typeof WEEKDAY_OPTIONS)[number])) {
+    return fallback as (typeof WEEKDAY_OPTIONS)[number];
+  }
+  return WEEKDAY_OPTIONS[0];
+};
+
+const buildPayloadForSave = (
+  payload: CareWorkerRotaPayload,
+  fallback?: RotaIdentity
+): CareWorkerRotaPayload => {
+  return {
+    workerName: payload.workerName || fallback?.workerName || "",
+    workerKey: payload.workerKey || fallback?.workerKey || "",
+    templateWeek: normalizeTemplateWeek(payload.templateWeek, fallback?.templateWeek),
+    templateDay: normalizeTemplateDay(payload.templateDay, fallback?.templateDay),
+    workerStartMinutes: clampTimeOfDay(payload.workerStartMinutes),
+    workerEndMinutes: clampMinuteValue(payload.workerEndMinutes, 1440),
+    timeCriticalWindowEnforced: Boolean(payload.timeCriticalWindowEnforced),
+    shiftBars: (payload.shiftBars ?? []).map(sanitizeShiftBar),
+    selectedGroupKeys: Array.isArray(payload.selectedGroupKeys) ? payload.selectedGroupKeys : [],
+    optimizedRun: (payload.optimizedRun ?? []).map(sanitizeRouteEntry),
+    overrides: payload.overrides ?? {},
+  };
+};
+
 const getCallTypeTone = (callTypeLabel: string | null | undefined) => {
   const label = (callTypeLabel || "").toLowerCase();
   if (label.includes("am") || label.includes("morning")) {
@@ -192,6 +244,45 @@ function formatDurationLabel(minutes: number | null | undefined): string {
   if (!parts.length) parts.push("0m");
   return parts.join(" ");
 }
+
+const clampMinuteValue = (value: number | null | undefined, max: number) => {
+  if (typeof value !== "number" || Number.isNaN(value)) return null;
+  const rounded = Math.round(value);
+  return Math.min(Math.max(rounded, 0), max);
+};
+
+const clampTimeOfDay = (value: number | null | undefined) => clampMinuteValue(value, 1439);
+
+const sanitizeShiftBar = (bar: ShiftBarEntry): ShiftBarEntry => ({
+  startMinutes: clampTimeOfDay(bar.startMinutes),
+  endMinutes: clampMinuteValue(bar.endMinutes, 1440),
+  durationMinutes: clampMinuteValue(bar.durationMinutes, 1440),
+});
+
+const sanitizeRouteEntry = (entry: OptimizedRouteEntry): OptimizedRouteEntry => ({
+  ...entry,
+  requirementStartMinutes: clampTimeOfDay(entry.requirementStartMinutes),
+  scheduledStartMinutes: clampTimeOfDay(entry.scheduledStartMinutes),
+  scheduledEndMinutes: clampMinuteValue(entry.scheduledEndMinutes, 1440),
+  durationMinutes: clampMinuteValue(entry.durationMinutes, 1440),
+  shiftMinutes: clampMinuteValue(entry.shiftMinutes, 1440),
+  travelMinutesEstimated: clampMinuteValue(entry.travelMinutesEstimated, 1440),
+  windowStartMinutes: clampTimeOfDay(entry.windowStartMinutes),
+  windowEndMinutes: clampMinuteValue(entry.windowEndMinutes, 1440),
+  suggestedStartMinutes: clampTimeOfDay(entry.suggestedStartMinutes),
+  recommendedStartMinutes: clampTimeOfDay(entry.recommendedStartMinutes),
+});
+
+const formatValidationErrors = (errors: any) => {
+  if (!Array.isArray(errors) || errors.length === 0) return "";
+  return errors
+    .map((error) => {
+      const path = Array.isArray(error.path) ? error.path.filter(Boolean).join(".") : "";
+      const message = typeof error.message === "string" ? error.message : "Invalid value";
+      return path ? `${path}: ${message}` : message;
+    })
+    .join(" ");
+};
 
 function buildScheduledEnd(
   startMinutes: number | null,
@@ -436,6 +527,10 @@ function SummaryMetric({ label, value, helper }: { label: string; value: string;
 export default function CareWorkerRotas() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [location, setLocation] = useLocation();
+  const [activeView, setActiveView] = useState<"library" | "studio">(
+    location.startsWith("/rostering-studio") ? "studio" : "library"
+  );
   const [rotas, setRotas] = useState<CareWorkerRotaRecord[]>([]);
   const [selectedRotaId, setSelectedRotaId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -470,6 +565,23 @@ export default function CareWorkerRotas() {
   const plannerListRef = useRef<HTMLDivElement | null>(null);
   const [plannerScrollTop, setPlannerScrollTop] = useState(0);
   const [plannerViewportHeight, setPlannerViewportHeight] = useState(520);
+
+  useEffect(() => {
+    const nextView = location.startsWith("/rostering-studio") ? "studio" : "library";
+    setActiveView((prev) => (prev === nextView ? prev : nextView));
+  }, [location]);
+
+  const handleViewChange = useCallback(
+    (value: string) => {
+      const nextView = value === "studio" ? "studio" : "library";
+      setActiveView(nextView);
+      const nextPath = nextView === "studio" ? "/rostering-studio" : "/care-worker-rotas";
+      if (location !== nextPath) {
+        setLocation(nextPath);
+      }
+    },
+    [location, setLocation]
+  );
 
   const fetchRotas = useCallback(async () => {
     setLoading(true);
@@ -550,6 +662,18 @@ export default function CareWorkerRotas() {
         const response = await fetch(`/api/admin/testing-features/workbooks/${id}`, {
           credentials: "include",
         });
+        if (response.status === 404) {
+          workbookCacheRef.current.delete(id);
+          setWorkbooks((prev) => prev.filter((workbook) => workbook.id !== id));
+          setSelectedWorkbook((prev) => {
+            if (prev?.id === id) {
+              setSelectedWorkbookWorkerKey(null);
+              return null;
+            }
+            return prev;
+          });
+          return null;
+        }
         if (!response.ok) {
           throw new Error(`Unable to load workbook details (HTTP ${response.status}).`);
         }
@@ -991,25 +1115,34 @@ export default function CareWorkerRotas() {
 
     setIsCreatingRota(true);
     try {
-    const payload: CareWorkerRotaPayload = {
-      workerName: roster.workerName,
-      workerKey: roster.key,
-      templateWeek: plannerWeek,
-      templateDay: plannerDay,
-      timeCriticalWindowEnforced: false,
-      shiftBars: roster.shiftBars ?? [],
-      optimizedRun: scheduledRun,
-    };
+      const payload: CareWorkerRotaPayload = {
+        workerName: roster.workerName,
+        workerKey: roster.key,
+        templateWeek: plannerWeek,
+        templateDay: plannerDay,
+        timeCriticalWindowEnforced: false,
+        shiftBars: roster.shiftBars ?? [],
+        selectedGroupKeys: eligibleGroups.map((group) => group.key),
+        optimizedRun: scheduledRun,
+        overrides: {},
+      };
+      const payloadToSave = buildPayloadForSave(payload, {
+        workerName: roster.workerName,
+        workerKey: roster.key,
+        templateWeek: plannerWeek,
+        templateDay: plannerDay,
+      });
 
       const response = await fetch("/api/admin/care-worker-rotas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payloadToSave),
       });
       const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.message || "Unable to save rota.");
+        const details = formatValidationErrors(result?.errors);
+        throw new Error(details || result.message || "Unable to save rota.");
       }
 
       toast({
@@ -1151,24 +1284,18 @@ export default function CareWorkerRotas() {
     }
     setSavingEdit(true);
     try {
-      const payloadToSave: CareWorkerRotaPayload = {
-        ...draftPayload,
-        workerStartMinutes:
-          typeof draftPayload.workerStartMinutes === "number" ? draftPayload.workerStartMinutes : null,
-        workerEndMinutes: typeof draftPayload.workerEndMinutes === "number" ? draftPayload.workerEndMinutes : null,
-      };
+      const payloadToSave = buildPayloadForSave(draftPayload, {
+        workerName: selectedRota.workerName,
+        workerKey: selectedRota.workerKey,
+        templateWeek: selectedRota.templateWeek,
+        templateDay: selectedRota.templateDay,
+      });
 
       const response = await fetch(`/api/admin/care-worker-rotas/${selectedRota.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          ...payloadToSave,
-          workerName: selectedRota.workerName,
-          workerKey: selectedRota.workerKey,
-          templateWeek: selectedRota.templateWeek as "week1" | "week2",
-          templateDay: selectedRota.templateDay as string,
-        }),
+        body: JSON.stringify(payloadToSave),
       });
 
       let result: any = null;
@@ -1183,7 +1310,7 @@ export default function CareWorkerRotas() {
       }
 
       if (!response.ok) {
-        const message =
+        const message = formatValidationErrors(result?.errors) ||
           (typeof result?.message === "string" && result.message.trim()) ||
           rawText.trim() ||
           `Unable to update rota (HTTP ${response.status}).`;
@@ -1210,15 +1337,48 @@ export default function CareWorkerRotas() {
       toast({ title: result?.deduped ? "Duplicate rota" : updatedLabel, description });
       if (Object.keys(linkedUpdates).length > 0) {
         const updateEntries = Object.entries(linkedUpdates);
+        const updateErrors: string[] = [];
         for (const [rotaId, payload] of updateEntries) {
-          await fetch(`/api/admin/care-worker-rotas/${rotaId}`, {
+          const fallback = rotas.find((rota) => rota.id === rotaId);
+          const linkedPayload = buildPayloadForSave(payload, {
+            workerName: fallback?.workerName,
+            workerKey: fallback?.workerKey,
+            templateWeek: fallback?.templateWeek,
+            templateDay: fallback?.templateDay,
+          });
+          const linkedResponse = await fetch(`/api/admin/care-worker-rotas/${rotaId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
-            body: JSON.stringify(payload),
+            body: JSON.stringify(linkedPayload),
           });
+          if (!linkedResponse.ok) {
+            let linkedResult: any = null;
+            let linkedText = "";
+            try {
+              linkedResult = await linkedResponse.clone().json();
+            } catch {
+              linkedText = await linkedResponse
+                .clone()
+                .text()
+                .catch(() => "");
+            }
+            const linkedMessage =
+              formatValidationErrors(linkedResult?.errors) ||
+              (typeof linkedResult?.message === "string" && linkedResult.message.trim()) ||
+              linkedText.trim() ||
+              `Linked rota update failed (HTTP ${linkedResponse.status}).`;
+            updateErrors.push(linkedMessage);
+          }
         }
         setLinkedUpdates({});
+        if (updateErrors.length > 0) {
+          toast({
+            title: "Linked update failed",
+            description: updateErrors[0],
+            variant: "destructive",
+          });
+        }
       }
     } catch (error: any) {
       toast({
@@ -1229,7 +1389,7 @@ export default function CareWorkerRotas() {
     } finally {
       setSavingEdit(false);
     }
-  }, [draftPayload, linkedUpdates, selectedRota, toast]);
+  }, [draftPayload, linkedUpdates, rotas, selectedRota, toast]);
 
   const addShiftBar = useCallback(
     (startMinutes: number) => {
@@ -1347,8 +1507,10 @@ export default function CareWorkerRotas() {
   }
 
   const totalWorkers = new Set(rotas.map((r) => r.workerKey)).size;
-  const week1Count = rotas.filter((r) => r.templateWeek === "week1").length;
-  const week2Count = rotas.filter((r) => r.templateWeek === "week2").length;
+  const headerDescription =
+    activeView === "studio"
+      ? "Build optimized schedules from saved workbook analysis."
+      : "Daily planner timeline and weekly grid for saved care worker rotas.";
 
   return (
     <div className="page-shell-compact">
@@ -1356,42 +1518,62 @@ export default function CareWorkerRotas() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between mb-4">
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-primary">Admin Library</p>
-          <h1 className="text-3xl font-heading font-bold text-foreground">Care Worker Rotas</h1>
-          <p className="text-muted-foreground">
-            Daily planner timeline and weekly grid for saved care worker rotas.
-          </p>
+          <h1 className="text-3xl font-heading font-bold text-foreground">Rostering Hub</h1>
+          <p className="text-muted-foreground">{headerDescription}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <Users className="h-4 w-4" />
-              {totalWorkers} workers
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Calendar className="h-4 w-4" />
-              {rotas.length} rotas
-            </span>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => fetchRotas()}
-            disabled={loading}
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-          <Link href="/testing-features">
-            <Button type="button" variant="default" size="sm">
-              Optimise new rota
-            </Button>
-          </Link>
+          <Tabs value={activeView} onValueChange={handleViewChange}>
+            <TabsList>
+              <TabsTrigger value="library">Rota library</TabsTrigger>
+              <TabsTrigger value="studio">Rostering studio</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {activeView === "library" && (
+            <>
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <Users className="h-4 w-4" />
+                  {totalWorkers} workers
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="h-4 w-4" />
+                  {rotas.length} rotas
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fetchRotas()}
+                disabled={loading}
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              <Link href="/testing-features">
+                <Button type="button" variant="default" size="sm">
+                  Optimise new rota
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Main grid card */}
-      <Card className="border-border/60">
+      {activeView === "studio" ? (
+        <Suspense
+          fallback={
+            <div className="rounded-xl border border-border/60 bg-muted/30 p-6 text-sm text-muted-foreground">
+              Loading Rostering Studio...
+            </div>
+          }
+        >
+          <RosteringStudio embedded />
+        </Suspense>
+      ) : (
+        <>
+          {/* Main grid card */}
+          <Card className="border-border/60">
         <CardHeader className="border-b bg-muted/20">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -2190,6 +2372,8 @@ export default function CareWorkerRotas() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        </>
+      )}
     </div>
   );
 }

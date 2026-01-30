@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useRoute, useLocation } from "wouter";
+import { Link } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -268,11 +268,10 @@ const computeTemplateSelectionKey = (week: TemplateWeekKey, day: WeekdayLabel) =
   return dateKey;
 };
 
-export default function RosteringStudio() {
+export default function RosteringStudio({ embedded = false }: { embedded?: boolean }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [, setLocation] = useLocation();
 
   // Local state
   const [selectedWorkbookId, setSelectedWorkbookId] = useState<string | null>(null);
@@ -679,23 +678,31 @@ export default function RosteringStudio() {
     );
   }
 
+  const containerClass = embedded
+    ? "space-y-6"
+    : "min-h-screen py-8 px-4 lg:px-10 max-w-[1600px] mx-auto relative";
+
   return (
-    <div className="min-h-screen py-8 px-4 lg:px-10 max-w-[1600px] mx-auto relative">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -top-32 right-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute top-40 left-0 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.08),transparent_55%)]" />
-      </div>
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/testing-features">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Testing Features
-            </Link>
-          </Button>
+    <div className={containerClass}>
+      {!embedded && (
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute -top-32 right-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+          <div className="absolute top-40 left-0 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.08),transparent_55%)]" />
         </div>
+      )}
+      {/* Header */}
+      <div className={embedded ? "mb-4" : "mb-8"}>
+        {!embedded && (
+          <div className="flex items-center gap-2 mb-4">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/testing-features">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Testing Features
+              </Link>
+            </Button>
+          </div>
+        )}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="inline-flex items-center gap-3 rounded-full border border-primary/20 bg-primary/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary mb-3">
