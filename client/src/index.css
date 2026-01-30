@@ -213,7 +213,7 @@
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    backdrop-filter: blur(8px);
+    backdrop-filter: none;
   }
 
   .pill-primary {
@@ -226,11 +226,11 @@
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    backdrop-filter: blur(8px);
+    backdrop-filter: none;
     background-color: rgba(59, 180, 200, 0.12);
     color: var(--color-primary);
     border: 1px solid rgba(59, 180, 200, 0.25);
-    box-shadow: 0 0 20px rgba(59, 180, 200, 0.1);
+    box-shadow: none;
   }
 
   .pill-secondary {
@@ -243,7 +243,7 @@
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    backdrop-filter: blur(8px);
+    backdrop-filter: none;
     background-color: rgba(168, 162, 158, 0.12);
     color: var(--color-secondary);
     border: 1px solid rgba(168, 162, 158, 0.25);
@@ -259,7 +259,7 @@
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    backdrop-filter: blur(8px);
+    backdrop-filter: none;
     background-color: rgba(52, 211, 153, 0.12);
     color: var(--color-success);
     border: 1px solid rgba(52, 211, 153, 0.25);
@@ -275,7 +275,7 @@
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    backdrop-filter: blur(8px);
+    backdrop-filter: none;
     background-color: var(--color-muted);
     color: var(--color-muted-foreground);
     border: 1px solid var(--color-border);
@@ -324,21 +324,19 @@
     border: 1px solid var(--color-border);
     background-color: var(--color-card);
     padding: 1.25rem;
-    box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.1);
-    transition: box-shadow 0.15s ease;
+    box-shadow: var(--shadow-xs);
+    transition: none;
     contain: layout style;
   }
   .stat-card:hover {
-    box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.14);
+    box-shadow: var(--shadow-xs);
   }
   .stat-card-value {
     font-size: 1.875rem;
     font-weight: 700;
     color: var(--color-foreground);
-    background: linear-gradient(135deg, hsl(192 82% 58%), hsl(192 82% 48%));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    background: none;
+    -webkit-text-fill-color: currentColor;
   }
   .stat-card-label {
     font-size: 0.75rem;
@@ -353,7 +351,7 @@
     background-color: color-mix(in srgb, var(--color-muted) 50%, transparent);
     border: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
     border-radius: 0.75rem;
-    transition: all 0.2s ease;
+    transition: none;
   }
   .input-enhanced:focus {
     border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
@@ -599,13 +597,13 @@ html.theme-light body {
     transition: transform 0.15s ease;
   }
   .magnetic-hover:hover {
-    transform: translateY(-1px);
+    transform: none;
   }
 
   /* Focus glow ring */
   .focus-glow:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(59, 180, 200, 0.2), 0 0 20px rgba(59, 180, 200, 0.1);
+    box-shadow: 0 0 0 2px rgba(59, 180, 200, 0.18);
   }
 
   /* Enterprise Table Utilities */
@@ -629,7 +627,7 @@ html.theme-light body {
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    backdrop-filter: blur(8px);
+    backdrop-filter: none;
   }
 }
 
@@ -702,8 +700,8 @@ html.theme-light body {
   .glass-card-interactive,
   .app-surface,
   .stat-card {
-    backdrop-filter: blur(8px);
-    box-shadow: var(--shadow-sm);
+    backdrop-filter: none;
+    box-shadow: var(--shadow-xs);
     border-color: var(--color-border);
   }
   .pill,

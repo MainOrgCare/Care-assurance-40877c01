@@ -355,6 +355,7 @@ export default function CareWorkerRotas() {
     fixedEnd: number;
     sourceEntrySnapshot?: OptimizedRouteEntry;
   } | null>(null);
+  const [workbookWorkerSearch, setWorkbookWorkerSearch] = useState("");
 
   const fetchRotas = useCallback(async () => {
     setLoading(true);
@@ -1233,15 +1234,29 @@ export default function CareWorkerRotas() {
               onValueChange={(value) => setSelectedWorkbookWorkerKey(value)}
               disabled={!selectedWorkbook?.careWorkerRosters?.length}
             >
-              <SelectTrigger className="h-9 text-xs">
+              <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder={selectedWorkbook ? "Select a care worker" : "No workbook available"} />
               </SelectTrigger>
               <SelectContent>
-                {(selectedWorkbook?.careWorkerRosters ?? []).map((worker) => (
-                  <SelectItem key={worker.key} value={worker.key}>
-                    {worker.workerName}
-                  </SelectItem>
-                ))}
+                <div className="p-2">
+                  <Input
+                    value={workbookWorkerSearch}
+                    onChange={(event) => setWorkbookWorkerSearch(event.target.value)}
+                    placeholder="Search care worker..."
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="max-h-56 overflow-auto">
+                  {(selectedWorkbook?.careWorkerRosters ?? [])
+                    .filter((worker) =>
+                      worker.workerName.toLowerCase().includes(workbookWorkerSearch.trim().toLowerCase())
+                    )
+                    .map((worker) => (
+                      <SelectItem key={worker.key} value={worker.key}>
+                        {worker.workerName}
+                      </SelectItem>
+                    ))}
+                </div>
               </SelectContent>
             </Select>
           </div>
@@ -1249,19 +1264,19 @@ export default function CareWorkerRotas() {
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Template</p>
             <div className="flex gap-2">
               <Select value={plannerWeek} onValueChange={(value) => setPlannerWeek(value as "week1" | "week2")}>
-                <SelectTrigger className="h-9 text-xs">
+                <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Week" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-48 overflow-auto">
                   <SelectItem value="week1">{TEMPLATE_WEEK_LABELS.week1}</SelectItem>
                   <SelectItem value="week2">{TEMPLATE_WEEK_LABELS.week2}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={plannerDay} onValueChange={(value) => setPlannerDay(value as (typeof WEEKDAY_OPTIONS)[number])}>
-                <SelectTrigger className="h-9 text-xs">
+                <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Day" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-48 overflow-auto">
                   {WEEKDAY_OPTIONS.map((day) => (
                     <SelectItem key={day} value={day}>
                       {day}
