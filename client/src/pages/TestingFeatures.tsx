@@ -600,8 +600,8 @@ export default function TestingFeatures() {
       careWorkerCount: number;
       serviceUserCount: number;
       callGroupCount: number;
-      rowAnalysis: RowAnalysis[];
-      callGroups: any[];
+      rowAnalysis?: RowAnalysis[];
+      callGroups?: any[];
       careWorkerRosters: any[];
       doubleUpSlots: Record<string, string[]>;
     }) => {
@@ -2715,6 +2715,7 @@ export default function TestingFeatures() {
 
   useEffect(() => {
     if (!careWorkerRosters.length) return;
+    let cancelled = false;
     const removals = new Map<
       string,
       { workerKey: string; week: TemplateWeekKey; day: WeekdayLabel; groupKeys: Set<string> }
@@ -2738,14 +2739,23 @@ export default function TestingFeatures() {
       });
     });
 
-    removals.forEach((entry) => {
-      clearTemplateRecommendations(
-        entry.workerKey,
-        entry.week,
-        entry.day,
-        Array.from(entry.groupKeys)
-      );
-    });
+    const clearAll = async () => {
+      for (const entry of removals.values()) {
+        if (cancelled) return;
+        await clearTemplateRecommendations(
+          entry.workerKey,
+          entry.week,
+          entry.day,
+          Array.from(entry.groupKeys)
+        );
+      }
+    };
+
+    void clearAll();
+
+    return () => {
+      cancelled = true;
+    };
   }, [careWorkerRosters, clearTemplateRecommendations]);
 
   const handleResetRosteringStudio = useCallback(() => {
@@ -4662,13 +4672,38 @@ export default function TestingFeatures() {
                         throw new Error("File hash not available. Re-upload the workbook and try again.");
                       }
 
-                      // Convert Sets to arrays for JSON serialization
+                      // Convert Sets to arrays and drop per-row payloads to keep the save request small.
                       const serializableRosters = careWorkerRosters.map((roster) => ({
-                        ...roster,
+                        key: roster.key,
+                        workerName: roster.workerName,
+                        workerNameNormalized: roster.workerNameNormalized,
+                        shiftBars: roster.shiftBars,
+                        shiftBarsCount: roster.shiftBarsCount,
+                        isAdminStaff: roster.isAdminStaff,
+                        usesTemplateAssignments: roster.usesTemplateAssignments,
+                        uniqueServiceUsers: roster.uniqueServiceUsers,
+                        uniqueDays: roster.uniqueDays,
+                        missingRequirementTimes: roster.missingRequirementTimes,
+                        callRowsCount: roster.callRows.length,
+                        rowCount: roster.rows.length,
                         callGroups: roster.callGroups.map((group) => ({
-                          ...group,
+                          key: group.key,
+                          serviceUserName: group.serviceUserName,
+                          serviceUserArea: group.serviceUserArea,
+                          serviceUserAddress: group.serviceUserAddress,
+                          normalizedServiceUserKey: group.normalizedServiceUserKey,
+                          callTypeLabel: group.callTypeLabel,
+                          callTypeKey: group.callTypeKey,
+                          timeBandLabel: group.timeBandLabel,
+                          requirementStartMinutes: group.requirementStartMinutes,
+                          requirementStartLabel: group.requirementStartLabel,
+                          durationMinutes: group.durationMinutes,
+                          totalCalls: group.totalCalls,
+                          uniqueDays: group.uniqueDays,
                           templatedWeekdayKeys: Array.from(group.templatedWeekdayKeys),
                           doubleUpWeekdayKeys: Array.from(group.doubleUpWeekdayKeys),
+                          templatedRows: group.templatedRows,
+                          isTimeCritical: group.isTimeCritical,
                         })),
                       }));
 
@@ -4689,8 +4724,8 @@ export default function TestingFeatures() {
                         careWorkerCount: careWorkerRosters.length,
                         serviceUserCount: serviceUserStacks.length,
                         callGroupCount: callGroups.length,
-                        rowAnalysis: primaryRows,
-                        callGroups: callGroups,
+                        rowAnalysis: [],
+                        callGroups: [],
                         careWorkerRosters: serializableRosters,
                         doubleUpSlots: serializableDoubleUpSlots,
                       });

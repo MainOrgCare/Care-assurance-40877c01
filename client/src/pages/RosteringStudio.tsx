@@ -174,8 +174,10 @@ interface CareWorkerRoster {
   key: string;
   workerName: string;
   workerNameNormalized: string;
-  rows: RowAnalysis[];
-  callRows: RowAnalysis[];
+  rows?: RowAnalysis[];
+  callRows?: RowAnalysis[];
+  rowCount?: number;
+  callRowsCount?: number;
   shiftBars: ShiftBar[];
   shiftBarsCount: number;
   isAdminStaff: boolean;
@@ -1217,7 +1219,8 @@ export default function RosteringStudio() {
                                     )}
                                   </div>
                                   <p className="text-xs text-muted-foreground">
-                                    {roster.uniqueServiceUsers} SUs • {roster.callRows.length} calls
+                                    {roster.uniqueServiceUsers} SUs •{" "}
+                                    {roster.callRows?.length ?? roster.callRowsCount ?? 0} calls
                                     {roster.shiftBarsCount > 0 && ` • ${roster.shiftBarsCount} shifts`}
                                   </p>
                                 </div>
@@ -1258,7 +1261,7 @@ export default function RosteringStudio() {
                               <p className="text-xs text-muted-foreground">
                                 {selectedCareWorker.uniqueServiceUsers} service users •{" "}
                                 {selectedCareWorker.callGroups.length} call types •{" "}
-                                {selectedCareWorker.callRows.length} calls •{" "}
+                                {selectedCareWorker.callRows?.length ?? selectedCareWorker.callRowsCount ?? 0} calls •{" "}
                                 {selectedCareWorker.uniqueDays} days
                               </p>
                             </div>
