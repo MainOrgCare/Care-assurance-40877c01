@@ -3314,6 +3314,39 @@ export default function TestingFeatures() {
     };
   }, [optimizedRun]);
 
+  const buildCallSignature = useCallback(() => {
+    if (!primaryRows.length) return "";
+    const items: string[] = [];
+    primaryRows.forEach((row) => {
+      if (row.isShiftBar) return;
+      const serviceKey =
+        row.normalizedServiceUserKey ||
+        (row.serviceUserName ? row.serviceUserName.toLowerCase().trim() : "unknown");
+      const dateKey = row.plannedDateKey || "";
+      const slotMinutes = getRowSlotMinutes(row);
+      const duration =
+        typeof row.plannedDurationMinutes === "number"
+          ? row.plannedDurationMinutes
+          : typeof row.actualDurationMinutes === "number"
+          ? row.actualDurationMinutes
+          : null;
+      const callTypeKey = normalizeCallTypeKey(row.callTypeLabel ?? null) || "unknown";
+      const isCancelled = !row.actualWorker && !row.isShiftBar;
+      items.push(
+        [
+          serviceKey,
+          dateKey,
+          typeof slotMinutes === "number" ? Math.round(slotMinutes).toString() : "",
+          typeof duration === "number" ? Math.round(duration).toString() : "",
+          callTypeKey,
+          isCancelled ? "1" : "0",
+        ].join("|")
+      );
+    });
+    items.sort();
+    return items.join("\n");
+  }, [primaryRows]);
+
   const handleSaveRota = useCallback(async () => {
     if (!selectedCareWorker) {
       toast({
@@ -4668,8 +4701,11 @@ export default function TestingFeatures() {
                     if (!fileMeta) return;
                     setIsSavingWorkbook(true);
                     try {
-                      if (!sourceHash) {
-                        throw new Error("File hash not available. Re-upload the workbook and try again.");
+                      const callSignature = buildCallSignature();
+                      const callsHash = callSignature ? await createHash(callSignature) : null;
+                      const dedupeHash = callsHash || sourceHash;
+                      if (!dedupeHash) {
+                        throw new Error("Call signature hash not available. Re-upload the workbook and try again.");
                       }
 
                       // Convert Sets to arrays and drop per-row payloads to keep the save request small.
@@ -4719,7 +4755,7 @@ export default function TestingFeatures() {
                       saveWorkbookMutation.mutate({
                         name: fileMeta.name.replace(/\.[^/.]+$/, ""), // Remove file extension
                         fileName: fileMeta.name,
-                        sourceHash,
+                        sourceHash: dedupeHash,
                         totalRows: fileMeta.totalRows,
                         careWorkerCount: careWorkerRosters.length,
                         serviceUserCount: serviceUserStacks.length,
