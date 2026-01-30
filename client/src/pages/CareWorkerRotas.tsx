@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { RefreshCw, Shield, Download, Copy, Pencil, Calendar, Users, Trash2 } from "lucide-react";
+import { RefreshCw, Shield, Download, Copy, Pencil, Calendar, Users, Trash2, AlertTriangle, ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 import { WeeklyPlannerGrid } from "@/components/rostering/WeeklyPlannerGrid";
 
@@ -225,6 +225,28 @@ function findOverlap(entries: OptimizedRouteEntry[]): { first: OptimizedRouteEnt
   return null;
 }
 
+function findAllOverlaps(entries: OptimizedRouteEntry[]) {
+  const scheduled = entries
+    .map((entry) => {
+      const start = typeof entry.scheduledStartMinutes === "number" ? entry.scheduledStartMinutes : null;
+      const end = buildScheduledEnd(start, entry.scheduledEndMinutes, entry.durationMinutes);
+      if (typeof start !== "number" || typeof end !== "number") return null;
+      const normalizedEnd = end < start ? end + 24 * 60 : end;
+      return { entry, start, end: normalizedEnd };
+    })
+    .filter(Boolean) as Array<{ entry: OptimizedRouteEntry; start: number; end: number }>;
+  scheduled.sort((a, b) => a.start - b.start);
+  const overlaps: Array<{ first: OptimizedRouteEntry; second: OptimizedRouteEntry }> = [];
+  for (let i = 1; i < scheduled.length; i++) {
+    const prev = scheduled[i - 1];
+    const curr = scheduled[i];
+    if (curr.start < prev.end) {
+      overlaps.push({ first: prev.entry, second: curr.entry });
+    }
+  }
+  return overlaps;
+}
+
 function applyFixedDoubleUp(
   entries: OptimizedRouteEntry[],
   fixedKey: string,
@@ -263,6 +285,94 @@ function applyFixedDoubleUp(
 
   const updatedMap = new Map(updated.map((entry) => [entry.key, entry]));
   return entries.map((entry) => updatedMap.get(entry.key) ?? entry);
+}
+
+function normalizeShiftBars(shiftBars: ShiftBarEntry[] | undefined) {
+  if (!shiftBars?.length) return [];
+  return shiftBars
+    .map((bar) => {
+      const start = typeof bar.startMinutes === "number" ? bar.startMinutes : null;
+      const end =
+        typeof bar.endMinutes === "number"
+          ? bar.endMinutes
+          : typeof bar.startMinutes === "number" && typeof bar.durationMinutes === "number"
+          ? bar.startMinutes + bar.durationMinutes
+          : null;
+      if (start === null || end === null) return null;
+      const normalizedEnd = end < start ? end + 24 * 60 : end;
+      return { start, end: normalizedEnd };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (a as { start: number }).start - (b as { start: number }).start) as Array<{ start: number; end: number }>;
+}
+
+function findNextStart(
+  desiredStart: number,
+  duration: number,
+  blocks: Array<{ start: number; end: number }>
+) {
+  let start = desiredStart;
+  let moved = true;
+  while (moved) {
+    moved = false;
+    for (const block of blocks) {
+      if (start >= block.end) continue;
+      const end = start + duration;
+      if (end <= block.start) continue;
+      start = block.end;
+      moved = true;
+      break;
+    }
+  }
+  return start;
+}
+
+function optimizeRun(entries: OptimizedRouteEntry[], shiftBars: ShiftBarEntry[] | undefined) {
+  const blocks = normalizeShiftBars(shiftBars);
+  const durationFallback = 30;
+  const sorted = [...entries].sort((a, b) => {
+    const aStart =
+      typeof a.scheduledStartMinutes === "number"
+        ? a.scheduledStartMinutes
+        : typeof a.requirementStartMinutes === "number"
+        ? a.requirementStartMinutes
+        : typeof a.suggestedStartMinutes === "number"
+        ? a.suggestedStartMinutes
+        : 0;
+    const bStart =
+      typeof b.scheduledStartMinutes === "number"
+        ? b.scheduledStartMinutes
+        : typeof b.requirementStartMinutes === "number"
+        ? b.requirementStartMinutes
+        : typeof b.suggestedStartMinutes === "number"
+        ? b.suggestedStartMinutes
+        : 0;
+    return aStart - bStart;
+  });
+
+  let cursor = 0;
+  const optimized = sorted.map((entry) => {
+    const duration = typeof entry.durationMinutes === "number" ? entry.durationMinutes : durationFallback;
+    const baseStart =
+      typeof entry.scheduledStartMinutes === "number"
+        ? entry.scheduledStartMinutes
+        : typeof entry.requirementStartMinutes === "number"
+        ? entry.requirementStartMinutes
+        : typeof entry.suggestedStartMinutes === "number"
+        ? entry.suggestedStartMinutes
+        : cursor;
+    let start = Math.max(baseStart, cursor);
+    start = findNextStart(start, duration, blocks);
+    if (start >= 24 * 60) {
+      return { ...entry, scheduledStartMinutes: null, scheduledEndMinutes: null };
+    }
+    const end = Math.min(24 * 60, start + duration);
+    cursor = end;
+    return { ...entry, scheduledStartMinutes: start, scheduledEndMinutes: end };
+  });
+
+  const optimizedMap = new Map(optimized.map((entry) => [entry.key, entry]));
+  return entries.map((entry) => optimizedMap.get(entry.key) ?? entry);
 }
 
 function buildChangePreview(
@@ -356,6 +466,10 @@ export default function CareWorkerRotas() {
     sourceEntrySnapshot?: OptimizedRouteEntry;
   } | null>(null);
   const [workbookWorkerSearch, setWorkbookWorkerSearch] = useState("");
+  const [expandedWarnings, setExpandedWarnings] = useState<Record<string, boolean>>({});
+  const plannerListRef = useRef<HTMLDivElement | null>(null);
+  const [plannerScrollTop, setPlannerScrollTop] = useState(0);
+  const [plannerViewportHeight, setPlannerViewportHeight] = useState(520);
 
   const fetchRotas = useCallback(async () => {
     setLoading(true);
@@ -670,6 +784,61 @@ export default function CareWorkerRotas() {
     return map;
   }, [plannerRotas]);
 
+  const plannerWarnings = useMemo(() => {
+    const warningMap = new Map<string, string[]>();
+
+    plannerRotas.forEach((rota) => {
+      const overlaps = findAllOverlaps(rota.payload?.optimizedRun ?? []);
+      if (overlaps.length) {
+        const messages = overlaps.map(
+          (pair) =>
+            `${pair.first.serviceUserName || "Visit"} overlaps ${pair.second.serviceUserName || "visit"}`
+        );
+        warningMap.set(rota.workerKey, messages);
+      }
+    });
+
+    const doubleUpIndex = new Map<string, { workerKey: string; workerName: string; start: number | null; end: number | null }[]>();
+    plannerRotas.forEach((rota) => {
+      rota.payload?.optimizedRun?.forEach((entry) => {
+        if (!entry.isDoubleUp) return;
+        if (!doubleUpIndex.has(entry.key)) doubleUpIndex.set(entry.key, []);
+        doubleUpIndex.get(entry.key)!.push({
+          workerKey: rota.workerKey,
+          workerName: rota.workerName,
+          start: typeof entry.scheduledStartMinutes === "number" ? entry.scheduledStartMinutes : null,
+          end: typeof entry.scheduledEndMinutes === "number" ? entry.scheduledEndMinutes : null,
+        });
+      });
+    });
+    doubleUpIndex.forEach((entries, key) => {
+      if (entries.length < 2) return;
+      const [first, ...rest] = entries;
+      rest.forEach((entry) => {
+        if (entry.start !== first.start || entry.end !== first.end) {
+          const a = warningMap.get(first.workerKey) ?? [];
+          a.push(`Double‑up time mismatch (${key})`);
+          warningMap.set(first.workerKey, a);
+          const b = warningMap.get(entry.workerKey) ?? [];
+          b.push(`Double‑up time mismatch (${key})`);
+          warningMap.set(entry.workerKey, b);
+        }
+      });
+    });
+
+    return warningMap;
+  }, [plannerRotas]);
+
+  useEffect(() => {
+    const node = plannerListRef.current;
+    if (!node) return;
+    const update = () => setPlannerViewportHeight(node.clientHeight || 520);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
   const plannerSummary = useMemo(() => {
     const totalCalls = plannerLanes.reduce((acc, lane) => acc + lane.entries.length, 0);
     return {
@@ -960,6 +1129,14 @@ export default function CareWorkerRotas() {
     }
     setIsEditing(false);
   }, [selectedRota?.payload]);
+
+  const handleOptimizeEdits = useCallback(() => {
+    setDraftPayload((prev) => {
+      if (!prev) return prev;
+      const optimizedRun = optimizeRun(prev.optimizedRun ?? [], prev.shiftBars ?? []);
+      return { ...prev, optimizedRun };
+    });
+  }, []);
 
   const handleSaveEdits = useCallback(async () => {
     if (!selectedRota || !draftPayload) return;
@@ -1416,7 +1593,11 @@ export default function CareWorkerRotas() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                  <div className="max-h-[calc(100vh-340px)] min-h-[520px] overflow-auto">
+                  <div
+                    ref={plannerListRef}
+                    className="max-h-[calc(100vh-340px)] min-h-[520px] overflow-auto"
+                    onScroll={(event) => setPlannerScrollTop(event.currentTarget.scrollTop)}
+                  >
                     <div style={{ minWidth: `${1200 * plannerZoom}px` }}>
                       <div className="flex border-b bg-muted/30 text-[11px] font-medium text-muted-foreground">
                         <div className="w-[260px] px-3 py-2 border-r">Employees</div>
@@ -1454,83 +1635,132 @@ export default function CareWorkerRotas() {
                       {plannerLanes.length === 0 ? (
                         <div className="px-4 py-8 text-sm text-muted-foreground">No saved rotas for this day.</div>
                       ) : (
-                        plannerLanes.map((lane, idx) => {
-                          const stats = plannerLaneStats.get(lane.id);
-                          const shiftBars = plannerShiftBars.get(lane.id) ?? [];
+                        (() => {
+                          const rowHeight = 56;
+                          const overscan = 6;
+                          const totalRows = plannerLanes.length;
+                          const startIndex = Math.max(0, Math.floor(plannerScrollTop / rowHeight) - overscan);
+                          const endIndex = Math.min(
+                            totalRows,
+                            Math.ceil((plannerScrollTop + plannerViewportHeight) / rowHeight) + overscan
+                          );
+                          const visibleLanes = plannerLanes.slice(startIndex, endIndex);
                           return (
-                            <div
-                              key={lane.id}
-                              className={`flex border-b ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"}`}
-                            >
-                              <div className="w-[260px] border-r px-3 py-3">
-                                <p className="text-sm font-semibold">{lane.label}</p>
-                                <p className="text-[11px] text-muted-foreground">
-                                  {stats?.callCount ?? 0} visits • {formatDurationLabel(stats?.totalMinutes ?? 0)}
-                                </p>
-                              </div>
-                              <div className="relative flex-1 h-14">
-                                {Array.from({ length: 25 }).map((_, idx2) => {
-                                  const minutes = PLANNER_DAY_START_MINUTES + idx2 * 60;
-                                  const left = ((minutes - PLANNER_DAY_START_MINUTES) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
-                                  return (
-                                    <div
-                                      key={`grid-${lane.id}-${idx2}`}
-                                      className="absolute inset-y-0 w-px bg-border/30"
-                                      style={{ left: `${left}%` }}
-                                    />
-                                  );
-                                })}
-                                {shiftBars.map((bar, barIdx) => {
-                                  const start = typeof bar.startMinutes === "number" ? bar.startMinutes : null;
-                                  const end =
-                                    typeof bar.endMinutes === "number"
-                                      ? bar.endMinutes
-                                      : typeof bar.startMinutes === "number" && typeof bar.durationMinutes === "number"
-                                      ? bar.startMinutes + bar.durationMinutes
-                                      : null;
-                                  if (start === null || end === null) return null;
-                                  const left = ((start - PLANNER_DAY_START_MINUTES) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
-                                  const width = ((end - start) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
-                                  return (
-                                    <div
-                                      key={`shift-${lane.id}-${barIdx}`}
-                                      className="absolute top-1 h-12 bg-slate-200/70 border border-slate-300"
-                                      style={{ left: `${left}%`, width: `${Math.max(width, 1.5)}%` }}
-                                    />
-                                  );
-                                })}
-                                {lane.entries.map((entry) => {
-                                  const start = Math.max(entry.startMinutes, PLANNER_DAY_START_MINUTES);
-                                  const end = Math.min(entry.startMinutes + entry.durationMinutes, PLANNER_DAY_END_MINUTES);
-                                  const left = ((start - PLANNER_DAY_START_MINUTES) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
-                                  const width = ((end - start) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
-                                  const tone = getCallTypeTone(entry.callTypeLabel);
-                                  const isSelected = selectedPlannerEntryId === entry.id;
-                                  return (
-                                    <button
-                                      key={entry.id}
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedPlannerEntryId(entry.id);
-                                        const rota = plannerEntryToRota.get(entry.id);
-                                        if (rota) setSelectedRotaId(rota.id);
-                                      }}
-                                      className={`absolute top-1 h-12 rounded-none border-l-4 px-2 text-left text-[11px] font-semibold shadow-sm transition hover:brightness-105 ${tone} ${
-                                        isSelected ? "ring-2 ring-primary/40" : ""
-                                      }`}
-                                      style={{ left: `${left}%`, width: `${Math.max(width, 1.5)}%` }}
-                                    >
-                                      <div className="truncate">{entry.title}</div>
-                                      <div className="text-[10px] font-normal opacity-80">
-                                        {formatMinutesLabel(entry.startMinutes)} • {Math.round(entry.durationMinutes)}m
+                            <div className="relative" style={{ height: `${totalRows * rowHeight}px` }}>
+                              {visibleLanes.map((lane, idx) => {
+                                const rowIndex = startIndex + idx;
+                                const stats = plannerLaneStats.get(lane.id);
+                                const shiftBars = plannerShiftBars.get(lane.id) ?? [];
+                                const warnings = plannerWarnings.get(lane.id) ?? [];
+                                const hasWarnings = warnings.length > 0;
+                                return (
+                                  <div
+                                    key={lane.id}
+                                    className={`absolute left-0 right-0 flex border-b ${
+                                      rowIndex % 2 === 0 ? "bg-background" : "bg-muted/10"
+                                    }`}
+                                    style={{ top: `${rowIndex * rowHeight}px`, height: `${rowHeight}px` }}
+                                  >
+                                    <div className="w-[260px] border-r px-3 py-3 relative">
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-sm font-semibold">{lane.label}</p>
+                                        {hasWarnings && (
+                                          <button
+                                            type="button"
+                                            className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-600"
+                                            onClick={() =>
+                                              setExpandedWarnings((prev) => ({
+                                                ...prev,
+                                                [lane.id]: !prev[lane.id],
+                                              }))
+                                            }
+                                          >
+                                            <AlertTriangle className="h-3 w-3" />
+                                            {warnings.length}
+                                            <ChevronDown className="h-3 w-3" />
+                                          </button>
+                                        )}
                                       </div>
-                                    </button>
-                                  );
-                                })}
-                              </div>
+                                      <p className="text-[11px] text-muted-foreground">
+                                        {stats?.callCount ?? 0} visits • {formatDurationLabel(stats?.totalMinutes ?? 0)}
+                                      </p>
+                                      {hasWarnings && expandedWarnings[lane.id] && (
+                                        <div className="absolute left-3 top-12 z-20 w-[230px] rounded-md border border-red-200 bg-red-50/95 p-2 text-[11px] text-red-700 shadow-sm">
+                                          <p className="font-semibold text-red-700 mb-1">Conflicts</p>
+                                          <div className="space-y-1">
+                                            {warnings.map((warning, warningIdx) => (
+                                              <p key={`${lane.id}-warn-${warningIdx}`}>{warning}</p>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="relative flex-1 h-14">
+                                      {Array.from({ length: 25 }).map((_, idx2) => {
+                                        const minutes = PLANNER_DAY_START_MINUTES + idx2 * 60;
+                                        const left = ((minutes - PLANNER_DAY_START_MINUTES) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
+                                        return (
+                                          <div
+                                            key={`grid-${lane.id}-${idx2}`}
+                                            className="absolute inset-y-0 w-px bg-border/30"
+                                            style={{ left: `${left}%` }}
+                                          />
+                                        );
+                                      })}
+                                      {shiftBars.map((bar, barIdx) => {
+                                        const start = typeof bar.startMinutes === "number" ? bar.startMinutes : null;
+                                        const end =
+                                          typeof bar.endMinutes === "number"
+                                            ? bar.endMinutes
+                                            : typeof bar.startMinutes === "number" && typeof bar.durationMinutes === "number"
+                                            ? bar.startMinutes + bar.durationMinutes
+                                            : null;
+                                        if (start === null || end === null) return null;
+                                        const left = ((start - PLANNER_DAY_START_MINUTES) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
+                                        const width = ((end - start) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
+                                        return (
+                                          <div
+                                            key={`shift-${lane.id}-${barIdx}`}
+                                            className="absolute top-1 h-12 bg-slate-200/70 border border-slate-300"
+                                            style={{ left: `${left}%`, width: `${Math.max(width, 1.5)}%` }}
+                                          />
+                                        );
+                                      })}
+                                      {lane.entries.map((entry) => {
+                                        const start = Math.max(entry.startMinutes, PLANNER_DAY_START_MINUTES);
+                                        const end = Math.min(entry.startMinutes + entry.durationMinutes, PLANNER_DAY_END_MINUTES);
+                                        const left = ((start - PLANNER_DAY_START_MINUTES) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
+                                        const width = ((end - start) / (PLANNER_DAY_END_MINUTES - PLANNER_DAY_START_MINUTES)) * 100;
+                                        const tone = getCallTypeTone(entry.callTypeLabel);
+                                        const isSelected = selectedPlannerEntryId === entry.id;
+                                        return (
+                                          <button
+                                            key={entry.id}
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedPlannerEntryId(entry.id);
+                                              const rota = plannerEntryToRota.get(entry.id);
+                                              if (rota) setSelectedRotaId(rota.id);
+                                            }}
+                                            className={`absolute top-1 h-12 rounded-none border-l-4 px-2 text-left text-[11px] font-semibold shadow-sm transition hover:brightness-105 ${tone} ${
+                                              isSelected ? "ring-2 ring-primary/40" : ""
+                                            }`}
+                                            style={{ left: `${left}%`, width: `${Math.max(width, 1.5)}%` }}
+                                          >
+                                            <div className="truncate">{entry.title}</div>
+                                            <div className="text-[10px] font-normal opacity-80">
+                                              {formatMinutesLabel(entry.startMinutes)} • {Math.round(entry.durationMinutes)}m
+                                            </div>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           );
-                        })
+                        })()
                       )}
                     </div>
                   </div>
@@ -1652,6 +1882,9 @@ export default function CareWorkerRotas() {
                 </Button>
                 {isEditing && (
                   <>
+                    <Button size="sm" variant="outline" onClick={handleOptimizeEdits}>
+                      Optimize
+                    </Button>
                     <Button size="sm" onClick={handleSaveEdits} disabled={savingEdit}>
                       {savingEdit ? "Saving..." : "Save"}
                     </Button>
