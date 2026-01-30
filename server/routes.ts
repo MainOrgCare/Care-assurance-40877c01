@@ -3809,6 +3809,16 @@ ${correctionExamples}
           // Build per-medication required gap lookup (prefer explicit instruction rules)
           const agentMedGapHoursById = new Map<number, number>();
           const agentMedGapHoursByName = new Map<string, number>(); // fallback
+          const agentMedUseCallTimesById = new Map<number, boolean>();
+          const agentMedUseCallTimesByName = new Map<string, boolean>(); // fallback
+          const hasSpecificTimeInstruction = (text: string): boolean => {
+            const lower = String(text || "").toLowerCase();
+            if (!lower.trim()) return false;
+            const explicitTime = /\b(?:[01]?\d|2[0-3])[:.][0-5]\d\b/.test(lower) ||
+              /\b(?:0?[1-9]|1[0-2])(?:[:.][0-5]\d)?\s*(?:am|pm)\b/.test(lower);
+            if (explicitTime) return true;
+            return /\b(morning|noon|midday|afternoon|evening|night|bedtime|breakfast|lunch|dinner)\b/.test(lower);
+          };
           agentMedications.forEach((m: any) => {
             const rawGap = Number(m?.requiredGapHours);
             const inferredGap = inferRequiredGapHoursFromText(`${m?.name || ""} ${m?.instructions || ""}`);
@@ -3819,11 +3829,16 @@ ${correctionExamples}
                 ? inferredGap
                 : normalizedRaw ?? 4;
             const medId = Number(m.medicationId) || 0;
+            const instructionText = `${m?.name || ""} ${m?.instructions || ""}`.trim();
+            const hasTimingInstruction = hasSpecificTimeInstruction(instructionText);
+            const shouldUseCallTimes = hasTimingInstruction || gapHours !== 4;
             if (m?.name) {
               agentMedGapHoursByName.set(m.name, gapHours);
+              agentMedUseCallTimesByName.set(m.name, shouldUseCallTimes);
             }
             if (medId) {
               agentMedGapHoursById.set(medId, gapHours);
+              agentMedUseCallTimesById.set(medId, shouldUseCallTimes);
             }
           });
 
@@ -3995,6 +4010,58 @@ ${correctionExamples}
           // =====================================================================
           const administrationCodes = ['AD', 'AS', 'P', 'G', 'A', 'PRN', 'PRN-AD', 'PRN-AS'];
           const medDateEntriesForGap = new Map<string, any[]>();
+          const normalizeDateKey = (value: string): string =>
+            String(value || "").toLowerCase().replace(/[,\s]+/g, "-").trim();
+          const dateIndexByKey = new Map<string, number>();
+          (agentDates || []).forEach((d: string, idx: number) => {
+            const key = normalizeDateKey(d);
+            if (key && !dateIndexByKey.has(key)) dateIndexByKey.set(key, idx);
+          });
+
+          const parseTimeToMinutes = (raw: string): number | null => {
+            const match = String(raw || "").match(/\b(\d{1,2})(?:[:.]?([0-5]\d))?\s*(am|pm)?\b/i);
+            if (!match) return null;
+            let hours = Number(match[1]);
+            const minutes = match[2] ? Number(match[2]) : 0;
+            const meridiem = match[3]?.toLowerCase();
+            if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+            if (meridiem) {
+              if (hours === 12) hours = 0;
+              if (meridiem === "pm") hours += 12;
+            }
+            if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+            return hours * 60 + minutes;
+          };
+
+          const extractTimeFromValue = (value: string): { minutes: number; display: string } | null => {
+            const timeValue = String(value || "").trim();
+            if (!timeValue) return null;
+            const isRange = /\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/.test(timeValue);
+            if (isRange) return null;
+            const tokenMatch = timeValue.match(/\b(?:0?[0-9]|1[0-9]|2[0-3])[:.]?[0-5][0-9](?:\s*(?:am|pm|AM|PM))?\b/);
+            if (!tokenMatch) return null;
+            const token = tokenMatch[0].replace(".", ":");
+            const minutes = parseTimeToMinutes(token);
+            if (minutes == null) return null;
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            const display = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+            return { minutes, display };
+          };
+
+          const extractTimeFromSlot = (slot: string): { minutes: number; display: string } | null => {
+            const slotValue = String(slot || "").trim();
+            if (!slotValue) return null;
+            const tokenMatch = slotValue.match(/\b(?:0?[0-9]|1[0-9]|2[0-3])[:.]?[0-5][0-9](?:\s*(?:am|pm|AM|PM))?\b/);
+            if (!tokenMatch) return null;
+            const token = tokenMatch[0].replace(".", ":");
+            const minutes = parseTimeToMinutes(token);
+            if (minutes == null) return null;
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            const display = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+            return { minutes, display };
+          };
           
           agentEntries.forEach((entry: any) => {
             const code = (entry.code || '').toUpperCase();
@@ -4008,31 +4075,49 @@ ${correctionExamples}
             
             const entryMedId = Number(entry.medicationId) || 0;
 
-            // Only use explicit admin times recorded in the cell (ignore service order time slots)
-            const timeValue = String(entry.time || "").trim();
-            if (!timeValue) return;
-            const isRange = /\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/.test(timeValue);
-            if (isRange) return;
-            const timeMatch = timeValue.match(/\b(?:0?[0-9]|1[0-9]|2[0-3])[:.]?[0-5][0-9](?:\s*(?:am|pm|AM|PM))?\b/);
-            if (!timeMatch) return;
+            const entryMedId = Number(entry.medicationId) || 0;
+            const entryMedication = entry.medication || "";
+            const requiredGap =
+              entryMedId > 0
+                ? agentMedGapHoursById.get(entryMedId) || 4
+                : agentMedGapHoursByName.get(entryMedication) || 4;
+            const useCallTimes =
+              entryMedId > 0
+                ? agentMedUseCallTimesById.get(entryMedId) || false
+                : agentMedUseCallTimesByName.get(entryMedication) || false;
+
+            // Prefer explicit admin times recorded in the cell. Only use call-time slots when instructed.
+            let extracted = extractTimeFromValue(entry.time);
+            let timeSource: "explicit" | "call" = "explicit";
+            if (!extracted && useCallTimes) {
+              extracted = extractTimeFromSlot(entry.timeSlot);
+              if (extracted) timeSource = "call";
+            }
+            if (!extracted) return;
 
             // Require care worker initials to avoid blank/crossed-out boxes
             const careWorkerInitials = (entry.careWorkerInitials || entry.careWorker || "").trim();
             if (!careWorkerInitials) return;
             
             // Normalize date for grouping
-            const dateKey = entry.date.toLowerCase().replace(/[,\s]+/g, '-').substring(0, 10);
+            const dateKey = normalizeDateKey(entry.date);
+            const dateIndex = dateIndexByKey.get(dateKey) ?? -1;
             const medId = entryMedId;
-            const medKey = medId > 0 ? `id:${medId}` : `name:${entry.medication || ""}`;
+            const medKey = medId > 0 ? `id:${medId}` : `name:${entryMedication}`;
             const key = `${medKey}|${dateKey}`;
             
             if (!medDateEntriesForGap.has(key)) medDateEntriesForGap.set(key, []);
             medDateEntriesForGap.get(key)!.push({
               ...entry,
-              extractedTime: timeMatch[0].replace(".", ":"),
+              extractedTime: extracted.display,
+              extractedMinutes: extracted.minutes,
+              timeSource,
+              requiredGap,
+              dateKey,
+              dateIndex,
               isPRN:
                 (medId > 0 && agentPrnMedIds.has(medId)) ||
-                agentPrnMeds.has(entry.medication) ||
+                agentPrnMeds.has(entryMedication) ||
                 code.includes("PRN")
             });
           });
@@ -4050,29 +4135,21 @@ ${correctionExamples}
                   ? medKeyPart.slice(5)
                   : dayEntries[0]?.medication || '';
 
-            const requiredGap =
-              medId > 0
-                ? agentMedGapHoursById.get(medId) || 4
-                : agentMedGapHoursByName.get(medication) || 4;
-            
             // Sort by time
             const sorted = dayEntries.sort((a: any, b: any) => {
-              const [aH, aM] = a.extractedTime.split(':').map(Number);
-              const [bH, bM] = b.extractedTime.split(':').map(Number);
-              return (aH * 60 + aM) - (bH * 60 + bM);
+              return (a.extractedMinutes || 0) - (b.extractedMinutes || 0);
             });
             
             for (let i = 1; i < sorted.length; i++) {
               const prev = sorted[i - 1];
               const curr = sorted[i];
               
-              const [prevH, prevM] = prev.extractedTime.split(':').map(Number);
-              const [currH, currM] = curr.extractedTime.split(':').map(Number);
-              const gapHours = ((currH * 60 + currM) - (prevH * 60 + prevM)) / 60;
+              const gapHours = ((curr.extractedMinutes || 0) - (prev.extractedMinutes || 0)) / 60;
               
               // Skip near-duplicates or negative gaps
               if (gapHours <= 0.25 || gapHours < 0) continue;
               
+              const requiredGap = curr.requiredGap || 4;
               if (gapHours < requiredGap - 0.17) {
                 const recommendedSlot = curr.timeSlot ? ` Scheduled slot: ${curr.timeSlot}.` : "";
                 agentDiscrepancies.push({
@@ -4082,6 +4159,58 @@ ${correctionExamples}
                   medication: medication,
                   medicationId: medId || undefined,
                   issue: `Time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap}h). Previous: ${prev.extractedTime}, Current: ${curr.extractedTime}.${recommendedSlot}`,
+                  severity: "high",
+                  actions: { performanceNote: true, meeting: "in_person", referToManager: true }
+                });
+              }
+            }
+          });
+
+          // 12-hour gap: also check overnight gaps using call-time slots only.
+          const medDayMap = new Map<string, Map<number, any[]>>();
+          medDateEntriesForGap.forEach((dayEntries, key) => {
+            const [medKey] = key.split("|");
+            const byDate = medDayMap.get(medKey) || new Map<number, any[]>();
+            for (const entry of dayEntries) {
+              if (entry.requiredGap !== 12 || entry.timeSource !== "call") continue;
+              const idx = Number(entry.dateIndex);
+              if (!Number.isFinite(idx) || idx < 0) continue;
+              const list = byDate.get(idx) || [];
+              list.push(entry);
+              byDate.set(idx, list);
+            }
+            if (byDate.size > 0) medDayMap.set(medKey, byDate);
+          });
+
+          medDayMap.forEach((byDate, medKey) => {
+            const dateIndices = Array.from(byDate.keys()).sort((a, b) => a - b);
+            for (let i = 0; i < dateIndices.length - 1; i++) {
+              const currIdx = dateIndices[i];
+              const nextIdx = dateIndices[i + 1];
+              if (nextIdx !== currIdx + 1) continue;
+              const currEntries = (byDate.get(currIdx) || []).sort((a: any, b: any) => (a.extractedMinutes || 0) - (b.extractedMinutes || 0));
+              const nextEntries = (byDate.get(nextIdx) || []).sort((a: any, b: any) => (a.extractedMinutes || 0) - (b.extractedMinutes || 0));
+              if (currEntries.length === 0 || nextEntries.length === 0) continue;
+              const prev = currEntries[currEntries.length - 1];
+              const curr = nextEntries[0];
+              const gapHours = ((curr.extractedMinutes || 0) + 24 * 60 - (prev.extractedMinutes || 0)) / 60;
+              if (gapHours <= 0.25 || gapHours < 0) continue;
+              if (gapHours < 12 - 0.17) {
+                const medId = medKey.startsWith("id:") ? Number(medKey.slice(3)) || 0 : 0;
+                const medication =
+                  medId > 0
+                    ? agentMedicationNameById.get(medId) || prev?.medication || ''
+                    : medKey.startsWith("name:")
+                      ? medKey.slice(5)
+                      : prev?.medication || '';
+                const recommendedSlot = curr.timeSlot ? ` Scheduled slot: ${curr.timeSlot}.` : "";
+                agentDiscrepancies.push({
+                  careWorkerName: curr.careWorkerInitials || 'Unknown',
+                  date: curr.date,
+                  timeSlot: curr.timeSlot,
+                  medication: medication,
+                  medicationId: medId || undefined,
+                  issue: `Time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: 12h). Previous: ${prev.extractedTime} (prior day), Current: ${curr.extractedTime}.${recommendedSlot}`,
                   severity: "high",
                   actions: { performanceNote: true, meeting: "in_person", referToManager: true }
                 });

@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { RefreshCw, Shield, Download, Copy, Pencil, Calendar, Users } from "lucide-react";
+import { RefreshCw, Shield, Download, Copy, Pencil, Calendar, Users, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { WeeklyPlannerGrid } from "@/components/rostering/WeeklyPlannerGrid";
 
@@ -944,6 +944,14 @@ export default function CareWorkerRotas() {
     [rotas, selectedRota]
   );
 
+  const handleDeleteEntry = useCallback((entryKey: string) => {
+    setDraftPayload((prev) => {
+      if (!prev) return prev;
+      const nextEntries = prev.optimizedRun.filter((entry) => entry.key !== entryKey);
+      return { ...prev, optimizedRun: nextEntries };
+    });
+  }, []);
+
   const handleCancelEdits = useCallback(() => {
     if (selectedRota?.payload) {
       setDraftPayload(JSON.parse(JSON.stringify(selectedRota.payload)) as CareWorkerRotaPayload);
@@ -1058,7 +1066,8 @@ export default function CareWorkerRotas() {
           endMinutes,
           durationMinutes: duration,
         });
-        return { ...prev, shiftBars: nextBars };
+        const nextEntries = [...(prev.optimizedRun || [])];
+        return { ...prev, shiftBars: nextBars, optimizedRun: nextEntries };
       });
     },
     []
@@ -1808,6 +1817,14 @@ export default function CareWorkerRotas() {
                             onClick={() => handleUpdateEntry(entry.key, { isDoubleUp: !entry.isDoubleUp })}
                           >
                             2x
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-red-600 hover:text-red-700"
+                            onClick={() => handleDeleteEntry(entry.key)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       )}
