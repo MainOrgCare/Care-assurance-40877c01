@@ -103,28 +103,80 @@ export default function RiskAssessment() {
       : null,
   ].filter(Boolean) as { label: string; message: string }[];
 
-  const normalizeAssessmentName = (value: string) => value.trim().replace(/\s+/g, " ");
+  const assessmentAliases: Record<string, string> = {
+    "moving and handling": "Mobility & Moving and Handling",
+    "moving & handling": "Mobility & Moving and Handling",
+    "mobility and handling": "Mobility & Moving and Handling",
+    "manual handling": "Mobility & Moving and Handling",
+    "medication": "Medication Administration",
+    "medication support": "Medication Administration",
+    "meds administration": "Medication Administration",
+    "nutrition and hydration": "Nutrition",
+    "hydration": "Nutrition",
+    "pressure area care": "Skin Integrity",
+    "pressure care": "Skin Integrity",
+    "pressure areas": "Skin Integrity",
+    "falls": "Falls Prevention",
+    "falls risk": "Falls Prevention",
+    "mental health support": "Mental Health",
+    "behaviour support": "Behavior Support",
+    "behavioural support": "Behavior Support",
+    "behavioral support": "Behavior Support",
+    "communication needs": "Communication",
+    "infection": "Infection Control",
+    "fire": "Fire Safety",
+    "environment": "Environmental Safety",
+    "safeguarding adults": "Safeguarding",
+    "coshh assessment": "COSHH",
+    "diabetes": "Diabetes Management",
+    "epilepsy": "Epilepsy Management",
+    "continence": "Continence Care",
+    "dementia": "Dementia Care",
+    "end of life": "End of Life Care",
+    "palliative care": "End of Life Care",
+    "personal care support": "Personal Care",
+  };
+
+  const normalizeAssessmentKey = (value: string) => {
+    const normalized = value.trim().toLowerCase().replace(/&/g, "and").replace(/\s+/g, " ");
+    const alias = assessmentAliases[normalized];
+    return (alias || normalized).toLowerCase();
+  };
+
+  const canonicalizeAssessmentName = (value: string) => {
+    const normalized = value.trim().toLowerCase().replace(/&/g, "and").replace(/\s+/g, " ");
+    const alias = assessmentAliases[normalized];
+    return alias || value.trim();
+  };
+
+  const normalizeAssessmentName = (value: string) => canonicalizeAssessmentName(value).trim().replace(/\s+/g, " ");
   const combinedAssessments = useMemo(() => {
     if (!analysis) return [];
     const combined: RecommendedAssessment[] = [];
     const seen = new Set<string>();
     analysis.recommendedAssessments.forEach((assessment) => {
       if (!assessment?.evidence || !assessment.evidence.trim()) return;
-      const key = normalizeAssessmentName(assessment.name).toLowerCase();
+      const key = normalizeAssessmentKey(assessment.name);
       if (!key || seen.has(key)) return;
       seen.add(key);
-      combined.push(assessment);
+      combined.push({
+        ...assessment,
+        name: canonicalizeAssessmentName(assessment.name),
+      });
     });
     customAssessments.forEach((assessment) => {
-      const key = normalizeAssessmentName(assessment.name).toLowerCase();
+      const key = normalizeAssessmentKey(assessment.name);
       if (!key || seen.has(key)) return;
       seen.add(key);
-      combined.push(assessment);
+      combined.push({
+        ...assessment,
+        name: canonicalizeAssessmentName(assessment.name),
+      });
     });
     return combined;
   }, [analysis, customAssessments]);
   const customAssessmentKeys = useMemo(() => {
-    return new Set(customAssessments.map((assessment) => normalizeAssessmentName(assessment.name).toLowerCase()));
+    return new Set(customAssessments.map((assessment) => normalizeAssessmentKey(assessment.name)));
   }, [customAssessments]);
   const assessmentOptions = useMemo(() => {
     return combinedAssessments.map((assessment, index) => ({
@@ -339,9 +391,9 @@ export default function RiskAssessment() {
     if (!analysis) return;
     const cleaned = normalizeAssessmentName(customAssessmentName);
     if (!cleaned) return;
-    const key = cleaned.toLowerCase();
+    const key = normalizeAssessmentKey(cleaned);
     const existing =
-      combinedAssessments.find((assessment) => normalizeAssessmentName(assessment.name).toLowerCase() === key) ||
+      combinedAssessments.find((assessment) => normalizeAssessmentKey(assessment.name) === key) ||
       null;
     if (existing) {
       const nextSelected = new Set(selectedAssessments);
@@ -355,7 +407,7 @@ export default function RiskAssessment() {
       return;
     }
     const nextAssessment: RecommendedAssessment = {
-      name: cleaned,
+      name: canonicalizeAssessmentName(cleaned),
       isMandatory: false,
       reason: "Added manually by assessor.",
     };
@@ -367,9 +419,9 @@ export default function RiskAssessment() {
   };
 
   const removeCustomAssessment = (name: string) => {
-    const key = normalizeAssessmentName(name).toLowerCase();
+    const key = normalizeAssessmentKey(name);
     setCustomAssessments((prev) =>
-      prev.filter((assessment) => normalizeAssessmentName(assessment.name).toLowerCase() !== key)
+      prev.filter((assessment) => normalizeAssessmentKey(assessment.name) !== key)
     );
     const nextSelected = new Set(selectedAssessments);
     nextSelected.delete(name);
@@ -392,14 +444,24 @@ export default function RiskAssessment() {
     setProgressStatus("Starting generation...");
     
     const documentContent = getAllDocumentContent();
-    const generatedRaw: GeneratedAssessment[] = [];
-    const generatedScrubbed: GeneratedAssessment[] = [];
     const assessmentsArray = Array.from(selectedAssessments);
     const total = assessmentsArray.length;
+    const generatedRawMap = new Map<string, GeneratedAssessment>();
+    const generatedScrubbedMap = new Map<string, GeneratedAssessment>();
+    const inFlightProgress = new Map<string, number>();
+    let completed = 0;
 
-    for (let i = 0; i < assessmentsArray.length; i++) {
-      const assessmentName = assessmentsArray[i];
-      setProgressStatus(`Generating ${assessmentName}... (${i + 1}/${total})`);
+    const updateOverallProgress = () => {
+      if (total === 0) return;
+      const inFlightTotal = Array.from(inFlightProgress.values()).reduce((sum, value) => sum + value, 0);
+      const overall = ((completed + inFlightTotal / 100) / total) * 100;
+      setProgress(Math.min(100, Math.max(0, overall)));
+    };
+
+    const runAssessment = async (assessmentName: string) => {
+      inFlightProgress.set(assessmentName, 0);
+      updateOverallProgress();
+      setProgressStatus(`Generating ${assessmentName}... (${completed + 1}/${total})`);
       
       try {
         const response = await fetch("/api/ai/generate-risk-assessment", {
@@ -444,9 +506,8 @@ export default function RiskAssessment() {
                 if (eventType && dataStr) {
                   const data = JSON.parse(dataStr);
                   if (eventType === "progress") {
-                    const basePercent = Math.round((i / total) * 100);
-                    const itemPercent = Math.round((data.percent / 100) * (100 / total));
-                    setProgress(basePercent + itemPercent);
+                    inFlightProgress.set(assessmentName, Math.min(100, Math.max(0, data.percent)));
+                    updateOverallProgress();
                   } else if (eventType === "result") {
                     resultRaw = data;
                     resultScrubbed = data?.scrubbedResult || data;
@@ -456,15 +517,32 @@ export default function RiskAssessment() {
             }
 
             if (resultRaw) {
-              generatedRaw.push(resultRaw);
-              generatedScrubbed.push(resultScrubbed || resultRaw);
+              generatedRawMap.set(assessmentName, resultRaw);
+              generatedScrubbedMap.set(assessmentName, resultScrubbed || resultRaw);
             }
           }
         }
       } catch (error) {
         console.error(`Failed to generate ${assessmentName}:`, error);
+      } finally {
+        inFlightProgress.delete(assessmentName);
+        completed += 1;
+        updateOverallProgress();
       }
-    }
+    };
+
+    const queue = [...assessmentsArray];
+    const maxConcurrency = Math.min(3, queue.length);
+    const workers = Array.from({ length: maxConcurrency }, () =>
+      (async () => {
+        while (queue.length > 0) {
+          const next = queue.shift();
+          if (!next) return;
+          await runAssessment(next);
+        }
+      })()
+    );
+    await Promise.all(workers);
 
     // Log the risk assessment selections
     try {
@@ -486,8 +564,15 @@ export default function RiskAssessment() {
       console.error("Failed to log risk assessment:", error);
     }
 
-    setGeneratedAssessmentsRaw(generatedRaw);
-    setGeneratedAssessmentsScrubbed(generatedScrubbed);
+    const orderedRaw = assessmentsArray
+      .map((name) => generatedRawMap.get(name))
+      .filter(Boolean) as GeneratedAssessment[];
+    const orderedScrubbed = assessmentsArray
+      .map((name) => generatedScrubbedMap.get(name))
+      .filter(Boolean) as GeneratedAssessment[];
+
+    setGeneratedAssessmentsRaw(orderedRaw);
+    setGeneratedAssessmentsScrubbed(orderedScrubbed);
     setIsGenerating(false);
     setProgress(0);
     setProgressStatus("");
@@ -1065,7 +1150,7 @@ export default function RiskAssessment() {
                         {assessment.isMandatory && (
                           <Badge variant="destructive" className="text-xs">Mandatory</Badge>
                         )}
-                        {!assessment.isMandatory && customAssessmentKeys.has(normalizeAssessmentName(assessment.name).toLowerCase()) && (
+                        {!assessment.isMandatory && customAssessmentKeys.has(normalizeAssessmentKey(assessment.name)) && (
                           <Badge variant="outline" className="text-xs">Custom</Badge>
                         )}
                       </Label>

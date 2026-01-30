@@ -30,5 +30,6 @@
             "postConnectionSqlType": "inline",
             "connectionTimeout": 30
         }
-    ]
+    ],
+    "github.copilot.chat.codeGeneration.useInstructionFiles": true
 }

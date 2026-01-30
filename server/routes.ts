@@ -934,27 +934,73 @@ const normalizeAssessmentName = (name: string) =>
     .replace(/&/g, "and")
     .replace(/\s+/g, " ");
 
+const ASSESSMENT_NAME_ALIASES: Record<string, string> = {
+  "moving and handling": "Mobility & Moving and Handling",
+  "moving & handling": "Mobility & Moving and Handling",
+  "mobility and handling": "Mobility & Moving and Handling",
+  "manual handling": "Mobility & Moving and Handling",
+  "medication": "Medication Administration",
+  "medication support": "Medication Administration",
+  "meds administration": "Medication Administration",
+  "nutrition and hydration": "Nutrition",
+  "hydration": "Nutrition",
+  "pressure area care": "Skin Integrity",
+  "pressure care": "Skin Integrity",
+  "pressure areas": "Skin Integrity",
+  "falls": "Falls Prevention",
+  "falls risk": "Falls Prevention",
+  "mental health support": "Mental Health",
+  "behaviour support": "Behavior Support",
+  "behavioural support": "Behavior Support",
+  "behavioral support": "Behavior Support",
+  "communication needs": "Communication",
+  "infection": "Infection Control",
+  "fire": "Fire Safety",
+  "environment": "Environmental Safety",
+  "safeguarding adults": "Safeguarding",
+  "coshh assessment": "COSHH",
+  "diabetes": "Diabetes Management",
+  "epilepsy": "Epilepsy Management",
+  "continence": "Continence Care",
+  "dementia": "Dementia Care",
+  "end of life": "End of Life Care",
+  "palliative care": "End of Life Care",
+  "personal care support": "Personal Care",
+};
+
+const normalizeAssessmentKey = (name: string) => {
+  const base = normalizeAssessmentName(name);
+  const alias = ASSESSMENT_NAME_ALIASES[base];
+  return normalizeAssessmentName(alias || base);
+};
+
+const canonicalizeAssessmentName = (name: string) => {
+  const base = normalizeAssessmentName(name);
+  const alias = ASSESSMENT_NAME_ALIASES[base];
+  return alias || name.trim();
+};
+
 const ASSESSMENT_EVIDENCE_TERMS: Record<string, string[]> = {
-  "nutrition": ["nutrition", "feed", "meal", "diet", "hydration", "swallow", "appetite"],
-  "diabetes management": ["diabet"],
-  "epilepsy management": ["epilep", "seizure"],
-  "medication administration": ["medication", "medicine", "tablet", "drug", "prescription", "inhaler", "drops", "cream"],
-  "mobility and moving and handling": ["mobility", "transfer", "moving", "handling", "hoist", "wheelchair", "frame", "walk"],
-  "personal care": ["personal care", "wash", "bathing", "shower", "toilet", "dressing", "groom", "oral care"],
-  "skin integrity": ["skin", "pressure", "ulcer", "wound"],
-  "falls prevention": ["fall", "falls", "unsteady", "trip"],
-  "continence care": ["continence", "incontinence", "catheter"],
-  "dementia care": ["dementia", "cognit", "alzheimer"],
-  "mental health": ["mental health", "depress", "anxiety", "bipolar", "psych"],
-  "communication": ["communication", "speech", "hearing", "vision", "aphasia"],
-  "behavior support": ["behaviour", "behavior", "challenging", "aggression"],
-  "end of life care": ["palliative", "end of life", "terminal"],
-  "infection control": ["infection", "wound", "catheter", "mrsa"],
-  "fire safety": ["fire", "smoking", "smoke alarm"],
-  "environmental safety": ["environment", "hazard", "trip", "clutter"],
-  "lone working": ["lone working", "single carer", "alone"],
-  "safeguarding": ["safeguard", "abuse", "neglect"],
-  "coshh": ["coshh", "chemical", "cleaning"],
+  "nutrition": ["nutrition", "feed", "feeding", "meal", "diet", "hydration", "swallow", "appetite", "thicken", "puree", "peg", "enteral", "tube feed", "weight loss", "malnutrition"],
+  "diabetes management": ["diabet", "insulin", "blood glucose", "glucose", "hypo", "hypergly"],
+  "epilepsy management": ["epilep", "seizure", "fit", "convulsion"],
+  "medication administration": ["medication", "medicine", "tablet", "drug", "prescription", "mar", "dosette", "blister pack", "inhaler", "drops", "cream", "patch"],
+  "mobility and moving and handling": ["mobility", "transfer", "moving", "handling", "hoist", "wheelchair", "zimmer", "frame", "walker", "walking aid", "stairs", "reposition", "stand aid", "sit to stand"],
+  "personal care": ["personal care", "wash", "bathing", "shower", "toilet", "toileting", "dressing", "groom", "oral care", "hair", "shave"],
+  "skin integrity": ["skin", "pressure", "ulcer", "wound", "sore", "pressure area", "skin tear"],
+  "falls prevention": ["fall", "falls", "unsteady", "trip", "slip", "balance", "previous fall"],
+  "continence care": ["continence", "incontinence", "catheter", "pad", "bowel", "urinary", "toileting"],
+  "dementia care": ["dementia", "cognit", "alzheimer", "memory", "confus", "orientat", "capacity"],
+  "mental health": ["mental health", "depress", "anxiety", "bipolar", "psych", "schiz", "ptsd", "stress"],
+  "communication": ["communication", "speech", "hearing", "vision", "aphasia", "language", "non verbal", "interpreter"],
+  "behavior support": ["behaviour", "behavior", "challenging", "aggression", "agitated", "agitation", "self harm", "wandering", "abscond"],
+  "end of life care": ["palliative", "end of life", "terminal", "hospice", "dnacpr", "eol"],
+  "infection control": ["infection", "wound", "catheter", "mrsa", "uti", "covid", "flu", "sepsis"],
+  "fire safety": ["fire", "smoking", "smoke alarm", "oxygen", "cigarette", "matches"],
+  "environmental safety": ["environment", "hazard", "trip", "clutter", "uneven", "lighting", "temperature"],
+  "lone working": ["lone working", "single carer", "alone", "two carers", "double up"],
+  "safeguarding": ["safeguard", "abuse", "neglect", "financial", "exploitation", "self neglect"],
+  "coshh": ["coshh", "chemical", "cleaning", "bleach", "disinfectant", "detergent"],
 };
 
 const collectAssessmentEvidence = (
@@ -989,20 +1035,75 @@ const truncateEvidence = (text: string, maxLength = 160) => {
   return `${text.slice(0, maxLength - 3)}...`;
 };
 
+const buildDocumentEvidenceFinder = (documentContent: string) => {
+  const content = documentContent || "";
+  const lower = content.toLowerCase();
+
+  const findSnippets = (terms: string[], maxMatches = 2) => {
+    if (!content || terms.length === 0) return [];
+    const snippets: string[] = [];
+    const seen = new Set<string>();
+
+    for (const term of terms) {
+      if (!term) continue;
+      const needle = term.toLowerCase();
+      const index = lower.indexOf(needle);
+      if (index < 0) continue;
+      const start = Math.max(0, index - 60);
+      const end = Math.min(content.length, index + needle.length + 60);
+      const snippet = content.slice(start, end).replace(/\s+/g, " ").trim();
+      if (!snippet) continue;
+      const key = snippet.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      snippets.push(truncateEvidence(snippet));
+      if (snippets.length >= maxMatches) break;
+    }
+    return snippets;
+  };
+
+  return { findSnippets };
+};
+
+const normalizeStringArray = (values: unknown): string[] => {
+  if (!Array.isArray(values)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(trimmed);
+  }
+  return result;
+};
+
 const buildAssessmentRecommendations = (analysis: {
   medicalConditions?: string[];
   careActivities?: string[];
   concerns?: string[];
-}): { name: string; isMandatory: boolean; reason: string; evidence?: string }[] => {
+}, evidenceFinder?: { findSnippets: (terms: string[], maxMatches?: number) => string[] }): { name: string; isMandatory: boolean; reason: string; evidence?: string }[] => {
   const recommendations: { name: string; isMandatory: boolean; reason: string; evidence?: string }[] = [];
   const add = (name: string, reason: string, evidence?: string) => {
-    recommendations.push({ name, isMandatory: true, reason, evidence });
+    recommendations.push({ name: canonicalizeAssessmentName(name), isMandatory: true, reason, evidence });
   };
 
   const addIfEvidence = (name: string, terms: string[], reason: string) => {
     const evidenceMatches = collectAssessmentEvidence(analysis, terms);
-    if (evidenceMatches.length === 0) return;
-    add(name, reason, truncateEvidence(evidenceMatches.join("; ")));
+    let evidence = "";
+    if (evidenceMatches.length > 0) {
+      evidence = truncateEvidence(evidenceMatches.join("; "));
+    } else if (evidenceFinder) {
+      const snippets = evidenceFinder.findSnippets(terms);
+      if (snippets.length > 0) {
+        evidence = truncateEvidence(snippets.join("; "));
+      }
+    }
+    if (!evidence) return;
+    add(name, reason, evidence);
   };
 
   addIfEvidence("Diabetes Management", ASSESSMENT_EVIDENCE_TERMS["diabetes management"], "Document notes diabetes.");
@@ -1036,10 +1137,11 @@ const mergeAssessmentRecommendations = (
   const merged = new Map<string, { name: string; isMandatory: boolean; reason: string; evidence?: string }>();
   const apply = (item: { name: string; isMandatory?: boolean; reason?: string; evidence?: string }) => {
     if (!item?.name) return;
-    const key = normalizeAssessmentName(item.name);
+    const key = normalizeAssessmentKey(item.name);
     if (!key) return;
+    const canonicalName = canonicalizeAssessmentName(item.name);
     const normalized = {
-      name: item.name.trim(),
+      name: canonicalName,
       isMandatory: Boolean(item.isMandatory),
       reason: item.reason?.trim() || (item.evidence?.trim() ? "Evidence noted in documents." : ""),
       evidence: item.evidence?.trim() || "",
@@ -1083,29 +1185,80 @@ const extractSummaryEvidence = (summary: string, terms: string[]) => {
 
 const attachAssessmentEvidence = (
   recommendations: Array<{ name: string; isMandatory?: boolean; reason?: string; evidence?: string }>,
-  analysis: { medicalConditions?: string[]; careActivities?: string[]; concerns?: string[]; documentSummary?: string }
+  analysis: { medicalConditions?: string[]; careActivities?: string[]; concerns?: string[]; documentSummary?: string },
+  evidenceFinder?: { findSnippets: (terms: string[], maxMatches?: number) => string[] }
 ) =>
   recommendations.map((item) => {
-    const evidenceTerms = ASSESSMENT_EVIDENCE_TERMS[normalizeAssessmentName(item.name)] || [];
+    const evidenceTerms = ASSESSMENT_EVIDENCE_TERMS[normalizeAssessmentKey(item.name)] || [];
     if (item.evidence && item.evidence.trim()) {
-      return item;
+      return { ...item, name: canonicalizeAssessmentName(item.name) };
     }
     if (evidenceTerms.length === 0) return item;
     const evidenceMatches = collectAssessmentEvidence(analysis, evidenceTerms);
     if (evidenceMatches.length > 0) {
       return {
         ...item,
+        name: canonicalizeAssessmentName(item.name),
         evidence: truncateEvidence(evidenceMatches.join("; ")),
       };
+    }
+    if (evidenceFinder) {
+      const snippets = evidenceFinder.findSnippets(evidenceTerms);
+      if (snippets.length > 0) {
+        return {
+          ...item,
+          name: canonicalizeAssessmentName(item.name),
+          evidence: truncateEvidence(snippets.join("; ")),
+        };
+      }
     }
     const summary = analysis.documentSummary || "";
     const summaryEvidence = extractSummaryEvidence(summary, evidenceTerms);
     if (!summaryEvidence) return item;
     return {
       ...item,
+      name: canonicalizeAssessmentName(item.name),
       evidence: summaryEvidence,
     };
   });
+
+type RiskAnalysisCacheEntry = {
+  payload: any;
+  createdAt: number;
+};
+
+const riskAnalysisCache = new Map<string, RiskAnalysisCacheEntry>();
+const RISK_ANALYSIS_CACHE_TTL_MS = 10 * 60 * 1000;
+const MAX_RISK_ANALYSIS_CACHE_ENTRIES = 40;
+
+const getRiskAnalysisCache = (key: string) => {
+  const entry = riskAnalysisCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.createdAt > RISK_ANALYSIS_CACHE_TTL_MS) {
+    riskAnalysisCache.delete(key);
+    return null;
+  }
+  return entry.payload;
+};
+
+const setRiskAnalysisCache = (key: string, payload: any) => {
+  riskAnalysisCache.set(key, { payload, createdAt: Date.now() });
+  if (riskAnalysisCache.size <= MAX_RISK_ANALYSIS_CACHE_ENTRIES) return;
+  const entries = Array.from(riskAnalysisCache.entries()).sort((a, b) => a[1].createdAt - b[1].createdAt);
+  const overflow = entries.length - MAX_RISK_ANALYSIS_CACHE_ENTRIES;
+  for (let i = 0; i < overflow; i += 1) {
+    riskAnalysisCache.delete(entries[i][0]);
+  }
+};
+
+const normalizeRiskRating = (value: unknown) => {
+  if (typeof value !== "string") return "Low";
+  const normalized = value.trim().toLowerCase();
+  if (normalized.includes("high")) return "High";
+  if (normalized.includes("medium")) return "Medium";
+  if (normalized.includes("low")) return "Low";
+  return "Low";
+};
 
 // Drug interaction type definition
 interface DrugInteraction {
@@ -9593,9 +9746,10 @@ Return JSON - include ALL by default:
       const { documentContent, allowSensitive } = req.body;
       const allowSensitiveView = Boolean(allowSensitive) && req.user?.role === "admin";
       
-      if (!documentContent) {
+      if (typeof documentContent !== "string" || !documentContent.trim()) {
         return res.status(400).json({ message: "Document content required" });
       }
+      const documentContentForAi = allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent);
 
       // Set up SSE for progress streaming with production-safe settings
       res.setHeader('Content-Type', 'text/event-stream');
@@ -9649,9 +9803,30 @@ Return JSON - include ALL by default:
       const carePlanPolicies = await storage.getPolicyDocumentsByCategory("care_plan");
       const scopeOfPracticePolicies = await storage.getPolicyDocumentsByCategory("scope_of_practice");
       
+      const allPolicies = [...initialAssessmentPolicies, ...riskAssessmentPolicies, ...carePlanPolicies, ...scopeOfPracticePolicies];
+      const policyFingerprint = createHash("sha256")
+        .update(allPolicies.map((policy) => `${policy.name || "policy"}|${policy.version || "v1.0"}|${policy.content || ""}`).join("||"))
+        .digest("hex");
+
+      const cacheKey = createHash("sha256")
+        .update(documentContentForAi || "")
+        .update("|")
+        .update(policyFingerprint)
+        .update("|")
+        .update(allowSensitiveView ? "1" : "0")
+        .digest("hex");
+
+      const cachedPayload = getRiskAnalysisCache(cacheKey);
+      if (cachedPayload) {
+        sendProgress(65, "Loaded cached analysis...", "cache");
+        sendProgress(100, "Complete!", "complete");
+        sendEvent('result', cachedPayload);
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+
       // Build policy context from uploaded documents
       let policyContext = "";
-      const allPolicies = [...initialAssessmentPolicies, ...riskAssessmentPolicies, ...carePlanPolicies, ...scopeOfPracticePolicies];
       if (allPolicies.length > 0) {
         policyContext = `
 === POLICY DOCUMENTS - YOU MUST FOLLOW THESE AS REFERENCE ===
@@ -9776,7 +9951,7 @@ Respond ONLY with valid JSON in this exact format:
         model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Analyze these documents for risk assessment needs:\n\n${allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent)}` }
+          { role: "user", content: `Analyze these documents for risk assessment needs:\n\n${documentContentForAi}` }
         ],
         max_completion_tokens: 4000,
         temperature: 0,
@@ -9795,13 +9970,24 @@ Respond ONLY with valid JSON in this exact format:
         return res.end();
       }
 
+      const normalizedRecommendations = Array.isArray(parsed?.recommendedAssessments)
+        ? parsed.recommendedAssessments
+            .filter((item: any) => item && typeof item?.name === "string" && item.name.trim())
+            .map((item: any) => ({
+              name: canonicalizeAssessmentName(item.name),
+              isMandatory: Boolean(item.isMandatory),
+              reason: typeof item?.reason === "string" ? item.reason.trim() : "",
+              evidence: typeof item?.evidence === "string" ? item.evidence.trim() : "",
+            }))
+        : [];
+
       const result = {
         serviceUser: { initials: normalizeInitials(parsed?.serviceUser?.initials) },
-        medicalConditions: Array.isArray(parsed?.medicalConditions) ? parsed.medicalConditions : [],
-        careActivities: Array.isArray(parsed?.careActivities) ? parsed.careActivities : [],
-        concerns: Array.isArray(parsed?.concerns) ? parsed.concerns : [],
-        recommendedAssessments: Array.isArray(parsed?.recommendedAssessments) ? parsed.recommendedAssessments : [],
-        documentSummary: typeof parsed?.documentSummary === "string" ? parsed.documentSummary : "Information not found in documents",
+        medicalConditions: normalizeStringArray(parsed?.medicalConditions),
+        careActivities: normalizeStringArray(parsed?.careActivities),
+        concerns: normalizeStringArray(parsed?.concerns),
+        recommendedAssessments: normalizedRecommendations,
+        documentSummary: typeof parsed?.documentSummary === "string" ? parsed.documentSummary.trim() : "Information not found in documents",
       };
 
       result.documentSummary = toFirstPerson(result.documentSummary);
@@ -9810,15 +9996,17 @@ Respond ONLY with valid JSON in this exact format:
         reason: typeof assessment?.reason === "string" ? toFirstPerson(assessment.reason) : assessment?.reason
       }));
 
-      const derivedRecommendations = buildAssessmentRecommendations(result);
+      const evidenceFinder = buildDocumentEvidenceFinder(documentContentForAi || "");
+      const derivedRecommendations = buildAssessmentRecommendations(result, evidenceFinder);
       result.recommendedAssessments = mergeAssessmentRecommendations(result.recommendedAssessments, derivedRecommendations);
-      result.recommendedAssessments = attachAssessmentEvidence(result.recommendedAssessments, result);
+      result.recommendedAssessments = attachAssessmentEvidence(result.recommendedAssessments, result, evidenceFinder);
       result.recommendedAssessments = result.recommendedAssessments.filter(
         (assessment: any) => typeof assessment?.evidence === "string" && assessment.evidence.trim().length > 0
       );
 
       const scrubbedResult = sanitizeNarrativePII(result);
       const payload = allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult;
+      setRiskAnalysisCache(cacheKey, payload);
       sendProgress(100, "Complete!", "complete");
       sendEvent('result', payload);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -10005,16 +10193,18 @@ Respond ONLY with valid JSON in this exact format:
         
         // Restore preserved fields (override any scrubbed values)
         result.assessmentDate = preservedFields.assessmentDate;
-        result.signedBy = performedByJobTitle || preservedFields.jobTitle || "Care Staff";
+        result.signedBy = preservedFields.signedBy || "Staff member";
         result.jobTitle = preservedFields.jobTitle;
         result.category = preservedFields.category;
 
         if (Array.isArray(result.risks)) {
           result.risks = result.risks.map((risk: any) => ({
             ...risk,
+            initialRating: normalizeRiskRating(risk?.initialRating),
             riskDefinition: typeof risk?.riskDefinition === "string" ? toFirstPerson(risk.riskDefinition) : risk?.riskDefinition,
             howItsARisk: typeof risk?.howItsARisk === "string" ? toFirstPerson(risk.howItsARisk) : risk?.howItsARisk,
-            controlMeasures: typeof risk?.controlMeasures === "string" ? toFirstPerson(risk.controlMeasures) : risk?.controlMeasures
+            controlMeasures: typeof risk?.controlMeasures === "string" ? toFirstPerson(risk.controlMeasures) : risk?.controlMeasures,
+            ratingAfterControls: normalizeRiskRating(risk?.ratingAfterControls),
           }));
         }
         if (typeof result.additionalNotes === "string") {
