@@ -39,6 +39,26 @@ interface CleanupResult {
   message: string;
 }
 
+interface ResetResult {
+  success: boolean;
+  deleted: {
+    careWorkerRotas: number;
+    recommendedCallTimes: number;
+    workerStartTimes: number;
+    workerTemplates: number;
+    workerConstraints: number;
+    savedStates: number;
+    analyzedServiceUsers: number;
+    analyzedCareWorkers: number;
+    analyzedCalls: number;
+    serviceOrders: number;
+    templateAssignments: number;
+    callRecommendations: number;
+    workbookUploads: number;
+  };
+  message: string;
+}
+
 export const AdminDatabasePanel: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -79,6 +99,42 @@ export const AdminDatabasePanel: React.FC = () => {
     },
   });
 
+  const resetMutation = useMutation({
+    mutationFn: async () => {
+      const confirmed = window.confirm(
+        "This will remove ALL rostering and care worker rota data. This cannot be undone. Continue?"
+      );
+      if (!confirmed) {
+        throw new Error("Reset cancelled");
+      }
+      const response = await fetch("/api/admin/rostering/reset-data", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to reset rostering data");
+      }
+      return response.json() as Promise<ResetResult>;
+    },
+    onSuccess: (data) => {
+      const totalDeleted = Object.values(data.deleted).reduce((a, b) => a + b, 0);
+      toast({
+        title: "Reset Complete",
+        description: `Removed ${totalDeleted} records. Fresh start ready.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/data-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbook-uploads"] });
+    },
+    onError: (error) => {
+      if (error.message === "Reset cancelled") return;
+      toast({
+        title: "Reset Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const statItems = [
     { label: "Service Users", value: stats?.serviceUsersCount ?? 0, icon: Users, color: "bg-blue-500" },
     { label: "Care Workers", value: stats?.careWorkersCount ?? 0, icon: Users, color: "bg-green-500" },
@@ -102,7 +158,7 @@ export const AdminDatabasePanel: React.FC = () => {
             onClick={() => refetchStats()}
             disabled={statsLoading}
           >
-            <RefreshCw className={`h-4 w-4 mr-1 ${statsLoading ? "animate-spin" : ""}`} />
+            <RefreshCw className="h-4 w-4 mr-1" />
             Refresh
           </Button>
         </div>
@@ -155,11 +211,23 @@ export const AdminDatabasePanel: React.FC = () => {
             disabled={cleanupMutation.isPending}
           >
             {cleanupMutation.isPending ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Loader2 className="h-4 w-4 mr-2" />
             ) : (
               <Trash2 className="h-4 w-4 mr-2" />
             )}
             Cleanup Expired Data
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => resetMutation.mutate()}
+            disabled={resetMutation.isPending}
+          >
+            {resetMutation.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2" />
+            ) : (
+              <Trash2 className="h-4 w-4 mr-2" />
+            )}
+            Reset Rostering Data
           </Button>
         </div>
 

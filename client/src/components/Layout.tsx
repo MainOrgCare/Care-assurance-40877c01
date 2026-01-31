@@ -51,7 +51,6 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
     location === "/shadow-admin-portal" ||
     location === "/testing-features" ||
     location === "/care-worker-rotas" ||
-    location === "/rostering-studio" ||
     location === "/billing-tool" ||
     location === "/system-logs";
   const [openAdmin, setOpenAdmin] = useState(isAdminUser && isAdminRoute);
@@ -65,7 +64,6 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
           location === "/shadow-admin-portal" ||
           location === "/testing-features" ||
           location === "/care-worker-rotas" ||
-          location === "/rostering-studio" ||
           location === "/billing-tool" ||
           location === "/system-logs")
       ) {
@@ -223,7 +221,7 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
               </Link>
               <Link
                 href="/care-worker-rotas"
-                className={subNavLinkClass(location === "/care-worker-rotas" || location === "/rostering-studio")}
+                className={subNavLinkClass(location === "/care-worker-rotas")}
               >
                 <ClipboardList size={15} /> Rostering Hub
               </Link>

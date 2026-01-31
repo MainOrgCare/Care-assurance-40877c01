@@ -57,6 +57,7 @@ import {
   FolderOpen,
   Trash2,
   History,
+  ClipboardList,
 } from "lucide-react";
 import { GanttTimeline } from "@/components/rostering/GanttTimeline";
 import { MultiWorkerDashboard } from "@/components/rostering/MultiWorkerDashboard";
@@ -86,6 +87,7 @@ import {
   defaultWeights,
   defaultConstraints,
 } from "@/components/rostering/OptimizationSettings";
+import AdminDatabasePanel from "@/components/rostering/AdminDatabasePanel";
 import { runFullOptimization } from "@/lib/rostering/optimizer";
 
 // ===== ROSTERING CONSTANTS =====
@@ -216,6 +218,16 @@ interface CareWorkerRoster {
   missingRequirementTimes: number;
 }
 
+interface CareWorkerRotaSummary {
+  id: string;
+  workerName: string;
+  workerKey: string;
+  templateWeek: "week1" | "week2";
+  templateDay: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface WorkbookSummary {
   id: string;
   name: string;
@@ -330,6 +342,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
   const [optimizationWeights, setOptimizationWeights] = useState<OptimizationWeights>(defaultWeights);
   const [optimizationConstraints, setOptimizationConstraints] = useState<OptimizationConstraints>(defaultConstraints);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [selectedRotaId, setSelectedRotaId] = useState<string | null>(null);
   
   // Roster controls
   const [packCallsBackToBack, setPackCallsBackToBack] = useState(true);
@@ -357,6 +370,25 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
       setSelectedWorkbookId(latestWorkbook.id);
     }
   }, [workbooks, selectedWorkbookId]);
+
+  // Fetch care worker rota library summaries
+  const { data: rotas = [], isLoading: rotasLoading } = useQuery<CareWorkerRotaSummary[]>({
+    queryKey: ["/api/admin/care-worker-rotas"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/care-worker-rotas", { credentials: "include" });
+      if (!res.ok) {
+        throw new Error("Failed to fetch rota library");
+      }
+      return res.json();
+    },
+    enabled: !!user && user.role === "admin",
+  });
+
+  useEffect(() => {
+    if (rotas.length > 0 && !selectedRotaId) {
+      setSelectedRotaId(rotas[0].id);
+    }
+  }, [rotas, selectedRotaId]);
 
   // Fetch selected workbook full data
   const { data: workbook, isLoading: workbookLoading, refetch: refetchWorkbook } = useQuery<WorkbookFull>({
@@ -448,33 +480,6 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
       return res.json();
     },
     enabled: !!selectedWorkbookId && !!user && user.role === "admin",
-  });
-
-  // Auto-populate templates mutation
-  const autoPopulateMutation = useMutation({
-    mutationFn: async (workbookId: string) => {
-      const res = await fetch(`/api/admin/rostering/workbooks/${workbookId}/auto-populate-templates`, {
-        method: "POST",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to auto-populate templates");
-      return res.json();
-    },
-    onSuccess: (data: { templates: number; constraints: number }) => {
-      toast({
-        title: "Templates populated",
-        description: `Created ${data.templates} worker templates and ${data.constraints} workload constraints.`,
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "worker-templates"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "worker-constraints"] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Auto-populate failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
   });
 
   // Call time mutations
@@ -1276,6 +1281,62 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
+                <ClipboardList className="h-4 w-4" />
+                Rota Library
+              </CardTitle>
+              <CardDescription>
+                Manage saved rotas in the same screen as the studio.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {rotasLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-5 w-5 text-muted-foreground" />
+                </div>
+              ) : rotas.length === 0 ? (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>No saved rotas</AlertTitle>
+                  <AlertDescription>
+                    Save a rota to see it here.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="space-y-2">
+                  <Select value={selectedRotaId ?? undefined} onValueChange={setSelectedRotaId}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Select saved rota" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {rotas.map((rota) => (
+                        <SelectItem key={rota.id} value={rota.id} className="text-xs">
+                          {rota.workerName} • {rota.templateWeek} • {rota.templateDay}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedRotaId && (
+                    <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                      {(() => {
+                        const selected = rotas.find((r) => r.id === selectedRotaId);
+                        return selected ? (
+                          <div className="space-y-1">
+                            <div className="font-medium text-foreground">{selected.workerName}</div>
+                            <div>{selected.templateWeek} • {selected.templateDay}</div>
+                            <div>Updated {new Date(selected.updatedAt).toLocaleDateString()}</div>
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="h-4 w-4" />
                 Active Workbook
               </CardTitle>
@@ -1286,7 +1347,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
             <CardContent>
               {workbooksLoading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Loader2 className="h-6 w-6 text-muted-foreground" />
                 </div>
               ) : workbooks.length === 0 ? (
                 <Alert>
@@ -1339,24 +1400,6 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => autoPopulateMutation.mutate(selectedWorkbookId)}
-                  disabled={autoPopulateMutation.isPending}
-                >
-                  {autoPopulateMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Users className="h-4 w-4 mr-2" />
-                  )}
-                  Auto-populate Templates
-                </Button>
-                <p className="text-[10px] text-muted-foreground">
-                  Learn who visits whom and set workload limits for overloaded workers.
-                </p>
-                <Separator className="my-2" />
-                <Button
                   variant="destructive"
                   size="sm"
                   className="w-full"
@@ -1364,7 +1407,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                   disabled={deleteMutation.isPending}
                 >
                   {deleteMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Loader2 className="h-4 w-4 mr-2" />
                   ) : null}
                   Delete Workbook
                 </Button>
@@ -1454,7 +1497,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
             </Card>
           ) : workbookLoading ? (
             <Card className="p-12 text-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto mb-4" />
+              <Loader2 className="h-8 w-8 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">Loading workbook data...</p>
             </Card>
           ) : !workbook ? (
@@ -1526,9 +1569,6 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                       )}
                     </p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => autoPopulateMutation.mutate(selectedWorkbookId)}>
-                    Auto-balance
-                  </Button>
                 </div>
               )}
 
@@ -1686,7 +1726,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                       
                       {/* Bulk Selection Toolbar */}
                       {rosterState.present.selectedEntryIds.size > 1 && (
-                        <div className="mt-3 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 animate-in slide-in-from-bottom-2 duration-200">
+                        <div className="mt-3 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-sm">
                               {rosterState.present.selectedEntryIds.size}
@@ -2066,6 +2106,10 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                       onRunOptimization={handleRunOptimization}
                       isOptimizing={isOptimizing}
                     />
+                  </div>
+
+                  <div className="mt-6">
+                    <AdminDatabasePanel />
                   </div>
                 </CardContent>
               </Card>

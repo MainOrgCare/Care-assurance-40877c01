@@ -340,7 +340,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
         >
           {isOptimizing ? (
             <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Loader2 className="h-4 w-4 mr-2" />
               Optimizing...
             </>
           ) : (
@@ -353,12 +353,12 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
         
         {/* Progress phases when optimizing */}
         {isOptimizing && (
-          <div className="mt-3 space-y-2 animate-in fade-in duration-300">
+          <div className="mt-3 space-y-2">
             <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-              <div className="h-full bg-primary animate-pulse rounded-full" style={{ width: "60%" }} />
+              <div className="h-full bg-primary rounded-full" style={{ width: "60%" }} />
             </div>
             <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-              <div className="h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
+              <div className="h-1.5 w-1.5 rounded-full bg-primary" />
               Analyzing routes and balancing workload...
             </div>
           </div>

@@ -35,7 +35,7 @@ const Settings = React.lazy(() => import("@/pages/Settings"));
 const Compliance = React.lazy(() => import("@/pages/Compliance"));
 const ROICalculator = React.lazy(() => import("@/pages/ROICalculator"));
 const TestingFeatures = React.lazy(() => import("@/pages/TestingFeatures"));
-const CareWorkerRotas = React.lazy(() => import("@/pages/CareWorkerRotas"));
+const RosteringStudio = React.lazy(() => import("@/pages/RosteringStudio"));
 const BillingTool = React.lazy(() => import("@/pages/BillingTool"));
 const SystemLogs = React.lazy(() => import("@/pages/SystemLogs"));
 
@@ -98,11 +98,13 @@ function Router() {
       <ProtectedRoute path="/compliance" component={Compliance} />
       <AdminRoute path="/roi-calculator" component={ROICalculator} />
       <AdminRoute path="/testing-features" component={TestingFeatures} />
-      <AdminRoute path="/rostering-studio" component={CareWorkerRotas} />
       <AdminRoute path="/system-logs" component={SystemLogs} />
-      <AdminRoute path="/care-worker-rotas" component={CareWorkerRotas} />
+      <AdminRoute path="/care-worker-rotas" component={RosteringStudio} />
       <AdminRoute path="/billing-tool" component={BillingTool} />
       <Route path="/admin/care-worker-rotas">
+        <Redirect to="/care-worker-rotas" />
+      </Route>
+      <Route path="/rostering-studio">
         <Redirect to="/care-worker-rotas" />
       </Route>
       <ProtectedRoute path="/settings" component={Settings} />

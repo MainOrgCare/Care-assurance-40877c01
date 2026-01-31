@@ -30,6 +30,7 @@ import { parse as parseDateFns, format as formatDateFns } from "date-fns";
 // Use legacy build for Node.js (no DOM APIs required)
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
+import { extractFromRawCalls, getExpiryDate, type RawCallRecord } from "./services/serviceOrderBuilder";
 // Vision-based extraction for improved EMAR accuracy
 
 const execFileAsync = promisify(execFile);
@@ -11982,10 +11983,10 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   });
 
   // =====================================================================
-  // TESTING FEATURE WORKBOOKS - Persists analysis data from Testing Features
+  // EXTRACTED DATA INGEST - Save analyzed data only (no raw workbooks)
   // =====================================================================
 
-  const testingFeatureWorkbookSchema = z.object({
+  const workbookIngestSchema = z.object({
     name: z.string().min(1).max(200),
     fileName: z.string().min(1).max(500),
     sourceHash: z.string().min(1).max(128),
@@ -11994,145 +11995,245 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     serviceUserCount: z.number().int().min(0).default(0),
     callGroupCount: z.number().int().min(0).default(0),
     rowAnalysis: z.array(z.any()).default([]),
-    callGroups: z.array(z.any()).default([]),
-    careWorkerRosters: z.array(z.any()).default([]),
-    doubleUpSlots: z.record(z.string(), z.array(z.string())).default({}),
   });
 
-  // Save testing feature workbook (admin only)
-  app.post("/api/admin/testing-features/workbooks", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+  app.post("/api/admin/rostering/workbook-uploads/ingest", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
     try {
-      const payload = testingFeatureWorkbookSchema.parse(req.body);
+      const payload = workbookIngestSchema.parse(req.body);
 
-      const { workbook, deduped } = await storage.createTestingFeatureWorkbook({
-        name: payload.name,
+      const existing = await storage.getWorkbookUploadByHash(payload.sourceHash);
+      if (existing) {
+        return res.status(200).json({ upload: existing, deduped: true });
+      }
+
+      const expiry = getExpiryDate();
+
+      const rawCalls: RawCallRecord[] = (payload.rowAnalysis || [])
+        .filter((row: any) => row?.serviceUserName && row?.callTypeLabel && row?.plannedDateKey)
+        .map((row: any) => ({
+          serviceUserName: row.serviceUserName,
+          workerName: row.actualWorker || row.plannedWorker || "Unknown",
+          callTypeLabel: row.callTypeLabel || "Other",
+          callDate: row.plannedDateKey,
+          scheduledStart: row.plannedTimeMinutes ?? undefined,
+          actualStart: row.actualTimeMinutes ?? undefined,
+          plannedDuration: row.plannedDurationMinutes ?? undefined,
+          actualDuration: row.actualDurationMinutes ?? undefined,
+          isDoubleUp: row.isDoubleUpSlot ?? false,
+          isTimeCritical: row.isTimeCritical ?? false,
+          serviceRequirementStart: row.serviceRequirementTimeMinutes ?? undefined,
+        }));
+
+      const extracted = extractFromRawCalls(rawCalls);
+
+      // Save analyzed service users
+      await Promise.all(
+        extracted.serviceUsers.map((su) =>
+          storage.upsertAnalyzedServiceUser({
+            serviceUserKey: su.serviceUserKey,
+            serviceUserName: su.serviceUserName,
+            serviceUserArea: su.serviceUserArea,
+            serviceUserAddress: su.serviceUserAddress,
+            totalCallsAnalyzed: su.totalCallsAnalyzed,
+            earliestDataDate: su.earliestDataDate,
+            latestDataDate: su.latestDataDate,
+            expiresAt: expiry,
+          })
+        )
+      );
+
+      // Save analyzed care workers
+      await Promise.all(
+        extracted.careWorkers.map((cw) =>
+          storage.upsertAnalyzedCareWorker({
+            workerKey: cw.workerKey,
+            workerName: cw.workerName,
+            workerNameNormalized: cw.workerNameNormalized,
+            isAdminStaff: cw.isAdminStaff,
+            totalCallsAnalyzed: cw.totalCallsAnalyzed,
+            uniqueServiceUsers: cw.uniqueServiceUsers,
+            avgCallsPerDay: cw.avgCallsPerDay,
+            avgMinutesPerDay: cw.avgMinutesPerDay,
+            earliestDataDate: cw.earliestDataDate,
+            latestDataDate: cw.latestDataDate,
+            expiresAt: expiry,
+          })
+        )
+      );
+
+      // Save service orders
+      await Promise.all(
+        extracted.serviceOrders.map((order) =>
+          storage.upsertServiceOrder({
+            serviceUserKey: order.serviceUserKey,
+            serviceUserName: order.serviceUserName,
+            callTypeLabel: order.callTypeLabel,
+            callTypeKey: order.callTypeKey,
+            timeBand: order.timeBand,
+            serviceRequirementMinutes: order.serviceRequirementMinutes,
+            serviceRequirementStartTime: order.serviceRequirementStartTime,
+            serviceRequirementEndTime: order.serviceRequirementEndTime,
+            daysPerWeek: order.daysPerWeek,
+            week1Days: order.week1Days,
+            week2Days: order.week2Days,
+            carersRequired: order.carersRequired,
+            isTimeCritical: order.isTimeCritical,
+            orderSummary: order.orderSummary,
+            actualAvgStartTime: order.actualAvgStartTime,
+            actualAvgDuration: order.actualAvgDuration,
+            durationVariance: order.durationVariance,
+            startTimeVariance: order.startTimeVariance,
+            recommendedAdjustment: order.recommendedAdjustment,
+            recommendedDurationMinutes: order.recommendedDurationMinutes,
+            recommendedStartMinutes: order.recommendedStartMinutes,
+            sourceDataCount: order.sourceDataCount,
+            expiresAt: expiry,
+          })
+        )
+      );
+
+      // Save template assignments
+      await Promise.all(
+        extracted.templateAssignments.map((assignment) =>
+          storage.upsertTemplateAssignment({
+            workerKey: assignment.workerKey,
+            workerName: assignment.workerName,
+            serviceUserKey: assignment.serviceUserKey,
+            serviceUserName: assignment.serviceUserName,
+            callTypeLabel: assignment.callTypeLabel,
+            timeBand: assignment.timeBand,
+            templateWeek: assignment.templateWeek,
+            templateDay: assignment.templateDay,
+            isTemplated: assignment.isTemplated,
+            isPrimary: assignment.isPrimary,
+            serviceRequirementStartMinutes: assignment.serviceRequirementStartMinutes,
+            sourceDateKey: assignment.sourceDateKey,
+            sourceRowHash: assignment.sourceRowHash,
+            expiresAt: expiry,
+          })
+        )
+      );
+
+      // Save recommendations
+      await Promise.all(
+        extracted.recommendations.map((rec) =>
+          storage.upsertCallRecommendation({
+            serviceUserKey: rec.serviceUserKey,
+            serviceUserName: rec.serviceUserName,
+            callTypeLabel: rec.callTypeLabel,
+            recommendationType: rec.recommendationType,
+            currentValue: rec.currentValue,
+            recommendedValue: rec.recommendedValue,
+            reason: rec.reason,
+            confidence: rec.confidence,
+            priority: rec.priority,
+            dataPoints: rec.dataPoints,
+            expiresAt: expiry,
+          })
+        )
+      );
+
+      // Save analyzed calls (deduped)
+      await storage.bulkInsertAnalyzedCalls(
+        extracted.calls.map((call) => ({
+          ...call,
+          expiresAt: expiry,
+        }))
+      );
+
+      const upload = await storage.createWorkbookUpload({
         fileName: payload.fileName,
-        sourceHash: payload.sourceHash,
-        totalRows: payload.totalRows,
-        careWorkerCount: payload.careWorkerCount,
-        serviceUserCount: payload.serviceUserCount,
-        callGroupCount: payload.callGroupCount,
-        rowAnalysis: payload.rowAnalysis,
-        callGroups: payload.callGroups,
-        careWorkerRosters: payload.careWorkerRosters,
-        doubleUpSlots: payload.doubleUpSlots,
-        createdBy: req.user?.id ?? null,
-        createdByUsername: req.user?.username ?? null,
+        fileHash: payload.sourceHash,
+        totalRows: extracted.stats.totalRows,
+        dateRangeStart: extracted.stats.dateRangeStart,
+        dateRangeEnd: extracted.stats.dateRangeEnd,
+        careWorkersExtracted: extracted.stats.careWorkersExtracted,
+        serviceUsersExtracted: extracted.stats.serviceUsersExtracted,
+        callsExtracted: extracted.stats.callsExtracted,
+        serviceOrdersGenerated: extracted.stats.serviceOrdersGenerated,
+        templatesDetected: extracted.stats.templatesDetected,
+        recommendationsCreated: extracted.stats.recommendationsCreated,
+        uploadedBy: req.user?.id ?? null,
+        uploadedByUsername: req.user?.username ?? null,
+        processingStatus: "complete",
+        completedAt: new Date(),
       });
 
-      console.log(`[TestingFeatures] Workbook saved: ${workbook.name} (deduped: ${deduped})`);
-      return res.status(201).json({ workbook, deduped });
+      return res.status(201).json({ upload, deduped: false, stats: extracted.stats });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      console.error("[TestingFeatures] Failed to save workbook:", error);
+      console.error("[Rostering] Failed to ingest workbook analysis:", error);
       return res.status(500).json({ message: error.message });
     }
   });
 
-  // Get all testing feature workbooks (admin only)
+  // Legacy compatibility endpoints (no raw workbook storage)
   app.get("/api/admin/testing-features/workbooks", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const workbooks = await storage.getAllTestingFeatureWorkbooks();
-      // Return summary data without the large JSON payloads
-      const summaries = workbooks.map((wb) => ({
-        id: wb.id,
-        name: wb.name,
-        fileName: wb.fileName,
-        totalRows: wb.totalRows,
-        careWorkerCount: wb.careWorkerCount,
-        serviceUserCount: wb.serviceUserCount,
-        callGroupCount: wb.callGroupCount,
-        createdBy: wb.createdBy,
-        createdByUsername: wb.createdByUsername,
-        createdAt: wb.createdAt,
-        updatedAt: wb.updatedAt,
+      const uploads = await storage.getAllWorkbookUploads();
+      const summaries = uploads.map((upload) => ({
+        id: upload.id,
+        name: upload.fileName,
+        fileName: upload.fileName,
+        totalRows: upload.totalRows,
+        careWorkerCount: upload.careWorkersExtracted,
+        serviceUserCount: upload.serviceUsersExtracted,
+        callGroupCount: 0,
+        createdBy: upload.uploadedBy,
+        createdByUsername: upload.uploadedByUsername,
+        createdAt: upload.createdAt,
+        updatedAt: upload.completedAt ?? upload.createdAt,
       }));
       return res.json(summaries);
     } catch (error: any) {
-      console.error("[TestingFeatures] Failed to fetch workbooks:", error);
+      console.error("[TestingFeatures] Failed to fetch uploads:", error);
       return res.status(500).json({ message: error.message });
     }
   });
 
-  // Get a specific testing feature workbook with full data (admin only)
   app.get("/api/admin/testing-features/workbooks/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const workbook = await storage.getTestingFeatureWorkbook(req.params.id);
-      if (!workbook) {
+      const upload = await storage.getWorkbookUpload(req.params.id);
+      if (!upload) {
         return res.status(404).json({ message: "Workbook not found" });
       }
-      return res.json(workbook);
+      return res.json({
+        id: upload.id,
+        name: upload.fileName,
+        fileName: upload.fileName,
+        totalRows: upload.totalRows,
+        careWorkerCount: upload.careWorkersExtracted,
+        serviceUserCount: upload.serviceUsersExtracted,
+        callGroupCount: 0,
+        rowAnalysis: [],
+        callGroups: [],
+        careWorkerRosters: [],
+        doubleUpSlots: {},
+        createdBy: upload.uploadedBy,
+        createdByUsername: upload.uploadedByUsername,
+        createdAt: upload.createdAt,
+        updatedAt: upload.completedAt ?? upload.createdAt,
+      });
     } catch (error: any) {
-      console.error("[TestingFeatures] Failed to fetch workbook:", error);
+      console.error("[TestingFeatures] Failed to fetch upload:", error);
       return res.status(500).json({ message: error.message });
     }
   });
 
-  // Update a testing feature workbook (admin only)
-  app.put("/api/admin/testing-features/workbooks/:id", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
-    try {
-      const existing = await storage.getTestingFeatureWorkbook(req.params.id);
-      if (!existing) {
-        return res.status(404).json({ message: "Workbook not found" });
-      }
-
-      const payload = testingFeatureWorkbookSchema.partial().parse(req.body);
-      
-      const updated = await storage.updateTestingFeatureWorkbook(req.params.id, payload);
-      if (!updated) {
-        return res.status(404).json({ message: "Failed to update workbook" });
-      }
-
-      console.log(`[TestingFeatures] Workbook updated: ${updated.name}`);
-      return res.json({ workbook: updated });
-    } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
-      }
-      console.error("[TestingFeatures] Failed to update workbook:", error);
-      return res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Delete a testing feature workbook (admin only)
   app.delete("/api/admin/testing-features/workbooks/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      const existing = await storage.getTestingFeatureWorkbook(req.params.id);
+      const existing = await storage.getWorkbookUpload(req.params.id);
       if (!existing) {
         return res.status(404).json({ message: "Workbook not found" });
       }
 
-      await storage.deleteTestingFeatureWorkbook(req.params.id);
-      console.log(`[TestingFeatures] Workbook deleted: ${existing.name}`);
+      await storage.deleteWorkbookUpload(req.params.id);
+      console.log(`[TestingFeatures] Workbook deleted: ${existing.fileName}`);
       return res.json({ success: true });
     } catch (error: any) {
-      console.error("[TestingFeatures] Failed to delete workbook:", error);
-      return res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Double-up links endpoints
-  app.get("/api/admin/testing-features/workbooks/:id/double-up-links", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const links = await storage.getTestingFeatureDoubleUpLinks(req.params.id);
-      return res.json(links);
-    } catch (error: any) {
-      console.error("[TestingFeatures] Failed to fetch double-up links:", error);
-      return res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.post("/api/admin/testing-features/workbooks/:id/double-up-links", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
-    try {
-      const link = await storage.createTestingFeatureDoubleUpLink({
-        ...req.body,
-        workbookId: req.params.id,
-      });
-      return res.status(201).json(link);
-    } catch (error: any) {
-      console.error("[TestingFeatures] Failed to create double-up link:", error);
+      console.error("[TestingFeatures] Failed to delete upload:", error);
       return res.status(500).json({ message: error.message });
     }
   });
@@ -12360,6 +12461,22 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     }
   });
 
+  // Admin Database Management - Reset all rostering data (fresh start)
+  app.post("/api/admin/rostering/reset-data", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      const deleted = await storage.resetRosteringData();
+      console.log("[Rostering] Reset completed:", deleted);
+      return res.json({
+        success: true,
+        deleted,
+        message: "All rostering data has been removed.",
+      });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to reset data:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
   // Admin Database Management - Get data stats
   app.get("/api/admin/rostering/data-stats", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -12534,100 +12651,6 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete worker constraint:", error);
-      return res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Bulk auto-populate worker templates from current workbook data
-  app.post("/api/admin/rostering/workbooks/:id/auto-populate-templates", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
-    try {
-      const workbook = await storage.getTestingFeatureWorkbook(req.params.id);
-      if (!workbook) {
-        return res.status(404).json({ message: "Workbook not found" });
-      }
-
-      const rosters = workbook.careWorkerRosters as any[];
-      const templatesCreated: any[] = [];
-      const constraintsCreated: any[] = [];
-
-      // Track worker call counts to identify overloaded workers
-      const workerCallCounts: Record<string, { name: string; calls: number; minutes: number }> = {};
-
-      for (const roster of rosters) {
-        const workerKey = roster.key;
-        const workerName = roster.workerName;
-        const callGroups = roster.callGroups || [];
-
-        // Count calls per worker
-        const totalCalls = callGroups.length;
-        const totalMinutes = callGroups.reduce(
-          (sum: number, g: any) => sum + (g.durationMinutes || 30),
-          0
-        );
-        workerCallCounts[workerKey] = { name: workerName, calls: totalCalls, minutes: totalMinutes };
-
-        // Extract unique service users this worker visits
-        const serviceUserMap = new Map<string, { name: string; callTypes: Set<string> }>();
-        for (const group of callGroups) {
-          if (group.serviceUserName) {
-            const suKey = group.serviceUserName.toLowerCase().replace(/\s+/g, "_");
-            if (!serviceUserMap.has(suKey)) {
-              serviceUserMap.set(suKey, { name: group.serviceUserName, callTypes: new Set() });
-            }
-            serviceUserMap.get(suKey)!.callTypes.add(group.callTypeLabel || "General");
-          }
-        }
-
-        // Create templates for each service user
-        for (const [suKey, data] of serviceUserMap) {
-          const template = await storage.upsertRosteringWorkerTemplate({
-            workbookId: req.params.id,
-            workerKey,
-            workerName,
-            serviceUserKey: suKey,
-            serviceUserName: data.name,
-            callTypeLabels: Array.from(data.callTypes),
-            isPrimary: true,
-            priority: 1,
-            createdBy: req.user?.id ?? null,
-            createdByUsername: req.user?.username ?? null,
-          });
-          templatesCreated.push(template);
-        }
-      }
-
-      // Calculate average calls to identify overloaded workers
-      const workers = Object.values(workerCallCounts);
-      if (workers.length > 0) {
-        const avgCalls = workers.reduce((sum, w) => sum + w.calls, 0) / workers.length;
-        const maxReasonableCalls = Math.ceil(avgCalls * 1.3); // 30% above average
-
-        // Create constraints for workers with too many calls
-        for (const [workerKey, data] of Object.entries(workerCallCounts)) {
-          if (data.calls > maxReasonableCalls) {
-            const constraint = await storage.upsertRosteringWorkerConstraint({
-              workbookId: req.params.id,
-              workerKey,
-              workerName: data.name,
-              maxCallsPerDay: maxReasonableCalls,
-              maxMinutesPerDay: Math.ceil(data.minutes * (maxReasonableCalls / data.calls)),
-              notes: `Auto-generated: Worker had ${data.calls} calls (avg: ${Math.round(avgCalls)})`,
-              createdBy: req.user?.id ?? null,
-              createdByUsername: req.user?.username ?? null,
-            });
-            constraintsCreated.push(constraint);
-          }
-        }
-      }
-
-      console.log(`[Rostering] Auto-populated ${templatesCreated.length} templates and ${constraintsCreated.length} constraints`);
-      return res.json({
-        templates: templatesCreated.length,
-        constraints: constraintsCreated.length,
-        workerStats: workerCallCounts,
-      });
-    } catch (error: any) {
-      console.error("[Rostering] Failed to auto-populate templates:", error);
       return res.status(500).json({ message: error.message });
     }
   });

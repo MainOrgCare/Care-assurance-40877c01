@@ -42,10 +42,6 @@ import {
   type InsertAiUsageLog,
   type ContactMessage,
   type InsertContactMessage,
-  type TestingFeatureWorkbook,
-  type InsertTestingFeatureWorkbook,
-  type TestingFeatureDoubleUpLink,
-  type InsertTestingFeatureDoubleUpLink,
   type RosteringRecommendedCallTime,
   type InsertRosteringRecommendedCallTime,
   type RosteringWorkerStartTime,
@@ -90,8 +86,6 @@ import {
   emarCorrections,
   aiUsageLogs,
   contactMessages,
-  testingFeatureWorkbooks,
-  testingFeatureDoubleUpLinks,
   rosteringRecommendedCallTimes,
   rosteringWorkerStartTimes,
   rosteringWorkerTemplates,
@@ -262,19 +256,6 @@ export interface IStorage {
   deleteContactMessage(id: string): Promise<void>;
   getUnreadContactMessageCount(): Promise<number>;
 
-  // Testing Feature Workbook operations
-  createTestingFeatureWorkbook(workbook: InsertTestingFeatureWorkbook): Promise<{ workbook: TestingFeatureWorkbook; deduped: boolean }>;
-  getTestingFeatureWorkbook(id: string): Promise<TestingFeatureWorkbook | undefined>;
-  getTestingFeatureWorkbookByHash(sourceHash: string): Promise<TestingFeatureWorkbook | undefined>;
-  getAllTestingFeatureWorkbooks(): Promise<TestingFeatureWorkbook[]>;
-  updateTestingFeatureWorkbook(id: string, workbook: Partial<InsertTestingFeatureWorkbook>): Promise<TestingFeatureWorkbook | undefined>;
-  deleteTestingFeatureWorkbook(id: string): Promise<void>;
-  
-  // Testing Feature Double-Up Link operations
-  createTestingFeatureDoubleUpLink(link: InsertTestingFeatureDoubleUpLink): Promise<TestingFeatureDoubleUpLink>;
-  getTestingFeatureDoubleUpLinks(workbookId: string): Promise<TestingFeatureDoubleUpLink[]>;
-  deleteTestingFeatureDoubleUpLinks(workbookId: string): Promise<number>;
-
   // Rostering Recommended Call Times
   upsertRosteringRecommendedCallTime(callTime: InsertRosteringRecommendedCallTime): Promise<RosteringRecommendedCallTime>;
   getRosteringRecommendedCallTimes(workbookId: string): Promise<RosteringRecommendedCallTime[]>;
@@ -374,6 +355,23 @@ export interface IStorage {
 
   // Bulk cleanup of all expired data
   cleanupAllExpiredData(): Promise<{ serviceUsers: number; careWorkers: number; calls: number; orders: number; templates: number; recommendations: number }>;
+
+  // Hard reset of all rostering data
+  resetRosteringData(): Promise<{
+    careWorkerRotas: number;
+    recommendedCallTimes: number;
+    workerStartTimes: number;
+    workerTemplates: number;
+    workerConstraints: number;
+    savedStates: number;
+    analyzedServiceUsers: number;
+    analyzedCareWorkers: number;
+    analyzedCalls: number;
+    serviceOrders: number;
+    templateAssignments: number;
+    callRecommendations: number;
+    workbookUploads: number;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1329,111 +1327,6 @@ export class DatabaseStorage implements IStorage {
     return Number(result[0]?.count || 0);
   }
 
-  // Testing Feature Workbook operations
-  async createTestingFeatureWorkbook(workbook: InsertTestingFeatureWorkbook): Promise<{ workbook: TestingFeatureWorkbook; deduped: boolean }> {
-    const inserted = await this.db
-      .insert(testingFeatureWorkbooks)
-      .values(workbook)
-      .onConflictDoNothing({ target: testingFeatureWorkbooks.sourceHash })
-      .returning();
-
-    if (inserted.length) {
-      return { workbook: inserted[0], deduped: false };
-    }
-
-    const existing = await this.getTestingFeatureWorkbookByHash(workbook.sourceHash);
-    if (!existing) {
-      throw new Error("Unable to save testing feature workbook.");
-    }
-    return { workbook: existing, deduped: true };
-  }
-
-  async getTestingFeatureWorkbook(id: string): Promise<TestingFeatureWorkbook | undefined> {
-    const result = await this.db
-      .select()
-      .from(testingFeatureWorkbooks)
-      .where(eq(testingFeatureWorkbooks.id, id))
-      .limit(1);
-    return result[0];
-  }
-
-  async getTestingFeatureWorkbookByHash(sourceHash: string): Promise<TestingFeatureWorkbook | undefined> {
-    const result = await this.db
-      .select()
-      .from(testingFeatureWorkbooks)
-      .where(eq(testingFeatureWorkbooks.sourceHash, sourceHash))
-      .limit(1);
-    return result[0];
-  }
-
-  async getAllTestingFeatureWorkbooks(): Promise<TestingFeatureWorkbook[]> {
-    return await this.db
-      .select()
-      .from(testingFeatureWorkbooks)
-      .orderBy(desc(testingFeatureWorkbooks.createdAt));
-  }
-
-  async updateTestingFeatureWorkbook(id: string, workbook: Partial<InsertTestingFeatureWorkbook>): Promise<TestingFeatureWorkbook | undefined> {
-    const result = await this.db
-      .update(testingFeatureWorkbooks)
-      .set({ ...workbook, updatedAt: new Date() })
-      .where(eq(testingFeatureWorkbooks.id, id))
-      .returning();
-    return result[0];
-  }
-
-  async deleteTestingFeatureWorkbook(id: string): Promise<void> {
-    // Double-up links will be cascade deleted due to foreign key
-    await this.db.delete(testingFeatureWorkbooks).where(eq(testingFeatureWorkbooks.id, id));
-  }
-
-  // Testing Feature Double-Up Link operations
-  async createTestingFeatureDoubleUpLink(link: InsertTestingFeatureDoubleUpLink): Promise<TestingFeatureDoubleUpLink> {
-    const inserted = await this.db
-      .insert(testingFeatureDoubleUpLinks)
-      .values(link)
-      .onConflictDoNothing()
-      .returning();
-    
-    if (inserted.length) {
-      return inserted[0];
-    }
-    
-    // Return existing if conflict
-    const existing = await this.db
-      .select()
-      .from(testingFeatureDoubleUpLinks)
-      .where(
-        and(
-          eq(testingFeatureDoubleUpLinks.workbookId, link.workbookId),
-          eq(testingFeatureDoubleUpLinks.slotKey, link.slotKey),
-          eq(testingFeatureDoubleUpLinks.primaryWorkerKey, link.primaryWorkerKey)
-        )
-      )
-      .limit(1);
-    
-    if (!existing.length) {
-      throw new Error("Unable to create double-up link.");
-    }
-    return existing[0];
-  }
-
-  async getTestingFeatureDoubleUpLinks(workbookId: string): Promise<TestingFeatureDoubleUpLink[]> {
-    return await this.db
-      .select()
-      .from(testingFeatureDoubleUpLinks)
-      .where(eq(testingFeatureDoubleUpLinks.workbookId, workbookId))
-      .orderBy(testingFeatureDoubleUpLinks.scheduledStartMinutes);
-  }
-
-  async deleteTestingFeatureDoubleUpLinks(workbookId: string): Promise<number> {
-    const deleted = await this.db
-      .delete(testingFeatureDoubleUpLinks)
-      .where(eq(testingFeatureDoubleUpLinks.workbookId, workbookId))
-      .returning({ id: testingFeatureDoubleUpLinks.id });
-    return deleted.length;
-  }
-
   // =========================================================================
   // Rostering Recommended Call Times
   // =========================================================================
@@ -2215,6 +2108,68 @@ export class DatabaseStorage implements IStorage {
       orders,
       templates,
       recommendations,
+    };
+  }
+
+  async resetRosteringData(): Promise<{
+    careWorkerRotas: number;
+    recommendedCallTimes: number;
+    workerStartTimes: number;
+    workerTemplates: number;
+    workerConstraints: number;
+    savedStates: number;
+    analyzedServiceUsers: number;
+    analyzedCareWorkers: number;
+    analyzedCalls: number;
+    serviceOrders: number;
+    templateAssignments: number;
+    callRecommendations: number;
+    workbookUploads: number;
+  }> {
+    const [
+      careWorkerRotasDeleted,
+      recommendedCallTimesDeleted,
+      workerStartTimesDeleted,
+      workerTemplatesDeleted,
+      workerConstraintsDeleted,
+      savedStatesDeleted,
+      analyzedServiceUsersDeleted,
+      analyzedCareWorkersDeleted,
+      analyzedCallsDeleted,
+      serviceOrdersDeleted,
+      templateAssignmentsDeleted,
+      callRecommendationsDeleted,
+      workbookUploadsDeleted,
+    ] = await Promise.all([
+      this.db.delete(careWorkerRotas).returning({ id: careWorkerRotas.id }).then((r) => r.length),
+      this.db.delete(rosteringRecommendedCallTimes).returning({ id: rosteringRecommendedCallTimes.id }).then((r) => r.length),
+      this.db.delete(rosteringWorkerStartTimes).returning({ id: rosteringWorkerStartTimes.id }).then((r) => r.length),
+      this.db.delete(rosteringWorkerTemplates).returning({ id: rosteringWorkerTemplates.id }).then((r) => r.length),
+      this.db.delete(rosteringWorkerConstraints).returning({ id: rosteringWorkerConstraints.id }).then((r) => r.length),
+      this.db.delete(rosteringSavedStates).returning({ id: rosteringSavedStates.id }).then((r) => r.length),
+      this.db.delete(analyzedServiceUsers).returning({ id: analyzedServiceUsers.id }).then((r) => r.length),
+      this.db.delete(analyzedCareWorkers).returning({ id: analyzedCareWorkers.id }).then((r) => r.length),
+      this.db.delete(analyzedCalls).returning({ id: analyzedCalls.id }).then((r) => r.length),
+      this.db.delete(serviceOrders).returning({ id: serviceOrders.id }).then((r) => r.length),
+      this.db.delete(templateAssignments).returning({ id: templateAssignments.id }).then((r) => r.length),
+      this.db.delete(callRecommendations).returning({ id: callRecommendations.id }).then((r) => r.length),
+      this.db.delete(workbookUploads).returning({ id: workbookUploads.id }).then((r) => r.length),
+    ]);
+
+    return {
+      careWorkerRotas: careWorkerRotasDeleted,
+      recommendedCallTimes: recommendedCallTimesDeleted,
+      workerStartTimes: workerStartTimesDeleted,
+      workerTemplates: workerTemplatesDeleted,
+      workerConstraints: workerConstraintsDeleted,
+      savedStates: savedStatesDeleted,
+      analyzedServiceUsers: analyzedServiceUsersDeleted,
+      analyzedCareWorkers: analyzedCareWorkersDeleted,
+      analyzedCalls: analyzedCallsDeleted,
+      serviceOrders: serviceOrdersDeleted,
+      templateAssignments: templateAssignmentsDeleted,
+      callRecommendations: callRecommendationsDeleted,
+      workbookUploads: workbookUploadsDeleted,
     };
   }
 }

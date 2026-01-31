@@ -608,26 +608,35 @@ export default function TestingFeatures() {
       careWorkerRosters: any[];
       doubleUpSlots: Record<string, string[]>;
     }) => {
-      const res = await fetch("/api/admin/testing-features/workbooks", {
+      const res = await fetch("/api/admin/rostering/workbook-uploads/ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          name: payload.name,
+          fileName: payload.fileName,
+          sourceHash: payload.sourceHash,
+          totalRows: payload.totalRows,
+          careWorkerCount: payload.careWorkerCount,
+          serviceUserCount: payload.serviceUserCount,
+          callGroupCount: payload.callGroupCount,
+          rowAnalysis: payload.rowAnalysis ?? [],
+        }),
       });
       if (!res.ok) {
-        const error = await res.json().catch(() => ({ message: "Failed to save workbook" }));
-        throw new Error(error.message || "Failed to save workbook");
+        const error = await res.json().catch(() => ({ message: "Failed to ingest workbook" }));
+        throw new Error(error.message || "Failed to ingest workbook");
       }
       return res.json();
     },
     onSuccess: (data) => {
       toast({
-        title: data.deduped ? "Workbook already exists" : "Workbook saved",
+        title: data.deduped ? "Upload already exists" : "Workbook ingested",
         description: data.deduped
-          ? "This workbook was already saved in the library."
-          : "Your workbook analysis has been saved to the library.",
+          ? "This upload already exists in the library."
+          : "Your workbook analysis has been saved as extracted data.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/testing-features/workbooks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbook-uploads"] });
       setIsSavingWorkbook(false);
     },
     onError: (error: Error) => {

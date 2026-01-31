@@ -467,73 +467,6 @@ export const insertContactMessageSchema = createInsertSchema(contactMessages).om
 export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;
 export type ContactMessage = typeof contactMessages.$inferSelect;
 
-// Testing Feature Workbooks - stores uploaded workbook analysis data
-export const testingFeatureWorkbooks = pgTable("testing_feature_workbooks", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(), // User-defined name for the workbook
-  fileName: text("file_name").notNull(), // Original uploaded file name
-  sourceHash: text("source_hash").notNull().unique(), // SHA256 hash for deduplication
-  
-  // Parsed data counts for quick display
-  totalRows: integer("total_rows").notNull().default(0),
-  careWorkerCount: integer("care_worker_count").notNull().default(0),
-  serviceUserCount: integer("service_user_count").notNull().default(0),
-  callGroupCount: integer("call_group_count").notNull().default(0),
-  
-  // Full analysis data stored as JSONB
-  rowAnalysis: jsonb("row_analysis").notNull(), // Array of RowAnalysis objects
-  callGroups: jsonb("call_groups").notNull(), // Array of CallGroup objects
-  careWorkerRosters: jsonb("care_worker_rosters").notNull(), // Array of CareWorkerRoster objects
-  doubleUpSlots: jsonb("double_up_slots").notNull(), // Map of slot keys to worker arrays
-  
-  // Metadata
-  createdBy: varchar("created_by").references(() => users.id),
-  createdByUsername: text("created_by_username"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-export const insertTestingFeatureWorkbookSchema = createInsertSchema(testingFeatureWorkbooks).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertTestingFeatureWorkbook = z.infer<typeof insertTestingFeatureWorkbookSchema>;
-export type TestingFeatureWorkbook = typeof testingFeatureWorkbooks.$inferSelect;
-
-// Testing Feature Double-Up Links - tracks linked double-up calls that must move together
-export const testingFeatureDoubleUpLinks = pgTable(
-  "testing_feature_double_up_links",
-  {
-    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-    workbookId: varchar("workbook_id").notNull().references(() => testingFeatureWorkbooks.id, { onDelete: "cascade" }),
-    slotKey: text("slot_key").notNull(), // Unique identifier for the call slot (date+time+serviceUser)
-    linkedSlotKey: text("linked_slot_key").notNull(), // The partner slot key for double-up
-    primaryWorkerKey: text("primary_worker_key").notNull(),
-    secondaryWorkerKey: text("secondary_worker_key").notNull(),
-    scheduledStartMinutes: integer("scheduled_start_minutes").notNull(),
-    durationMinutes: integer("duration_minutes").notNull(),
-    serviceUserName: text("service_user_name").notNull(),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-  },
-  (table) => ({
-    uniqueDoubleUpLink: uniqueIndex("testing_feature_double_up_links_unique").on(
-      table.workbookId,
-      table.slotKey,
-      table.primaryWorkerKey
-    ),
-  })
-);
-
-export const insertTestingFeatureDoubleUpLinkSchema = createInsertSchema(testingFeatureDoubleUpLinks).omit({
-  id: true,
-  createdAt: true,
-});
-
-export type InsertTestingFeatureDoubleUpLink = z.infer<typeof insertTestingFeatureDoubleUpLinkSchema>;
-export type TestingFeatureDoubleUpLink = typeof testingFeatureDoubleUpLinks.$inferSelect;
-
 // ============================================================================
 // ROSTERING DATA EXTRACTION - Analyzed Data from Workbooks
 // Data retained for 3 months, deduplicated across uploads
@@ -842,7 +775,7 @@ export const rosteringRecommendedCallTimes = pgTable(
   "rostering_recommended_call_times",
   {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-    workbookId: varchar("workbook_id").notNull().references(() => testingFeatureWorkbooks.id, { onDelete: "cascade" }),
+    workbookId: varchar("workbook_id").notNull().references(() => workbookUploads.id, { onDelete: "cascade" }),
     serviceUserKey: text("service_user_key").notNull(), // Normalized service user identifier
     serviceUserName: text("service_user_name").notNull(), // Display name
     callTypeLabel: text("call_type_label").notNull(), // e.g., "Morning", "Lunch", "Tea", "Bed"
@@ -879,7 +812,7 @@ export const rosteringWorkerStartTimes = pgTable(
   "rostering_worker_start_times",
   {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-    workbookId: varchar("workbook_id").notNull().references(() => testingFeatureWorkbooks.id, { onDelete: "cascade" }),
+    workbookId: varchar("workbook_id").notNull().references(() => workbookUploads.id, { onDelete: "cascade" }),
     workerKey: text("worker_key").notNull(),
     workerName: text("worker_name").notNull(),
     templateWeek: text("template_week").notNull(), // week1 / week2
@@ -919,7 +852,7 @@ export const rosteringWorkerTemplates = pgTable(
   "rostering_worker_templates",
   {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-    workbookId: varchar("workbook_id").notNull().references(() => testingFeatureWorkbooks.id, { onDelete: "cascade" }),
+    workbookId: varchar("workbook_id").notNull().references(() => workbookUploads.id, { onDelete: "cascade" }),
     workerKey: text("worker_key").notNull(),
     workerName: text("worker_name").notNull(),
     serviceUserKey: text("service_user_key").notNull(),
@@ -963,7 +896,7 @@ export const rosteringWorkerConstraints = pgTable(
   "rostering_worker_constraints",
   {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-    workbookId: varchar("workbook_id").notNull().references(() => testingFeatureWorkbooks.id, { onDelete: "cascade" }),
+    workbookId: varchar("workbook_id").notNull().references(() => workbookUploads.id, { onDelete: "cascade" }),
     workerKey: text("worker_key").notNull(),
     workerName: text("worker_name").notNull(),
     maxCallsPerDay: integer("max_calls_per_day"), // Daily call limit
@@ -1002,7 +935,7 @@ export const rosteringSavedStates = pgTable(
   "rostering_saved_states",
   {
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-    workbookId: varchar("workbook_id").notNull().references(() => testingFeatureWorkbooks.id, { onDelete: "cascade" }),
+    workbookId: varchar("workbook_id").notNull().references(() => workbookUploads.id, { onDelete: "cascade" }),
     name: text("name").notNull(), // User-given name for this state
     description: text("description"), // Optional description
     templateWeek: text("template_week").notNull(), // Week template (week_a, week_b, etc.)
