@@ -881,16 +881,16 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[320px,1fr]">
-        {/* Workbook selector sidebar */}
+        {/* Active workbook info sidebar */}
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                Saved Workbooks
+                Active Workbook
               </CardTitle>
               <CardDescription>
-                Select a workbook from your library to begin rostering.
+                Using the latest saved workbook for rostering.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -907,50 +907,37 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                   </AlertDescription>
                 </Alert>
               ) : (
-                <ScrollArea className="h-[400px]">
-                  <div className="space-y-2">
-                    {workbooks.map((wb) => {
-                      const isSelected = wb.id === selectedWorkbookId;
-                      return (
-                        <button
-                          key={wb.id}
-                          type="button"
-                          onClick={() => setSelectedWorkbookId(wb.id)}
-                          className={`w-full rounded-xl border px-3 py-3 text-left transition ${
-                            isSelected
-                              ? "border-primary/50 bg-primary/10"
-                              : "border-border/60 bg-background/60 hover:bg-muted/40"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="text-sm font-semibold text-foreground">{wb.name}</p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {wb.fileName}
-                              </p>
-                            </div>
-                            {isSelected && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
-                          </div>
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            <Badge variant="outline" className="text-[10px]">
-                              {wb.totalRows.toLocaleString()} rows
-                            </Badge>
-                            <Badge variant="outline" className="text-[10px]">
-                              {wb.careWorkerCount} workers
-                            </Badge>
-                            <Badge variant="outline" className="text-[10px]">
-                              {wb.serviceUserCount} SUs
-                            </Badge>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground mt-2">
-                            Saved {new Date(wb.createdAt).toLocaleDateString()}
-                            {wb.createdByUsername && ` by ${wb.createdByUsername}`}
+                (() => {
+                  const activeWb = workbooks.find((wb) => wb.id === selectedWorkbookId) || workbooks[workbooks.length - 1];
+                  return activeWb ? (
+                    <div className="rounded-xl border border-primary/50 bg-primary/10 px-3 py-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{activeWb.name}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {activeWb.fileName}
                           </p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
+                        </div>
+                        <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        <Badge variant="outline" className="text-[10px]">
+                          {activeWb.totalRows.toLocaleString()} rows
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px]">
+                          {activeWb.careWorkerCount} workers
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px]">
+                          {activeWb.serviceUserCount} SUs
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-2">
+                        Saved {new Date(activeWb.createdAt).toLocaleDateString()}
+                        {activeWb.createdByUsername && ` by ${activeWb.createdByUsername}`}
+                      </p>
+                    </div>
+                  ) : null;
+                })()
               )}
             </CardContent>
           </Card>
