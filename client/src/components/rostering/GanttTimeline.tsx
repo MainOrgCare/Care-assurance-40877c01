@@ -17,7 +17,15 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import type { GanttLane, TimelineEntry } from "@/lib/rostering/rosterModel";
 import { WorkerAvatar } from "./WorkerAvatar";
-import { AlertTriangle, Clock, Check, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, Clock, Check, CheckCircle2, Target } from "lucide-react";
+
+/** Recommended call time window */
+export interface RecommendedTimeWindow {
+  serviceUserKey: string;
+  callTypeLabel: string;
+  recommendedStartMinutes: number;
+  toleranceMinutes: number;
+}
 
 export interface GanttTimelineProps {
   lanes: GanttLane[];
@@ -37,6 +45,8 @@ export interface GanttTimelineProps {
   showConflicts?: boolean;
   showTravelGaps?: boolean;
   enableDrag?: boolean;
+  /** Recommended call time windows - shows target indicators for scheduled times */
+  recommendedTimes?: RecommendedTimeWindow[];
 }
 
 const formatTimeLabel = (minutes: number) => {
@@ -146,6 +156,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   showConflicts = true,
   showTravelGaps = true,
   enableDrag = true,
+  recommendedTimes = [],
 }) => {
   const totalMinutes = Math.max(endMinutes - startMinutes, 1);
   const hours = Math.ceil(totalMinutes / 60);
@@ -252,6 +263,34 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
     });
     return conflicts;
   }, [lanes, showConflicts]);
+
+  // Check entries against recommended times - returns status per entry
+  const recommendedTimeStatus = useMemo(() => {
+    const statusMap = new Map<string, { hasRecommendation: boolean; isWithinWindow: boolean; deviationMinutes: number }>();
+    if (!recommendedTimes || recommendedTimes.length === 0) return statusMap;
+    
+    lanes.forEach((lane) => {
+      lane.entries.forEach((entry) => {
+        // Find matching recommendation by service user and call type
+        const recommendation = recommendedTimes.find(
+          (rt) => rt.serviceUserKey === entry.serviceUserKey && 
+                  (rt.callTypeLabel === entry.callTypeLabel || !rt.callTypeLabel)
+        );
+        
+        if (recommendation) {
+          const deviation = Math.abs(entry.startMinutes - recommendation.recommendedStartMinutes);
+          const isWithinWindow = deviation <= recommendation.toleranceMinutes;
+          statusMap.set(entry.id, {
+            hasRecommendation: true,
+            isWithinWindow,
+            deviationMinutes: deviation,
+          });
+        }
+      });
+    });
+    
+    return statusMap;
+  }, [lanes, recommendedTimes]);
 
   // Calculate travel gaps for each lane
   const laneGaps = useMemo(() => {
@@ -512,6 +551,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                               isFocused={focusedEntryId === entry.id}
                               hasConflict={allConflicts.has(entry.id)}
                               enableDrag={enableDrag}
+                              recommendedStatus={recommendedTimeStatus.get(entry.id)}
                             />
                           ))}
                         </div>
@@ -596,6 +636,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                           isFocused={focusedEntryId === entry.id}
                           hasConflict={allConflicts.has(entry.id)}
                           enableDrag={enableDrag}
+                          recommendedStatus={recommendedTimeStatus.get(entry.id)}
                         />
                       ))}
                     </div>
@@ -620,6 +661,7 @@ interface DraggableEntryProps {
   isFocused?: boolean;
   hasConflict?: boolean;
   enableDrag?: boolean;
+  recommendedStatus?: { hasRecommendation: boolean; isWithinWindow: boolean; deviationMinutes: number };
 }
 
 const DraggableEntry: React.FC<DraggableEntryProps> = ({
@@ -632,6 +674,7 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
   isFocused = false,
   hasConflict = false,
   enableDrag = true,
+  recommendedStatus,
 }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: entry.id,
@@ -690,6 +733,17 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
       {hasConflict && (
         <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border border-white" />
       )}
+      {/* Recommended time indicator */}
+      {recommendedStatus?.hasRecommendation && (
+        <div 
+          className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border border-white flex items-center justify-center ${
+            recommendedStatus.isWithinWindow ? "bg-emerald-500" : "bg-amber-500"
+          }`}
+          title={recommendedStatus.isWithinWindow ? "Within recommended time" : `${recommendedStatus.deviationMinutes}m from recommended`}
+        >
+          <Target className="h-2 w-2 text-white" />
+        </div>
+      )}
     </button>
   );
 };
@@ -709,6 +763,9 @@ const MemoizedDraggableEntry = memo(DraggableEntry, (prev, next) => {
     prev.isSelected === next.isSelected &&
     prev.isFocused === next.isFocused &&
     prev.hasConflict === next.hasConflict &&
-    prev.enableDrag === next.enableDrag
+    prev.enableDrag === next.enableDrag &&
+    prev.recommendedStatus?.hasRecommendation === next.recommendedStatus?.hasRecommendation &&
+    prev.recommendedStatus?.isWithinWindow === next.recommendedStatus?.isWithinWindow &&
+    prev.recommendedStatus?.deviationMinutes === next.recommendedStatus?.deviationMinutes
   );
 });

@@ -19,14 +19,14 @@
             "host": "dpg-d5dbsh1r0fns73age33g-a.frankfurt-postgres.render.com",
             "port": 5432,
             "ssl": true,
-            "sslTrustCertificate": false,
+            "sslTrustCertificate": true,
             "authMethod": "password",
             "username": "maindatabase_kh55_user",
-            "password": "LAWtKhcr94DqK7P3EmWChvpguIq9jihgqVCh24AeMvYtzD/u1pCpCaoRXcVjzOLSgO1RDgqON1lmMq6a",
-            "savePassword": "encrypted",
-            "salt": "21usQ4wBJ0aJ5ktTbHPwWQ==",
+            "password": "",
+            "savePassword": "session",
             "database": "maindatabase_kh55",
             "readOnly": false,
+            "role": "production",
             "postConnectionSqlType": "inline",
             "connectionTimeout": 30
         }

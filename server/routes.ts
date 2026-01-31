@@ -12137,5 +12137,365 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     }
   });
 
+  // =====================================================================
+  // ROSTERING STUDIO - Recommended Times, Templates & Constraints
+  // =====================================================================
+
+  // --- Recommended Call Times ---
+  app.get("/api/admin/rostering/workbooks/:id/call-times", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const callTimes = await storage.getRosteringRecommendedCallTimes(req.params.id);
+      return res.json(callTimes);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch call times:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/rostering/workbooks/:id/call-times", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const callTime = await storage.upsertRosteringRecommendedCallTime({
+        ...req.body,
+        workbookId: req.params.id,
+        createdBy: req.user?.id ?? null,
+        createdByUsername: req.user?.username ?? null,
+      });
+      console.log(`[Rostering] Call time saved for ${req.body.serviceUserName} - ${req.body.callTypeLabel}`);
+      return res.status(201).json(callTime);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to save call time:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/rostering/call-times/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteRosteringRecommendedCallTime(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete call time:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // --- Worker Start Times ---
+  app.get("/api/admin/rostering/workbooks/:id/worker-start-times", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const startTimes = await storage.getRosteringWorkerStartTimes(req.params.id);
+      return res.json(startTimes);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch worker start times:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/rostering/workbooks/:id/worker-start-times", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const startTime = await storage.upsertRosteringWorkerStartTime({
+        ...req.body,
+        workbookId: req.params.id,
+        createdBy: req.user?.id ?? null,
+        createdByUsername: req.user?.username ?? null,
+      });
+      console.log(`[Rostering] Worker start time saved for ${req.body.workerName} - ${req.body.templateDay}`);
+      return res.status(201).json(startTime);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to save worker start time:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/rostering/worker-start-times/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteRosteringWorkerStartTime(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete worker start time:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // --- Worker Templates (who visits whom) ---
+  app.get("/api/admin/rostering/workbooks/:id/worker-templates", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const templates = await storage.getRosteringWorkerTemplates(req.params.id);
+      return res.json(templates);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch worker templates:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/rostering/workbooks/:id/worker-templates", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const template = await storage.upsertRosteringWorkerTemplate({
+        ...req.body,
+        workbookId: req.params.id,
+        createdBy: req.user?.id ?? null,
+        createdByUsername: req.user?.username ?? null,
+      });
+      console.log(`[Rostering] Worker template saved: ${req.body.workerName} -> ${req.body.serviceUserName}`);
+      return res.status(201).json(template);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to save worker template:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/rostering/worker-templates/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteRosteringWorkerTemplate(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete worker template:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // --- Worker Constraints (max calls per day) ---
+  app.get("/api/admin/rostering/workbooks/:id/worker-constraints", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const constraints = await storage.getRosteringWorkerConstraints(req.params.id);
+      return res.json(constraints);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch worker constraints:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/rostering/workbooks/:id/worker-constraints", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const constraint = await storage.upsertRosteringWorkerConstraint({
+        ...req.body,
+        workbookId: req.params.id,
+        createdBy: req.user?.id ?? null,
+        createdByUsername: req.user?.username ?? null,
+      });
+      console.log(`[Rostering] Worker constraint saved for ${req.body.workerName}`);
+      return res.status(201).json(constraint);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to save worker constraint:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/rostering/worker-constraints/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteRosteringWorkerConstraint(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete worker constraint:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Bulk auto-populate worker templates from current workbook data
+  app.post("/api/admin/rostering/workbooks/:id/auto-populate-templates", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const workbook = await storage.getTestingFeatureWorkbook(req.params.id);
+      if (!workbook) {
+        return res.status(404).json({ message: "Workbook not found" });
+      }
+
+      const rosters = workbook.careWorkerRosters as any[];
+      const templatesCreated: any[] = [];
+      const constraintsCreated: any[] = [];
+
+      // Track worker call counts to identify overloaded workers
+      const workerCallCounts: Record<string, { name: string; calls: number; minutes: number }> = {};
+
+      for (const roster of rosters) {
+        const workerKey = roster.key;
+        const workerName = roster.workerName;
+        const callGroups = roster.callGroups || [];
+
+        // Count calls per worker
+        const totalCalls = callGroups.length;
+        const totalMinutes = callGroups.reduce(
+          (sum: number, g: any) => sum + (g.durationMinutes || 30),
+          0
+        );
+        workerCallCounts[workerKey] = { name: workerName, calls: totalCalls, minutes: totalMinutes };
+
+        // Extract unique service users this worker visits
+        const serviceUserMap = new Map<string, { name: string; callTypes: Set<string> }>();
+        for (const group of callGroups) {
+          if (group.serviceUserName) {
+            const suKey = group.serviceUserName.toLowerCase().replace(/\s+/g, "_");
+            if (!serviceUserMap.has(suKey)) {
+              serviceUserMap.set(suKey, { name: group.serviceUserName, callTypes: new Set() });
+            }
+            serviceUserMap.get(suKey)!.callTypes.add(group.callTypeLabel || "General");
+          }
+        }
+
+        // Create templates for each service user
+        for (const [suKey, data] of serviceUserMap) {
+          const template = await storage.upsertRosteringWorkerTemplate({
+            workbookId: req.params.id,
+            workerKey,
+            workerName,
+            serviceUserKey: suKey,
+            serviceUserName: data.name,
+            callTypeLabels: Array.from(data.callTypes),
+            isPrimary: true,
+            priority: 1,
+            createdBy: req.user?.id ?? null,
+            createdByUsername: req.user?.username ?? null,
+          });
+          templatesCreated.push(template);
+        }
+      }
+
+      // Calculate average calls to identify overloaded workers
+      const workers = Object.values(workerCallCounts);
+      if (workers.length > 0) {
+        const avgCalls = workers.reduce((sum, w) => sum + w.calls, 0) / workers.length;
+        const maxReasonableCalls = Math.ceil(avgCalls * 1.3); // 30% above average
+
+        // Create constraints for workers with too many calls
+        for (const [workerKey, data] of Object.entries(workerCallCounts)) {
+          if (data.calls > maxReasonableCalls) {
+            const constraint = await storage.upsertRosteringWorkerConstraint({
+              workbookId: req.params.id,
+              workerKey,
+              workerName: data.name,
+              maxCallsPerDay: maxReasonableCalls,
+              maxMinutesPerDay: Math.ceil(data.minutes * (maxReasonableCalls / data.calls)),
+              notes: `Auto-generated: Worker had ${data.calls} calls (avg: ${Math.round(avgCalls)})`,
+              createdBy: req.user?.id ?? null,
+              createdByUsername: req.user?.username ?? null,
+            });
+            constraintsCreated.push(constraint);
+          }
+        }
+      }
+
+      console.log(`[Rostering] Auto-populated ${templatesCreated.length} templates and ${constraintsCreated.length} constraints`);
+      return res.json({
+        templates: templatesCreated.length,
+        constraints: constraintsCreated.length,
+        workerStats: workerCallCounts,
+      });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to auto-populate templates:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === Rostering Saved States ===
+
+  // Get all saved states for a workbook
+  app.get("/api/admin/rostering/workbooks/:id/saved-states", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const states = await storage.getRosteringSavedStates(req.params.id);
+      return res.json(states);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to get saved states:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create a new saved state
+  app.post("/api/admin/rostering/workbooks/:id/saved-states", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const { name, description, templateWeek, templateDay, timeOverrides, laneOverrides, metrics, isActive } = req.body;
+
+      const state = await storage.createRosteringSavedState({
+        workbookId: req.params.id,
+        name: name || `Schedule ${new Date().toLocaleDateString()}`,
+        description,
+        templateWeek,
+        templateDay,
+        timeOverrides: timeOverrides || {},
+        laneOverrides: laneOverrides || {},
+        metrics,
+        isActive: isActive ?? false,
+        createdBy: req.user?.id ?? null,
+        createdByUsername: req.user?.username ?? null,
+      });
+
+      console.log(`[Rostering] Created saved state: ${state.name}`);
+      return res.status(201).json(state);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to create saved state:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update a saved state
+  app.put("/api/admin/rostering/saved-states/:id", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const { name, description, timeOverrides, laneOverrides, metrics } = req.body;
+
+      const updated = await storage.updateRosteringSavedState(req.params.id, {
+        name,
+        description,
+        timeOverrides,
+        laneOverrides,
+        metrics,
+      });
+
+      if (!updated) {
+        return res.status(404).json({ message: "Saved state not found" });
+      }
+
+      console.log(`[Rostering] Updated saved state: ${updated.name}`);
+      return res.json(updated);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to update saved state:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Set a saved state as active
+  app.post("/api/admin/rostering/saved-states/:id/activate", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const state = await storage.getRosteringSavedState(req.params.id);
+      if (!state) {
+        return res.status(404).json({ message: "Saved state not found" });
+      }
+
+      const activated = await storage.setActiveRosteringSavedState(req.params.id, state.workbookId);
+      console.log(`[Rostering] Activated saved state: ${activated?.name}`);
+      return res.json(activated);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to activate saved state:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete a saved state
+  app.delete("/api/admin/rostering/saved-states/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteRosteringSavedState(req.params.id);
+      console.log(`[Rostering] Deleted saved state: ${req.params.id}`);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete saved state:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get active saved state for a specific template week/day
+  app.get("/api/admin/rostering/workbooks/:id/active-state", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { templateWeek, templateDay } = req.query;
+      if (!templateWeek || !templateDay) {
+        return res.status(400).json({ message: "templateWeek and templateDay are required" });
+      }
+
+      const state = await storage.getActiveRosteringSavedState(
+        req.params.id,
+        templateWeek as string,
+        templateDay as string
+      );
+      return res.json(state || null);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to get active state:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }

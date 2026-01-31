@@ -4,6 +4,7 @@ export interface TimelineEntry {
   startMinutes: number;
   durationMinutes: number;
   serviceUserName?: string | null;
+  serviceUserKey?: string | null;
   callTypeLabel?: string | null;
   isTimeCritical?: boolean;
   address?: string | null;
@@ -28,12 +29,14 @@ export interface WorkerSummary {
 interface WorkerCallGroupShape {
   key: string;
   serviceUserName: string | null;
+  serviceUserKey?: string | null;
   serviceUserAddress?: string | null;
   callTypeLabel: string;
   requirementStartMinutes: number | null;
   durationMinutes: number | null;
   totalCalls: number;
   isTimeCritical: boolean;
+  templatedWeekdayKeys?: Set<string>;
 }
 
 interface CareWorkerRosterShape {
@@ -46,16 +49,28 @@ interface CareWorkerRosterShape {
 
 const fallbackDurationMinutes = 30;
 
-export const buildWorkerTimelineEntries = (roster: CareWorkerRosterShape | null): TimelineEntry[] => {
+export const buildWorkerTimelineEntries = (
+  roster: CareWorkerRosterShape | null,
+  templateSelectionKey?: string
+): TimelineEntry[] => {
   if (!roster) return [];
   return roster.callGroups
-    .filter((group) => group.requirementStartMinutes !== null)
+    .filter((group) => {
+      // Must have a requirement start time
+      if (group.requirementStartMinutes === null) return false;
+      // Filter by template week/day if key provided
+      if (templateSelectionKey && group.templatedWeekdayKeys) {
+        return group.templatedWeekdayKeys.has(templateSelectionKey);
+      }
+      return true;
+    })
     .map((group) => ({
       id: group.key,
       title: group.serviceUserName || group.callTypeLabel,
       startMinutes: group.requirementStartMinutes as number,
       durationMinutes: group.durationMinutes ?? fallbackDurationMinutes,
       serviceUserName: group.serviceUserName,
+      serviceUserKey: group.serviceUserKey,
       callTypeLabel: group.callTypeLabel,
       isTimeCritical: group.isTimeCritical,
       address: group.serviceUserAddress ?? null,
@@ -85,19 +100,25 @@ export const buildWorkerSummaries = (rosters: CareWorkerRosterShape[]): WorkerSu
   });
 };
 
-export const buildWorkerLane = (roster: CareWorkerRosterShape | null): GanttLane | null => {
+export const buildWorkerLane = (
+  roster: CareWorkerRosterShape | null,
+  templateSelectionKey?: string
+): GanttLane | null => {
   if (!roster) return null;
   return {
     id: roster.key,
     label: roster.workerName,
-    entries: buildWorkerTimelineEntries(roster),
+    entries: buildWorkerTimelineEntries(roster, templateSelectionKey),
   };
 };
 
-export const buildAllWorkerLanes = (rosters: CareWorkerRosterShape[]): GanttLane[] => {
+export const buildAllWorkerLanes = (
+  rosters: CareWorkerRosterShape[],
+  templateSelectionKey?: string
+): GanttLane[] => {
   return rosters.map((roster) => ({
     id: roster.key,
     label: roster.workerName,
-    entries: buildWorkerTimelineEntries(roster),
+    entries: buildWorkerTimelineEntries(roster, templateSelectionKey),
   }));
 };

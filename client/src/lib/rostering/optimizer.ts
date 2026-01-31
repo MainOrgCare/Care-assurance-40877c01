@@ -2,7 +2,8 @@
  * Smart Optimization Engine for Rostering Studio
  * 
  * Provides multi-objective optimization for care worker schedules,
- * balancing travel time, workload distribution, and care continuity.
+ * balancing travel time, workload distribution, care continuity,
+ * recommended call times, and worker constraints.
  */
 
 import type { GanttLane, TimelineEntry } from "./rosterModel";
@@ -24,6 +25,32 @@ export interface OptimizationResultMetrics {
   workloadVariance: number;      // Standard deviation of workload across workers
   continuityScore: number;       // 0-100% of service users keeping same worker
   constraintViolations: number;  // Number of constraint violations
+  recommendedTimeScore: number;  // 0-100% of calls at recommended times
+}
+
+/** Recommended call time from database */
+export interface RecommendedCallTime {
+  serviceUserKey: string;
+  callTypeLabel: string;
+  recommendedStartMinutes: number;
+  toleranceMinutes: number;
+  priority: number;
+}
+
+/** Worker template from database */
+export interface WorkerTemplate {
+  workerKey: string;
+  serviceUserKey: string;
+  callTypeLabels: string[];
+  isPrimary: boolean;
+  priority: number;
+}
+
+/** Worker constraint from database */
+export interface WorkerConstraint {
+  workerKey: string;
+  maxCallsPerDay?: number;
+  maxMinutesPerDay?: number;
 }
 
 interface EntryWithLocation extends TimelineEntry {
@@ -58,7 +85,12 @@ export const runFullOptimization = (
   lanes: GanttLane[],
   weights: OptimizationWeights,
   constraints: OptimizationConstraints,
-  geocodedPoints?: Map<string, { lat: number; lon: number }>
+  geocodedPoints?: Map<string, { lat: number; lon: number }>,
+  rosteringData?: {
+    recommendedCallTimes?: RecommendedCallTime[];
+    workerTemplates?: WorkerTemplate[];
+    workerConstraints?: WorkerConstraint[];
+  }
 ): OptimizationResult => {
   // Normalize weights to sum to 100
   const totalWeight = weights.travel + weights.balance + weights.continuity;
@@ -79,6 +111,17 @@ export const runFullOptimization = (
     lane: {},
   };
 
+  // Phase 0: Apply recommended call times (highest priority)
+  if (rosteringData?.recommendedCallTimes?.length) {
+    const recommendedResult = applyRecommendedCallTimes(
+      workloads,
+      rosteringData.recommendedCallTimes,
+      constraints.respectTimeCritical
+    );
+    mergeOverrides(resultOverrides, recommendedResult);
+    applyOverridesToWorkloads(workloads, recommendedResult);
+  }
+
   // Phase 1: Travel optimization (if weight > 0)
   if (normalizedWeights.travel > 0) {
     const travelResult = optimizeForTravel(workloads, constraints);
@@ -88,12 +131,28 @@ export const runFullOptimization = (
 
   // Phase 2: Workload balancing (if weight > 0 and cross-worker moves allowed)
   if (normalizedWeights.balance > 0 && constraints.allowCrossWorkerMoves) {
-    const balanceResult = optimizeForBalance(workloads, constraints, normalizedWeights.balance);
+    const balanceResult = optimizeForBalance(
+      workloads,
+      constraints,
+      normalizedWeights.balance,
+      rosteringData?.workerConstraints
+    );
     mergeOverrides(resultOverrides, balanceResult);
     applyOverridesToWorkloads(workloads, balanceResult);
   }
 
-  // Phase 3: Continuity optimization (if weight > 0)
+  // Phase 3: Worker template optimization (respect who visits whom)
+  if (rosteringData?.workerTemplates?.length && constraints.allowCrossWorkerMoves) {
+    const templateResult = optimizeForWorkerTemplates(
+      workloads,
+      rosteringData.workerTemplates,
+      rosteringData.workerConstraints
+    );
+    mergeOverrides(resultOverrides, templateResult);
+    applyOverridesToWorkloads(workloads, templateResult);
+  }
+
+  // Phase 4: Continuity optimization (if weight > 0)
   if (normalizedWeights.continuity > 0) {
     const continuityResult = optimizeForContinuity(
       workloads,
@@ -104,7 +163,7 @@ export const runFullOptimization = (
     mergeOverrides(resultOverrides, continuityResult);
   }
 
-  // Phase 4: Final packing pass
+  // Phase 5: Final packing pass
   const packingResult = packAllLanes(workloads, constraints.minBufferMinutes, constraints.respectTimeCritical);
   mergeOverrides(resultOverrides, packingResult);
 
@@ -114,7 +173,8 @@ export const runFullOptimization = (
     workloads,
     originalAssignments,
     resultOverrides,
-    constraints
+    constraints,
+    rosteringData?.recommendedCallTimes
   );
 
   return {
@@ -183,12 +243,21 @@ export const optimizeForTravel = (
 export const optimizeForBalance = (
   workloads: LaneWorkload[],
   constraints: OptimizationConstraints,
-  balanceWeight: number
+  balanceWeight: number,
+  workerConstraints?: WorkerConstraint[]
 ): { time: Record<string, number>; lane: Record<string, string> } => {
   const laneOverrides: Record<string, string> = {};
   const timeOverrides: Record<string, number> = {};
 
   if (workloads.length < 2) return { time: timeOverrides, lane: laneOverrides };
+
+  // Build constraint lookup
+  const constraintsByWorker = new Map<string, WorkerConstraint>();
+  if (workerConstraints) {
+    for (const c of workerConstraints) {
+      constraintsByWorker.set(c.workerKey, c);
+    }
+  }
 
   // Calculate target workload per worker
   const totalMinutes = workloads.reduce((sum, w) => sum + w.totalMinutes, 0);
@@ -204,6 +273,16 @@ export const optimizeForBalance = (
     
     const overloaded = workloads[0];
     const underloaded = workloads[workloads.length - 1];
+    
+    // Check if underloaded worker has capacity constraints
+    const underloadedConstraint = constraintsByWorker.get(underloaded.laneId);
+    if (underloadedConstraint?.maxCallsPerDay && underloaded.entries.length >= underloadedConstraint.maxCallsPerDay) {
+      // This worker is at max calls, try next
+      continue;
+    }
+    if (underloadedConstraint?.maxMinutesPerDay && underloaded.totalMinutes >= underloadedConstraint.maxMinutesPerDay) {
+      continue;
+    }
     
     const gap = overloaded.totalMinutes - underloaded.totalMinutes;
     if (gap < tolerance) break;
@@ -329,6 +408,98 @@ const packAllLanes = (
   return { time: timeOverrides, lane: {} };
 };
 
+/**
+ * Apply recommended call times from database
+ */
+const applyRecommendedCallTimes = (
+  workloads: LaneWorkload[],
+  recommendedTimes: RecommendedCallTime[],
+  respectTimeCritical: boolean
+): { time: Record<string, number>; lane: Record<string, string> } => {
+  const timeOverrides: Record<string, number> = {};
+  
+  // Build lookup by service user + call type
+  const recommendedLookup = new Map<string, RecommendedCallTime>();
+  for (const rec of recommendedTimes) {
+    const key = `${rec.serviceUserKey}|${rec.callTypeLabel.toLowerCase()}`;
+    recommendedLookup.set(key, rec);
+  }
+  
+  for (const workload of workloads) {
+    for (const entry of workload.entries) {
+      if (entry.isTimeCritical && respectTimeCritical) continue;
+      
+      const suKey = entry.serviceUserKey;
+      const callType = entry.callTypeLabel?.toLowerCase();
+      if (!suKey || !callType) continue;
+      
+      const key = `${suKey}|${callType}`;
+      const recommended = recommendedLookup.get(key);
+      if (recommended) {
+        timeOverrides[entry.id] = recommended.recommendedStartMinutes;
+      }
+    }
+  }
+  
+  return { time: timeOverrides, lane: {} };
+};
+
+/**
+ * Optimize based on worker templates (who should visit whom)
+ */
+const optimizeForWorkerTemplates = (
+  workloads: LaneWorkload[],
+  templates: WorkerTemplate[],
+  workerConstraints?: WorkerConstraint[]
+): { time: Record<string, number>; lane: Record<string, string> } => {
+  const laneOverrides: Record<string, string> = {};
+  
+  // Build lookup: serviceUserKey -> preferred workerKey
+  const preferredWorker = new Map<string, string>();
+  for (const template of templates) {
+    if (template.isPrimary) {
+      preferredWorker.set(template.serviceUserKey, template.workerKey);
+    }
+  }
+  
+  // Build constraint lookup
+  const constraintsByWorker = new Map<string, WorkerConstraint>();
+  if (workerConstraints) {
+    for (const c of workerConstraints) {
+      constraintsByWorker.set(c.workerKey, c);
+    }
+  }
+  
+  // Track call counts for constraint checking
+  const workerCallCounts = new Map<string, number>();
+  for (const workload of workloads) {
+    workerCallCounts.set(workload.laneId, workload.entries.length);
+  }
+  
+  // Move entries to their preferred workers
+  for (const workload of workloads) {
+    for (const entry of workload.entries) {
+      if (!entry.serviceUserKey) continue;
+      
+      const preferred = preferredWorker.get(entry.serviceUserKey);
+      if (!preferred || preferred === workload.laneId) continue;
+      
+      // Check if target worker has capacity
+      const targetConstraint = constraintsByWorker.get(preferred);
+      const targetCallCount = workerCallCounts.get(preferred) || 0;
+      if (targetConstraint?.maxCallsPerDay && targetCallCount >= targetConstraint.maxCallsPerDay) {
+        continue; // Target worker is at capacity
+      }
+      
+      laneOverrides[entry.id] = preferred;
+      workerCallCounts.set(preferred, targetCallCount + 1);
+      workerCallCounts.set(workload.laneId, (workerCallCounts.get(workload.laneId) || 1) - 1);
+    }
+  }
+  
+  return { time: {}, lane: laneOverrides };
+};
+
 const mergeOverrides = (
   target: { time: Record<string, number>; lane: Record<string, string> },
   source: { time: Record<string, number>; lane: Record<string, string> }
@@ -376,7 +547,8 @@ const calculateResultMetrics = (
   workloads: LaneWorkload[],
   originalAssignments: Map<string, string>,
   overrides: { time: Record<string, number>; lane: Record<string, string> },
-  constraints: OptimizationConstraints
+  constraints: OptimizationConstraints,
+  recommendedTimes?: RecommendedCallTime[]
 ): OptimizationResultMetrics => {
   // Calculate travel reduction (simplified - would need geocoding for accuracy)
   const originalTotalGaps = calculateTotalGaps(originalLanes);
@@ -419,11 +591,48 @@ const calculateResultMetrics = (
     }
   }
 
+  // Calculate recommended time score
+  let recommendedTimeScore = 100;
+  if (recommendedTimes && recommendedTimes.length > 0) {
+    const recommendedLookup = new Map<string, RecommendedCallTime>();
+    for (const rec of recommendedTimes) {
+      const key = `${rec.serviceUserKey}|${rec.callTypeLabel.toLowerCase()}`;
+      recommendedLookup.set(key, rec);
+    }
+    
+    let totalWithRecommendation = 0;
+    let withinTolerance = 0;
+    
+    for (const workload of workloads) {
+      for (const entry of workload.entries) {
+        const suKey = entry.serviceUserKey;
+        const callType = entry.callTypeLabel?.toLowerCase();
+        if (!suKey || !callType) continue;
+        
+        const key = `${suKey}|${callType}`;
+        const recommended = recommendedLookup.get(key);
+        if (recommended) {
+          totalWithRecommendation++;
+          const actualTime = overrides.time[entry.id] ?? entry.startMinutes;
+          const diff = Math.abs(actualTime - recommended.recommendedStartMinutes);
+          if (diff <= recommended.toleranceMinutes) {
+            withinTolerance++;
+          }
+        }
+      }
+    }
+    
+    recommendedTimeScore = totalWithRecommendation > 0
+      ? Math.round((withinTolerance / totalWithRecommendation) * 100)
+      : 100;
+  }
+
   return {
     totalTravelReduction,
     workloadVariance,
     continuityScore,
     constraintViolations,
+    recommendedTimeScore,
   };
 };
 

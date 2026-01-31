@@ -533,3 +533,202 @@ export const insertTestingFeatureDoubleUpLinkSchema = createInsertSchema(testing
 
 export type InsertTestingFeatureDoubleUpLink = z.infer<typeof insertTestingFeatureDoubleUpLinkSchema>;
 export type TestingFeatureDoubleUpLink = typeof testingFeatureDoubleUpLinks.$inferSelect;
+
+// ============================================================================
+// ROSTERING STUDIO - Recommended Times & Worker Templates
+// ============================================================================
+
+// Recommended Call Times - stores preferred times for service user calls
+// Used by optimizer to schedule calls at appropriate times
+export const rosteringRecommendedCallTimes = pgTable(
+  "rostering_recommended_call_times",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    workbookId: varchar("workbook_id").notNull().references(() => testingFeatureWorkbooks.id, { onDelete: "cascade" }),
+    serviceUserKey: text("service_user_key").notNull(), // Normalized service user identifier
+    serviceUserName: text("service_user_name").notNull(), // Display name
+    callTypeLabel: text("call_type_label").notNull(), // e.g., "Morning", "Lunch", "Tea", "Bed"
+    recommendedStartMinutes: integer("recommended_start_minutes").notNull(), // Minutes from midnight
+    toleranceMinutes: integer("tolerance_minutes").notNull().default(30), // Acceptable variation
+    priority: integer("priority").notNull().default(1), // Higher = more important to respect
+    notes: text("notes"),
+    createdBy: varchar("created_by").references(() => users.id),
+    createdByUsername: text("created_by_username"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueCallTime: uniqueIndex("rostering_recommended_call_times_unique").on(
+      table.workbookId,
+      table.serviceUserKey,
+      table.callTypeLabel
+    ),
+    workbookIdx: index("rostering_recommended_call_times_workbook_idx").on(table.workbookId),
+  })
+);
+
+export const insertRosteringRecommendedCallTimeSchema = createInsertSchema(rosteringRecommendedCallTimes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertRosteringRecommendedCallTime = z.infer<typeof insertRosteringRecommendedCallTimeSchema>;
+export type RosteringRecommendedCallTime = typeof rosteringRecommendedCallTimes.$inferSelect;
+
+// Recommended Worker Start Times - when each care worker should begin their shift
+export const rosteringWorkerStartTimes = pgTable(
+  "rostering_worker_start_times",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    workbookId: varchar("workbook_id").notNull().references(() => testingFeatureWorkbooks.id, { onDelete: "cascade" }),
+    workerKey: text("worker_key").notNull(),
+    workerName: text("worker_name").notNull(),
+    templateWeek: text("template_week").notNull(), // week1 / week2
+    templateDay: text("template_day").notNull(), // Monday..Sunday
+    recommendedStartMinutes: integer("recommended_start_minutes").notNull(), // Minutes from midnight
+    recommendedEndMinutes: integer("recommended_end_minutes"), // Optional shift end time
+    maxCallsPerDay: integer("max_calls_per_day"), // Workload limit
+    maxMinutesPerDay: integer("max_minutes_per_day"), // Time limit
+    notes: text("notes"),
+    createdBy: varchar("created_by").references(() => users.id),
+    createdByUsername: text("created_by_username"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueWorkerStart: uniqueIndex("rostering_worker_start_times_unique").on(
+      table.workbookId,
+      table.workerKey,
+      table.templateWeek,
+      table.templateDay
+    ),
+    workbookIdx: index("rostering_worker_start_times_workbook_idx").on(table.workbookId),
+  })
+);
+
+export const insertRosteringWorkerStartTimeSchema = createInsertSchema(rosteringWorkerStartTimes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertRosteringWorkerStartTime = z.infer<typeof insertRosteringWorkerStartTimeSchema>;
+export type RosteringWorkerStartTime = typeof rosteringWorkerStartTimes.$inferSelect;
+
+// Worker-Service User Templates - remembers who is assigned to visit whom regularly
+export const rosteringWorkerTemplates = pgTable(
+  "rostering_worker_templates",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    workbookId: varchar("workbook_id").notNull().references(() => testingFeatureWorkbooks.id, { onDelete: "cascade" }),
+    workerKey: text("worker_key").notNull(),
+    workerName: text("worker_name").notNull(),
+    serviceUserKey: text("service_user_key").notNull(),
+    serviceUserName: text("service_user_name").notNull(),
+    callTypeLabels: text("call_type_labels").array(), // Which call types this worker handles for this SU
+    isPrimary: boolean("is_primary").notNull().default(true), // Primary vs backup worker
+    priority: integer("priority").notNull().default(1), // Assignment priority (1 = first choice)
+    templateWeek: text("template_week"), // Optional: week1/week2 specific
+    templateDay: text("template_day"), // Optional: day-specific assignment
+    notes: text("notes"),
+    createdBy: varchar("created_by").references(() => users.id),
+    createdByUsername: text("created_by_username"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueTemplate: uniqueIndex("rostering_worker_templates_unique").on(
+      table.workbookId,
+      table.workerKey,
+      table.serviceUserKey,
+      table.templateWeek,
+      table.templateDay
+    ),
+    workbookIdx: index("rostering_worker_templates_workbook_idx").on(table.workbookId),
+    workerIdx: index("rostering_worker_templates_worker_idx").on(table.workbookId, table.workerKey),
+    serviceUserIdx: index("rostering_worker_templates_service_user_idx").on(table.workbookId, table.serviceUserKey),
+  })
+);
+
+export const insertRosteringWorkerTemplateSchema = createInsertSchema(rosteringWorkerTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertRosteringWorkerTemplate = z.infer<typeof insertRosteringWorkerTemplateSchema>;
+export type RosteringWorkerTemplate = typeof rosteringWorkerTemplates.$inferSelect;
+
+// Worker Workload Constraints - max calls/hours per worker
+export const rosteringWorkerConstraints = pgTable(
+  "rostering_worker_constraints",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    workbookId: varchar("workbook_id").notNull().references(() => testingFeatureWorkbooks.id, { onDelete: "cascade" }),
+    workerKey: text("worker_key").notNull(),
+    workerName: text("worker_name").notNull(),
+    maxCallsPerDay: integer("max_calls_per_day"), // Daily call limit
+    maxMinutesPerDay: integer("max_minutes_per_day"), // Daily time limit
+    maxCallsPerWeek: integer("max_calls_per_week"), // Weekly call limit
+    maxMinutesPerWeek: integer("max_minutes_per_week"), // Weekly time limit
+    preferredMaxDistance: integer("preferred_max_distance"), // Max travel distance (km)
+    availableDays: text("available_days").array(), // Days available to work
+    unavailableDates: text("unavailable_dates").array(), // Specific dates unavailable
+    notes: text("notes"),
+    createdBy: varchar("created_by").references(() => users.id),
+    createdByUsername: text("created_by_username"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueConstraint: uniqueIndex("rostering_worker_constraints_unique").on(
+      table.workbookId,
+      table.workerKey
+    ),
+    workbookIdx: index("rostering_worker_constraints_workbook_idx").on(table.workbookId),
+  })
+);
+
+export const insertRosteringWorkerConstraintSchema = createInsertSchema(rosteringWorkerConstraints).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertRosteringWorkerConstraint = z.infer<typeof insertRosteringWorkerConstraintSchema>;
+export type RosteringWorkerConstraint = typeof rosteringWorkerConstraints.$inferSelect;
+
+// Saved Roster States - persist optimized schedules
+export const rosteringSavedStates = pgTable(
+  "rostering_saved_states",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    workbookId: varchar("workbook_id").notNull().references(() => testingFeatureWorkbooks.id, { onDelete: "cascade" }),
+    name: text("name").notNull(), // User-given name for this state
+    description: text("description"), // Optional description
+    templateWeek: text("template_week").notNull(), // Week template (week_a, week_b, etc.)
+    templateDay: text("template_day").notNull(), // Day template (monday, tuesday, etc.)
+    timeOverrides: jsonb("time_overrides").notNull().default({}), // { entryId: startMinutes }
+    laneOverrides: jsonb("lane_overrides").notNull().default({}), // { entryId: laneId }
+    metrics: jsonb("metrics"), // Optimization metrics snapshot
+    isActive: boolean("is_active").notNull().default(false), // Currently active schedule
+    createdBy: varchar("created_by").references(() => users.id),
+    createdByUsername: text("created_by_username"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    workbookIdx: index("rostering_saved_states_workbook_idx").on(table.workbookId),
+    activeIdx: index("rostering_saved_states_active_idx").on(table.workbookId, table.isActive),
+  })
+);
+
+export const insertRosteringSavedStateSchema = createInsertSchema(rosteringSavedStates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertRosteringSavedState = z.infer<typeof insertRosteringSavedStateSchema>;
+export type RosteringSavedState = typeof rosteringSavedStates.$inferSelect;

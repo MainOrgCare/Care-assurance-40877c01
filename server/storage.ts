@@ -46,6 +46,16 @@ import {
   type InsertTestingFeatureWorkbook,
   type TestingFeatureDoubleUpLink,
   type InsertTestingFeatureDoubleUpLink,
+  type RosteringRecommendedCallTime,
+  type InsertRosteringRecommendedCallTime,
+  type RosteringWorkerStartTime,
+  type InsertRosteringWorkerStartTime,
+  type RosteringWorkerTemplate,
+  type InsertRosteringWorkerTemplate,
+  type RosteringWorkerConstraint,
+  type InsertRosteringWorkerConstraint,
+  type RosteringSavedState,
+  type InsertRosteringSavedState,
   users,
   careWorkers,
   discrepancies,
@@ -67,6 +77,11 @@ import {
   contactMessages,
   testingFeatureWorkbooks,
   testingFeatureDoubleUpLinks,
+  rosteringRecommendedCallTimes,
+  rosteringWorkerStartTimes,
+  rosteringWorkerTemplates,
+  rosteringWorkerConstraints,
+  rosteringSavedStates,
 } from "@shared/schema";
 
 const SALT_ROUNDS = 10;
@@ -236,6 +251,45 @@ export interface IStorage {
   createTestingFeatureDoubleUpLink(link: InsertTestingFeatureDoubleUpLink): Promise<TestingFeatureDoubleUpLink>;
   getTestingFeatureDoubleUpLinks(workbookId: string): Promise<TestingFeatureDoubleUpLink[]>;
   deleteTestingFeatureDoubleUpLinks(workbookId: string): Promise<number>;
+
+  // Rostering Recommended Call Times
+  upsertRosteringRecommendedCallTime(callTime: InsertRosteringRecommendedCallTime): Promise<RosteringRecommendedCallTime>;
+  getRosteringRecommendedCallTimes(workbookId: string): Promise<RosteringRecommendedCallTime[]>;
+  getRosteringRecommendedCallTimesByServiceUser(workbookId: string, serviceUserKey: string): Promise<RosteringRecommendedCallTime[]>;
+  deleteRosteringRecommendedCallTime(id: string): Promise<void>;
+  deleteRosteringRecommendedCallTimesByWorkbook(workbookId: string): Promise<number>;
+
+  // Rostering Worker Start Times
+  upsertRosteringWorkerStartTime(startTime: InsertRosteringWorkerStartTime): Promise<RosteringWorkerStartTime>;
+  getRosteringWorkerStartTimes(workbookId: string): Promise<RosteringWorkerStartTime[]>;
+  getRosteringWorkerStartTimesByWorker(workbookId: string, workerKey: string): Promise<RosteringWorkerStartTime[]>;
+  deleteRosteringWorkerStartTime(id: string): Promise<void>;
+  deleteRosteringWorkerStartTimesByWorkbook(workbookId: string): Promise<number>;
+
+  // Rostering Worker Templates (who visits whom)
+  upsertRosteringWorkerTemplate(template: InsertRosteringWorkerTemplate): Promise<RosteringWorkerTemplate>;
+  getRosteringWorkerTemplates(workbookId: string): Promise<RosteringWorkerTemplate[]>;
+  getRosteringWorkerTemplatesByWorker(workbookId: string, workerKey: string): Promise<RosteringWorkerTemplate[]>;
+  getRosteringWorkerTemplatesByServiceUser(workbookId: string, serviceUserKey: string): Promise<RosteringWorkerTemplate[]>;
+  deleteRosteringWorkerTemplate(id: string): Promise<void>;
+  deleteRosteringWorkerTemplatesByWorkbook(workbookId: string): Promise<number>;
+
+  // Rostering Worker Constraints (max calls per worker)
+  upsertRosteringWorkerConstraint(constraint: InsertRosteringWorkerConstraint): Promise<RosteringWorkerConstraint>;
+  getRosteringWorkerConstraints(workbookId: string): Promise<RosteringWorkerConstraint[]>;
+  getRosteringWorkerConstraintByWorker(workbookId: string, workerKey: string): Promise<RosteringWorkerConstraint | undefined>;
+  deleteRosteringWorkerConstraint(id: string): Promise<void>;
+  deleteRosteringWorkerConstraintsByWorkbook(workbookId: string): Promise<number>;
+
+  // Rostering Saved States (persisted schedules)
+  createRosteringSavedState(state: InsertRosteringSavedState): Promise<RosteringSavedState>;
+  updateRosteringSavedState(id: string, updates: Partial<InsertRosteringSavedState>): Promise<RosteringSavedState | undefined>;
+  getRosteringSavedStates(workbookId: string): Promise<RosteringSavedState[]>;
+  getRosteringSavedState(id: string): Promise<RosteringSavedState | undefined>;
+  getActiveRosteringSavedState(workbookId: string, templateWeek: string, templateDay: string): Promise<RosteringSavedState | undefined>;
+  setActiveRosteringSavedState(id: string, workbookId: string): Promise<RosteringSavedState | undefined>;
+  deleteRosteringSavedState(id: string): Promise<void>;
+  deleteRosteringSavedStatesByWorkbook(workbookId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1293,6 +1347,342 @@ export class DatabaseStorage implements IStorage {
       .delete(testingFeatureDoubleUpLinks)
       .where(eq(testingFeatureDoubleUpLinks.workbookId, workbookId))
       .returning({ id: testingFeatureDoubleUpLinks.id });
+    return deleted.length;
+  }
+
+  // =========================================================================
+  // Rostering Recommended Call Times
+  // =========================================================================
+
+  async upsertRosteringRecommendedCallTime(callTime: InsertRosteringRecommendedCallTime): Promise<RosteringRecommendedCallTime> {
+    const inserted = await this.db
+      .insert(rosteringRecommendedCallTimes)
+      .values(callTime)
+      .onConflictDoUpdate({
+        target: [
+          rosteringRecommendedCallTimes.workbookId,
+          rosteringRecommendedCallTimes.serviceUserKey,
+          rosteringRecommendedCallTimes.callTypeLabel,
+        ],
+        set: {
+          recommendedStartMinutes: callTime.recommendedStartMinutes,
+          toleranceMinutes: callTime.toleranceMinutes,
+          priority: callTime.priority,
+          notes: callTime.notes,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return inserted[0];
+  }
+
+  async getRosteringRecommendedCallTimes(workbookId: string): Promise<RosteringRecommendedCallTime[]> {
+    return await this.db
+      .select()
+      .from(rosteringRecommendedCallTimes)
+      .where(eq(rosteringRecommendedCallTimes.workbookId, workbookId))
+      .orderBy(rosteringRecommendedCallTimes.serviceUserName, rosteringRecommendedCallTimes.callTypeLabel);
+  }
+
+  async getRosteringRecommendedCallTimesByServiceUser(workbookId: string, serviceUserKey: string): Promise<RosteringRecommendedCallTime[]> {
+    return await this.db
+      .select()
+      .from(rosteringRecommendedCallTimes)
+      .where(
+        and(
+          eq(rosteringRecommendedCallTimes.workbookId, workbookId),
+          eq(rosteringRecommendedCallTimes.serviceUserKey, serviceUserKey)
+        )
+      )
+      .orderBy(rosteringRecommendedCallTimes.recommendedStartMinutes);
+  }
+
+  async deleteRosteringRecommendedCallTime(id: string): Promise<void> {
+    await this.db.delete(rosteringRecommendedCallTimes).where(eq(rosteringRecommendedCallTimes.id, id));
+  }
+
+  async deleteRosteringRecommendedCallTimesByWorkbook(workbookId: string): Promise<number> {
+    const deleted = await this.db
+      .delete(rosteringRecommendedCallTimes)
+      .where(eq(rosteringRecommendedCallTimes.workbookId, workbookId))
+      .returning({ id: rosteringRecommendedCallTimes.id });
+    return deleted.length;
+  }
+
+  // =========================================================================
+  // Rostering Worker Start Times
+  // =========================================================================
+
+  async upsertRosteringWorkerStartTime(startTime: InsertRosteringWorkerStartTime): Promise<RosteringWorkerStartTime> {
+    const inserted = await this.db
+      .insert(rosteringWorkerStartTimes)
+      .values(startTime)
+      .onConflictDoUpdate({
+        target: [
+          rosteringWorkerStartTimes.workbookId,
+          rosteringWorkerStartTimes.workerKey,
+          rosteringWorkerStartTimes.templateWeek,
+          rosteringWorkerStartTimes.templateDay,
+        ],
+        set: {
+          recommendedStartMinutes: startTime.recommendedStartMinutes,
+          recommendedEndMinutes: startTime.recommendedEndMinutes,
+          maxCallsPerDay: startTime.maxCallsPerDay,
+          maxMinutesPerDay: startTime.maxMinutesPerDay,
+          notes: startTime.notes,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return inserted[0];
+  }
+
+  async getRosteringWorkerStartTimes(workbookId: string): Promise<RosteringWorkerStartTime[]> {
+    return await this.db
+      .select()
+      .from(rosteringWorkerStartTimes)
+      .where(eq(rosteringWorkerStartTimes.workbookId, workbookId))
+      .orderBy(rosteringWorkerStartTimes.workerName, rosteringWorkerStartTimes.templateDay);
+  }
+
+  async getRosteringWorkerStartTimesByWorker(workbookId: string, workerKey: string): Promise<RosteringWorkerStartTime[]> {
+    return await this.db
+      .select()
+      .from(rosteringWorkerStartTimes)
+      .where(
+        and(
+          eq(rosteringWorkerStartTimes.workbookId, workbookId),
+          eq(rosteringWorkerStartTimes.workerKey, workerKey)
+        )
+      )
+      .orderBy(rosteringWorkerStartTimes.templateWeek, rosteringWorkerStartTimes.templateDay);
+  }
+
+  async deleteRosteringWorkerStartTime(id: string): Promise<void> {
+    await this.db.delete(rosteringWorkerStartTimes).where(eq(rosteringWorkerStartTimes.id, id));
+  }
+
+  async deleteRosteringWorkerStartTimesByWorkbook(workbookId: string): Promise<number> {
+    const deleted = await this.db
+      .delete(rosteringWorkerStartTimes)
+      .where(eq(rosteringWorkerStartTimes.workbookId, workbookId))
+      .returning({ id: rosteringWorkerStartTimes.id });
+    return deleted.length;
+  }
+
+  // =========================================================================
+  // Rostering Worker Templates (who visits whom)
+  // =========================================================================
+
+  async upsertRosteringWorkerTemplate(template: InsertRosteringWorkerTemplate): Promise<RosteringWorkerTemplate> {
+    const inserted = await this.db
+      .insert(rosteringWorkerTemplates)
+      .values(template)
+      .onConflictDoUpdate({
+        target: [
+          rosteringWorkerTemplates.workbookId,
+          rosteringWorkerTemplates.workerKey,
+          rosteringWorkerTemplates.serviceUserKey,
+          rosteringWorkerTemplates.templateWeek,
+          rosteringWorkerTemplates.templateDay,
+        ],
+        set: {
+          callTypeLabels: template.callTypeLabels,
+          isPrimary: template.isPrimary,
+          priority: template.priority,
+          notes: template.notes,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return inserted[0];
+  }
+
+  async getRosteringWorkerTemplates(workbookId: string): Promise<RosteringWorkerTemplate[]> {
+    return await this.db
+      .select()
+      .from(rosteringWorkerTemplates)
+      .where(eq(rosteringWorkerTemplates.workbookId, workbookId))
+      .orderBy(rosteringWorkerTemplates.workerName, rosteringWorkerTemplates.serviceUserName);
+  }
+
+  async getRosteringWorkerTemplatesByWorker(workbookId: string, workerKey: string): Promise<RosteringWorkerTemplate[]> {
+    return await this.db
+      .select()
+      .from(rosteringWorkerTemplates)
+      .where(
+        and(
+          eq(rosteringWorkerTemplates.workbookId, workbookId),
+          eq(rosteringWorkerTemplates.workerKey, workerKey)
+        )
+      )
+      .orderBy(rosteringWorkerTemplates.serviceUserName);
+  }
+
+  async getRosteringWorkerTemplatesByServiceUser(workbookId: string, serviceUserKey: string): Promise<RosteringWorkerTemplate[]> {
+    return await this.db
+      .select()
+      .from(rosteringWorkerTemplates)
+      .where(
+        and(
+          eq(rosteringWorkerTemplates.workbookId, workbookId),
+          eq(rosteringWorkerTemplates.serviceUserKey, serviceUserKey)
+        )
+      )
+      .orderBy(rosteringWorkerTemplates.priority, rosteringWorkerTemplates.workerName);
+  }
+
+  async deleteRosteringWorkerTemplate(id: string): Promise<void> {
+    await this.db.delete(rosteringWorkerTemplates).where(eq(rosteringWorkerTemplates.id, id));
+  }
+
+  async deleteRosteringWorkerTemplatesByWorkbook(workbookId: string): Promise<number> {
+    const deleted = await this.db
+      .delete(rosteringWorkerTemplates)
+      .where(eq(rosteringWorkerTemplates.workbookId, workbookId))
+      .returning({ id: rosteringWorkerTemplates.id });
+    return deleted.length;
+  }
+
+  // =========================================================================
+  // Rostering Worker Constraints (max calls per worker)
+  // =========================================================================
+
+  async upsertRosteringWorkerConstraint(constraint: InsertRosteringWorkerConstraint): Promise<RosteringWorkerConstraint> {
+    const inserted = await this.db
+      .insert(rosteringWorkerConstraints)
+      .values(constraint)
+      .onConflictDoUpdate({
+        target: [
+          rosteringWorkerConstraints.workbookId,
+          rosteringWorkerConstraints.workerKey,
+        ],
+        set: {
+          maxCallsPerDay: constraint.maxCallsPerDay,
+          maxMinutesPerDay: constraint.maxMinutesPerDay,
+          maxCallsPerWeek: constraint.maxCallsPerWeek,
+          maxMinutesPerWeek: constraint.maxMinutesPerWeek,
+          preferredMaxDistance: constraint.preferredMaxDistance,
+          availableDays: constraint.availableDays,
+          unavailableDates: constraint.unavailableDates,
+          notes: constraint.notes,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return inserted[0];
+  }
+
+  async getRosteringWorkerConstraints(workbookId: string): Promise<RosteringWorkerConstraint[]> {
+    return await this.db
+      .select()
+      .from(rosteringWorkerConstraints)
+      .where(eq(rosteringWorkerConstraints.workbookId, workbookId))
+      .orderBy(rosteringWorkerConstraints.workerName);
+  }
+
+  async getRosteringWorkerConstraintByWorker(workbookId: string, workerKey: string): Promise<RosteringWorkerConstraint | undefined> {
+    const result = await this.db
+      .select()
+      .from(rosteringWorkerConstraints)
+      .where(
+        and(
+          eq(rosteringWorkerConstraints.workbookId, workbookId),
+          eq(rosteringWorkerConstraints.workerKey, workerKey)
+        )
+      )
+      .limit(1);
+    return result[0];
+  }
+
+  async deleteRosteringWorkerConstraint(id: string): Promise<void> {
+    await this.db.delete(rosteringWorkerConstraints).where(eq(rosteringWorkerConstraints.id, id));
+  }
+
+  async deleteRosteringWorkerConstraintsByWorkbook(workbookId: string): Promise<number> {
+    const deleted = await this.db
+      .delete(rosteringWorkerConstraints)
+      .where(eq(rosteringWorkerConstraints.workbookId, workbookId))
+      .returning({ id: rosteringWorkerConstraints.id });
+    return deleted.length;
+  }
+
+  // Rostering Saved States implementation
+  async createRosteringSavedState(state: InsertRosteringSavedState): Promise<RosteringSavedState> {
+    const [result] = await this.db
+      .insert(rosteringSavedStates)
+      .values(state)
+      .returning();
+    return result;
+  }
+
+  async updateRosteringSavedState(id: string, updates: Partial<InsertRosteringSavedState>): Promise<RosteringSavedState | undefined> {
+    const [result] = await this.db
+      .update(rosteringSavedStates)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(rosteringSavedStates.id, id))
+      .returning();
+    return result;
+  }
+
+  async getRosteringSavedStates(workbookId: string): Promise<RosteringSavedState[]> {
+    return await this.db
+      .select()
+      .from(rosteringSavedStates)
+      .where(eq(rosteringSavedStates.workbookId, workbookId))
+      .orderBy(desc(rosteringSavedStates.updatedAt));
+  }
+
+  async getRosteringSavedState(id: string): Promise<RosteringSavedState | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(rosteringSavedStates)
+      .where(eq(rosteringSavedStates.id, id))
+      .limit(1);
+    return result;
+  }
+
+  async getActiveRosteringSavedState(workbookId: string, templateWeek: string, templateDay: string): Promise<RosteringSavedState | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(rosteringSavedStates)
+      .where(
+        and(
+          eq(rosteringSavedStates.workbookId, workbookId),
+          eq(rosteringSavedStates.templateWeek, templateWeek),
+          eq(rosteringSavedStates.templateDay, templateDay),
+          eq(rosteringSavedStates.isActive, true)
+        )
+      )
+      .limit(1);
+    return result;
+  }
+
+  async setActiveRosteringSavedState(id: string, workbookId: string): Promise<RosteringSavedState | undefined> {
+    // First deactivate all other states for this workbook
+    await this.db
+      .update(rosteringSavedStates)
+      .set({ isActive: false })
+      .where(eq(rosteringSavedStates.workbookId, workbookId));
+
+    // Now activate the selected state
+    const [result] = await this.db
+      .update(rosteringSavedStates)
+      .set({ isActive: true, updatedAt: new Date() })
+      .where(eq(rosteringSavedStates.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteRosteringSavedState(id: string): Promise<void> {
+    await this.db.delete(rosteringSavedStates).where(eq(rosteringSavedStates.id, id));
+  }
+
+  async deleteRosteringSavedStatesByWorkbook(workbookId: string): Promise<number> {
+    const deleted = await this.db
+      .delete(rosteringSavedStates)
+      .where(eq(rosteringSavedStates.workbookId, workbookId))
+      .returning({ id: rosteringSavedStates.id });
     return deleted.length;
   }
 }

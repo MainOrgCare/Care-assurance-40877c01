@@ -11,6 +11,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +51,12 @@ import {
   Zap,
   Undo2,
   Redo2,
+  Settings2,
+  AlertTriangle,
+  Save,
+  FolderOpen,
+  Trash2,
+  History,
 } from "lucide-react";
 import { GanttTimeline } from "@/components/rostering/GanttTimeline";
 import { MultiWorkerDashboard } from "@/components/rostering/MultiWorkerDashboard";
@@ -58,6 +65,9 @@ import { OptimizationScore } from "@/components/rostering/OptimizationScore";
 import { ConflictSummary } from "@/components/rostering/ConflictAlert";
 import { CallTypeChip } from "@/components/rostering/CallTypeChip";
 import { TravelTimeIndicator } from "@/components/rostering/TravelTimeIndicator";
+import { CallTimeEditor, type RecommendedCallTime } from "@/components/rostering/CallTimeEditor";
+import { WorkloadHeatmap } from "@/components/rostering/WorkloadHeatmap";
+import { WorkerConstraintsEditor, type WorkerConstraint as WorkerConstraintUI } from "@/components/rostering/WorkerConstraintsEditor";
 import { buildAllWorkerLanes, buildWorkerLane, buildWorkerSummaries, type TimelineEntry } from "@/lib/rostering/rosterModel";
 import { calculateTravelSegments, calculateOptimizationMetrics, type TravelCategory } from "@/lib/rostering/travelUtils";
 import { useRosteringKeyboardShortcuts, buildRosteringShortcuts, formatShortcutKey } from "@/hooks/useRosteringKeyboardShortcuts";
@@ -307,6 +317,10 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
   const [showHalfHourTicks, setShowHalfHourTicks] = useState(true);
   const [selectedTimelineEntryId, setSelectedTimelineEntryId] = useState<string | null>(null);
   const [reassignWorkerKey, setReassignWorkerKey] = useState<string>("");
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveScheduleName, setSaveScheduleName] = useState("");
+  const [saveScheduleDescription, setSaveScheduleDescription] = useState("");
+  const [showLoadDialog, setShowLoadDialog] = useState(false);
   
   // Template selection
   const [selectedTemplateWeek, setSelectedTemplateWeek] = useState<TemplateWeekKey>(DEFAULT_TEMPLATE_WEEK);
@@ -358,6 +372,245 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     enabled: !!selectedWorkbookId && !!user && user.role === "admin",
   });
 
+  // Fetch rostering recommended call times
+  const { data: recommendedCallTimes = [] } = useQuery<{
+    serviceUserKey: string;
+    callTypeLabel: string;
+    recommendedStartMinutes: number;
+    toleranceMinutes: number;
+    priority: number;
+  }[]>({
+    queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "call-times"],
+    queryFn: async () => {
+      if (!selectedWorkbookId) return [];
+      const res = await fetch(`/api/admin/rostering/workbooks/${selectedWorkbookId}/call-times`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedWorkbookId && !!user && user.role === "admin",
+  });
+
+  // Fetch worker templates (who visits whom)
+  const { data: workerTemplates = [] } = useQuery<{
+    workerKey: string;
+    serviceUserKey: string;
+    callTypeLabels: string[];
+    isPrimary: boolean;
+    priority: number;
+  }[]>({
+    queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "worker-templates"],
+    queryFn: async () => {
+      if (!selectedWorkbookId) return [];
+      const res = await fetch(`/api/admin/rostering/workbooks/${selectedWorkbookId}/worker-templates`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedWorkbookId && !!user && user.role === "admin",
+  });
+
+  // Fetch worker constraints (max calls per day)
+  const { data: workerConstraints = [] } = useQuery<{
+    workerKey: string;
+    workerName: string;
+    maxCallsPerDay?: number;
+    maxMinutesPerDay?: number;
+  }[]>({
+    queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "worker-constraints"],
+    queryFn: async () => {
+      if (!selectedWorkbookId) return [];
+      const res = await fetch(`/api/admin/rostering/workbooks/${selectedWorkbookId}/worker-constraints`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedWorkbookId && !!user && user.role === "admin",
+  });
+
+  // Fetch saved roster states
+  const { data: savedStates = [] } = useQuery<{
+    id: string;
+    name: string;
+    description?: string;
+    templateWeek: string;
+    templateDay: string;
+    timeOverrides: Record<string, number>;
+    laneOverrides: Record<string, string>;
+    metrics?: Record<string, number>;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+    createdByUsername?: string;
+  }[]>({
+    queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "saved-states"],
+    queryFn: async () => {
+      if (!selectedWorkbookId) return [];
+      const res = await fetch(`/api/admin/rostering/workbooks/${selectedWorkbookId}/saved-states`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedWorkbookId && !!user && user.role === "admin",
+  });
+
+  // Auto-populate templates mutation
+  const autoPopulateMutation = useMutation({
+    mutationFn: async (workbookId: string) => {
+      const res = await fetch(`/api/admin/rostering/workbooks/${workbookId}/auto-populate-templates`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to auto-populate templates");
+      return res.json();
+    },
+    onSuccess: (data: { templates: number; constraints: number }) => {
+      toast({
+        title: "Templates populated",
+        description: `Created ${data.templates} worker templates and ${data.constraints} workload constraints.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "worker-templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "worker-constraints"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Auto-populate failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Call time mutations
+  const saveCallTimeMutation = useMutation({
+    mutationFn: async (callTime: { serviceUserKey: string; serviceUserName: string; callTypeLabel: string; recommendedStartMinutes: number; toleranceMinutes: number; priority: number; notes?: string }) => {
+      const res = await fetch(`/api/admin/rostering/workbooks/${selectedWorkbookId}/call-times`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(callTime),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to save call time");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Call time saved" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "call-times"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to save call time", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteCallTimeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/rostering/call-times/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to delete");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Call time deleted" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "call-times"] });
+    },
+  });
+
+  // Constraint mutations
+  const saveConstraintMutation = useMutation({
+    mutationFn: async (constraint: { workerKey: string; workerName: string; maxCallsPerDay?: number; maxMinutesPerDay?: number; notes?: string }) => {
+      const res = await fetch(`/api/admin/rostering/workbooks/${selectedWorkbookId}/worker-constraints`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(constraint),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to save constraint");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Worker constraint saved" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "worker-constraints"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to save constraint", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteConstraintMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/rostering/worker-constraints/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to delete");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Constraint deleted" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "worker-constraints"] });
+    },
+  });
+
+  // Save roster state mutations
+  const saveRosterStateMutation = useMutation({
+    mutationFn: async (data: { name: string; description?: string }) => {
+      const res = await fetch(`/api/admin/rostering/workbooks/${selectedWorkbookId}/saved-states`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: data.name,
+          description: data.description,
+          templateWeek: selectedTemplateWeek,
+          templateDay: selectedTemplateDay,
+          timeOverrides: rosterState.present.timeOverrides,
+          laneOverrides: rosterState.present.laneOverrides,
+          isActive: false,
+        }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to save roster state");
+      return res.json();
+    },
+    onSuccess: (data: { name: string }) => {
+      toast({ title: "Schedule saved", description: `Saved as "${data.name}"` });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "saved-states"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to save schedule", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const loadRosterStateMutation = useMutation({
+    mutationFn: async (stateId: string) => {
+      const res = await fetch(`/api/admin/rostering/saved-states/${stateId}/activate`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to load roster state");
+      return res.json();
+    },
+    onSuccess: (data: { name: string; timeOverrides?: Record<string, number>; laneOverrides?: Record<string, string> }) => {
+      // Apply the loaded overrides to the reducer state
+      dispatchRoster({
+        type: "APPLY_OPTIMIZATION",
+        timeOverrides: (data.timeOverrides || {}) as Record<string, number>,
+        laneOverrides: (data.laneOverrides || {}) as Record<string, string>,
+      });
+      toast({ title: "Schedule loaded", description: `Loaded "${data.name}"` });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "saved-states"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to load schedule", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteRosterStateMutation = useMutation({
+    mutationFn: async (stateId: string) => {
+      const res = await fetch(`/api/admin/rostering/saved-states/${stateId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Schedule deleted" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "saved-states"] });
+    },
+  });
+
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -389,12 +642,12 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
   const careWorkerRosters = useMemo<CareWorkerRoster[]>(() => {
     if (!workbook?.careWorkerRosters) return [];
     // Reconstruct Sets from arrays (JSON doesn't preserve Sets)
-    return workbook.careWorkerRosters.map((roster) => ({
+    return workbook.careWorkerRosters.map((roster: CareWorkerRoster) => ({
       ...roster,
-      callGroups: roster.callGroups?.map((group: any) => ({
+      callGroups: roster.callGroups?.map((group: WorkerCallGroup & { templatedWeekdayKeys?: string[] | Set<string>; doubleUpWeekdayKeys?: string[] | Set<string> }) => ({
         ...group,
-        templatedWeekdayKeys: new Set(group.templatedWeekdayKeys || []),
-        doubleUpWeekdayKeys: new Set(group.doubleUpWeekdayKeys || []),
+        templatedWeekdayKeys: new Set<string>(Array.isArray(group.templatedWeekdayKeys) ? group.templatedWeekdayKeys : []),
+        doubleUpWeekdayKeys: new Set<string>(Array.isArray(group.doubleUpWeekdayKeys) ? group.doubleUpWeekdayKeys : []),
       })) || [],
     }));
   }, [workbook]);
@@ -443,8 +696,135 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
 
   const workerSummaries = useMemo(() => buildWorkerSummaries(careWorkerRosters), [careWorkerRosters]);
 
-  const selectedWorkerLane = useMemo(() => buildWorkerLane(selectedCareWorker), [selectedCareWorker]);
-  const allWorkerLanes = useMemo(() => buildAllWorkerLanes(visibleCareWorkerRosters), [visibleCareWorkerRosters]);
+  // Extract unique service users and call types from workbook data for editors
+  const uniqueServiceUsers = useMemo(() => {
+    const serviceUserMap = new Map<string, { key: string; name: string }>();
+    careWorkerRosters.forEach((roster) => {
+      roster.callGroups?.forEach((group: any) => {
+        if (group.serviceUserKey && group.serviceUserName) {
+          serviceUserMap.set(group.serviceUserKey, {
+            key: group.serviceUserKey,
+            name: group.serviceUserName,
+          });
+        }
+      });
+    });
+    return Array.from(serviceUserMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [careWorkerRosters]);
+
+  const uniqueCallTypes = useMemo(() => {
+    const callTypeSet = new Set<string>();
+    careWorkerRosters.forEach((roster) => {
+      roster.callGroups?.forEach((group: any) => {
+        if (group.callTypeLabel) {
+          callTypeSet.add(group.callTypeLabel);
+        }
+      });
+    });
+    return Array.from(callTypeSet).sort();
+  }, [careWorkerRosters]);
+
+  // Transform recommendedCallTimes data for CallTimeEditor
+  const callTimesForEditor = useMemo<RecommendedCallTime[]>(() => {
+    if (!recommendedCallTimes) return [];
+    return recommendedCallTimes.map((ct: any) => ({
+      id: ct.id,
+      serviceUserKey: ct.serviceUserKey,
+      serviceUserName: ct.serviceUserName,
+      callTypeLabel: ct.callTypeLabel,
+      recommendedStartMinutes: ct.recommendedStartMinutes,
+      toleranceMinutes: ct.toleranceMinutes,
+      priority: ct.priority,
+      notes: ct.notes,
+    }));
+  }, [recommendedCallTimes]);
+
+  // Transform workerConstraints data for WorkerConstraintsEditor
+  const constraintsForEditor = useMemo<WorkerConstraintUI[]>(() => {
+    if (!workerConstraints) return [];
+    return workerConstraints.map((wc: any) => ({
+      id: wc.id,
+      workerKey: wc.workerKey,
+      workerName: wc.workerName,
+      maxCallsPerDay: wc.maxCallsPerDay,
+      maxMinutesPerDay: wc.maxMinutesPerDay,
+      notes: wc.notes,
+    }));
+  }, [workerConstraints]);
+
+  // Transform workerSummaries for WorkloadHeatmap
+  const heatmapSummaries = useMemo(() => {
+    return careWorkerRosters.map((roster) => ({
+      workerKey: roster.key,
+      workerName: roster.workerName,
+      totalMinutes: roster.callGroups?.reduce((sum: number, g: any) => sum + (g.durationMinutes || 0), 0) || 0,
+      callCount: roster.callGroups?.length || 0,
+      uniqueServiceUsers: new Set(roster.callGroups?.map((g: any) => g.serviceUserKey) || []).size,
+    }));
+  }, [careWorkerRosters]);
+
+  // Compute constraint violations for visual indicators
+  const constraintViolations = useMemo(() => {
+    const violations = new Map<string, { overCalls: boolean; overMinutes: boolean }>();
+    if (!workerConstraints || workerConstraints.length === 0) return violations;
+
+    careWorkerRosters.forEach((roster) => {
+      const constraint = workerConstraints.find((c: any) => c.workerKey === roster.key);
+      if (!constraint) return;
+
+      const callCount = roster.callGroups?.length || 0;
+      const totalMinutes = roster.callGroups?.reduce((sum: number, g: any) => sum + (g.durationMinutes || 0), 0) || 0;
+
+      const overCalls = constraint.maxCallsPerDay && callCount > constraint.maxCallsPerDay;
+      const overMinutes = constraint.maxMinutesPerDay && totalMinutes > constraint.maxMinutesPerDay;
+
+      if (overCalls || overMinutes) {
+        violations.set(roster.key, { overCalls: !!overCalls, overMinutes: !!overMinutes });
+      }
+    });
+
+    return violations;
+  }, [careWorkerRosters, workerConstraints]);
+
+  // Compute aggregate utilization stats
+  const utilizationStats = useMemo(() => {
+    const workersWithCalls = heatmapSummaries.filter((w) => w.callCount > 0);
+    const totalWorkers = workersWithCalls.length;
+    
+    if (totalWorkers === 0) {
+      return {
+        avgCalls: 0,
+        avgHours: 0,
+        workersOverLimit: 0,
+        workersUnderUtilized: 0,
+        totalCalls: 0,
+        totalHours: 0,
+      };
+    }
+
+    const totalCalls = workersWithCalls.reduce((sum, w) => sum + w.callCount, 0);
+    const totalMinutes = workersWithCalls.reduce((sum, w) => sum + w.totalMinutes, 0);
+    const avgCalls = Math.round(totalCalls / totalWorkers);
+    const avgHours = parseFloat((totalMinutes / totalWorkers / 60).toFixed(1));
+    
+    // Workers over limit (from constraint violations)
+    const workersOverLimit = constraintViolations.size;
+    
+    // Workers under-utilized (< 50% of average)
+    const workersUnderUtilized = workersWithCalls.filter((w) => w.callCount < avgCalls * 0.5).length;
+
+    return {
+      avgCalls,
+      avgHours,
+      workersOverLimit,
+      workersUnderUtilized,
+      totalCalls,
+      totalHours: parseFloat((totalMinutes / 60).toFixed(1)),
+    };
+  }, [heatmapSummaries, constraintViolations]);
+
+  const selectedWorkerLane = useMemo(() => buildWorkerLane(selectedCareWorker, templateSelectionKey), [selectedCareWorker, templateSelectionKey]);
+  const allWorkerLanes = useMemo(() => buildAllWorkerLanes(visibleCareWorkerRosters, templateSelectionKey), [visibleCareWorkerRosters, templateSelectionKey]);
 
   // Apply overrides from reducer state to lanes
   const timelineLanes = useMemo(() => {
@@ -649,14 +1029,24 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
         const result = runFullOptimization(
           timelineLanes,
           optimizationWeights,
-          optimizationConstraints
+          optimizationConstraints,
+          undefined, // geocodedPoints
+          {
+            recommendedCallTimes,
+            workerTemplates,
+            workerConstraints,
+          }
         );
         
         applyOverrides(result.timeOverrides, result.laneOverrides);
         
+        const recommendedMsg = result.metrics.recommendedTimeScore < 100
+          ? ` Call time accuracy: ${result.metrics.recommendedTimeScore}%`
+          : "";
+        
         toast({
           title: "Optimization complete",
-          description: `Reduced travel gaps by ~${result.metrics.totalTravelReduction}m. Continuity: ${result.metrics.continuityScore}%`,
+          description: `Reduced travel gaps by ~${result.metrics.totalTravelReduction}m. Continuity: ${result.metrics.continuityScore}%${recommendedMsg}`,
         });
       } catch (error) {
         toast({
@@ -668,7 +1058,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
         setIsOptimizing(false);
       }
     }, 100);
-  }, [timelineLanes, optimizationWeights, optimizationConstraints, applyOverrides, toast]);
+  }, [timelineLanes, optimizationWeights, optimizationConstraints, recommendedCallTimes, workerTemplates, workerConstraints, applyOverrides, toast]);
 
   const handleAutoBalance = useCallback(() => {
     const updates: Record<string, number> = {};
@@ -949,6 +1339,24 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => autoPopulateMutation.mutate(selectedWorkbookId)}
+                  disabled={autoPopulateMutation.isPending}
+                >
+                  {autoPopulateMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Users className="h-4 w-4 mr-2" />
+                  )}
+                  Auto-populate Templates
+                </Button>
+                <p className="text-[10px] text-muted-foreground">
+                  Learn who visits whom and set workload limits for overloaded workers.
+                </p>
+                <Separator className="my-2" />
+                <Button
                   variant="destructive"
                   size="sm"
                   className="w-full"
@@ -961,6 +1369,72 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                   Delete Workbook
                 </Button>
               </CardContent>
+            </Card>
+          )}
+
+          {/* Overloaded Workers Warning */}
+          {workerConstraints.length > 0 && (
+            <Card className="border-amber-500/50 bg-amber-500/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2 text-amber-600">
+                  <AlertCircle className="h-4 w-4" />
+                  Workers With Workload Limits
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1">
+                  {workerConstraints.map((c) => (
+                    <div key={c.workerKey} className="flex items-center justify-between text-xs">
+                      <span className="text-foreground">{c.workerName}</span>
+                      <div className="flex gap-2">
+                        {c.maxCallsPerDay && (
+                          <Badge variant="outline" className="text-[9px]">
+                            Max {c.maxCallsPerDay} calls/day
+                          </Badge>
+                        )}
+                        {c.maxMinutesPerDay && (
+                          <Badge variant="outline" className="text-[9px]">
+                            Max {Math.round(c.maxMinutesPerDay / 60)}h/day
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  The optimizer will respect these limits when balancing workload.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Worker Templates Summary */}
+          {workerTemplates.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Worker Templates
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {workerTemplates.length} worker-service user assignments learned
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          )}
+
+          {/* Recommended Call Times Summary */}
+          {recommendedCallTimes.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Recommended Call Times
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {recommendedCallTimes.length} call time preferences stored
+                </CardDescription>
+              </CardHeader>
             </Card>
           )}
         </div>
@@ -1027,7 +1501,36 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                     <p className="text-2xl font-bold">{workbook.callGroupCount}</p>
                   </CardContent>
                 </Card>
+                <Card className="border-border/60 bg-background/70 shadow-soft hover-elevate shimmer">
+                  <CardContent className="pt-4">
+                    <p className="text-xs uppercase text-muted-foreground">Avg Calls/Worker</p>
+                    <p className="text-2xl font-bold">{utilizationStats.avgCalls}</p>
+                    <p className="text-[10px] text-muted-foreground">{utilizationStats.avgHours}h avg · {utilizationStats.totalHours}h total</p>
+                  </CardContent>
+                </Card>
               </div>
+
+              {/* Workload Alerts */}
+              {(utilizationStats.workersOverLimit > 0 || utilizationStats.workersUnderUtilized > 0) && (
+                <div className="flex items-center gap-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Workload Imbalance Detected</p>
+                    <p className="text-xs text-muted-foreground">
+                      {utilizationStats.workersOverLimit > 0 && (
+                        <span className="text-red-600 dark:text-red-400">{utilizationStats.workersOverLimit} workers over limit</span>
+                      )}
+                      {utilizationStats.workersOverLimit > 0 && utilizationStats.workersUnderUtilized > 0 && " • "}
+                      {utilizationStats.workersUnderUtilized > 0 && (
+                        <span>{utilizationStats.workersUnderUtilized} workers under-utilized</span>
+                      )}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => autoPopulateMutation.mutate(selectedWorkbookId)}>
+                    Auto-balance
+                  </Button>
+                </div>
+              )}
 
               {/* Optimization Score & Conflicts */}
               <div className="grid gap-4 lg:grid-cols-[1fr,300px]">
@@ -1152,6 +1655,10 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                     <TabsList className="mb-4">
                       <TabsTrigger value="timeline">Timeline</TabsTrigger>
                       <TabsTrigger value="map">Map</TabsTrigger>
+                      <TabsTrigger value="call-times">Call Times</TabsTrigger>
+                      <TabsTrigger value="constraints">Constraints</TabsTrigger>
+                      <TabsTrigger value="workload">Workload</TabsTrigger>
+                      <TabsTrigger value="schedules">Schedules</TabsTrigger>
                     </TabsList>
                     <TabsContent value="timeline">
                       {timelineConflictCount > 0 && (
@@ -1174,6 +1681,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                         focusedEntryId={rosterState.present.focusedEntryId}
                         onSelectEntry={handleSelectEntry}
                         onEntryMove={handleEntryMove}
+                        recommendedTimes={callTimesForEditor}
                       />
                       
                       {/* Bulk Selection Toolbar */}
@@ -1229,6 +1737,206 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                     </TabsContent>
                     <TabsContent value="map">
                       <RouteMapView entries={mapEntries} />
+                    </TabsContent>
+                    <TabsContent value="call-times">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-sm font-semibold">Recommended Call Times</h3>
+                            <p className="text-xs text-muted-foreground">
+                              Set preferred visit times for service users. The optimizer will prioritize these when scheduling.
+                            </p>
+                          </div>
+                        </div>
+                        <CallTimeEditor
+                          serviceUsers={uniqueServiceUsers}
+                          callTypes={uniqueCallTypes}
+                          callTimes={callTimesForEditor}
+                          onSave={(callTime) => {
+                            saveCallTimeMutation.mutate(callTime);
+                          }}
+                          onDelete={(id) => {
+                            deleteCallTimeMutation.mutate(id);
+                          }}
+                          isSaving={saveCallTimeMutation.isPending}
+                        />
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="constraints">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-sm font-semibold">Worker Constraints</h3>
+                            <p className="text-xs text-muted-foreground">
+                              Set maximum calls and hours per day for each care worker. Workers exceeding limits will be highlighted.
+                            </p>
+                          </div>
+                        </div>
+                        <WorkerConstraintsEditor
+                          workers={careWorkerRosters.map((r) => ({
+                            key: r.key,
+                            name: r.workerName,
+                          }))}
+                          constraints={constraintsForEditor}
+                          workerSummaries={heatmapSummaries}
+                          onSave={(constraint) => {
+                            saveConstraintMutation.mutate(constraint);
+                          }}
+                          onDelete={(id) => {
+                            deleteConstraintMutation.mutate(id);
+                          }}
+                          isSaving={saveConstraintMutation.isPending}
+                        />
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="workload">
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-sm font-semibold">Workload Distribution</h3>
+                          <p className="text-xs text-muted-foreground">
+                            Visual overview of how work is distributed across care workers.
+                          </p>
+                        </div>
+                        <WorkloadHeatmap
+                          workers={heatmapSummaries}
+                          constraints={constraintsForEditor}
+                        />
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="schedules">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-sm font-semibold">Saved Schedules</h3>
+                            <p className="text-xs text-muted-foreground">
+                              Save and restore optimized schedules for different days and weeks.
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSaveScheduleName(`${selectedTemplateDay} ${selectedTemplateWeek === "week1" ? "Week 1" : selectedTemplateWeek === "week2" ? "Week 2" : selectedTemplateWeek} - ${new Date().toLocaleDateString()}`);
+                              setSaveScheduleDescription("");
+                              setShowSaveDialog(true);
+                            }}
+                            disabled={Object.keys(rosterState.present.timeOverrides).length === 0}
+                          >
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Current
+                          </Button>
+                        </div>
+
+                        {savedStates.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-border/60 p-8 text-center">
+                            <History className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
+                            <p className="text-sm text-muted-foreground">No saved schedules yet</p>
+                            <p className="text-xs text-muted-foreground mt-1">Save your optimized roster to reuse later</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {savedStates.map((state) => (
+                              <div
+                                key={state.id}
+                                className={`flex items-center justify-between rounded-xl border p-3 transition-colors ${
+                                  state.isActive
+                                    ? "border-primary/50 bg-primary/5"
+                                    : "border-border/60 bg-background/60 hover:bg-muted/30"
+                                }`}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-semibold truncate">{state.name}</p>
+                                    {state.isActive && (
+                                      <Badge variant="outline" className="text-[10px] border-primary/50 text-primary">
+                                        Active
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    {state.templateDay} {state.templateWeek === "week_a" ? "Week A" : state.templateWeek === "week_b" ? "Week B" : state.templateWeek}
+                                    {state.description && ` • ${state.description}`}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                                    {Object.keys(state.timeOverrides || {}).length} time adjustments
+                                    {state.createdByUsername && ` • ${state.createdByUsername}`}
+                                    {" • "}
+                                    {new Date(state.updatedAt).toLocaleDateString()}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-1 ml-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => loadRosterStateMutation.mutate(state.id)}
+                                    disabled={loadRosterStateMutation.isPending}
+                                    className="h-8"
+                                  >
+                                    <FolderOpen className="h-3.5 w-3.5 mr-1" />
+                                    Load
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                    onClick={() => deleteRosterStateMutation.mutate(state.id)}
+                                    disabled={deleteRosterStateMutation.isPending}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Save Dialog */}
+                        {showSaveDialog && (
+                          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                            <Card className="w-[400px] max-w-[90vw]">
+                              <CardHeader>
+                                <CardTitle className="text-base">Save Schedule</CardTitle>
+                                <CardDescription>Save your current roster adjustments</CardDescription>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="space-y-2">
+                                  <label className="text-sm font-medium">Name</label>
+                                  <Input
+                                    value={saveScheduleName}
+                                    onChange={(e) => setSaveScheduleName(e.target.value)}
+                                    placeholder="e.g., Monday Week A - Optimized"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-medium">Description (optional)</label>
+                                  <Input
+                                    value={saveScheduleDescription}
+                                    onChange={(e) => setSaveScheduleDescription(e.target.value)}
+                                    placeholder="Notes about this schedule..."
+                                  />
+                                </div>
+                              </CardContent>
+                              <CardFooter className="flex justify-end gap-2">
+                                <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
+                                  Cancel
+                                </Button>
+                                <Button
+                                  onClick={() => {
+                                    saveRosterStateMutation.mutate({
+                                      name: saveScheduleName || "Unnamed Schedule",
+                                      description: saveScheduleDescription || undefined,
+                                    });
+                                    setShowSaveDialog(false);
+                                  }}
+                                  disabled={saveRosterStateMutation.isPending}
+                                >
+                                  <Save className="h-4 w-4 mr-2" />
+                                  Save
+                                </Button>
+                              </CardFooter>
+                            </Card>
+                          </div>
+                        )}
+                      </div>
                     </TabsContent>
                   </Tabs>
 
@@ -1426,6 +2134,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                         <div className="space-y-2 p-2">
                           {visibleCareWorkerRosters.map((roster) => {
                             const isSelected = roster.key === selectedCareWorkerKey;
+                            const violation = constraintViolations.get(roster.key);
                             return (
                               <button
                                 key={roster.key}
@@ -1437,7 +2146,9 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                                 className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left transition ${
                                   isSelected
                                     ? "border-primary/50 bg-primary/10"
-                                    : "border-border/60 bg-background/60 hover:bg-muted/40"
+                                    : violation
+                                      ? "border-amber-500/50 bg-amber-500/5 hover:bg-amber-500/10"
+                                      : "border-border/60 bg-background/60 hover:bg-muted/40"
                                 }`}
                               >
                                 <div>
@@ -1448,6 +2159,15 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                                         Office
                                       </Badge>
                                     )}
+                                    {violation && (
+                                      <Badge variant="outline" className="text-[10px] border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10">
+                                        {violation.overCalls && violation.overMinutes
+                                          ? "Over limit"
+                                          : violation.overCalls
+                                            ? "Too many calls"
+                                            : "Too many hours"}
+                                      </Badge>
+                                    )}
                                   </div>
                                   <p className="text-xs text-muted-foreground">
                                     {roster.uniqueServiceUsers} SUs •{" "}
@@ -1455,7 +2175,10 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                                     {roster.shiftBarsCount > 0 && ` • ${roster.shiftBarsCount} shifts`}
                                   </p>
                                 </div>
-                                {isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                                <div className="flex items-center gap-1">
+                                  {violation && <AlertTriangle className="h-4 w-4 text-amber-500" />}
+                                  {isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                                </div>
                               </button>
                             );
                           })}
