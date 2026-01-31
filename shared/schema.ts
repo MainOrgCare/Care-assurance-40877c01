@@ -535,7 +535,305 @@ export type InsertTestingFeatureDoubleUpLink = z.infer<typeof insertTestingFeatu
 export type TestingFeatureDoubleUpLink = typeof testingFeatureDoubleUpLinks.$inferSelect;
 
 // ============================================================================
-// ROSTERING STUDIO - Recommended Times & Worker Templates
+// ROSTERING DATA EXTRACTION - Analyzed Data from Workbooks
+// Data retained for 3 months, deduplicated across uploads
+// ============================================================================
+
+// Analyzed Service Users - service user profiles extracted from workbooks
+export const analyzedServiceUsers = pgTable(
+  "analyzed_service_users",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    serviceUserKey: text("service_user_key").notNull().unique(), // Normalized identifier
+    serviceUserName: text("service_user_name").notNull(),
+    serviceUserArea: text("service_user_area"), // Geographic area
+    serviceUserAddress: text("service_user_address"),
+    latitude: text("latitude"),
+    longitude: text("longitude"),
+    totalCallsAnalyzed: integer("total_calls_analyzed").notNull().default(0),
+    earliestDataDate: text("earliest_data_date"), // Earliest call date in data
+    latestDataDate: text("latest_data_date"), // Most recent call date
+    metadata: jsonb("metadata"), // Additional extracted info
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(), // 3 months from last update
+  },
+  (table) => ({
+    keyIdx: index("analyzed_service_users_key_idx").on(table.serviceUserKey),
+    expiresIdx: index("analyzed_service_users_expires_idx").on(table.expiresAt),
+  })
+);
+
+export const insertAnalyzedServiceUserSchema = createInsertSchema(analyzedServiceUsers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertAnalyzedServiceUser = z.infer<typeof insertAnalyzedServiceUserSchema>;
+export type AnalyzedServiceUser = typeof analyzedServiceUsers.$inferSelect;
+
+// Analyzed Care Workers - care worker profiles extracted from workbooks  
+export const analyzedCareWorkers = pgTable(
+  "analyzed_care_workers",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    workerKey: text("worker_key").notNull().unique(), // Normalized identifier
+    workerName: text("worker_name").notNull(),
+    workerNameNormalized: text("worker_name_normalized").notNull(),
+    isAdminStaff: boolean("is_admin_staff").notNull().default(false),
+    totalCallsAnalyzed: integer("total_calls_analyzed").notNull().default(0),
+    uniqueServiceUsers: integer("unique_service_users").notNull().default(0),
+    avgCallsPerDay: integer("avg_calls_per_day"),
+    avgMinutesPerDay: integer("avg_minutes_per_day"),
+    earliestDataDate: text("earliest_data_date"),
+    latestDataDate: text("latest_data_date"),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+  },
+  (table) => ({
+    keyIdx: index("analyzed_care_workers_key_idx").on(table.workerKey),
+    expiresIdx: index("analyzed_care_workers_expires_idx").on(table.expiresAt),
+  })
+);
+
+export const insertAnalyzedCareWorkerSchema = createInsertSchema(analyzedCareWorkers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertAnalyzedCareWorker = z.infer<typeof insertAnalyzedCareWorkerSchema>;
+export type AnalyzedCareWorker = typeof analyzedCareWorkers.$inferSelect;
+
+// Service Orders - recurring call patterns for service users
+// Format: "AM x7 days x2 carers, 30 mins"
+export const serviceOrders = pgTable(
+  "service_orders",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    serviceUserKey: text("service_user_key").notNull(),
+    serviceUserName: text("service_user_name").notNull(),
+    callTypeLabel: text("call_type_label").notNull(), // Morning, Lunch, Tea, Bed, Domestic, etc.
+    callTypeKey: text("call_type_key").notNull(),
+    timeBand: text("time_band").notNull(), // AM, PM, EVE, etc.
+    serviceRequirementMinutes: integer("service_requirement_minutes").notNull(), // Duration
+    serviceRequirementStartTime: integer("service_requirement_start_time"), // Minutes from midnight
+    serviceRequirementEndTime: integer("service_requirement_end_time"),
+    daysPerWeek: integer("days_per_week").notNull(), // How many days (0-7)
+    week1Days: text("week1_days").array(), // Which days in week 1
+    week2Days: text("week2_days").array(), // Which days in week 2
+    carersRequired: integer("carers_required").notNull().default(1), // 1 for single, 2 for double-up
+    isTimeCritical: boolean("is_time_critical").notNull().default(false),
+    orderSummary: text("order_summary").notNull(), // "AM x7 days x2 carers, 30 mins"
+    actualAvgStartTime: integer("actual_avg_start_time"), // Average actual start time
+    actualAvgDuration: integer("actual_avg_duration"), // Average actual duration
+    durationVariance: integer("duration_variance"), // How much actual varies from requirement
+    startTimeVariance: integer("start_time_variance"), // How much times vary
+    recommendedAdjustment: text("recommended_adjustment"), // "increase_duration", "decrease_duration", null
+    recommendedDurationMinutes: integer("recommended_duration_minutes"), // Suggested duration
+    recommendedStartMinutes: integer("recommended_start_minutes"), // Suggested start time
+    sourceDataCount: integer("source_data_count").notNull().default(0), // How many calls analyzed
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+  },
+  (table) => ({
+    uniqueServiceOrder: uniqueIndex("service_orders_unique").on(
+      table.serviceUserKey,
+      table.callTypeKey,
+      table.timeBand
+    ),
+    serviceUserIdx: index("service_orders_service_user_idx").on(table.serviceUserKey),
+    expiresIdx: index("service_orders_expires_idx").on(table.expiresAt),
+  })
+);
+
+export const insertServiceOrderSchema = createInsertSchema(serviceOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertServiceOrder = z.infer<typeof insertServiceOrderSchema>;
+export type ServiceOrder = typeof serviceOrders.$inferSelect;
+
+// Template Assignments - which care worker is templated to which call
+// Uses most recent data - if templated in week 1 but not 2 weeks later, NOT templated
+export const templateAssignments = pgTable(
+  "template_assignments",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    workerKey: text("worker_key").notNull(),
+    workerName: text("worker_name").notNull(),
+    serviceUserKey: text("service_user_key").notNull(),
+    serviceUserName: text("service_user_name").notNull(),
+    callTypeLabel: text("call_type_label").notNull(),
+    timeBand: text("time_band").notNull(),
+    templateWeek: text("template_week").notNull(), // week1 / week2
+    templateDay: text("template_day").notNull(), // Monday..Sunday
+    isTemplated: boolean("is_templated").notNull().default(true),
+    isPrimary: boolean("is_primary").notNull().default(true), // Primary worker for this slot
+    serviceRequirementStartMinutes: integer("service_requirement_start_minutes"),
+    sourceDateKey: text("source_date_key").notNull(), // Date this was observed (YYYY-MM-DD)
+    sourceRowHash: text("source_row_hash"), // For deduplication
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+  },
+  (table) => ({
+    uniqueTemplate: uniqueIndex("template_assignments_unique").on(
+      table.workerKey,
+      table.serviceUserKey,
+      table.callTypeLabel,
+      table.templateWeek,
+      table.templateDay
+    ),
+    workerIdx: index("template_assignments_worker_idx").on(table.workerKey),
+    serviceUserIdx: index("template_assignments_service_user_idx").on(table.serviceUserKey),
+    weekDayIdx: index("template_assignments_week_day_idx").on(table.templateWeek, table.templateDay),
+    expiresIdx: index("template_assignments_expires_idx").on(table.expiresAt),
+  })
+);
+
+export const insertTemplateAssignmentSchema = createInsertSchema(templateAssignments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertTemplateAssignment = z.infer<typeof insertTemplateAssignmentSchema>;
+export type TemplateAssignment = typeof templateAssignments.$inferSelect;
+
+// Analyzed Call History - individual calls extracted (deduplicated)
+// Historic data is immutable - only insert, never update
+export const analyzedCalls = pgTable(
+  "analyzed_calls",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    callHash: text("call_hash").notNull().unique(), // SHA256 for deduplication
+    serviceUserKey: text("service_user_key").notNull(),
+    serviceUserName: text("service_user_name").notNull(),
+    workerKey: text("worker_key").notNull(),
+    workerName: text("worker_name").notNull(),
+    callTypeLabel: text("call_type_label").notNull(),
+    callTypeKey: text("call_type_key").notNull(),
+    timeBand: text("time_band").notNull(),
+    callDate: text("call_date").notNull(), // YYYY-MM-DD
+    templateWeek: text("template_week").notNull(), // week1 / week2
+    templateDay: text("template_day").notNull(), // Monday..Sunday
+    isTemplated: boolean("is_templated").notNull().default(false),
+    isDoubleUp: boolean("is_double_up").notNull().default(false),
+    isTimeCritical: boolean("is_time_critical").notNull().default(false),
+    serviceRequirementStartMinutes: integer("service_requirement_start_minutes"),
+    plannedStartMinutes: integer("planned_start_minutes"),
+    actualStartMinutes: integer("actual_start_minutes"),
+    plannedDurationMinutes: integer("planned_duration_minutes"),
+    actualDurationMinutes: integer("actual_duration_minutes"),
+    durationVarianceMinutes: integer("duration_variance_minutes"), // actual - planned
+    startVarianceMinutes: integer("start_variance_minutes"), // actual - requirement
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+  },
+  (table) => ({
+    hashIdx: index("analyzed_calls_hash_idx").on(table.callHash),
+    serviceUserIdx: index("analyzed_calls_service_user_idx").on(table.serviceUserKey),
+    workerIdx: index("analyzed_calls_worker_idx").on(table.workerKey),
+    dateIdx: index("analyzed_calls_date_idx").on(table.callDate),
+    expiresIdx: index("analyzed_calls_expires_idx").on(table.expiresAt),
+  })
+);
+
+export const insertAnalyzedCallSchema = createInsertSchema(analyzedCalls).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertAnalyzedCall = z.infer<typeof insertAnalyzedCallSchema>;
+export type AnalyzedCall = typeof analyzedCalls.$inferSelect;
+
+// Call Recommendations - AI/algorithm-generated suggestions
+export const callRecommendations = pgTable(
+  "call_recommendations",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    serviceUserKey: text("service_user_key").notNull(),
+    serviceUserName: text("service_user_name").notNull(),
+    callTypeLabel: text("call_type_label").notNull(),
+    recommendationType: text("recommendation_type").notNull(), // "time_change", "duration_change", "worker_change"
+    currentValue: text("current_value"), // Current setting
+    recommendedValue: text("recommended_value"), // Suggested change
+    reason: text("reason").notNull(), // Why this recommendation
+    confidence: integer("confidence").notNull().default(50), // 0-100 confidence score
+    priority: integer("priority").notNull().default(1), // 1-5, higher = more important
+    dataPoints: integer("data_points").notNull().default(0), // How many calls support this
+    isApplied: boolean("is_applied").notNull().default(false), // Has user applied this
+    appliedBy: varchar("applied_by").references(() => users.id),
+    appliedAt: timestamp("applied_at"),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+  },
+  (table) => ({
+    serviceUserIdx: index("call_recommendations_service_user_idx").on(table.serviceUserKey),
+    typeIdx: index("call_recommendations_type_idx").on(table.recommendationType),
+    expiresIdx: index("call_recommendations_expires_idx").on(table.expiresAt),
+  })
+);
+
+export const insertCallRecommendationSchema = createInsertSchema(callRecommendations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertCallRecommendation = z.infer<typeof insertCallRecommendationSchema>;
+export type CallRecommendation = typeof callRecommendations.$inferSelect;
+
+// Workbook Upload Metadata - just tracks uploads, not raw data
+export const workbookUploads = pgTable(
+  "workbook_uploads",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    fileName: text("file_name").notNull(),
+    fileHash: text("file_hash").notNull(), // For tracking duplicates
+    totalRows: integer("total_rows").notNull().default(0),
+    dateRangeStart: text("date_range_start"), // First date in workbook
+    dateRangeEnd: text("date_range_end"), // Last date in workbook
+    careWorkersExtracted: integer("care_workers_extracted").notNull().default(0),
+    serviceUsersExtracted: integer("service_users_extracted").notNull().default(0),
+    callsExtracted: integer("calls_extracted").notNull().default(0),
+    serviceOrdersGenerated: integer("service_orders_generated").notNull().default(0),
+    templatesDetected: integer("templates_detected").notNull().default(0),
+    recommendationsCreated: integer("recommendations_created").notNull().default(0),
+    uploadedBy: varchar("uploaded_by").references(() => users.id),
+    uploadedByUsername: text("uploaded_by_username"),
+    processingStatus: text("processing_status").notNull().default("pending"), // pending, processing, complete, error
+    processingError: text("processing_error"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
+  },
+  (table) => ({
+    hashIdx: index("workbook_uploads_hash_idx").on(table.fileHash),
+    statusIdx: index("workbook_uploads_status_idx").on(table.processingStatus),
+  })
+);
+
+export const insertWorkbookUploadSchema = createInsertSchema(workbookUploads).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertWorkbookUpload = z.infer<typeof insertWorkbookUploadSchema>;
+export type WorkbookUpload = typeof workbookUploads.$inferSelect;
+
+// ============================================================================
+// ROSTERING STUDIO - Scheduling & Optimization
 // ============================================================================
 
 // Recommended Call Times - stores preferred times for service user calls

@@ -5,7 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Settings2, Zap, Route, Users, Clock, Shield, Loader2 } from "lucide-react";
+import { Settings2, Zap, Route, Users, Clock, Shield, Loader2, Lock, AlertTriangle } from "lucide-react";
+
+/** Format minutes from midnight to HH:MM */
+const formatTime = (minutes: number): string => {
+  const h = Math.floor(minutes / 60) % 24;
+  const m = minutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+};
 
 export interface OptimizationWeights {
   travel: number;      // 0-100: prioritize minimizing travel time
@@ -19,6 +26,11 @@ export interface OptimizationConstraints {
   allowCrossWorkerMoves: boolean;    // Allow reassigning entries to different workers
   maxTravelMinutes: number;          // Maximum acceptable travel time between visits
   minBufferMinutes: number;          // Minimum buffer between visits
+  // New enforcement rules
+  lockTemplatedCalls: boolean;            // Templated calls LOCKED to assigned worker
+  timeCriticalToleranceMinutes: number;   // ±15min tolerance for time-critical (ENFORCED)
+  workingHoursStart: number;              // 6am = 360 minutes from midnight
+  workingHoursEnd: number;                // 10pm = 1320 minutes from midnight
 }
 
 export interface OptimizationSettingsProps {
@@ -42,6 +54,11 @@ export const defaultConstraints: OptimizationConstraints = {
   allowCrossWorkerMoves: true,
   maxTravelMinutes: 30,
   minBufferMinutes: 5,
+  // New defaults - ENFORCED rules
+  lockTemplatedCalls: true,                // Templated calls LOCKED
+  timeCriticalToleranceMinutes: 15,        // ±15 minutes ENFORCED
+  workingHoursStart: 6 * 60,               // 6:00 AM
+  workingHoursEnd: 22 * 60,                // 10:00 PM
 };
 
 export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
@@ -239,6 +256,75 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
                 />
                 <span className="text-xs w-10 text-right">{constraints.minBufferMinutes}m</span>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Enforced Rules */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Lock className="h-3.5 w-3.5 text-amber-500" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Enforced Rules
+            </p>
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/30 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Lock className="h-3.5 w-3.5 text-amber-600" />
+                <div>
+                  <p className="text-xs font-medium">Lock templated calls</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Templated calls stay with assigned worker
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={constraints.lockTemplatedCalls}
+                onCheckedChange={(checked) =>
+                  onConstraintsChange({ ...constraints, lockTemplatedCalls: checked })
+                }
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                <label className="text-xs font-medium">Time-critical tolerance</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Slider
+                  value={[constraints.timeCriticalToleranceMinutes]}
+                  onValueChange={([value]) =>
+                    onConstraintsChange({ ...constraints, timeCriticalToleranceMinutes: value })
+                  }
+                  min={5}
+                  max={30}
+                  step={5}
+                  className="flex-1 h-1.5"
+                />
+                <span className="text-xs w-12 text-right">±{constraints.timeCriticalToleranceMinutes}m</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Time-critical calls must stay within this window
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Clock className="h-3.5 w-3.5 text-amber-600" />
+                <label className="text-xs font-medium">Working hours</label>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground">
+                  {formatTime(constraints.workingHoursStart)} - {formatTime(constraints.workingHoursEnd)}
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                All calls must be scheduled within working hours
+              </p>
             </div>
           </div>
         </div>

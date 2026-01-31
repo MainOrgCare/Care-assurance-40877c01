@@ -12138,6 +12138,255 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   });
 
   // =====================================================================
+  // EXTRACTED DATA - Service Users, Care Workers, Service Orders, Templates
+  // =====================================================================
+
+  // Service Orders
+  app.get("/api/admin/rostering/service-orders", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const orders = await storage.getAllServiceOrders();
+      return res.json(orders);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch service orders:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/admin/rostering/service-orders/:serviceUserKey", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const orders = await storage.getServiceOrdersByServiceUser(req.params.serviceUserKey);
+      return res.json(orders);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch service orders:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/rostering/service-orders/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteServiceOrder(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete service order:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Template Assignments
+  app.get("/api/admin/rostering/template-assignments", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { week, day, workerKey, serviceUserKey } = req.query;
+      
+      if (workerKey) {
+        const assignments = await storage.getTemplateAssignmentsByWorker(workerKey as string);
+        return res.json(assignments);
+      }
+      if (serviceUserKey) {
+        const assignments = await storage.getTemplateAssignmentsByServiceUser(serviceUserKey as string);
+        return res.json(assignments);
+      }
+      if (week && day) {
+        const assignments = await storage.getTemplateAssignmentsForDay(week as string, day as string);
+        return res.json(assignments);
+      }
+      
+      const assignments = await storage.getAllTemplateAssignments();
+      return res.json(assignments);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch template assignments:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/rostering/template-assignments/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteTemplateAssignment(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete template assignment:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Analyzed Service Users
+  app.get("/api/admin/rostering/service-users", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const serviceUsers = await storage.getAllAnalyzedServiceUsers();
+      return res.json(serviceUsers);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch service users:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/admin/rostering/service-users/:key", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const serviceUser = await storage.getAnalyzedServiceUser(req.params.key);
+      if (!serviceUser) {
+        return res.status(404).json({ message: "Service user not found" });
+      }
+      return res.json(serviceUser);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch service user:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/rostering/service-users/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteAnalyzedServiceUser(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete service user:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Analyzed Care Workers
+  app.get("/api/admin/rostering/care-workers-analyzed", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const careWorkers = await storage.getAllAnalyzedCareWorkers();
+      return res.json(careWorkers);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch care workers:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/admin/rostering/care-workers-analyzed/:key", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const careWorker = await storage.getAnalyzedCareWorker(req.params.key);
+      if (!careWorker) {
+        return res.status(404).json({ message: "Care worker not found" });
+      }
+      return res.json(careWorker);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch care worker:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/rostering/care-workers-analyzed/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteAnalyzedCareWorker(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete care worker:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Call Recommendations
+  app.get("/api/admin/rostering/recommendations", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { serviceUserKey, pendingOnly } = req.query;
+      
+      if (pendingOnly === 'true') {
+        const recommendations = await storage.getPendingCallRecommendations();
+        return res.json(recommendations);
+      }
+      if (serviceUserKey) {
+        const recommendations = await storage.getCallRecommendationsByServiceUser(serviceUserKey as string);
+        return res.json(recommendations);
+      }
+      
+      // For now return pending recommendations by default
+      const recommendations = await storage.getPendingCallRecommendations();
+      return res.json(recommendations);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch recommendations:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/rostering/recommendations/:id/apply", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const recommendation = await storage.applyCallRecommendation(req.params.id, req.user?.id ?? '');
+      if (!recommendation) {
+        return res.status(404).json({ message: "Recommendation not found" });
+      }
+      console.log(`[Rostering] Recommendation applied: ${recommendation.id}`);
+      return res.json(recommendation);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to apply recommendation:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/rostering/recommendations/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteCallRecommendation(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete recommendation:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Workbook Uploads (metadata only - no raw data)
+  app.get("/api/admin/rostering/workbook-uploads", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const uploads = await storage.getAllWorkbookUploads();
+      return res.json(uploads);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch workbook uploads:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/rostering/workbook-uploads/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteWorkbookUpload(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete workbook upload:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin Database Management - Cleanup expired data
+  app.post("/api/admin/rostering/cleanup-expired", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      const result = await storage.cleanupAllExpiredData();
+      console.log(`[Rostering] Cleanup completed:`, result);
+      return res.json({
+        success: true,
+        deleted: result,
+        message: `Cleaned up ${Object.values(result).reduce((a, b) => a + b, 0)} expired records`,
+      });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to cleanup expired data:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Admin Database Management - Get data stats
+  app.get("/api/admin/rostering/data-stats", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const [serviceUsers, careWorkers, serviceOrders, templates, recommendations, uploads] = await Promise.all([
+        storage.getAllAnalyzedServiceUsers(),
+        storage.getAllAnalyzedCareWorkers(),
+        storage.getAllServiceOrders(),
+        storage.getAllTemplateAssignments(),
+        storage.getPendingCallRecommendations(),
+        storage.getAllWorkbookUploads(),
+      ]);
+
+      return res.json({
+        serviceUsersCount: serviceUsers.length,
+        careWorkersCount: careWorkers.length,
+        serviceOrdersCount: serviceOrders.length,
+        templateAssignmentsCount: templates.length,
+        pendingRecommendationsCount: recommendations.length,
+        workbookUploadsCount: uploads.length,
+      });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch data stats:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // =====================================================================
   // ROSTERING STUDIO - Recommended Times, Templates & Constraints
   // =====================================================================
 

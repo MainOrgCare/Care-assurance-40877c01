@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, inArray, or, ilike } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, or, ilike, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
 const { Pool } = pkg;
@@ -56,6 +56,21 @@ import {
   type InsertRosteringWorkerConstraint,
   type RosteringSavedState,
   type InsertRosteringSavedState,
+  // New extracted data types
+  type AnalyzedServiceUser,
+  type InsertAnalyzedServiceUser,
+  type AnalyzedCareWorker,
+  type InsertAnalyzedCareWorker,
+  type ServiceOrder,
+  type InsertServiceOrder,
+  type TemplateAssignment,
+  type InsertTemplateAssignment,
+  type AnalyzedCall,
+  type InsertAnalyzedCall,
+  type CallRecommendation,
+  type InsertCallRecommendation,
+  type WorkbookUpload,
+  type InsertWorkbookUpload,
   users,
   careWorkers,
   discrepancies,
@@ -82,6 +97,14 @@ import {
   rosteringWorkerTemplates,
   rosteringWorkerConstraints,
   rosteringSavedStates,
+  // New extracted data tables
+  analyzedServiceUsers,
+  analyzedCareWorkers,
+  serviceOrders,
+  templateAssignments,
+  analyzedCalls,
+  callRecommendations,
+  workbookUploads,
 } from "@shared/schema";
 
 const SALT_ROUNDS = 10;
@@ -290,6 +313,67 @@ export interface IStorage {
   setActiveRosteringSavedState(id: string, workbookId: string): Promise<RosteringSavedState | undefined>;
   deleteRosteringSavedState(id: string): Promise<void>;
   deleteRosteringSavedStatesByWorkbook(workbookId: string): Promise<number>;
+
+  // =========================================================================
+  // EXTRACTED DATA - Service Users, Care Workers, Calls, Orders, Templates
+  // =========================================================================
+
+  // Workbook Uploads (metadata only)
+  createWorkbookUpload(upload: InsertWorkbookUpload): Promise<WorkbookUpload>;
+  getWorkbookUpload(id: string): Promise<WorkbookUpload | undefined>;
+  getWorkbookUploadByHash(fileHash: string): Promise<WorkbookUpload | undefined>;
+  getAllWorkbookUploads(): Promise<WorkbookUpload[]>;
+  updateWorkbookUploadStatus(id: string, status: string, error?: string): Promise<WorkbookUpload | undefined>;
+  deleteWorkbookUpload(id: string): Promise<void>;
+
+  // Analyzed Service Users
+  upsertAnalyzedServiceUser(serviceUser: InsertAnalyzedServiceUser): Promise<AnalyzedServiceUser>;
+  getAnalyzedServiceUser(serviceUserKey: string): Promise<AnalyzedServiceUser | undefined>;
+  getAllAnalyzedServiceUsers(): Promise<AnalyzedServiceUser[]>;
+  deleteAnalyzedServiceUser(id: string): Promise<void>;
+  cleanupExpiredServiceUsers(): Promise<number>;
+
+  // Analyzed Care Workers
+  upsertAnalyzedCareWorker(careWorker: InsertAnalyzedCareWorker): Promise<AnalyzedCareWorker>;
+  getAnalyzedCareWorker(workerKey: string): Promise<AnalyzedCareWorker | undefined>;
+  getAllAnalyzedCareWorkers(): Promise<AnalyzedCareWorker[]>;
+  deleteAnalyzedCareWorker(id: string): Promise<void>;
+  cleanupExpiredCareWorkers(): Promise<number>;
+
+  // Service Orders
+  upsertServiceOrder(order: InsertServiceOrder): Promise<ServiceOrder>;
+  getServiceOrdersByServiceUser(serviceUserKey: string): Promise<ServiceOrder[]>;
+  getAllServiceOrders(): Promise<ServiceOrder[]>;
+  deleteServiceOrder(id: string): Promise<void>;
+  cleanupExpiredServiceOrders(): Promise<number>;
+
+  // Template Assignments
+  upsertTemplateAssignment(assignment: InsertTemplateAssignment): Promise<TemplateAssignment>;
+  getTemplateAssignmentsByWorker(workerKey: string): Promise<TemplateAssignment[]>;
+  getTemplateAssignmentsByServiceUser(serviceUserKey: string): Promise<TemplateAssignment[]>;
+  getTemplateAssignmentsForDay(templateWeek: string, templateDay: string): Promise<TemplateAssignment[]>;
+  getAllTemplateAssignments(): Promise<TemplateAssignment[]>;
+  deleteTemplateAssignment(id: string): Promise<void>;
+  cleanupExpiredTemplateAssignments(): Promise<number>;
+
+  // Analyzed Calls
+  bulkInsertAnalyzedCalls(calls: InsertAnalyzedCall[]): Promise<number>;
+  getAnalyzedCallsByServiceUser(serviceUserKey: string): Promise<AnalyzedCall[]>;
+  getAnalyzedCallsByWorker(workerKey: string): Promise<AnalyzedCall[]>;
+  getAnalyzedCallsByDateRange(startDate: string, endDate: string): Promise<AnalyzedCall[]>;
+  deleteAnalyzedCall(id: string): Promise<void>;
+  cleanupExpiredCalls(): Promise<number>;
+
+  // Call Recommendations
+  upsertCallRecommendation(recommendation: InsertCallRecommendation): Promise<CallRecommendation>;
+  getCallRecommendationsByServiceUser(serviceUserKey: string): Promise<CallRecommendation[]>;
+  getPendingCallRecommendations(): Promise<CallRecommendation[]>;
+  applyCallRecommendation(id: string, appliedBy: string): Promise<CallRecommendation | undefined>;
+  deleteCallRecommendation(id: string): Promise<void>;
+  cleanupExpiredRecommendations(): Promise<number>;
+
+  // Bulk cleanup of all expired data
+  cleanupAllExpiredData(): Promise<{ serviceUsers: number; careWorkers: number; calls: number; orders: number; templates: number; recommendations: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1684,6 +1768,454 @@ export class DatabaseStorage implements IStorage {
       .where(eq(rosteringSavedStates.workbookId, workbookId))
       .returning({ id: rosteringSavedStates.id });
     return deleted.length;
+  }
+
+  // =========================================================================
+  // EXTRACTED DATA IMPLEMENTATIONS
+  // =========================================================================
+
+  // Workbook Uploads
+  async createWorkbookUpload(upload: InsertWorkbookUpload): Promise<WorkbookUpload> {
+    const [result] = await this.db
+      .insert(workbookUploads)
+      .values(upload)
+      .returning();
+    return result;
+  }
+
+  async getWorkbookUpload(id: string): Promise<WorkbookUpload | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(workbookUploads)
+      .where(eq(workbookUploads.id, id))
+      .limit(1);
+    return result;
+  }
+
+  async getWorkbookUploadByHash(fileHash: string): Promise<WorkbookUpload | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(workbookUploads)
+      .where(eq(workbookUploads.fileHash, fileHash))
+      .limit(1);
+    return result;
+  }
+
+  async getAllWorkbookUploads(): Promise<WorkbookUpload[]> {
+    return await this.db
+      .select()
+      .from(workbookUploads)
+      .orderBy(desc(workbookUploads.createdAt));
+  }
+
+  async updateWorkbookUploadStatus(id: string, status: string, error?: string): Promise<WorkbookUpload | undefined> {
+    const updates: any = { processingStatus: status };
+    if (status === 'complete') {
+      updates.completedAt = new Date();
+    }
+    if (error) {
+      updates.processingError = error;
+    }
+    const [result] = await this.db
+      .update(workbookUploads)
+      .set(updates)
+      .where(eq(workbookUploads.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteWorkbookUpload(id: string): Promise<void> {
+    await this.db.delete(workbookUploads).where(eq(workbookUploads.id, id));
+  }
+
+  // Analyzed Service Users
+  async upsertAnalyzedServiceUser(serviceUser: InsertAnalyzedServiceUser): Promise<AnalyzedServiceUser> {
+    const [result] = await this.db
+      .insert(analyzedServiceUsers)
+      .values(serviceUser)
+      .onConflictDoUpdate({
+        target: analyzedServiceUsers.serviceUserKey,
+        set: {
+          serviceUserName: serviceUser.serviceUserName,
+          serviceUserArea: serviceUser.serviceUserArea,
+          serviceUserAddress: serviceUser.serviceUserAddress,
+          latitude: serviceUser.latitude,
+          longitude: serviceUser.longitude,
+          totalCallsAnalyzed: serviceUser.totalCallsAnalyzed,
+          earliestDataDate: serviceUser.earliestDataDate,
+          latestDataDate: serviceUser.latestDataDate,
+          metadata: serviceUser.metadata,
+          updatedAt: new Date(),
+          expiresAt: serviceUser.expiresAt,
+        },
+      })
+      .returning();
+    return result;
+  }
+
+  async getAnalyzedServiceUser(serviceUserKey: string): Promise<AnalyzedServiceUser | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(analyzedServiceUsers)
+      .where(eq(analyzedServiceUsers.serviceUserKey, serviceUserKey))
+      .limit(1);
+    return result;
+  }
+
+  async getAllAnalyzedServiceUsers(): Promise<AnalyzedServiceUser[]> {
+    return await this.db
+      .select()
+      .from(analyzedServiceUsers)
+      .orderBy(analyzedServiceUsers.serviceUserName);
+  }
+
+  async deleteAnalyzedServiceUser(id: string): Promise<void> {
+    await this.db.delete(analyzedServiceUsers).where(eq(analyzedServiceUsers.id, id));
+  }
+
+  async cleanupExpiredServiceUsers(): Promise<number> {
+    const deleted = await this.db
+      .delete(analyzedServiceUsers)
+      .where(lte(analyzedServiceUsers.expiresAt, new Date()))
+      .returning({ id: analyzedServiceUsers.id });
+    return deleted.length;
+  }
+
+  // Analyzed Care Workers
+  async upsertAnalyzedCareWorker(careWorker: InsertAnalyzedCareWorker): Promise<AnalyzedCareWorker> {
+    const [result] = await this.db
+      .insert(analyzedCareWorkers)
+      .values(careWorker)
+      .onConflictDoUpdate({
+        target: analyzedCareWorkers.workerKey,
+        set: {
+          workerName: careWorker.workerName,
+          workerNameNormalized: careWorker.workerNameNormalized,
+          isAdminStaff: careWorker.isAdminStaff,
+          totalCallsAnalyzed: careWorker.totalCallsAnalyzed,
+          uniqueServiceUsers: careWorker.uniqueServiceUsers,
+          avgCallsPerDay: careWorker.avgCallsPerDay,
+          avgMinutesPerDay: careWorker.avgMinutesPerDay,
+          earliestDataDate: careWorker.earliestDataDate,
+          latestDataDate: careWorker.latestDataDate,
+          metadata: careWorker.metadata,
+          updatedAt: new Date(),
+          expiresAt: careWorker.expiresAt,
+        },
+      })
+      .returning();
+    return result;
+  }
+
+  async getAnalyzedCareWorker(workerKey: string): Promise<AnalyzedCareWorker | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(analyzedCareWorkers)
+      .where(eq(analyzedCareWorkers.workerKey, workerKey))
+      .limit(1);
+    return result;
+  }
+
+  async getAllAnalyzedCareWorkers(): Promise<AnalyzedCareWorker[]> {
+    return await this.db
+      .select()
+      .from(analyzedCareWorkers)
+      .orderBy(analyzedCareWorkers.workerName);
+  }
+
+  async deleteAnalyzedCareWorker(id: string): Promise<void> {
+    await this.db.delete(analyzedCareWorkers).where(eq(analyzedCareWorkers.id, id));
+  }
+
+  async cleanupExpiredCareWorkers(): Promise<number> {
+    const deleted = await this.db
+      .delete(analyzedCareWorkers)
+      .where(lte(analyzedCareWorkers.expiresAt, new Date()))
+      .returning({ id: analyzedCareWorkers.id });
+    return deleted.length;
+  }
+
+  // Service Orders
+  async upsertServiceOrder(order: InsertServiceOrder): Promise<ServiceOrder> {
+    const [result] = await this.db
+      .insert(serviceOrders)
+      .values(order)
+      .onConflictDoUpdate({
+        target: [serviceOrders.serviceUserKey, serviceOrders.callTypeKey, serviceOrders.timeBand],
+        set: {
+          serviceUserName: order.serviceUserName,
+          callTypeLabel: order.callTypeLabel,
+          serviceRequirementMinutes: order.serviceRequirementMinutes,
+          serviceRequirementStartTime: order.serviceRequirementStartTime,
+          serviceRequirementEndTime: order.serviceRequirementEndTime,
+          daysPerWeek: order.daysPerWeek,
+          week1Days: order.week1Days,
+          week2Days: order.week2Days,
+          carersRequired: order.carersRequired,
+          isTimeCritical: order.isTimeCritical,
+          orderSummary: order.orderSummary,
+          actualAvgStartTime: order.actualAvgStartTime,
+          actualAvgDuration: order.actualAvgDuration,
+          durationVariance: order.durationVariance,
+          startTimeVariance: order.startTimeVariance,
+          recommendedAdjustment: order.recommendedAdjustment,
+          recommendedDurationMinutes: order.recommendedDurationMinutes,
+          recommendedStartMinutes: order.recommendedStartMinutes,
+          sourceDataCount: order.sourceDataCount,
+          metadata: order.metadata,
+          updatedAt: new Date(),
+          expiresAt: order.expiresAt,
+        },
+      })
+      .returning();
+    return result;
+  }
+
+  async getServiceOrdersByServiceUser(serviceUserKey: string): Promise<ServiceOrder[]> {
+    return await this.db
+      .select()
+      .from(serviceOrders)
+      .where(eq(serviceOrders.serviceUserKey, serviceUserKey))
+      .orderBy(serviceOrders.timeBand, serviceOrders.callTypeLabel);
+  }
+
+  async getAllServiceOrders(): Promise<ServiceOrder[]> {
+    return await this.db
+      .select()
+      .from(serviceOrders)
+      .orderBy(serviceOrders.serviceUserName, serviceOrders.timeBand);
+  }
+
+  async deleteServiceOrder(id: string): Promise<void> {
+    await this.db.delete(serviceOrders).where(eq(serviceOrders.id, id));
+  }
+
+  async cleanupExpiredServiceOrders(): Promise<number> {
+    const deleted = await this.db
+      .delete(serviceOrders)
+      .where(lte(serviceOrders.expiresAt, new Date()))
+      .returning({ id: serviceOrders.id });
+    return deleted.length;
+  }
+
+  // Template Assignments
+  async upsertTemplateAssignment(assignment: InsertTemplateAssignment): Promise<TemplateAssignment> {
+    const [result] = await this.db
+      .insert(templateAssignments)
+      .values(assignment)
+      .onConflictDoUpdate({
+        target: [
+          templateAssignments.workerKey,
+          templateAssignments.serviceUserKey,
+          templateAssignments.callTypeLabel,
+          templateAssignments.templateWeek,
+          templateAssignments.templateDay,
+        ],
+        set: {
+          workerName: assignment.workerName,
+          serviceUserName: assignment.serviceUserName,
+          timeBand: assignment.timeBand,
+          isTemplated: assignment.isTemplated,
+          isPrimary: assignment.isPrimary,
+          serviceRequirementStartMinutes: assignment.serviceRequirementStartMinutes,
+          sourceDateKey: assignment.sourceDateKey,
+          sourceRowHash: assignment.sourceRowHash,
+          metadata: assignment.metadata,
+          updatedAt: new Date(),
+          expiresAt: assignment.expiresAt,
+        },
+      })
+      .returning();
+    return result;
+  }
+
+  async getTemplateAssignmentsByWorker(workerKey: string): Promise<TemplateAssignment[]> {
+    return await this.db
+      .select()
+      .from(templateAssignments)
+      .where(eq(templateAssignments.workerKey, workerKey))
+      .orderBy(templateAssignments.templateWeek, templateAssignments.templateDay, templateAssignments.serviceUserName);
+  }
+
+  async getTemplateAssignmentsByServiceUser(serviceUserKey: string): Promise<TemplateAssignment[]> {
+    return await this.db
+      .select()
+      .from(templateAssignments)
+      .where(eq(templateAssignments.serviceUserKey, serviceUserKey))
+      .orderBy(templateAssignments.templateWeek, templateAssignments.templateDay);
+  }
+
+  async getTemplateAssignmentsForDay(templateWeek: string, templateDay: string): Promise<TemplateAssignment[]> {
+    return await this.db
+      .select()
+      .from(templateAssignments)
+      .where(
+        and(
+          eq(templateAssignments.templateWeek, templateWeek),
+          eq(templateAssignments.templateDay, templateDay)
+        )
+      )
+      .orderBy(templateAssignments.workerName, templateAssignments.serviceUserName);
+  }
+
+  async getAllTemplateAssignments(): Promise<TemplateAssignment[]> {
+    return await this.db
+      .select()
+      .from(templateAssignments)
+      .orderBy(templateAssignments.workerName, templateAssignments.templateWeek, templateAssignments.templateDay);
+  }
+
+  async deleteTemplateAssignment(id: string): Promise<void> {
+    await this.db.delete(templateAssignments).where(eq(templateAssignments.id, id));
+  }
+
+  async cleanupExpiredTemplateAssignments(): Promise<number> {
+    const deleted = await this.db
+      .delete(templateAssignments)
+      .where(lte(templateAssignments.expiresAt, new Date()))
+      .returning({ id: templateAssignments.id });
+    return deleted.length;
+  }
+
+  // Analyzed Calls
+  async bulkInsertAnalyzedCalls(calls: InsertAnalyzedCall[]): Promise<number> {
+    if (calls.length === 0) return 0;
+    
+    // Insert in batches to avoid overwhelming the DB
+    const batchSize = 500;
+    let inserted = 0;
+    
+    for (let i = 0; i < calls.length; i += batchSize) {
+      const batch = calls.slice(i, i + batchSize);
+      const result = await this.db
+        .insert(analyzedCalls)
+        .values(batch)
+        .onConflictDoNothing({ target: analyzedCalls.callHash })
+        .returning({ id: analyzedCalls.id });
+      inserted += result.length;
+    }
+    
+    return inserted;
+  }
+
+  async getAnalyzedCallsByServiceUser(serviceUserKey: string): Promise<AnalyzedCall[]> {
+    return await this.db
+      .select()
+      .from(analyzedCalls)
+      .where(eq(analyzedCalls.serviceUserKey, serviceUserKey))
+      .orderBy(desc(analyzedCalls.callDate));
+  }
+
+  async getAnalyzedCallsByWorker(workerKey: string): Promise<AnalyzedCall[]> {
+    return await this.db
+      .select()
+      .from(analyzedCalls)
+      .where(eq(analyzedCalls.workerKey, workerKey))
+      .orderBy(desc(analyzedCalls.callDate));
+  }
+
+  async getAnalyzedCallsByDateRange(startDate: string, endDate: string): Promise<AnalyzedCall[]> {
+    return await this.db
+      .select()
+      .from(analyzedCalls)
+      .where(
+        and(
+          sql`${analyzedCalls.callDate} >= ${startDate}`,
+          sql`${analyzedCalls.callDate} <= ${endDate}`
+        )
+      )
+      .orderBy(analyzedCalls.callDate, analyzedCalls.serviceUserName);
+  }
+
+  async deleteAnalyzedCall(id: string): Promise<void> {
+    await this.db.delete(analyzedCalls).where(eq(analyzedCalls.id, id));
+  }
+
+  async cleanupExpiredCalls(): Promise<number> {
+    const deleted = await this.db
+      .delete(analyzedCalls)
+      .where(lte(analyzedCalls.expiresAt, new Date()))
+      .returning({ id: analyzedCalls.id });
+    return deleted.length;
+  }
+
+  // Call Recommendations
+  async upsertCallRecommendation(recommendation: InsertCallRecommendation): Promise<CallRecommendation> {
+    const [result] = await this.db
+      .insert(callRecommendations)
+      .values(recommendation)
+      .returning();
+    return result;
+  }
+
+  async getCallRecommendationsByServiceUser(serviceUserKey: string): Promise<CallRecommendation[]> {
+    return await this.db
+      .select()
+      .from(callRecommendations)
+      .where(eq(callRecommendations.serviceUserKey, serviceUserKey))
+      .orderBy(desc(callRecommendations.priority), callRecommendations.callTypeLabel);
+  }
+
+  async getPendingCallRecommendations(): Promise<CallRecommendation[]> {
+    return await this.db
+      .select()
+      .from(callRecommendations)
+      .where(eq(callRecommendations.isApplied, false))
+      .orderBy(desc(callRecommendations.priority), desc(callRecommendations.confidence));
+  }
+
+  async applyCallRecommendation(id: string, appliedBy: string): Promise<CallRecommendation | undefined> {
+    const [result] = await this.db
+      .update(callRecommendations)
+      .set({
+        isApplied: true,
+        appliedBy,
+        appliedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(callRecommendations.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteCallRecommendation(id: string): Promise<void> {
+    await this.db.delete(callRecommendations).where(eq(callRecommendations.id, id));
+  }
+
+  async cleanupExpiredRecommendations(): Promise<number> {
+    const deleted = await this.db
+      .delete(callRecommendations)
+      .where(lte(callRecommendations.expiresAt, new Date()))
+      .returning({ id: callRecommendations.id });
+    return deleted.length;
+  }
+
+  // Bulk cleanup of all expired data
+  async cleanupAllExpiredData(): Promise<{
+    serviceUsers: number;
+    careWorkers: number;
+    calls: number;
+    orders: number;
+    templates: number;
+    recommendations: number;
+  }> {
+    const [serviceUsers, careWorkers, calls, orders, templates, recommendations] = await Promise.all([
+      this.cleanupExpiredServiceUsers(),
+      this.cleanupExpiredCareWorkers(),
+      this.cleanupExpiredCalls(),
+      this.cleanupExpiredServiceOrders(),
+      this.cleanupExpiredTemplateAssignments(),
+      this.cleanupExpiredRecommendations(),
+    ]);
+
+    return {
+      serviceUsers,
+      careWorkers,
+      calls,
+      orders,
+      templates,
+      recommendations,
+    };
   }
 }
 

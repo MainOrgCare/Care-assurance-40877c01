@@ -7,6 +7,7 @@ export interface TimelineEntry {
   serviceUserKey?: string | null;
   callTypeLabel?: string | null;
   isTimeCritical?: boolean;
+  isDoubleUp?: boolean;
   address?: string | null;
 }
 

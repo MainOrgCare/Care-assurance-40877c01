@@ -17,7 +17,13 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import type { GanttLane, TimelineEntry } from "@/lib/rostering/rosterModel";
 import { WorkerAvatar } from "./WorkerAvatar";
-import { AlertTriangle, Clock, Check, CheckCircle2, Target } from "lucide-react";
+import { AlertTriangle, Clock, Check, CheckCircle2, Target, Users } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 /** Recommended call time window */
 export interface RecommendedTimeWindow {
@@ -453,16 +459,21 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
             ref={scrollContainerRef}
             className={`divide-y divide-border/40 ${lanes.length > VIRTUAL_SCROLL_THRESHOLD ? "max-h-[500px] overflow-y-auto" : ""}`}
           >
-            {/* Drag overlay for smoother visual feedback */}
+            {/* Drag overlay for smoother visual feedback with time preview */}
             <DragOverlay dropAnimation={null}>
               {activeEntry && (
-                <div className="h-12 rounded-lg px-2 text-left text-[11px] font-semibold text-white shadow-xl bg-primary border-l-4 border-primary-foreground opacity-90 scale-105">
-                  <div className="flex items-center gap-1 pt-1">
+                <div className="h-14 rounded-lg px-3 text-left text-[11px] font-semibold text-white shadow-xl bg-primary border-l-4 border-primary-foreground scale-105 pointer-events-none">
+                  <div className="flex items-center gap-1.5 pt-1.5">
                     {activeEntry.isTimeCritical && <AlertTriangle className="h-3 w-3" />}
+                    {activeEntry.isDoubleUp && (
+                      <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-white/20 text-[10px] font-bold">2</span>
+                    )}
                     <span className="truncate">{activeEntry.title}</span>
                   </div>
-                  <div className="text-[10px] font-normal opacity-90">
-                    {formatTimeLabel(activeEntry.startMinutes)} · {activeEntry.durationMinutes}m
+                  <div className="text-[11px] font-semibold opacity-100 mt-1 flex items-center gap-1.5 bg-white/10 rounded px-1.5 py-0.5">
+                    <Clock className="h-3 w-3" />
+                    {formatTimeLabel(activeEntry.startMinutes)} - {formatTimeLabel(activeEntry.startMinutes + activeEntry.durationMinutes)}
+                    <span className="text-[10px] opacity-80">({activeEntry.durationMinutes}m)</span>
                   </div>
                 </div>
               )}
@@ -528,15 +539,15 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                               );
                             })}
                           </div>
+                          {/* Travel gap indicators - simplified without duration text */}
                           {gaps.map((gap) => (
                             <div
                               key={`gap-${gap.afterEntryId}`}
                               className="absolute top-1 h-12 sm:h-14 hidden sm:flex items-center justify-center"
                               style={{ left: `${gap.leftPercent}%`, width: `${gap.widthPercent}%` }}
+                              title={`${gap.gapMinutes} minute gap`}
                             >
-                              <div className="h-6 w-full rounded border border-dashed border-amber-400/50 bg-amber-50/30 flex items-center justify-center">
-                                <span className="text-[9px] text-amber-600 font-medium">{gap.gapMinutes}m</span>
-                              </div>
+                              <div className="h-6 w-full rounded border border-dashed border-muted-foreground/30 bg-muted/10" />
                             </div>
                           ))}
                           {lane.entries.map((entry) => (
@@ -611,16 +622,15 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                           );
                         })}
                       </div>
-                      {/* Travel gap indicators - hidden on mobile */}
+                      {/* Travel gap indicators - simplified without duration text */}
                       {gaps.map((gap) => (
                         <div
                           key={`gap-${gap.afterEntryId}`}
                           className="absolute top-1 h-12 sm:h-14 hidden sm:flex items-center justify-center"
                           style={{ left: `${gap.leftPercent}%`, width: `${gap.widthPercent}%` }}
+                          title={`${gap.gapMinutes} minute gap`}
                         >
-                          <div className="h-6 w-full rounded border border-dashed border-amber-400/50 bg-amber-50/30 flex items-center justify-center">
-                            <span className="text-[9px] text-amber-600 font-medium">{gap.gapMinutes}m</span>
-                          </div>
+                          <div className="h-6 w-full rounded border border-dashed border-muted-foreground/30 bg-muted/10" />
                         </div>
                       ))}
                       {/* Entry blocks */}
@@ -699,52 +709,83 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
     onSelect?.(entry, e);
   }, [entry, onSelect]);
 
+  // Build tooltip content
+  const tooltipContent = (
+    <div className="text-xs space-y-1 min-w-[140px]">
+      <div className="font-semibold">{entry.title}</div>
+      <div className="flex items-center gap-1.5">
+        <Clock className="h-3 w-3" />
+        {formatTimeLabel(entry.startMinutes)} - {formatTimeLabel(entry.startMinutes + entry.durationMinutes)}
+      </div>
+      <div className="text-muted-foreground">{entry.durationMinutes} minutes</div>
+      {entry.callTypeLabel && <div className="text-muted-foreground">{entry.callTypeLabel}</div>}
+      {entry.address && <div className="text-muted-foreground truncate max-w-[200px]">{entry.address}</div>}
+      {entry.isTimeCritical && <div className="text-amber-500 font-medium">⚠ Time Critical</div>}
+      {entry.isDoubleUp && <div className="text-blue-500 font-medium">👥 Double-Up Required</div>}
+      {hasConflict && <div className="text-red-500 font-medium">⚠ Schedule Conflict</div>}
+    </div>
+  );
+
   return (
-    <button
-      ref={setNodeRef}
-      type="button"
-      onClick={handleClick}
-      className={`absolute top-1 h-14 sm:h-12 rounded-lg px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-white shadow-md transition-all touch-manipulation
-        focus:outline-none focus:ring-2 focus:ring-primary/60 
-        ${colors.bg} border-l-4 ${colors.border}
-        ${isDragging ? "opacity-50 scale-105 shadow-lg z-20" : ""}
-        ${isSelected ? "ring-2 ring-white shadow-lg z-10" : ""}
-        ${isFocused ? "ring-2 ring-primary ring-offset-1 z-10" : ""}
-        ${hasConflict ? "animate-pulse ring-2 ring-red-400" : ""}
-        hover:brightness-110 active:scale-[0.98]`}
-      style={style}
-      {...attributes}
-      {...listeners}
-    >
-      {/* Selection indicator */}
-      {isSelected && (
-        <div className="absolute -top-1.5 -left-1.5 h-4 w-4 rounded-full bg-white shadow-sm flex items-center justify-center">
-          <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-        </div>
-      )}
-      <div className="flex items-center gap-1">
-        {entry.isTimeCritical && <AlertTriangle className="h-3 w-3 shrink-0" />}
-        <span className="truncate">{entry.title}</span>
-      </div>
-      <div className="text-[9px] sm:text-[10px] font-normal opacity-90 flex items-center gap-1">
-        <Clock className="h-2.5 w-2.5" />
-        {formatTimeLabel(entry.startMinutes)} · {entry.durationMinutes}m
-      </div>
-      {hasConflict && (
-        <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border border-white" />
-      )}
-      {/* Recommended time indicator */}
-      {recommendedStatus?.hasRecommendation && (
-        <div 
-          className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border border-white flex items-center justify-center ${
-            recommendedStatus.isWithinWindow ? "bg-emerald-500" : "bg-amber-500"
-          }`}
-          title={recommendedStatus.isWithinWindow ? "Within recommended time" : `${recommendedStatus.deviationMinutes}m from recommended`}
-        >
-          <Target className="h-2 w-2 text-white" />
-        </div>
-      )}
-    </button>
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            ref={setNodeRef}
+            type="button"
+            onClick={handleClick}
+            className={`absolute top-1 h-14 sm:h-12 rounded-lg px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-white shadow-md transition-shadow touch-manipulation
+              focus:outline-none focus:ring-2 focus:ring-primary/60 
+              ${colors.bg} border-l-4 ${colors.border}
+              ${isDragging ? "opacity-50 shadow-lg z-20" : ""}
+              ${isSelected ? "ring-2 ring-white shadow-lg z-10" : ""}
+              ${isFocused ? "ring-2 ring-primary ring-offset-1 z-10" : ""}
+              ${hasConflict ? "ring-2 ring-red-400" : ""}
+              hover:brightness-110 active:scale-[0.98]`}
+            style={style}
+            {...attributes}
+            {...listeners}
+          >
+            {/* Selection indicator */}
+            {isSelected && (
+              <div className="absolute -top-1.5 -left-1.5 h-4 w-4 rounded-full bg-white shadow-sm flex items-center justify-center">
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+              </div>
+            )}
+            {/* Double-up badge */}
+            {entry.isDoubleUp && (
+              <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-blue-600 border border-white shadow-sm flex items-center justify-center">
+                <span className="text-[9px] font-bold text-white">2</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1">
+              {entry.isTimeCritical && <AlertTriangle className="h-3 w-3 shrink-0" />}
+              <span className="truncate">{entry.title}</span>
+            </div>
+            <div className="text-[9px] sm:text-[10px] font-normal opacity-90 flex items-center gap-1">
+              <Clock className="h-2.5 w-2.5" />
+              {formatTimeLabel(entry.startMinutes)} · {entry.durationMinutes}m
+            </div>
+            {hasConflict && !entry.isDoubleUp && (
+              <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border border-white" />
+            )}
+            {/* Recommended time indicator */}
+            {recommendedStatus?.hasRecommendation && !entry.isDoubleUp && (
+              <div 
+                className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border border-white flex items-center justify-center ${
+                  recommendedStatus.isWithinWindow ? "bg-emerald-500" : "bg-amber-500"
+                }`}
+              >
+                <Target className="h-2 w-2 text-white" />
+              </div>
+            )}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="p-2">
+          {tooltipContent}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 
@@ -756,7 +797,9 @@ const MemoizedDraggableEntry = memo(DraggableEntry, (prev, next) => {
     prev.entry.durationMinutes === next.entry.durationMinutes &&
     prev.entry.title === next.entry.title &&
     prev.entry.isTimeCritical === next.entry.isTimeCritical &&
+    prev.entry.isDoubleUp === next.entry.isDoubleUp &&
     prev.entry.callTypeLabel === next.entry.callTypeLabel &&
+    prev.entry.address === next.entry.address &&
     prev.startMinutes === next.startMinutes &&
     prev.endMinutes === next.endMinutes &&
     prev.totalMinutes === next.totalMinutes &&

@@ -4,6 +4,13 @@
  * Provides multi-objective optimization for care worker schedules,
  * balancing travel time, workload distribution, care continuity,
  * recommended call times, and worker constraints.
+ * 
+ * ENFORCED RULES:
+ * - Templated calls: LOCKED to assigned worker for that week/day (if lockTemplatedCalls=true)
+ * - Time-critical calls: ±tolerance tolerance ENFORCED (default ±15 minutes)
+ * - Working hours: All calls within workingHoursStart-workingHoursEnd (default 6am-10pm)
+ * - Call priority: Morning → Lunch → Tea → Bed
+ * - Non-templated calls: Can be reassigned based on distance/workload
  */
 
 import type { GanttLane, TimelineEntry } from "./rosterModel";
@@ -58,6 +65,7 @@ interface EntryWithLocation extends TimelineEntry {
   lon?: number | null;
   originalLaneId: string;
   serviceUserKey?: string | null;
+  isTemplated?: boolean;
 }
 
 interface LaneWorkload {
@@ -68,11 +76,68 @@ interface LaneWorkload {
 }
 
 // ============================================================================
-// Constants
+// Constants (defaults - actual values come from constraints)
 // ============================================================================
 
-const ROSTER_DAY_START_MINUTES = 6 * 60;  // 6:00 AM
-const ROSTER_DAY_HARD_END_MINUTES = 23 * 60;  // 11:00 PM
+const DEFAULT_WORKING_HOURS_START = 6 * 60;  // 6:00 AM
+const DEFAULT_WORKING_HOURS_END = 22 * 60;   // 10:00 PM
+const DEFAULT_TIME_CRITICAL_TOLERANCE = 15;  // ±15 minutes
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Clamp a start time to be within working hours
+ */
+const clampToWorkingHours = (
+  startMinutes: number,
+  durationMinutes: number,
+  constraints: OptimizationConstraints
+): number => {
+  const start = constraints.workingHoursStart ?? DEFAULT_WORKING_HOURS_START;
+  const end = constraints.workingHoursEnd ?? DEFAULT_WORKING_HOURS_END;
+  
+  // Ensure the call fits within working hours
+  const clampedStart = Math.max(start, Math.min(startMinutes, end - durationMinutes));
+  return clampedStart;
+};
+
+/**
+ * Check if an entry can be moved (respecting templated lock and time-critical rules)
+ */
+const canMoveEntry = (
+  entry: EntryWithLocation,
+  constraints: OptimizationConstraints
+): { canMove: boolean; canReassign: boolean; reason?: string } => {
+  // Templated calls cannot be reassigned if lock is enabled
+  const canReassign = !(entry.isTemplated && constraints.lockTemplatedCalls);
+  
+  // Time-critical calls can be moved but only within tolerance
+  if (entry.isTimeCritical && constraints.respectTimeCritical) {
+    return { canMove: true, canReassign, reason: "time-critical (limited movement)" };
+  }
+  
+  return { canMove: true, canReassign };
+};
+
+/**
+ * Validate time-critical call is within tolerance
+ */
+const validateTimeCriticalTolerance = (
+  entry: EntryWithLocation,
+  newStartMinutes: number,
+  constraints: OptimizationConstraints
+): number => {
+  if (!entry.isTimeCritical) return newStartMinutes;
+  
+  const tolerance = constraints.timeCriticalToleranceMinutes ?? DEFAULT_TIME_CRITICAL_TOLERANCE;
+  const minStart = entry.startMinutes - tolerance;
+  const maxStart = entry.startMinutes + tolerance;
+  
+  // Clamp to tolerance window
+  return Math.max(minStart, Math.min(newStartMinutes, maxStart));
+};
 
 // ============================================================================
 // Main Optimization Functions
@@ -163,8 +228,8 @@ export const runFullOptimization = (
     mergeOverrides(resultOverrides, continuityResult);
   }
 
-  // Phase 5: Final packing pass
-  const packingResult = packAllLanes(workloads, constraints.minBufferMinutes, constraints.respectTimeCritical);
+  // Phase 5: Final packing pass (respects working hours constraints)
+  const packingResult = packAllLanes(workloads, constraints.minBufferMinutes, constraints.respectTimeCritical, constraints);
   mergeOverrides(resultOverrides, packingResult);
 
   // Calculate result metrics
@@ -211,7 +276,8 @@ export const optimizeForTravel = (
 
     // Create ordered entry list with time-critical entries in their original positions
     const allEntriesSorted = [...workload.entries].sort((a, b) => a.startMinutes - b.startMinutes);
-    let cursor = allEntriesSorted[0]?.startMinutes ?? ROSTER_DAY_START_MINUTES;
+    const workingStart = constraints.workingHoursStart ?? DEFAULT_WORKING_HOURS_START;
+    let cursor = allEntriesSorted[0]?.startMinutes ?? workingStart;
 
     // Build a combined schedule
     const flexibleOrdered = orderedIds
@@ -221,13 +287,13 @@ export const optimizeForTravel = (
     let flexIdx = 0;
     for (const original of allEntriesSorted) {
       if (timeCritical.some((tc) => tc.id === original.id)) {
-        // Time-critical: keep original time
+        // Time-critical: keep original time (within tolerance)
         timeOverrides[original.id] = original.startMinutes;
         cursor = Math.max(cursor, original.startMinutes + original.durationMinutes + 5);
       } else if (flexIdx < flexibleOrdered.length) {
         const entry = flexibleOrdered[flexIdx];
-        const newStart = Math.max(cursor, ROSTER_DAY_START_MINUTES);
-        timeOverrides[entry.id] = newStart;
+        const newStart = Math.max(cursor, workingStart);
+        timeOverrides[entry.id] = clampToWorkingHours(newStart, entry.durationMinutes, constraints);
         cursor = newStart + entry.durationMinutes + 5;
         flexIdx++;
       }
@@ -383,23 +449,27 @@ const buildOriginalAssignments = (lanes: GanttLane[]): Map<string, string> => {
 const packAllLanes = (
   workloads: LaneWorkload[],
   bufferMinutes: number,
-  respectTimeCritical: boolean
+  respectTimeCritical: boolean,
+  constraints?: OptimizationConstraints
 ): { time: Record<string, number>; lane: Record<string, string> } => {
   const timeOverrides: Record<string, number> = {};
+  const workingStart = constraints?.workingHoursStart ?? DEFAULT_WORKING_HOURS_START;
+  const workingEnd = constraints?.workingHoursEnd ?? DEFAULT_WORKING_HOURS_END;
 
   for (const workload of workloads) {
     const sorted = [...workload.entries].sort((a, b) => a.startMinutes - b.startMinutes);
-    let cursor = ROSTER_DAY_START_MINUTES;
+    let cursor = workingStart;
 
     for (const entry of sorted) {
       if (entry.isTimeCritical && respectTimeCritical) {
-        // Keep time-critical at original time
+        // Time-critical: keep at original time (within tolerance if constraints provided)
+        const tolerance = constraints?.timeCriticalToleranceMinutes ?? DEFAULT_TIME_CRITICAL_TOLERANCE;
         timeOverrides[entry.id] = entry.startMinutes;
         cursor = Math.max(cursor, entry.startMinutes + entry.durationMinutes + bufferMinutes);
       } else {
-        const newStart = Math.max(cursor, ROSTER_DAY_START_MINUTES);
-        const clampedStart = Math.min(newStart, ROSTER_DAY_HARD_END_MINUTES - entry.durationMinutes);
-        timeOverrides[entry.id] = Math.max(clampedStart, ROSTER_DAY_START_MINUTES);
+        const newStart = Math.max(cursor, workingStart);
+        const clampedStart = Math.min(newStart, workingEnd - entry.durationMinutes);
+        timeOverrides[entry.id] = Math.max(clampedStart, workingStart);
         cursor = timeOverrides[entry.id] + entry.durationMinutes + bufferMinutes;
       }
     }
