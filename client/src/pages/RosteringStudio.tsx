@@ -335,6 +335,15 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     enabled: !!user && user.role === "admin",
   });
 
+  // Auto-select the latest workbook when workbooks are loaded
+  useEffect(() => {
+    if (workbooks.length > 0 && !selectedWorkbookId) {
+      // Select the most recently created workbook (last in array, or sort by date if available)
+      const latestWorkbook = workbooks[workbooks.length - 1];
+      setSelectedWorkbookId(latestWorkbook.id);
+    }
+  }, [workbooks, selectedWorkbookId]);
+
   // Fetch selected workbook full data
   const { data: workbook, isLoading: workbookLoading, refetch: refetchWorkbook } = useQuery<WorkbookFull>({
     queryKey: ["/api/admin/testing-features/workbooks", selectedWorkbookId],
