@@ -351,9 +351,9 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
 
   // Fetch available workbooks
   const { data: workbooks = [], isLoading: workbooksLoading, refetch: refetchWorkbooks } = useQuery<WorkbookSummary[]>({
-    queryKey: ["/api/admin/testing-features/workbooks"],
+    queryKey: ["/api/admin/rostering/workbook-uploads"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/testing-features/workbooks", { credentials: "include" });
+      const res = await fetch("/api/admin/rostering/workbook-uploads", { credentials: "include" });
       if (!res.ok) {
         throw new Error("Failed to fetch workbooks");
       }
@@ -392,10 +392,10 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
 
   // Fetch selected workbook full data
   const { data: workbook, isLoading: workbookLoading, refetch: refetchWorkbook } = useQuery<WorkbookFull>({
-    queryKey: ["/api/admin/testing-features/workbooks", selectedWorkbookId],
+    queryKey: ["/api/admin/rostering/workbook-uploads", selectedWorkbookId],
     queryFn: async () => {
       if (!selectedWorkbookId) throw new Error("No workbook selected");
-      const res = await fetch(`/api/admin/testing-features/workbooks/${selectedWorkbookId}`, { credentials: "include" });
+      const res = await fetch(`/api/admin/rostering/workbook-uploads/${selectedWorkbookId}`, { credentials: "include" });
       if (!res.ok) {
         throw new Error("Failed to fetch workbook");
       }
@@ -619,7 +619,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/admin/testing-features/workbooks/${id}`, {
+      const res = await fetch(`/api/admin/rostering/workbook-uploads/${id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -628,11 +628,11 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     },
     onSuccess: () => {
       toast({
-        title: "Workbook deleted",
-        description: "The workbook has been removed from the library.",
+        title: "Upload deleted",
+        description: "The upload has been removed from the library.",
       });
       setSelectedWorkbookId(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/testing-features/workbooks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbook-uploads"] });
     },
     onError: (error: Error) => {
       toast({
@@ -1276,7 +1276,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[320px,1fr]">
-        {/* Active workbook info sidebar */}
+        {/* Studio sidebar */}
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
@@ -1334,69 +1334,10 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                Active Workbook
-              </CardTitle>
-              <CardDescription>
-                Using the latest saved workbook for rostering.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {workbooksLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 text-muted-foreground" />
-                </div>
-              ) : workbooks.length === 0 ? (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>No saved workbooks</AlertTitle>
-                  <AlertDescription>
-                    Upload and save a workbook in Testing Features to use the Rostering Studio.
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                (() => {
-                  const activeWb = workbooks.find((wb) => wb.id === selectedWorkbookId) || workbooks[workbooks.length - 1];
-                  return activeWb ? (
-                    <div className="rounded-xl border border-primary/50 bg-primary/10 px-3 py-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">{activeWb.name}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {activeWb.fileName}
-                          </p>
-                        </div>
-                        <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        <Badge variant="outline" className="text-[10px]">
-                          {activeWb.totalRows.toLocaleString()} rows
-                        </Badge>
-                        <Badge variant="outline" className="text-[10px]">
-                          {activeWb.careWorkerCount} workers
-                        </Badge>
-                        <Badge variant="outline" className="text-[10px]">
-                          {activeWb.serviceUserCount} SUs
-                        </Badge>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-2">
-                        Saved {new Date(activeWb.createdAt).toLocaleDateString()}
-                        {activeWb.createdByUsername && ` by ${activeWb.createdByUsername}`}
-                      </p>
-                    </div>
-                  ) : null;
-                })()
-              )}
-            </CardContent>
-          </Card>
-
           {selectedWorkbookId && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Workbook Actions</CardTitle>
+                <CardTitle className="text-base">Data Management</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button
@@ -1409,7 +1350,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                   {deleteMutation.isPending ? (
                     <Loader2 className="h-4 w-4 mr-2" />
                   ) : null}
-                  Delete Workbook
+                  Delete Upload
                 </Button>
               </CardContent>
             </Card>
@@ -1487,9 +1428,9 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
           {!selectedWorkbookId ? (
             <Card className="p-12 text-center">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold">Select a Workbook</h3>
+              <h3 className="text-lg font-semibold">No data available</h3>
               <p className="text-muted-foreground mt-2">
-                Choose a saved workbook from the sidebar to start building optimized schedules.
+                Upload data in Testing Features to generate rostering schedules.
               </p>
               <Button variant="outline" className="mt-4" asChild>
                 <Link href="/testing-features">Go to Testing Features</Link>

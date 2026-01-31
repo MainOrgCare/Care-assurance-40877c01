@@ -339,6 +339,7 @@ export interface IStorage {
 
   // Analyzed Calls
   bulkInsertAnalyzedCalls(calls: InsertAnalyzedCall[]): Promise<number>;
+  getAllAnalyzedCalls(): Promise<AnalyzedCall[]>;
   getAnalyzedCallsByServiceUser(serviceUserKey: string): Promise<AnalyzedCall[]>;
   getAnalyzedCallsByWorker(workerKey: string): Promise<AnalyzedCall[]>;
   getAnalyzedCallsByDateRange(startDate: string, endDate: string): Promise<AnalyzedCall[]>;
@@ -1989,6 +1990,13 @@ export class DatabaseStorage implements IStorage {
     }
     
     return inserted;
+  }
+
+  async getAllAnalyzedCalls(): Promise<AnalyzedCall[]> {
+    return await this.db
+      .select()
+      .from(analyzedCalls)
+      .orderBy(desc(analyzedCalls.callDate));
   }
 
   async getAnalyzedCallsByServiceUser(serviceUserKey: string): Promise<AnalyzedCall[]> {
