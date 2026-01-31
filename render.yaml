@@ -1,5 +1,5 @@
 services:
-  - type: static
+  - type: static_site
     name: care-assurance-web
     buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:client
     staticPublishPath: dist/public
