@@ -1881,7 +1881,7 @@ export async function registerRoutes(
     cookie: {
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // "none" for cross-origin in production
       maxAge: 1000 * 60 * 30, // 30 minutes - auto logout on inactivity
     },
     rolling: true, // Reset cookie expiration on each request (keeps session alive while active)
