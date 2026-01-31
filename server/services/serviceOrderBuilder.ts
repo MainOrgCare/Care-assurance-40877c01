@@ -477,8 +477,11 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
     if (call.callDate >= templateCutoffStr) {
       const templateSlotKey = `${serviceUserKey}|${callTypeKey}|${templateWeek}|${templateDay}`;
       const templateWorkerName = call.templateWorkerName?.trim() || undefined;
-      const hasTemplate = Boolean(templateWorkerName) && !isAdminStaff(templateWorkerName);
-      const templateWorkerKey = hasTemplate ? generateWorkerKey(templateWorkerName as string) : undefined;
+      const hasTemplate = Boolean(templateWorkerName) && !isAdminStaff(templateWorkerName ?? "");
+      let templateWorkerKey: string | undefined;
+      if (hasTemplate && templateWorkerName) {
+        templateWorkerKey = generateWorkerKey(templateWorkerName);
+      }
       const existing = templateSlotMap.get(templateSlotKey);
       const shouldReplace =
         !existing ||

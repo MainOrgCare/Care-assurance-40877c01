@@ -12229,17 +12229,6 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
             workerName: assignment.workerName,
           });
         });
-      const templateAssignments = await storage.getAllTemplateAssignments();
-      const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string }>();
-      templateAssignments
-        .filter((assignment) => assignment.isTemplated)
-        .forEach((assignment) => {
-          const key = `${assignment.serviceUserKey}|${assignment.callTypeLabel}|${assignment.templateWeek}|${assignment.templateDay}`;
-          templateAssignmentMap.set(key, {
-            workerKey: assignment.workerKey,
-            workerName: assignment.workerName,
-          });
-        });
 
       const rosterMap = new Map<string, any>();
       const doubleUpSlots: Record<string, string[]> = {};
@@ -12636,6 +12625,17 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       }
 
       const calls = await storage.getAllAnalyzedCalls();
+      const templateAssignments = await storage.getAllTemplateAssignments();
+      const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string }>();
+      templateAssignments
+        .filter((assignment) => assignment.isTemplated)
+        .forEach((assignment) => {
+          const key = `${assignment.serviceUserKey}|${assignment.callTypeLabel}|${assignment.templateWeek}|${assignment.templateDay}`;
+          templateAssignmentMap.set(key, {
+            workerKey: assignment.workerKey,
+            workerName: assignment.workerName,
+          });
+        });
 
       const rosterMap = new Map<string, any>();
       const doubleUpSlots: Record<string, string[]> = {};

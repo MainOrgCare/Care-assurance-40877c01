@@ -289,6 +289,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
 
     lanes.forEach((lane) => {
       lane.entries.forEach((entry) => {
+        if (!entry.serviceUserKey) return;
         const key = `${entry.serviceUserKey}::${entry.callTypeLabel ?? ""}`;
         const recommendation = specificMap.get(key) || genericMap.get(entry.serviceUserKey);
 

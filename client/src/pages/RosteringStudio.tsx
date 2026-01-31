@@ -51,7 +51,6 @@ import {
   Zap,
   Undo2,
   Redo2,
-  Settings2,
   AlertTriangle,
   Save,
   FolderOpen,
@@ -269,6 +268,23 @@ const formatMinutesDisplay = (minutes: number | null | undefined): string => {
   const sign = minutes < 0 ? "-" : "";
   if (h > 0) return `${sign}${h}h ${m}m`;
   return `${sign}${m} mins`;
+};
+
+const formatDeltaLabel = (deltaMinutes: number): string => {
+  if (deltaMinutes === 0) return "On target";
+  const abs = Math.abs(deltaMinutes);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  const formatted = h > 0 ? `${h}h ${m}m` : `${m} mins`;
+  return deltaMinutes > 0 ? `${formatted} late` : `${formatted} early`;
+};
+
+const sanitizeFileName = (value: string): string => {
+  return value.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "");
+};
+
+const buildRecommendationKey = (serviceUserKey: string, callTypeLabel: string): string => {
+  return `${serviceUserKey}|${callTypeLabel.trim().toLowerCase()}`;
 };
 
 const formatMinutesToTime = (minutes: number): string => {
@@ -647,6 +663,11 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     );
   }, [selectedTemplateWeek]);
 
+  const selectedTemplateDate = useMemo(
+    () => getDateRelativeToTemplateStart(selectedTemplateWeek, selectedTemplateDay),
+    [selectedTemplateWeek, selectedTemplateDay]
+  );
+
   const selectedTemplateWeekLabel = useMemo(() => {
     return TEMPLATE_WEEK_OPTIONS.find((o) => o.key === selectedTemplateWeek)?.label || "Unknown";
   }, [selectedTemplateWeek]);
@@ -727,6 +748,15 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
       notes: ct.notes,
     }));
   }, [recommendedCallTimes, careWorkerRosters]);
+
+  const recommendedTimeLookup = useMemo(() => {
+    const map = new Map<string, RecommendedCallTime>();
+    callTimesForEditor.forEach((ct) => {
+      if (!ct.serviceUserKey || !ct.callTypeLabel) return;
+      map.set(buildRecommendationKey(ct.serviceUserKey, ct.callTypeLabel), ct);
+    });
+    return map;
+  }, [callTimesForEditor]);
 
   // Transform workerConstraints data for WorkerConstraintsEditor
   const constraintsForEditor = useMemo<WorkerConstraintUI[]>(() => {
@@ -889,6 +919,21 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     return mapEntries.find((entry) => entry.id === selectedTimelineEntryId) ?? null;
   }, [mapEntries, selectedTimelineEntryId]);
 
+  const selectedEntryRecommendedTime = useMemo(() => {
+    if (!selectedTimelineEntry?.serviceUserKey || !selectedTimelineEntry?.callTypeLabel) return null;
+    return (
+      recommendedTimeLookup.get(
+        buildRecommendationKey(selectedTimelineEntry.serviceUserKey, selectedTimelineEntry.callTypeLabel)
+      ) ??
+      null
+    );
+  }, [recommendedTimeLookup, selectedTimelineEntry]);
+
+  const selectedEntryDeltaMinutes = useMemo(() => {
+    if (!selectedTimelineEntry || !selectedEntryRecommendedTime) return null;
+    return selectedTimelineEntry.startMinutes - selectedEntryRecommendedTime.recommendedStartMinutes;
+  }, [selectedEntryRecommendedTime, selectedTimelineEntry]);
+
   const selectedEntryLaneKey = useMemo(() => {
     if (!selectedTimelineEntryId) return null;
     return (
@@ -916,6 +961,22 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     return conflicts;
   }, [timelineLanes]);
 
+  const scheduleChangeStats = useMemo(() => {
+    const overrideValues = Object.values(rosterState.present.timeOverrides);
+    const deletedCount = overrideValues.filter((value) => value <= -9000).length;
+    const timeShiftCount = Math.max(0, overrideValues.length - deletedCount);
+    const laneOverrideCount = Object.keys(rosterState.present.laneOverrides).length;
+    const totalChanges = timeShiftCount + laneOverrideCount + deletedCount;
+    return {
+      timeShiftCount,
+      laneOverrideCount,
+      deletedCount,
+      totalChanges,
+    };
+  }, [rosterState.present.laneOverrides, rosterState.present.timeOverrides]);
+
+  const hasRosterChanges = scheduleChangeStats.totalChanges > 0;
+
   const applyOverrides = useCallback((updates: Record<string, number>, laneUpdates?: Record<string, string>) => {
     dispatchRoster({
       type: "APPLY_OPTIMIZATION",
@@ -926,19 +987,25 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
 
   const buildPackedOverrides = useCallback(
     (entries: TimelineEntry[], bufferMinutes: number) => {
-      const sorted = [...entries].sort((a, b) => a.startMinutes - b.startMinutes);
+      const sorted = [...entries]
+        .filter((entry) => Number.isFinite(entry.startMinutes))
+        .filter((entry) => entry.startMinutes > -9000)
+        .sort((a, b) => a.startMinutes - b.startMinutes);
       const updates: Record<string, number> = {};
       let cursor = ROSTER_DAY_START_MINUTES;
       sorted.forEach((entry) => {
         const baseStart = entry.startMinutes;
+        const duration = Math.max(0, entry.durationMinutes);
         const isTimeCritical = Boolean(entry.isTimeCritical);
         let nextStart = isTimeCritical ? baseStart : Math.max(cursor, baseStart);
         if (nextStart < ROSTER_DAY_START_MINUTES) nextStart = ROSTER_DAY_START_MINUTES;
-        if (nextStart > ROSTER_DAY_HARD_END_MINUTES - entry.durationMinutes) {
-          nextStart = Math.max(ROSTER_DAY_START_MINUTES, ROSTER_DAY_HARD_END_MINUTES - entry.durationMinutes);
+        if (nextStart > ROSTER_DAY_HARD_END_MINUTES - duration) {
+          nextStart = Math.max(ROSTER_DAY_START_MINUTES, ROSTER_DAY_HARD_END_MINUTES - duration);
         }
-        updates[entry.id] = nextStart;
-        cursor = nextStart + entry.durationMinutes + bufferMinutes;
+        if (nextStart !== entry.startMinutes) {
+          updates[entry.id] = nextStart;
+        }
+        cursor = Math.max(cursor, nextStart + duration + bufferMinutes);
       });
       return updates;
     },
@@ -992,7 +1059,11 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
       const entry = entryLookup.get(entryId);
       const tolerance = TIME_CRITICAL_WINDOW_MINUTES;
       let adjustedStart = newStartMinutes;
-      if (entry?.isTimeCritical && typeof entry.requiredStartMinutes === "number") {
+      if (
+        enforceTimeCriticalWindow &&
+        entry?.isTimeCritical &&
+        typeof entry.requiredStartMinutes === "number"
+      ) {
         adjustedStart = Math.min(
           entry.requiredStartMinutes + tolerance,
           Math.max(entry.requiredStartMinutes - tolerance, newStartMinutes)
@@ -1015,7 +1086,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
         });
       }
     },
-    [entryLookup]
+    [entryLookup, enforceTimeCriticalWindow]
   );
 
   // Build ordered list of all entry IDs for range selection (sorted by time within each lane)
@@ -1148,6 +1219,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
       id: lane.id,
       entries: [...lane.entries],
     }));
+    const packingBufferMinutes = packCallsBackToBack ? 0 : 5;
 
     const durationMap = buildLaneDurationMap(lanesCopy);
     const maxIterations = 20;
@@ -1172,7 +1244,10 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     }
 
     lanesCopy.forEach((lane) => {
-      Object.assign(updates, buildPackedOverrides(lane.entries, 5));
+      const entries = enforceTimeCriticalWindow
+        ? lane.entries
+        : lane.entries.map((entry) => ({ ...entry, isTimeCritical: false }));
+      Object.assign(updates, buildPackedOverrides(entries, packingBufferMinutes));
     });
 
     applyOverrides(updates, laneOverrides);
@@ -1180,33 +1255,74 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
       title: "Workload balanced",
       description: "Visits were redistributed to balance workload and reduce gaps.",
     });
-  }, [applyOverrides, buildLaneDurationMap, buildPackedOverrides, timelineLanes, toast]);
+  }, [applyOverrides, buildLaneDurationMap, buildPackedOverrides, enforceTimeCriticalWindow, packCallsBackToBack, timelineLanes, toast]);
 
   const handleOptimizeTravel = useCallback(() => {
     const updates: Record<string, number> = {};
+    const bufferMinutes = packCallsBackToBack ? 0 : 10;
     timelineLanes.forEach((lane) => {
-      Object.assign(updates, buildPackedOverrides(lane.entries, 10));
+      const entries = enforceTimeCriticalWindow
+        ? lane.entries
+        : lane.entries.map((entry) => ({ ...entry, isTimeCritical: false }));
+      Object.assign(updates, buildPackedOverrides(entries, bufferMinutes));
     });
     applyOverrides(updates);
     toast({
       title: "Travel gaps optimized",
-      description: "Inserted buffer between visits to improve travel flow.",
+      description: packCallsBackToBack
+        ? "Packed visits back-to-back to minimize gaps."
+        : "Inserted buffer between visits to improve travel flow.",
     });
-  }, [applyOverrides, buildPackedOverrides, timelineLanes, toast]);
+  }, [applyOverrides, buildPackedOverrides, enforceTimeCriticalWindow, packCallsBackToBack, timelineLanes, toast]);
 
   const handleApplyRecommendedTimes = useCallback(() => {
     const updates: Record<string, number> = {};
+    let applied = 0;
+    let skipped = 0;
     timelineLanes.forEach((lane) => {
       lane.entries.forEach((entry) => {
-        updates[entry.id] = entry.startMinutes;
+        if (!entry.serviceUserKey || !entry.callTypeLabel) {
+          skipped += 1;
+          return;
+        }
+        const recommended = recommendedTimeLookup.get(
+          buildRecommendationKey(entry.serviceUserKey, entry.callTypeLabel)
+        );
+        if (!recommended) {
+          skipped += 1;
+          return;
+        }
+        let nextStart = recommended.recommendedStartMinutes;
+        if (
+          enforceTimeCriticalWindow &&
+          entry.isTimeCritical &&
+          typeof entry.requiredStartMinutes === "number"
+        ) {
+          const tolerance = TIME_CRITICAL_WINDOW_MINUTES;
+          nextStart = Math.min(
+            entry.requiredStartMinutes + tolerance,
+            Math.max(entry.requiredStartMinutes - tolerance, nextStart)
+          );
+        }
+        updates[entry.id] = nextStart;
+        applied += 1;
       });
     });
+    if (applied === 0) {
+      toast({
+        title: "No recommended times applied",
+        description: "No matching recommended times were found for the current view.",
+      });
+      return;
+    }
     applyOverrides(updates);
     toast({
       title: "Recommended times applied",
-      description: "Timeline reset to recommended start times.",
+      description: skipped
+        ? `Updated ${applied} visit(s). ${skipped} visit(s) had no matching recommendation.`
+        : `Updated ${applied} visit(s) to recommended start times.`,
     });
-  }, [applyOverrides, timelineLanes, toast]);
+  }, [applyOverrides, enforceTimeCriticalWindow, recommendedTimeLookup, timelineLanes, toast]);
 
   // Available template groups (those that have rows on the selected template day)
   const availableTemplateGroups = useMemo(() => {
@@ -1238,6 +1354,102 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     });
   }, [toast]);
 
+  const handleResetScheduleChanges = useCallback(() => {
+    if (!hasRosterChanges) return;
+    const confirmed = window.confirm(
+      "Reset all schedule changes? This will clear time adjustments, reassignments, and deletions."
+    );
+    if (!confirmed) return;
+    dispatchRoster({ type: "RESET" });
+    setSelectedTimelineEntryId(null);
+    toast({
+      title: "Schedule reset",
+      description: "All schedule overrides have been cleared.",
+    });
+  }, [dispatchRoster, hasRosterChanges, toast]);
+
+  const handleExportPdf = useCallback(() => {
+    if (timelineLanes.length === 0) {
+      toast({
+        title: "Nothing to export",
+        description: "Load a workbook to export the schedule.",
+      });
+      return;
+    }
+
+    const rows: Array<string[]> = [];
+    timelineLanes.forEach((lane) => {
+      const orderedEntries = [...lane.entries]
+        .filter((entry) => entry.startMinutes >= ROSTER_DAY_START_MINUTES)
+        .filter((entry) => entry.startMinutes <= ROSTER_DAY_HARD_END_MINUTES)
+        .sort((a, b) => a.startMinutes - b.startMinutes);
+
+      orderedEntries.forEach((entry) => {
+        rows.push([
+          lane.label,
+          entry.serviceUserName || entry.title || "Unknown",
+          entry.callTypeLabel || "-",
+          formatMinutesToTime(entry.startMinutes),
+          formatMinutesDisplay(entry.durationMinutes),
+          entry.isTimeCritical ? "Yes" : "No",
+          entry.isDoubleUp ? "Yes" : "No",
+          entry.address || "",
+        ]);
+      });
+    });
+
+    if (rows.length === 0) {
+      toast({
+        title: "No visible visits",
+        description: "There are no scheduled visits in the current view.",
+      });
+      return;
+    }
+
+    const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setFontSize(18);
+    doc.text("Rostering Schedule", pageWidth / 2, 40, { align: "center" });
+    doc.setFontSize(10);
+    doc.setTextColor(90);
+    doc.text(
+      `${selectedTemplateWeekLabel} • ${selectedTemplateDay} (${selectedTemplateDate.dateLabel})`,
+      pageWidth / 2,
+      58,
+      { align: "center" }
+    );
+    doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, 72, { align: "center" });
+    doc.setTextColor(0);
+
+    autoTable(doc, {
+      startY: 90,
+      head: [["Worker", "Service User", "Call Type", "Start", "Duration", "Time Critical", "Double-Up", "Address"]],
+      body: rows,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [15, 23, 42], textColor: 255 },
+      margin: { left: 30, right: 30 },
+      columnStyles: {
+        0: { cellWidth: 120 },
+        1: { cellWidth: 140 },
+        2: { cellWidth: 110 },
+        3: { cellWidth: 55 },
+        4: { cellWidth: 70 },
+        5: { cellWidth: 70 },
+        6: { cellWidth: 60 },
+      },
+    });
+
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    const fileName = sanitizeFileName(
+      `roster-${selectedTemplateDay}-${selectedTemplateWeekLabel}-${selectedTemplateDate.dateLabel}-${dateStamp}`
+    );
+    doc.save(`${fileName}.pdf`);
+    toast({
+      title: "Schedule exported",
+      description: "The PDF report has been downloaded.",
+    });
+  }, [selectedTemplateDate.dateLabel, selectedTemplateDay, selectedTemplateWeekLabel, timelineLanes, toast]);
+
   // Calculate optimization metrics
   const optimizationMetrics = useMemo(() => {
     const allEntries = mapEntries.map((entry) => ({
@@ -1268,6 +1480,23 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     onUndo: handleUndo,
     onRedo: handleRedo,
   }), [handleOptimizeTravel, handleUndo, handleRedo]);
+
+  const shortcutHelp = useMemo(() => {
+    const grouped = new Map<string, string[]>();
+    keyboardShortcuts.forEach((shortcut) => {
+      if (!shortcut.description) return;
+      const label = formatShortcutKey(shortcut).replace("ESCAPE", "ESC");
+      const existing = grouped.get(shortcut.description) ?? [];
+      if (!existing.includes(label)) {
+        existing.push(label);
+        grouped.set(shortcut.description, existing);
+      }
+    });
+    return Array.from(grouped.entries()).map(([description, keys]) => ({
+      description,
+      keys: keys.join(" / "),
+    }));
+  }, [keyboardShortcuts]);
 
   useRosteringKeyboardShortcuts(keyboardShortcuts, !!workbook);
 
@@ -1335,6 +1564,15 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
             >
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportPdf}
+              disabled={!workbook || timelineLanes.length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export PDF
             </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href="/care-worker-rotas">
@@ -1551,43 +1789,80 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <ConflictSummary conflicts={conflictSummaryData} />
-                    <div className="flex items-center gap-2 pt-2 border-t">
+                    <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold">Schedule changes</p>
+                        {hasRosterChanges ? (
+                          <Badge variant="secondary" className="text-[10px]">
+                            {scheduleChangeStats.totalChanges}
+                          </Badge>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">None</span>
+                        )}
+                      </div>
+                      {hasRosterChanges && (
+                        <div className="mt-2 grid grid-cols-2 gap-1 text-[10px]">
+                          <span className="text-muted-foreground">Time shifts</span>
+                          <span>{scheduleChangeStats.timeShiftCount}</span>
+                          <span className="text-muted-foreground">Reassignments</span>
+                          <span>{scheduleChangeStats.laneOverrideCount}</span>
+                          {scheduleChangeStats.deletedCount > 0 && (
+                            <>
+                              <span className="text-muted-foreground">Removed</span>
+                              <span>{scheduleChangeStats.deletedCount}</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="pt-2 border-t space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={handleUndo}
+                          disabled={!canUndo(rosterState)}
+                          className="flex-1"
+                        >
+                          <Undo2 className="h-3.5 w-3.5 mr-1" />
+                          Undo
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={handleRedo}
+                          disabled={!canRedo(rosterState)}
+                          className="flex-1"
+                        >
+                          <Redo2 className="h-3.5 w-3.5 mr-1" />
+                          Redo
+                        </Button>
+                      </div>
                       <Button
                         type="button"
                         size="sm"
-                        variant="outline"
-                        onClick={handleUndo}
-                        disabled={!canUndo(rosterState)}
-                        className="flex-1"
+                        variant="ghost"
+                        onClick={handleResetScheduleChanges}
+                        disabled={!hasRosterChanges}
+                        className="w-full"
                       >
-                        <Undo2 className="h-3.5 w-3.5 mr-1" />
-                        Undo
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={handleRedo}
-                        disabled={!canRedo(rosterState)}
-                        className="flex-1"
-                      >
-                        <Redo2 className="h-3.5 w-3.5 mr-1" />
-                        Redo
+                        Reset schedule changes
                       </Button>
                     </div>
                     <div className="pt-2 border-t">
-                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">Keyboard shortcuts</p>
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1">
+                        <Keyboard className="h-3 w-3" />
+                        Keyboard shortcuts
+                      </p>
                       <div className="grid grid-cols-2 gap-1 text-[10px]">
-                        <span className="text-muted-foreground">Escape</span>
-                        <span>Clear selection</span>
-                        <span className="text-muted-foreground">Ctrl+O</span>
-                        <span>Optimize</span>
-                        <span className="text-muted-foreground">Ctrl+Z</span>
-                        <span>Undo</span>
-                        <span className="text-muted-foreground">Ctrl+Y</span>
-                        <span>Redo</span>
-                        <span className="text-muted-foreground">+/-</span>
-                        <span>Zoom</span>
+                        {shortcutHelp.slice(0, 6).map((item) => (
+                          <div key={item.description} className="contents">
+                            <span className="text-muted-foreground">{item.keys}</span>
+                            <span>{item.description}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </CardContent>
@@ -1833,7 +2108,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                               setSaveScheduleDescription("");
                               setShowSaveDialog(true);
                             }}
-                            disabled={Object.keys(rosterState.present.timeOverrides).length === 0}
+                            disabled={!hasRosterChanges}
                           >
                             <Save className="h-4 w-4 mr-2" />
                             Save Current
@@ -1982,6 +2257,24 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                                 </Badge>
                               )}
                             </div>
+                            {selectedEntryRecommendedTime && (
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <Clock4 className="h-3.5 w-3.5" />
+                                <span>
+                                  Recommended {formatMinutesToTime(selectedEntryRecommendedTime.recommendedStartMinutes)}
+                                </span>
+                                {selectedEntryRecommendedTime.toleranceMinutes ? (
+                                  <Badge variant="outline" className="text-[10px]">
+                                    +/-{selectedEntryRecommendedTime.toleranceMinutes}m
+                                  </Badge>
+                                ) : null}
+                                {selectedEntryDeltaMinutes !== null && (
+                                  <span className={selectedEntryDeltaMinutes === 0 ? "text-emerald-600" : ""}>
+                                    {formatDeltaLabel(selectedEntryDeltaMinutes)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             {selectedTimelineEntry.address && (
                               <p className="text-xs text-muted-foreground border-l-2 border-primary/30 pl-2">
                                 {selectedTimelineEntry.address}
@@ -2063,6 +2356,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                           variant="outline"
                           className="w-full"
                           onClick={handleApplyRecommendedTimes}
+                          disabled={callTimesForEditor.length === 0}
                         >
                           Apply recommended times
                         </Button>
@@ -2253,6 +2547,10 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                                 <Badge variant="secondary" className="text-[10px]">
                                   {selectedTemplateWeekLabel} • {selectedTemplateDay}
                                 </Badge>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Calendar className="h-3.5 w-3.5" />
+                                <span>{selectedTemplateDate.dateLabel}</span>
                               </div>
                               <div className="flex flex-wrap gap-2">
                                 {TEMPLATE_WEEK_OPTIONS.map((option) => (
