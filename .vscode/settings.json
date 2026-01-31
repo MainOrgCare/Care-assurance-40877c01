@@ -10,27 +10,6 @@
     "git.ignoreLimitWarning": true,
     "github.copilot.chat.anthropic.tools.websearch.enabled": true,
     "css.lint.unknownAtRules": "ignore",
-    "dbcode.connections": [
-        {
-            "connectionId": "YbclrYzQoihHA3h8PtH_t",
-            "name": "Connect",
-            "driver": "postgres",
-            "connectionType": "host",
-            "host": "dpg-d5dbsh1r0fns73age33g-a.frankfurt-postgres.render.com",
-            "port": 5432,
-            "ssl": true,
-            "sslTrustCertificate": true,
-            "authMethod": "password",
-            "username": "maindatabase_kh55_user",
-            "password": "",
-            "savePassword": "session",
-            "database": "maindatabase_kh55",
-            "readOnly": false,
-            "role": "production",
-            "postConnectionSqlType": "inline",
-            "connectionTimeout": 30
-        }
-    ],
     "github.copilot.chat.codeGeneration.useInstructionFiles": true,
     "chat.mcp.serverSampling": {
         "Care-assurance-40877c01/.vscode/mcp.json: github": {
