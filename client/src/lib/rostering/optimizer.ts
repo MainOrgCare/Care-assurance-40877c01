@@ -58,6 +58,13 @@ export interface WorkerConstraint {
   workerKey: string;
   maxCallsPerDay?: number;
   maxMinutesPerDay?: number;
+  maxCallsPerWeek?: number;
+  maxMinutesPerWeek?: number;
+}
+
+export interface WeeklyTotals {
+  calls: number;
+  minutes: number;
 }
 
 interface EntryWithLocation extends TimelineEntry {
@@ -155,8 +162,15 @@ export const runFullOptimization = (
     recommendedCallTimes?: RecommendedCallTime[];
     workerTemplates?: WorkerTemplate[];
     workerConstraints?: WorkerConstraint[];
+    weeklyTotals?: Map<string, WeeklyTotals>;
   }
 ): OptimizationResult => {
+  const enforcedConstraints: OptimizationConstraints = {
+    ...constraints,
+    respectTimeCritical: true,
+    lockTemplatedCalls: true,
+  };
+
   // Normalize weights to sum to 100
   const totalWeight = weights.travel + weights.balance + weights.continuity;
   const normalizedWeights = totalWeight > 0
@@ -181,7 +195,7 @@ export const runFullOptimization = (
     const recommendedResult = applyRecommendedCallTimes(
       workloads,
       rosteringData.recommendedCallTimes,
-      constraints.respectTimeCritical
+      enforcedConstraints.respectTimeCritical
     );
     mergeOverrides(resultOverrides, recommendedResult);
     applyOverridesToWorkloads(workloads, recommendedResult);
@@ -189,7 +203,7 @@ export const runFullOptimization = (
 
   // Phase 1: Travel optimization (if weight > 0)
   if (normalizedWeights.travel > 0) {
-    const travelResult = optimizeForTravel(workloads, constraints);
+    const travelResult = optimizeForTravel(workloads, enforcedConstraints);
     mergeOverrides(resultOverrides, travelResult);
     applyOverridesToWorkloads(workloads, travelResult);
   }
@@ -198,9 +212,10 @@ export const runFullOptimization = (
   if (normalizedWeights.balance > 0 && constraints.allowCrossWorkerMoves) {
     const balanceResult = optimizeForBalance(
       workloads,
-      constraints,
+      enforcedConstraints,
       normalizedWeights.balance,
-      rosteringData?.workerConstraints
+      rosteringData?.workerConstraints,
+      rosteringData?.weeklyTotals
     );
     mergeOverrides(resultOverrides, balanceResult);
     applyOverridesToWorkloads(workloads, balanceResult);
@@ -211,7 +226,9 @@ export const runFullOptimization = (
     const templateResult = optimizeForWorkerTemplates(
       workloads,
       rosteringData.workerTemplates,
-      rosteringData.workerConstraints
+      rosteringData.workerConstraints,
+      rosteringData.weeklyTotals,
+      enforcedConstraints.lockTemplatedCalls
     );
     mergeOverrides(resultOverrides, templateResult);
     applyOverridesToWorkloads(workloads, templateResult);
@@ -222,14 +239,14 @@ export const runFullOptimization = (
     const continuityResult = optimizeForContinuity(
       workloads,
       originalAssignments,
-      constraints,
+      enforcedConstraints,
       normalizedWeights.continuity
     );
     mergeOverrides(resultOverrides, continuityResult);
   }
 
   // Phase 5: Final packing pass (respects working hours constraints)
-  const packingResult = packAllLanes(workloads, constraints.minBufferMinutes, constraints.respectTimeCritical, constraints);
+  const packingResult = packAllLanes(workloads, enforcedConstraints.minBufferMinutes, enforcedConstraints.respectTimeCritical, enforcedConstraints);
   mergeOverrides(resultOverrides, packingResult);
 
   // Calculate result metrics
@@ -238,7 +255,7 @@ export const runFullOptimization = (
     workloads,
     originalAssignments,
     resultOverrides,
-    constraints,
+    enforcedConstraints,
     rosteringData?.recommendedCallTimes
   );
 
@@ -310,7 +327,8 @@ export const optimizeForBalance = (
   workloads: LaneWorkload[],
   constraints: OptimizationConstraints,
   balanceWeight: number,
-  workerConstraints?: WorkerConstraint[]
+  workerConstraints?: WorkerConstraint[],
+  weeklyTotals?: Map<string, WeeklyTotals>
 ): { time: Record<string, number>; lane: Record<string, string> } => {
   const laneOverrides: Record<string, string> = {};
   const timeOverrides: Record<string, number> = {};
@@ -322,6 +340,13 @@ export const optimizeForBalance = (
   if (workerConstraints) {
     for (const c of workerConstraints) {
       constraintsByWorker.set(c.workerKey, c);
+    }
+  }
+
+  const weeklyTotalsByWorker = new Map<string, WeeklyTotals>();
+  if (weeklyTotals) {
+    for (const [workerKey, totals] of weeklyTotals) {
+      weeklyTotalsByWorker.set(workerKey, { ...totals });
     }
   }
 
@@ -340,25 +365,34 @@ export const optimizeForBalance = (
     const overloaded = workloads[0];
     const underloaded = workloads[workloads.length - 1];
     
-    // Check if underloaded worker has capacity constraints
-    const underloadedConstraint = constraintsByWorker.get(underloaded.laneId);
-    if (underloadedConstraint?.maxCallsPerDay && underloaded.entries.length >= underloadedConstraint.maxCallsPerDay) {
-      // This worker is at max calls, try next
-      continue;
-    }
-    if (underloadedConstraint?.maxMinutesPerDay && underloaded.totalMinutes >= underloadedConstraint.maxMinutesPerDay) {
-      continue;
-    }
-    
     const gap = overloaded.totalMinutes - underloaded.totalMinutes;
     if (gap < tolerance) break;
 
     // Find moveable entry (not time-critical if constraint is on)
     const moveable = overloaded.entries
       .filter((e) => !e.isTimeCritical || !constraints.respectTimeCritical)
+      .filter((e) => !(constraints.lockTemplatedCalls && e.isTemplated))
       .sort((a, b) => b.durationMinutes - a.durationMinutes)[0];
 
     if (!moveable) break;
+
+    const underloadedConstraint = constraintsByWorker.get(underloaded.laneId);
+    const projectedCalls = underloaded.entries.length + 1;
+    const projectedMinutes = underloaded.totalMinutes + moveable.durationMinutes;
+    if (underloadedConstraint?.maxCallsPerDay && projectedCalls > underloadedConstraint.maxCallsPerDay) {
+      continue;
+    }
+    if (underloadedConstraint?.maxMinutesPerDay && projectedMinutes > underloadedConstraint.maxMinutesPerDay) {
+      continue;
+    }
+
+    const weeklyUnderloaded = weeklyTotalsByWorker.get(underloaded.laneId) ?? { calls: 0, minutes: 0 };
+    if (underloadedConstraint?.maxCallsPerWeek && weeklyUnderloaded.calls + 1 > underloadedConstraint.maxCallsPerWeek) {
+      continue;
+    }
+    if (underloadedConstraint?.maxMinutesPerWeek && weeklyUnderloaded.minutes + moveable.durationMinutes > underloadedConstraint.maxMinutesPerWeek) {
+      continue;
+    }
 
     // Move entry
     overloaded.entries = overloaded.entries.filter((e) => e.id !== moveable.id);
@@ -367,6 +401,16 @@ export const optimizeForBalance = (
     underloaded.totalMinutes += moveable.durationMinutes;
     
     laneOverrides[moveable.id] = underloaded.laneId;
+
+    if (weeklyTotalsByWorker.size > 0) {
+      const weeklyOverloaded = weeklyTotalsByWorker.get(overloaded.laneId) ?? { calls: 0, minutes: 0 };
+      weeklyUnderloaded.calls += 1;
+      weeklyUnderloaded.minutes += moveable.durationMinutes;
+      weeklyOverloaded.calls = Math.max(0, weeklyOverloaded.calls - 1);
+      weeklyOverloaded.minutes = Math.max(0, weeklyOverloaded.minutes - moveable.durationMinutes);
+      weeklyTotalsByWorker.set(underloaded.laneId, weeklyUnderloaded);
+      weeklyTotalsByWorker.set(overloaded.laneId, weeklyOverloaded);
+    }
   }
 
   return { time: timeOverrides, lane: laneOverrides };
@@ -391,6 +435,7 @@ export const optimizeForContinuity = (
   for (const workload of workloads) {
     for (const entry of workload.entries) {
       if (!entry.serviceUserKey) continue;
+      if (constraints.lockTemplatedCalls && entry.isTemplated) continue;
       
       const preferredLane = originalAssignments.get(entry.serviceUserKey);
       if (!preferredLane || preferredLane === workload.laneId) continue;
@@ -428,6 +473,7 @@ const buildWorkloads = (
         lon: geo?.lon,
         originalLaneId: lane.id,
         serviceUserKey: entry.serviceUserName?.toLowerCase().replace(/\s+/g, "_") ?? null,
+        isTemplated: entry.isTemplated ?? false,
       };
     }),
   }));
@@ -520,7 +566,9 @@ const applyRecommendedCallTimes = (
 const optimizeForWorkerTemplates = (
   workloads: LaneWorkload[],
   templates: WorkerTemplate[],
-  workerConstraints?: WorkerConstraint[]
+  workerConstraints?: WorkerConstraint[],
+  weeklyTotals?: Map<string, WeeklyTotals>,
+  lockTemplatedCalls = true
 ): { time: Record<string, number>; lane: Record<string, string> } => {
   const laneOverrides: Record<string, string> = {};
   
@@ -539,6 +587,13 @@ const optimizeForWorkerTemplates = (
       constraintsByWorker.set(c.workerKey, c);
     }
   }
+
+  const weeklyTotalsByWorker = new Map<string, WeeklyTotals>();
+  if (weeklyTotals) {
+    for (const [workerKey, totals] of weeklyTotals) {
+      weeklyTotalsByWorker.set(workerKey, { ...totals });
+    }
+  }
   
   // Track call counts for constraint checking
   const workerCallCounts = new Map<string, number>();
@@ -550,6 +605,7 @@ const optimizeForWorkerTemplates = (
   for (const workload of workloads) {
     for (const entry of workload.entries) {
       if (!entry.serviceUserKey) continue;
+      if (lockTemplatedCalls && entry.isTemplated) continue;
       
       const preferred = preferredWorker.get(entry.serviceUserKey);
       if (!preferred || preferred === workload.laneId) continue;
@@ -557,13 +613,30 @@ const optimizeForWorkerTemplates = (
       // Check if target worker has capacity
       const targetConstraint = constraintsByWorker.get(preferred);
       const targetCallCount = workerCallCounts.get(preferred) || 0;
-      if (targetConstraint?.maxCallsPerDay && targetCallCount >= targetConstraint.maxCallsPerDay) {
+      if (targetConstraint?.maxCallsPerDay && targetCallCount + 1 > targetConstraint.maxCallsPerDay) {
         continue; // Target worker is at capacity
+      }
+      const weeklyTarget = weeklyTotalsByWorker.get(preferred) ?? { calls: 0, minutes: 0 };
+      if (targetConstraint?.maxCallsPerWeek && weeklyTarget.calls + 1 > targetConstraint.maxCallsPerWeek) {
+        continue;
+      }
+      if (targetConstraint?.maxMinutesPerWeek && weeklyTarget.minutes + entry.durationMinutes > targetConstraint.maxMinutesPerWeek) {
+        continue;
       }
       
       laneOverrides[entry.id] = preferred;
       workerCallCounts.set(preferred, targetCallCount + 1);
       workerCallCounts.set(workload.laneId, (workerCallCounts.get(workload.laneId) || 1) - 1);
+
+      if (weeklyTotalsByWorker.size > 0) {
+        weeklyTarget.calls += 1;
+        weeklyTarget.minutes += entry.durationMinutes;
+        const weeklySource = weeklyTotalsByWorker.get(workload.laneId) ?? { calls: 0, minutes: 0 };
+        weeklySource.calls = Math.max(0, weeklySource.calls - 1);
+        weeklySource.minutes = Math.max(0, weeklySource.minutes - entry.durationMinutes);
+        weeklyTotalsByWorker.set(preferred, weeklyTarget);
+        weeklyTotalsByWorker.set(workload.laneId, weeklySource);
+      }
     }
   }
   

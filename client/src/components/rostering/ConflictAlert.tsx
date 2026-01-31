@@ -3,7 +3,7 @@ import { AlertTriangle, Clock, Users, MapPin, Wand2, ChevronRight } from "lucide
 import { Button } from "@/components/ui/button";
 import type { TimelineEntry, GanttLane } from "@/lib/rostering/rosterModel";
 
-export type ConflictType = "overlap" | "travel" | "double-up" | "time-critical";
+export type ConflictType = "overlap" | "travel" | "double-up" | "time-critical" | "workload";
 
 export interface ConflictAlertProps {
   type: ConflictType;
@@ -45,6 +45,11 @@ const conflictConfig: Record<ConflictType, { icon: typeof AlertTriangle; color: 
     icon: AlertTriangle,
     color: "text-orange-600",
     bgColor: "bg-orange-50 border-orange-200",
+  },
+  workload: {
+    icon: Users,
+    color: "text-amber-700",
+    bgColor: "bg-amber-50 border-amber-200",
   },
 };
 

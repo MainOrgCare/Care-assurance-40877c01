@@ -99,7 +99,7 @@ const TIME_CRITICAL_WINDOW_MINUTES = 15;
 const SHIFT_BAR_DURATION_MINUTES = 8 * 60;
 const ROSTER_DAY_START_MINUTES = 6 * 60;
 const ROSTER_DAY_SOFT_END_MINUTES = 22 * 60;
-const ROSTER_DAY_HARD_END_MINUTES = 23 * 60;
+const ROSTER_DAY_HARD_END_MINUTES = 22 * 60;
 
 const TEMPLATE_WEEK_OPTIONS = [
   { key: "week1", label: "Week 1 (starts 05/01/26)" },
@@ -304,8 +304,7 @@ const getDateRelativeToTemplateStart = (
 };
 
 const computeTemplateSelectionKey = (week: TemplateWeekKey, day: WeekdayLabel) => {
-  const { dateKey } = getDateRelativeToTemplateStart(week, day);
-  return dateKey;
+  return `${week}|${day}`;
 };
 
 export default function RosteringStudio({ embedded = false }: { embedded?: boolean }) {
@@ -342,7 +341,6 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
   const [optimizationWeights, setOptimizationWeights] = useState<OptimizationWeights>(defaultWeights);
   const [optimizationConstraints, setOptimizationConstraints] = useState<OptimizationConstraints>(defaultConstraints);
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [selectedRotaId, setSelectedRotaId] = useState<string | null>(null);
   
   // Roster controls
   const [packCallsBackToBack, setPackCallsBackToBack] = useState(true);
@@ -364,9 +362,10 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
 
   // Auto-select the latest workbook when workbooks are loaded
   useEffect(() => {
-    if (workbooks.length > 0 && !selectedWorkbookId) {
-      // Select the most recently created workbook (last in array, or sort by date if available)
-      const latestWorkbook = workbooks[workbooks.length - 1];
+    if (workbooks.length === 0) return;
+    // Always use the most recent upload to keep templates current.
+    const latestWorkbook = workbooks[workbooks.length - 1];
+    if (selectedWorkbookId !== latestWorkbook.id) {
       setSelectedWorkbookId(latestWorkbook.id);
     }
   }, [workbooks, selectedWorkbookId]);
@@ -384,11 +383,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     enabled: !!user && user.role === "admin",
   });
 
-  useEffect(() => {
-    if (rotas.length > 0 && !selectedRotaId) {
-      setSelectedRotaId(rotas[0].id);
-    }
-  }, [rotas, selectedRotaId]);
+  // Rota library is displayed in studio context without selection UI
 
   // Fetch selected workbook full data
   const { data: workbook, isLoading: workbookLoading, refetch: refetchWorkbook } = useQuery<WorkbookFull>({
@@ -446,6 +441,8 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     workerName: string;
     maxCallsPerDay?: number;
     maxMinutesPerDay?: number;
+    maxCallsPerWeek?: number;
+    maxMinutesPerWeek?: number;
   }[]>({
     queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "worker-constraints"],
     queryFn: async () => {
@@ -517,7 +514,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
 
   // Constraint mutations
   const saveConstraintMutation = useMutation({
-    mutationFn: async (constraint: { workerKey: string; workerName: string; maxCallsPerDay?: number; maxMinutesPerDay?: number; notes?: string }) => {
+    mutationFn: async (constraint: { workerKey: string; workerName: string; maxCallsPerDay?: number; maxMinutesPerDay?: number; maxCallsPerWeek?: number; maxMinutesPerWeek?: number; notes?: string }) => {
       const res = await fetch(`/api/admin/rostering/workbooks/${selectedWorkbookId}/worker-constraints`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -616,33 +613,6 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     },
   });
 
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/admin/rostering/workbook-uploads/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to delete workbook");
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Upload deleted",
-        description: "The upload has been removed from the library.",
-      });
-      setSelectedWorkbookId(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbook-uploads"] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Delete failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   // Derived data
   const careWorkerRosters = useMemo<CareWorkerRoster[]>(() => {
     if (!workbook?.careWorkerRosters) return [];
@@ -670,6 +640,12 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     () => computeTemplateSelectionKey(selectedTemplateWeek, selectedTemplateDay),
     [selectedTemplateWeek, selectedTemplateDay]
   );
+
+  const selectedWeekDateKeys = useMemo(() => {
+    return new Set(
+      WEEKDAY_OPTIONS.map((day) => getDateRelativeToTemplateStart(selectedTemplateWeek, day).dateKey)
+    );
+  }, [selectedTemplateWeek]);
 
   const selectedTemplateWeekLabel = useMemo(() => {
     return TEMPLATE_WEEK_OPTIONS.find((o) => o.key === selectedTemplateWeek)?.label || "Unknown";
@@ -732,17 +708,25 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
   // Transform recommendedCallTimes data for CallTimeEditor
   const callTimesForEditor = useMemo<RecommendedCallTime[]>(() => {
     if (!recommendedCallTimes) return [];
+    const serviceUserNameByKey = new Map<string, string>();
+    careWorkerRosters.forEach((roster) => {
+      roster.callGroups?.forEach((group: any) => {
+        if (group.serviceUserKey && group.serviceUserName) {
+          serviceUserNameByKey.set(group.serviceUserKey, group.serviceUserName);
+        }
+      });
+    });
     return recommendedCallTimes.map((ct: any) => ({
       id: ct.id,
       serviceUserKey: ct.serviceUserKey,
-      serviceUserName: ct.serviceUserName,
+      serviceUserName: ct.serviceUserName || serviceUserNameByKey.get(ct.serviceUserKey) || "Unknown",
       callTypeLabel: ct.callTypeLabel,
       recommendedStartMinutes: ct.recommendedStartMinutes,
       toleranceMinutes: ct.toleranceMinutes,
       priority: ct.priority,
       notes: ct.notes,
     }));
-  }, [recommendedCallTimes]);
+  }, [recommendedCallTimes, careWorkerRosters]);
 
   // Transform workerConstraints data for WorkerConstraintsEditor
   const constraintsForEditor = useMemo<WorkerConstraintUI[]>(() => {
@@ -753,6 +737,8 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
       workerName: wc.workerName,
       maxCallsPerDay: wc.maxCallsPerDay,
       maxMinutesPerDay: wc.maxMinutesPerDay,
+      maxCallsPerWeek: wc.maxCallsPerWeek,
+      maxMinutesPerWeek: wc.maxMinutesPerWeek,
       notes: wc.notes,
     }));
   }, [workerConstraints]);
@@ -768,9 +754,29 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     }));
   }, [careWorkerRosters]);
 
+  const weeklyTotals = useMemo(() => {
+    const totals = new Map<string, { calls: number; minutes: number }>();
+    careWorkerRosters.forEach((roster) => {
+      const rows = roster.callRows ?? roster.rows ?? [];
+      let calls = 0;
+      let minutes = 0;
+      rows.forEach((row) => {
+        if (row.isShiftBar) return;
+        if (!row.plannedDateKey || !selectedWeekDateKeys.has(row.plannedDateKey)) return;
+        calls += 1;
+        const duration = row.actualDurationMinutes ?? row.plannedDurationMinutes ?? row.serviceRequirementTimeMinutes ?? null;
+        if (typeof duration === "number") {
+          minutes += duration;
+        }
+      });
+      totals.set(roster.key, { calls, minutes });
+    });
+    return totals;
+  }, [careWorkerRosters, selectedWeekDateKeys]);
+
   // Compute constraint violations for visual indicators
   const constraintViolations = useMemo(() => {
-    const violations = new Map<string, { overCalls: boolean; overMinutes: boolean }>();
+    const violations = new Map<string, { overCalls: boolean; overMinutes: boolean; overWeeklyCalls: boolean; overWeeklyMinutes: boolean }>();
     if (!workerConstraints || workerConstraints.length === 0) return violations;
 
     careWorkerRosters.forEach((roster) => {
@@ -779,17 +785,25 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
 
       const callCount = roster.callGroups?.length || 0;
       const totalMinutes = roster.callGroups?.reduce((sum: number, g: any) => sum + (g.durationMinutes || 0), 0) || 0;
+      const weekly = weeklyTotals.get(roster.key);
 
       const overCalls = constraint.maxCallsPerDay && callCount > constraint.maxCallsPerDay;
       const overMinutes = constraint.maxMinutesPerDay && totalMinutes > constraint.maxMinutesPerDay;
+      const overWeeklyCalls = constraint.maxCallsPerWeek && (weekly?.calls ?? 0) > constraint.maxCallsPerWeek;
+      const overWeeklyMinutes = constraint.maxMinutesPerWeek && (weekly?.minutes ?? 0) > constraint.maxMinutesPerWeek;
 
-      if (overCalls || overMinutes) {
-        violations.set(roster.key, { overCalls: !!overCalls, overMinutes: !!overMinutes });
+      if (overCalls || overMinutes || overWeeklyCalls || overWeeklyMinutes) {
+        violations.set(roster.key, {
+          overCalls: !!overCalls,
+          overMinutes: !!overMinutes,
+          overWeeklyCalls: !!overWeeklyCalls,
+          overWeeklyMinutes: !!overWeeklyMinutes,
+        });
       }
     });
 
     return violations;
-  }, [careWorkerRosters, workerConstraints]);
+  }, [careWorkerRosters, workerConstraints, weeklyTotals]);
 
   // Compute aggregate utilization stats
   const utilizationStats = useMemo(() => {
@@ -828,6 +842,24 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     };
   }, [heatmapSummaries, constraintViolations]);
 
+
+  const overviewStats = useMemo(() => {
+    const totalWorkers = careWorkerRosters.length;
+    const totalCalls = heatmapSummaries.reduce((sum, w) => sum + w.callCount, 0);
+    const totalMinutes = heatmapSummaries.reduce((sum, w) => sum + w.totalMinutes, 0);
+    const totalServiceUsers = uniqueServiceUsers.length;
+    const totalCallGroups = careWorkerRosters.reduce((sum, roster) => sum + (roster.callGroups?.length || 0), 0);
+
+    return {
+      totalWorkers,
+      totalCalls,
+      totalMinutes,
+      totalHours: parseFloat((totalMinutes / 60).toFixed(1)),
+      totalServiceUsers,
+      totalCallGroups,
+    };
+  }, [careWorkerRosters, heatmapSummaries, uniqueServiceUsers]);
+
   const selectedWorkerLane = useMemo(() => buildWorkerLane(selectedCareWorker, templateSelectionKey), [selectedCareWorker, templateSelectionKey]);
   const allWorkerLanes = useMemo(() => buildAllWorkerLanes(visibleCareWorkerRosters, templateSelectionKey), [visibleCareWorkerRosters, templateSelectionKey]);
 
@@ -836,6 +868,16 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     const baseLanes = showAllWorkers ? allWorkerLanes : selectedWorkerLane ? [selectedWorkerLane] : [];
     return applyOverridesToLanes(baseLanes, rosterState.present);
   }, [allWorkerLanes, rosterState.present, selectedWorkerLane, showAllWorkers]);
+
+  const entryLookup = useMemo(() => {
+    const map = new Map<string, TimelineEntry>();
+    timelineLanes.forEach((lane) => {
+      lane.entries.forEach((entry) => {
+        map.set(entry.id, entry);
+      });
+    });
+    return map;
+  }, [timelineLanes]);
 
   const mapEntries = useMemo(
     () => timelineLanes.flatMap((lane) => lane.entries),
@@ -913,13 +955,22 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
 
   const handleReassignEntry = useCallback(
     (entryId: string, targetLaneId: string) => {
+      const entry = entryLookup.get(entryId);
+      if (entry?.isTemplated) {
+        toast({
+          title: "Templated call locked",
+          description: "Templated calls cannot be reassigned to another worker.",
+          variant: "destructive",
+        });
+        return;
+      }
       dispatchRoster({ type: "REASSIGN_ENTRY", entryId, targetLaneId });
       toast({
         title: "Entry reassigned",
         description: "The visit was moved to the selected worker lane.",
       });
     },
-    [toast]
+    [entryLookup, toast]
   );
 
   const handleUndo = useCallback(() => {
@@ -938,22 +989,33 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
 
   const handleEntryMove = useCallback(
     (entryId: string, newStartMinutes: number, newLaneId?: string) => {
-      if (newLaneId) {
+      const entry = entryLookup.get(entryId);
+      const tolerance = TIME_CRITICAL_WINDOW_MINUTES;
+      let adjustedStart = newStartMinutes;
+      if (entry?.isTimeCritical && typeof entry.requiredStartMinutes === "number") {
+        adjustedStart = Math.min(
+          entry.requiredStartMinutes + tolerance,
+          Math.max(entry.requiredStartMinutes - tolerance, newStartMinutes)
+        );
+      }
+      const shouldReassign = newLaneId && !entry?.isTemplated;
+
+      if (shouldReassign) {
         dispatchRoster({
           type: "MOVE_AND_REASSIGN_ENTRY",
           entryId,
-          startMinutes: newStartMinutes,
+          startMinutes: adjustedStart,
           targetLaneId: newLaneId,
         });
       } else {
         dispatchRoster({
           type: "MOVE_ENTRY",
           entryId,
-          startMinutes: newStartMinutes,
+          startMinutes: adjustedStart,
         });
       }
     },
-    []
+    [entryLookup]
   );
 
   // Build ordered list of all entry IDs for range selection (sorted by time within each lane)
@@ -1007,17 +1069,30 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
       const selectedIds = Array.from(rosterState.present.selectedEntryIds);
       if (selectedIds.length === 0) return;
 
+      const movableIds = selectedIds.filter((entryId) => !entryLookup.get(entryId)?.isTemplated);
+      const skipped = selectedIds.length - movableIds.length;
+      if (movableIds.length === 0) {
+        toast({
+          title: "Templated calls locked",
+          description: "Selected calls are templated and cannot be reassigned.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       dispatchRoster({
         type: "BULK_REASSIGN_ENTRIES",
-        reassignments: selectedIds.map((entryId) => ({ entryId, targetLaneId })),
+        reassignments: movableIds.map((entryId) => ({ entryId, targetLaneId })),
       });
       dispatchRoster({ type: "CLEAR_SELECTION" });
       toast({
         title: "Entries reassigned",
-        description: `${selectedIds.length} visit(s) moved to new worker.`,
+        description: skipped
+          ? `${movableIds.length} visit(s) moved. ${skipped} templated call(s) stayed locked.`
+          : `${movableIds.length} visit(s) moved to new worker.`,
       });
     },
-    [rosterState.present.selectedEntryIds, toast]
+    [entryLookup, rosterState.present.selectedEntryIds, toast]
   );
 
   const handleClearSelection = useCallback(() => {
@@ -1040,6 +1115,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
             recommendedCallTimes,
             workerTemplates,
             workerConstraints,
+            weeklyTotals,
           }
         );
         
@@ -1063,7 +1139,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
         setIsOptimizing(false);
       }
     }, 100);
-  }, [timelineLanes, optimizationWeights, optimizationConstraints, recommendedCallTimes, workerTemplates, workerConstraints, applyOverrides, toast]);
+  }, [timelineLanes, optimizationWeights, optimizationConstraints, recommendedCallTimes, workerTemplates, workerConstraints, weeklyTotals, applyOverrides, toast]);
 
   const handleAutoBalance = useCallback(() => {
     const updates: Record<string, number> = {};
@@ -1162,12 +1238,6 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     });
   }, [toast]);
 
-  const handleDeleteWorkbook = useCallback(() => {
-    if (!selectedWorkbookId) return;
-    if (!confirm("Are you sure you want to delete this workbook?")) return;
-    deleteMutation.mutate(selectedWorkbookId);
-  }, [selectedWorkbookId, deleteMutation]);
-
   // Calculate optimization metrics
   const optimizationMetrics = useMemo(() => {
     const allEntries = mapEntries.map((entry) => ({
@@ -1185,8 +1255,9 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
   const conflictSummaryData = useMemo(() => {
     return [
       { type: "overlap" as const, count: timelineConflictCount },
+      { type: "workload" as const, count: constraintViolations.size },
     ];
-  }, [timelineConflictCount]);
+  }, [timelineConflictCount, constraintViolations]);
 
   // Keyboard shortcuts
   const keyboardShortcuts = useMemo(() => buildRosteringShortcuts({
@@ -1225,13 +1296,6 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
 
   return (
     <div className={containerClass}>
-      {!embedded && (
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-          <div className="absolute -top-32 right-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
-          <div className="absolute top-40 left-0 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.08),transparent_55%)]" />
-        </div>
-      )}
       {/* Header */}
       <div className={embedded ? "mb-4" : "mb-8"}>
         {!embedded && (
@@ -1254,14 +1318,21 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
               </Badge>
             </div>
             <h1 className="text-3xl font-heading font-bold text-foreground">
-              Rostering <span className="bg-gradient-to-r from-primary to-sky-500 bg-clip-text text-transparent">Studio</span>
+              Rostering <span className="text-foreground">Studio</span>
             </h1>
             <p className="text-muted-foreground mt-2 max-w-2xl">
-              Load saved workbook analysis data and build optimized care worker schedules with time-critical safeguards and double-up call synchronization.
+              Use saved rostering analysis data to build optimized care worker schedules with time-critical safeguards and double-up call synchronization.
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={() => refetchWorkbooks()}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                refetchWorkbooks();
+                refetchWorkbook();
+              }}
+            >
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
@@ -1293,68 +1364,13 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                 <div className="flex items-center justify-center py-6">
                   <Loader2 className="h-5 w-5 text-muted-foreground" />
                 </div>
-              ) : rotas.length === 0 ? (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>No saved rotas</AlertTitle>
-                  <AlertDescription>
-                    Save a rota to see it here.
-                  </AlertDescription>
-                </Alert>
               ) : (
-                <div className="space-y-2">
-                  <Select value={selectedRotaId ?? undefined} onValueChange={setSelectedRotaId}>
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="Select saved rota" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {rotas.map((rota) => (
-                        <SelectItem key={rota.id} value={rota.id} className="text-xs">
-                          {rota.workerName} • {rota.templateWeek} • {rota.templateDay}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedRotaId && (
-                    <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                      {(() => {
-                        const selected = rotas.find((r) => r.id === selectedRotaId);
-                        return selected ? (
-                          <div className="space-y-1">
-                            <div className="font-medium text-foreground">{selected.workerName}</div>
-                            <div>{selected.templateWeek} • {selected.templateDay}</div>
-                            <div>Updated {new Date(selected.updatedAt).toLocaleDateString()}</div>
-                          </div>
-                        ) : null;
-                      })()}
-                    </div>
-                  )}
+                <div className="text-xs text-muted-foreground">
+                  {rotas.length} saved rotas available.
                 </div>
               )}
             </CardContent>
           </Card>
-
-          {selectedWorkbookId && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Data Management</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="w-full"
-                  onClick={handleDeleteWorkbook}
-                  disabled={deleteMutation.isPending}
-                >
-                  {deleteMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2" />
-                  ) : null}
-                  Delete Upload
-                </Button>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Overloaded Workers Warning */}
           {workerConstraints.length > 0 && (
@@ -1381,12 +1397,22 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                             Max {Math.round(c.maxMinutesPerDay / 60)}h/day
                           </Badge>
                         )}
+                        {c.maxCallsPerWeek && (
+                          <Badge variant="outline" className="text-[9px]">
+                            Max {c.maxCallsPerWeek} calls/week
+                          </Badge>
+                        )}
+                        {c.maxMinutesPerWeek && (
+                          <Badge variant="outline" className="text-[9px]">
+                            Max {Math.round(c.maxMinutesPerWeek / 60)}h/week
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-2">
-                  The optimizer will respect these limits when balancing workload.
+                  The optimizer will respect these limits for the selected template week.
                 </p>
               </CardContent>
             </Card>
@@ -1459,37 +1485,37 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
             </Card>
           ) : (
             <>
-              {/* Workbook summary */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Card className="border-border/60 bg-background/70 shadow-soft hover-elevate shimmer">
-                  <CardContent className="pt-4">
-                    <p className="text-xs uppercase text-muted-foreground">Total Rows</p>
-                    <p className="text-2xl font-bold">{workbook.totalRows.toLocaleString()}</p>
-                  </CardContent>
-                </Card>
-                <Card className="border-border/60 bg-background/70 shadow-soft hover-elevate shimmer">
+              {/* Rostering overview */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <Card className="border-border/60 bg-background/70 shadow-soft">
                   <CardContent className="pt-4">
                     <p className="text-xs uppercase text-muted-foreground">Care Workers</p>
-                    <p className="text-2xl font-bold">{workbook.careWorkerCount}</p>
+                    <p className="text-2xl font-bold">{overviewStats.totalWorkers}</p>
                   </CardContent>
                 </Card>
-                <Card className="border-border/60 bg-background/70 shadow-soft hover-elevate shimmer">
+                <Card className="border-border/60 bg-background/70 shadow-soft">
                   <CardContent className="pt-4">
                     <p className="text-xs uppercase text-muted-foreground">Service Users</p>
-                    <p className="text-2xl font-bold">{workbook.serviceUserCount}</p>
+                    <p className="text-2xl font-bold">{overviewStats.totalServiceUsers}</p>
                   </CardContent>
                 </Card>
-                <Card className="border-border/60 bg-background/70 shadow-soft hover-elevate shimmer">
+                <Card className="border-border/60 bg-background/70 shadow-soft">
                   <CardContent className="pt-4">
                     <p className="text-xs uppercase text-muted-foreground">Call Groups</p>
-                    <p className="text-2xl font-bold">{workbook.callGroupCount}</p>
+                    <p className="text-2xl font-bold">{overviewStats.totalCallGroups}</p>
                   </CardContent>
                 </Card>
-                <Card className="border-border/60 bg-background/70 shadow-soft hover-elevate shimmer">
+                <Card className="border-border/60 bg-background/70 shadow-soft">
                   <CardContent className="pt-4">
-                    <p className="text-xs uppercase text-muted-foreground">Avg Calls/Worker</p>
-                    <p className="text-2xl font-bold">{utilizationStats.avgCalls}</p>
-                    <p className="text-[10px] text-muted-foreground">{utilizationStats.avgHours}h avg · {utilizationStats.totalHours}h total</p>
+                    <p className="text-xs uppercase text-muted-foreground">Total Calls</p>
+                    <p className="text-2xl font-bold">{overviewStats.totalCalls}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-border/60 bg-background/70 shadow-soft">
+                  <CardContent className="pt-4">
+                    <p className="text-xs uppercase text-muted-foreground">Total Hours</p>
+                    <p className="text-2xl font-bold">{overviewStats.totalHours}</p>
+                    <p className="text-[10px] text-muted-foreground">{utilizationStats.avgHours}h avg · {utilizationStats.avgCalls} calls avg</p>
                   </CardContent>
                 </Card>
               </div>
@@ -1749,7 +1775,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                           <div>
                             <h3 className="text-sm font-semibold">Worker Constraints</h3>
                             <p className="text-xs text-muted-foreground">
-                              Set maximum calls and hours per day for each care worker. Workers exceeding limits will be highlighted.
+                              Set maximum calls and hours per day or week for each care worker. Workers exceeding limits will be highlighted.
                             </p>
                           </div>
                         </div>
@@ -1760,6 +1786,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                           }))}
                           constraints={constraintsForEditor}
                           workerSummaries={heatmapSummaries}
+                          weeklyTotals={weeklyTotals}
                           onSave={(constraint) => {
                             saveConstraintMutation.mutate(constraint);
                           }}
@@ -1781,6 +1808,12 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                         <WorkloadHeatmap
                           workers={heatmapSummaries}
                           constraints={constraintsForEditor}
+                          weeklyTotals={weeklyTotals}
+                          selectedWorkerKey={selectedCareWorkerKey}
+                          onWorkerClick={(workerKey) => {
+                            setSelectedCareWorkerKey(workerKey);
+                            setShowAllWorkers(false);
+                          }}
                         />
                       </div>
                     </TabsContent>
@@ -2146,11 +2179,15 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                                     )}
                                     {violation && (
                                       <Badge variant="outline" className="text-[10px] border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10">
-                                        {violation.overCalls && violation.overMinutes
-                                          ? "Over limit"
-                                          : violation.overCalls
-                                            ? "Too many calls"
-                                            : "Too many hours"}
+                                        {violation.overWeeklyCalls || violation.overWeeklyMinutes
+                                          ? (violation.overCalls || violation.overMinutes
+                                            ? "Over daily & weekly"
+                                            : "Over weekly limit")
+                                          : violation.overCalls && violation.overMinutes
+                                            ? "Over daily limit"
+                                            : violation.overCalls
+                                              ? "Too many calls"
+                                              : "Too many hours"}
                                       </Badge>
                                     )}
                                   </div>

@@ -8,6 +8,8 @@ export interface TimelineEntry {
   callTypeLabel?: string | null;
   isTimeCritical?: boolean;
   isDoubleUp?: boolean;
+  isTemplated?: boolean;
+  requiredStartMinutes?: number | null;
   address?: string | null;
 }
 
@@ -38,6 +40,7 @@ interface WorkerCallGroupShape {
   totalCalls: number;
   isTimeCritical: boolean;
   templatedWeekdayKeys?: Set<string>;
+  doubleUpWeekdayKeys?: Set<string>;
 }
 
 interface CareWorkerRosterShape {
@@ -74,6 +77,13 @@ export const buildWorkerTimelineEntries = (
       serviceUserKey: group.serviceUserKey,
       callTypeLabel: group.callTypeLabel,
       isTimeCritical: group.isTimeCritical,
+      isDoubleUp: templateSelectionKey
+        ? Boolean(group.doubleUpWeekdayKeys?.has(templateSelectionKey))
+        : false,
+      isTemplated: templateSelectionKey
+        ? Boolean(group.templatedWeekdayKeys?.has(templateSelectionKey))
+        : false,
+      requiredStartMinutes: group.requirementStartMinutes ?? null,
       address: group.serviceUserAddress ?? null,
     }));
 };

@@ -21,6 +21,7 @@ import crypto from 'crypto';
 export interface RawCallRecord {
   serviceUserName: string;
   workerName: string;
+  templateWorkerName?: string;
   callTypeLabel: string;
   callDate: string; // YYYY-MM-DD
   scheduledStart?: number; // minutes from midnight
@@ -139,6 +140,7 @@ export interface ExtractionResult {
   calls: AnalyzedCallRecord[];
   serviceOrders: ServiceOrderSummary[];
   templateAssignments: TemplateAssignmentRecord[];
+  templateSlotStates: TemplateSlotState[];
   recommendations: CallRecommendationRecord[];
   stats: {
     totalRows: number;
@@ -156,6 +158,8 @@ export interface ExtractionResult {
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
+
+const TIME_RECOMMENDATION_THRESHOLD_MINUTES = 10;
 
 /**
  * Normalize a name for consistent matching
@@ -194,6 +198,17 @@ export function generateCallHash(
 ): string {
   const data = `${serviceUserKey}|${workerKey}|${callDate}|${callTypeKey}|${plannedStartMinutes ?? 'none'}`;
   return crypto.createHash('sha256').update(data).digest('hex').substring(0, 32);
+}
+
+/**
+ * Template slot state (latest data within window)
+ */
+export interface TemplateSlotState {
+  serviceUserKey: string;
+  callTypeKey: string;
+  templateWeek: 'week1' | 'week2';
+  templateDay: string;
+  hasTemplate: boolean;
 }
 
 /**
@@ -244,14 +259,15 @@ export function getTimeBand(minutes?: number): string {
  */
 export function getTemplateWeek(dateStr: string, referenceDate?: string): 'week1' | 'week2' {
   // Use a reference date to establish consistent week numbering
-  // Default reference: Jan 1, 2024 (Monday) as week 1
-  const ref = referenceDate ? new Date(referenceDate) : new Date('2024-01-01');
+  // Default reference: Jan 5, 2026 (Monday) as week 1
+  const ref = referenceDate ? new Date(referenceDate) : new Date('2026-01-05');
   const date = new Date(dateStr);
   
   const diffDays = Math.floor((date.getTime() - ref.getTime()) / (1000 * 60 * 60 * 24));
-  const weekNum = Math.floor(diffDays / 7) + 1;
+  const weekOffset = Math.floor(diffDays / 7);
+  const parity = ((weekOffset % 2) + 2) % 2;
   
-  return weekNum % 2 === 1 ? 'week1' : 'week2';
+  return parity === 0 ? 'week1' : 'week2';
 }
 
 /**
@@ -313,6 +329,7 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
       calls: [],
       serviceOrders: [],
       templateAssignments: [],
+      templateSlotStates: [],
       recommendations: [],
       stats: {
         totalRows: 0,
@@ -332,7 +349,19 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
   const callMap = new Map<string, AnalyzedCallRecord>();
   
   // For template detection - track most recent occurrence of each call slot
-  const templateSlotMap = new Map<string, { dateStr: string; workerKey: string; workerName: string }>();
+  const templateSlotMap = new Map<
+    string,
+    {
+      dateStr: string;
+      sortIndex: number;
+      hasTemplate: boolean;
+      workerKey?: string;
+      workerName?: string;
+      callTypeLabel: string;
+      timeBand: string;
+      serviceRequirementStartMinutes?: number;
+    }
+  >();
   
   // For service order building - aggregate by service user + call type
   const orderAggregateMap = new Map<string, {
@@ -344,10 +373,12 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
   }>();
 
   // Sort calls by date (most recent last for template detection)
-  const sortedCalls = [...calls].sort((a, b) => a.callDate.localeCompare(b.callDate));
+  const sortedCalls = [...calls]
+    .map((call, index) => ({ call, index }))
+    .sort((a, b) => a.call.callDate.localeCompare(b.call.callDate) || a.index - b.index);
 
   // Find date range for 28-day template window
-  const dates = sortedCalls.map(c => c.callDate).filter(Boolean);
+  const dates = sortedCalls.map(c => c.call.callDate).filter(Boolean);
   const dateRangeStart = dates[0];
   const dateRangeEnd = dates[dates.length - 1];
   
@@ -357,7 +388,8 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
   const templateCutoffStr = templateCutoffDate.toISOString().split('T')[0];
 
   // First pass: Process all calls
-  for (const call of sortedCalls) {
+  for (const entry of sortedCalls) {
+    const call = entry.call;
     const serviceUserKey = generateServiceUserKey(call.serviceUserName);
     const workerKey = generateWorkerKey(call.workerName);
     const callTypeKey = getCallTypeKey(call.callTypeLabel);
@@ -442,16 +474,27 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
     }
     
     // Track template slots (only for calls in 28-day window)
-    if (call.callDate >= templateCutoffStr && !isAdminStaff(call.workerName)) {
+    if (call.callDate >= templateCutoffStr) {
       const templateSlotKey = `${serviceUserKey}|${callTypeKey}|${templateWeek}|${templateDay}`;
+      const templateWorkerName = call.templateWorkerName?.trim() || undefined;
+      const hasTemplate = Boolean(templateWorkerName) && !isAdminStaff(templateWorkerName);
+      const templateWorkerKey = hasTemplate ? generateWorkerKey(templateWorkerName as string) : undefined;
       const existing = templateSlotMap.get(templateSlotKey);
-      
-      // Only update if this is more recent (sorted by date, so will always be)
-      if (!existing || call.callDate >= existing.dateStr) {
+      const shouldReplace =
+        !existing ||
+        call.callDate > existing.dateStr ||
+        (call.callDate === existing.dateStr && entry.index >= existing.sortIndex);
+
+      if (shouldReplace) {
         templateSlotMap.set(templateSlotKey, {
           dateStr: call.callDate,
-          workerKey,
-          workerName: call.workerName,
+          sortIndex: entry.index,
+          hasTemplate,
+          workerKey: templateWorkerKey,
+          workerName: templateWorkerName,
+          callTypeLabel: call.callTypeLabel,
+          timeBand,
+          serviceRequirementStartMinutes: call.serviceRequirementStart,
         });
       }
     }
@@ -469,7 +512,11 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
     }
     const agg = orderAggregateMap.get(orderKey)!;
     agg.records.push(call);
-    if (call.actualStart !== undefined) agg.startTimes.push(call.actualStart);
+    const startCandidate =
+      call.actualStart ??
+      call.scheduledStart ??
+      call.serviceRequirementStart;
+    if (startCandidate !== undefined) agg.startTimes.push(startCandidate);
     if (call.actualDuration !== undefined) agg.durations.push(call.actualDuration);
     agg.daysSeen.get(templateWeek)!.add(templateDay);
     if (call.isDoubleUp) agg.carersRequired = 2;
@@ -490,21 +537,35 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
 
   // Build template assignments from slot map
   const templateAssignments: TemplateAssignmentRecord[] = [];
+  const templateSlotStates: TemplateSlotState[] = [];
   for (const [slotKey, slotData] of templateSlotMap) {
     const [serviceUserKey, _callTypeKey, templateWeek, templateDay] = slotKey.split('|');
     const su = serviceUserMap.get(serviceUserKey);
-    
+
+    templateSlotStates.push({
+      serviceUserKey,
+      callTypeKey: _callTypeKey,
+      templateWeek: templateWeek as 'week1' | 'week2',
+      templateDay,
+      hasTemplate: slotData.hasTemplate,
+    });
+
+    if (!slotData.hasTemplate || !slotData.workerKey || !slotData.workerName) {
+      continue;
+    }
+
     templateAssignments.push({
       workerKey: slotData.workerKey,
       workerName: slotData.workerName,
       serviceUserKey,
       serviceUserName: su?.serviceUserName || 'Unknown',
-      callTypeLabel: _callTypeKey, // Will need to map back
-      timeBand: 'MIXED', // Would need to track per slot
+      callTypeLabel: _callTypeKey, // Keep key for consistent matching
+      timeBand: slotData.timeBand,
       templateWeek: templateWeek as 'week1' | 'week2',
       templateDay,
       isTemplated: true,
       isPrimary: true,
+      serviceRequirementStartMinutes: slotData.serviceRequirementStartMinutes,
       sourceDateKey: slotData.dateStr,
     });
   }
@@ -513,10 +574,23 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
   for (const call of callMap.values()) {
     const templateSlotKey = `${call.serviceUserKey}|${call.callTypeKey}|${call.templateWeek}|${call.templateDay}`;
     const templateData = templateSlotMap.get(templateSlotKey);
-    
-    if (templateData && call.workerKey === templateData.workerKey) {
-      call.isTemplated = true;
+    call.isTemplated = Boolean(templateData?.hasTemplate);
+  }
+
+  // Track worker frequency for non-templated calls (for recommendations)
+  const orderWorkerCounts = new Map<string, Map<string, number>>();
+  const orderTotals = new Map<string, number>();
+  const orderHasTemplate = new Map<string, boolean>();
+  for (const call of callMap.values()) {
+    const orderKey = `${call.serviceUserKey}|${call.callTypeKey}|${call.timeBand}`;
+    if (call.isTemplated) {
+      orderHasTemplate.set(orderKey, true);
+      continue;
     }
+    const counts = orderWorkerCounts.get(orderKey) ?? new Map<string, number>();
+    counts.set(call.workerName, (counts.get(call.workerName) ?? 0) + 1);
+    orderWorkerCounts.set(orderKey, counts);
+    orderTotals.set(orderKey, (orderTotals.get(orderKey) ?? 0) + 1);
   }
 
   // Build service orders
@@ -566,7 +640,7 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
     // Determine recommended adjustments
     let recommendedAdjustment: string | undefined;
     let recommendedDurationMinutes: number | undefined;
-    let recommendedStartMinutes: number | undefined;
+    let recommendedStartMinutes: number | undefined = avgStartTime;
     
     // If actual duration is consistently > 10 mins more than planned, recommend increase
     if (durationVariance !== undefined && durationVariance > 10) {
@@ -618,6 +692,62 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
   // Build recommendations
   const recommendations: CallRecommendationRecord[] = [];
   for (const order of serviceOrders) {
+    const orderKey = `${order.serviceUserKey}|${order.callTypeKey}|${order.timeBand}`;
+    const hasTemplate = orderHasTemplate.get(orderKey) ?? false;
+    const workerCounts = orderWorkerCounts.get(orderKey);
+    const totalCalls = orderTotals.get(orderKey) ?? 0;
+
+    if (
+      order.startTimeVariance !== undefined &&
+      order.actualAvgStartTime !== undefined &&
+      order.serviceRequirementStartTime !== undefined &&
+      Math.abs(order.startTimeVariance) >= TIME_RECOMMENDATION_THRESHOLD_MINUTES
+    ) {
+      const direction = order.startTimeVariance > 0 ? "later" : "earlier";
+      recommendations.push({
+        serviceUserKey: order.serviceUserKey,
+        serviceUserName: order.serviceUserName,
+        callTypeLabel: order.callTypeLabel,
+        recommendationType: 'time_change',
+        currentValue: formatTime(order.serviceRequirementStartTime),
+        recommendedValue: formatTime(order.actualAvgStartTime),
+        reason: `Actual start averages ${Math.abs(order.startTimeVariance)} mins ${direction} than requirement`,
+        confidence: Math.min(95, 50 + order.sourceDataCount * 2),
+        priority: order.startTimeVariance && Math.abs(order.startTimeVariance) > 20 ? 4 : 3,
+        dataPoints: order.sourceDataCount,
+      });
+      if (!order.recommendedAdjustment) {
+        order.recommendedAdjustment = 'adjust_start_time';
+      }
+      order.recommendedStartMinutes = order.actualAvgStartTime;
+    }
+
+    if (!hasTemplate && workerCounts && totalCalls > 0) {
+      let topWorker = "";
+      let topCount = 0;
+      for (const [workerName, count] of workerCounts.entries()) {
+        if (count > topCount) {
+          topCount = count;
+          topWorker = workerName;
+        }
+      }
+      const share = topCount / totalCalls;
+      if (topWorker && topCount >= 2 && share >= 0.5) {
+        recommendations.push({
+          serviceUserKey: order.serviceUserKey,
+          serviceUserName: order.serviceUserName,
+          callTypeLabel: order.callTypeLabel,
+          recommendationType: 'worker_change',
+          currentValue: "Mixed coverage",
+          recommendedValue: topWorker,
+          reason: `${topWorker} completed ${topCount} of ${totalCalls} recent non-templated calls`,
+          confidence: Math.min(95, 40 + topCount * 10),
+          priority: share >= 0.7 ? 4 : 3,
+          dataPoints: totalCalls,
+        });
+      }
+    }
+
     if (order.recommendedAdjustment === 'increase_duration') {
       recommendations.push({
         serviceUserKey: order.serviceUserKey,
@@ -654,6 +784,7 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
     calls: Array.from(callMap.values()),
     serviceOrders,
     templateAssignments,
+    templateSlotStates,
     recommendations,
     stats: {
       totalRows: calls.length,

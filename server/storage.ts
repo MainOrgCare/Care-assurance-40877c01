@@ -334,6 +334,7 @@ export interface IStorage {
   getTemplateAssignmentsByServiceUser(serviceUserKey: string): Promise<TemplateAssignment[]>;
   getTemplateAssignmentsForDay(templateWeek: string, templateDay: string): Promise<TemplateAssignment[]>;
   getAllTemplateAssignments(): Promise<TemplateAssignment[]>;
+  deleteTemplateAssignmentsForSlot(serviceUserKey: string, callTypeLabel: string, templateWeek: string, templateDay: string): Promise<number>;
   deleteTemplateAssignment(id: string): Promise<void>;
   cleanupExpiredTemplateAssignments(): Promise<number>;
 
@@ -1957,6 +1958,26 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(templateAssignments)
       .orderBy(templateAssignments.workerName, templateAssignments.templateWeek, templateAssignments.templateDay);
+  }
+
+  async deleteTemplateAssignmentsForSlot(
+    serviceUserKey: string,
+    callTypeLabel: string,
+    templateWeek: string,
+    templateDay: string
+  ): Promise<number> {
+    const deleted = await this.db
+      .delete(templateAssignments)
+      .where(
+        and(
+          eq(templateAssignments.serviceUserKey, serviceUserKey),
+          eq(templateAssignments.callTypeLabel, callTypeLabel),
+          eq(templateAssignments.templateWeek, templateWeek),
+          eq(templateAssignments.templateDay, templateDay)
+        )
+      )
+      .returning({ id: templateAssignments.id });
+    return deleted.length;
   }
 
   async deleteTemplateAssignment(id: string): Promise<void> {

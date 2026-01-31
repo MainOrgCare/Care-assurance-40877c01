@@ -59,6 +59,16 @@ interface ResetResult {
   message: string;
 }
 
+interface WorkbookUploadSummary {
+  id: string;
+  fileName: string;
+  totalRows: number;
+  dateRangeStart?: string | null;
+  dateRangeEnd?: string | null;
+  createdAt: string;
+  completedAt?: string | null;
+}
+
 export const AdminDatabasePanel: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -66,6 +76,14 @@ export const AdminDatabasePanel: React.FC = () => {
   // Fetch data stats
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery<DataStats>({
     queryKey: ["/api/admin/rostering/data-stats"],
+  });
+
+  const {
+    data: uploads = [],
+    isLoading: uploadsLoading,
+    refetch: refetchUploads,
+  } = useQuery<WorkbookUploadSummary[]>({
+    queryKey: ["/api/admin/rostering/workbook-uploads"],
   });
 
   // Cleanup mutation
@@ -129,6 +147,39 @@ export const AdminDatabasePanel: React.FC = () => {
       if (error.message === "Reset cancelled") return;
       toast({
         title: "Reset Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteUploadMutation = useMutation({
+    mutationFn: async (uploadId: string) => {
+      const confirmed = window.confirm("Delete this workbook upload? This cannot be undone.");
+      if (!confirmed) {
+        throw new Error("Delete cancelled");
+      }
+      const response = await fetch(`/api/admin/rostering/workbook-uploads/${uploadId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to delete workbook upload");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Workbook deleted",
+        description: "The saved upload has been removed.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbook-uploads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/data-stats"] });
+    },
+    onError: (error) => {
+      if (error.message === "Delete cancelled") return;
+      toast({
+        title: "Delete Failed",
         description: error.message,
         variant: "destructive",
       });
@@ -229,6 +280,63 @@ export const AdminDatabasePanel: React.FC = () => {
             )}
             Reset Rostering Data
           </Button>
+        </div>
+
+        <Separator />
+
+        {/* Saved Workbooks */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-semibold">Saved Workbook Uploads</h4>
+              <p className="text-xs text-muted-foreground">
+                Delete individual uploads when they are no longer needed.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refetchUploads()} disabled={uploadsLoading}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1" />
+              Refresh
+            </Button>
+          </div>
+          {uploadsLoading ? (
+            <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Loading uploads...
+            </div>
+          ) : uploads.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No saved uploads found.</p>
+          ) : (
+            <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+              {uploads.map((upload) => {
+                const dateLabel = upload.completedAt || upload.createdAt;
+                const rangeLabel =
+                  upload.dateRangeStart && upload.dateRangeEnd
+                    ? `${upload.dateRangeStart} → ${upload.dateRangeEnd}`
+                    : "Date range unavailable";
+                return (
+                  <div
+                    key={upload.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{upload.fileName}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {rangeLabel} • {new Date(dateLabel).toLocaleString()}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteUploadMutation.mutate(upload.id)}
+                      disabled={deleteUploadMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Last Cleanup Result */}

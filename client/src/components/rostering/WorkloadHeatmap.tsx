@@ -9,6 +9,8 @@ interface WorkerConstraint {
   workerKey: string;
   maxCallsPerDay?: number;
   maxMinutesPerDay?: number;
+  maxCallsPerWeek?: number;
+  maxMinutesPerWeek?: number;
 }
 
 interface WorkerSummaryInput {
@@ -22,6 +24,7 @@ interface WorkerSummaryInput {
 interface WorkloadHeatmapProps {
   workers: WorkerSummaryInput[];
   constraints?: WorkerConstraint[];
+  weeklyTotals?: Map<string, { calls: number; minutes: number }>;
   onWorkerClick?: (workerKey: string) => void;
   selectedWorkerKey?: string | null;
 }
@@ -41,6 +44,7 @@ interface WorkerWorkload {
 export const WorkloadHeatmap: React.FC<WorkloadHeatmapProps> = ({
   workers,
   constraints = [],
+  weeklyTotals,
   onWorkerClick,
   selectedWorkerKey,
 }) => {
@@ -51,6 +55,7 @@ export const WorkloadHeatmap: React.FC<WorkloadHeatmapProps> = ({
     for (const c of constraints) {
       constraintMap.set(c.workerKey, c);
     }
+    const weeklyMap = weeklyTotals ?? new Map<string, { calls: number; minutes: number }>();
     
     const totalMinutesSum = workers.reduce((sum, w) => sum + w.totalMinutes, 0);
     const avgMinutes = totalMinutesSum / workers.length;
@@ -68,13 +73,25 @@ export const WorkloadHeatmap: React.FC<WorkloadHeatmapProps> = ({
       .map((w): WorkerWorkload => {
         const percentage = avgMinutes > 0 ? (w.totalMinutes / avgMinutes) * 100 : 100;
         const constraint = constraintMap.get(w.workerKey);
+        const weekly = weeklyMap.get(w.workerKey);
         let capacityUsed: number | undefined;
-        
-        if (constraint?.maxCallsPerDay) {
+
+        if (constraint?.maxCallsPerWeek && weekly) {
+          capacityUsed = (weekly.calls / constraint.maxCallsPerWeek) * 100;
+        } else if (constraint?.maxMinutesPerWeek && weekly) {
+          capacityUsed = (weekly.minutes / constraint.maxMinutesPerWeek) * 100;
+        } else if (constraint?.maxCallsPerDay) {
           capacityUsed = (w.callCount / constraint.maxCallsPerDay) * 100;
         } else if (constraint?.maxMinutesPerDay) {
           capacityUsed = (w.totalMinutes / constraint.maxMinutesPerDay) * 100;
         }
+
+        const weeklyOverCalls = constraint?.maxCallsPerWeek
+          ? (weekly?.calls ?? 0) > constraint.maxCallsPerWeek
+          : false;
+        const weeklyOverMinutes = constraint?.maxMinutesPerWeek
+          ? (weekly?.minutes ?? 0) > constraint.maxMinutesPerWeek
+          : false;
         
         return {
           key: w.workerKey,
@@ -82,14 +99,14 @@ export const WorkloadHeatmap: React.FC<WorkloadHeatmapProps> = ({
           calls: w.callCount,
           minutes: w.totalMinutes,
           percentage: Math.round(percentage),
-          isOverloaded: w.totalMinutes > overloadThreshold || (capacityUsed !== undefined && capacityUsed > 100),
+          isOverloaded: w.totalMinutes > overloadThreshold || weeklyOverCalls || weeklyOverMinutes || (capacityUsed !== undefined && capacityUsed > 100),
           isUnderloaded: w.totalMinutes < underloadThreshold,
           constraint,
           capacityUsed: capacityUsed ? Math.round(capacityUsed) : undefined,
         };
       })
       .sort((a, b) => b.minutes - a.minutes);
-  }, [workers, constraints]);
+  }, [workers, constraints, weeklyTotals]);
 
   const stats = useMemo(() => {
     const overloaded = workloads.filter((w) => w.isOverloaded).length;
@@ -203,9 +220,17 @@ export const WorkloadHeatmap: React.FC<WorkloadHeatmapProps> = ({
                       <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
                         <span>
                           {workload.constraint.maxCallsPerDay
-                            ? `Limit: ${workload.constraint.maxCallsPerDay} calls`
+                            ? `Limit: ${workload.constraint.maxCallsPerDay} calls/day`
                             : workload.constraint.maxMinutesPerDay
-                            ? `Limit: ${formatDuration(workload.constraint.maxMinutesPerDay)}`
+                            ? `Limit: ${formatDuration(workload.constraint.maxMinutesPerDay)}/day`
+                            : ""}
+                          {(workload.constraint.maxCallsPerDay || workload.constraint.maxMinutesPerDay) && (workload.constraint.maxCallsPerWeek || workload.constraint.maxMinutesPerWeek)
+                            ? " • "
+                            : ""}
+                          {workload.constraint.maxCallsPerWeek
+                            ? `${workload.constraint.maxCallsPerWeek} calls/week`
+                            : workload.constraint.maxMinutesPerWeek
+                            ? `${formatDuration(workload.constraint.maxMinutesPerWeek)}/week`
                             : ""}
                         </span>
                         {workload.capacityUsed !== undefined && (

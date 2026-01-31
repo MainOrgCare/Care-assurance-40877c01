@@ -8,6 +8,7 @@ import {
   useSensors,
   useDroppable,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragOverEvent,
   type DragStartEvent,
   DragOverlay,
@@ -17,7 +18,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import type { GanttLane, TimelineEntry } from "@/lib/rostering/rosterModel";
 import { WorkerAvatar } from "./WorkerAvatar";
-import { AlertTriangle, Clock, Check, CheckCircle2, Target, Users } from "lucide-react";
+import { AlertTriangle, Clock, Check, CheckCircle2, Target } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -67,21 +68,21 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
 const getCallTypeColor = (callTypeLabel: string | null | undefined): { bg: string; border: string } => {
   const label = (callTypeLabel || "").toLowerCase();
   if (label.includes("am") || label.includes("morning")) {
-    return { bg: "bg-sky-500", border: "border-sky-600" };
+    return { bg: "bg-blue-600", border: "border-blue-700" };
   }
   if (label.includes("lunch")) {
-    return { bg: "bg-amber-500", border: "border-amber-600" };
+    return { bg: "bg-amber-600", border: "border-amber-700" };
   }
   if (label.includes("tea")) {
-    return { bg: "bg-orange-500", border: "border-orange-600" };
+    return { bg: "bg-emerald-600", border: "border-emerald-700" };
   }
   if (label.includes("evening") || label.includes("pm")) {
-    return { bg: "bg-violet-500", border: "border-violet-600" };
+    return { bg: "bg-indigo-600", border: "border-indigo-700" };
   }
   if (label.includes("night")) {
-    return { bg: "bg-indigo-500", border: "border-indigo-600" };
+    return { bg: "bg-slate-700", border: "border-slate-800" };
   }
-  return { bg: "bg-emerald-500", border: "border-emerald-600" };
+  return { bg: "bg-slate-600", border: "border-slate-700" };
 };
 
 // Check for overlaps in a lane
@@ -175,6 +176,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   const [trackWidth, setTrackWidth] = useState(0);
   const [activeLaneId, setActiveLaneId] = useState<string | null>(null);
   const [dragOverLaneId, setDragOverLaneId] = useState<string | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ start: number; end: number } | null>(null);
   
   // Virtual scrolling state
   const [scrollTop, setScrollTop] = useState(0);
@@ -274,15 +276,22 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   const recommendedTimeStatus = useMemo(() => {
     const statusMap = new Map<string, { hasRecommendation: boolean; isWithinWindow: boolean; deviationMinutes: number }>();
     if (!recommendedTimes || recommendedTimes.length === 0) return statusMap;
-    
+
+    const specificMap = new Map<string, RecommendedTimeWindow>();
+    const genericMap = new Map<string, RecommendedTimeWindow>();
+    recommendedTimes.forEach((rt) => {
+      if (rt.callTypeLabel) {
+        specificMap.set(`${rt.serviceUserKey}::${rt.callTypeLabel}`, rt);
+      } else {
+        genericMap.set(rt.serviceUserKey, rt);
+      }
+    });
+
     lanes.forEach((lane) => {
       lane.entries.forEach((entry) => {
-        // Find matching recommendation by service user and call type
-        const recommendation = recommendedTimes.find(
-          (rt) => rt.serviceUserKey === entry.serviceUserKey && 
-                  (rt.callTypeLabel === entry.callTypeLabel || !rt.callTypeLabel)
-        );
-        
+        const key = `${entry.serviceUserKey}::${entry.callTypeLabel ?? ""}`;
+        const recommendation = specificMap.get(key) || genericMap.get(entry.serviceUserKey);
+
         if (recommendation) {
           const deviation = Math.abs(entry.startMinutes - recommendation.recommendedStartMinutes);
           const isWithinWindow = deviation <= recommendation.toleranceMinutes;
@@ -294,7 +303,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
         }
       });
     });
-    
+
     return statusMap;
   }, [lanes, recommendedTimes]);
 
@@ -346,9 +355,33 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const entryId = String(event.active.id);
     const currentLaneId = entryToLaneMap.get(entryId);
+    const entry = entryIndex.get(entryId) ?? null;
     setActiveLaneId(currentLaneId ?? null);
-    setActiveEntry(entryIndex.get(entryId) ?? null);
+    setActiveEntry(entry);
+    if (entry) {
+      setDragPreview({
+        start: entry.startMinutes,
+        end: entry.startMinutes + entry.durationMinutes,
+      });
+    }
   }, [entryToLaneMap, entryIndex]);
+
+  const handleDragMove = useCallback((event: DragMoveEvent) => {
+    if (!activeEntry || !trackWidth) return;
+    const minutesPerPixel = totalMinutes / trackWidth;
+    const deltaMinutes = Math.round(event.delta.x * minutesPerPixel);
+    const rawStart = activeEntry.startMinutes + deltaMinutes;
+    const snappedStart = Math.round(rawStart / snapMinutes) * snapMinutes;
+    const nextStart = clamp(
+      snappedStart,
+      startMinutes,
+      endMinutes - activeEntry.durationMinutes
+    );
+    setDragPreview({
+      start: nextStart,
+      end: nextStart + activeEntry.durationMinutes,
+    });
+  }, [activeEntry, endMinutes, snapMinutes, startMinutes, totalMinutes, trackWidth]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const entryId = String(event.active.id);
@@ -357,6 +390,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
     setActiveLaneId(null);
     setDragOverLaneId(null);
     setActiveEntry(null);
+    setDragPreview(null);
     
     if (!entry || !trackWidth) return;
     
@@ -395,16 +429,16 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
         </div>
         <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground flex-wrap">
           <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-sky-500" /> AM
+            <span className="h-2 w-2 rounded-full bg-blue-600" /> AM
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-amber-500" /> Lunch
+            <span className="h-2 w-2 rounded-full bg-amber-600" /> Lunch
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-orange-500" /> Tea
+            <span className="h-2 w-2 rounded-full bg-emerald-600" /> Tea
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-violet-500" /> Evening
+            <span className="h-2 w-2 rounded-full bg-indigo-600" /> Evening
           </span>
           {totalConflicts > 0 && (
             <span className="inline-flex items-center gap-1 text-red-500 font-medium">
@@ -452,6 +486,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
           sensors={sensors}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
+          onDragMove={handleDragMove}
           onDragEnd={handleDragEnd}
           collisionDetection={rectIntersection}
         >
@@ -462,7 +497,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
             {/* Drag overlay for smoother visual feedback with time preview */}
             <DragOverlay dropAnimation={null}>
               {activeEntry && (
-                <div className="h-14 rounded-lg px-3 text-left text-[11px] font-semibold text-white shadow-xl bg-primary border-l-4 border-primary-foreground scale-105 pointer-events-none">
+                <div className="h-14 rounded-lg px-3 text-left text-[11px] font-semibold text-white shadow-lg bg-slate-700 border-l-4 border-slate-900 pointer-events-none">
                   <div className="flex items-center gap-1.5 pt-1.5">
                     {activeEntry.isTimeCritical && <AlertTriangle className="h-3 w-3" />}
                     {activeEntry.isDoubleUp && (
@@ -472,7 +507,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                   </div>
                   <div className="text-[11px] font-semibold opacity-100 mt-1 flex items-center gap-1.5 bg-white/10 rounded px-1.5 py-0.5">
                     <Clock className="h-3 w-3" />
-                    {formatTimeLabel(activeEntry.startMinutes)} - {formatTimeLabel(activeEntry.startMinutes + activeEntry.durationMinutes)}
+                    {formatTimeLabel(dragPreview?.start ?? activeEntry.startMinutes)} - {formatTimeLabel(dragPreview?.end ?? (activeEntry.startMinutes + activeEntry.durationMinutes))}
                     <span className="text-[10px] opacity-80">({activeEntry.durationMinutes}m)</span>
                   </div>
                 </div>
@@ -696,7 +731,7 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
   const width = ((end - start) / totalMinutes) * 100;
 
   const colors = entry.isTimeCritical 
-    ? { bg: "bg-amber-500", border: "border-amber-600" }
+    ? { bg: "bg-rose-600", border: "border-rose-700" }
     : getCallTypeColor(entry.callTypeLabel);
 
   const style = {
@@ -720,7 +755,7 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
       <div className="text-muted-foreground">{entry.durationMinutes} minutes</div>
       {entry.callTypeLabel && <div className="text-muted-foreground">{entry.callTypeLabel}</div>}
       {entry.address && <div className="text-muted-foreground truncate max-w-[200px]">{entry.address}</div>}
-      {entry.isTimeCritical && <div className="text-amber-500 font-medium">⚠ Time Critical</div>}
+      {entry.isTimeCritical && <div className="text-rose-500 font-medium">⚠ Time Critical</div>}
       {entry.isDoubleUp && <div className="text-blue-500 font-medium">👥 Double-Up Required</div>}
       {hasConflict && <div className="text-red-500 font-medium">⚠ Schedule Conflict</div>}
     </div>
@@ -734,14 +769,13 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
             ref={setNodeRef}
             type="button"
             onClick={handleClick}
-            className={`absolute top-1 h-14 sm:h-12 rounded-lg px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-white shadow-md transition-shadow touch-manipulation
+            className={`absolute top-1 h-14 sm:h-12 rounded-lg px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-white shadow-sm touch-manipulation
               focus:outline-none focus:ring-2 focus:ring-primary/60 
               ${colors.bg} border-l-4 ${colors.border}
-              ${isDragging ? "opacity-50 shadow-lg z-20" : ""}
-              ${isSelected ? "ring-2 ring-white shadow-lg z-10" : ""}
+              ${isDragging ? "opacity-60 shadow-md z-20" : ""}
+              ${isSelected ? "ring-2 ring-white shadow-md z-10" : ""}
               ${isFocused ? "ring-2 ring-primary ring-offset-1 z-10" : ""}
-              ${hasConflict ? "ring-2 ring-red-400" : ""}
-              hover:brightness-110 active:scale-[0.98]`}
+              ${hasConflict ? "ring-2 ring-red-400" : ""}`}
             style={style}
             {...attributes}
             {...listeners}
@@ -761,10 +795,6 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
             <div className="flex items-center gap-1">
               {entry.isTimeCritical && <AlertTriangle className="h-3 w-3 shrink-0" />}
               <span className="truncate">{entry.title}</span>
-            </div>
-            <div className="text-[9px] sm:text-[10px] font-normal opacity-90 flex items-center gap-1">
-              <Clock className="h-2.5 w-2.5" />
-              {formatTimeLabel(entry.startMinutes)} · {entry.durationMinutes}m
             </div>
             {hasConflict && !entry.isDoubleUp && (
               <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border border-white" />

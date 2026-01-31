@@ -4602,6 +4602,7 @@ export default function TestingFeatures() {
   const insightsNavDisabled = analysisResults.length === 0;
   const studioNavDisabled = careWorkerRosters.length === 0;
   const stacksNavDisabled = serviceUserStacks.length === 0;
+  const showRosteringStudio = false;
 
   return (
     <div className="page-shell max-w-7xl mx-auto space-y-10 relative pb-6">
@@ -4708,7 +4709,7 @@ export default function TestingFeatures() {
           </AlertTitle>
           <AlertDescription className="text-sm">
             {careWorkerRosters.length > 0
-              ? "Save your analysis to the library for persistent storage and use in the dedicated Rostering Studio."
+              ? "Save your analysis to the library for persistent storage and reporting."
               : "Data stays in-memory only. Refreshing the page clears every upload, so export a PDF if you need a temporary record."}
           </AlertDescription>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -4805,12 +4806,6 @@ export default function TestingFeatures() {
                   )}
                   Save to Library
                 </Button>
-                <Button type="button" size="sm" variant="outline" asChild>
-                  <Link href="/rostering-studio">
-                    <Route className="h-3.5 w-3.5 mr-2" />
-                    Open Rostering Studio
-                  </Link>
-                </Button>
               </>
             ) : (
               <>
@@ -4864,17 +4859,6 @@ export default function TestingFeatures() {
               >
                 <Search className="h-3.5 w-3.5" />
                 Insights
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={studioNavDisabled}
-                onClick={() => scrollToAnchor("tf-studio")}
-                className="gap-2"
-              >
-                <Route className="h-3.5 w-3.5" />
-                Studio
               </Button>
               <Button
                 type="button"
@@ -5750,7 +5734,7 @@ export default function TestingFeatures() {
             </AccordionItem>
           )}
 
-          {careWorkerRosters.length > 0 && (
+          {showRosteringStudio && careWorkerRosters.length > 0 && (
             <AccordionItem
               id="tf-studio"
               value="care-worker-route-optimizer"

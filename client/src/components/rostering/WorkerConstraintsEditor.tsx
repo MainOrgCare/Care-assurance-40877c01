@@ -39,6 +39,7 @@ interface WorkerConstraintsEditorProps {
   constraints: WorkerConstraint[];
   workers: { key: string; name: string }[];
   workerSummaries?: { workerKey: string; workerName: string; totalMinutes: number; callCount: number; uniqueServiceUsers: number }[];
+  weeklyTotals?: Map<string, { calls: number; minutes: number }>;
   onSave: (constraint: Omit<WorkerConstraint, "id">) => void;
   onDelete: (id: string) => void;
   isSaving?: boolean;
@@ -48,6 +49,7 @@ export const WorkerConstraintsEditor: React.FC<WorkerConstraintsEditorProps> = (
   constraints,
   workers,
   workerSummaries = [],
+  weeklyTotals,
   onSave,
   onDelete,
   isSaving,
@@ -60,6 +62,8 @@ export const WorkerConstraintsEditor: React.FC<WorkerConstraintsEditorProps> = (
   const [selectedWorker, setSelectedWorker] = useState<string>("");
   const [maxCallsPerDay, setMaxCallsPerDay] = useState<number | undefined>();
   const [maxMinutesPerDay, setMaxMinutesPerDay] = useState<number | undefined>();
+  const [maxCallsPerWeek, setMaxCallsPerWeek] = useState<number | undefined>();
+  const [maxMinutesPerWeek, setMaxMinutesPerWeek] = useState<number | undefined>();
   const [notes, setNotes] = useState<string>("");
 
   // Build lookup map for worker summaries
@@ -70,6 +74,11 @@ export const WorkerConstraintsEditor: React.FC<WorkerConstraintsEditorProps> = (
     }
     return map;
   }, [workerSummaries]);
+
+  const weeklyMap = useMemo(
+    () => weeklyTotals ?? new Map<string, { calls: number; minutes: number }>(),
+    [weeklyTotals]
+  );
 
   const constraintMap = useMemo(() => {
     const map = new Map<string, WorkerConstraint>();
@@ -89,6 +98,7 @@ export const WorkerConstraintsEditor: React.FC<WorkerConstraintsEditorProps> = (
     return filteredWorkers.map((w) => {
       const constraint = constraintMap.get(w.key);
       const summary = summaryMap.get(w.key) || { currentCalls: 0, currentMinutes: 0 };
+      const weekly = weeklyMap.get(w.key);
       let status: "ok" | "warning" | "overloaded" = "ok";
       
       if (constraint) {
@@ -96,21 +106,31 @@ export const WorkerConstraintsEditor: React.FC<WorkerConstraintsEditorProps> = (
           status = "overloaded";
         } else if (constraint.maxMinutesPerDay && summary.currentMinutes > constraint.maxMinutesPerDay) {
           status = "overloaded";
+        } else if (constraint.maxCallsPerWeek && (weekly?.calls ?? 0) > constraint.maxCallsPerWeek) {
+          status = "overloaded";
+        } else if (constraint.maxMinutesPerWeek && (weekly?.minutes ?? 0) > constraint.maxMinutesPerWeek) {
+          status = "overloaded";
         } else if (constraint.maxCallsPerDay && summary.currentCalls > constraint.maxCallsPerDay * 0.9) {
           status = "warning";
         } else if (constraint.maxMinutesPerDay && summary.currentMinutes > constraint.maxMinutesPerDay * 0.9) {
           status = "warning";
+        } else if (constraint.maxCallsPerWeek && (weekly?.calls ?? 0) > constraint.maxCallsPerWeek * 0.9) {
+          status = "warning";
+        } else if (constraint.maxMinutesPerWeek && (weekly?.minutes ?? 0) > constraint.maxMinutesPerWeek * 0.9) {
+          status = "warning";
         }
       }
       
-      return { ...w, ...summary, constraint, status };
+      return { ...w, ...summary, weekly, constraint, status };
     });
-  }, [filteredWorkers, constraintMap, summaryMap]);
+  }, [filteredWorkers, constraintMap, summaryMap, weeklyMap]);
 
   const resetForm = () => {
     setSelectedWorker("");
     setMaxCallsPerDay(undefined);
     setMaxMinutesPerDay(undefined);
+    setMaxCallsPerWeek(undefined);
+    setMaxMinutesPerWeek(undefined);
     setNotes("");
     setEditingConstraint(null);
   };
@@ -121,6 +141,8 @@ export const WorkerConstraintsEditor: React.FC<WorkerConstraintsEditorProps> = (
       setSelectedWorker(constraint.workerKey);
       setMaxCallsPerDay(constraint.maxCallsPerDay);
       setMaxMinutesPerDay(constraint.maxMinutesPerDay);
+      setMaxCallsPerWeek(constraint.maxCallsPerWeek);
+      setMaxMinutesPerWeek(constraint.maxMinutesPerWeek);
       setNotes(constraint.notes || "");
     } else {
       resetForm();
@@ -139,6 +161,8 @@ export const WorkerConstraintsEditor: React.FC<WorkerConstraintsEditorProps> = (
       workerName: worker.name,
       maxCallsPerDay,
       maxMinutesPerDay,
+      maxCallsPerWeek,
+      maxMinutesPerWeek,
       notes: notes || undefined,
     });
     
@@ -168,7 +192,7 @@ export const WorkerConstraintsEditor: React.FC<WorkerConstraintsEditorProps> = (
               Worker Constraints
             </CardTitle>
             <CardDescription className="text-xs mt-1">
-              Set max calls/hours per worker to prevent overloading
+              Set max calls/hours per day or week to prevent overloading
             </CardDescription>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -255,6 +279,27 @@ export const WorkerConstraintsEditor: React.FC<WorkerConstraintsEditorProps> = (
                 </div>
 
                 <div className="grid gap-2">
+                  <Label>Max Calls Per Week</Label>
+                  <Input
+                    type="number"
+                    value={maxCallsPerWeek ?? ""}
+                    onChange={(e) => setMaxCallsPerWeek(e.target.value ? Number(e.target.value) : undefined)}
+                    placeholder="None"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label>Max Hours Per Week</Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={maxMinutesPerWeek ? (maxMinutesPerWeek / 60).toFixed(1) : ""}
+                    onChange={(e) => setMaxMinutesPerWeek(e.target.value ? Math.round(Number(e.target.value) * 60) : undefined)}
+                    placeholder="None"
+                  />
+                </div>
+
+                <div className="grid gap-2">
                   <Label htmlFor="notes">Notes (optional)</Label>
                   <Input
                     id="notes"
@@ -312,6 +357,9 @@ export const WorkerConstraintsEditor: React.FC<WorkerConstraintsEditorProps> = (
                   <span className="font-medium truncate max-w-[140px]">{w.name}</span>
                   <span className="text-xs text-muted-foreground">
                     {w.currentCalls} calls • {formatDuration(w.currentMinutes)}
+                    {w.weekly && (w.constraint?.maxCallsPerWeek || w.constraint?.maxMinutesPerWeek)
+                      ? ` • ${w.weekly.calls} wk calls${w.weekly.minutes ? ` • ${formatDuration(w.weekly.minutes)} wk` : ""}`
+                      : ""}
                   </span>
                 </div>
                 
@@ -325,6 +373,14 @@ export const WorkerConstraintsEditor: React.FC<WorkerConstraintsEditorProps> = (
                         {w.constraint.maxCallsPerDay && w.constraint.maxMinutesPerDay && " • "}
                         {w.constraint.maxMinutesPerDay && (
                           <span>max {formatDuration(w.constraint.maxMinutesPerDay)}</span>
+                        )}
+                        {(w.constraint.maxCallsPerDay || w.constraint.maxMinutesPerDay) && (w.constraint.maxCallsPerWeek || w.constraint.maxMinutesPerWeek) && " • "}
+                        {w.constraint.maxCallsPerWeek && (
+                          <span>{w.constraint.maxCallsPerWeek} / week</span>
+                        )}
+                        {w.constraint.maxCallsPerWeek && w.constraint.maxMinutesPerWeek && " • "}
+                        {w.constraint.maxMinutesPerWeek && (
+                          <span>{formatDuration(w.constraint.maxMinutesPerWeek)} / week</span>
                         )}
                       </div>
                       <Button

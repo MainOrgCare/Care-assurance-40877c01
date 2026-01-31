@@ -178,14 +178,12 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
               <div>
                 <p className="text-xs font-medium">Respect time-critical windows</p>
                 <p className="text-[10px] text-muted-foreground">
-                  Don&apos;t move visits marked as time-critical
+                  Always enforced (±15 minutes from service requirement)
                 </p>
               </div>
               <Switch
-                checked={constraints.respectTimeCritical}
-                onCheckedChange={(checked) =>
-                  onConstraintsChange({ ...constraints, respectTimeCritical: checked })
-                }
+                checked={true}
+                disabled
               />
             </div>
 
@@ -277,15 +275,13 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
                 <div>
                   <p className="text-xs font-medium">Lock templated calls</p>
                   <p className="text-[10px] text-muted-foreground">
-                    Templated calls stay with assigned worker
+                    Always enforced for templated calls
                   </p>
                 </div>
               </div>
               <Switch
-                checked={constraints.lockTemplatedCalls}
-                onCheckedChange={(checked) =>
-                  onConstraintsChange({ ...constraints, lockTemplatedCalls: checked })
-                }
+                checked={true}
+                disabled
               />
             </div>
 
@@ -296,16 +292,14 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <Slider
-                  value={[constraints.timeCriticalToleranceMinutes]}
-                  onValueChange={([value]) =>
-                    onConstraintsChange({ ...constraints, timeCriticalToleranceMinutes: value })
-                  }
+                  value={[15]}
+                  disabled
                   min={5}
                   max={30}
                   step={5}
                   className="flex-1 h-1.5"
                 />
-                <span className="text-xs w-12 text-right">±{constraints.timeCriticalToleranceMinutes}m</span>
+                <span className="text-xs w-12 text-right">±15m</span>
               </div>
               <p className="text-[10px] text-muted-foreground">
                 Time-critical calls must stay within this window

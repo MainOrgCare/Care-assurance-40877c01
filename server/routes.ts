@@ -12013,6 +12013,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         .map((row: any) => ({
           serviceUserName: row.serviceUserName,
           workerName: row.actualWorker || row.plannedWorker || "Unknown",
+          templateWorkerName: row.templateWorker ?? undefined,
           callTypeLabel: row.callTypeLabel || "Other",
           callDate: row.plannedDateKey,
           scheduledStart: row.plannedTimeMinutes ?? undefined,
@@ -12114,6 +12115,22 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         )
       );
 
+      // Remove stale template assignments (slots with no template in latest data window)
+      if (extracted.templateSlotStates?.length) {
+        const staleSlots = extracted.templateSlotStates.filter((slot) => !slot.hasTemplate);
+        const uniqueKeys = new Set(
+          staleSlots.map(
+            (slot) => `${slot.serviceUserKey}|${slot.callTypeKey}|${slot.templateWeek}|${slot.templateDay}`
+          )
+        );
+        await Promise.all(
+          Array.from(uniqueKeys).map((key) => {
+            const [serviceUserKey, callTypeKey, templateWeek, templateDay] = key.split("|");
+            return storage.deleteTemplateAssignmentsForSlot(serviceUserKey, callTypeKey, templateWeek, templateDay);
+          })
+        );
+      }
+
       // Save recommendations
       await Promise.all(
         extracted.recommendations.map((rec) =>
@@ -12201,6 +12218,28 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       }
 
       const calls = await storage.getAllAnalyzedCalls();
+      const templateAssignments = await storage.getAllTemplateAssignments();
+      const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string }>();
+      templateAssignments
+        .filter((assignment) => assignment.isTemplated)
+        .forEach((assignment) => {
+          const key = `${assignment.serviceUserKey}|${assignment.callTypeLabel}|${assignment.templateWeek}|${assignment.templateDay}`;
+          templateAssignmentMap.set(key, {
+            workerKey: assignment.workerKey,
+            workerName: assignment.workerName,
+          });
+        });
+      const templateAssignments = await storage.getAllTemplateAssignments();
+      const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string }>();
+      templateAssignments
+        .filter((assignment) => assignment.isTemplated)
+        .forEach((assignment) => {
+          const key = `${assignment.serviceUserKey}|${assignment.callTypeLabel}|${assignment.templateWeek}|${assignment.templateDay}`;
+          templateAssignmentMap.set(key, {
+            workerKey: assignment.workerKey,
+            workerName: assignment.workerName,
+          });
+        });
 
       const rosterMap = new Map<string, any>();
       const doubleUpSlots: Record<string, string[]> = {};
@@ -12208,8 +12247,10 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       let rowCounter = 0;
 
       for (const call of calls) {
-        const workerKey = call.workerKey;
-        const workerName = call.workerName;
+        const assignmentKey = `${call.serviceUserKey}|${call.callTypeKey}|${call.templateWeek}|${call.templateDay}`;
+        const templateAssignment = call.isTemplated ? templateAssignmentMap.get(assignmentKey) : undefined;
+        const workerKey = templateAssignment?.workerKey ?? call.workerKey;
+        const workerName = templateAssignment?.workerName ?? call.workerName;
         const roster = rosterMap.get(workerKey) || {
           key: workerKey,
           workerName,
@@ -12313,13 +12354,14 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         group.rows.push(row);
         group.totalCalls += 1;
         if (call.isTimeCritical) group.isTimeCritical = true;
+        const templateKey = `${call.templateWeek}|${call.templateDay}`;
         if (call.isTemplated) {
-          group.templatedWeekdayKeys.add(call.callDate);
+          group.templatedWeekdayKeys.add(templateKey);
           group.templatedRows += 1;
           roster.usesTemplateAssignments = true;
         }
         if (call.isDoubleUp) {
-          group.doubleUpWeekdayKeys.add(call.callDate);
+          group.doubleUpWeekdayKeys.add(templateKey);
           doubleUpSlots[groupKey] = [workerName];
         }
 
@@ -12601,8 +12643,10 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       let rowCounter = 0;
 
       for (const call of calls) {
-        const workerKey = call.workerKey;
-        const workerName = call.workerName;
+        const assignmentKey = `${call.serviceUserKey}|${call.callTypeKey}|${call.templateWeek}|${call.templateDay}`;
+        const templateAssignment = call.isTemplated ? templateAssignmentMap.get(assignmentKey) : undefined;
+        const workerKey = templateAssignment?.workerKey ?? call.workerKey;
+        const workerName = templateAssignment?.workerName ?? call.workerName;
         const roster = rosterMap.get(workerKey) || {
           key: workerKey,
           workerName,
@@ -12706,13 +12750,14 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         group.rows.push(row);
         group.totalCalls += 1;
         if (call.isTimeCritical) group.isTimeCritical = true;
+        const templateKey = `${call.templateWeek}|${call.templateDay}`;
         if (call.isTemplated) {
-          group.templatedWeekdayKeys.add(call.callDate);
+          group.templatedWeekdayKeys.add(templateKey);
           group.templatedRows += 1;
           roster.usesTemplateAssignments = true;
         }
         if (call.isDoubleUp) {
-          group.doubleUpWeekdayKeys.add(call.callDate);
+          group.doubleUpWeekdayKeys.add(templateKey);
           doubleUpSlots[groupKey] = [workerName];
         }
 
