@@ -4783,7 +4783,7 @@ export default function TestingFeatures() {
                         careWorkerCount: careWorkerRosters.length,
                         serviceUserCount: serviceUserStacks.length,
                         callGroupCount: callGroups.length,
-                        rowAnalysis: [],
+                        rowAnalysis: analysisResults,
                         callGroups: [],
                         careWorkerRosters: serializableRosters,
                         doubleUpSlots: serializableDoubleUpSlots,

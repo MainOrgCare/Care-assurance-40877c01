@@ -729,11 +729,11 @@ The EMAR analysis uses a multi-pass approach:
 6. **Drug Interaction Check**: Identify high-risk medication combinations
 
 **EMAR Codes:**
-- `G` = Given
+- `AD` = Administered
 - `R` = Refused (requires admin review)
 - `NH` = Not Home
 - `SA` = Self Administered
-- `F/FA` = Family Administered
+- `F` = Family Administered
 - `MU` = Medication Unavailable
 - `PRN` = As needed (with additional PRN codes)
 

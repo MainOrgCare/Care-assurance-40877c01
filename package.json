@@ -6,9 +6,13 @@
   "scripts": {
     "dev:client": "vite dev --port 5173",
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "npm ci --include=dev --legacy-peer-deps && npx vite build && npm run build:server",
+    "build:client": "npx vite build",
     "build:server": "npx esbuild server/index.ts --bundle --platform=node --packages=external --format=cjs --outfile=dist/index.cjs --external:./vite.config --external:./vite",
-    "start": "NODE_ENV=production node dist/index.cjs",
+    "build:worker": "npx esbuild server/worker.ts --bundle --platform=node --packages=external --format=cjs --outfile=dist/worker.cjs",
+    "build": "npm run build:client && npm run build:server && npm run build:worker",
+    "start:api": "NODE_ENV=production node dist/index.cjs",
+    "start:worker": "NODE_ENV=production node dist/worker.cjs",
+    "start": "npm run start:api",
     "test": "node --import tsx --test",
     "check": "tsc",
     "db:push": "drizzle-kit push"

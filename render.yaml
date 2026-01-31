@@ -1,14 +1,29 @@
 services:
+  - type: static
+    name: care-assurance-web
+    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:client
+    staticPublishPath: dist/public
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
+
   - type: web
-    name: care-assurance
+    name: care-assurance-api
     runtime: node
     plan: starter
-    buildCommand: npm run build
-    startCommand: npm run start
+    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:server
+    startCommand: npm run start:api
     autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
+      - key: ENABLE_CANONICAL_REDIRECT
+        value: "false"
+      - key: SERVE_STATIC
+        value: "false"
+      - key: CORS_ORIGIN
+        sync: false
       # Optional overrides; defaults exist in code. Prefer setting in Render dashboard.
       - key: CONTACT_EMAIL
         sync: false
@@ -26,5 +41,20 @@ services:
       - key: SMTP_PASS
         sync: false
       # If you use Postgres, set DATABASE_URL in the dashboard.
+      - key: DATABASE_URL
+        sync: false
+
+  - type: worker
+    name: care-assurance-worker
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:worker
+    startCommand: npm run start:worker
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLEANUP_INTERVAL_MS
+        sync: false
       - key: DATABASE_URL
         sync: false

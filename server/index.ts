@@ -15,15 +15,30 @@ declare module "http" {
 }
 
 // Domain redirect middleware - redirect non-canonical hosts to the custom domain in production
-const CANONICAL_DOMAIN = "careassurance.uk";
+const CANONICAL_DOMAIN = process.env.CANONICAL_DOMAIN || "careassurance.uk";
+const enableCanonicalRedirect = process.env.ENABLE_CANONICAL_REDIRECT === "true";
 app.use((req, res, next) => {
   const host = (req.get("host") || "").split(":")[0];
-  if (process.env.NODE_ENV === "production" && host && host !== CANONICAL_DOMAIN) {
+  if (process.env.NODE_ENV === "production" && enableCanonicalRedirect && host && host !== CANONICAL_DOMAIN) {
     const redirectUrl = `https://${CANONICAL_DOMAIN}${req.originalUrl}`;
     return res.redirect(301, redirectUrl);
   }
   next();
 });
+
+const corsOrigin = process.env.CORS_ORIGIN;
+if (corsOrigin) {
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", corsOrigin);
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(204);
+    }
+    next();
+  });
+}
 
 // Compression middleware - configured to allow flushing for SSE streams
 // The compression middleware adds res.flush() which is needed to push SSE events through proxies
@@ -146,9 +161,9 @@ const DEFAULT_ADMIN_USERNAME = "Lewis.barron";
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" && process.env.SERVE_STATIC === "true") {
     serveStatic(app);
-  } else {
+  } else if (process.env.NODE_ENV !== "production") {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }

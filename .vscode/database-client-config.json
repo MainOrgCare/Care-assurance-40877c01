@@ -1,0 +1,85 @@
+{
+    "database": {
+        "1769876350425": {
+            "key": "1769876350425",
+            "isTreeNode": true,
+            "host": "dpg-d5dbsh1r0fns73age33g-a.frankfurt-postgres.render.com",
+            "port": 5432,
+            "user": "lewisbarron",
+            "password": "dbclient_a$w5mB9d5qwWx0H8fBMI4lrkY/ADHgF8IvOFdK57EvIWdXwVrgojR0z4OlgqGSYB84",
+            "dbType": "PostgreSQL",
+            "database": "maindatabase_kh55",
+            "advance": {
+                "idleConfig": {
+                    "enable": true
+                },
+                "startupSQL": "",
+                "hideSystemSchema": true,
+                "groupingTables": true,
+                "loadMetaDataWhenExpandTreeView": true
+            },
+            "treeFeatures": [],
+            "useConnectionString": false,
+            "usingSSH": false,
+            "useSocksProxy": false,
+            "useHTTPProxy": false,
+            "ssh": {
+                "host": "",
+                "port": 22,
+                "username": "root",
+                "type": "auto",
+                "privateKeyPath": "",
+                "serverType": "linux",
+                "connectTimeout": 5000,
+                "algorithms": {
+                    "kex": [
+                        "ecdh-sha2-nistp256",
+                        "ecdh-sha2-nistp384",
+                        "ecdh-sha2-nistp521",
+                        "diffie-hellman-group-exchange-sha256",
+                        "diffie-hellman-group14-sha256",
+                        "diffie-hellman-group15-sha512",
+                        "diffie-hellman-group16-sha512",
+                        "diffie-hellman-group17-sha512",
+                        "diffie-hellman-group18-sha512",
+                        "diffie-hellman-group14-sha1",
+                        "diffie-hellman-group-exchange-sha1"
+                    ],
+                    "cipher": [
+                        "aes128-gcm@openssh.com",
+                        "aes256-gcm@openssh.com",
+                        "aes128-ctr",
+                        "aes192-ctr",
+                        "aes256-ctr"
+                    ],
+                    "serverHostKey": [
+                        "ssh-ed25519",
+                        "ecdsa-sha2-nistp256",
+                        "ecdsa-sha2-nistp384",
+                        "ecdsa-sha2-nistp521",
+                        "rsa-sha2-512",
+                        "rsa-sha2-256",
+                        "ssh-rsa",
+                        "ssh-dss"
+                    ]
+                },
+                "disableSFTP": false,
+                "pruneSFTPRoot": true
+            },
+            "global": false,
+            "remark": "Prod",
+            "savePassword": "Forever",
+            "readonly": false,
+            "sort": 12,
+            "useSSL": true,
+            "compatibleMode": true,
+            "fs": {
+                "encoding": "utf8",
+                "showHidden": true
+            },
+            "connectionKey": "database.connections",
+            "disable": true
+        }
+    },
+    "$schema": "https://cdn.database-client.com/dbclient/schema.json"
+}
