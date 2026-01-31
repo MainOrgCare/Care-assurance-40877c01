@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { MapContainer, TileLayer, Polyline, CircleMarker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, useMap } from "react-leaflet";
+import L from "leaflet";
 import type { TimelineEntry } from "@/lib/rostering/rosterModel";
 import { geocodeAddressClient, type GeocodeResult } from "@/lib/rostering/geocodeClient";
 import {
@@ -9,6 +10,26 @@ import {
   getTravelCategoryColor,
 } from "@/lib/rostering/travelUtils";
 import { Car, Clock, MapPin } from "lucide-react";
+
+// Helper component to auto-fit map bounds to markers
+const FitBoundsHelper: React.FC<{ points: Array<{ lat: number; lon: number }> }> = ({ points }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (points.length === 0) return;
+
+    if (points.length === 1) {
+      // Single point: center with reasonable zoom
+      map.setView([points[0].lat, points[0].lon], 14);
+    } else {
+      // Multiple points: fit bounds with padding
+      const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lon]));
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+    }
+  }, [map, points]);
+
+  return null;
+};
 
 const DEFAULT_CENTER: [number, number] = [54.5, -2.5];
 
@@ -90,6 +111,11 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ entries, showTravelL
     .filter(Boolean)
     .map((result) => [result.lat, result.lon]) as Array<[number, number]>;
 
+  // Collect all geocoded points for map bounds fitting
+  const geocodedPoints = useMemo(() => {
+    return Object.values(points).filter((p): p is GeocodeResult => p != null);
+  }, [points]);
+
   const mapCenter = polyline[0] ?? DEFAULT_CENTER;
 
   return (
@@ -128,6 +154,7 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ entries, showTravelL
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          <FitBoundsHelper points={geocodedPoints} />
           {/* Color-coded route segments */}
           {routeSegments.map((segment, idx) => (
             <Polyline

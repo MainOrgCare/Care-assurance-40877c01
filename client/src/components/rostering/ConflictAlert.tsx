@@ -1,5 +1,7 @@
 import React from "react";
-import { AlertTriangle, Clock, Users, MapPin } from "lucide-react";
+import { AlertTriangle, Clock, Users, MapPin, Wand2, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { TimelineEntry, GanttLane } from "@/lib/rostering/rosterModel";
 
 export type ConflictType = "overlap" | "travel" | "double-up" | "time-critical";
 
@@ -9,6 +11,18 @@ export interface ConflictAlertProps {
   description: string;
   count?: number;
   onResolve?: () => void;
+}
+
+export interface ConflictDetail {
+  type: ConflictType;
+  entry1Id: string;
+  entry2Id?: string;
+  entry1Title: string;
+  entry2Title?: string;
+  laneId: string;
+  laneName: string;
+  suggestion?: string;
+  suggestedMove?: { entryId: string; newStartMinutes: number };
 }
 
 const conflictConfig: Record<ConflictType, { icon: typeof AlertTriangle; color: string; bgColor: string }> = {
@@ -75,9 +89,11 @@ export const ConflictAlert: React.FC<ConflictAlertProps> = ({
 
 export interface ConflictSummaryProps {
   conflicts: Array<{ type: ConflictType; count: number }>;
+  onResolveAll?: () => void;
+  canResolve?: boolean;
 }
 
-export const ConflictSummary: React.FC<ConflictSummaryProps> = ({ conflicts }) => {
+export const ConflictSummary: React.FC<ConflictSummaryProps> = ({ conflicts, onResolveAll, canResolve = false }) => {
   const total = conflicts.reduce((sum, c) => sum + c.count, 0);
 
   if (total === 0) {
@@ -94,18 +110,194 @@ export const ConflictSummary: React.FC<ConflictSummaryProps> = ({ conflicts }) =
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {conflicts.map(({ type, count }) => {
-        if (count === 0) return null;
-        const config = conflictConfig[type];
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {conflicts.map(({ type, count }) => {
+          if (count === 0) return null;
+          const config = conflictConfig[type];
+          const Icon = config.icon;
+          return (
+            <div
+              key={type}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${config.bgColor} ${config.color}`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {count} {type.replace("-", " ")}
+            </div>
+          );
+        })}
+      </div>
+      {canResolve && onResolveAll && total > 0 && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-full text-xs"
+          onClick={onResolveAll}
+        >
+          <Wand2 className="h-3.5 w-3.5 mr-1.5" />
+          Auto-resolve {total} conflict{total !== 1 ? "s" : ""}
+        </Button>
+      )}
+    </div>
+  );
+};
+
+// ============================================================================
+// Conflict Detection Utilities
+// ============================================================================
+
+/**
+ * Detect all conflicts in the timeline lanes
+ */
+export const detectConflicts = (lanes: GanttLane[]): ConflictDetail[] => {
+  const conflicts: ConflictDetail[] = [];
+
+  for (const lane of lanes) {
+    const sorted = [...lane.entries]
+      .filter((e) => Number.isFinite(e.startMinutes))
+      .sort((a, b) => a.startMinutes - b.startMinutes);
+
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const curr = sorted[i];
+      const next = sorted[i + 1];
+      const currEnd = curr.startMinutes + curr.durationMinutes;
+
+      // Check for overlap
+      if (next.startMinutes < currEnd) {
+        const overlapMinutes = currEnd - next.startMinutes;
+        conflicts.push({
+          type: "overlap",
+          entry1Id: curr.id,
+          entry2Id: next.id,
+          entry1Title: curr.title,
+          entry2Title: next.title,
+          laneId: lane.id,
+          laneName: lane.label,
+          suggestion: `Move "${next.title}" ${overlapMinutes} minutes later to resolve overlap`,
+          suggestedMove: {
+            entryId: next.id,
+            newStartMinutes: currEnd + 5, // Add 5 min buffer
+          },
+        });
+      }
+    }
+  }
+
+  return conflicts;
+};
+
+/**
+ * Generate automatic resolution moves for all conflicts
+ */
+export const generateAutoResolutions = (
+  lanes: GanttLane[]
+): Record<string, number> => {
+  const moves: Record<string, number> = {};
+
+  for (const lane of lanes) {
+    const sorted = [...lane.entries]
+      .filter((e) => Number.isFinite(e.startMinutes))
+      .sort((a, b) => a.startMinutes - b.startMinutes);
+
+    let cursor = sorted[0]?.startMinutes ?? 360; // 6:00 AM
+
+    for (const entry of sorted) {
+      // If entry starts before cursor, move it
+      if (entry.startMinutes < cursor) {
+        // For time-critical entries, don't move unless absolutely necessary
+        if (!entry.isTimeCritical) {
+          moves[entry.id] = cursor;
+        }
+      }
+      // Update cursor to end of this entry + 5 min buffer
+      const effectiveStart = moves[entry.id] ?? entry.startMinutes;
+      cursor = effectiveStart + entry.durationMinutes + 5;
+    }
+  }
+
+  return moves;
+};
+
+// ============================================================================
+// Detailed Conflict List Component
+// ============================================================================
+
+export interface ConflictListProps {
+  conflicts: ConflictDetail[];
+  onResolve?: (conflict: ConflictDetail) => void;
+  onSelectEntry?: (entryId: string) => void;
+}
+
+export const ConflictList: React.FC<ConflictListProps> = ({
+  conflicts,
+  onResolve,
+  onSelectEntry,
+}) => {
+  if (conflicts.length === 0) {
+    return (
+      <div className="text-center py-4 text-sm text-muted-foreground">
+        No conflicts to display
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {conflicts.map((conflict, idx) => {
+        const config = conflictConfig[conflict.type];
         const Icon = config.icon;
+
         return (
           <div
-            key={type}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${config.bgColor} ${config.color}`}
+            key={`${conflict.entry1Id}-${conflict.entry2Id ?? idx}`}
+            className={`rounded-lg border p-2.5 ${config.bgColor}`}
           >
-            <Icon className="h-3.5 w-3.5" />
-            {count} {type.replace("-", " ")}
+            <div className="flex items-start gap-2">
+              <Icon className={`h-4 w-4 mt-0.5 ${config.color}`} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => onSelectEntry?.(conflict.entry1Id)}
+                    className="font-semibold hover:underline truncate max-w-[120px]"
+                  >
+                    {conflict.entry1Title}
+                  </button>
+                  {conflict.entry2Title && (
+                    <>
+                      <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <button
+                        type="button"
+                        onClick={() => conflict.entry2Id && onSelectEntry?.(conflict.entry2Id)}
+                        className="font-semibold hover:underline truncate max-w-[120px]"
+                      >
+                        {conflict.entry2Title}
+                      </button>
+                    </>
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {conflict.laneName}
+                </p>
+                {conflict.suggestion && (
+                  <p className="text-[10px] text-muted-foreground mt-1 italic">
+                    💡 {conflict.suggestion}
+                  </p>
+                )}
+              </div>
+              {onResolve && conflict.suggestedMove && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => onResolve(conflict)}
+                >
+                  Fix
+                </Button>
+              )}
+            </div>
           </div>
         );
       })}

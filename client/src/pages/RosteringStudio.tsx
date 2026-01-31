@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +48,8 @@ import {
   Calendar,
   Keyboard,
   Zap,
+  Undo2,
+  Redo2,
 } from "lucide-react";
 import { GanttTimeline } from "@/components/rostering/GanttTimeline";
 import { MultiWorkerDashboard } from "@/components/rostering/MultiWorkerDashboard";
@@ -59,6 +61,22 @@ import { TravelTimeIndicator } from "@/components/rostering/TravelTimeIndicator"
 import { buildAllWorkerLanes, buildWorkerLane, buildWorkerSummaries, type TimelineEntry } from "@/lib/rostering/rosterModel";
 import { calculateTravelSegments, calculateOptimizationMetrics, type TravelCategory } from "@/lib/rostering/travelUtils";
 import { useRosteringKeyboardShortcuts, buildRosteringShortcuts, formatShortcutKey } from "@/hooks/useRosteringKeyboardShortcuts";
+import {
+  rosterHistoryReducer,
+  createInitialHistoryState,
+  applyOverridesToLanes,
+  canUndo,
+  canRedo,
+  type RosterAction,
+} from "@/lib/rostering/rosterReducer";
+import {
+  OptimizationSettings,
+  type OptimizationWeights,
+  type OptimizationConstraints,
+  defaultWeights,
+  defaultConstraints,
+} from "@/components/rostering/OptimizationSettings";
+import { runFullOptimization } from "@/lib/rostering/optimizer";
 
 // ===== ROSTERING CONSTANTS =====
 const DURATION_SHORTFALL_THRESHOLD_PERCENT = 80;
@@ -280,8 +298,10 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
   const [selectedWorkerCallKeys, setSelectedWorkerCallKeys] = useState<string[]>([]);
   const [careWorkerSearch, setCareWorkerSearch] = useState("");
   const [rosterCallSearch, setRosterCallSearch] = useState("");
-  const [entryOverrides, setEntryOverrides] = useState<Record<string, number>>({});
-  const [entryLaneOverrides, setEntryLaneOverrides] = useState<Record<string, string>>({});
+  
+  // Roster state with undo/redo via reducer
+  const [rosterState, dispatchRoster] = useReducer(rosterHistoryReducer, undefined, createInitialHistoryState);
+  
   const [showAllWorkers, setShowAllWorkers] = useState(false);
   const [snapMinutes, setSnapMinutes] = useState(10);
   const [showHalfHourTicks, setShowHalfHourTicks] = useState(true);
@@ -291,6 +311,11 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
   // Template selection
   const [selectedTemplateWeek, setSelectedTemplateWeek] = useState<TemplateWeekKey>(DEFAULT_TEMPLATE_WEEK);
   const [selectedTemplateDay, setSelectedTemplateDay] = useState<WeekdayLabel>(DEFAULT_TEMPLATE_DAY);
+  
+  // Optimization settings
+  const [optimizationWeights, setOptimizationWeights] = useState<OptimizationWeights>(defaultWeights);
+  const [optimizationConstraints, setOptimizationConstraints] = useState<OptimizationConstraints>(defaultConstraints);
+  const [isOptimizing, setIsOptimizing] = useState(false);
   
   // Roster controls
   const [packCallsBackToBack, setPackCallsBackToBack] = useState(true);
@@ -412,37 +437,11 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
   const selectedWorkerLane = useMemo(() => buildWorkerLane(selectedCareWorker), [selectedCareWorker]);
   const allWorkerLanes = useMemo(() => buildAllWorkerLanes(visibleCareWorkerRosters), [visibleCareWorkerRosters]);
 
+  // Apply overrides from reducer state to lanes
   const timelineLanes = useMemo(() => {
-    const lanes = showAllWorkers ? allWorkerLanes : selectedWorkerLane ? [selectedWorkerLane] : [];
-    const withTimeOverrides = lanes.map((lane) => ({
-      ...lane,
-      entries: lane.entries.map((entry) => {
-        const override = entryOverrides[entry.id];
-        return typeof override === "number" ? { ...entry, startMinutes: override } : entry;
-      }),
-    }));
-    if (!Object.keys(entryLaneOverrides).length) return withTimeOverrides;
-
-    const entryLookup = new Map<string, TimelineEntry>();
-    withTimeOverrides.forEach((lane) => {
-      lane.entries.forEach((entry) => entryLookup.set(entry.id, entry));
-    });
-
-    const nextLanes = withTimeOverrides.map((lane) => ({
-      ...lane,
-      entries: lane.entries.filter((entry) => entryLaneOverrides[entry.id] === undefined),
-    }));
-
-    Object.entries(entryLaneOverrides).forEach(([entryId, targetLaneId]) => {
-      const entry = entryLookup.get(entryId);
-      if (!entry) return;
-      const targetLane = nextLanes.find((lane) => lane.id === targetLaneId);
-      if (!targetLane) return;
-      targetLane.entries = [...targetLane.entries, entry];
-    });
-
-    return nextLanes;
-  }, [allWorkerLanes, entryLaneOverrides, entryOverrides, selectedWorkerLane, showAllWorkers]);
+    const baseLanes = showAllWorkers ? allWorkerLanes : selectedWorkerLane ? [selectedWorkerLane] : [];
+    return applyOverridesToLanes(baseLanes, rosterState.present);
+  }, [allWorkerLanes, rosterState.present, selectedWorkerLane, showAllWorkers]);
 
   const mapEntries = useMemo(
     () => timelineLanes.flatMap((lane) => lane.entries),
@@ -457,11 +456,11 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
   const selectedEntryLaneKey = useMemo(() => {
     if (!selectedTimelineEntryId) return null;
     return (
-      entryLaneOverrides[selectedTimelineEntryId] ||
+      rosterState.present.laneOverrides[selectedTimelineEntryId] ||
       timelineLanes.find((lane) => lane.entries.some((entry) => entry.id === selectedTimelineEntryId))?.id ||
       null
     );
-  }, [entryLaneOverrides, selectedTimelineEntryId, timelineLanes]);
+  }, [rosterState.present.laneOverrides, selectedTimelineEntryId, timelineLanes]);
 
   const timelineConflictCount = useMemo(() => {
     let conflicts = 0;
@@ -481,8 +480,12 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     return conflicts;
   }, [timelineLanes]);
 
-  const applyOverrides = useCallback((updates: Record<string, number>) => {
-    setEntryOverrides((prev) => ({ ...prev, ...updates }));
+  const applyOverrides = useCallback((updates: Record<string, number>, laneUpdates?: Record<string, string>) => {
+    dispatchRoster({
+      type: "APPLY_OPTIMIZATION",
+      timeOverrides: updates,
+      laneOverrides: laneUpdates,
+    });
   }, []);
 
   const buildPackedOverrides = useCallback(
@@ -516,7 +519,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
 
   const handleReassignEntry = useCallback(
     (entryId: string, targetLaneId: string) => {
-      setEntryLaneOverrides((prev) => ({ ...prev, [entryId]: targetLaneId }));
+      dispatchRoster({ type: "REASSIGN_ENTRY", entryId, targetLaneId });
       toast({
         title: "Entry reassigned",
         description: "The visit was moved to the selected worker lane.",
@@ -524,6 +527,139 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     },
     [toast]
   );
+
+  const handleUndo = useCallback(() => {
+    if (canUndo(rosterState)) {
+      dispatchRoster({ type: "UNDO" });
+      toast({ title: "Undone", description: "Last action reverted." });
+    }
+  }, [rosterState, toast]);
+
+  const handleRedo = useCallback(() => {
+    if (canRedo(rosterState)) {
+      dispatchRoster({ type: "REDO" });
+      toast({ title: "Redone", description: "Action restored." });
+    }
+  }, [rosterState, toast]);
+
+  const handleEntryMove = useCallback(
+    (entryId: string, newStartMinutes: number, newLaneId?: string) => {
+      if (newLaneId) {
+        dispatchRoster({
+          type: "MOVE_AND_REASSIGN_ENTRY",
+          entryId,
+          startMinutes: newStartMinutes,
+          targetLaneId: newLaneId,
+        });
+      } else {
+        dispatchRoster({
+          type: "MOVE_ENTRY",
+          entryId,
+          startMinutes: newStartMinutes,
+        });
+      }
+    },
+    []
+  );
+
+  // Build ordered list of all entry IDs for range selection (sorted by time within each lane)
+  const allEntryIdsOrdered = useMemo(() => {
+    const ids: string[] = [];
+    timelineLanes.forEach((lane) => {
+      const sorted = [...lane.entries].sort((a, b) => a.startMinutes - b.startMinutes);
+      sorted.forEach((entry) => ids.push(entry.id));
+    });
+    return ids;
+  }, [timelineLanes]);
+
+  // Handle entry selection with Shift+Click (range) and Ctrl+Click (toggle)
+  const handleSelectEntry = useCallback(
+    (entry: TimelineEntry, event?: React.MouseEvent) => {
+      if (event?.shiftKey && rosterState.present.focusedEntryId) {
+        // Shift+Click: select range
+        dispatchRoster({
+          type: "SELECT_RANGE",
+          fromEntryId: rosterState.present.focusedEntryId,
+          toEntryId: entry.id,
+          orderedEntryIds: allEntryIdsOrdered,
+        });
+      } else if (event?.ctrlKey || event?.metaKey) {
+        // Ctrl/Cmd+Click: toggle selection
+        dispatchRoster({ type: "TOGGLE_ENTRY_SELECTION", entryId: entry.id });
+      } else {
+        // Normal click: single select
+        setSelectedTimelineEntryId(entry.id);
+        dispatchRoster({ type: "SELECT_ENTRY", entryId: entry.id });
+      }
+    },
+    [allEntryIdsOrdered, rosterState.present.focusedEntryId]
+  );
+
+  // Handle bulk delete of selected entries
+  const handleBulkDelete = useCallback(() => {
+    const selectedIds = Array.from(rosterState.present.selectedEntryIds);
+    if (selectedIds.length === 0) return;
+    
+    dispatchRoster({ type: "BULK_DELETE_ENTRIES", entryIds: selectedIds });
+    toast({
+      title: "Entries removed",
+      description: `${selectedIds.length} visit(s) removed from schedule.`,
+    });
+  }, [rosterState.present.selectedEntryIds, toast]);
+
+  // Handle bulk reassign of selected entries to a worker
+  const handleBulkReassign = useCallback(
+    (targetLaneId: string) => {
+      const selectedIds = Array.from(rosterState.present.selectedEntryIds);
+      if (selectedIds.length === 0) return;
+
+      dispatchRoster({
+        type: "BULK_REASSIGN_ENTRIES",
+        reassignments: selectedIds.map((entryId) => ({ entryId, targetLaneId })),
+      });
+      dispatchRoster({ type: "CLEAR_SELECTION" });
+      toast({
+        title: "Entries reassigned",
+        description: `${selectedIds.length} visit(s) moved to new worker.`,
+      });
+    },
+    [rosterState.present.selectedEntryIds, toast]
+  );
+
+  const handleClearSelection = useCallback(() => {
+    dispatchRoster({ type: "CLEAR_SELECTION" });
+    setSelectedTimelineEntryId(null);
+  }, []);
+
+  const handleRunOptimization = useCallback(() => {
+    setIsOptimizing(true);
+    
+    // Run optimization in a timeout to allow UI to update
+    setTimeout(() => {
+      try {
+        const result = runFullOptimization(
+          timelineLanes,
+          optimizationWeights,
+          optimizationConstraints
+        );
+        
+        applyOverrides(result.timeOverrides, result.laneOverrides);
+        
+        toast({
+          title: "Optimization complete",
+          description: `Reduced travel gaps by ~${result.metrics.totalTravelReduction}m. Continuity: ${result.metrics.continuityScore}%`,
+        });
+      } catch (error) {
+        toast({
+          title: "Optimization failed",
+          description: error instanceof Error ? error.message : "An error occurred",
+          variant: "destructive",
+        });
+      } finally {
+        setIsOptimizing(false);
+      }
+    }, 100);
+  }, [timelineLanes, optimizationWeights, optimizationConstraints, applyOverrides, toast]);
 
   const handleAutoBalance = useCallback(() => {
     const updates: Record<string, number> = {};
@@ -559,8 +695,7 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
       Object.assign(updates, buildPackedOverrides(lane.entries, 5));
     });
 
-    setEntryLaneOverrides((prev) => ({ ...prev, ...laneOverrides }));
-    applyOverrides(updates);
+    applyOverrides(updates, laneOverrides);
     toast({
       title: "Workload balanced",
       description: "Visits were redistributed to balance workload and reduce gaps.",
@@ -655,7 +790,9 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     onOptimize: handleOptimizeTravel,
     onZoomIn: () => setSnapMinutes((prev) => Math.max(5, prev - 5)),
     onZoomOut: () => setSnapMinutes((prev) => Math.min(30, prev + 5)),
-  }), [handleOptimizeTravel]);
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+  }), [handleOptimizeTravel, handleUndo, handleRedo]);
 
   useRosteringKeyboardShortcuts(keyboardShortcuts, !!workbook);
 
@@ -908,6 +1045,30 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <ConflictSummary conflicts={conflictSummaryData} />
+                    <div className="flex items-center gap-2 pt-2 border-t">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleUndo}
+                        disabled={!canUndo(rosterState)}
+                        className="flex-1"
+                      >
+                        <Undo2 className="h-3.5 w-3.5 mr-1" />
+                        Undo
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleRedo}
+                        disabled={!canRedo(rosterState)}
+                        className="flex-1"
+                      >
+                        <Redo2 className="h-3.5 w-3.5 mr-1" />
+                        Redo
+                      </Button>
+                    </div>
                     <div className="pt-2 border-t">
                       <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">Keyboard shortcuts</p>
                       <div className="grid grid-cols-2 gap-1 text-[10px]">
@@ -915,6 +1076,10 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                         <span>Clear selection</span>
                         <span className="text-muted-foreground">Ctrl+O</span>
                         <span>Optimize</span>
+                        <span className="text-muted-foreground">Ctrl+Z</span>
+                        <span>Undo</span>
+                        <span className="text-muted-foreground">Ctrl+Y</span>
+                        <span>Redo</span>
                         <span className="text-muted-foreground">+/-</span>
                         <span>Zoom</span>
                       </div>
@@ -1009,11 +1174,62 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                         snapMinutes={snapMinutes}
                         showHalfHourTicks={showHalfHourTicks}
                         selectedEntryId={selectedTimelineEntryId}
-                        onSelectEntry={(entry) => setSelectedTimelineEntryId(entry.id)}
-                        onEntryMove={(entryId, newStartMinutes) =>
-                          setEntryOverrides((prev) => ({ ...prev, [entryId]: newStartMinutes }))
-                        }
+                        selectedEntryIds={rosterState.present.selectedEntryIds}
+                        focusedEntryId={rosterState.present.focusedEntryId}
+                        onSelectEntry={handleSelectEntry}
+                        onEntryMove={handleEntryMove}
                       />
+                      
+                      {/* Bulk Selection Toolbar */}
+                      {rosterState.present.selectedEntryIds.size > 1 && (
+                        <div className="mt-3 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 animate-in slide-in-from-bottom-2 duration-200">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-sm">
+                              {rosterState.present.selectedEntryIds.size}
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold">Entries selected</p>
+                              <p className="text-xs text-muted-foreground">
+                                Shift+Click to select range · Ctrl+Click to toggle
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Select
+                              onValueChange={handleBulkReassign}
+                            >
+                              <SelectTrigger className="w-[180px] h-8 text-xs">
+                                <SelectValue placeholder="Move all to worker..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {timelineLanes.map((lane) => (
+                                  <SelectItem key={lane.id} value={lane.id} className="text-xs">
+                                    {lane.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              onClick={handleBulkDelete}
+                              className="h-8 text-xs"
+                            >
+                              Remove
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={handleClearSelection}
+                              className="h-8 text-xs"
+                            >
+                              Clear
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </TabsContent>
                     <TabsContent value="map">
                       <RouteMapView entries={mapEntries} />
@@ -1134,6 +1350,18 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
                         </Button>
                       </CardContent>
                     </Card>
+                  </div>
+
+                  {/* Smart Optimization Panel */}
+                  <div className="mt-6">
+                    <OptimizationSettings
+                      weights={optimizationWeights}
+                      constraints={optimizationConstraints}
+                      onWeightsChange={setOptimizationWeights}
+                      onConstraintsChange={setOptimizationConstraints}
+                      onRunOptimization={handleRunOptimization}
+                      isOptimizing={isOptimizing}
+                    />
                   </div>
                 </CardContent>
               </Card>
