@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
+import cors, { CorsOptions } from "cors";
 
 const app = express();
 const httpServer = createServer(app);
@@ -26,18 +27,19 @@ app.use((req, res, next) => {
   next();
 });
 
+// CORS middleware
 const corsOrigin = process.env.CORS_ORIGIN;
 if (corsOrigin) {
-  app.use((req, res, next) => {
-    res.header("Access-Control-Allow-Origin", corsOrigin);
-    res.header("Access-Control-Allow-Credentials", "true");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-    if (req.method === "OPTIONS") {
-      return res.sendStatus(204);
-    }
-    next();
-  });
+  const corsOptions: CorsOptions = {
+    origin: corsOrigin,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  };
+  app.use(cors(corsOptions));
+  log(`CORS enabled for origin: ${corsOrigin}`);
+} else {
+  log("CORS_ORIGIN not set. Cross-origin requests will be blocked.");
 }
 
 // Compression middleware - configured to allow flushing for SSE streams
