@@ -270,9 +270,9 @@ export function getTimeBand(minutes?: number): string {
  * Determine template week (week1 or week2) from a date
  */
 export function getTemplateWeek(dateStr: string, referenceDate?: string): 'week1' | 'week2' {
-  // Use a reference date to establish consistent week numbering
-  // Default reference: Jan 5, 2026 (Monday) as week 1
-  const ref = referenceDate ? new Date(referenceDate) : new Date('2026-01-05');
+  // Use a reference date to establish consistent week numbering.
+  // Default reference: Jan 3, 2000 (Monday) as week 1.
+  const ref = referenceDate ? new Date(referenceDate) : new Date('2000-01-03');
   const date = new Date(dateStr);
   
   const diffDays = Math.floor((date.getTime() - ref.getTime()) / (1000 * 60 * 60 * 24));
@@ -290,6 +290,7 @@ export function getDayName(dateStr: string): string {
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   return days[date.getDay()];
 }
+
 
 /**
  * Check if a worker name looks like admin staff

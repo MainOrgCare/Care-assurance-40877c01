@@ -106,8 +106,8 @@ const ROSTER_DAY_SOFT_END_MINUTES = 22 * 60;
 const ROSTER_DAY_HARD_END_MINUTES = 22 * 60;
 
 const TEMPLATE_WEEK_OPTIONS = [
-  { key: "week1", label: "Week 1 (starts 05/01/26)" },
-  { key: "week2", label: "Week 2 (starts 12/01/26)" },
+  { key: "week1", label: "Week 1" },
+  { key: "week2", label: "Week 2" },
 ] as const;
 const WEEKDAY_OPTIONS = [
   "Monday",
@@ -123,7 +123,7 @@ type TemplateWeekKey = (typeof TEMPLATE_WEEK_OPTIONS)[number]["key"];
 type WeekdayLabel = (typeof WEEKDAY_OPTIONS)[number];
 const DEFAULT_TEMPLATE_WEEK: TemplateWeekKey = "week1";
 const DEFAULT_TEMPLATE_DAY: WeekdayLabel = WEEKDAY_OPTIONS[0];
-const TEMPLATE_WEEK_1_START_DAY_NUMBER = Math.floor(Date.UTC(2026, 0, 5) / 86400000);
+const TEMPLATE_WEEK_1_START_DAY_NUMBER = Math.floor(Date.UTC(2000, 0, 3) / 86400000);
 
 // ===== TYPES =====
 interface RowAnalysis {
@@ -170,6 +170,8 @@ interface RowAnalysis {
   serviceUserAddress?: string | null;
   serviceLocationBranch?: string | null;
   serviceLocationType?: string | null;
+  templateWeek?: TemplateWeekKey | null;
+  templateDay?: WeekdayLabel | null;
   normalizedServiceUserKey?: string | null;
   isDuplicateSlotRow?: boolean;
   excludeFromMetrics?: boolean;
@@ -328,6 +330,41 @@ const getDateRelativeToTemplateStart = (
     dateKey: `${yyyy}-${mm}-${dd}`,
     dateLabel: `${dd}/${mm}/${yyyy}`,
   };
+};
+
+const parseDateKeyToLocalDate = (key: string | null | undefined): Date | null => {
+  if (!key) return null;
+  const match = key.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+};
+
+const getDateDayNumber = (date: Date): number => {
+  return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
+};
+
+const deriveTemplateWeekKey = (date: Date, referenceDayNumber = TEMPLATE_WEEK_1_START_DAY_NUMBER): TemplateWeekKey => {
+  const diffDays = getDateDayNumber(date) - referenceDayNumber;
+  const weekOffset = Math.floor(diffDays / 7);
+  const parity = ((weekOffset % 2) + 2) % 2;
+  return parity === 0 ? "week1" : "week2";
+};
+
+const deriveWeekdayLabel = (date: Date): WeekdayLabel => {
+  const dayIndex = date.getDay();
+  return WEEKDAY_OPTIONS[(dayIndex + 6) % 7];
+};
+
+const getTemplateWeekLabel = (week: TemplateWeekKey, referenceDayNumber: number | null): string => {
+  const base = week === "week1" ? "Week 1" : "Week 2";
+  if (referenceDayNumber === null) return base;
+  const dayOffset = week === "week2" ? 7 : 0;
+  const targetDayNumber = referenceDayNumber + dayOffset;
+  const targetDate = new Date(targetDayNumber * 86400000);
+  const dd = String(targetDate.getUTCDate()).padStart(2, "0");
+  const mm = String(targetDate.getUTCMonth() + 1).padStart(2, "0");
+  const yyyy = targetDate.getUTCFullYear();
+  return `${base} (starts ${dd}/${mm}/${yyyy})`;
 };
 
 const computeTemplateSelectionKey = (week: TemplateWeekKey, day: WeekdayLabel) => {
@@ -664,6 +701,34 @@ export default function RosteringStudio({
     }));
   }, [workbook]);
 
+  const templateWeekReferenceDayNumber = useMemo(() => {
+    let latest: { date: Date; templateWeek?: TemplateWeekKey | null } | null = null;
+    careWorkerRosters.forEach((roster) => {
+      const rows = roster.callRows ?? roster.rows ?? [];
+      rows.forEach((row) => {
+        if (!row.plannedDateKey) return;
+        const date = parseDateKeyToLocalDate(row.plannedDateKey);
+        if (!date) return;
+        if (!latest || date > latest.date) {
+          latest = { date, templateWeek: row.templateWeek ?? null };
+        }
+      });
+    });
+    if (!latest) return null;
+    const pivotWeek =
+      latest.templateWeek === "week1" || latest.templateWeek === "week2"
+        ? latest.templateWeek
+        : deriveTemplateWeekKey(latest.date, TEMPLATE_WEEK_1_START_DAY_NUMBER);
+    const pivotDay = deriveWeekdayLabel(latest.date);
+    const dayOffset = WEEKDAY_OPTIONS.indexOf(pivotDay);
+    if (dayOffset < 0) return null;
+    const weekOffset = pivotWeek === "week2" ? 7 : 0;
+    return getDateDayNumber(latest.date) - weekOffset - dayOffset;
+  }, [careWorkerRosters]);
+
+  const templateWeekReferenceDayNumberForCalc =
+    templateWeekReferenceDayNumber ?? TEMPLATE_WEEK_1_START_DAY_NUMBER;
+
   const doubleUpSlots = useMemo<Map<string, Set<string>>>(() => {
     if (!workbook?.doubleUpSlots) return new Map();
     const map = new Map<string, Set<string>>();
@@ -680,25 +745,32 @@ export default function RosteringStudio({
 
   const selectedWeekDateKeys = useMemo(() => {
     return new Set(
-      WEEKDAY_OPTIONS.map((day) => getDateRelativeToTemplateStart(selectedTemplateWeek, day).dateKey)
+      WEEKDAY_OPTIONS.map((day) =>
+        getDateRelativeToTemplateStart(selectedTemplateWeek, day, templateWeekReferenceDayNumberForCalc).dateKey
+      )
     );
-  }, [selectedTemplateWeek]);
+  }, [selectedTemplateWeek, templateWeekReferenceDayNumberForCalc]);
 
   const selectedTemplateDate = useMemo(
-    () => getDateRelativeToTemplateStart(selectedTemplateWeek, selectedTemplateDay),
-    [selectedTemplateWeek, selectedTemplateDay]
+    () =>
+      getDateRelativeToTemplateStart(
+        selectedTemplateWeek,
+        selectedTemplateDay,
+        templateWeekReferenceDayNumberForCalc
+      ),
+    [selectedTemplateWeek, selectedTemplateDay, templateWeekReferenceDayNumberForCalc]
   );
 
   const selectedTemplateWeekLabel = useMemo(() => {
-    return TEMPLATE_WEEK_OPTIONS.find((o) => o.key === selectedTemplateWeek)?.label || "Unknown";
-  }, [selectedTemplateWeek]);
+    return getTemplateWeekLabel(selectedTemplateWeek, templateWeekReferenceDayNumber);
+  }, [selectedTemplateWeek, templateWeekReferenceDayNumber]);
 
   const templateWeekDays = useMemo(() => {
     return WEEKDAY_OPTIONS.map((day) => ({
       day,
-      ...getDateRelativeToTemplateStart(selectedTemplateWeek, day),
+      ...getDateRelativeToTemplateStart(selectedTemplateWeek, day, templateWeekReferenceDayNumberForCalc),
     }));
-  }, [selectedTemplateWeek]);
+  }, [selectedTemplateWeek, templateWeekReferenceDayNumberForCalc]);
 
   const dailyMetrics = useMemo(() => {
     const totals = new Map<string, { allocated: number; unallocated: number; totalMinutes: number }>();
@@ -1792,7 +1864,7 @@ export default function RosteringStudio({
                 <SelectContent>
                   {TEMPLATE_WEEK_OPTIONS.map((week) => (
                     <SelectItem key={week.key} value={week.key}>
-                      {week.label}
+                      {getTemplateWeekLabel(week.key, templateWeekReferenceDayNumber)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -3314,7 +3386,7 @@ export default function RosteringStudio({
                                     variant={selectedTemplateWeek === option.key ? "secondary" : "outline"}
                                     onClick={() => setSelectedTemplateWeek(option.key)}
                                   >
-                                    {option.label}
+                                    {getTemplateWeekLabel(option.key, templateWeekReferenceDayNumber)}
                                   </Button>
                                 ))}
                               </div>

@@ -1,8 +1,6 @@
 {
     "database": {
         "1769876350425": {
-            "key": "1769876350425",
-            "isTreeNode": true,
             "host": "dpg-d5dbsh1r0fns73age33g-a.frankfurt-postgres.render.com",
             "port": 5432,
             "user": "lewisbarron",
@@ -77,8 +75,8 @@
                 "encoding": "utf8",
                 "showHidden": true
             },
-            "connectionKey": "database.connections",
-            "disable": true
+            "key": "1769876350425",
+            "connectionKey": "database.connections"
         }
     },
     "$schema": "https://cdn.database-client.com/dbclient/schema.json"

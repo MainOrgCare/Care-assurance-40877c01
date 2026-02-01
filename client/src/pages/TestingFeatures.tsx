@@ -84,8 +84,8 @@ const ROSTER_DAY_START_MINUTES = 6 * 60;
 const ROSTER_DAY_SOFT_END_MINUTES = 22 * 60;
 const ROSTER_DAY_HARD_END_MINUTES = 23 * 60;
 const TEMPLATE_WEEK_OPTIONS = [
-  { key: "week1", label: "Week 1 (starts 05/01/26)" },
-  { key: "week2", label: "Week 2 (starts 12/01/26)" },
+  { key: "week1", label: "Week 1" },
+  { key: "week2", label: "Week 2" },
 ] as const;
 const WEEKDAY_OPTIONS = [
   "Monday",
@@ -107,7 +107,7 @@ type TemplateWeekKey = (typeof TEMPLATE_WEEK_OPTIONS)[number]["key"];
 type WeekdayLabel = (typeof WEEKDAY_OPTIONS)[number];
 const DEFAULT_TEMPLATE_WEEK: TemplateWeekKey = "week1";
 const DEFAULT_TEMPLATE_DAY: WeekdayLabel = WEEKDAY_OPTIONS[0];
-const TEMPLATE_WEEK_1_START_DAY_NUMBER = Math.floor(Date.UTC(2026, 0, 5) / 86400000);
+const TEMPLATE_WEEK_1_START_DAY_NUMBER = Math.floor(Date.UTC(2000, 0, 3) / 86400000);
 
 const PLANNED_TIME_KEYWORDS = [
   "planned start date and time",
@@ -1480,6 +1480,24 @@ export default function TestingFeatures() {
   }, [usableRows, precomputedDoubleUpWorkers]);
 
   const primaryRows = useMemo(() => dedupedResults.filter((row) => !row.isDuplicateSlotRow), [dedupedResults]);
+  const templateWeekReferenceDayNumber = useMemo(() => {
+    if (!analysisResults.length) return null;
+    let latest: Date | null = null;
+    analysisResults.forEach((row) => {
+      const date = parseDateKeyToLocalDate(row.plannedDateKey ?? row.plannedDateLabel ?? null);
+      if (!date) return;
+      if (!latest || date > latest) {
+        latest = date;
+      }
+    });
+    if (!latest) return null;
+    const pivotWeek = deriveTemplateWeekKey(latest, TEMPLATE_WEEK_1_START_DAY_NUMBER);
+    const pivotDay = deriveWeekdayLabel(latest);
+    const dayOffset = WEEKDAY_OPTIONS.indexOf(pivotDay);
+    if (dayOffset < 0) return null;
+    const weekOffset = pivotWeek === "week2" ? 7 : 0;
+    return getDateDayNumber(latest) - weekOffset - dayOffset;
+  }, [analysisResults]);
 
   const filteredResults = useMemo(() => {
     let rows = showDuplicateRows ? dedupedResults : primaryRows;
@@ -2552,7 +2570,9 @@ export default function TestingFeatures() {
       );
       const endLabel = typeof endMinutes === "number" ? deriveTimeLabel(endMinutes, null) : null;
       const templateDate = parseDateKeyToLocalDate(row.plannedDateKey ?? null);
-      const templateWeek = templateDate ? deriveTemplateWeekKey(templateDate) : null;
+      const templateWeek = templateDate
+        ? deriveTemplateWeekKey(templateDate, TEMPLATE_WEEK_1_START_DAY_NUMBER)
+        : null;
       const templateDay = templateDate ? deriveWeekdayLabel(templateDate) : null;
       const templateKey =
         templateWeek && templateDay ? buildTemplateWeekdayKey(templateWeek, templateDay) : null;
@@ -2702,7 +2722,7 @@ export default function TestingFeatures() {
             const templateDate = parseDateKeyToLocalDate(row.plannedDateKey ?? null);
             if (templateDate) {
               const templateKey = buildTemplateWeekdayKey(
-                deriveTemplateWeekKey(templateDate),
+                deriveTemplateWeekKey(templateDate, TEMPLATE_WEEK_1_START_DAY_NUMBER),
                 deriveWeekdayLabel(templateDate)
               );
               group.templatedWeekdayKeys.add(templateKey);
@@ -3124,8 +3144,10 @@ export default function TestingFeatures() {
     [availableTemplateGroups]
   );
 
-  const selectedTemplateWeekLabel =
-    TEMPLATE_WEEK_OPTIONS.find((option) => option.key === selectedTemplateWeek)?.label ?? selectedTemplateWeek;
+  const selectedTemplateWeekLabel = useMemo(
+    () => getTemplateWeekLabel(selectedTemplateWeek, templateWeekReferenceDayNumber),
+    [selectedTemplateWeek, templateWeekReferenceDayNumber]
+  );
 
   useEffect(() => {
     if (!selectedCareWorker) return;
@@ -6109,7 +6131,7 @@ export default function TestingFeatures() {
                                             variant={selectedTemplateWeek === option.key ? "secondary" : "outline"}
                                             onClick={() => setSelectedTemplateWeek(option.key)}
                                           >
-                                            {option.label}
+                                            {getTemplateWeekLabel(option.key, templateWeekReferenceDayNumber)}
                                           </Button>
                                         ))}
                                       </div>
@@ -8766,8 +8788,8 @@ function getDateDayNumber(date: Date): number {
   return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
 }
 
-function deriveTemplateWeekKey(date: Date): TemplateWeekKey {
-  const diffDays = getDateDayNumber(date) - TEMPLATE_WEEK_1_START_DAY_NUMBER;
+function deriveTemplateWeekKey(date: Date, referenceDayNumber = TEMPLATE_WEEK_1_START_DAY_NUMBER): TemplateWeekKey {
+  const diffDays = getDateDayNumber(date) - referenceDayNumber;
   const weekOffset = Math.floor(diffDays / 7);
   const parity = ((weekOffset % 2) + 2) % 2;
   return parity === 0 ? "week1" : "week2";
@@ -8796,6 +8818,18 @@ function parseTemplateWeekdayKey(key: string): { week: TemplateWeekKey; day: Wee
     return null;
   }
   return { week: week as TemplateWeekKey, day: day as WeekdayLabel };
+}
+
+function getTemplateWeekLabel(week: TemplateWeekKey, referenceDayNumber: number | null): string {
+  const base = week === "week1" ? "Week 1" : "Week 2";
+  if (referenceDayNumber === null) return base;
+  const dayOffset = week === "week2" ? 7 : 0;
+  const targetDayNumber = referenceDayNumber + dayOffset;
+  const targetDate = new Date(targetDayNumber * 86400000);
+  const dd = String(targetDate.getUTCDate()).padStart(2, "0");
+  const mm = String(targetDate.getUTCMonth() + 1).padStart(2, "0");
+  const yyyy = targetDate.getUTCFullYear();
+  return `${base} (starts ${dd}/${mm}/${yyyy})`;
 }
 
 function splitTemplateWeekdayKeys(keys: Set<string>): { week1Days: WeekdayLabel[]; week2Days: WeekdayLabel[] } {
