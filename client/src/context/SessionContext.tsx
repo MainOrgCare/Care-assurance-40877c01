@@ -27,8 +27,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws?userId=${user.id}`;
+    const getWsUrl = () => {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
+      if (apiBaseUrl) {
+        // Replace https:// or http:// with wss:// or ws://
+        const wsProtocolUrl = apiBaseUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+        return `${wsProtocolUrl}/ws?userId=${user.id}`;
+      }
+      // Fallback to same origin (local dev or no API base URL)
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      return `${protocol}//${window.location.host}/ws?userId=${user.id}`;
+    };
+
+    const wsUrl = getWsUrl();
     
     const socket = new WebSocket(wsUrl);
     
