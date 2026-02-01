@@ -2361,7 +2361,7 @@ export default function RosteringStudio({
       <div className="rounded-xl border border-border/60 bg-background">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 bg-muted/20 px-4 py-2">
           <Tabs value={hubTab} onValueChange={(value) => setHubTab(value as typeof hubTab)}>
-            <TabsList className="bg-transparent p-0">
+            <TabsList className="bg-transparent p-0 flex flex-wrap gap-1">
               <TabsTrigger value="rostering">Rostering</TabsTrigger>
               <TabsTrigger value="service-user">Service User</TabsTrigger>
               <TabsTrigger value="employee">Employee</TabsTrigger>
@@ -2723,7 +2723,7 @@ export default function RosteringStudio({
       );
 
     return (
-      <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="flex h-full min-h-0 flex-col gap-2">
         {hubHeader}
         {hubMain}
       </div>

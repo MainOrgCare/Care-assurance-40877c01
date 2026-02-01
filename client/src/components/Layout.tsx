@@ -333,6 +333,7 @@ const SidebarContent = memo(function SidebarContent({
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const isFullBleed = location === "/rostering-hub";
+  const isSingleScreenRoute = location === "/rostering-hub" || location === "/care-worker-rotas";
   const [clickCount, setClickCount] = useState(0);
   const { user, logout } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -341,14 +342,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const contentWrapperClass = cn(
     "w-full flex-1 min-h-0",
-    isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6"
+    isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6",
+    isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(
     "glass-card rounded-lg border border-border/70 p-4 sm:p-6 lg:p-8 flex flex-col shadow-md animate-fade-in w-full flex-1 min-h-0",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent" : ""
   );
   const mainClass = cn(
-    "flex-1 flex flex-col w-full relative z-10 scroll-smooth overflow-auto"
+    "flex-1 flex flex-col w-full relative z-10 scroll-smooth",
+    isSingleScreenRoute ? "overflow-hidden" : "overflow-auto"
   );
 
   useEffect(() => {
