@@ -11997,6 +11997,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     name: z.string().min(1).max(200),
     fileName: z.string().min(1).max(500),
     sourceHash: z.string().min(1).max(128),
+    company: z.string().min(1).max(120).optional().nullable(),
+    branch: z.string().min(1).max(120).optional().nullable(),
     totalRows: z.number().int().min(0).default(0),
     careWorkerCount: z.number().int().min(0).default(0),
     serviceUserCount: z.number().int().min(0).default(0),
@@ -12173,6 +12175,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       const upload = await storage.createWorkbookUpload({
         fileName: payload.fileName,
         fileHash: payload.sourceHash,
+        company: payload.company ?? null,
+        branch: payload.branch ?? null,
         totalRows: extracted.stats.totalRows,
         dateRangeStart: extracted.stats.dateRangeStart,
         dateRangeEnd: extracted.stats.dateRangeEnd,
@@ -12248,7 +12252,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       let rowCounter = 0;
 
       for (const call of calls) {
-        const assignmentKey = `${call.serviceUserKey}|${call.callTypeKey}|${call.templateWeek}|${call.templateDay}`;
+        const assignmentKey = `${call.serviceUserKey}|${call.callTypeLabel}|${call.templateWeek}|${call.templateDay}`;
         const templateAssignment = call.isTemplated ? templateAssignmentMap.get(assignmentKey) : undefined;
         const workerKey = templateAssignment?.workerKey ?? call.workerKey;
         const workerName = templateAssignment?.workerName ?? call.workerName;
@@ -12655,7 +12659,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       let rowCounter = 0;
 
       for (const call of calls) {
-        const assignmentKey = `${call.serviceUserKey}|${call.callTypeKey}|${call.templateWeek}|${call.templateDay}`;
+        const assignmentKey = `${call.serviceUserKey}|${call.callTypeLabel}|${call.templateWeek}|${call.templateDay}`;
         const templateAssignment = call.isTemplated ? templateAssignmentMap.get(assignmentKey) : undefined;
         const workerKey = templateAssignment?.workerKey ?? call.workerKey;
         const workerName = templateAssignment?.workerName ?? call.workerName;

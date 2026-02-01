@@ -735,6 +735,8 @@ export const workbookUploads = pgTable(
     id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
     fileName: text("file_name").notNull(),
     fileHash: text("file_hash").notNull(), // For tracking duplicates
+    company: text("company"),
+    branch: text("branch"),
     totalRows: integer("total_rows").notNull().default(0),
     dateRangeStart: text("date_range_start"), // First date in workbook
     dateRangeEnd: text("date_range_end"), // Last date in workbook

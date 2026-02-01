@@ -22,6 +22,13 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -88,6 +95,13 @@ const WEEKDAY_OPTIONS = [
   "Friday",
   "Saturday",
   "Sunday",
+] as const;
+const COMPANY_OPTIONS = ["Dalecare", "Perfect Care"] as const;
+const BRANCH_OPTIONS = [
+  "Newcastle/North Tyneside",
+  "Durham",
+  "Gateshead",
+  "South Tyneside",
 ] as const;
 type TemplateWeekKey = (typeof TEMPLATE_WEEK_OPTIONS)[number]["key"];
 type WeekdayLabel = (typeof WEEKDAY_OPTIONS)[number];
@@ -580,6 +594,8 @@ export default function TestingFeatures() {
   const [isDragging, setIsDragging] = useState(false);
   const [rosteringFullscreen, setRosteringFullscreen] = useState(false);
   const [isSavingWorkbook, setIsSavingWorkbook] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState<string>("");
+  const [selectedBranch, setSelectedBranch] = useState<string>("");
   // Comparison mode state
   const [comparisonSnapshot, setComparisonSnapshot] = useState<{
     fileMeta: FileMeta;
@@ -599,6 +615,8 @@ export default function TestingFeatures() {
       name: string;
       fileName: string;
       sourceHash: string;
+      company: string;
+      branch: string;
       totalRows: number;
       careWorkerCount: number;
       serviceUserCount: number;
@@ -616,6 +634,8 @@ export default function TestingFeatures() {
           name: payload.name,
           fileName: payload.fileName,
           sourceHash: payload.sourceHash,
+          company: payload.company,
+          branch: payload.branch,
           totalRows: payload.totalRows,
           careWorkerCount: payload.careWorkerCount,
           serviceUserCount: payload.serviceUserCount,
@@ -4712,6 +4732,40 @@ export default function TestingFeatures() {
               ? "Save your analysis to the library for persistent storage and reporting."
               : "Data stays in-memory only. Refreshing the page clears every upload, so export a PDF if you need a temporary record."}
           </AlertDescription>
+          {careWorkerRosters.length > 0 && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Company</Label>
+                <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Select company" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COMPANY_OPTIONS.map((company) => (
+                      <SelectItem key={company} value={company}>
+                        {company}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Branch</Label>
+                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BRANCH_OPTIONS.map((branch) => (
+                      <SelectItem key={branch} value={branch}>
+                        {branch}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
           <div className="mt-3 flex flex-wrap gap-2">
             {careWorkerRosters.length > 0 ? (
               <>
@@ -4724,6 +4778,10 @@ export default function TestingFeatures() {
                     if (!fileMeta) return;
                     setIsSavingWorkbook(true);
                     try {
+                      if (!selectedCompany || !selectedBranch) {
+                        throw new Error("Select a company and branch before saving.");
+                      }
+
                       const callSignature = buildCallSignature();
                       const callsHash = callSignature ? await createHash(callSignature) : null;
                       const dedupeHash = callsHash || sourceHash;
@@ -4779,6 +4837,8 @@ export default function TestingFeatures() {
                         name: fileMeta.name.replace(/\.[^/.]+$/, ""), // Remove file extension
                         fileName: fileMeta.name,
                         sourceHash: dedupeHash,
+                        company: selectedCompany,
+                        branch: selectedBranch,
                         totalRows: fileMeta.totalRows,
                         careWorkerCount: careWorkerRosters.length,
                         serviceUserCount: serviceUserStacks.length,
