@@ -12004,6 +12004,11 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     rowAnalysis: z.array(z.any()).default([]),
   });
 
+  const toWholeMinutes = (value: unknown) => {
+    if (typeof value !== "number" || Number.isNaN(value)) return undefined;
+    return Math.round(value);
+  };
+
   app.post("/api/admin/rostering/workbook-uploads/ingest", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
     try {
       const payload = workbookIngestSchema.parse(req.body);
@@ -12023,13 +12028,13 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
           templateWorkerName: row.templateWorker ?? undefined,
           callTypeLabel: row.callTypeLabel || "Other",
           callDate: row.plannedDateKey,
-          scheduledStart: row.plannedTimeMinutes ?? undefined,
-          actualStart: row.actualTimeMinutes ?? undefined,
-          plannedDuration: row.plannedDurationMinutes ?? undefined,
-          actualDuration: row.actualDurationMinutes ?? undefined,
+          scheduledStart: toWholeMinutes(row.plannedTimeMinutes),
+          actualStart: toWholeMinutes(row.actualTimeMinutes),
+          plannedDuration: toWholeMinutes(row.plannedDurationMinutes),
+          actualDuration: toWholeMinutes(row.actualDurationMinutes),
           isDoubleUp: row.isDoubleUpSlot ?? false,
           isTimeCritical: row.isTimeCritical ?? false,
-          serviceRequirementStart: row.serviceRequirementTimeMinutes ?? undefined,
+          serviceRequirementStart: toWholeMinutes(row.serviceRequirementTimeMinutes),
         }));
 
       const extracted = extractFromRawCalls(rawCalls);
