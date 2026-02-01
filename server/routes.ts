@@ -3849,7 +3849,11 @@ ${correctionExamples}
       // USE EMAR AGENT (enabled by default unless explicitly disabled)
       // Toggle: USE_EMAR_AGENT=true/false (false disables)
       // =====================================================================
-      const useEmarAgent = true;
+      const useEmarAgent = (() => {
+        const raw = String(process.env.USE_EMAR_AGENT || "").trim().toLowerCase();
+        if (raw === "") return process.env.NODE_ENV !== "production";
+        return ["1", "true", "yes", "on"].includes(raw);
+      })();
       let agentExtractionSucceeded = false;
       let agentExtractedData: any = null;
       let agentDrugInteractions: any[] = [];
@@ -3926,6 +3930,19 @@ ${correctionExamples}
           const agentDates = agentExtractedData.dates;
           const agentTimeSlots = agentExtractedData.timeSlots;
 
+          // Build PRN medication sets (prefer medicationId to avoid collisions on duplicate names)
+          const agentMedicationNameById = new Map<number, string>();
+          const agentPrnMeds = new Set<string>(); // fallback when entries lack medicationId
+          const agentPrnMedIds = new Set<number>();
+          agentMedications.forEach((m: any) => {
+            const medId = Number(m.medicationId) || 0;
+            if (medId) agentMedicationNameById.set(medId, m.name);
+            if (m.isPRN) {
+              if (m?.name) agentPrnMeds.add(m.name);
+              if (medId) agentPrnMedIds.add(medId);
+            }
+          });
+
           // Early service-user level inference for code validation (non-PRN meds only).
           const earlyLevelCounts = { AD: 0, AS: 0, P: 0 };
           agentEntries.forEach((entry: any) => {
@@ -3946,19 +3963,6 @@ ${correctionExamples}
             else if (asRatio > 0.4) agentServiceUserTypeEarly = "assist";
           }
           
-          // Build PRN medication sets (prefer medicationId to avoid collisions on duplicate names)
-          const agentMedicationNameById = new Map<number, string>();
-          const agentPrnMeds = new Set<string>(); // fallback when entries lack medicationId
-          const agentPrnMedIds = new Set<number>();
-          agentMedications.forEach((m: any) => {
-            const medId = Number(m.medicationId) || 0;
-            if (medId) agentMedicationNameById.set(medId, m.name);
-            if (m.isPRN) {
-              if (m?.name) agentPrnMeds.add(m.name);
-              if (medId) agentPrnMedIds.add(medId);
-            }
-          });
-
           const normalizeAgentCode = (raw: unknown): string => {
             if (!raw) return "";
             let code = String(raw)
@@ -4863,7 +4867,11 @@ ${correctionExamples}
           
         } catch (agentError: any) {
           console.error("EMAR Agent failed, falling back to standard extraction:", agentError.message);
-          sendEvent('warning', { message: "Agent extraction failed, using standard method..." });
+          sendEvent('warning', {
+            message: "Agent extraction failed, using standard method...",
+            kind: "agent_fallback",
+            userFacing: false,
+          });
           agentExtractionSucceeded = false;
         }
       }

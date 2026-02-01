@@ -273,6 +273,21 @@ interface WorkbookFull {
   updatedAt: string;
 }
 
+type DayTemplateStats = {
+  dateKey: string;
+  day: WeekdayLabel;
+  dateLabel: string;
+  total: number;
+  templated: number;
+  nonTemplated: number;
+  rostered: number;
+  unrostered: number;
+  rosteredTemplated: number;
+  rosteredNonTemplated: number;
+  unrosteredTemplated: number;
+  unrosteredNonTemplated: number;
+};
+
 // ===== HELPER FUNCTIONS =====
 const formatMinutesDisplay = (minutes: number | null | undefined): string => {
   if (minutes === null || minutes === undefined) return "—";
@@ -281,6 +296,14 @@ const formatMinutesDisplay = (minutes: number | null | undefined): string => {
   const sign = minutes < 0 ? "-" : "";
   if (h > 0) return `${sign}${h}h ${m}m`;
   return `${sign}${m} mins`;
+};
+
+const formatTimeOfDay = (minutes: number | null | undefined): string => {
+  if (minutes === null || minutes === undefined || Number.isNaN(minutes)) return "--:--";
+  const normalized = Math.max(0, Math.min(24 * 60 - 1, minutes));
+  const h = Math.floor(normalized / 60);
+  const m = normalized % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 };
 
 const formatDeltaLabel = (deltaMinutes: number): string => {
@@ -385,11 +408,16 @@ export default function RosteringStudio({
   // Local state
   const [selectedWorkbookId, setSelectedWorkbookId] = useState<string | null>(null);
   const [rosteringFullscreen, setRosteringFullscreen] = useState(false);
+  const [studioTab, setStudioTab] = useState<
+    "timeline" | "map" | "call-times" | "constraints" | "workload" | "schedules"
+  >("timeline");
   const [selectedCareWorkerKey, setSelectedCareWorkerKey] = useState<string>("");
+  const [selectedServiceUserKey, setSelectedServiceUserKey] = useState<string | null>(null);
   const [selectedWorkerCallKeys, setSelectedWorkerCallKeys] = useState<string[]>([]);
   const [careWorkerSearch, setCareWorkerSearch] = useState("");
   const [rosterCallSearch, setRosterCallSearch] = useState("");
-  const [hubTab, setHubTab] = useState<"rostering" | "service-user" | "employee" | "search">("rostering");
+  const [hubTab, setHubTab] = useState<"rostering" | "service-user" | "employee" | "search" | "optimize">("rostering");
+  const [isHubSidebarCollapsed, setIsHubSidebarCollapsed] = useState(false);
   const [serviceUserSearch, setServiceUserSearch] = useState("");
   const [serviceUserAreaFilter, setServiceUserAreaFilter] = useState("all");
   const [callTypeFilter, setCallTypeFilter] = useState("all");
@@ -410,6 +438,8 @@ export default function RosteringStudio({
   // Template selection
   const [selectedTemplateWeek, setSelectedTemplateWeek] = useState<TemplateWeekKey>(DEFAULT_TEMPLATE_WEEK);
   const [selectedTemplateDay, setSelectedTemplateDay] = useState<WeekdayLabel>(DEFAULT_TEMPLATE_DAY);
+
+  const routePlannerRef = useRef<HTMLDivElement | null>(null);
   
   // Optimization settings
   const [optimizationWeights, setOptimizationWeights] = useState<OptimizationWeights>(defaultWeights);
@@ -821,6 +851,7 @@ export default function RosteringStudio({
   useEffect(() => {
     if (careWorkerRosters.length > 0 && !selectedCareWorkerKey) {
       setSelectedCareWorkerKey(careWorkerRosters[0].key);
+      setSelectedServiceUserKey(null);
     }
   }, [careWorkerRosters, selectedCareWorkerKey]);
 
@@ -888,17 +919,20 @@ export default function RosteringStudio({
     return map;
   }, [careWorkerRosters]);
 
+  const serviceUserNameByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    careWorkerRosters.forEach((roster) => {
+      roster.callGroups?.forEach((group: any) => {
+        if (!group.serviceUserKey || !group.serviceUserName || map.has(group.serviceUserKey)) return;
+        map.set(group.serviceUserKey, group.serviceUserName);
+      });
+    });
+    return map;
+  }, [careWorkerRosters]);
+
   // Transform recommendedCallTimes data for CallTimeEditor
   const callTimesForEditor = useMemo<RecommendedCallTime[]>(() => {
     if (!recommendedCallTimes) return [];
-    const serviceUserNameByKey = new Map<string, string>();
-    careWorkerRosters.forEach((roster) => {
-      roster.callGroups?.forEach((group: any) => {
-        if (group.serviceUserKey && group.serviceUserName) {
-          serviceUserNameByKey.set(group.serviceUserKey, group.serviceUserName);
-        }
-      });
-    });
     return recommendedCallTimes.map((ct: any) => ({
       id: ct.id,
       serviceUserKey: ct.serviceUserKey,
@@ -909,7 +943,7 @@ export default function RosteringStudio({
       priority: ct.priority,
       notes: ct.notes,
     }));
-  }, [recommendedCallTimes, careWorkerRosters]);
+  }, [recommendedCallTimes, serviceUserNameByKey]);
 
   const recommendedTimeLookup = useMemo(() => {
     const map = new Map<string, RecommendedCallTime>();
@@ -1062,6 +1096,118 @@ export default function RosteringStudio({
     );
   }, [dailyMetrics, selectedTemplateDate]);
 
+  const weeklyTemplateStats = useMemo(() => {
+    const initWeek = (week: TemplateWeekKey) => {
+      const map = new Map<string, DayTemplateStats>();
+      WEEKDAY_OPTIONS.forEach((day) => {
+        const dateInfo = getDateRelativeToTemplateStart(week, day, templateWeekReferenceDayNumberForCalc);
+        map.set(dateInfo.dateKey, {
+          dateKey: dateInfo.dateKey,
+          day,
+          dateLabel: dateInfo.dateLabel,
+          total: 0,
+          templated: 0,
+          nonTemplated: 0,
+          rostered: 0,
+          unrostered: 0,
+          rosteredTemplated: 0,
+          rosteredNonTemplated: 0,
+          unrosteredTemplated: 0,
+          unrosteredNonTemplated: 0,
+        });
+      });
+      return map;
+    };
+
+    const stats = {
+      week1: initWeek("week1"),
+      week2: initWeek("week2"),
+    };
+
+    const isTemplateWeek = (value: any): value is TemplateWeekKey => value === "week1" || value === "week2";
+    const isTemplateDay = (value: any): value is WeekdayLabel => WEEKDAY_OPTIONS.includes(value as WeekdayLabel);
+
+    careWorkerRosters.forEach((roster) => {
+      const rows = roster.callRows ?? roster.rows ?? [];
+      rows.forEach((row) => {
+        if (row.isShiftBar) return;
+        const date = parseDateKeyToLocalDate(row.plannedDateKey);
+        const derivedWeek = date ? deriveTemplateWeekKey(date, templateWeekReferenceDayNumberForCalc) : null;
+        const derivedDay = date ? deriveWeekdayLabel(date) : null;
+        const week = isTemplateWeek(row.templateWeek) ? row.templateWeek : derivedWeek;
+        const day = isTemplateDay(row.templateDay) ? row.templateDay : derivedDay;
+        if (!week || !day) return;
+
+        const dateInfo = getDateRelativeToTemplateStart(week, day, templateWeekReferenceDayNumberForCalc);
+        const bucket = stats[week].get(dateInfo.dateKey);
+        if (!bucket) return;
+
+        const isTemplated = Boolean(row.templateWeek || row.templateDay);
+        const hasTime =
+          typeof row.plannedTimeMinutes === "number" ||
+          typeof row.actualTimeMinutes === "number" ||
+          typeof row.serviceRequirementTimeMinutes === "number";
+
+        bucket.total += 1;
+        if (isTemplated) {
+          bucket.templated += 1;
+        } else {
+          bucket.nonTemplated += 1;
+        }
+
+        if (hasTime) {
+          bucket.rostered += 1;
+          if (isTemplated) {
+            bucket.rosteredTemplated += 1;
+          } else {
+            bucket.rosteredNonTemplated += 1;
+          }
+        } else {
+          bucket.unrostered += 1;
+          if (isTemplated) {
+            bucket.unrosteredTemplated += 1;
+          } else {
+            bucket.unrosteredNonTemplated += 1;
+          }
+        }
+      });
+    });
+
+    return stats;
+  }, [careWorkerRosters, templateWeekReferenceDayNumberForCalc]);
+
+  const selectedDayTemplateStats = useMemo(() => {
+    const weekStats = weeklyTemplateStats[selectedTemplateWeek];
+    return weekStats.get(selectedTemplateDate.dateKey) ?? null;
+  }, [selectedTemplateDate.dateKey, selectedTemplateWeek, weeklyTemplateStats]);
+
+  const weeklyOverviewRows = useMemo(() => {
+    const buildRows = (week: TemplateWeekKey) =>
+      WEEKDAY_OPTIONS.map((day) => {
+        const dateInfo = getDateRelativeToTemplateStart(week, day, templateWeekReferenceDayNumberForCalc);
+        return (
+          weeklyTemplateStats[week].get(dateInfo.dateKey) ?? {
+            dateKey: dateInfo.dateKey,
+            day,
+            dateLabel: dateInfo.dateLabel,
+            total: 0,
+            templated: 0,
+            nonTemplated: 0,
+            rostered: 0,
+            unrostered: 0,
+            rosteredTemplated: 0,
+            rosteredNonTemplated: 0,
+            unrosteredTemplated: 0,
+            unrosteredNonTemplated: 0,
+          }
+        );
+      });
+    return {
+      week1: buildRows("week1"),
+      week2: buildRows("week2"),
+    };
+  }, [templateWeekReferenceDayNumberForCalc, weeklyTemplateStats]);
+
   const selectedWorkerLane = useMemo(
     () => buildWorkerLane(selectedCareWorker, templateSelectionKey, selectedWorkerCallKeySet),
     [selectedCareWorker, selectedWorkerCallKeySet, templateSelectionKey]
@@ -1199,6 +1345,49 @@ export default function RosteringStudio({
     [timelineLanes]
   );
 
+  const routeEntriesForSelection = useMemo(() => {
+    if (!selectedServiceUserKey) return mapEntries;
+    const serviceUserName = serviceUserNameByKey.get(selectedServiceUserKey);
+    return allWorkerLanes
+      .flatMap((lane) => lane.entries)
+      .filter(
+        (entry) =>
+          entry.serviceUserKey === selectedServiceUserKey ||
+          (serviceUserName && entry.serviceUserName === serviceUserName)
+      );
+  }, [allWorkerLanes, mapEntries, selectedServiceUserKey, serviceUserNameByKey]);
+
+  const routeEntriesSorted = useMemo(() => {
+    return [...routeEntriesForSelection]
+      .filter((entry) => entry.startMinutes >= 0)
+      .sort((a, b) => a.startMinutes - b.startMinutes);
+  }, [routeEntriesForSelection]);
+
+  const routeFocusLabel = useMemo(() => {
+    if (selectedServiceUserKey) {
+      return serviceUserNameByKey.get(selectedServiceUserKey) || "Selected service user";
+    }
+    if (showAllWorkers) return "All workers";
+    return selectedCareWorker?.workerName || "No worker selected";
+  }, [selectedCareWorker?.workerName, selectedServiceUserKey, serviceUserNameByKey, showAllWorkers]);
+
+  const routeFocusSummary = useMemo(() => {
+    const templatedCount = routeEntriesSorted.filter((entry) => entry.isTemplated).length;
+    const timeCriticalCount = routeEntriesSorted.filter((entry) => entry.isTimeCritical).length;
+    const recommendedCount = routeEntriesSorted.filter((entry) => {
+      if (!entry.serviceUserKey || !entry.callTypeLabel) return false;
+      return recommendedTimeLookup.has(
+        buildRecommendationKey(entry.serviceUserKey, entry.callTypeLabel)
+      );
+    }).length;
+    return {
+      totalCalls: routeEntriesSorted.length,
+      templatedCount,
+      timeCriticalCount,
+      recommendedCount,
+    };
+  }, [recommendedTimeLookup, routeEntriesSorted]);
+
   const selectedTimelineEntry = useMemo<TimelineEntry | null>(() => {
     if (!selectedTimelineEntryId) return null;
     return mapEntries.find((entry) => entry.id === selectedTimelineEntryId) ?? null;
@@ -1262,6 +1451,13 @@ export default function RosteringStudio({
 
   const hasRosterChanges = scheduleChangeStats.totalChanges > 0;
 
+  const focusRoutePlanner = useCallback((tab: typeof studioTab = "map") => {
+    setStudioTab(tab);
+    requestAnimationFrame(() => {
+      routePlannerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
+
   const applyOverrides = useCallback((updates: Record<string, number>, laneUpdates?: Record<string, string>) => {
     dispatchRoster({
       type: "APPLY_OPTIMIZATION",
@@ -1269,6 +1465,57 @@ export default function RosteringStudio({
       laneOverrides: laneUpdates,
     });
   }, []);
+
+  const applyLockedOverrides = useCallback(
+    (
+      updates: Record<string, number>,
+      laneUpdates?: Record<string, string>
+    ): { timeOverrides: Record<string, number>; laneOverrides?: Record<string, string> } => {
+      const timeOverrides = { ...updates };
+      const laneOverrides = laneUpdates ? { ...laneUpdates } : undefined;
+      const entryById = new Map(mapEntries.map((entry) => [entry.id, entry]));
+
+      entryById.forEach((entry) => {
+        if (!entry.isTemplated) return;
+        if (timeOverrides[entry.id] !== undefined) {
+          const baseStart =
+            typeof entry.requiredStartMinutes === "number" ? entry.requiredStartMinutes : entry.startMinutes;
+          if (timeOverrides[entry.id] !== baseStart) {
+            delete timeOverrides[entry.id];
+          }
+        }
+        if (laneOverrides && laneOverrides[entry.id]) {
+          delete laneOverrides[entry.id];
+        }
+      });
+
+      const doubleUpGroups = new Map<string, string[]>();
+      entryById.forEach((entry) => {
+        if (!entry.serviceUserKey) return;
+        const baseStart =
+          typeof entry.requiredStartMinutes === "number" ? entry.requiredStartMinutes : entry.startMinutes;
+        if (!Number.isFinite(baseStart)) return;
+        const slotKey = `${entry.serviceUserKey}|${selectedTemplateDate.dateKey}|${Math.round(baseStart)}`;
+        if (!doubleUpSlots.has(slotKey)) return;
+        const existing = doubleUpGroups.get(slotKey) ?? [];
+        existing.push(entry.id);
+        doubleUpGroups.set(slotKey, existing);
+      });
+
+      doubleUpGroups.forEach((entryIds) => {
+        const entry = entryById.get(entryIds[0]);
+        if (!entry) return;
+        const lockedStart =
+          typeof entry.requiredStartMinutes === "number" ? entry.requiredStartMinutes : entry.startMinutes;
+        entryIds.forEach((entryId) => {
+          timeOverrides[entryId] = lockedStart;
+        });
+      });
+
+      return { timeOverrides, laneOverrides };
+    },
+    [doubleUpSlots, mapEntries, selectedTemplateDate.dateKey]
+  );
 
   const buildPackedOverrides = useCallback(
     (entries: TimelineEntry[], bufferMinutes: number) => {
@@ -1402,9 +1649,13 @@ export default function RosteringStudio({
         // Normal click: single select
         setSelectedTimelineEntryId(entry.id);
         dispatchRoster({ type: "SELECT_ENTRY", entryId: entry.id });
+        setSelectedServiceUserKey(entry.serviceUserKey || null);
+        if (mode !== "hub") {
+          focusRoutePlanner("map");
+        }
       }
     },
-    [allEntryIdsOrdered, rosterState.present.focusedEntryId]
+    [allEntryIdsOrdered, focusRoutePlanner, mode, rosterState.present.focusedEntryId]
   );
 
   // Handle bulk delete of selected entries
@@ -1475,7 +1726,8 @@ export default function RosteringStudio({
           }
         );
         
-        applyOverrides(result.timeOverrides, result.laneOverrides);
+        const lockedOverrides = applyLockedOverrides(result.timeOverrides, result.laneOverrides);
+        applyOverrides(lockedOverrides.timeOverrides, lockedOverrides.laneOverrides);
         
         const recommendedMsg = result.metrics.recommendedTimeScore < 100
           ? ` Call time accuracy: ${result.metrics.recommendedTimeScore}%`
@@ -1495,7 +1747,7 @@ export default function RosteringStudio({
         setIsOptimizing(false);
       }
     }, 100);
-  }, [timelineLanes, optimizationWeights, optimizationConstraints, recommendedCallTimes, workerTemplates, workerConstraints, weeklyTotals, applyOverrides, toast]);
+  }, [timelineLanes, optimizationWeights, optimizationConstraints, recommendedCallTimes, workerTemplates, workerConstraints, weeklyTotals, applyLockedOverrides, applyOverrides, toast]);
 
   const handleAutoBalance = useCallback(() => {
     const updates: Record<string, number> = {};
@@ -1535,12 +1787,13 @@ export default function RosteringStudio({
       Object.assign(updates, buildPackedOverrides(entries, packingBufferMinutes));
     });
 
-    applyOverrides(updates, laneOverrides);
+    const lockedOverrides = applyLockedOverrides(updates, laneOverrides);
+    applyOverrides(lockedOverrides.timeOverrides, lockedOverrides.laneOverrides);
     toast({
       title: "Workload balanced",
       description: "Visits were redistributed to balance workload and reduce gaps.",
     });
-  }, [applyOverrides, buildLaneDurationMap, buildPackedOverrides, enforceTimeCriticalWindow, packCallsBackToBack, timelineLanes, toast]);
+  }, [applyLockedOverrides, applyOverrides, buildLaneDurationMap, buildPackedOverrides, enforceTimeCriticalWindow, packCallsBackToBack, timelineLanes, toast]);
 
   const handleOptimizeTravel = useCallback(() => {
     const updates: Record<string, number> = {};
@@ -1551,14 +1804,15 @@ export default function RosteringStudio({
         : lane.entries.map((entry) => ({ ...entry, isTimeCritical: false }));
       Object.assign(updates, buildPackedOverrides(entries, bufferMinutes));
     });
-    applyOverrides(updates);
+    const lockedOverrides = applyLockedOverrides(updates);
+    applyOverrides(lockedOverrides.timeOverrides, lockedOverrides.laneOverrides);
     toast({
       title: "Travel gaps optimized",
       description: packCallsBackToBack
         ? "Packed visits back-to-back to minimize gaps."
         : "Inserted buffer between visits to improve travel flow.",
     });
-  }, [applyOverrides, buildPackedOverrides, enforceTimeCriticalWindow, packCallsBackToBack, timelineLanes, toast]);
+  }, [applyLockedOverrides, applyOverrides, buildPackedOverrides, enforceTimeCriticalWindow, packCallsBackToBack, timelineLanes, toast]);
 
   const handleApplyRecommendedTimes = useCallback(() => {
     const updates: Record<string, number> = {};
@@ -1600,14 +1854,15 @@ export default function RosteringStudio({
       });
       return;
     }
-    applyOverrides(updates);
+    const lockedOverrides = applyLockedOverrides(updates);
+    applyOverrides(lockedOverrides.timeOverrides, lockedOverrides.laneOverrides);
     toast({
       title: "Recommended times applied",
       description: skipped
         ? `Updated ${applied} visit(s). ${skipped} visit(s) had no matching recommendation.`
         : `Updated ${applied} visit(s) to recommended start times.`,
     });
-  }, [applyOverrides, enforceTimeCriticalWindow, recommendedTimeLookup, timelineLanes, toast]);
+  }, [applyLockedOverrides, applyOverrides, enforceTimeCriticalWindow, recommendedTimeLookup, timelineLanes, toast]);
 
   // Available template groups (those that have rows on the selected template day)
   const availableTemplateGroups = useMemo(() => {
@@ -1826,10 +2081,7 @@ export default function RosteringStudio({
   useRosteringKeyboardShortcuts(keyboardShortcuts, !!workbook);
 
   const isHub = mode === "hub";
-  const HUB_EMPLOYEE_VISIBLE_ROWS = 5;
   const HUB_EMPLOYEE_ROW_HEIGHT = 52;
-  const hubEmployeeListHeight =
-    HUB_EMPLOYEE_VISIBLE_ROWS * HUB_EMPLOYEE_ROW_HEIGHT + (HUB_EMPLOYEE_VISIBLE_ROWS - 1);
 
   // Access check
   if (user?.role !== "admin") {
@@ -2017,6 +2269,39 @@ export default function RosteringStudio({
             />
           </div>
         )}
+
+        {hubTab === "optimize" && (
+          <div className="space-y-1 md:col-span-2 xl:col-span-4">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Optimization controls</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="default"
+                onClick={handleRunOptimization}
+                disabled={isOptimizing}
+              >
+                <Zap className="h-3.5 w-3.5 mr-1.5" />
+                Optimize rota
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={handleOptimizeTravel}>
+                Optimize travel
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={handleAutoBalance}>
+                Balance workload
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleApplyRecommendedTimes}
+                disabled={callTimesForEditor.length === 0}
+              >
+                Apply recommendations
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     );
 
@@ -2081,15 +2366,37 @@ export default function RosteringStudio({
               <TabsTrigger value="service-user">Service User</TabsTrigger>
               <TabsTrigger value="employee">Employee</TabsTrigger>
               <TabsTrigger value="search">Search</TabsTrigger>
+              <TabsTrigger value="optimize">Optimize</TabsTrigger>
             </TabsList>
           </Tabs>
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-            <Badge variant="outline" className="text-[10px]">
-              {selectedTemplateWeekLabel}
-            </Badge>
-            <Badge variant="outline" className="text-[10px]">
-              {selectedTemplateDay}
-            </Badge>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+              <Badge variant="outline" className="text-[10px]">
+                {selectedTemplateWeekLabel}
+              </Badge>
+              <Badge variant="outline" className="text-[10px]">
+                {selectedTemplateDay}
+              </Badge>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-xs"
+              onClick={() => setIsHubSidebarCollapsed((prev) => !prev)}
+            >
+              {isHubSidebarCollapsed ? (
+                <>
+                  <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                  Show panel
+                </>
+              ) : (
+                <>
+                  <ChevronRight className="h-3.5 w-3.5 mr-1" />
+                  Hide panel
+                </>
+              )}
+            </Button>
           </div>
         </div>
         <div className="px-4 py-3">{hubFilters}</div>
@@ -2139,7 +2446,13 @@ export default function RosteringStudio({
           </Card>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 grid grid-cols-[minmax(0,1fr)_320px] gap-3">
+        <div
+          className={`flex-1 min-h-0 grid gap-3 ${
+            isHubSidebarCollapsed
+              ? "grid-cols-1"
+              : "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]"
+          }`}
+        >
           <div className="grid min-h-0 grid-rows-[minmax(0,1.2fr)_minmax(0,0.9fr)] gap-3">
             <div className="flex min-h-0 flex-col rounded-xl border border-border/60 bg-background">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-muted/20 px-3 py-2">
@@ -2195,140 +2508,217 @@ export default function RosteringStudio({
               </div>
             </div>
           </div>
-          <div className="flex min-h-0 flex-col gap-3">
-            <div className="flex min-h-0 flex-col rounded-xl border border-border/60 bg-background">
-              <div className="flex items-center justify-between border-b border-border/50 bg-muted/20 px-3 py-2">
-                <span className="text-xs font-semibold">Info</span>
-                <Badge variant="outline" className="text-[10px]">
-                  {selectedTemplateWeekLabel}
-                </Badge>
-              </div>
-              <div className="p-3 space-y-3">
+          {!isHubSidebarCollapsed && (
+            <div className="flex min-h-0 flex-col gap-3">
+              <div className="flex min-h-0 flex-col rounded-xl border border-border/60 bg-background">
+                <div className="flex items-center justify-between border-b border-border/50 bg-muted/20 px-3 py-2">
+                  <span className="text-xs font-semibold">Info</span>
+                  <Badge variant="outline" className="text-[10px]">
+                    {selectedTemplateWeekLabel}
+                  </Badge>
+                </div>
+                <div className="p-3 space-y-3">
                 <div className="grid grid-cols-4 text-[10px] uppercase tracking-wide text-muted-foreground">
                   <span>Date</span>
-                  <span className="text-center">Unallocated</span>
-                  <span className="text-center">Allocated</span>
+                  <span className="text-center">Unrostered</span>
+                  <span className="text-center">Rostered</span>
                   <span className="text-center">Total</span>
                 </div>
                 <div className="rounded-lg border border-border/60 overflow-hidden">
                   <ScrollArea className="h-48">
                     <div className="divide-y divide-border/50">
-                      {templateWeekDays.map((day) => {
-                        const metrics = dailyMetrics.get(day.dateKey) ?? { allocated: 0, unallocated: 0, totalMinutes: 0 };
-                        const total = metrics.allocated + metrics.unallocated;
-                        const isSelected = day.day === selectedTemplateDay;
+                        {templateWeekDays.map((day) => {
+                          const metrics = dailyMetrics.get(day.dateKey) ?? { allocated: 0, unallocated: 0, totalMinutes: 0 };
+                          const total = metrics.allocated + metrics.unallocated;
+                          const isSelected = day.day === selectedTemplateDay;
+                          return (
+                            <button
+                              key={day.dateKey}
+                              type="button"
+                              onClick={() => setSelectedTemplateDay(day.day)}
+                              className={`grid w-full grid-cols-4 px-2 py-1 text-[11px] transition ${
+                                isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted/30 text-foreground"
+                              }`}
+                            >
+                              <span className="text-left">{day.day.slice(0, 3)} {day.dateLabel}</span>
+                              <span className="text-center text-rose-600">{metrics.unallocated}</span>
+                              <span className="text-center text-emerald-600">{metrics.allocated}</span>
+                              <span className="text-center">{total}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </div>
+                <div className="border-t border-border/50 px-3 py-2 flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={handlePrevWeek}
+                      disabled={selectedTemplateWeek === "week1"}
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button type="button" size="icon" variant="ghost" onClick={handlePrevDay}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <CalendarDays className="h-4 w-4" />
+                    <span>{selectedTemplateDate.dateLabel}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button type="button" size="icon" variant="ghost" onClick={handleNextDay}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={handleNextWeek}
+                      disabled={selectedTemplateWeek === "week2"}
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background">
+                <div className="border-b border-border/50 bg-muted/20 px-3 py-2 text-xs font-semibold">Week overview</div>
+                <div className="p-3 space-y-4">
+                  {(["week1", "week2"] as const).map((week) => (
+                    <div key={week} className="space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-semibold">{getTemplateWeekLabel(week, templateWeekReferenceDayNumber)}</span>
+                        {week === selectedTemplateWeek && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            Selected
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-4 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        <span>Day</span>
+                        <span className="text-center">Total</span>
+                        <span className="text-center">Templated</span>
+                        <span className="text-center">Not templated</span>
+                      </div>
+                      <div className="rounded-lg border border-border/60 overflow-hidden">
+                        <div className="divide-y divide-border/50">
+                          {weeklyOverviewRows[week].map((day) => {
+                            const isSelected = selectedTemplateWeek === week && selectedTemplateDay === day.day;
+                            return (
+                              <button
+                                key={`${week}-${day.dateKey}`}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedTemplateWeek(week);
+                                  setSelectedTemplateDay(day.day);
+                                }}
+                                className={`grid w-full grid-cols-4 px-2 py-1 text-[11px] transition ${
+                                  isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted/30 text-foreground"
+                                }`}
+                              >
+                                <span className="text-left">{day.day.slice(0, 3)} {day.dateLabel}</span>
+                                <span className="text-center">{day.total}</span>
+                                <span className="text-center text-emerald-600">{day.templated}</span>
+                                <span className="text-center text-rose-600">{day.nonTemplated}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border/60 bg-background">
+                <div className="border-b border-border/50 bg-muted/20 px-3 py-2 text-xs font-semibold">Employees</div>
+                <div className="p-3 grid gap-2">
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Type</p>
+                    <Select value="all" onValueChange={() => {}}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Name</p>
+                    <Input
+                      value={careWorkerSearch}
+                      onChange={(event) => setCareWorkerSearch(event.target.value)}
+                      placeholder="Search for name..."
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1">
+                  <ScrollArea className="h-full w-full">
+                    <div className="divide-y divide-border/50">
+                      {visibleCareWorkerRosters.map((worker) => {
+                        const summary = workerSummaryByKey.get(worker.key);
                         return (
                           <button
-                            key={day.dateKey}
+                            key={worker.key}
                             type="button"
-                            onClick={() => setSelectedTemplateDay(day.day)}
-                            className={`grid w-full grid-cols-4 px-2 py-1 text-[11px] transition ${
-                              isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted/30 text-foreground"
+                            style={{ height: HUB_EMPLOYEE_ROW_HEIGHT }}
+                            onClick={() => {
+                              setSelectedCareWorkerKey(worker.key);
+                              setShowAllWorkers(false);
+                            }}
+                            className={`w-full flex items-start gap-3 px-3 py-2 text-left transition ${
+                              worker.key === selectedCareWorkerKey ? "bg-primary/10" : "hover:bg-muted/30"
                             }`}
                           >
-                            <span className="text-left">{day.day.slice(0, 3)} {day.dateLabel}</span>
-                            <span className="text-center text-rose-600">{metrics.unallocated}</span>
-                            <span className="text-center text-emerald-600">{metrics.allocated}</span>
-                            <span className="text-center">{total}</span>
+                            <WorkerAvatar name={worker.workerName} size="sm" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold truncate">{worker.workerName}</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {summary ? `${summary.totalCalls} calls · ${formatMinutesDisplay(summary.totalDurationMinutes)}` : "No rota data"}
+                              </p>
+                            </div>
                           </button>
                         );
                       })}
                     </div>
                   </ScrollArea>
                 </div>
-              </div>
-              <div className="border-t border-border/50 px-3 py-2 flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={handlePrevWeek}
-                    disabled={selectedTemplateWeek === "week1"}
-                  >
-                    <ChevronsLeft className="h-4 w-4" />
-                  </Button>
-                  <Button type="button" size="icon" variant="ghost" onClick={handlePrevDay}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <CalendarDays className="h-4 w-4" />
-                  <span>{selectedTemplateDate.dateLabel}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button type="button" size="icon" variant="ghost" onClick={handleNextDay}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={handleNextWeek}
-                    disabled={selectedTemplateWeek === "week2"}
-                  >
-                    <ChevronsRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <div className="flex min-h-0 flex-col rounded-xl border border-border/60 bg-background">
-              <div className="border-b border-border/50 bg-muted/20 px-3 py-2 text-xs font-semibold">Employees</div>
-              <div className="p-3 grid gap-2">
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Type</p>
-                  <Select value="all" onValueChange={() => {}}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Name</p>
-                  <Input
-                    value={careWorkerSearch}
-                    onChange={(event) => setCareWorkerSearch(event.target.value)}
-                    placeholder="Search for name..."
-                    className="h-8 text-xs"
-                  />
-                </div>
-              </div>
-              <div className="min-h-0">
-                <ScrollArea className="w-full" style={{ height: hubEmployeeListHeight }}>
-                  <div className="divide-y divide-border/50">
-                    {visibleCareWorkerRosters.map((worker) => {
-                      const summary = workerSummaryByKey.get(worker.key);
-                      return (
-                        <button
-                          key={worker.key}
-                          type="button"
-                          style={{ height: HUB_EMPLOYEE_ROW_HEIGHT }}
-                          onClick={() => {
-                            setSelectedCareWorkerKey(worker.key);
-                            setShowAllWorkers(false);
-                          }}
-                          className={`w-full flex items-start gap-3 px-3 py-2 text-left transition ${
-                            worker.key === selectedCareWorkerKey ? "bg-primary/10" : "hover:bg-muted/30"
-                          }`}
-                        >
-                          <WorkerAvatar name={worker.workerName} size="sm" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate">{worker.workerName}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {summary ? `${summary.totalCalls} calls · ${formatMinutesDisplay(summary.totalDurationMinutes)}` : "No rota data"}
-                            </p>
-                          </div>
-                        </button>
-                      );
-                    })}
+                <div className="rounded-lg border border-border/60 bg-muted/10 p-3">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Rostered vs unrostered</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="rounded-md border border-border/60 bg-background/80 p-2">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Rostered</p>
+                      <div className="mt-1 flex items-center justify-between">
+                        <span>Templated</span>
+                        <span className="font-semibold">{selectedDayTemplateStats?.rosteredTemplated ?? 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>Not templated</span>
+                        <span className="font-semibold">{selectedDayTemplateStats?.rosteredNonTemplated ?? 0}</span>
+                      </div>
+                    </div>
+                    <div className="rounded-md border border-border/60 bg-background/80 p-2">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Unrostered</p>
+                      <div className="mt-1 flex items-center justify-between">
+                        <span>Templated</span>
+                        <span className="font-semibold">{selectedDayTemplateStats?.unrosteredTemplated ?? 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>Not templated</span>
+                        <span className="font-semibold">{selectedDayTemplateStats?.unrosteredNonTemplated ?? 0}</span>
+                      </div>
+                    </div>
                   </div>
-                </ScrollArea>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       );
 
@@ -2342,7 +2732,7 @@ export default function RosteringStudio({
 
   const containerClass = embedded
     ? "space-y-6"
-    : "h-screen py-6 px-4 lg:px-10 max-w-[1600px] mx-auto relative flex flex-col overflow-hidden";
+    : "relative flex w-full flex-1 min-h-0 flex-col px-4 py-6 lg:px-10";
 
   return (
     <div className={containerClass}>
@@ -2700,7 +3090,7 @@ export default function RosteringStudio({
                 onSelectWorker={(workerKey) => setSelectedCareWorkerKey(workerKey)}
               />
 
-              <Card className="border-border/60 bg-background/70 shadow-medium">
+              <Card ref={routePlannerRef} className="border-border/60 bg-background/70 shadow-medium">
                 <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle className="text-base">Route Planner</CardTitle>
@@ -2758,7 +3148,7 @@ export default function RosteringStudio({
                       <p className="text-xs text-muted-foreground mt-2">Drag blocks to reschedule. Use the snap interval for precision.</p>
                     </div>
                   </div>
-                  <Tabs defaultValue="timeline">
+                  <Tabs value={studioTab} onValueChange={(value) => setStudioTab(value as typeof studioTab)}>
                     <TabsList className="mb-4">
                       <TabsTrigger value="timeline">Timeline</TabsTrigger>
                       <TabsTrigger value="map">Map</TabsTrigger>
@@ -2843,7 +3233,96 @@ export default function RosteringStudio({
                       )}
                     </TabsContent>
                     <TabsContent value="map">
-                      <RouteMapView entries={mapEntries} />
+                      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-semibold">Route focus</p>
+                              <p className="text-xs text-muted-foreground">
+                                {routeFocusLabel} • {routeFocusSummary.totalCalls} calls •{" "}
+                                {routeFocusSummary.templatedCount} templated
+                              </p>
+                            </div>
+                            {selectedServiceUserKey && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setSelectedServiceUserKey(null);
+                                }}
+                              >
+                                Clear focus
+                              </Button>
+                            )}
+                          </div>
+                          <RouteMapView entries={routeEntriesSorted} />
+                        </div>
+                        <div className="flex min-h-0 flex-col rounded-2xl border border-border/60 bg-background/70">
+                          <div className="border-b border-border/50 bg-muted/20 px-3 py-2">
+                            <p className="text-xs font-semibold">Rota for day</p>
+                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                              {selectedTemplateWeekLabel} • {selectedTemplateDay} • {selectedTemplateDate.dateLabel}
+                            </p>
+                          </div>
+                          <div className="flex-1 min-h-0">
+                            <ScrollArea className="h-full">
+                              <div className="divide-y divide-border/50">
+                                {routeEntriesSorted.length === 0 ? (
+                                  <div className="px-3 py-6 text-xs text-muted-foreground">
+                                    No calls in this view.
+                                  </div>
+                                ) : (
+                                  routeEntriesSorted.map((entry) => (
+                                    <div key={entry.id} className="px-3 py-2 text-xs">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-semibold">{formatTimeOfDay(entry.startMinutes)}</span>
+                                        {entry.isTemplated ? (
+                                          <Badge variant="secondary" className="text-[10px]">Templated</Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-[10px]">Not templated</Badge>
+                                        )}
+                                      </div>
+                                      <p className="mt-1 text-[11px] font-semibold">
+                                        {entry.serviceUserName || entry.title}
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {entry.callTypeLabel || "Call"} • {formatMinutesDisplay(entry.durationMinutes)}
+                                      </p>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </ScrollArea>
+                          </div>
+                          <div className="border-t border-border/50 px-3 py-3 space-y-2">
+                            <div className="text-[10px] text-muted-foreground">
+                              Recommendations available: {routeFocusSummary.recommendedCount}
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="default"
+                              className="w-full"
+                              onClick={handleRunOptimization}
+                              disabled={isOptimizing}
+                            >
+                              <Zap className="h-3.5 w-3.5 mr-2" />
+                              Optimize day route
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="w-full"
+                              onClick={handleApplyRecommendedTimes}
+                              disabled={callTimesForEditor.length === 0}
+                            >
+                              Apply recommendations
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     </TabsContent>
                     <TabsContent value="call-times">
                       <div className="space-y-4">
@@ -3279,6 +3758,8 @@ export default function RosteringStudio({
                                 onClick={() => {
                                   setSelectedCareWorkerKey(roster.key);
                                   setSelectedWorkerCallKeys([]);
+                                  setSelectedServiceUserKey(null);
+                                  focusRoutePlanner("map");
                                 }}
                                 className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left transition ${
                                   isSelected
@@ -3325,6 +3806,40 @@ export default function RosteringStudio({
                           })}
                         </div>
                       </ScrollArea>
+                      <div className="rounded-xl border border-border/60 bg-background/60">
+                        <div className="border-b border-border/50 bg-muted/20 px-3 py-2 text-xs font-semibold">
+                          Service users (day view)
+                        </div>
+                        <div className="p-2">
+                          <ScrollArea className="h-48">
+                            <div className="space-y-1">
+                              {filteredServiceUserLanes.length === 0 ? (
+                                <div className="px-2 py-3 text-xs text-muted-foreground">
+                                  No service users available for this day.
+                                </div>
+                              ) : (
+                                filteredServiceUserLanes.map((lane) => {
+                                  const laneKey = lane.entries.find((entry) => entry.serviceUserKey)?.serviceUserKey || null;
+                                  return (
+                                    <button
+                                      key={lane.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedServiceUserKey(laneKey);
+                                        focusRoutePlanner("map");
+                                      }}
+                                      className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs transition hover:bg-muted/30"
+                                    >
+                                      <span className="truncate font-medium">{lane.label}</span>
+                                      <span className="text-[10px] text-muted-foreground">{lane.entries.length}</span>
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </ScrollArea>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Call groups and controls */}
@@ -3532,9 +4047,18 @@ export default function RosteringStudio({
                                       }`}
                                     >
                                       <div>
-                                        <p className="text-sm font-semibold">
+                                        <button
+                                          type="button"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            const key = group.serviceUserKey || group.normalizedServiceUserKey || null;
+                                            setSelectedServiceUserKey(key);
+                                            focusRoutePlanner("map");
+                                          }}
+                                          className="text-sm font-semibold text-left hover:text-primary transition-colors"
+                                        >
                                           {group.serviceUserName || "Unknown service user"}
-                                        </p>
+                                        </button>
                                         <p className="text-xs text-muted-foreground">
                                           {group.callTypeLabel} • {group.timeBandLabel} •{" "}
                                           {group.requirementStartLabel || "No requirement time"}

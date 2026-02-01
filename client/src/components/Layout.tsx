@@ -13,6 +13,8 @@ import {
   ShieldCheck,
   Menu,
   ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
   Upload,
   UserCog,
   ClipboardList,
@@ -25,7 +27,7 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, Suspense, memo, useCallback, useMemo } from "react";
+import { useState, useEffect, Suspense, memo, useCallback, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -33,10 +35,21 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 
-const SidebarContent = memo(function SidebarContent({ location, handleSecretClick, logout }: { location: string, handleSecretClick: (e: React.MouseEvent) => void, logout: () => void }) {
+const SidebarContent = memo(function SidebarContent({
+  location,
+  handleSecretClick,
+  logout,
+  collapsed = false,
+}: {
+  location: string;
+  handleSecretClick: (e: React.MouseEvent) => void;
+  logout: () => void;
+  collapsed?: boolean;
+}) {
   const { user } = useAuth();
   const { timeLeft } = useTemporaryData();
   const isAdminUser = user?.role === "admin";
+  const isCollapsed = Boolean(collapsed);
   
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -75,11 +88,12 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
 
   const navLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 group cursor-pointer relative overflow-hidden",
+      "flex items-center gap-3 rounded-xl text-sm font-bold transition-all duration-300 group cursor-pointer relative overflow-hidden",
+      isCollapsed ? "px-2 py-2.5 justify-center gap-0" : "px-3.5 py-2.5",
       isActive
         ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]"
         : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
-    ), []);
+    ), [isCollapsed]);
 
   const subNavLinkClass = useCallback((isActive: boolean) =>
     cn(
@@ -89,66 +103,86 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
         : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
     ), []);
 
+  const labelClass = cn(
+    "whitespace-nowrap transition-opacity duration-200",
+    isCollapsed && "opacity-0 w-0 overflow-hidden"
+  );
+
   return (
     <div className="flex flex-col h-full bg-sidebar">
       {/* Logo Section */}
-      <div className="px-6 pt-8 pb-6">
+      <div className={cn("px-6 pt-8 pb-6", isCollapsed && "px-3 pt-6 pb-4")}>
         <Link href="/">
           <div 
             onClick={handleSecretClick}
-            className="flex items-center gap-4 cursor-pointer group"
+            className={cn("flex items-center gap-4 cursor-pointer group", isCollapsed && "justify-center")}
           >
             <div className="relative h-11 w-11 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-500 bg-gradient-to-br from-primary to-primary/80 group-hover:rotate-6 group-hover:scale-110">
               <ShieldCheck className="h-6 w-6 text-white" />
               <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
-            <div className="flex flex-col">
+            {!isCollapsed && (
+              <div className="flex flex-col">
               <h1 className="font-heading text-xl leading-none tracking-tighter">
                 <span className="font-black text-foreground">Care</span><span className="font-medium text-muted-foreground/80">Assurance</span>
               </h1>
               <span className="text-[9px] mt-1 font-bold uppercase tracking-[0.25em] text-primary/70">OPERATIONS OS</span>
             </div>
+            )}
           </div>
         </Link>
       </div>
 
       {/* Divider */}
-      <div className="mx-6 h-px bg-border/40" />
+      <div className={cn("mx-6 h-px bg-border/40", isCollapsed && "mx-3")} />
 
-      <nav className="flex-1 px-3 space-y-1 py-3 overflow-y-auto">
+      <nav className={cn("flex-1 space-y-1 py-3 overflow-y-auto", isCollapsed ? "px-2" : "px-3")}>
         
         {/* Dashboard */}
-        <Link href="/dashboard" className={navLinkClass(location === "/dashboard")}>
+        <Link href="/dashboard" className={navLinkClass(location === "/dashboard")} title={isCollapsed ? "Dashboard" : undefined}>
             <LayoutDashboard size={18} />
-            Dashboard
-            {location === "/dashboard" && <ArrowUpRight size={14} className="ml-auto opacity-60" />}
+            <span className={labelClass}>Dashboard</span>
+            {!isCollapsed && location === "/dashboard" && <ArrowUpRight size={14} className="ml-auto opacity-60" />}
         </Link>
 
         {/* Email Assistant */}
-        <Link href="/email-assistant" className={navLinkClass(location === "/email-assistant")}>
+        <Link href="/email-assistant" className={navLinkClass(location === "/email-assistant")} title={isCollapsed ? "Email Assistant" : undefined}>
           <Mail size={18} />
-          Email Assistant
+          <span className={labelClass}>Email Assistant</span>
         </Link>
 
         {/* Compliance */}
-        <Link href="/compliance" className={navLinkClass(location === "/compliance")}>
+        <Link href="/compliance" className={navLinkClass(location === "/compliance")} title={isCollapsed ? "Compliance" : undefined}>
           <CheckCircle size={18} />
-          Compliance
+          <span className={labelClass}>Compliance</span>
         </Link>
 
         {/* Section Label */}
-        <div className="pt-3 pb-1.5 px-4">
-          <span className="text-[10px] uppercase tracking-[0.2em] font-medium text-muted-foreground">Modules</span>
-        </div>
+        {!isCollapsed && (
+          <div className="pt-3 pb-1.5 px-4">
+            <span className="text-[10px] uppercase tracking-[0.2em] font-medium text-muted-foreground">Modules</span>
+          </div>
+        )}
 
         {/* Service Users */}
-        <Collapsible open={openServiceUsers} onOpenChange={setOpenServiceUsers} className="space-y-0.5">
-           <CollapsibleTrigger className="flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium rounded-xl transition-all group hover:bg-muted">
-            <div className="flex items-center gap-3">
+        <Collapsible
+          open={isCollapsed ? false : openServiceUsers}
+          onOpenChange={setOpenServiceUsers}
+          className="space-y-0.5"
+          disabled={isCollapsed}
+        >
+           <CollapsibleTrigger
+            title={isCollapsed ? "Service Users" : undefined}
+            className={cn(
+            "flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium rounded-xl transition-all group hover:bg-muted",
+            isCollapsed && "justify-center px-2"
+           )}>
+            <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
               <Users size={18} className="text-muted-foreground" />
-               Service Users
+               <span className={labelClass}>Service Users</span>
             </div>
-            <div className="flex items-center gap-2">
+            {!isCollapsed && (
+              <div className="flex items-center gap-2">
                {timeLeft !== null && (
                  <Badge variant="destructive" className="h-5 px-1.5 text-[9px] animate-pulse">
                    {formatTime(timeLeft)}
@@ -156,8 +190,10 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
                )}
               <ChevronDown size={14} className={cn("transition-transform duration-200 text-muted-foreground", openServiceUsers ? "rotate-180" : "")} />
             </div>
+            )}
           </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-0.5 pl-3">
+          {!isCollapsed && (
+            <CollapsibleContent className="space-y-0.5 pl-3">
              <Link href="/service-users/upload" className={subNavLinkClass(location === "/service-users/upload")}>
                 <Upload size={15} /> Data Upload
              </Link>
@@ -170,19 +206,33 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
              <Link href="/service-users/plan-enhancer" className={subNavLinkClass(location === "/service-users/plan-enhancer")}>
                 <Sparkles size={15} /> Plan Enhancer
              </Link>
-          </CollapsibleContent>
+            </CollapsibleContent>
+          )}
         </Collapsible>
 
         {/* Care Workers */}
-        <Collapsible open={openCareWorkers} onOpenChange={setOpenCareWorkers} className="space-y-0.5">
-           <CollapsibleTrigger className="flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium rounded-xl transition-all group hover:bg-muted">
-            <div className="flex items-center gap-3">
+        <Collapsible
+          open={isCollapsed ? false : openCareWorkers}
+          onOpenChange={setOpenCareWorkers}
+          className="space-y-0.5"
+          disabled={isCollapsed}
+        >
+           <CollapsibleTrigger
+            title={isCollapsed ? "Care Workers" : undefined}
+            className={cn(
+            "flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium rounded-xl transition-all group hover:bg-muted",
+            isCollapsed && "justify-center px-2"
+           )}>
+            <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
               <UserCog size={18} className="text-muted-foreground" />
-               Care Workers
+               <span className={labelClass}>Care Workers</span>
             </div>
-            <ChevronDown size={14} className={cn("transition-transform duration-200 text-muted-foreground", openCareWorkers ? "rotate-180" : "")}/>
+            {!isCollapsed && (
+              <ChevronDown size={14} className={cn("transition-transform duration-200 text-muted-foreground", openCareWorkers ? "rotate-180" : "")}/>
+            )}
           </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-0.5 pl-3">
+          {!isCollapsed && (
+            <CollapsibleContent className="space-y-0.5 pl-3">
              <Link href="/care-workers/list" className={subNavLinkClass(location === "/care-workers/list")}>
                 <Users size={15} /> Carers
              </Link>
@@ -195,20 +245,34 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
              <Link href="/care-workers/performance" className={subNavLinkClass(location === "/care-workers/performance")}>
                 <BarChart size={15} /> Performance
              </Link>
-          </CollapsibleContent>
+            </CollapsibleContent>
+          )}
         </Collapsible>
 
         {/* Admin */}
         {isAdminUser && (
-          <Collapsible open={openAdmin} onOpenChange={setOpenAdmin} className="space-y-0.5">
-            <CollapsibleTrigger className="flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium rounded-xl transition-all group hover:bg-muted">
-              <div className="flex items-center gap-3">
+          <Collapsible
+            open={isCollapsed ? false : openAdmin}
+            onOpenChange={setOpenAdmin}
+            className="space-y-0.5"
+            disabled={isCollapsed}
+          >
+            <CollapsibleTrigger
+              title={isCollapsed ? "Admin" : undefined}
+              className={cn(
+              "flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium rounded-xl transition-all group hover:bg-muted",
+              isCollapsed && "justify-center px-2"
+            )}>
+              <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
                 <Lock size={18} className="text-muted-foreground" />
-                Admin
+                <span className={labelClass}>Admin</span>
               </div>
-              <ChevronDown size={14} className={cn("transition-transform duration-200 text-muted-foreground", openAdmin ? "rotate-180" : "")} />
+              {!isCollapsed && (
+                <ChevronDown size={14} className={cn("transition-transform duration-200 text-muted-foreground", openAdmin ? "rotate-180" : "")} />
+              )}
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-0.5 pl-3">
+            {!isCollapsed && (
+              <CollapsibleContent className="space-y-0.5 pl-3">
               <Link href="/shadow-admin-portal" className={subNavLinkClass(location === "/shadow-admin-portal")}>
                 <ShieldCheck size={15} /> Administrator Controls
               </Link>
@@ -230,27 +294,36 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
               <Link href="/billing-tool" className={subNavLinkClass(location === "/billing-tool")} data-testid="link-billing-tool">
                 <FileSpreadsheet size={15} /> Billing Tool
               </Link>
-            </CollapsibleContent>
+              </CollapsibleContent>
+            )}
           </Collapsible>
         )}
       </nav>
 
       {/* Footer Actions */}
-      <div className="px-3 pb-6 space-y-1 mt-auto border-t border-border/40 pt-4">
+      <div className={cn("px-3 pb-6 space-y-1 mt-auto border-t border-border/40 pt-4", isCollapsed && "px-2")}>
         <Link
           href="/settings"
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:bg-muted text-muted-foreground hover:text-foreground"
+          className={cn(
+            "w-full flex items-center gap-3 rounded-xl text-sm font-bold transition-all hover:bg-muted text-muted-foreground hover:text-foreground",
+            isCollapsed ? "justify-center px-2 py-3 gap-0" : "px-4 py-3"
+          )}
           data-testid="button-settings"
+          title={isCollapsed ? "System Settings" : undefined}
         >
           <Settings size={18} />
-          System Settings
+          <span className={labelClass}>System Settings</span>
         </Link>
         <button
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-destructive hover:bg-destructive/10"
+          className={cn(
+            "w-full flex items-center gap-3 rounded-xl text-sm font-bold transition-all text-destructive hover:bg-destructive/10",
+            isCollapsed ? "justify-center px-2 py-3 gap-0" : "px-4 py-3"
+          )}
           onClick={logout}
+          title={isCollapsed ? "Terminate Session" : undefined}
         >
           <LogOut size={18} />
-          Terminate Session
+          <span className={labelClass}>Terminate Session</span>
         </button>
       </div>
     </div>
@@ -263,19 +336,47 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [clickCount, setClickCount] = useState(0);
   const { user, logout } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const autoCollapseRef = useRef(false);
 
   const contentWrapperClass = cn(
-    "px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6 w-full flex-1 min-h-0",
-    isFullBleed && "px-0 py-0"
+    "w-full flex-1 min-h-0",
+    isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6"
   );
   const cardClass = cn(
-    "glass-card rounded-lg border border-border/70 p-4 sm:p-6 lg:p-8 flex-1 min-h-0 flex flex-col shadow-md animate-fade-in w-full",
-    isFullBleed && "p-0 border-0 rounded-none shadow-none bg-transparent"
+    "glass-card rounded-lg border border-border/70 p-4 sm:p-6 lg:p-8 flex flex-col shadow-md animate-fade-in w-full flex-1 min-h-0",
+    isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent" : ""
   );
   const mainClass = cn(
-    "flex-1 flex flex-col w-full relative z-10 scroll-smooth",
-    isFullBleed ? "overflow-hidden" : "overflow-auto"
+    "flex-1 flex flex-col w-full relative z-10 scroll-smooth overflow-auto"
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 1279px)");
+
+    const handleChange = (event?: MediaQueryListEvent) => {
+      const isSmall = event ? event.matches : media.matches;
+      if (isSmall) {
+        autoCollapseRef.current = true;
+        setIsSidebarCollapsed(true);
+      } else {
+        if (autoCollapseRef.current) {
+          setIsSidebarCollapsed(false);
+        }
+        autoCollapseRef.current = false;
+      }
+    };
+
+    handleChange();
+    if ("addEventListener" in media) {
+      media.addEventListener("change", handleChange);
+      return () => media.removeEventListener("change", handleChange);
+    }
+
+    media.addListener(handleChange);
+    return () => media.removeListener(handleChange);
+  }, []);
 
   const handleSecretClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -298,8 +399,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex h-screen w-full overflow-hidden bg-background">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-[280px] flex-shrink-0 flex-col z-20 border-r border-border/50 bg-sidebar">
-        <SidebarContent location={location} handleSecretClick={handleSecretClick} logout={logout} />
+      <aside className={cn(
+        "hidden md:flex flex-shrink-0 flex-col z-20 border-r border-border/50 bg-sidebar transition-all duration-300",
+        isSidebarCollapsed ? "w-[84px]" : "w-[280px]"
+      )}>
+        <SidebarContent
+          location={location}
+          handleSecretClick={handleSecretClick}
+          logout={logout}
+          collapsed={isSidebarCollapsed}
+        />
       </aside>
 
       {/* Main Content */}
@@ -326,6 +435,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 />
               </SheetContent>
             </Sheet>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden md:inline-flex hover:bg-muted/80 rounded-xl transition-all"
+              onClick={() => {
+                autoCollapseRef.current = false;
+                setIsSidebarCollapsed((prev) => !prev);
+              }}
+            >
+              {isSidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+              <span className="sr-only">Toggle sidebar</span>
+            </Button>
 
             <div className="flex items-center gap-2 px-1">
               <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
@@ -409,7 +531,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Footer */}
-        <footer className="px-4 py-3 border-t border-border/80 bg-background">
+        <footer className="px-4 py-3 border-t border-border/80 bg-background flex-shrink-0">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-muted-foreground">
             <div className="flex items-center gap-1.5 font-medium">
               <span>{new Date().getFullYear()} CareAssurance</span>

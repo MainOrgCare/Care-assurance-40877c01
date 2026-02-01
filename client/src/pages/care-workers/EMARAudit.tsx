@@ -1228,6 +1228,18 @@ export default function EMARAudit() {
               toast({ title: "Analysis Complete", description: "EMAR analysis processed successfully." });
             } else if (eventType === 'warning') {
               const message = data.message || "Warning";
+              const warningKind = String((data as any)?.kind || "");
+              const userFacing = (data as any)?.userFacing;
+              const isAgentFallback =
+                warningKind === "agent_fallback" ||
+                userFacing === false ||
+                /agent extraction failed/i.test(message);
+
+              if (isAgentFallback) {
+                // Internal/expected fallback; avoid user-visible noise.
+                console.info("[EMAR] Agent fallback:", message);
+                continue;
+              }
               const isHighSeverity = /alert|high[-\s]severity/i.test(message);
               toast({
                 title: "Warning",
@@ -1279,12 +1291,23 @@ export default function EMARAudit() {
               toast({ title: "Analysis Complete", description: "EMAR analysis processed successfully." });
             } else if (eventType === 'warning') {
               const message = data.message || "Warning";
+              const warningKind = String((data as any)?.kind || "");
+              const userFacing = (data as any)?.userFacing;
+              const isAgentFallback =
+                warningKind === "agent_fallback" ||
+                userFacing === false ||
+                /agent extraction failed/i.test(message);
+
+              if (isAgentFallback) {
+                console.info("[EMAR] Agent fallback:", message);
+              } else {
               const isHighSeverity = /alert|high[-\s]severity/i.test(message);
               toast({
                 title: "Warning",
                 description: message,
                 variant: isHighSeverity ? "destructive" : "default",
               });
+              }
             } else if (eventType === 'error') {
               throw new Error(data.message || "Analysis failed");
             }
