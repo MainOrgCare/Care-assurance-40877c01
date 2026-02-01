@@ -51,6 +51,7 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
     location === "/shadow-admin-portal" ||
     location === "/testing-features" ||
     location === "/care-worker-rotas" ||
+    location === "/rostering-hub" ||
     location === "/billing-tool" ||
     location === "/system-logs";
   const [openAdmin, setOpenAdmin] = useState(isAdminUser && isAdminRoute);
@@ -64,6 +65,7 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
           location === "/shadow-admin-portal" ||
           location === "/testing-features" ||
           location === "/care-worker-rotas" ||
+          location === "/rostering-hub" ||
           location === "/billing-tool" ||
           location === "/system-logs")
       ) {
@@ -257,9 +259,19 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
+  const isFullBleed = location === "/rostering-hub";
   const [clickCount, setClickCount] = useState(0);
   const { user, logout } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  const contentWrapperClass = cn(
+    "px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6 w-full flex-1 min-h-0",
+    isFullBleed && "px-0 py-0"
+  );
+  const cardClass = cn(
+    "glass-card rounded-lg border border-border/70 p-4 sm:p-6 lg:p-8 flex-1 min-h-0 flex flex-col shadow-md animate-fade-in w-full",
+    isFullBleed && "p-0 border-0 rounded-none shadow-none bg-transparent"
+  );
 
   const handleSecretClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -335,43 +347,60 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page Content Area */}
-        <div className="px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6 w-full flex-1 min-h-0">
-            <div className="glass-card rounded-lg border border-border/70 p-4 sm:p-6 lg:p-8 flex-1 min-h-0 flex flex-col shadow-md animate-fade-in w-full">
-            {/* Internal Page Brand Header */}
-            <div className="flex flex-wrap items-center gap-4 justify-between mb-8 sm:mb-10">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-2xl flex items-center justify-center font-black text-xs bg-muted border border-border/60 shadow-xs text-primary group-hover:bg-primary transition-all">
-                  CA
+        <div className={contentWrapperClass}>
+          <div className={cardClass}>
+            {isFullBleed ? (
+              <Suspense fallback={
+                <div className="flex-1 flex flex-col gap-4 animate-pulse">
+                  <div className="h-8 w-48 bg-muted rounded-lg" />
+                  <div className="h-4 w-full max-w-md bg-muted/60 rounded" />
+                  <div className="h-4 w-full max-w-sm bg-muted/40 rounded" />
+                  <div className="mt-6 h-32 w-full bg-muted/30 rounded-xl" />
                 </div>
-                <div className="space-y-0.5">
-                  <p className="text-[10px] uppercase font-black tracking-[0.3em] text-muted-foreground/50">Enterprise Intelligence</p>
-                  <p className="text-lg font-heading font-black tracking-tight text-foreground">Module Pipeline</p>
+              }>
+                <div className="flex-1 min-h-0 flex flex-col">
+                  {children}
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium border border-emerald-200 text-emerald-700 bg-emerald-50">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Live
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium border border-primary/30 text-primary bg-primary/10">
-                  <span className="h-2 w-2 rounded-full bg-primary" />
-                  Secure
-                </span>
-              </div>
-            </div>
-            <div className="h-px mb-4 sm:mb-5 bg-border/80" />
-            <Suspense fallback={
-              <div className="flex-1 flex flex-col gap-4 animate-pulse">
-                <div className="h-8 w-48 bg-muted rounded-lg" />
-                <div className="h-4 w-full max-w-md bg-muted/60 rounded" />
-                <div className="h-4 w-full max-w-sm bg-muted/40 rounded" />
-                <div className="mt-6 h-32 w-full bg-muted/30 rounded-xl" />
-              </div>
-            }>
-              <div className="flex-1 min-h-0 flex flex-col">
-                {children}
-              </div>
-            </Suspense>
+              </Suspense>
+            ) : (
+              <>
+                {/* Internal Page Brand Header */}
+                <div className="flex flex-wrap items-center gap-4 justify-between mb-8 sm:mb-10">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-2xl flex items-center justify-center font-black text-xs bg-muted border border-border/60 shadow-xs text-primary group-hover:bg-primary transition-all">
+                      CA
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-[10px] uppercase font-black tracking-[0.3em] text-muted-foreground/50">Enterprise Intelligence</p>
+                      <p className="text-lg font-heading font-black tracking-tight text-foreground">Module Pipeline</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium border border-emerald-200 text-emerald-700 bg-emerald-50">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                      Live
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium border border-primary/30 text-primary bg-primary/10">
+                      <span className="h-2 w-2 rounded-full bg-primary" />
+                      Secure
+                    </span>
+                  </div>
+                </div>
+                <div className="h-px mb-4 sm:mb-5 bg-border/80" />
+                <Suspense fallback={
+                  <div className="flex-1 flex flex-col gap-4 animate-pulse">
+                    <div className="h-8 w-48 bg-muted rounded-lg" />
+                    <div className="h-4 w-full max-w-md bg-muted/60 rounded" />
+                    <div className="h-4 w-full max-w-sm bg-muted/40 rounded" />
+                    <div className="mt-6 h-32 w-full bg-muted/30 rounded-xl" />
+                  </div>
+                }>
+                  <div className="flex-1 min-h-0 flex flex-col">
+                    {children}
+                  </div>
+                </Suspense>
+              </>
+            )}
           </div>
         </div>
 

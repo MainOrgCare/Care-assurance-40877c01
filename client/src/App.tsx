@@ -36,6 +36,7 @@ const Compliance = React.lazy(() => import("@/pages/Compliance"));
 const ROICalculator = React.lazy(() => import("@/pages/ROICalculator"));
 const TestingFeatures = React.lazy(() => import("@/pages/TestingFeatures"));
 const RosteringStudio = React.lazy(() => import("@/pages/RosteringStudio"));
+const RosteringHub = React.lazy(() => import("@/pages/RosteringHub"));
 const BillingTool = React.lazy(() => import("@/pages/BillingTool"));
 const SystemLogs = React.lazy(() => import("@/pages/SystemLogs"));
 
@@ -100,7 +101,7 @@ function Router() {
       <AdminRoute path="/testing-features" component={TestingFeatures} />
       <AdminRoute path="/system-logs" component={SystemLogs} />
       <AdminRoute path="/care-worker-rotas" component={RosteringStudio} />
-      <AdminRoute path="/rostering-hub" component={RosteringStudio} />
+      <AdminRoute path="/rostering-hub" component={RosteringHub} />
       <AdminRoute path="/billing-tool" component={BillingTool} />
       <Route path="/admin/care-worker-rotas">
         <Redirect to="/care-worker-rotas" />

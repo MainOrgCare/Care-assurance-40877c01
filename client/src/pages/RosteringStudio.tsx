@@ -32,6 +32,10 @@ import {
   AlertCircle,
   ArrowLeft,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   CheckCircle2,
   Clock4,
   Download,
@@ -65,10 +69,11 @@ import { OptimizationScore } from "@/components/rostering/OptimizationScore";
 import { ConflictSummary } from "@/components/rostering/ConflictAlert";
 import { CallTypeChip } from "@/components/rostering/CallTypeChip";
 import { TravelTimeIndicator } from "@/components/rostering/TravelTimeIndicator";
+import { WorkerAvatar } from "@/components/rostering/WorkerAvatar";
 import { CallTimeEditor, type RecommendedCallTime } from "@/components/rostering/CallTimeEditor";
 import { WorkloadHeatmap } from "@/components/rostering/WorkloadHeatmap";
 import { WorkerConstraintsEditor, type WorkerConstraint as WorkerConstraintUI } from "@/components/rostering/WorkerConstraintsEditor";
-import { buildAllWorkerLanes, buildWorkerLane, buildWorkerSummaries, type TimelineEntry } from "@/lib/rostering/rosterModel";
+import { buildAllWorkerLanes, buildWorkerLane, buildWorkerSummaries, type TimelineEntry, type GanttLane } from "@/lib/rostering/rosterModel";
 import { calculateTravelSegments, calculateOptimizationMetrics, type TravelCategory } from "@/lib/rostering/travelUtils";
 import { useRosteringKeyboardShortcuts, buildRosteringShortcuts, formatShortcutKey } from "@/hooks/useRosteringKeyboardShortcuts";
 import {
@@ -323,7 +328,13 @@ const computeTemplateSelectionKey = (week: TemplateWeekKey, day: WeekdayLabel) =
   return `${week}|${day}`;
 };
 
-export default function RosteringStudio({ embedded = false }: { embedded?: boolean }) {
+export default function RosteringStudio({
+  embedded = false,
+  mode = "studio",
+}: {
+  embedded?: boolean;
+  mode?: "studio" | "hub";
+}) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -335,6 +346,10 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
   const [selectedWorkerCallKeys, setSelectedWorkerCallKeys] = useState<string[]>([]);
   const [careWorkerSearch, setCareWorkerSearch] = useState("");
   const [rosterCallSearch, setRosterCallSearch] = useState("");
+  const [hubTab, setHubTab] = useState<"rostering" | "service-user" | "employee" | "search">("rostering");
+  const [serviceUserSearch, setServiceUserSearch] = useState("");
+  const [serviceUserAreaFilter, setServiceUserAreaFilter] = useState("all");
+  const [callTypeFilter, setCallTypeFilter] = useState("all");
   
   // Roster state with undo/redo via reducer
   const [rosterState, dispatchRoster] = useReducer(rosterHistoryReducer, undefined, createInitialHistoryState);
@@ -672,6 +687,46 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     return TEMPLATE_WEEK_OPTIONS.find((o) => o.key === selectedTemplateWeek)?.label || "Unknown";
   }, [selectedTemplateWeek]);
 
+  const templateWeekDays = useMemo(() => {
+    return WEEKDAY_OPTIONS.map((day) => ({
+      day,
+      ...getDateRelativeToTemplateStart(selectedTemplateWeek, day),
+    }));
+  }, [selectedTemplateWeek]);
+
+  const dailyMetrics = useMemo(() => {
+    const totals = new Map<string, { allocated: number; unallocated: number; totalMinutes: number }>();
+    templateWeekDays.forEach((day) => {
+      totals.set(day.dateKey, { allocated: 0, unallocated: 0, totalMinutes: 0 });
+    });
+
+    careWorkerRosters.forEach((roster) => {
+      const rows = roster.callRows ?? roster.rows ?? [];
+      rows.forEach((row) => {
+        if (row.isShiftBar) return;
+        if (!row.plannedDateKey) return;
+        const bucket = totals.get(row.plannedDateKey);
+        if (!bucket) return;
+        const duration =
+          row.actualDurationMinutes ?? row.plannedDurationMinutes ?? row.serviceRequirementTimeMinutes ?? null;
+        if (typeof duration === "number") {
+          bucket.totalMinutes += duration;
+        }
+        const hasTime =
+          typeof row.plannedTimeMinutes === "number" ||
+          typeof row.actualTimeMinutes === "number" ||
+          typeof row.serviceRequirementTimeMinutes === "number";
+        if (hasTime) {
+          bucket.allocated += 1;
+        } else {
+          bucket.unallocated += 1;
+        }
+      });
+    });
+
+    return totals;
+  }, [careWorkerRosters, templateWeekDays]);
+
   // Filter care workers by search
   const visibleCareWorkerRosters = useMemo(() => {
     const term = careWorkerSearch.toLowerCase().trim();
@@ -699,6 +754,9 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
   const selectedWorkerCallKeySet = useMemo(() => new Set(selectedWorkerCallKeys), [selectedWorkerCallKeys]);
 
   const workerSummaries = useMemo(() => buildWorkerSummaries(careWorkerRosters), [careWorkerRosters]);
+  const workerSummaryByKey = useMemo(() => {
+    return new Map(workerSummaries.map((summary) => [summary.key, summary]));
+  }, [workerSummaries]);
 
   // Extract unique service users and call types from workbook data for editors
   const uniqueServiceUsers = useMemo(() => {
@@ -726,6 +784,30 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
       });
     });
     return Array.from(callTypeSet).sort();
+  }, [careWorkerRosters]);
+
+  const serviceUserAreaOptions = useMemo(() => {
+    const areaSet = new Set<string>();
+    careWorkerRosters.forEach((roster) => {
+      roster.callGroups?.forEach((group: any) => {
+        if (group.serviceUserArea) {
+          areaSet.add(group.serviceUserArea);
+        }
+      });
+    });
+    return Array.from(areaSet).sort();
+  }, [careWorkerRosters]);
+
+  const serviceUserAreaByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    careWorkerRosters.forEach((roster) => {
+      roster.callGroups?.forEach((group: any) => {
+        const key = group.serviceUserKey || group.normalizedServiceUserKey || group.serviceUserName;
+        if (!key || !group.serviceUserArea || map.has(key)) return;
+        map.set(key, group.serviceUserArea);
+      });
+    });
+    return map;
   }, [careWorkerRosters]);
 
   // Transform recommendedCallTimes data for CallTimeEditor
@@ -892,6 +974,16 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     };
   }, [careWorkerRosters, heatmapSummaries, uniqueServiceUsers]);
 
+  const selectedDayMetrics = useMemo(() => {
+    return (
+      dailyMetrics.get(selectedTemplateDate.dateKey) ?? {
+        allocated: 0,
+        unallocated: 0,
+        totalMinutes: 0,
+      }
+    );
+  }, [dailyMetrics, selectedTemplateDate]);
+
   const selectedWorkerLane = useMemo(
     () => buildWorkerLane(selectedCareWorker, templateSelectionKey, selectedWorkerCallKeySet),
     [selectedCareWorker, selectedWorkerCallKeySet, templateSelectionKey]
@@ -906,6 +998,113 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     const baseLanes = showAllWorkers ? allWorkerLanes : selectedWorkerLane ? [selectedWorkerLane] : [];
     return applyOverridesToLanes(baseLanes, rosterState.present);
   }, [allWorkerLanes, rosterState.present, selectedWorkerLane, showAllWorkers]);
+
+  const serviceUserBaseLanes = useMemo<GanttLane[]>(() => {
+    if (careWorkerRosters.length === 0) return [];
+    const laneMap = new Map<string, GanttLane>();
+    const seenEntries = new Set<string>();
+
+    careWorkerRosters.forEach((roster) => {
+      roster.callGroups?.forEach((group: any) => {
+        if (group.requirementStartMinutes === null || group.requirementStartMinutes === undefined) return;
+        if (templateSelectionKey && group.templatedWeekdayKeys && !group.templatedWeekdayKeys.has(templateSelectionKey)) {
+          return;
+        }
+        const entryId = group.key;
+        if (!entryId || seenEntries.has(entryId)) return;
+        seenEntries.add(entryId);
+
+        const serviceUserKey =
+          group.serviceUserKey || group.normalizedServiceUserKey || group.serviceUserName || entryId;
+        const lane = laneMap.get(serviceUserKey) ?? {
+          id: serviceUserKey,
+          label: group.serviceUserName || "Unknown service user",
+          entries: [],
+        };
+
+        lane.entries.push({
+          id: entryId,
+          title: group.callTypeLabel || group.serviceUserName || "Visit",
+          startMinutes: group.requirementStartMinutes as number,
+          durationMinutes: group.durationMinutes ?? DEFAULT_ROUTE_DURATION_MINUTES,
+          serviceUserName: group.serviceUserName,
+          serviceUserKey,
+          callTypeLabel: group.callTypeLabel,
+          isTimeCritical: group.isTimeCritical,
+          isDoubleUp: templateSelectionKey ? Boolean(group.doubleUpWeekdayKeys?.has(templateSelectionKey)) : false,
+          isTemplated: templateSelectionKey ? Boolean(group.templatedWeekdayKeys?.has(templateSelectionKey)) : false,
+          requiredStartMinutes: group.requirementStartMinutes ?? null,
+          address: group.serviceUserAddress ?? null,
+        });
+
+        laneMap.set(serviceUserKey, lane);
+      });
+    });
+
+    return Array.from(laneMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [careWorkerRosters, templateSelectionKey]);
+
+  const serviceUserLanesWithOverrides = useMemo(() => {
+    if (serviceUserBaseLanes.length === 0) return [];
+    const overrides = rosterState.present.timeOverrides;
+    return serviceUserBaseLanes
+      .map((lane) => ({
+        ...lane,
+        entries: lane.entries
+          .map((entry) => {
+            const override = overrides[entry.id];
+            return typeof override === "number" ? { ...entry, startMinutes: override } : entry;
+          })
+          .filter((entry) => entry.startMinutes >= 0),
+      }))
+      .filter((lane) => lane.entries.length > 0);
+  }, [serviceUserBaseLanes, rosterState.present.timeOverrides]);
+
+  const filteredServiceUserLanes = useMemo(() => {
+    const term = serviceUserSearch.toLowerCase().trim();
+    const normalizedCallType = callTypeFilter.toLowerCase();
+
+    return serviceUserLanesWithOverrides
+      .map((lane) => {
+        const area = serviceUserAreaByKey.get(lane.id);
+        if (serviceUserAreaFilter !== "all" && area !== serviceUserAreaFilter) {
+          return null;
+        }
+
+        let entries = lane.entries;
+        if (callTypeFilter !== "all") {
+          entries = entries.filter(
+            (entry) => entry.callTypeLabel?.toLowerCase() === normalizedCallType
+          );
+        }
+        if (term) {
+          const laneMatches = lane.label.toLowerCase().includes(term);
+          if (!laneMatches) {
+            entries = entries.filter(
+              (entry) =>
+                entry.serviceUserName?.toLowerCase().includes(term) ||
+                entry.callTypeLabel?.toLowerCase().includes(term)
+            );
+          }
+        }
+        if (entries.length === 0) return null;
+        return { ...lane, entries };
+      })
+      .filter((lane): lane is GanttLane => Boolean(lane));
+  }, [callTypeFilter, serviceUserAreaByKey, serviceUserAreaFilter, serviceUserLanesWithOverrides, serviceUserSearch]);
+
+  const hubTimelineLanes = useMemo(() => {
+    if (callTypeFilter === "all") return timelineLanes;
+    const normalized = callTypeFilter.toLowerCase();
+    return timelineLanes
+      .map((lane) => ({
+        ...lane,
+        entries: lane.entries.filter(
+          (entry) => entry.callTypeLabel?.toLowerCase() === normalized
+        ),
+      }))
+      .filter((lane) => lane.entries.length > 0);
+  }, [callTypeFilter, timelineLanes]);
 
   const entryLookup = useMemo(() => {
     const map = new Map<string, TimelineEntry>();
@@ -1384,6 +1583,38 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     });
   }, [dispatchRoster, hasRosterChanges, toast]);
 
+  const handlePrevDay = useCallback(() => {
+    const idx = WEEKDAY_OPTIONS.indexOf(selectedTemplateDay);
+    if (idx > 0) {
+      setSelectedTemplateDay(WEEKDAY_OPTIONS[idx - 1]);
+    } else if (selectedTemplateWeek === "week2") {
+      setSelectedTemplateWeek("week1");
+      setSelectedTemplateDay(WEEKDAY_OPTIONS[WEEKDAY_OPTIONS.length - 1]);
+    }
+  }, [selectedTemplateDay, selectedTemplateWeek]);
+
+  const handleNextDay = useCallback(() => {
+    const idx = WEEKDAY_OPTIONS.indexOf(selectedTemplateDay);
+    if (idx < WEEKDAY_OPTIONS.length - 1) {
+      setSelectedTemplateDay(WEEKDAY_OPTIONS[idx + 1]);
+    } else if (selectedTemplateWeek === "week1") {
+      setSelectedTemplateWeek("week2");
+      setSelectedTemplateDay(WEEKDAY_OPTIONS[0]);
+    }
+  }, [selectedTemplateDay, selectedTemplateWeek]);
+
+  const handlePrevWeek = useCallback(() => {
+    if (selectedTemplateWeek === "week2") {
+      setSelectedTemplateWeek("week1");
+    }
+  }, [selectedTemplateWeek]);
+
+  const handleNextWeek = useCallback(() => {
+    if (selectedTemplateWeek === "week1") {
+      setSelectedTemplateWeek("week2");
+    }
+  }, [selectedTemplateWeek]);
+
   const handleExportPdf = useCallback(() => {
     if (timelineLanes.length === 0) {
       toast({
@@ -1516,6 +1747,8 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
 
   useRosteringKeyboardShortcuts(keyboardShortcuts, !!workbook);
 
+  const isHub = mode === "hub";
+
   // Access check
   if (user?.role !== "admin") {
     return (
@@ -1531,6 +1764,495 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
             </Button>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  if (isHub) {
+    const hubFilters = (
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {hubTab === "rostering" && (
+          <>
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Week</p>
+              <Select value={selectedTemplateWeek} onValueChange={(value) => setSelectedTemplateWeek(value as TemplateWeekKey)}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TEMPLATE_WEEK_OPTIONS.map((week) => (
+                    <SelectItem key={week.key} value={week.key}>
+                      {week.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Day</p>
+              <Select value={selectedTemplateDay} onValueChange={(value) => setSelectedTemplateDay(value as WeekdayLabel)}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {WEEKDAY_OPTIONS.map((day) => (
+                    <SelectItem key={day} value={day}>
+                      {day}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Call type</p>
+              <Select value={callTypeFilter} onValueChange={setCallTypeFilter}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {uniqueCallTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Service user</p>
+              <Input
+                value={serviceUserSearch}
+                onChange={(event) => setServiceUserSearch(event.target.value)}
+                placeholder="Search service users..."
+                className="h-8 text-xs"
+              />
+            </div>
+          </>
+        )}
+
+        {hubTab === "service-user" && (
+          <>
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Area</p>
+              <Select value={serviceUserAreaFilter} onValueChange={setServiceUserAreaFilter}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {serviceUserAreaOptions.map((area) => (
+                    <SelectItem key={area} value={area}>
+                      {area}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Call type</p>
+              <Select value={callTypeFilter} onValueChange={setCallTypeFilter}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {uniqueCallTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Search</p>
+              <Input
+                value={serviceUserSearch}
+                onChange={(event) => setServiceUserSearch(event.target.value)}
+                placeholder="Search by name or call type..."
+                className="h-8 text-xs"
+              />
+            </div>
+          </>
+        )}
+
+        {hubTab === "employee" && (
+          <>
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Type</p>
+              <Select value="all" onValueChange={() => {}}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Role</p>
+              <Select value="all" onValueChange={() => {}}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Agency</p>
+              <Select value="all" onValueChange={() => {}}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Name</p>
+              <Input
+                value={careWorkerSearch}
+                onChange={(event) => setCareWorkerSearch(event.target.value)}
+                placeholder="Search employees..."
+                className="h-8 text-xs"
+              />
+            </div>
+          </>
+        )}
+
+        {hubTab === "search" && (
+          <div className="space-y-1 md:col-span-2 xl:col-span-4">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Search</p>
+            <Input
+              value={serviceUserSearch}
+              onChange={(event) => setServiceUserSearch(event.target.value)}
+              placeholder="Search service users, employees, or call types..."
+              className="h-8 text-xs"
+            />
+          </div>
+        )}
+      </div>
+    );
+
+    const hubToolbar = (
+      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-wide">Snap</span>
+          <Select value={String(snapMinutes)} onValueChange={(value) => setSnapMinutes(Number(value))}>
+            <SelectTrigger className="h-8 w-[90px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[5, 10, 15, 30].map((value) => (
+                <SelectItem key={value} value={String(value)}>
+                  {value} mins
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch
+            id="hub-half-hour"
+            checked={showHalfHourTicks}
+            onCheckedChange={setShowHalfHourTicks}
+          />
+          <label htmlFor="hub-half-hour" className="text-xs font-medium">
+            30‑minute ticks
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={handleUndo} disabled={!canUndo(rosterState)}>
+            <Undo2 className="h-3.5 w-3.5 mr-1" />
+            Undo
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={handleRedo} disabled={!canRedo(rosterState)}>
+            <Redo2 className="h-3.5 w-3.5 mr-1" />
+            Redo
+          </Button>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            refetchWorkbooks();
+            refetchWorkbook();
+          }}
+        >
+          <RefreshCw className="h-3.5 w-3.5 mr-1" />
+          Refresh
+        </Button>
+      </div>
+    );
+
+    const hubHeader = (
+      <div className="rounded-xl border border-border/60 bg-background">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 bg-muted/20 px-4 py-2">
+          <Tabs value={hubTab} onValueChange={(value) => setHubTab(value as typeof hubTab)}>
+            <TabsList className="bg-transparent p-0">
+              <TabsTrigger value="rostering">Rostering</TabsTrigger>
+              <TabsTrigger value="service-user">Service User</TabsTrigger>
+              <TabsTrigger value="employee">Employee</TabsTrigger>
+              <TabsTrigger value="search">Search</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+            <Badge variant="outline" className="text-[10px]">
+              {selectedTemplateWeekLabel}
+            </Badge>
+            <Badge variant="outline" className="text-[10px]">
+              {selectedTemplateDay}
+            </Badge>
+          </div>
+        </div>
+        <div className="px-4 py-3">{hubFilters}</div>
+        <div className="border-t border-border/50 px-4 py-2">{hubToolbar}</div>
+      </div>
+    );
+
+    const hubMain =
+      !selectedWorkbookId ? (
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <Card className="p-10 text-center">
+            <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold">No data available</h3>
+            <p className="text-muted-foreground mt-2">
+              Upload data in Testing Features to generate rostering schedules.
+            </p>
+            <Button variant="outline" className="mt-4" asChild>
+              <Link href="/testing-features">Go to Testing Features</Link>
+            </Button>
+          </Card>
+        </div>
+      ) : workbookLoading ? (
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <Card className="p-10 text-center">
+            <Loader2 className="h-8 w-8 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading workbook data...</p>
+          </Card>
+        </div>
+      ) : !workbook ? (
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <Card className="p-10 text-center">
+            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h3 className="text-lg font-semibold">Workbook Not Found</h3>
+            <p className="text-muted-foreground mt-2">
+              The selected workbook could not be loaded.
+            </p>
+          </Card>
+        </div>
+      ) : careWorkerRosters.length === 0 ? (
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <Card className="p-10 text-center">
+            <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold">No Care Worker Data</h3>
+            <p className="text-muted-foreground mt-2">
+              This workbook does not contain any care worker roster data.
+            </p>
+          </Card>
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 grid grid-cols-[minmax(0,1fr)_320px] gap-3">
+          <div className="grid min-h-0 grid-rows-[minmax(0,1.2fr)_minmax(0,0.9fr)] gap-3">
+            <div className="flex min-h-0 flex-col rounded-xl border border-border/60 bg-background">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-muted/20 px-3 py-2">
+                <div className="text-xs font-semibold">Service Users</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {selectedTemplateDay} {selectedTemplateDate.dateLabel} · Total {selectedDayMetrics.allocated + selectedDayMetrics.unallocated} visits · {formatMinutesDisplay(selectedDayMetrics.totalMinutes)}
+                </div>
+              </div>
+              <div className="flex-1 min-h-0">
+                <GanttTimeline
+                  lanes={filteredServiceUserLanes}
+                  startMinutes={ROSTER_DAY_START_MINUTES}
+                  endMinutes={ROSTER_DAY_HARD_END_MINUTES}
+                  snapMinutes={snapMinutes}
+                  showHalfHourTicks={showHalfHourTicks}
+                  selectedEntryId={selectedTimelineEntryId}
+                  selectedEntryIds={rosterState.present.selectedEntryIds}
+                  focusedEntryId={rosterState.present.focusedEntryId}
+                  onSelectEntry={handleSelectEntry}
+                  enableDrag={false}
+                  recommendedTimes={callTimesForEditor}
+                />
+              </div>
+            </div>
+            <div className="flex min-h-0 flex-col rounded-xl border border-border/60 bg-background">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-muted/20 px-3 py-2">
+                <div className="text-xs font-semibold">Employees</div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Switch
+                    id="hub-show-all"
+                    checked={showAllWorkers}
+                    onCheckedChange={setShowAllWorkers}
+                  />
+                  <label htmlFor="hub-show-all" className="text-xs font-medium">
+                    Show all workers
+                  </label>
+                </div>
+              </div>
+              <div className="flex-1 min-h-0">
+                <GanttTimeline
+                  lanes={hubTimelineLanes}
+                  startMinutes={ROSTER_DAY_START_MINUTES}
+                  endMinutes={ROSTER_DAY_HARD_END_MINUTES}
+                  snapMinutes={snapMinutes}
+                  showHalfHourTicks={showHalfHourTicks}
+                  selectedEntryId={selectedTimelineEntryId}
+                  selectedEntryIds={rosterState.present.selectedEntryIds}
+                  focusedEntryId={rosterState.present.focusedEntryId}
+                  onSelectEntry={handleSelectEntry}
+                  onEntryMove={handleEntryMove}
+                  recommendedTimes={callTimesForEditor}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex min-h-0 flex-col gap-3">
+            <div className="flex min-h-0 flex-col rounded-xl border border-border/60 bg-background">
+              <div className="flex items-center justify-between border-b border-border/50 bg-muted/20 px-3 py-2">
+                <span className="text-xs font-semibold">Info</span>
+                <Badge variant="outline" className="text-[10px]">
+                  {selectedTemplateWeekLabel}
+                </Badge>
+              </div>
+              <div className="p-3 space-y-3">
+                <div className="grid grid-cols-4 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <span>Date</span>
+                  <span className="text-center">Unallocated</span>
+                  <span className="text-center">Allocated</span>
+                  <span className="text-center">Total</span>
+                </div>
+                <div className="rounded-lg border border-border/60 overflow-hidden">
+                  <ScrollArea className="h-48">
+                    <div className="divide-y divide-border/50">
+                      {templateWeekDays.map((day) => {
+                        const metrics = dailyMetrics.get(day.dateKey) ?? { allocated: 0, unallocated: 0, totalMinutes: 0 };
+                        const total = metrics.allocated + metrics.unallocated;
+                        const isSelected = day.day === selectedTemplateDay;
+                        return (
+                          <button
+                            key={day.dateKey}
+                            type="button"
+                            onClick={() => setSelectedTemplateDay(day.day)}
+                            className={`grid w-full grid-cols-4 px-2 py-1 text-[11px] transition ${
+                              isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted/30 text-foreground"
+                            }`}
+                          >
+                            <span className="text-left">{day.day.slice(0, 3)} {day.dateLabel}</span>
+                            <span className="text-center text-rose-600">{metrics.unallocated}</span>
+                            <span className="text-center text-emerald-600">{metrics.allocated}</span>
+                            <span className="text-center">{total}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                </div>
+              </div>
+              <div className="border-t border-border/50 px-3 py-2 flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={handlePrevWeek}
+                    disabled={selectedTemplateWeek === "week1"}
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" size="icon" variant="ghost" onClick={handlePrevDay}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CalendarDays className="h-4 w-4" />
+                  <span>{selectedTemplateDate.dateLabel}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button type="button" size="icon" variant="ghost" onClick={handleNextDay}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={handleNextWeek}
+                    disabled={selectedTemplateWeek === "week2"}
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="flex min-h-0 flex-col rounded-xl border border-border/60 bg-background">
+              <div className="border-b border-border/50 bg-muted/20 px-3 py-2 text-xs font-semibold">Employees</div>
+              <div className="p-3 grid gap-2">
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Type</p>
+                  <Select value="all" onValueChange={() => {}}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Name</p>
+                  <Input
+                    value={careWorkerSearch}
+                    onChange={(event) => setCareWorkerSearch(event.target.value)}
+                    placeholder="Search for name..."
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+              <div className="flex-1 min-h-0">
+                <ScrollArea className="h-full">
+                  <div className="divide-y divide-border/50">
+                    {visibleCareWorkerRosters.map((worker) => {
+                      const summary = workerSummaryByKey.get(worker.key);
+                      return (
+                        <button
+                          key={worker.key}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCareWorkerKey(worker.key);
+                            setShowAllWorkers(false);
+                          }}
+                          className={`w-full flex items-start gap-3 px-3 py-2 text-left transition ${
+                            worker.key === selectedCareWorkerKey ? "bg-primary/10" : "hover:bg-muted/30"
+                          }`}
+                        >
+                          <WorkerAvatar name={worker.workerName} size="sm" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold truncate">{worker.workerName}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {summary ? `${summary.totalCalls} calls · ${formatMinutesDisplay(summary.totalDurationMinutes)}` : "No rota data"}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-3">
+        {hubHeader}
+        {hubMain}
       </div>
     );
   }

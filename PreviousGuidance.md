@@ -1,15 +1,18 @@
 # CareAssurance - MAR Analysis & Care Planning
 
 ## Overview
+
 CareAssurance is a healthcare compliance management application for care facilities. It automates CQC compliance analysis, medication administration record (MAR) auditing, care plan generation, and care worker performance tracking. The application emphasizes data privacy through automatic data sealing, time-based record redaction, and role-based access control. Its core purpose is to streamline compliance, enhance care planning, and boost operational efficiency, leading to reduced manual labor costs and improved service user outcomes.
 
 ## User Preferences
+
 Preferred communication style: Simple, everyday language.
 **Homepage/Marketing Changes**: Remove all free trial messaging, fake reviews/testimonials, and NHS Approved Supplier claims. Keep only authentic content (CQC Compliant, GDPR Certified badges).
 
 ## System Architecture
 
 ### Frontend
+
 - **Framework**: React 18 with TypeScript
 - **Routing**: Wouter
 - **State Management**: TanStack React Query for server state, React Context for local state
@@ -19,17 +22,20 @@ Preferred communication style: Simple, everyday language.
 - **Available Themes**: Dark, Midnight, Ocean
 
 ### Backend
+
 - **Runtime**: Node.js with Express
 - **Language**: TypeScript (ES modules)
 - **Authentication**: Custom session-based auth with bcrypt hashing and PostgreSQL session store. Supports "admin" and "staff" roles with user approval workflow.
 - **API Pattern**: RESTful JSON API under `/api`
 
 ### Data Storage
+
 - **Database**: PostgreSQL
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation. Schema is shared between frontend and backend.
 - **Key Tables**: users, careWorkers, discrepancies, audits, adminAlerts, activeSessions, blockedIps, emarRefusalReviews, emarCorrections, aiUsageLogs, fileScanLogs.
 
 ### Key Design Patterns & Features
+
 - **Shared Schema**: Database schema and Zod validators are shared between client and server.
 - **Protected Routes**: Client-side route protection.
 - **Glass Morphism UI**: Dark theme with translucent effects and gradient backgrounds.
@@ -51,23 +57,28 @@ Preferred communication style: Simple, everyday language.
 ## External Dependencies
 
 ### Database
+
 - PostgreSQL
 
 ### Authentication
+
 - bcrypt
 - express-session
 - connect-pg-simple
 
 ### AI/External APIs
+
 - OpenAI
 - Google Generative AI
 - Cloudmersive Virus Scan API
 
 ### Third-Party Services
+
 - Stripe (optional)
 - Nodemailer (optional)
 
 ### Frontend Libraries
+
 - Recharts
 - react-day-picker
 - embla-carousel
