@@ -220,8 +220,8 @@ const SidebarContent = memo(function SidebarContent({ location, handleSecretClic
                 <Terminal size={15} /> System Logs
               </Link>
               <Link
-                href="/care-worker-rotas"
-                className={subNavLinkClass(location === "/care-worker-rotas")}
+                href="/rostering-hub"
+                className={subNavLinkClass(location === "/rostering-hub")}
               >
                 <ClipboardList size={15} /> Rostering Hub
               </Link>

@@ -100,6 +100,7 @@ function Router() {
       <AdminRoute path="/testing-features" component={TestingFeatures} />
       <AdminRoute path="/system-logs" component={SystemLogs} />
       <AdminRoute path="/care-worker-rotas" component={RosteringStudio} />
+      <AdminRoute path="/rostering-hub" component={RosteringStudio} />
       <AdminRoute path="/billing-tool" component={BillingTool} />
       <Route path="/admin/care-worker-rotas">
         <Redirect to="/care-worker-rotas" />
