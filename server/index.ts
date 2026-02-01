@@ -28,7 +28,7 @@ app.use((req, res, next) => {
 });
 
 // CORS middleware
-const corsOrigin = process.env.CORS_ORIGIN;
+const corsOrigin = process.env. CORS_ORIGIN;
 if (corsOrigin) {
   const corsOptions: CorsOptions = {
     origin: corsOrigin,
