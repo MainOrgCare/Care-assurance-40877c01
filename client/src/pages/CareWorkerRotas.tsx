@@ -1568,7 +1568,7 @@ export default function CareWorkerRotas() {
             </div>
           }
         >
-          <RosteringStudio embedded />
+          <RosteringStudio />
         </Suspense>
       ) : (
         <>

@@ -12234,16 +12234,27 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       }
 
       const calls = await storage.getAllAnalyzedCalls();
+      const serviceOrders = await storage.getAllServiceOrders();
       const templateAssignments = await storage.getAllTemplateAssignments();
-      const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string }>();
+      const serviceOrderMap = new Map<string, (typeof serviceOrders)[number]>();
+      serviceOrders.forEach((order) => {
+        const key = `${order.serviceUserKey}|${order.callTypeKey}|${order.timeBand}`;
+        serviceOrderMap.set(key, order);
+      });
+      const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string; updatedAtMs: number }>();
       templateAssignments
         .filter((assignment) => assignment.isTemplated)
         .forEach((assignment) => {
           const key = `${assignment.serviceUserKey}|${assignment.callTypeLabel}|${assignment.templateWeek}|${assignment.templateDay}`;
-          templateAssignmentMap.set(key, {
-            workerKey: assignment.workerKey,
-            workerName: assignment.workerName,
-          });
+          const existing = templateAssignmentMap.get(key);
+          const updatedAtMs = (assignment.updatedAt ?? assignment.createdAt ?? new Date(0)).getTime();
+          if (!existing || updatedAtMs > existing.updatedAtMs) {
+            templateAssignmentMap.set(key, {
+              workerKey: assignment.workerKey,
+              workerName: assignment.workerName,
+              updatedAtMs,
+            });
+          }
         });
 
       const rosterMap = new Map<string, any>();
@@ -12252,10 +12263,12 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       let rowCounter = 0;
 
       for (const call of calls) {
-        const assignmentKey = `${call.serviceUserKey}|${call.callTypeLabel}|${call.templateWeek}|${call.templateDay}`;
-        const templateAssignment = call.isTemplated ? templateAssignmentMap.get(assignmentKey) : undefined;
+        const assignmentKey = `${call.serviceUserKey}|${call.callTypeKey}|${call.templateWeek}|${call.templateDay}`;
+        const templateAssignment = templateAssignmentMap.get(assignmentKey);
         const workerKey = templateAssignment?.workerKey ?? call.workerKey;
         const workerName = templateAssignment?.workerName ?? call.workerName;
+        const orderKey = `${call.serviceUserKey}|${call.callTypeKey}|${call.timeBand}`;
+        const serviceOrder = serviceOrderMap.get(orderKey);
         const roster = rosterMap.get(workerKey) || {
           key: workerKey,
           workerName,
@@ -12273,11 +12286,13 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         };
 
         const requirementStart =
+          serviceOrder?.serviceRequirementStartTime ??
           call.serviceRequirementStartMinutes ??
           call.plannedStartMinutes ??
           call.actualStartMinutes ??
           null;
         const durationMinutes =
+          serviceOrder?.serviceRequirementMinutes ??
           call.plannedDurationMinutes ??
           call.actualDurationMinutes ??
           null;
@@ -12313,7 +12328,10 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
           actualDurationMinutes: call.actualDurationMinutes ?? null,
           plannedTimeMinutes: call.plannedStartMinutes ?? null,
           actualTimeMinutes: call.actualStartMinutes ?? null,
-          serviceRequirementTimeMinutes: call.serviceRequirementStartMinutes ?? null,
+          serviceRequirementTimeMinutes:
+            serviceOrder?.serviceRequirementStartTime ??
+            call.serviceRequirementStartMinutes ??
+            null,
           serviceRequirementTimeLabel: null,
           plannedDateLabel: call.callDate,
           plannedDateKey: call.callDate,
@@ -12354,13 +12372,19 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
             rows: [],
           };
           roster.callGroups.push(group);
+        } else if (group.requirementStartMinutes === null && requirementStart !== null) {
+          group.requirementStartMinutes = requirementStart;
+        }
+
+        if (group.durationMinutes === null && durationMinutes !== null) {
+          group.durationMinutes = durationMinutes;
         }
 
         group.rows.push(row);
         group.totalCalls += 1;
         if (call.isTimeCritical) group.isTimeCritical = true;
         const templateKey = `${call.templateWeek}|${call.templateDay}`;
-        if (call.isTemplated) {
+        if (templateAssignment) {
           group.templatedWeekdayKeys.add(templateKey);
           group.templatedRows += 1;
           roster.usesTemplateAssignments = true;
@@ -12642,15 +12666,20 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
 
       const calls = await storage.getAllAnalyzedCalls();
       const templateAssignments = await storage.getAllTemplateAssignments();
-      const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string }>();
+      const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string; updatedAtMs: number }>();
       templateAssignments
         .filter((assignment) => assignment.isTemplated)
         .forEach((assignment) => {
           const key = `${assignment.serviceUserKey}|${assignment.callTypeLabel}|${assignment.templateWeek}|${assignment.templateDay}`;
-          templateAssignmentMap.set(key, {
-            workerKey: assignment.workerKey,
-            workerName: assignment.workerName,
-          });
+          const existing = templateAssignmentMap.get(key);
+          const updatedAtMs = (assignment.updatedAt ?? assignment.createdAt ?? new Date(0)).getTime();
+          if (!existing || updatedAtMs > existing.updatedAtMs) {
+            templateAssignmentMap.set(key, {
+              workerKey: assignment.workerKey,
+              workerName: assignment.workerName,
+              updatedAtMs,
+            });
+          }
         });
 
       const rosterMap = new Map<string, any>();
@@ -12659,8 +12688,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       let rowCounter = 0;
 
       for (const call of calls) {
-        const assignmentKey = `${call.serviceUserKey}|${call.callTypeLabel}|${call.templateWeek}|${call.templateDay}`;
-        const templateAssignment = call.isTemplated ? templateAssignmentMap.get(assignmentKey) : undefined;
+        const assignmentKey = `${call.serviceUserKey}|${call.callTypeKey}|${call.templateWeek}|${call.templateDay}`;
+        const templateAssignment = templateAssignmentMap.get(assignmentKey);
         const workerKey = templateAssignment?.workerKey ?? call.workerKey;
         const workerName = templateAssignment?.workerName ?? call.workerName;
         const roster = rosterMap.get(workerKey) || {
@@ -12767,7 +12796,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         group.totalCalls += 1;
         if (call.isTimeCritical) group.isTimeCritical = true;
         const templateKey = `${call.templateWeek}|${call.templateDay}`;
-        if (call.isTemplated) {
+        if (templateAssignment) {
           group.templatedWeekdayKeys.add(templateKey);
           group.templatedRows += 1;
           roster.usesTemplateAssignments = true;
