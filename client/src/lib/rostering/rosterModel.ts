@@ -55,11 +55,15 @@ const fallbackDurationMinutes = 30;
 
 export const buildWorkerTimelineEntries = (
   roster: CareWorkerRosterShape | null,
-  templateSelectionKey?: string
+  templateSelectionKey?: string,
+  selectedCallKeys?: Set<string>
 ): TimelineEntry[] => {
   if (!roster) return [];
   return roster.callGroups
     .filter((group) => {
+      if (selectedCallKeys && selectedCallKeys.size > 0 && !selectedCallKeys.has(group.key)) {
+        return false;
+      }
       // Must have a requirement start time
       if (group.requirementStartMinutes === null) return false;
       // Filter by template week/day if key provided
@@ -113,23 +117,25 @@ export const buildWorkerSummaries = (rosters: CareWorkerRosterShape[]): WorkerSu
 
 export const buildWorkerLane = (
   roster: CareWorkerRosterShape | null,
-  templateSelectionKey?: string
+  templateSelectionKey?: string,
+  selectedCallKeys?: Set<string>
 ): GanttLane | null => {
   if (!roster) return null;
   return {
     id: roster.key,
     label: roster.workerName,
-    entries: buildWorkerTimelineEntries(roster, templateSelectionKey),
+    entries: buildWorkerTimelineEntries(roster, templateSelectionKey, selectedCallKeys),
   };
 };
 
 export const buildAllWorkerLanes = (
   rosters: CareWorkerRosterShape[],
-  templateSelectionKey?: string
+  templateSelectionKey?: string,
+  selectedCallKeys?: Set<string>
 ): GanttLane[] => {
   return rosters.map((roster) => ({
     id: roster.key,
     label: roster.workerName,
-    entries: buildWorkerTimelineEntries(roster, templateSelectionKey),
+    entries: buildWorkerTimelineEntries(roster, templateSelectionKey, selectedCallKeys),
   }));
 };

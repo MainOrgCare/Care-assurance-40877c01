@@ -696,6 +696,8 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     return selectedCareWorker?.callGroups || [];
   }, [selectedCareWorker]);
 
+  const selectedWorkerCallKeySet = useMemo(() => new Set(selectedWorkerCallKeys), [selectedWorkerCallKeys]);
+
   const workerSummaries = useMemo(() => buildWorkerSummaries(careWorkerRosters), [careWorkerRosters]);
 
   // Extract unique service users and call types from workbook data for editors
@@ -890,8 +892,14 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     };
   }, [careWorkerRosters, heatmapSummaries, uniqueServiceUsers]);
 
-  const selectedWorkerLane = useMemo(() => buildWorkerLane(selectedCareWorker, templateSelectionKey), [selectedCareWorker, templateSelectionKey]);
-  const allWorkerLanes = useMemo(() => buildAllWorkerLanes(visibleCareWorkerRosters, templateSelectionKey), [visibleCareWorkerRosters, templateSelectionKey]);
+  const selectedWorkerLane = useMemo(
+    () => buildWorkerLane(selectedCareWorker, templateSelectionKey, selectedWorkerCallKeySet),
+    [selectedCareWorker, selectedWorkerCallKeySet, templateSelectionKey]
+  );
+  const allWorkerLanes = useMemo(
+    () => buildAllWorkerLanes(visibleCareWorkerRosters, templateSelectionKey),
+    [visibleCareWorkerRosters, templateSelectionKey]
+  );
 
   // Apply overrides from reducer state to lanes
   const timelineLanes = useMemo(() => {
@@ -1329,6 +1337,14 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
     return selectedWorkerCallGroups.filter((g) => g.templatedWeekdayKeys.has(templateSelectionKey));
   }, [selectedWorkerCallGroups, templateSelectionKey]);
 
+  useEffect(() => {
+    if (!selectedCareWorker) {
+      setSelectedWorkerCallKeys([]);
+      return;
+    }
+    setSelectedWorkerCallKeys(availableTemplateGroups.map((group) => group.key));
+  }, [availableTemplateGroups, selectedCareWorker]);
+
   // Filter call groups by search
   const filteredCallGroups = useMemo(() => {
     const term = rosterCallSearch.toLowerCase().trim();
@@ -1521,12 +1537,12 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
 
   const containerClass = embedded
     ? "space-y-6"
-    : "min-h-screen py-8 px-4 lg:px-10 max-w-[1600px] mx-auto relative";
+    : "h-screen py-6 px-4 lg:px-10 max-w-[1600px] mx-auto relative flex flex-col overflow-hidden";
 
   return (
     <div className={containerClass}>
       {/* Header */}
-      <div className={embedded ? "mb-4" : "mb-8"}>
+      <div className={`${embedded ? "mb-4" : "mb-6"} ${embedded ? "" : "flex-shrink-0"}`}>
         {!embedded && (
           <div className="flex items-center gap-2 mb-4">
             <Button variant="ghost" size="sm" asChild>
@@ -1584,9 +1600,11 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[320px,1fr]">
-        {/* Studio sidebar */}
-        <div className="space-y-4">
+      <div className={`${embedded ? "" : "flex-1 min-h-0"}`}>
+        <div className="grid gap-6 lg:grid-cols-[320px,1fr] h-full">
+          {/* Studio sidebar */}
+          <ScrollArea className="h-full pr-2">
+            <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -1685,10 +1703,12 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
               </CardHeader>
             </Card>
           )}
-        </div>
+            </div>
+          </ScrollArea>
 
-        {/* Main content */}
-        <div className="space-y-6">
+          {/* Main content */}
+          <ScrollArea className="h-full pr-2">
+            <div className="space-y-6">
           {!selectedWorkbookId ? (
             <Card className="p-12 text-center">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -2759,6 +2779,8 @@ export default function RosteringStudio({ embedded = false }: { embedded?: boole
               </Card>
             </>
           )}
+            </div>
+          </ScrollArea>
         </div>
       </div>
     </div>

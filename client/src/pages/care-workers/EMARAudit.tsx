@@ -1943,7 +1943,6 @@ ${generatedProtocol.additionalComments}`;
       'NH': 'Not at Home (NH)',
       'MU': 'Medication Unavailable (MU)',
       'F': 'Family Administered (F)',
-      'FA': 'Family Administered (FA)',
       'SA': 'Self-Administered (SA)',
       'PRN-R': 'PRN Refused (PRN-R)',
       'PRN-NA': 'PRN Not Administered (PRN-NA)',
@@ -2027,7 +2026,7 @@ ${generatedProtocol.additionalComments}`;
     });
   };
 
-  const EMAR_CODES = ['AD', 'AS', 'R', 'MU', 'NH', 'FA', 'SA', 'PRN', 'PRN-R'];
+  const EMAR_CODES = ['AD', 'AS', 'R', 'MU', 'NH', 'F', 'SA', 'PRN', 'PRN-R'];
 
   const generateEntryKey = (
     careWorkerName: string,

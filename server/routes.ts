@@ -3481,6 +3481,12 @@ export async function registerRoutes(
         console.warn("[EMAR GRID BASELINE] Failed:", gridError?.message || gridError);
       }
 
+      if (!gridBaseline || !Array.isArray(gridBaseline.cells) || gridBaseline.cells.length === 0) {
+        sendEvent('error', { message: "Unable to parse EMAR grid from PDF. Please upload a text-based EMAR grid PDF." });
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+
       // STEP 1: Extract text from PDF (primary method while Vision API unavailable)
       let extracted: Awaited<ReturnType<typeof extractPdfTextWithPdfjs>> | null = null;
       let documentText = "";
@@ -3843,8 +3849,7 @@ ${correctionExamples}
       // USE EMAR AGENT (enabled by default unless explicitly disabled)
       // Toggle: USE_EMAR_AGENT=true/false (false disables)
       // =====================================================================
-      const emarAgentFlag = (process.env.USE_EMAR_AGENT || "").toLowerCase();
-      const useEmarAgent = emarAgentFlag !== "false" && emarAgentFlag !== "0" && emarAgentFlag !== "off";
+      const useEmarAgent = true;
       let agentExtractionSucceeded = false;
       let agentExtractedData: any = null;
       let agentDrugInteractions: any[] = [];
@@ -3920,6 +3925,26 @@ ${correctionExamples}
           const agentMedications = agentExtractedData.medications;
           const agentDates = agentExtractedData.dates;
           const agentTimeSlots = agentExtractedData.timeSlots;
+
+          // Early service-user level inference for code validation (non-PRN meds only).
+          const earlyLevelCounts = { AD: 0, AS: 0, P: 0 };
+          agentEntries.forEach((entry: any) => {
+            const code = String(entry.code || "").toUpperCase();
+            const medId = Number(entry.medicationId) || 0;
+            const isPRN = (medId > 0 && agentPrnMedIds.has(medId)) || agentPrnMeds.has(entry.medication);
+            if (isPRN) return;
+            if (code === "AD") earlyLevelCounts.AD++;
+            else if (code === "AS") earlyLevelCounts.AS++;
+            else if (code === "P") earlyLevelCounts.P++;
+          });
+          const earlyTotal = earlyLevelCounts.AD + earlyLevelCounts.AS + earlyLevelCounts.P;
+          let agentServiceUserTypeEarly: "administer" | "assist" | "prompt" = "prompt";
+          if (earlyTotal > 0) {
+            const adRatio = earlyLevelCounts.AD / earlyTotal;
+            const asRatio = earlyLevelCounts.AS / earlyTotal;
+            if (adRatio > 0.6) agentServiceUserTypeEarly = "administer";
+            else if (asRatio > 0.4) agentServiceUserTypeEarly = "assist";
+          }
           
           // Build PRN medication sets (prefer medicationId to avoid collisions on duplicate names)
           const agentMedicationNameById = new Map<number, string>();
@@ -3944,7 +3969,7 @@ ${correctionExamples}
               .replace(/\s+/g, "");
 
             if (!code) return "";
-            if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
+            if (code === "F" || code === "FA" || code === "FAMILY" || code === "FAM" || code === "F/A") return "F";
             if (code === "S/A" || code === "S-A") return "SA";
             if (code === "M/U" || code === "MU") return "MU";
             if (code === "N/H" || code === "NH") return "NH";
@@ -3970,16 +3995,6 @@ ${correctionExamples}
           // Build per-medication required gap lookup (prefer explicit instruction rules)
           const agentMedGapHoursById = new Map<number, number>();
           const agentMedGapHoursByName = new Map<string, number>(); // fallback
-          const agentMedUseCallTimesById = new Map<number, boolean>();
-          const agentMedUseCallTimesByName = new Map<string, boolean>(); // fallback
-          const hasSpecificTimeInstruction = (text: string): boolean => {
-            const lower = String(text || "").toLowerCase();
-            if (!lower.trim()) return false;
-            const explicitTime = /\b(?:[01]?\d|2[0-3])[:.][0-5]\d\b/.test(lower) ||
-              /\b(?:0?[1-9]|1[0-2])(?:[:.][0-5]\d)?\s*(?:am|pm)\b/.test(lower);
-            if (explicitTime) return true;
-            return /\b(morning|noon|midday|afternoon|evening|night|bedtime|breakfast|lunch|dinner)\b/.test(lower);
-          };
           agentMedications.forEach((m: any) => {
             const rawGap = Number(m?.requiredGapHours);
             const inferredGap = inferRequiredGapHoursFromText(`${m?.name || ""} ${m?.instructions || ""}`);
@@ -3990,30 +4005,61 @@ ${correctionExamples}
                 ? inferredGap
                 : normalizedRaw ?? 4;
             const medId = Number(m.medicationId) || 0;
-            const instructionText = `${m?.name || ""} ${m?.instructions || ""}`.trim();
-            const hasTimingInstruction = hasSpecificTimeInstruction(instructionText);
-            const shouldUseCallTimes = hasTimingInstruction || gapHours !== 4;
             if (m?.name) {
               agentMedGapHoursByName.set(m.name, gapHours);
-              agentMedUseCallTimesByName.set(m.name, shouldUseCallTimes);
             }
             if (medId) {
               agentMedGapHoursById.set(medId, gapHours);
-              agentMedUseCallTimesById.set(medId, shouldUseCallTimes);
             }
           });
 
           const agentDiscrepancies: any[] = [];
           const agentWarnings: any[] = [];
           const agentVerificationItems: any[] = [];
+
+          if (gridBaseline && Array.isArray(gridBaseline.cells)) {
+            const missingByMed = new Map<string, { count: number; medication: string; medicationId?: number; dates: Set<string> }>();
+            gridBaseline.cells.forEach((cell) => {
+              const code = String(cell.code || "").toUpperCase();
+              if (code !== "MISSED") return;
+              const medId = Number(cell.medicationId) || 0;
+              const key = medId > 0 ? `id:${medId}` : `name:${cell.medication || ""}`;
+              const existing = missingByMed.get(key) || {
+                count: 0,
+                medication: medId > 0 ? agentMedicationNameById.get(medId) || cell.medication || "" : cell.medication || "",
+                medicationId: medId || undefined,
+                dates: new Set<string>(),
+              };
+              existing.count += 1;
+              if (cell.date) existing.dates.add(cell.date);
+              missingByMed.set(key, existing);
+            });
+
+            missingByMed.forEach(({ count, medication, medicationId, dates }) => {
+              const dateList = Array.from(dates).slice(0, 5).join(", ");
+              const dateSuffix = dateList ? ` (dates: ${dateList}${dates.size > 5 ? ", ..." : ""})` : "";
+              agentWarnings.push({
+                type: "missing_record",
+                severity: "medium",
+                medication,
+                medicationId,
+                description: `Records incomplete: ${count} missing entry${count === 1 ? "" : "ies"}${dateSuffix}.`,
+                recommendedAction: "Confirm missing records and update administration logs",
+              });
+            });
+          }
           
           // =====================================================================
           // NON-ADMINISTRATION DETECTION (codes requiring reason review)
-          // R=Refused, NH=Not Home, SA=Self Administered, F/FA=Family Administered, MU=Medication Unavailable
+          // R=Refused, NH=Not Home, MU=Medication Unavailable, PRN-R=PRN Refused
+          // SA (Self Administered) is only flagged when it becomes a recurring trend.
+          // Family-administered (F) does not require verification.
           // =====================================================================
-          const reviewCodes = ['R', 'PRN-R', 'NH', 'SA', 'F', 'FA', 'MU'];
+          const reviewCodes = ['R', 'PRN-R', 'NH', 'MU'];
+          const SA_TREND_THRESHOLD = 3;
           const mainRefusalDiscrepancies: any[] = [];
           const prnRefusalDiscrepancies: any[] = [];
+          const saCountsByMedication = new Map<string, { count: number; medication: string; medicationId?: number }>();
           
           const getIssueDescription = (code: string, isPRN: boolean): string => {
             const prnPrefix = isPRN ? '(PRN) ' : '';
@@ -4026,7 +4072,6 @@ ${correctionExamples}
               case 'SA':
                 return `Medication ${prnPrefix}self-administered by service user`;
               case 'F':
-              case 'FA':
                 return `Medication ${prnPrefix}administered by family member`;
               case 'MU':
                 return `Medication ${prnPrefix}unavailable`;
@@ -4047,7 +4092,6 @@ ${correctionExamples}
               case 'SA':
                 return "Check if self-administration was appropriate and witnessed";
               case 'F':
-              case 'FA':
                 return "Check if family administration is documented and appropriate";
               case 'MU':
                 return "Check if medication unavailability is documented and escalated";
@@ -4056,6 +4100,33 @@ ${correctionExamples}
             }
           };
           
+          agentEntries.forEach((entry: any) => {
+            const code = normalizeAgentCode(entry.code || "");
+            if (code !== "SA") return;
+            const medId = Number(entry.medicationId) || 0;
+            const key = medId > 0 ? `id:${medId}` : `name:${entry.medication || ""}`;
+            const existing = saCountsByMedication.get(key) || {
+              count: 0,
+              medication: medId > 0 ? agentMedicationNameById.get(medId) || entry.medication || "" : entry.medication || "",
+              medicationId: medId || undefined,
+            };
+            existing.count += 1;
+            saCountsByMedication.set(key, existing);
+          });
+
+          saCountsByMedication.forEach(({ count, medication, medicationId }) => {
+            if (count >= SA_TREND_THRESHOLD) {
+              agentWarnings.push({
+                type: "self_administered_trend",
+                severity: "medium",
+                medication,
+                medicationId,
+                description: `Self-administered (SA) recorded ${count} times in the audit period`,
+                recommendedAction: "Confirm self-administration is appropriate and documented",
+              });
+            }
+          });
+
           agentEntries.forEach((entry: any) => {
             const code = normalizeAgentCode(entry.code || "");
             if (reviewCodes.includes(code)) {
@@ -4088,6 +4159,35 @@ ${correctionExamples}
               } else {
                 mainRefusalDiscrepancies.push(refusalItem);
               }
+
+              if (!isPRN && code === "R" && agentServiceUserTypeEarly === "prompt") {
+                agentDiscrepancies.push({
+                  careWorkerName: entry.careWorkerInitials || 'Unknown',
+                  date: entry.date,
+                  timeSlot: entry.timeSlot,
+                  medication: entry.medication,
+                  medicationId: medId || undefined,
+                  issue: "Refused (R) code used on prompt-level medication; review support level and documentation",
+                  severity: "medium",
+                  actions: { performanceNote: true, meeting: "phone", referToManager: false },
+                });
+              }
+            }
+
+            if (code === "SA") {
+              const medId = Number(entry.medicationId) || 0;
+              const key = medId > 0 ? `id:${medId}` : `name:${entry.medication || ""}`;
+              const saStats = saCountsByMedication.get(key);
+              if (saStats && saStats.count >= SA_TREND_THRESHOLD) {
+                agentVerificationItems.push({
+                  careWorkerName: entry.careWorkerInitials || 'Unknown',
+                  date: entry.date,
+                  medication: entry.medication,
+                  medicationId: medId || undefined,
+                  code: code,
+                  note: "Self-administration recorded repeatedly; confirm appropriateness and oversight",
+                });
+              }
             }
           });
 
@@ -4096,11 +4196,12 @@ ${correctionExamples}
           // =====================================================================
           const PRN_CODES = ['PRN', 'PRN-AD', 'PRN-AS', 'PRN-R'];
           const INVALID_PRN_CODES = ['AD', 'AS', 'P'];
-          const VALID_ADMIN_CODES = ['AD', 'SA', 'NH', 'R', 'FA', 'MU'];
+          const VALID_ADMIN_CODES = ['AD', 'AS', 'P', 'SA', 'NH', 'R', 'F', 'MU'];
 
           agentEntries.forEach((entry: any) => {
             const code = normalizeAgentCode(entry.code || "");
             if (!code) return;
+            if (code === "MISSED") return;
 
             const careWorker = entry.careWorkerInitials || 'Unknown';
             const date = entry.date || '';
@@ -4156,7 +4257,7 @@ ${correctionExamples}
                   medication,
                   medicationId: medId || undefined,
                   code,
-                  issue: `Invalid code "${code}" used on administered medication - valid codes are: AD, SA, NH, R, FA, MU`,
+                  issue: `Invalid code "${code}" used on administered medication - valid codes are: AD, AS, P, SA, NH, R, F, MU`,
                   severity: "high",
                   actions: { performanceNote: true, meeting: "phone", referToManager: true }
                 });
@@ -4169,7 +4270,7 @@ ${correctionExamples}
           // =====================================================================
           // TIME GAP DETECTION (all administered medications with 2+ entries per day)
           // =====================================================================
-          const administrationCodes = ['AD', 'AS', 'P', 'G', 'A', 'PRN', 'PRN-AD', 'PRN-AS'];
+          const administrationCodes = ['AD', 'PRN', 'PRN-AD', 'PRN-AS'];
           const medDateEntriesForGap = new Map<string, any[]>();
           const normalizeDateKey = (value: string): string =>
             String(value || "").toLowerCase().replace(/[,\s]+/g, "-").trim();
@@ -4240,18 +4341,8 @@ ${correctionExamples}
               entryMedId > 0
                 ? agentMedGapHoursById.get(entryMedId) || 4
                 : agentMedGapHoursByName.get(entryMedication) || 4;
-            const useCallTimes =
-              entryMedId > 0
-                ? agentMedUseCallTimesById.get(entryMedId) || false
-                : agentMedUseCallTimesByName.get(entryMedication) || false;
-
-            // Prefer explicit admin times recorded in the cell. Only use call-time slots when instructed.
-            let extracted = extractTimeFromValue(entry.time);
-            let timeSource: "explicit" | "call" = "explicit";
-            if (!extracted && useCallTimes) {
-              extracted = extractTimeFromSlot(entry.timeSlot);
-              if (extracted) timeSource = "call";
-            }
+            // Only use explicit administration times recorded in the cell.
+            const extracted = extractTimeFromValue(entry.time);
             if (!extracted) return;
 
             // Require care worker initials to avoid blank/crossed-out boxes
@@ -4270,7 +4361,7 @@ ${correctionExamples}
               ...entry,
               extractedTime: extracted.display,
               extractedMinutes: extracted.minutes,
-              timeSource,
+              timeSource: "explicit",
               requiredGap,
               dateKey,
               dateIndex,
@@ -4310,14 +4401,13 @@ ${correctionExamples}
               
               const requiredGap = curr.requiredGap || 4;
               if (gapHours < requiredGap - 0.17) {
-                const recommendedSlot = curr.timeSlot ? ` Scheduled slot: ${curr.timeSlot}.` : "";
                 agentDiscrepancies.push({
                   careWorkerName: curr.careWorkerInitials || 'Unknown',
                   date: curr.date,
                   timeSlot: curr.timeSlot,
                   medication: medication,
                   medicationId: medId || undefined,
-                  issue: `Time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap}h). Previous: ${prev.extractedTime}, Current: ${curr.extractedTime}.${recommendedSlot}`,
+                  issue: `Time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap}h). Previous: ${prev.extractedTime}, Current: ${curr.extractedTime}.`,
                   severity: "high",
                   actions: { performanceNote: true, meeting: "in_person", referToManager: true }
                 });
@@ -4325,13 +4415,12 @@ ${correctionExamples}
             }
           });
 
-          // 12-hour gap: also check overnight gaps using call-time slots only.
+          // Cross-day gap check: compare last entry of day vs first entry of next day.
           const medDayMap = new Map<string, Map<number, any[]>>();
           medDateEntriesForGap.forEach((dayEntries, key) => {
             const [medKey] = key.split("|");
             const byDate = medDayMap.get(medKey) || new Map<number, any[]>();
             for (const entry of dayEntries) {
-              if (entry.requiredGap !== 12 || entry.timeSource !== "call") continue;
               const idx = Number(entry.dateIndex);
               if (!Number.isFinite(idx) || idx < 0) continue;
               const list = byDate.get(idx) || [];
@@ -4354,7 +4443,8 @@ ${correctionExamples}
               const curr = nextEntries[0];
               const gapHours = ((curr.extractedMinutes || 0) + 24 * 60 - (prev.extractedMinutes || 0)) / 60;
               if (gapHours <= 0.25 || gapHours < 0) continue;
-              if (gapHours < 12 - 0.17) {
+              const requiredGap = curr.requiredGap || 4;
+              if (gapHours < requiredGap - 0.17) {
                 const medId = medKey.startsWith("id:") ? Number(medKey.slice(3)) || 0 : 0;
                 const medication =
                   medId > 0
@@ -4362,19 +4452,152 @@ ${correctionExamples}
                     : medKey.startsWith("name:")
                       ? medKey.slice(5)
                       : prev?.medication || '';
-                const recommendedSlot = curr.timeSlot ? ` Scheduled slot: ${curr.timeSlot}.` : "";
                 agentDiscrepancies.push({
                   careWorkerName: curr.careWorkerInitials || 'Unknown',
                   date: curr.date,
                   timeSlot: curr.timeSlot,
                   medication: medication,
                   medicationId: medId || undefined,
-                  issue: `Time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: 12h). Previous: ${prev.extractedTime} (prior day), Current: ${curr.extractedTime}.${recommendedSlot}`,
+                  issue: `Time gap violation: Only ${gapHours.toFixed(1)} hours between doses (required: ${requiredGap}h). Previous: ${prev.extractedTime} (prior day), Current: ${curr.extractedTime}.`,
                   severity: "high",
                   actions: { performanceNote: true, meeting: "in_person", referToManager: true }
                 });
               }
             }
+          });
+
+          // =====================================================================
+          // SCHEDULED DAY CHECKS (instruction-driven)
+          // =====================================================================
+          const dayIndexByKey = new Map<string, number>();
+          const dateLabelByKey = new Map<string, string>();
+          const dayTokenMap: Record<string, number> = {
+            sun: 0,
+            sunday: 0,
+            mon: 1,
+            monday: 1,
+            tue: 2,
+            tues: 2,
+            tuesday: 2,
+            wed: 3,
+            weds: 3,
+            wednesday: 3,
+            thu: 4,
+            thur: 4,
+            thurs: 4,
+            thursday: 4,
+            fri: 5,
+            friday: 5,
+            sat: 6,
+            saturday: 6,
+          };
+
+          const extractDayIndexFromLabel = (label: string): number | null => {
+            const match = String(label || "").match(/\b(Sun|Mon|Tue|Tues|Wed|Weds|Thu|Thur|Thurs|Fri|Sat)\b/i);
+            if (!match) return null;
+            const key = match[1].toLowerCase();
+            return dayTokenMap[key] ?? null;
+          };
+
+          const extractScheduledDays = (text: string): Set<number> | null => {
+            const lower = String(text || "").toLowerCase();
+            if (!lower.trim()) return null;
+            if (/(\bevery\s*day\b|\bdaily\b|\beach\s*day\b)/i.test(lower)) return null;
+
+            const days = new Set<number>();
+            if (/\bweekdays?\b/i.test(lower)) {
+              [1, 2, 3, 4, 5].forEach((d) => days.add(d));
+            }
+            if (/\bweekends?\b/i.test(lower)) {
+              [0, 6].forEach((d) => days.add(d));
+            }
+
+            const rangeMatch = lower.match(/\b(mon|tue|tues|wed|weds|thu|thur|thurs|fri|sat|sun)\b\s*(?:-|to)\s*\b(mon|tue|tues|wed|weds|thu|thur|thurs|fri|sat|sun)\b/i);
+            if (rangeMatch) {
+              const start = dayTokenMap[rangeMatch[1]];
+              const end = dayTokenMap[rangeMatch[2]];
+              if (typeof start === "number" && typeof end === "number") {
+                let current = start;
+                while (true) {
+                  days.add(current);
+                  if (current === end) break;
+                  current = (current + 1) % 7;
+                }
+              }
+            }
+
+            const dayMatches = lower.match(/\b(mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday|sun|sunday)\b/gi) || [];
+            for (const token of dayMatches) {
+              const idx = dayTokenMap[token.toLowerCase()];
+              if (typeof idx === "number") days.add(idx);
+            }
+
+            if (days.size === 0) return null;
+            if (days.size >= 7) return null;
+            return days;
+          };
+
+          agentDates.forEach((dateLabel: string) => {
+            const key = normalizeDateKey(dateLabel);
+            const dayIndex = extractDayIndexFromLabel(dateLabel);
+            if (key && typeof dayIndex === "number") {
+              dayIndexByKey.set(key, dayIndex);
+              dateLabelByKey.set(key, dateLabel);
+            }
+          });
+
+          const entriesByMedDate = new Map<string, any[]>();
+          agentEntries.forEach((entry: any) => {
+            const medId = Number(entry.medicationId) || 0;
+            const medKey = medId > 0 ? `id:${medId}` : `name:${entry.medication || ""}`;
+            const dateKey = normalizeDateKey(entry.date || "");
+            if (!dateKey) return;
+            const key = `${medKey}|${dateKey}`;
+            const list = entriesByMedDate.get(key) || [];
+            list.push(entry);
+            entriesByMedDate.set(key, list);
+          });
+
+          agentMedications.forEach((med: any) => {
+            if (med?.isPRN) return;
+            const medId = Number(med.medicationId) || 0;
+            const medKey = medId > 0 ? `id:${medId}` : `name:${med.name || ""}`;
+            const scheduleDays = extractScheduledDays(`${med?.name || ""} ${med?.instructions || ""}`);
+            if (!scheduleDays || scheduleDays.size === 0) return;
+
+            dayIndexByKey.forEach((dayIndex, dateKey) => {
+              const entryKey = `${medKey}|${dateKey}`;
+              const entries = entriesByMedDate.get(entryKey) || [];
+              const hasAnyEntry = entries.length > 0;
+              const dateLabel = dateLabelByKey.get(dateKey) || dateKey;
+
+              if (scheduleDays.has(dayIndex) && !hasAnyEntry) {
+                agentDiscrepancies.push({
+                  careWorkerName: "Unknown",
+                  date: dateLabel,
+                  timeSlot: "",
+                  medication: med.name || "",
+                  medicationId: medId || undefined,
+                  issue: "Scheduled-day record missing based on medication instructions",
+                  severity: "medium",
+                  actions: { performanceNote: true, meeting: "phone", referToManager: false },
+                });
+              }
+
+              if (!scheduleDays.has(dayIndex) && hasAnyEntry) {
+                const entry = entries[0];
+                agentDiscrepancies.push({
+                  careWorkerName: entry?.careWorkerInitials || "Unknown",
+                  date: entry?.date || dateLabel,
+                  timeSlot: entry?.timeSlot || "",
+                  medication: med.name || "",
+                  medicationId: medId || undefined,
+                  issue: "Medication recorded on a non-scheduled day based on instructions",
+                  severity: "medium",
+                  actions: { performanceNote: true, meeting: "phone", referToManager: false },
+                });
+              }
+            });
           });
           
           // =====================================================================
@@ -4458,7 +4681,7 @@ ${correctionExamples}
           
           // Calculate code counts
           const agentCodeCounts = { AD: 0, AS: 0, P: 0, R: 0 };
-          const agentPrnCodeCounts = { PRN: 0, FA: 0, MU: 0, NH: 0, R: 0 };
+          const agentPrnCodeCounts = { PRN: 0, F: 0, MU: 0, NH: 0, R: 0 };
           
           agentEntries.forEach((entry: any) => {
             const code = (entry.code || '').toUpperCase();
@@ -4467,7 +4690,7 @@ ${correctionExamples}
             
             if (isPRN) {
               if (code === 'PRN' || code === 'PRN-AD' || code === 'PRN-AS') agentPrnCodeCounts.PRN++;
-              else if (code === 'FA') agentPrnCodeCounts.FA++;
+              else if (code === 'F') agentPrnCodeCounts.F++;
               else if (code === 'MU') agentPrnCodeCounts.MU++;
               else if (code === 'NH') agentPrnCodeCounts.NH++;
               else if (code === 'R' || code === 'PRN-R') agentPrnCodeCounts.R++;
@@ -4538,7 +4761,7 @@ ${correctionExamples}
             serviceUserInitials: agentExtractedData.serviceUserInitials || 'N.N.',
             serviceUserType: agentServiceUserType,
             allergies: agentExtractedData.allergies || 'NKDA',
-            medicationLevelEvidence: `Code counts (regular): AD=${agentCodeCounts.AD}, AS=${agentCodeCounts.AS}, P=${agentCodeCounts.P}. PRN: PRN=${agentPrnCodeCounts.PRN}, FA=${agentPrnCodeCounts.FA}, MU=${agentPrnCodeCounts.MU}, NH=${agentPrnCodeCounts.NH}, R=${agentPrnCodeCounts.R}. Service level: ${agentServiceUserType.toUpperCase()}.`,
+            medicationLevelEvidence: `Code counts (regular): AD=${agentCodeCounts.AD}, AS=${agentCodeCounts.AS}, P=${agentCodeCounts.P}. PRN: PRN=${agentPrnCodeCounts.PRN}, F=${agentPrnCodeCounts.F}, MU=${agentPrnCodeCounts.MU}, NH=${agentPrnCodeCounts.NH}, R=${agentPrnCodeCounts.R}. Service level: ${agentServiceUserType.toUpperCase()}.`,
             codeConflictDetected: agentCodeConflictDetected,
             codeConflictDetails: agentCodeConflictDetails,
             auditPeriodStart: agentDates[0] || '',
@@ -4706,7 +4929,7 @@ Use this layout information to correctly parse the grid structure.
         const code = String(cell.code || "").trim();
         if (code && code !== "BLANK" && code !== "N/A") return count + 1;
         const content = String(cell.content || "");
-        if (/\b(AD|AS|P|R|MU|NH|SA|FA|PRN|MISSED)\b/i.test(content)) return count + 1;
+        if (/\b(AD|AS|P|R|MU|NH|SA|F|FA|PRN|MISSED)\b/i.test(content)) return count + 1;
         if (cell.time && cell.time.trim()) return count + 1;
         if (cell.careWorker && cell.careWorker.trim()) return count + 1;
         return count;
@@ -5315,7 +5538,7 @@ Return JSON with EXACT shape:
           .replace(/\bP\s*R\s*N\s*[-–]?\s*A\s*S\b/g, "PRN-AS")
           .replace(/\bP\s*R\s*N\b/g, "PRN")
           .replace(/\bS\s*[-–\/]?\s*A\b/g, "SA")
-          .replace(/\bF\s*[-–\/]?\s*A\b/g, "FA")
+          .replace(/\bF\s*[-–\/]?\s*A\b/g, "F")
           .replace(/\bN\s*\/\s*H\b/g, "NH")
           .replace(/\bM\s*\/\s*U\b/g, "MU")
           .replace(/\bA\s*\/\s*D\b/g, "AD")
@@ -5324,7 +5547,7 @@ Return JSON with EXACT shape:
           .replace(/\bM\s*U\b/g, "MU")
           .replace(/\bA\s*D\b/g, "AD")
           .replace(/\bA\s*S\b/g, "AS")
-          .replace(/\bF\b/g, "FA");
+          .replace(/\bF\b/g, "F");
       };
 
       const normalizeCellCode = (raw: unknown): string => {
@@ -5338,7 +5561,7 @@ Return JSON with EXACT shape:
 
         if (!code) return "";
 
-        if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
+        if (code === "F" || code === "FA" || code === "FAMILY" || code === "FAM" || code === "F/A") return "F";
         if (code === "S/A" || code === "S-A") return "SA";
         if (code === "M/U" || code === "MU") return "MU";
         if (code === "N/H" || code === "NH") return "NH";
@@ -5737,7 +5960,7 @@ Return JSON with EXACT shape:
         "MU": 90,
         "NH": 90,
         "SA": 88,
-        "FA": 88,
+        "F": 88,
         "PRN-AD": 82,
         "PRN-AS": 82,
         "PRN": 80,
@@ -5847,7 +6070,7 @@ CODES TO LOOK FOR (be thorough - don't miss any):
     - PRN-R (PRN refused) - PRN medications refused when explicitly indicated
 - R (refused) - medication was refused by service user - VERY IMPORTANT TO CAPTURE
 - MU (medication unavailable), NH (not home)
-- SA (self-administered), FA (family administered)
+- SA (self-administered), F (family administered)
 - MISSED - for missed doses
 
 CRITICAL: FOR EVERY ENTRY YOU MUST INCLUDE "hasTime" BOOLEAN:
@@ -5881,7 +6104,7 @@ CARE WORKER INITIALS (IMPORTANT):
 - If no initials are present in the cell, leave careWorkerInitials as an empty string.
 - Do NOT infer office-closed/manual entries unless the document explicitly says so.
 - isOfficeClosed should be false unless explicitly indicated in the document.
-- DO NOT confuse medication codes (AS, AD, P, R, MU, NH, SA, FA, PRN) for care worker initials - MEDICATION CODES ARE NEVER INITIALS!`;
+- DO NOT confuse medication codes (AS, AD, P, R, MU, NH, SA, F, PRN) for care worker initials - MEDICATION CODES ARE NEVER INITIALS!`;
 
           const chunkPromises = legacyTextChunks.map(async (chunkText, chunkIndex) => {
             try {
@@ -5963,7 +6186,7 @@ CODES TO LOOK FOR (be thorough - don't miss any):
 - PRN-R (PRN refused) - PRN medications refused when explicitly indicated
 - R (refused) - medication was refused by service user - VERY IMPORTANT TO CAPTURE
 - MU (medication unavailable), NH (not home)
-- SA (self-administered), FA (family administered)
+- SA (self-administered), F (family administered)
 - MISSED - for missed doses
 
 CRITICAL: FOR EVERY ENTRY YOU MUST INCLUDE "hasTime" BOOLEAN:
@@ -5997,7 +6220,7 @@ CARE WORKER INITIALS (IMPORTANT):
 - If no initials are present in the cell, leave careWorkerInitials as an empty string.
 - Do NOT infer office-closed/manual entries unless the document explicitly says so.
 - isOfficeClosed should be false unless explicitly indicated in the document.
-- DO NOT confuse medication codes (AS, AD, P, R, MU, NH, SA, FA, PRN) for care worker initials - MEDICATION CODES ARE NEVER INITIALS!`;
+- DO NOT confuse medication codes (AS, AD, P, R, MU, NH, SA, F, PRN) for care worker initials - MEDICATION CODES ARE NEVER INITIALS!`;
           
           try {
             const response = await createChatCompletionWithLogging({
@@ -6151,7 +6374,7 @@ CARE WORKER INITIALS (IMPORTANT):
       
       // Domain constraints for validation
       const validMedicationIds = new Set(medicationsWithIds.map((m: any) => m.medicationId));
-      const validCodes = new Set(["AD", "AS", "P", "PRN", "PRN-R", "PRN-AD", "PRN-AS", "R", "MU", "NH", "SA", "FA", "MISSED"]);
+      const validCodes = new Set(["AD", "AS", "P", "PRN", "PRN-R", "PRN-AD", "PRN-AS", "R", "MU", "NH", "SA", "F", "MISSED"]);
       const validDates = new Set((metadata.dates || []).map((d: string) => d.toLowerCase().trim()));
       const validTimeSlots = new Set((metadata.timeSlots || []).map((t: string) => t.toLowerCase().trim()));
       
@@ -6248,7 +6471,7 @@ CARE WORKER INITIALS (IMPORTANT):
       
       // IMPORTANT: Include ALL single-pass entries (not just refusals) to avoid missing data
       // Highest count pass wins strategy means we include everything
-      const refusalCodes = new Set(["R", "MU", "NH", "FA", "SA", "PRN-R", "MISSED"]);
+      const refusalCodes = new Set(["R", "MU", "NH", "SA", "PRN-R", "MISSED"]);
       
       if (singlePassEntries.length > 0) {
         console.log(`DEBUG: Including ALL ${singlePassEntries.length} single-pass entries to maximize data capture`);
@@ -7418,17 +7641,17 @@ If no equivalences found, return: {"equivalences": []}`
       // PRN is a medication TYPE (as-needed), not a care level like AD/AS/P
       // =====================================================================
       const codeCounts: { [key: string]: number } = { AD: 0, AS: 0, P: 0 };
-      const prnCodeCounts: { [key: string]: number } = { PRN: 0, "PRN-R": 0, FA: 0, MU: 0, NH: 0, R: 0 }; // Separate counts for PRN medication codes
+      const prnCodeCounts: { [key: string]: number } = { PRN: 0, "PRN-R": 0, F: 0, MU: 0, NH: 0, R: 0 }; // Separate counts for PRN medication codes
       
       allEntries.forEach((entry: any) => {
         const code = (entry.code || "").toUpperCase();
         const isPrnMed = prnMedIds.has(entry.medicationId);
         
         if (isPrnMed) {
-          // PRN medications use PRN, PRN-R (refused), FA (family administered), MU, NH, R codes
+          // PRN medications use PRN, PRN-R (refused), F (family administered), MU, NH, R codes
           if (code === "PRN") prnCodeCounts.PRN++;
           if (code === "PRN-R") prnCodeCounts["PRN-R"]++;
-          if (code === "FA") prnCodeCounts.FA++;
+          if (code === "F") prnCodeCounts.F++;
           if (code === "MU") prnCodeCounts.MU++;
           if (code === "NH") prnCodeCounts.NH++;
           if (code === "R") prnCodeCounts.R++;
@@ -7552,7 +7775,7 @@ If no equivalences found, return: {"equivalences": []}`
             .replace(/\s+/g, "");
 
           // Common variants
-          if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
+          if (code === "F" || code === "FA" || code === "FAMILY" || code === "FAM" || code === "F/A") return "F";
           if (code === "S/A" || code === "S-A") return "SA";
           if (code === "M/U" || code === "MU") return "MU";
           if (code === "N/H" || code === "NH") return "NH";
@@ -7679,12 +7902,11 @@ If no equivalences found, return: {"equivalences": []}`
           }
         }
 
-        const IMPORTANT_CODES = new Set(["R", "PRN-R", "MU", "NH", "SA", "FA", "MISSED"]);
+        const IMPORTANT_CODES = new Set(["R", "PRN-R", "MU", "NH", "SA", "MISSED"]);
         const verificationNotes: Record<string, string> = {
           MU: "Check if medication unavailability is documented and escalated",
           NH: "Check if not home status is documented",
           SA: "Check if self-administration was appropriate and witnessed",
-          FA: "Check if family administration is documented and appropriate",
           MISSED: "Check why the medication was missed and ensure it is documented",
         };
         const pushVerificationItem = (
@@ -7764,7 +7986,7 @@ If no equivalences found, return: {"equivalences": []}`
 
           const isRefusal = code === "R" || code === "PRN-R";
           const isMissed = code === "MISSED";
-          const needsVerification = code === "MU" || code === "NH" || code === "SA" || code === "FA";
+          const needsVerification = code === "MU" || code === "NH" || code === "SA";
 
           if (!codes || codes.size === 0) {
             missingImportant++;
@@ -7932,16 +8154,7 @@ If no equivalences found, return: {"equivalences": []}`
           });
         }
 
-        if (code === "FA") {
-          verificationItems.push({
-            careWorkerName: careWorker,
-            date: date,
-            medication: medication,
-            medicationId: entryMedId || undefined,
-            code: "FA",
-            note: "Check if family administration is documented and appropriate"
-          });
-        }
+        // Family-administered (F) does not require verification.
 
         // =====================================================================
         // CHECK 5d: PRN CODE MISUSE - Wrong codes for medication type
@@ -7987,11 +8200,9 @@ If no equivalences found, return: {"equivalences": []}`
         // CHECK 5e: INVALID CODES FOR ADMINISTERED MEDICATIONS
         // =====================================================================
         // For Administered medications (non-PRN), only these codes are valid:
-        // AD (Administered), SA (Self Administered), NH (Not Home), R (Refused), 
-        // FA (Family Administered), MU (Medication Unavailable)
-        // Any other codes like AS (Assisted) or P (Prompted) are discrepancies
-        
-        const VALID_ADMIN_CODES = ['AD', 'SA', 'NH', 'R', 'FA', 'MU'];
+        // AD (Administered), AS (Assisted), P (Prompted), SA (Self Administered),
+        // NH (Not Home), R (Refused), F (Family Administered), MU (Medication Unavailable)
+        const VALID_ADMIN_CODES = ['AD', 'AS', 'P', 'SA', 'NH', 'R', 'F', 'MU'];
         
         // Only check non-PRN medications - PRN meds have their own valid codes
         if (!isPRN && code && !VALID_ADMIN_CODES.includes(code)) {
@@ -8009,7 +8220,7 @@ If no equivalences found, return: {"equivalences": []}`
               medication: medication,
               medicationId: entryMedId || undefined,
               code: code,
-              issue: `Invalid code "${code}" used on administered medication - valid codes are: AD, SA, NH, R, FA, MU`,
+              issue: `Invalid code "${code}" used on administered medication - valid codes are: AD, AS, P, SA, NH, R, F, MU`,
               severity: "high",
               actions: { performanceNote: true, meeting: "phone", referToManager: true }
             });
@@ -8024,7 +8235,7 @@ If no equivalences found, return: {"equivalences": []}`
       // on the same day. Checks for minimum required gap between doses.
       //
       // Included administration codes: AD, AS, PRN-AD, PRN-AS, ADMINISTERED, GIVEN
-      // Excluded codes: BLANK, EMPTY, MU, NH, R, FA, MISSED, SA (self-admin)
+      // Excluded codes: BLANK, EMPTY, MU, NH, R, F, MISSED, SA (self-admin)
       // =====================================================================
       
       // Helper to extract time from entry - check both time field and timeSlot
@@ -8074,7 +8285,7 @@ If no equivalences found, return: {"equivalences": []}`
         const code = (entry.code || "").toUpperCase();
         
         // Skip non-administration codes (blanks, refusals, unavailable, etc.)
-        if (["BLANK", "EMPTY", "", "MU", "NH", "R", "FA", "MISSED", "SA"].includes(code)) return;
+        if (["BLANK", "EMPTY", "", "MU", "NH", "R", "F", "MISSED", "SA"].includes(code)) return;
         
         // Only include entries where medication was actually administered
         if (!isAdministeredCode(code)) return;
@@ -8518,12 +8729,12 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       console.log(`DEBUG: Triple-check complete - ${originalCount} initial -> ${validatedDiscrepancies.length} confirmed (status: ${validationStatus})`);
       sendProgress(95, "Generating report...", "report_generation");
 
-      const redCodeSet = new Set(["R", "MU", "NH", "FA", "SA", "PRN-R", "MISSED"]);
+      const redCodeSet = new Set(["R", "MU", "NH", "SA", "PRN-R", "MISSED"]);
       const redIssuePattern = /\b(refus|not home|self-admin|self administered|family|unavailable|missed)\b/i;
       const normalizeRedCode = (raw: unknown): string => {
         const input = String(raw || "").toUpperCase().trim();
         if (!input) return "";
-        if (input === "F" || input === "F/A") return "FA";
+        if (input === "F" || input === "FA" || input === "F/A") return "F";
         if (input === "S/A" || input === "S-A") return "SA";
         if (input === "PRNR") return "PRN-R";
         return input;
@@ -8531,7 +8742,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       const inferRedCodeFromIssue = (issue: string): string => {
         if (/not home/i.test(issue)) return "NH";
         if (/self-admin/i.test(issue)) return "SA";
-        if (/family/i.test(issue)) return "FA";
+        if (/family/i.test(issue)) return "F";
         if (/unavailable|out of stock/i.test(issue)) return "MU";
         if (/missed/i.test(issue)) return "MISSED";
         if (/refus/i.test(issue)) return "R";
@@ -8573,20 +8784,20 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
 
       // =====================================================================
       // GROUP REFUSAL DISCREPANCIES INTO MAIN AND PRN CATEGORIES
-      // Main Refusals: R, MU, NH, FA, SA codes (non-PRN refusal-related codes)
+      // Main Refusals: R, MU, NH, SA codes (non-PRN refusal-related codes)
       // PRN Refusals: PRN-R codes only
       // Other discrepancies: everything else
       // =====================================================================
       const normalizeRefusalCode = (raw: unknown): string => {
         const input = String(raw || "").toUpperCase().trim();
         if (!input) return "";
-        if (input === "F" || input === "F/A") return "FA";
+        if (input === "F" || input === "FA" || input === "F/A") return "F";
         if (input === "S/A" || input === "S-A") return "SA";
         if (input === "PRNR") return "PRN-R";
         return input;
       };
 
-      const REFUSAL_CODES = new Set(["R", "MU", "NH", "FA", "SA", "PRN-R", "MISSED"]);
+      const REFUSAL_CODES = new Set(["R", "MU", "NH", "SA", "PRN-R", "MISSED"]);
       const refusalEntries: any[] = [];
 
       allEntries.forEach((entry: any) => {
@@ -8737,7 +8948,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         serviceUserInitials: extractedData.serviceUserInitials || "N.N.",
         serviceUserType: serviceUserType,
         allergies: allergies,
-        medicationLevelEvidence: `Code counts (regular meds): AD=${codeCounts.AD}, AS=${codeCounts.AS}, P=${codeCounts.P}. PRN meds: PRN=${prnCodeCounts.PRN}, FA=${prnCodeCounts.FA}, MU=${prnCodeCounts.MU}, NH=${prnCodeCounts.NH}, R=${prnCodeCounts.R}. Service level: ${serviceUserType.toUpperCase()}.`,
+        medicationLevelEvidence: `Code counts (regular meds): AD=${codeCounts.AD}, AS=${codeCounts.AS}, P=${codeCounts.P}. PRN meds: PRN=${prnCodeCounts.PRN}, F=${prnCodeCounts.F}, MU=${prnCodeCounts.MU}, NH=${prnCodeCounts.NH}, R=${prnCodeCounts.R}. Service level: ${serviceUserType.toUpperCase()}.`,
         codeConflictDetected: codeConflictDetected,
         codeConflictDetails: codeConflictDetails,
         auditPeriodStart: allDates[0] || "",

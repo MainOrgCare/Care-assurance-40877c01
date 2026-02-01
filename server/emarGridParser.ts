@@ -351,7 +351,7 @@ const CODE_PRIORITY: Record<string, number> = {
   "MU": 90,
   "NH": 90,
   "SA": 88,
-  "FA": 88,
+  "F": 88,
   "PRN-AD": 82,
   "PRN-AS": 82,
   "PRN": 80,
@@ -481,7 +481,7 @@ const normalizeCodeText = (value: string): string => {
     .replace(/\bP\s*R\s*N\s*[-–]?\s*A\s*S\b/g, "PRN-AS")
     .replace(/\bP\s*R\s*N\b/g, "PRN")
     .replace(/\bS\s*[-–\/]?\s*A\b/g, "SA")
-    .replace(/\bF\s*[-–\/]?\s*A\b/g, "FA")
+    .replace(/\bF\s*[-–\/]?\s*A\b/g, "F")
     .replace(/\bN\s*\/\s*H\b/g, "NH")
     .replace(/\bM\s*\/\s*U\b/g, "MU")
     .replace(/\bA\s*\/\s*D\b/g, "AD")
@@ -490,7 +490,7 @@ const normalizeCodeText = (value: string): string => {
     .replace(/\bM\s*U\b/g, "MU")
     .replace(/\bA\s*D\b/g, "AD")
     .replace(/\bA\s*S\b/g, "AS")
-    .replace(/\bF\b/g, "FA");
+    .replace(/\bF\b/g, "F");
 };
 
 const expandKeyCodes = (codes: Set<string>): Set<string> => {
@@ -549,8 +549,7 @@ const normalizeGridCode = (raw: string): string => {
     .replace(/\s+/g, "");
 
   if (normalized === "N/A" || normalized === "NA") return "N/A";
-  if (normalized === "F/A" || normalized === "FA") return "FA";
-  if (normalized === "F") return "FA";
+  if (normalized === "F/A" || normalized === "FA" || normalized === "F") return "F";
   if (normalized === "S/A" || normalized === "S-A") return "SA";
   if (normalized === "M/U" || normalized === "MU") return "MU";
   if (normalized === "N/H" || normalized === "NH") return "NH";
@@ -1233,7 +1232,7 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
     let cleaned = stripTimeRangesFromText(text);
     // Remove legend snippets like "AD - Administered (Level 3)" that bleed into instructions.
     cleaned = cleaned.replace(
-      /\b(?:AD|AS|NH|MU|SA|FA|PRN)\s*[-–]\s*[A-Za-z ]+(?:\([^)]+\))?/gi,
+      /\b(?:AD|AS|NH|MU|SA|F|FA|PRN)\s*[-–]\s*[A-Za-z ]+(?:\([^)]+\))?/gi,
       " "
     );
     return cleaned.replace(/\s+/g, " ").trim();
@@ -1793,10 +1792,14 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
     const rows = rowsByPage.get(ph.page) || [];
     const medsOnPage: MedicationBlock[] = [];
     const instructionLinePattern = /\b(take|apply|administer|give|route|dose|doses|daily|weekly|monthly|times?|prn|as needed|once|twice|morning|noon|midday|afternoon|evening|night|bedtime|before|after|with|without|food|meal|meals|ml|mg|mcg|units?|tablets?|capsules?|drops?)\b/i;
+    const dateLeftEdge = ph.dateColumns.length > 0
+      ? Math.min(...ph.dateColumns.map(col => col.xStart))
+      : 250;
+    const leftCutoff = Math.max(200, dateLeftEdge - 10);
 
     for (let i = ph.headerRowIndex + 1; i < rows.length; i++) {
       const row = rows[i];
-      const leftItems = row.filter(item => item.x < 250);
+      const leftItems = row.filter(item => item.x < leftCutoff);
       const leftText = leftItems.map(item => item.str).join(" ");
 
       const trimmedLeft = leftText.replace(/\s+/g, " ").trim();
@@ -1871,10 +1874,14 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
   for (const ph of pageHeaders) {
     const rows = rowsByPage.get(ph.page) || [];
     const medsOnPage = medicationBlocksByPage.get(ph.page) || [];
+    const dateLeftEdge = ph.dateColumns.length > 0
+      ? Math.min(...ph.dateColumns.map(col => col.xStart))
+      : 250;
+    const leftCutoff = Math.max(200, dateLeftEdge - 10);
 
     for (let i = ph.headerRowIndex + 1; i < rows.length; i++) {
       const row = rows[i];
-      const leftItems = row.filter(item => item.x < 250);
+      const leftItems = row.filter(item => item.x < leftCutoff);
       const leftText = leftItems.map(item => item.str).join(" ");
       const timeSlotMatches = extractSlotLabels(leftText);
 

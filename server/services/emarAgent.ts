@@ -225,6 +225,40 @@ export const inferRequiredGapHoursFromText = (text: string): number | null => {
   const qMatch = lower.match(/\bq\s*(\d{1,2})(?:\s*(?:-|–|to)\s*(\d{1,2}))?\s*(?:h|hr|hrs|hours)\b/);
   if (qMatch) candidates.push(Number(qMatch[1]));
 
+  // Explicit time pairs like "8am and 8pm" -> 12 hours
+  const explicitTimes = lower.match(/\b(?:0?[1-9]|1[0-2])(?::[0-5]\d)?\s*(?:am|pm)\b/g) || [];
+  if (explicitTimes.length >= 2) {
+    const toMinutes = (token: string): number | null => {
+      const match = token.match(/\b(\d{1,2})(?::([0-5]\d))?\s*(am|pm)\b/);
+      if (!match) return null;
+      let hours = Number(match[1]);
+      const minutes = match[2] ? Number(match[2]) : 0;
+      const meridiem = match[3];
+      if (hours === 12) hours = 0;
+      if (meridiem === "pm") hours += 12;
+      return hours * 60 + minutes;
+    };
+
+    const uniqueMinutes = Array.from(
+      new Set(explicitTimes.map(toMinutes).filter((value): value is number => value != null))
+    ).sort((a, b) => a - b);
+
+    if (uniqueMinutes.length >= 2) {
+      let minGap = 24 * 60;
+      for (let i = 0; i < uniqueMinutes.length; i++) {
+        const curr = uniqueMinutes[i];
+        const next = uniqueMinutes[(i + 1) % uniqueMinutes.length];
+        const gap = (i === uniqueMinutes.length - 1)
+          ? 24 * 60 - curr + next
+          : next - curr;
+        if (gap > 0 && gap < minGap) minGap = gap;
+      }
+      if (minGap > 0 && minGap <= 24 * 60) {
+        candidates.push(Math.round(minGap / 60));
+      }
+    }
+  }
+
   const cleaned = candidates
     .filter((value): value is number => Number.isFinite(value))
     .map((value) => Math.round(value))
@@ -244,7 +278,7 @@ const normalizeCode = (raw: unknown): string => {
     .replace(/\s+/g, "");
 
   if (!code) return "";
-  if (code === "F" || code === "FAMILY" || code === "FAM" || code === "F/A") return "FA";
+  if (code === "F" || code === "FA" || code === "FAMILY" || code === "FAM" || code === "F/A") return "F";
   if (code === "S/A" || code === "S-A") return "SA";
   if (code === "M/U") return "MU";
   if (code === "N/H") return "NH";
@@ -310,6 +344,7 @@ const codePriority: Record<string, number> = {
   "PRN-AD": 82,
   "PRN-AS": 82,
   PRN: 80,
+  F: 70,
   AD: 65,
   AS: 65,
   P: 60,
@@ -480,7 +515,7 @@ const reconcileConsensusEntries = (passResults: any[][]): any[] => {
     "MU": 90,
     "NH": 80,
     "SA": 75,
-    "FA": 75,
+    "F": 75,
     "AD": 50,
     "AS": 50,
     "PRN-AD": 50,
@@ -600,7 +635,7 @@ Return JSON with this exact structure:
 
 EXTRACTION RULES:
 1. MAP TO GRID: Each entry must correspond to a specific (medication, date, timeSlot) intersection in the grid.
-2. NON-ADMINISTRATION CODES ARE VITAL: Always capture R (Refused), MU (Medication Unavailable), NH (Not Home), SA (Self Admin), FA (Family Admin).
+2. NON-ADMINISTRATION CODES ARE VITAL: Always capture R (Refused), MU (Medication Unavailable), NH (Not Home), SA (Self Admin), F (Family Admin).
 3. BLANK CELLS: If a cell is blank and it's a scheduled dose (non-PRN), it's a MISSING entry. Use "MISSED" as code.
 4. PRN DOSES: For PRN medications, only include entries if there is a code, time, or signature. If the box is empty for a PRN med, do NOT create an entry.
 5. TIME: Only set "hasTime" true and provide "time" if an actual administration time (e.g., 08:45) is handwritten or typed in the box, distinct from the slot header.
