@@ -24,8 +24,14 @@ export interface RawCallRecord {
   templateWorkerName?: string;
   callTypeLabel: string;
   callDate: string; // YYYY-MM-DD
+  serviceUserArea?: string;
+  serviceUserAddress?: string;
+  serviceLocationBranch?: string;
+  serviceLocationType?: string;
   scheduledStart?: number; // minutes from midnight
+  serviceRequirementEnd?: number;
   actualStart?: number;
+  actualEnd?: number;
   plannedDuration?: number;
   actualDuration?: number;
   isDoubleUp?: boolean;
@@ -90,12 +96,16 @@ export interface AnalyzedCallRecord {
   isDoubleUp: boolean;
   isTimeCritical: boolean;
   serviceRequirementStartMinutes?: number;
+  serviceRequirementEndMinutes?: number;
   plannedStartMinutes?: number;
   actualStartMinutes?: number;
+  actualEndMinutes?: number;
   plannedDurationMinutes?: number;
   actualDurationMinutes?: number;
   durationVarianceMinutes?: number;
   startVarianceMinutes?: number;
+  serviceLocationBranch?: string;
+  serviceLocationType?: string;
 }
 
 export interface ServiceUserProfile {
@@ -103,6 +113,8 @@ export interface ServiceUserProfile {
   serviceUserName: string;
   serviceUserArea?: string;
   serviceUserAddress?: string;
+  serviceLocationBranch?: string;
+  serviceLocationType?: string;
   totalCallsAnalyzed: number;
   earliestDataDate?: string;
   latestDataDate?: string;
@@ -297,6 +309,14 @@ export function formatTime(minutes: number): string {
   return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
 }
 
+function computeDurationMinutes(start?: number, end?: number): number | undefined {
+  if (start === undefined || end === undefined) return undefined;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return undefined;
+  let diff = end - start;
+  if (diff < 0) diff += 24 * 60;
+  return diff > 0 ? diff : undefined;
+}
+
 /**
  * Generate service order summary text
  * Format: "AM x7 days x2 carers, 30 mins"
@@ -409,6 +429,10 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
     }
     const su = serviceUserMap.get(serviceUserKey)!;
     su.totalCallsAnalyzed++;
+    if (!su.serviceUserArea && call.serviceUserArea) su.serviceUserArea = call.serviceUserArea;
+    if (!su.serviceUserAddress && call.serviceUserAddress) su.serviceUserAddress = call.serviceUserAddress;
+    if (!su.serviceLocationBranch && call.serviceLocationBranch) su.serviceLocationBranch = call.serviceLocationBranch;
+    if (!su.serviceLocationType && call.serviceLocationType) su.serviceLocationType = call.serviceLocationType;
     if (call.callDate < (su.earliestDataDate || call.callDate)) su.earliestDataDate = call.callDate;
     if (call.callDate > (su.latestDataDate || call.callDate)) su.latestDataDate = call.callDate;
     
@@ -464,12 +488,16 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
         isDoubleUp: call.isDoubleUp ?? false,
         isTimeCritical: call.isTimeCritical ?? false,
         serviceRequirementStartMinutes: call.serviceRequirementStart,
+        serviceRequirementEndMinutes: call.serviceRequirementEnd,
         plannedStartMinutes: call.scheduledStart,
         actualStartMinutes: call.actualStart,
+        actualEndMinutes: call.actualEnd,
         plannedDurationMinutes: call.plannedDuration,
         actualDurationMinutes: call.actualDuration,
         durationVarianceMinutes: durationVariance,
         startVarianceMinutes: startVariance,
+        serviceLocationBranch: call.serviceLocationBranch,
+        serviceLocationType: call.serviceLocationType,
       });
     }
     
@@ -614,8 +642,13 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
     const plannedDurations = agg.records
       .map(r => r.plannedDuration)
       .filter((d): d is number => d !== undefined);
+    const requirementDurations = agg.records
+      .map((r) => computeDurationMinutes(r.serviceRequirementStart, r.serviceRequirementEnd))
+      .filter((d): d is number => d !== undefined);
     const avgPlannedDuration = plannedDurations.length > 0
       ? Math.round(plannedDurations.reduce((a, b) => a + b, 0) / plannedDurations.length)
+      : requirementDurations.length > 0
+      ? Math.round(requirementDurations.reduce((a, b) => a + b, 0) / requirementDurations.length)
       : avgDuration ?? 30;
       
     const durationVariance = avgDuration !== undefined && avgPlannedDuration
@@ -628,6 +661,12 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
       .filter((s): s is number => s !== undefined);
     const reqStartTime = reqStarts.length > 0
       ? Math.round(reqStarts.reduce((a, b) => a + b, 0) / reqStarts.length)
+      : undefined;
+    const reqEnds = agg.records
+      .map(r => r.serviceRequirementEnd)
+      .filter((s): s is number => s !== undefined);
+    const reqEndTime = reqEnds.length > 0
+      ? Math.round(reqEnds.reduce((a, b) => a + b, 0) / reqEnds.length)
       : undefined;
       
     const startVariance = avgStartTime !== undefined && reqStartTime !== undefined
@@ -675,6 +714,7 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
       timeBand,
       serviceRequirementMinutes: avgPlannedDuration || avgDuration || 30,
       serviceRequirementStartTime: reqStartTime,
+      serviceRequirementEndTime: reqEndTime,
       daysPerWeek,
       week1Days,
       week2Days,

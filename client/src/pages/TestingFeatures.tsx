@@ -161,6 +161,12 @@ const SERVICE_REQUIREMENT_TIME_KEYWORDS = [
   "service requirement time",
   "requirement start time",
 ];
+const SERVICE_REQUIREMENT_END_TIME_KEYWORDS = [
+  "service requirement end date and time",
+  "service requirement end time",
+  "service requirement finish time",
+  "requirement end time",
+];
 
 const PLANNED_DATE_KEYWORDS = [
   "planned date",
@@ -291,6 +297,19 @@ const SERVICE_USER_AREA_KEYWORDS = [
   "service location branch",
   "customer branch",
 ];
+const SERVICE_LOCATION_BRANCH_KEYWORDS = [
+  "service location branch",
+  "service user branch",
+  "customer branch",
+];
+const SERVICE_LOCATION_TYPE_KEYWORDS = [
+  "service location type",
+  "location type",
+  "service user type",
+  "customer type",
+  "client type",
+  "service location category",
+];
 
 const SERVICE_USER_ADDRESS_KEYWORDS = [
   "street",
@@ -349,11 +368,17 @@ interface RowAnalysis {
   actualTimeMinutes?: number | null;
   serviceRequirementTimeMinutes?: number | null;
   serviceRequirementTimeLabel?: string | null;
+  serviceRequirementEndTimeMinutes?: number | null;
+  serviceRequirementEndTimeLabel?: string | null;
+  plannedEndTimeMinutes?: number | null;
+  actualEndTimeMinutes?: number | null;
   plannedDateLabel?: string | null;
   plannedDateKey?: string | null;
   serviceUserName?: string | null;
   serviceUserArea?: string | null;
   serviceUserAddress?: string | null;
+  serviceLocationBranch?: string | null;
+  serviceLocationType?: string | null;
   normalizedServiceUserKey?: string | null;
   isDuplicateSlotRow?: boolean;
   isDoubleUpSlot?: boolean;
@@ -817,7 +842,7 @@ export default function TestingFeatures() {
         SERVICE_REQUIREMENT_TIME_KEYWORDS,
         plannedTimeField ? new Set([plannedTimeField.key]) : undefined
       );
-      const plannedTimeSource = plannedTimeField ?? serviceRequirementTimeField;
+      const plannedTimeSource = serviceRequirementTimeField ?? plannedTimeField;
       const plannedDateField = detectDateField(
         row,
         PLANNED_DATE_KEYWORDS,
@@ -857,6 +882,19 @@ export default function TestingFeatures() {
           const exclude = new Set<string>();
           if (plannedTimeField) exclude.add(plannedTimeField.key);
           if (serviceRequirementTimeField) exclude.add(serviceRequirementTimeField.key);
+          if (actualTimeField) exclude.add(actualTimeField.key);
+          return exclude.size ? exclude : undefined;
+        })()
+      );
+      const serviceRequirementEndTimeField = detectField(
+        row,
+        SERVICE_REQUIREMENT_END_TIME_KEYWORDS,
+        (() => {
+          const exclude = new Set<string>();
+          if (plannedTimeField) exclude.add(plannedTimeField.key);
+          if (serviceRequirementTimeField) exclude.add(serviceRequirementTimeField.key);
+          if (plannedEndTimeField) exclude.add(plannedEndTimeField.key);
+          if (actualEndTimeField) exclude.add(actualEndTimeField.key);
           if (actualTimeField) exclude.add(actualTimeField.key);
           return exclude.size ? exclude : undefined;
         })()
@@ -905,6 +943,9 @@ export default function TestingFeatures() {
       const serviceRequirementTimeMinutes = serviceRequirementTimeField
         ? parseTimeToMinutes(serviceRequirementTimeField.value)
         : null;
+      const serviceRequirementEndTimeMinutes = serviceRequirementEndTimeField
+        ? parseTimeToMinutes(serviceRequirementEndTimeField.value)
+        : null;
       const actualTimeMinutes = actualTimeField ? parseTimeToMinutes(actualTimeField.value) : null;
       const plannedEndTimeMinutes = plannedEndTimeField ? parseTimeToMinutes(plannedEndTimeField.value) : null;
       const actualEndTimeMinutes = actualEndTimeField ? parseTimeToMinutes(actualEndTimeField.value) : null;
@@ -950,6 +991,10 @@ export default function TestingFeatures() {
           ? normalizedPlannedWorker === normalizedActualWorker
           : null;
 
+      const serviceRequirementDurationMinutesFromTimes = computeDurationFromTimes(
+        serviceRequirementTimeMinutes,
+        serviceRequirementEndTimeMinutes
+      );
       const plannedDurationMinutesFromTimes = computeDurationFromTimes(plannedTimeMinutes, plannedEndTimeMinutes);
       const actualDurationMinutesFromTimes = computeDurationFromTimes(actualTimeMinutes, actualEndTimeMinutes);
 
@@ -961,7 +1006,8 @@ export default function TestingFeatures() {
         : null;
 
       // Prefer time-derived durations (matches the requested definition), fallback to duration fields.
-      const plannedDurationMinutes = plannedDurationMinutesFromTimes ?? plannedDurationMinutesFromField;
+      const plannedDurationMinutes =
+        serviceRequirementDurationMinutesFromTimes ?? plannedDurationMinutesFromTimes ?? plannedDurationMinutesFromField;
       const actualDurationMinutes = actualDurationMinutesFromTimes ?? actualDurationMinutesFromField;
 
       const hasDurationComparison =
@@ -1018,6 +1064,16 @@ export default function TestingFeatures() {
           ["postcode", "post code", "address"],
           serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
         );
+      const serviceLocationBranchField = detectFieldExcludingWorkerColumns(
+        row,
+        SERVICE_LOCATION_BRANCH_KEYWORDS,
+        serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+      );
+      const serviceLocationTypeField = detectFieldExcludingWorkerColumns(
+        row,
+        SERVICE_LOCATION_TYPE_KEYWORDS,
+        serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+      );
       const serviceLocationAddressField = detectField(
         row,
         ["service location address", "customer address"],
@@ -1040,14 +1096,10 @@ export default function TestingFeatures() {
           return exclude.size ? exclude : undefined;
         })()
       );
-      const callTypeParts = [
-        serviceRequirementTypeField?.value,
-        serviceRequirementServiceTypeField?.value,
-        serviceRequirementFallbackField?.value,
-      ]
-        .map(sanitizeHumanReadable)
-        .filter(Boolean) as string[];
-      const callTypeLabel = callTypeParts.length ? Array.from(new Set(callTypeParts)).join(" • ") : null;
+      const callTypeLabel =
+        sanitizeHumanReadable(serviceRequirementServiceTypeField?.value) ??
+        sanitizeHumanReadable(serviceRequirementTypeField?.value) ??
+        sanitizeHumanReadable(serviceRequirementFallbackField?.value);
       const callTypeNormalized = callTypeLabel ? normalizeKeyForMatch(callTypeLabel) : null;
       const isShiftBar =
         (serviceTypeNormalized ? serviceTypeNormalized.includes("shift") : false) ||
@@ -1058,6 +1110,8 @@ export default function TestingFeatures() {
       const serviceUserAddress = sanitizeHumanReadable(
         serviceLocationAddressField?.value ?? serviceUserAddressField?.value
       );
+      const serviceLocationBranch = sanitizeHumanReadable(serviceLocationBranchField?.value);
+      const serviceLocationType = sanitizeHumanReadable(serviceLocationTypeField?.value);
       const normalizedServiceUserKey = createNormalizedServiceUserKey(
         serviceUserName,
         serviceUserAddress,
@@ -1119,11 +1173,20 @@ export default function TestingFeatures() {
         actualTimeMinutes,
         serviceRequirementTimeMinutes,
         serviceRequirementTimeLabel: deriveTimeLabel(serviceRequirementTimeMinutes, serviceRequirementTimeField?.value),
+        serviceRequirementEndTimeMinutes,
+        serviceRequirementEndTimeLabel: deriveTimeLabel(
+          serviceRequirementEndTimeMinutes,
+          serviceRequirementEndTimeField?.value
+        ),
+        plannedEndTimeMinutes,
+        actualEndTimeMinutes,
         plannedDateLabel: plannedDateParts.label,
         plannedDateKey: plannedDateParts.key,
         serviceUserName,
         serviceUserArea,
         serviceUserAddress,
+        serviceLocationBranch,
+        serviceLocationType,
         normalizedServiceUserKey,
         isDuplicateSlotRow: false,
         excludeFromMetrics,
@@ -1782,7 +1845,7 @@ export default function TestingFeatures() {
       SERVICE_REQUIREMENT_TIME_KEYWORDS,
       plannedTimeField ? new Set([plannedTimeField.key]) : undefined
     );
-    const plannedTimeSource = plannedTimeField ?? serviceRequirementTimeField;
+    const plannedTimeSource = serviceRequirementTimeField ?? plannedTimeField;
     const plannedDateField = detectDateField(
       headerRow,
       PLANNED_DATE_KEYWORDS,
@@ -1821,6 +1884,18 @@ export default function TestingFeatures() {
         if (plannedTimeField) exclude.add(plannedTimeField.key);
         if (serviceRequirementTimeField) exclude.add(serviceRequirementTimeField.key);
         if (actualTimeField) exclude.add(actualTimeField.key);
+        return exclude.size ? exclude : undefined;
+      })()
+    );
+    const serviceRequirementEndTimeField = detectField(
+      headerRow,
+      SERVICE_REQUIREMENT_END_TIME_KEYWORDS,
+      (() => {
+        const exclude = new Set<string>();
+        if (plannedTimeField) exclude.add(plannedTimeField.key);
+        if (serviceRequirementTimeField) exclude.add(serviceRequirementTimeField.key);
+        if (plannedEndTimeField) exclude.add(plannedEndTimeField.key);
+        if (actualEndTimeField) exclude.add(actualEndTimeField.key);
         return exclude.size ? exclude : undefined;
       })()
     );
@@ -1867,6 +1942,16 @@ export default function TestingFeatures() {
         ["area", "branch"],
         serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
       );
+    const serviceLocationBranchField = detectFieldExcludingWorkerColumns(
+      headerRow,
+      SERVICE_LOCATION_BRANCH_KEYWORDS,
+      serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+    );
+    const serviceLocationTypeField = detectFieldExcludingWorkerColumns(
+      headerRow,
+      SERVICE_LOCATION_TYPE_KEYWORDS,
+      serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+    );
     const serviceUserAddressField =
       detectFieldExcludingWorkerColumns(
         headerRow,
@@ -1919,6 +2004,8 @@ export default function TestingFeatures() {
 
     const rows = [
       { label: "Planned start time", field: plannedTimeSource, coverageCount: coverage.plannedTime },
+      { label: "Service requirement start time", field: serviceRequirementTimeField },
+      { label: "Service requirement end time", field: serviceRequirementEndTimeField },
       { label: "Actual start time", field: actualTimeField, coverageCount: coverage.actualTime },
       { label: "Planned end time", field: plannedEndTimeField },
       { label: "Actual end time", field: actualEndTimeField },
@@ -1929,7 +2016,13 @@ export default function TestingFeatures() {
       { label: "Service user name", field: serviceUserNameField, coverageCount: coverage.serviceUser },
       { label: "Service user area", field: serviceUserAreaField },
       { label: "Service user address", field: serviceUserAddressField },
-      { label: "Call type", field: serviceRequirementTypeField ?? serviceRequirementServiceTypeField ?? serviceRequirementFallbackField, coverageCount: coverage.callType },
+      { label: "Service location branch", field: serviceLocationBranchField },
+      { label: "Service location type", field: serviceLocationTypeField },
+      {
+        label: "Call type",
+        field: serviceRequirementServiceTypeField ?? serviceRequirementTypeField ?? serviceRequirementFallbackField,
+        coverageCount: coverage.callType,
+      },
       { label: "Planned date", field: plannedDateField, coverageCount: coverage.plannedDate },
     ];
 

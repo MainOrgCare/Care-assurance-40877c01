@@ -159,11 +159,17 @@ interface RowAnalysis {
   actualTimeMinutes?: number | null;
   serviceRequirementTimeMinutes?: number | null;
   serviceRequirementTimeLabel?: string | null;
+  serviceRequirementEndTimeMinutes?: number | null;
+  serviceRequirementEndTimeLabel?: string | null;
+  plannedEndTimeMinutes?: number | null;
+  actualEndTimeMinutes?: number | null;
   plannedDateLabel?: string | null;
   plannedDateKey?: string | null;
   serviceUserName?: string | null;
   serviceUserArea?: string | null;
   serviceUserAddress?: string | null;
+  serviceLocationBranch?: string | null;
+  serviceLocationType?: string | null;
   normalizedServiceUserKey?: string | null;
   isDuplicateSlotRow?: boolean;
   excludeFromMetrics?: boolean;
@@ -1748,6 +1754,10 @@ export default function RosteringStudio({
   useRosteringKeyboardShortcuts(keyboardShortcuts, !!workbook);
 
   const isHub = mode === "hub";
+  const HUB_EMPLOYEE_VISIBLE_ROWS = 5;
+  const HUB_EMPLOYEE_ROW_HEIGHT = 52;
+  const hubEmployeeListHeight =
+    HUB_EMPLOYEE_VISIBLE_ROWS * HUB_EMPLOYEE_ROW_HEIGHT + (HUB_EMPLOYEE_VISIBLE_ROWS - 1);
 
   // Access check
   if (user?.role !== "admin") {
@@ -2214,8 +2224,8 @@ export default function RosteringStudio({
                   />
                 </div>
               </div>
-              <div className="flex-1 min-h-0">
-                <ScrollArea className="h-full">
+              <div className="min-h-0">
+                <ScrollArea className="w-full" style={{ height: hubEmployeeListHeight }}>
                   <div className="divide-y divide-border/50">
                     {visibleCareWorkerRosters.map((worker) => {
                       const summary = workerSummaryByKey.get(worker.key);
@@ -2223,6 +2233,7 @@ export default function RosteringStudio({
                         <button
                           key={worker.key}
                           type="button"
+                          style={{ height: HUB_EMPLOYEE_ROW_HEIGHT }}
                           onClick={() => {
                             setSelectedCareWorkerKey(worker.key);
                             setShowAllWorkers(false);

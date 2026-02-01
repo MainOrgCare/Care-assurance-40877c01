@@ -272,6 +272,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     "glass-card rounded-lg border border-border/70 p-4 sm:p-6 lg:p-8 flex-1 min-h-0 flex flex-col shadow-md animate-fade-in w-full",
     isFullBleed && "p-0 border-0 rounded-none shadow-none bg-transparent"
   );
+  const mainClass = cn(
+    "flex-1 flex flex-col w-full relative z-10 scroll-smooth",
+    isFullBleed ? "overflow-hidden" : "overflow-auto"
+  );
 
   const handleSecretClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -299,7 +303,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto flex flex-col w-full relative z-10 scroll-smooth">
+      <main className={mainClass}>
         {/* Header */}
         <header className="h-16 px-6 md:px-8 flex items-center justify-between sticky top-0 z-30 bg-background/95 border-b border-border/40">
           <div className="flex items-center gap-4">

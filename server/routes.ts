@@ -12241,13 +12241,19 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
           templateWorkerName: row.templateWorker ?? undefined,
           callTypeLabel: row.callTypeLabel || "Other",
           callDate: row.plannedDateKey,
+          serviceUserArea: row.serviceUserArea ?? undefined,
+          serviceUserAddress: row.serviceUserAddress ?? undefined,
+          serviceLocationBranch: row.serviceLocationBranch ?? undefined,
+          serviceLocationType: row.serviceLocationType ?? undefined,
           scheduledStart: toWholeMinutes(row.plannedTimeMinutes),
+          serviceRequirementEnd: toWholeMinutes(row.serviceRequirementEndTimeMinutes ?? row.plannedEndTimeMinutes),
           actualStart: toWholeMinutes(row.actualTimeMinutes),
+          actualEnd: toWholeMinutes(row.actualEndTimeMinutes),
           plannedDuration: toWholeMinutes(row.plannedDurationMinutes),
           actualDuration: toWholeMinutes(row.actualDurationMinutes),
           isDoubleUp: row.isDoubleUpSlot ?? false,
           isTimeCritical: row.isTimeCritical ?? false,
-          serviceRequirementStart: toWholeMinutes(row.serviceRequirementTimeMinutes),
+          serviceRequirementStart: toWholeMinutes(row.serviceRequirementTimeMinutes ?? row.plannedTimeMinutes),
         }));
 
       const extracted = extractFromRawCalls(rawCalls);
@@ -12260,6 +12266,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
             serviceUserName: su.serviceUserName,
             serviceUserArea: su.serviceUserArea,
             serviceUserAddress: su.serviceUserAddress,
+            serviceLocationBranch: su.serviceLocationBranch,
+            serviceLocationType: su.serviceLocationType,
             totalCallsAnalyzed: su.totalCallsAnalyzed,
             earliestDataDate: su.earliestDataDate,
             latestDataDate: su.latestDataDate,
@@ -12446,6 +12454,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
 
       const calls = await storage.getAllAnalyzedCalls();
       const serviceOrders = await storage.getAllServiceOrders();
+      const serviceUsers = await storage.getAllAnalyzedServiceUsers();
+      const serviceUserMap = new Map(serviceUsers.map((su) => [su.serviceUserKey, su]));
       const templateAssignments = await storage.getAllTemplateAssignments();
       const serviceOrderMap = new Map<string, (typeof serviceOrders)[number]>();
       serviceOrders.forEach((order) => {
@@ -12480,6 +12490,23 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         const workerName = templateAssignment?.workerName ?? call.workerName;
         const orderKey = `${call.serviceUserKey}|${call.callTypeKey}|${call.timeBand}`;
         const serviceOrder = serviceOrderMap.get(orderKey);
+        const serviceUserProfile = serviceUserMap.get(call.serviceUserKey);
+        const serviceRequirementEndMinutes =
+          typeof serviceOrder?.serviceRequirementEndTime === "number"
+            ? serviceOrder.serviceRequirementEndTime
+            : typeof call.serviceRequirementEndMinutes === "number"
+            ? call.serviceRequirementEndMinutes
+            : null;
+        const plannedEndMinutes =
+          typeof call.plannedStartMinutes === "number" && typeof call.plannedDurationMinutes === "number"
+            ? call.plannedStartMinutes + call.plannedDurationMinutes
+            : serviceRequirementEndMinutes;
+        const actualEndMinutes =
+          typeof call.actualEndMinutes === "number"
+            ? call.actualEndMinutes
+            : typeof call.actualStartMinutes === "number" && typeof call.actualDurationMinutes === "number"
+            ? call.actualStartMinutes + call.actualDurationMinutes
+            : null;
         const roster = rosterMap.get(workerKey) || {
           key: workerKey,
           workerName,
@@ -12547,12 +12574,18 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
           plannedDateLabel: call.callDate,
           plannedDateKey: call.callDate,
           serviceUserName: call.serviceUserName,
-          serviceUserArea: null,
-          serviceUserAddress: null,
+          serviceUserArea: serviceUserProfile?.serviceUserArea ?? null,
+          serviceUserAddress: serviceUserProfile?.serviceUserAddress ?? null,
+          serviceLocationBranch: serviceUserProfile?.serviceLocationBranch ?? call.serviceLocationBranch ?? null,
+          serviceLocationType: serviceUserProfile?.serviceLocationType ?? call.serviceLocationType ?? null,
           normalizedServiceUserKey: call.serviceUserKey,
           isDuplicateSlotRow: false,
           excludeFromMetrics: false,
           callTypeLabel: call.callTypeLabel,
+          serviceRequirementEndTimeMinutes: serviceRequirementEndMinutes,
+          serviceRequirementEndTimeLabel: null,
+          plannedEndTimeMinutes: plannedEndMinutes,
+          actualEndTimeMinutes: actualEndMinutes,
         };
 
         roster.rows.push(row);
@@ -12876,6 +12909,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       }
 
       const calls = await storage.getAllAnalyzedCalls();
+      const serviceUsers = await storage.getAllAnalyzedServiceUsers();
+      const serviceUserMap = new Map(serviceUsers.map((su) => [su.serviceUserKey, su]));
       const templateAssignments = await storage.getAllTemplateAssignments();
       const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string; updatedAtMs: number }>();
       templateAssignments
@@ -12903,6 +12938,19 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         const templateAssignment = templateAssignmentMap.get(assignmentKey);
         const workerKey = templateAssignment?.workerKey ?? call.workerKey;
         const workerName = templateAssignment?.workerName ?? call.workerName;
+        const serviceUserProfile = serviceUserMap.get(call.serviceUserKey);
+        const serviceRequirementEndMinutes =
+          typeof call.serviceRequirementEndMinutes === "number" ? call.serviceRequirementEndMinutes : null;
+        const plannedEndMinutes =
+          typeof call.plannedStartMinutes === "number" && typeof call.plannedDurationMinutes === "number"
+            ? call.plannedStartMinutes + call.plannedDurationMinutes
+            : serviceRequirementEndMinutes;
+        const actualEndMinutes =
+          typeof call.actualEndMinutes === "number"
+            ? call.actualEndMinutes
+            : typeof call.actualStartMinutes === "number" && typeof call.actualDurationMinutes === "number"
+            ? call.actualStartMinutes + call.actualDurationMinutes
+            : null;
         const roster = rosterMap.get(workerKey) || {
           key: workerKey,
           workerName,
@@ -12965,12 +13013,18 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
           plannedDateLabel: call.callDate,
           plannedDateKey: call.callDate,
           serviceUserName: call.serviceUserName,
-          serviceUserArea: null,
-          serviceUserAddress: null,
+          serviceUserArea: serviceUserProfile?.serviceUserArea ?? null,
+          serviceUserAddress: serviceUserProfile?.serviceUserAddress ?? null,
+          serviceLocationBranch: serviceUserProfile?.serviceLocationBranch ?? call.serviceLocationBranch ?? null,
+          serviceLocationType: serviceUserProfile?.serviceLocationType ?? call.serviceLocationType ?? null,
           normalizedServiceUserKey: call.serviceUserKey,
           isDuplicateSlotRow: false,
           excludeFromMetrics: false,
           callTypeLabel: call.callTypeLabel,
+          serviceRequirementEndTimeMinutes: serviceRequirementEndMinutes,
+          serviceRequirementEndTimeLabel: null,
+          plannedEndTimeMinutes: plannedEndMinutes,
+          actualEndTimeMinutes: actualEndMinutes,
         };
 
         roster.rows.push(row);

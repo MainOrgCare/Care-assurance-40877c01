@@ -481,6 +481,8 @@ export const analyzedServiceUsers = pgTable(
     serviceUserName: text("service_user_name").notNull(),
     serviceUserArea: text("service_user_area"), // Geographic area
     serviceUserAddress: text("service_user_address"),
+    serviceLocationBranch: text("service_location_branch"),
+    serviceLocationType: text("service_location_type"),
     latitude: text("latitude"),
     longitude: text("longitude"),
     totalCallsAnalyzed: integer("total_calls_analyzed").notNull().default(0),
@@ -663,12 +665,16 @@ export const analyzedCalls = pgTable(
     isDoubleUp: boolean("is_double_up").notNull().default(false),
     isTimeCritical: boolean("is_time_critical").notNull().default(false),
     serviceRequirementStartMinutes: integer("service_requirement_start_minutes"),
+    serviceRequirementEndMinutes: integer("service_requirement_end_minutes"),
     plannedStartMinutes: integer("planned_start_minutes"),
     actualStartMinutes: integer("actual_start_minutes"),
+    actualEndMinutes: integer("actual_end_minutes"),
     plannedDurationMinutes: integer("planned_duration_minutes"),
     actualDurationMinutes: integer("actual_duration_minutes"),
     durationVarianceMinutes: integer("duration_variance_minutes"), // actual - planned
     startVarianceMinutes: integer("start_variance_minutes"), // actual - requirement
+    serviceLocationBranch: text("service_location_branch"),
+    serviceLocationType: text("service_location_type"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     expiresAt: timestamp("expires_at").notNull(),
   },

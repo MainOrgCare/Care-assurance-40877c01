@@ -1734,6 +1734,8 @@ export class DatabaseStorage implements IStorage {
           serviceUserName: serviceUser.serviceUserName,
           serviceUserArea: serviceUser.serviceUserArea,
           serviceUserAddress: serviceUser.serviceUserAddress,
+          serviceLocationBranch: serviceUser.serviceLocationBranch,
+          serviceLocationType: serviceUser.serviceLocationType,
           latitude: serviceUser.latitude,
           longitude: serviceUser.longitude,
           totalCallsAnalyzed: serviceUser.totalCallsAnalyzed,
