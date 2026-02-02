@@ -28,7 +28,12 @@
           Service Data Group ID
           <input id="service-data-group-id" type="text" placeholder="e.g. 1017650" />
         </label>
+        <label class="toggle-row">
+          <span>Auto-submit forms</span>
+          <input id="auto-submit" type="checkbox" />
+        </label>
         <button id="start-autofill" class="primary">Start Autofill</button>
+        <button id="clear-data" class="secondary" type="button">Clear Stored Data</button>
         <div id="autofill-status" class="status"></div>
       </section>
 
@@ -37,6 +42,7 @@
         <ul>
           <li>Open the ACP case page before starting autofill.</li>
           <li>The extension will open a new form for each assessment.</li>
+          <li>If auto-submit is off, press Submit to continue to the next form.</li>
         </ul>
       </section>
     </main>

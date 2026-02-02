@@ -2,6 +2,7 @@ const STORAGE_KEYS = {
   payload: "caAcpPayload",
   caseInfo: "caAcpCaseInfo",
   queueState: "caAcpQueueState",
+  autoSubmit: "caAcpAutoSubmit",
 };
 const SIGNATURE_URL =
   "https://raw.githubusercontent.com/MainOrgCare/Care-assurance-40877c01/main/attached_assets/Signature.jpg";
@@ -91,6 +92,14 @@ const setSelectByLabel = (fieldName, label) => {
   return true;
 };
 
+const buildSignedLabel = (assessment) => {
+  if (!assessment) return "";
+  const name = (assessment.signedBy || "").trim();
+  const title = (assessment.jobTitle || "").trim();
+  if (name && title) return `${name} (${title})`;
+  return name || title;
+};
+
 const clickSubmit = () => {
   const buttons = Array.from(document.querySelectorAll("button, input[type=submit]"));
   const submitButton = buttons.find((button) => {
@@ -107,11 +116,26 @@ const clickSubmit = () => {
   return false;
 };
 
+const attachManualSubmitListener = (onComplete) => {
+  const submitButton = document.getElementById("btnSave") ||
+    Array.from(document.querySelectorAll("button, input[type=submit]")).find((button) => {
+      if (button.tagName === "INPUT") {
+        return button.value && button.value.toLowerCase().includes("submit");
+      }
+      const text = button.textContent || "";
+      return text.toLowerCase().includes("submit");
+    });
+
+  if (!submitButton) return false;
+  submitButton.addEventListener("click", () => onComplete(), { once: true });
+  return true;
+};
+
 const fillRiskAssessment = async (assessment, serviceUserLabel) => {
   setValue(FORM_FIELD_NAMES.serviceUser, serviceUserLabel);
-  setValue(FORM_FIELD_NAMES.assessor, assessment.signedBy || "");
+  setValue(FORM_FIELD_NAMES.assessor, buildSignedLabel(assessment));
   setValue(FORM_FIELD_NAMES.assessmentDate, assessment.assessmentDate || "");
-  setValue(FORM_FIELD_NAMES.reason, `Risk Assessment: ${assessment.category}`);
+  setValue(FORM_FIELD_NAMES.reason, assessment.category || "");
   setSelectByLabel("form_component_40_2", "Yes");
   setSelectByLabel("form_component_19_20", "No");
 
@@ -143,10 +167,7 @@ const fillRiskAssessment = async (assessment, serviceUserLabel) => {
     if (ratingField) setValue(ratingField.name, risk.initialRating);
     if (residualField) setValue(residualField.name, risk.ratingAfterControls);
     if (signedField) {
-      const signed = assessment.jobTitle
-        ? `${assessment.signedBy} (${assessment.jobTitle})`
-        : assessment.signedBy;
-      setValue(signedField.name, signed);
+      setValue(signedField.name, buildSignedLabel(assessment));
     }
     if (harmedField) {
       const harmedValues = parseWhoHarmed(risk.whoWillBeHarmed);
@@ -190,9 +211,10 @@ const run = async () => {
   const params = new URLSearchParams(window.location.search);
   if (params.get("caAutofill") !== "1") return;
 
-  const { caAcpPayload, caAcpQueueState } = await loadStorage([
+  const { caAcpPayload, caAcpQueueState, caAcpAutoSubmit } = await loadStorage([
     STORAGE_KEYS.payload,
     STORAGE_KEYS.queueState,
+    STORAGE_KEYS.autoSubmit,
   ]);
 
   if (!caAcpPayload || !Array.isArray(caAcpPayload.assessments)) return;
@@ -210,14 +232,26 @@ const run = async () => {
 
   await uploadSignature();
   await wait(1000);
-  clickSubmit();
-  await wait(2000);
 
-  if (caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
-    notifyStepComplete();
-  } else {
-    chrome.storage.local.set({ [STORAGE_KEYS.queueState]: null });
+  const shouldAutoSubmit = caAcpAutoSubmit !== false;
+  if (shouldAutoSubmit) {
+    clickSubmit();
+    await wait(2000);
+    if (caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
+      notifyStepComplete();
+    } else {
+      chrome.storage.local.set({ [STORAGE_KEYS.queueState]: null });
+    }
+    return;
   }
+
+  attachManualSubmitListener(() => {
+    if (caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
+      notifyStepComplete();
+    } else {
+      chrome.storage.local.set({ [STORAGE_KEYS.queueState]: null });
+    }
+  });
 };
 
 run();
