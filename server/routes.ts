@@ -834,6 +834,14 @@ function normalizeInitials(name: string | undefined | null): string {
   return 'N.N.';
 }
 
+function normalizeFullName(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/information not found/i.test(trimmed)) return "";
+  return trimmed;
+}
+
 const extractServiceUserFullName = (text: string): string => {
   if (!text) return "";
   const stopPattern = /\b(?:allerg(?:y|ies)|allergy status|dob|date of birth|nhs|case id)\b/i;
@@ -10101,6 +10109,20 @@ CRITICAL: You MUST structure your response using the templates above as referenc
         : `5. Do NOT include any person names. Use role terms (my carer, my GP, my family member)
 6. Keep place names and locations as written. Do not redact places.`;
 
+      const serviceUserExtractionRules = allowSensitiveView
+        ? `- Service user full name if present in the documents (first and last name). Do not invent names.
+- Service user initials ONLY (format: "F.O." - first letter of first name + "." + first letter of last name + ".")`
+        : `- Service user initials ONLY (format: "F.O." - first letter of first name + "." + first letter of last name + ".")`;
+
+      const serviceUserJsonSchema = allowSensitiveView
+        ? `"serviceUser": {
+    "fullName": "Full name as written in documents or 'Information not found in documents'",
+    "initials": "Initials in format F.O. (first initial + dot + last initial + dot) or 'N.N.' if not found"
+  },`
+        : `"serviceUser": {
+    "initials": "Initials in format F.O. (first initial + dot + last initial + dot) or 'N.N.' if not found"
+  },`;
+
       const systemPrompt = `You are an expert care assessor for a UK care facility. Analyze the uploaded documents to identify service user information and determine which risk assessments are needed.
 ${policyContext}
 FORMATTING RULES - MUST FOLLOW:
@@ -10117,7 +10139,7 @@ IMPORTANT RULES:
 ${privacyRules}
 
 EXTRACT FROM DOCUMENTS:
-- Service user initials ONLY (format: "F.O." - first letter of first name + "." + first letter of last name + ".")
+${serviceUserExtractionRules}
 - Medical conditions mentioned (diabetes, epilepsy, strokes, dementia, etc.)
 - Care activities we assist with (feeding, medication, mobility, personal care, etc.)
 - Any concerns mentioned (falls history, skin issues, behavioral concerns, etc.)
@@ -10151,9 +10173,7 @@ MANDATORY RISK ASSESSMENTS (if applicable):
 
 Respond ONLY with valid JSON in this exact format:
 {
-  "serviceUser": {
-    "initials": "Initials in format F.O. (first initial + dot + last initial + dot) or 'N.N.' if not found"
-  },
+  ${serviceUserJsonSchema}
   "medicalConditions": ["List of conditions found in documents"],
   "careActivities": ["List of care activities we provide"],
   "concerns": ["List of concerns or risks identified"],
@@ -10222,8 +10242,16 @@ Respond ONLY with valid JSON in this exact format:
             }))
         : [];
 
+      const serviceUser: { initials: string; fullName?: string } = {
+        initials: normalizeInitials(parsed?.serviceUser?.initials),
+      };
+      if (allowSensitiveView) {
+        const fullName = normalizeFullName(parsed?.serviceUser?.fullName);
+        if (fullName) serviceUser.fullName = fullName;
+      }
+
       const result = {
-        serviceUser: { initials: normalizeInitials(parsed?.serviceUser?.initials) },
+        serviceUser,
         medicalConditions: normalizeStringArray(parsed?.medicalConditions),
         careActivities: normalizeStringArray(parsed?.careActivities),
         concerns: normalizeStringArray(parsed?.concerns),

@@ -26,6 +26,7 @@ interface RecommendedAssessment {
 interface RiskAnalysis {
   serviceUser: {
     initials: string;
+    fullName?: string;
   };
   medicalConditions: string[];
   careActivities: string[];
@@ -88,6 +89,25 @@ export default function RiskAssessment() {
     [showSensitive, generatedAssessmentsRaw, generatedAssessmentsScrubbed]
   );
   const generatedAssessmentsForCopy = generatedAssessmentsScrubbed.length > 0 ? generatedAssessmentsScrubbed : generatedAssessmentsRaw;
+  const serviceUserDisplayName = useMemo(() => {
+    const fullName = showSensitive ? analysisRaw?.serviceUser?.fullName : null;
+    if (fullName && !/information not found/i.test(fullName)) return fullName.trim();
+    const initials = analysisScrubbed?.serviceUser?.initials || analysisRaw?.serviceUser?.initials;
+    return initials || "N.N.";
+  }, [showSensitive, analysisRaw, analysisScrubbed]);
+  const serviceUserLabel = useMemo(() => (showSensitive && analysisRaw?.serviceUser?.fullName ? "Service User Name" : "Service User Initials"), [showSensitive, analysisRaw]);
+  const formatSignedBy = (assessment: GeneratedAssessment) => {
+    const name = assessment.signedBy?.trim();
+    const title = assessment.jobTitle?.trim();
+    if (name && title) return `${name} (${title})`;
+    return name || title || "Staff member";
+  };
+  const getServiceUserDisplay = (fallbackInitials?: string) => {
+    if (showSensitive && analysisRaw?.serviceUser?.fullName && !/information not found/i.test(analysisRaw.serviceUser.fullName)) {
+      return analysisRaw.serviceUser.fullName.trim();
+    }
+    return fallbackInitials || serviceUserDisplayName || "N.N.";
+  };
 
   const hasData = serviceUserData.initialAssessment || serviceUserData.socialWork || serviceUserData.carePlan;
   const hasAllParsed = hasData && !isAnyParsing();
@@ -592,7 +612,7 @@ export default function RiskAssessment() {
     const lines: string[] = [
       `Risk Assessment: ${assessment.category}`,
       `Date: ${assessment.assessmentDate}`,
-      `Service User: ${assessment.serviceUserInitials}`,
+      `Service User: ${getServiceUserDisplay(assessment.serviceUserInitials)}`,
       "",
     ];
 
@@ -615,8 +635,7 @@ export default function RiskAssessment() {
       lines.push("");
     }
 
-    lines.push(`Signed By: ${assessment.signedBy}`);
-    lines.push(`Job Title: ${assessment.jobTitle}`);
+    lines.push(`Signed By: ${formatSignedBy(assessment)}`);
 
     return lines.join("\n").trim();
   };
@@ -680,9 +699,8 @@ export default function RiskAssessment() {
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
       addParagraph(`Date: ${assessment.assessmentDate}`);
-      addParagraph(`Service User: ${assessment.serviceUserInitials}`);
-      addParagraph(`Signed By: ${assessment.signedBy}`);
-      addParagraph(`Job Title: ${assessment.jobTitle}`);
+      addParagraph(`Service User: ${getServiceUserDisplay(assessment.serviceUserInitials)}`);
+      addParagraph(`Signed By: ${formatSignedBy(assessment)}`);
       y += 2;
 
       assessment.risks.forEach((risk, idx) => {
@@ -885,7 +903,7 @@ export default function RiskAssessment() {
         <div className="space-y-1">
           <h1 className="page-title">Risk Framework Selection</h1>
           <p className="page-subtitle max-w-2xl">
-            Consensus recommendations for <span className="text-foreground font-black tracking-tight">{analysis.serviceUser.initials}</span> based on multi-document neural analysis.
+            Consensus recommendations for <span className="text-foreground font-black tracking-tight">{serviceUserDisplayName}</span> based on multi-document neural analysis.
           </p>
           {isAdmin && (
             <div className="mt-4 inline-flex items-center gap-3 rounded-xl border border-border/40 bg-muted/20 px-4 py-2 text-xs font-bold text-muted-foreground">
@@ -920,7 +938,7 @@ export default function RiskAssessment() {
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div>
               <Label className="text-muted-foreground">Service User Initials</Label>
-              <p className="text-foreground font-medium">{analysis.serviceUser.initials}</p>
+              <p className="text-foreground font-medium">{serviceUserDisplayName}</p>
             </div>
             {analysis.medicalConditions.length > 0 && (
               <div className="md:col-span-2">
@@ -1238,7 +1256,7 @@ export default function RiskAssessment() {
           <div>
             <h2 className="text-3xl font-heading font-bold text-foreground">Risk Assessments</h2>
             <p className="text-muted-foreground mt-2">
-              Generated {generatedAssessments.length} risk assessment{generatedAssessments.length !== 1 ? "s" : ""} for {analysis?.serviceUser.initials}
+              Generated {generatedAssessments.length} risk assessment{generatedAssessments.length !== 1 ? "s" : ""} for {serviceUserDisplayName}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1248,7 +1266,7 @@ export default function RiskAssessment() {
                   <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
                   <span>Show full names (admin view)</span>
                 </div>
-                <span className="text-[11px] text-muted-foreground/80">Copies use initials only.</span>
+                <span className="text-[11px] text-muted-foreground/80">Copies follow the admin view setting.</span>
               </div>
             )}
             <Button variant="outline" onClick={copyAllAssessments} data-testid="button-copy-all-assessments">
@@ -1300,8 +1318,8 @@ export default function RiskAssessment() {
               {/* Service User Header */}
               <div className="grid grid-cols-1 gap-4 mb-6 p-4 bg-muted rounded-lg">
                 <div>
-                  <Label className="text-muted-foreground text-xs">Service User Initials</Label>
-                  <p className="text-foreground font-medium">{assessment.serviceUserInitials}</p>
+                  <Label className="text-muted-foreground text-xs">{serviceUserLabel}</Label>
+                  <p className="text-foreground font-medium">{getServiceUserDisplay(assessment.serviceUserInitials)}</p>
                 </div>
               </div>
 
@@ -1356,15 +1374,9 @@ export default function RiskAssessment() {
               )}
 
               {/* Signature */}
-              <div className="mt-6 pt-4 border-t border-border grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground text-xs">Signed By</Label>
-                  <p className="text-foreground font-medium">{assessment.signedBy}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs">Job Title</Label>
-                  <p className="text-foreground font-medium">{assessment.jobTitle}</p>
-                </div>
+              <div className="mt-6 pt-4 border-t border-border">
+                <Label className="text-muted-foreground text-xs">Signed By</Label>
+                <p className="text-foreground font-medium">{formatSignedBy(assessment)}</p>
               </div>
             </CardContent>
           </Card>
