@@ -77,6 +77,7 @@ export default function RiskAssessment() {
   const [allowSensitive, setAllowSensitive] = useState(false);
   const [customAssessmentName, setCustomAssessmentName] = useState("");
   const [customAssessments, setCustomAssessments] = useState<RecommendedAssessment[]>([]);
+  const [isRefreshingIdentity, setIsRefreshingIdentity] = useState(false);
 
   const isAdmin = user?.role === "admin";
   const showSensitive = isAdmin && allowSensitive;
@@ -97,7 +98,8 @@ export default function RiskAssessment() {
   }, [showSensitive, analysisRaw, analysisScrubbed]);
   const serviceUserLabel = useMemo(() => (showSensitive && analysisRaw?.serviceUser?.fullName ? "Service User Name" : "Service User Initials"), [showSensitive, analysisRaw]);
   const formatSignedBy = (assessment: GeneratedAssessment) => {
-    const name = assessment.signedBy?.trim();
+    const rawName = assessment.signedBy?.trim() || "";
+    const name = rawName.replace(/\./g, " ").replace(/\s+/g, " ").trim();
     const title = assessment.jobTitle?.trim();
     if (name && title) return `${name} (${title})`;
     return name || title || "Staff member";
@@ -265,6 +267,67 @@ export default function RiskAssessment() {
       setStep("analyze");
     }
   }, [hasAllParsed, step]);
+
+  useEffect(() => {
+    const hasFullName = Boolean(analysisRaw?.serviceUser?.fullName?.trim());
+    if (!showSensitive || hasFullName || isRefreshingIdentity || !hasAllParsed) return;
+    const refreshSensitiveIdentity = async () => {
+      setIsRefreshingIdentity(true);
+      try {
+        const documentContent = getAllDocumentContent();
+        if (!documentContent) return;
+        const response = await fetch("/api/ai/analyze-risks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ documentContent, allowSensitive: true }),
+        });
+        if (!response.ok) return;
+        const reader = response.body?.getReader();
+        if (!reader) return;
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let resultRaw: RiskAnalysis | null = null;
+        let resultScrubbed: RiskAnalysis | null = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const messages = buffer.split("\n\n");
+          buffer = messages.pop() || "";
+
+          for (const message of messages) {
+            if (!message.trim()) continue;
+            const lines = message.split("\n");
+            let eventType = "";
+            let dataStr = "";
+            for (const line of lines) {
+              if (line.startsWith("event: ")) eventType = line.substring(7).trim();
+              else if (line.startsWith("data: ")) dataStr = line.substring(6);
+            }
+            if (eventType && dataStr) {
+              const data = JSON.parse(dataStr);
+              if (eventType === "result") {
+                resultRaw = data;
+                resultScrubbed = data?.scrubbedResult || data;
+              }
+            }
+          }
+        }
+
+        if (resultRaw) {
+          setAnalysisRaw(resultRaw);
+          setAnalysisScrubbed(resultScrubbed || resultRaw);
+        }
+      } catch (error) {
+        console.error("Sensitive identity refresh failed:", error);
+      } finally {
+        setIsRefreshingIdentity(false);
+      }
+    };
+    refreshSensitiveIdentity();
+  }, [showSensitive, analysisRaw, isRefreshingIdentity, hasAllParsed, getAllDocumentContent]);
 
   const analyzeDocuments = async () => {
     setIsAnalyzing(true);

@@ -852,6 +852,11 @@ function formatRiskAssessmentDate(value?: Date): string {
   return formatter.format(date).replace(/ /g, "/");
 }
 
+function normalizeSignedByName(value?: string | null): string {
+  if (!value) return "";
+  return value.replace(/\./g, " ").replace(/\s+/g, " ").trim();
+}
+
 const extractServiceUserFullName = (text: string): string => {
   if (!text) return "";
   const stopPattern = /\b(?:allerg(?:y|ies)|allergy status|dob|date of birth|nhs|case id)\b/i;
@@ -10467,7 +10472,7 @@ Respond ONLY with valid JSON in this exact format:
         // Preserve fields that should NOT be scrubbed (they contain expected values)
         const preservedFields = {
           assessmentDate: formatRiskAssessmentDate(),
-          signedBy: result.signedBy || performedBy || 'Staff member',
+          signedBy: normalizeSignedByName(result.signedBy || performedBy || 'Staff member'),
           jobTitle: result.jobTitle || performedByJobTitle || 'Care Staff',
           category: result.category,
         };
@@ -10490,7 +10495,7 @@ Respond ONLY with valid JSON in this exact format:
         
         // Restore preserved fields (override any scrubbed values)
         result.assessmentDate = preservedFields.assessmentDate;
-        result.signedBy = preservedFields.signedBy || "Staff member";
+        result.signedBy = normalizeSignedByName(preservedFields.signedBy || "Staff member");
         result.jobTitle = preservedFields.jobTitle;
         result.category = preservedFields.category;
 
