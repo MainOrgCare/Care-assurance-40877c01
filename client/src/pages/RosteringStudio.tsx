@@ -2116,7 +2116,6 @@ export default function RosteringStudio({
 
   useRosteringKeyboardShortcuts(keyboardShortcuts, !!workbook);
 
-  const isHub = mode === "hub";
   const HUB_EMPLOYEE_ROW_HEIGHT = 52;
 
   // Access check
@@ -2138,8 +2137,7 @@ export default function RosteringStudio({
     );
   }
 
-  if (isHub) {
-    const hubFilters = (
+  const hubFilters = (
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
         {hubTab === "rostering" && (
           <>
@@ -2341,7 +2339,7 @@ export default function RosteringStudio({
       </div>
     );
 
-    const hubToolbar = (
+  const hubToolbar = (
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
           <span className="text-[10px] uppercase tracking-wide">Snap</span>
@@ -2425,7 +2423,7 @@ export default function RosteringStudio({
       </div>
     );
 
-    const hubHeader = (
+  const hubHeader = (
       <div className="rounded-xl border border-border/60 bg-background">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 bg-muted/20 px-4 py-1.5">
           <Tabs value={hubTab} onValueChange={(value) => setHubTab(value as typeof hubTab)}>
@@ -2484,10 +2482,10 @@ export default function RosteringStudio({
       </div>
     );
 
-    const showServiceUsers = hubMemberView === "service-users";
-    const showEmployees = hubMemberView === "employees";
+  const showServiceUsers = hubMemberView === "service-users";
+  const showEmployees = hubMemberView === "employees";
 
-    const hubMain =
+  const hubMain =
       !selectedWorkbookId ? (
         <div className="flex-1 min-h-0 flex items-center justify-center">
           <Card className="p-10 text-center">
@@ -2765,75 +2763,82 @@ export default function RosteringStudio({
         </div>
       );
 
-    return (
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-        {hubHeader}
-        {hubMain}
-      </div>
-    );
-  }
+  const hubSection = (
+    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+      {hubHeader}
+      {hubMain}
+    </div>
+  );
 
   const containerClass = embedded
-    ? "space-y-6"
+    ? "flex min-h-0 flex-col gap-6"
     : "relative flex w-full flex-1 min-h-0 flex-col px-4 py-6 lg:px-10";
 
   return (
     <div className={containerClass}>
-      {/* Header */}
-      <div className={`${embedded ? "mb-4" : "mb-6"} ${embedded ? "" : "flex-shrink-0"}`}>
-        {!embedded && (
-          <div className="flex items-center gap-2 mb-4">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/testing-features">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Testing Features
-              </Link>
-            </Button>
-          </div>
-        )}
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-3 rounded-full border border-primary/20 bg-primary/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary mb-3">
-              <Route className="h-3 w-3" />
-              Rostering Studio
-              <Badge variant="secondary" className="ml-2 text-[10px] uppercase tracking-wide">
-                Beta
-              </Badge>
-            </div>
-            <h1 className="text-3xl font-heading font-bold text-foreground">
-              Rostering <span className="text-foreground">Studio</span>
-            </h1>
-            <p className="text-muted-foreground mt-2 max-w-2xl">
-              Use saved rostering analysis data to build optimized care worker schedules with time-critical safeguards and double-up call synchronization.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                refetchWorkbooks();
-                refetchWorkbook();
-              }}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportPdf}
-              disabled={!workbook || timelineLanes.length === 0}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export PDF
-            </Button>
-          </div>
+      <div className={`flex min-h-0 flex-1 flex-col ${embedded ? "gap-4" : "gap-6"}`}>
+        <div className="flex min-h-0 flex-[0.9] flex-col">
+          {hubSection}
         </div>
-      </div>
+        <div className="flex min-h-0 flex-[1.1] flex-col overflow-hidden rounded-2xl border border-border/60 bg-background/70 shadow-soft">
+          <div className="px-4 pt-4 lg:px-6 lg:pt-6">
+            {/* Header */}
+            <div className={`${embedded ? "mb-4" : "mb-6"} ${embedded ? "" : "flex-shrink-0"}`}>
+              {!embedded && (
+                <div className="flex items-center gap-2 mb-4">
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href="/testing-features">
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Back to Testing Features
+                    </Link>
+                  </Button>
+                </div>
+              )}
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="inline-flex items-center gap-3 rounded-full border border-primary/20 bg-primary/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary mb-3">
+                    <Route className="h-3 w-3" />
+                    Rostering Studio
+                    <Badge variant="secondary" className="ml-2 text-[10px] uppercase tracking-wide">
+                      Beta
+                    </Badge>
+                  </div>
+                  <h1 className="text-3xl font-heading font-bold text-foreground">
+                    Rostering <span className="text-foreground">Studio</span>
+                  </h1>
+                  <p className="text-muted-foreground mt-2 max-w-2xl">
+                    Use saved rostering analysis data to build optimized care worker schedules with time-critical safeguards and double-up call synchronization.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      refetchWorkbooks();
+                      refetchWorkbook();
+                    }}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportPdf}
+                    disabled={!workbook || timelineLanes.length === 0}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export PDF
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
 
-      <div className={`${embedded ? "" : "flex-1 min-h-0"}`}>
-        <div className="grid gap-6 lg:grid-cols-[320px,1fr] h-full">
+          <div className="flex-1 min-h-0 px-4 pb-4 lg:px-6 lg:pb-6">
+            <div className={`${embedded ? "" : "flex-1 min-h-0"}`}>
+              <div className="grid gap-6 lg:grid-cols-[320px,1fr] h-full">
           {/* Studio sidebar */}
           <ScrollArea className="h-full pr-2">
             <div className="space-y-4">
@@ -4180,5 +4185,8 @@ export default function RosteringStudio({
         </div>
       </div>
     </div>
+  </div>
+</div>
+</div>
   );
 }
