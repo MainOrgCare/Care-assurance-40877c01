@@ -2525,53 +2525,55 @@ export default function RosteringStudio({
           </div>
           {!isHubSidebarCollapsed && (
             <div className="flex min-h-0 flex-col gap-3">
-              <div className="rounded-xl border border-border/60 bg-background">
+              <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border/60 bg-background">
                 <div className="border-b border-border/50 bg-muted/20 px-3 py-2 text-xs font-semibold">Week overview</div>
-                <div className="p-3 space-y-4">
-                  {(["week1", "week2"] as const).map((week) => (
-                    <div key={week} className="space-y-2">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-semibold">{getTemplateWeekLabel(week, templateWeekReferenceDayNumber)}</span>
-                        {week === selectedTemplateWeek && (
-                          <Badge variant="secondary" className="text-[10px]">
-                            Selected
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-4 text-[10px] uppercase tracking-wide text-muted-foreground">
-                        <span>Day</span>
-                        <span className="text-center">Total</span>
-                        <span className="text-center">Templated</span>
-                        <span className="text-center">Not templated</span>
-                      </div>
-                      <div className="rounded-lg border border-border/60 overflow-hidden">
-                        <div className="divide-y divide-border/50">
-                          {weeklyOverviewRows[week].map((day) => {
-                            const isSelected = selectedTemplateWeek === week && selectedTemplateDay === day.day;
-                            return (
-                              <button
-                                key={`${week}-${day.dateKey}`}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedTemplateWeek(week);
-                                  setSelectedTemplateDay(day.day);
-                                }}
-                                className={`grid w-full grid-cols-4 px-2 py-1 text-[11px] transition ${
-                                  isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted/30 text-foreground"
-                                }`}
-                              >
-                                <span className="text-left">{day.day.slice(0, 3)}</span>
-                                <span className="text-center">{day.total}</span>
-                                <span className="text-center text-emerald-600">{day.templated}</span>
-                                <span className="text-center text-rose-600">{day.nonTemplated}</span>
-                              </button>
-                            );
-                          })}
+                <ScrollArea className="min-h-0 flex-1">
+                  <div className="p-3 space-y-4">
+                    {(["week1", "week2"] as const).map((week) => (
+                      <div key={week} className="space-y-2">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-semibold">{getTemplateWeekLabel(week, templateWeekReferenceDayNumber)}</span>
+                          {week === selectedTemplateWeek && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Selected
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-4 text-[10px] uppercase tracking-wide text-muted-foreground">
+                          <span>Day</span>
+                          <span className="text-center">Total</span>
+                          <span className="text-center">Templated</span>
+                          <span className="text-center">Not templated</span>
+                        </div>
+                        <div className="rounded-lg border border-border/60 overflow-hidden">
+                          <div className="divide-y divide-border/50">
+                            {weeklyOverviewRows[week].map((day) => {
+                              const isSelected = selectedTemplateWeek === week && selectedTemplateDay === day.day;
+                              return (
+                                <button
+                                  key={`${week}-${day.dateKey}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedTemplateWeek(week);
+                                    setSelectedTemplateDay(day.day);
+                                  }}
+                                  className={`grid w-full grid-cols-4 px-2 py-1 text-[11px] transition ${
+                                    isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted/30 text-foreground"
+                                  }`}
+                                >
+                                  <span className="text-left">{day.day.slice(0, 3)}</span>
+                                  <span className="text-center">{day.total}</span>
+                                  <span className="text-center text-emerald-600">{day.templated}</span>
+                                  <span className="text-center text-rose-600">{day.nonTemplated}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </ScrollArea>
               </div>
               <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border/60 bg-background">
                 <div className="border-b border-border/50 bg-muted/20 px-3 py-2 text-xs font-semibold">Employees</div>
@@ -2662,7 +2664,7 @@ export default function RosteringStudio({
       );
 
     return (
-      <div className="flex h-full min-h-0 flex-col gap-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
         {hubHeader}
         {hubMain}
       </div>
