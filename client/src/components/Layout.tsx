@@ -288,10 +288,10 @@ const SidebarContent = memo(function SidebarContent({
                 <Terminal size={15} /> System Logs
               </Link>
               <Link
-                href="/rostering-hub"
-                className={subNavLinkClass(location === "/rostering-hub")}
+                href="/rostering-studio"
+                className={subNavLinkClass(location === "/rostering-studio" || location === "/rostering-hub")}
               >
-                <ClipboardList size={15} /> Rostering Hub
+                <ClipboardList size={15} /> Rostering Studio
               </Link>
               <Link href="/billing-tool" className={subNavLinkClass(location === "/billing-tool")} data-testid="link-billing-tool">
                 <FileSpreadsheet size={15} /> Billing Tool
@@ -334,7 +334,7 @@ const SidebarContent = memo(function SidebarContent({
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
-  const isFullBleed = location === "/rostering-hub";
+  const isFullBleed = location === "/rostering-hub" || location === "/rostering-studio";
   const isSingleScreenRoute =
     location === "/rostering-hub" || location === "/rostering-studio" || location === "/care-worker-rotas";
   const [clickCount, setClickCount] = useState(0);

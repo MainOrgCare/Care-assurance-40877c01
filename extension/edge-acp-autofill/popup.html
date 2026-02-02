@@ -32,9 +32,38 @@
           <span>Auto-submit forms</span>
           <input id="auto-submit" type="checkbox" />
         </label>
+        <label class="toggle-row">
+          <span>Dry run (highlight only)</span>
+          <input id="dry-run" type="checkbox" />
+        </label>
+        <label>
+          Interaction mode
+          <select id="interaction-mode">
+            <option value="auto">Auto</option>
+            <option value="slow">Slow typing</option>
+            <option value="manual">Manual assist</option>
+          </select>
+        </label>
         <button id="start-autofill" class="primary">Start Autofill</button>
         <button id="clear-data" class="secondary" type="button">Clear Stored Data</button>
         <div id="autofill-status" class="status"></div>
+      </section>
+
+      <section class="section">
+        <h2>Signature Upload</h2>
+        <label>
+          Signature File
+          <input id="signature-file" type="file" accept="image/png, image/gif, image/jpeg, image/jpg, image/bmp" />
+        </label>
+        <button id="upload-signature" class="secondary" type="button">Upload Signature to Form</button>
+        <div id="signature-status" class="status"></div>
+      </section>
+
+      <section class="section">
+        <h2>Action Log</h2>
+        <div id="log-status" class="status">No actions yet.</div>
+        <div id="log-list" class="log-list"></div>
+        <button id="clear-logs" class="secondary" type="button">Clear Log</button>
       </section>
 
       <section class="section">

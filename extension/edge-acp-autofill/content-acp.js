@@ -3,6 +3,8 @@ const STORAGE_KEYS = {
   caseInfo: "caAcpCaseInfo",
   queueState: "caAcpQueueState",
   autoSubmit: "caAcpAutoSubmit",
+  dryRun: "caAcpDryRun",
+  interactionMode: "caAcpInteractionMode",
 };
 const SIGNATURE_URL =
   "https://raw.githubusercontent.com/MainOrgCare/Care-assurance-40877c01/main/attached_assets/Signature.jpg";
@@ -16,10 +18,56 @@ const FORM_FIELD_NAMES = {
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const setValue = (fieldName, value) => {
+const logAction = (message) => {
+  const timestamp = new Date().toLocaleTimeString();
+  chrome.runtime.sendMessage({
+    type: "CA_EXTENSION_LOG",
+    entry: `[${timestamp}] ${message}`,
+  });
+};
+
+let DRY_RUN = false;
+let INTERACTION_MODE = "auto";
+
+const highlightField = (field) => {
+  if (!field) return;
+  field.style.outline = "2px solid #1ea97a";
+  field.style.outlineOffset = "2px";
+};
+
+const typeLikeHuman = async (field, value) => {
+  if (!field) return false;
+  field.focus();
+  field.value = "";
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+  for (const char of String(value)) {
+    field.value += char;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    await wait(25 + Math.random() * 30);
+  }
+  field.dispatchEvent(new Event("change", { bubbles: true }));
+  field.dispatchEvent(new Event("blur", { bubbles: true }));
+  return true;
+};
+
+const setValue = async (fieldName, value) => {
   if (!value) return false;
   const field = document.querySelector(`[name="${fieldName}"]`);
   if (!field) return false;
+  if (DRY_RUN) {
+    highlightField(field);
+    logAction(`Dry run: would set ${fieldName}.`);
+    return true;
+  }
+  if (INTERACTION_MODE === "manual") {
+    highlightField(field);
+    logAction(`Manual assist: please fill ${fieldName}.`);
+    return true;
+  }
+  if (INTERACTION_MODE === "slow") {
+    await typeLikeHuman(field, value);
+    return true;
+  }
   field.value = value;
   field.dispatchEvent(new Event("input", { bubbles: true }));
   field.dispatchEvent(new Event("change", { bubbles: true }));
@@ -27,10 +75,20 @@ const setValue = (fieldName, value) => {
   return true;
 };
 
-const setMultiSelect = (fieldName, values) => {
+const setMultiSelect = async (fieldName, values) => {
   if (!values || values.length === 0) return false;
   const field = document.querySelector(`[name="${fieldName}"]`);
   if (!field || field.tagName !== "SELECT") return false;
+  if (DRY_RUN) {
+    highlightField(field);
+    logAction(`Dry run: would select ${values.length} options for ${fieldName}.`);
+    return true;
+  }
+  if (INTERACTION_MODE === "manual") {
+    highlightField(field);
+    logAction(`Manual assist: please select options for ${fieldName}.`);
+    return true;
+  }
   let matched = 0;
   const normalizedValues = values.map((value) => value.trim().toLowerCase());
   Array.from(field.options).forEach((option) => {
@@ -54,6 +112,16 @@ const addRiskRows = async (count) => {
   if (!addButton) return;
 
   for (let i = 0; i < count; i += 1) {
+    if (DRY_RUN) {
+      highlightField(addButton);
+      logAction("Dry run: would add risk row.");
+      return;
+    }
+    if (INTERACTION_MODE === "manual") {
+      highlightField(addButton);
+      logAction("Manual assist: please add a risk row.");
+      return;
+    }
     addButton.click();
     await wait(250);
   }
@@ -110,6 +178,16 @@ const clickSubmit = () => {
     return text.toLowerCase().includes("submit");
   });
   if (submitButton) {
+    if (DRY_RUN) {
+      highlightField(submitButton);
+      logAction("Dry run: would submit form.");
+      return true;
+    }
+    if (INTERACTION_MODE === "manual") {
+      highlightField(submitButton);
+      logAction("Manual assist: please submit the form when ready.");
+      return true;
+    }
     submitButton.click();
     return true;
   }
@@ -127,15 +205,24 @@ const attachManualSubmitListener = (onComplete) => {
     });
 
   if (!submitButton) return false;
+  if (DRY_RUN) {
+    highlightField(submitButton);
+    logAction("Dry run: waiting for manual submit.");
+    return true;
+  }
+  if (INTERACTION_MODE === "manual") {
+    highlightField(submitButton);
+    logAction("Manual assist: waiting for submit click.");
+  }
   submitButton.addEventListener("click", () => onComplete(), { once: true });
   return true;
 };
 
 const fillRiskAssessment = async (assessment, serviceUserLabel) => {
-  setValue(FORM_FIELD_NAMES.serviceUser, serviceUserLabel);
-  setValue(FORM_FIELD_NAMES.assessor, buildSignedLabel(assessment));
-  setValue(FORM_FIELD_NAMES.assessmentDate, assessment.assessmentDate || "");
-  setValue(FORM_FIELD_NAMES.reason, assessment.category || "");
+  await setValue(FORM_FIELD_NAMES.serviceUser, serviceUserLabel);
+  await setValue(FORM_FIELD_NAMES.assessor, buildSignedLabel(assessment));
+  await setValue(FORM_FIELD_NAMES.assessmentDate, assessment.assessmentDate || "");
+  await setValue(FORM_FIELD_NAMES.reason, assessment.category || "");
   setSelectByLabel("form_component_40_2", "Yes");
   setSelectByLabel("form_component_19_20", "No");
 
@@ -149,7 +236,8 @@ const fillRiskAssessment = async (assessment, serviceUserLabel) => {
   }
 
   const rows = getRiskRows();
-  assessment.risks.forEach((risk, index) => {
+  for (let index = 0; index < assessment.risks.length; index += 1) {
+    const risk = assessment.risks[index];
     const row = rows[index];
     if (!row) return;
 
@@ -161,19 +249,19 @@ const fillRiskAssessment = async (assessment, serviceUserLabel) => {
     const residualField = row.querySelector('select[name^="form_component_15"]');
     const signedField = row.querySelector('input[name^="form_component_16"]');
 
-    if (identifiedField) setValue(identifiedField.name, risk.riskDefinition);
-    if (defineField) setValue(defineField.name, risk.howItsARisk);
-    if (controlField) setValue(controlField.name, risk.controlMeasures);
-    if (ratingField) setValue(ratingField.name, risk.initialRating);
-    if (residualField) setValue(residualField.name, risk.ratingAfterControls);
+    if (identifiedField) await setValue(identifiedField.name, risk.riskDefinition);
+    if (defineField) await setValue(defineField.name, risk.howItsARisk);
+    if (controlField) await setValue(controlField.name, risk.controlMeasures);
+    if (ratingField) await setValue(ratingField.name, risk.initialRating);
+    if (residualField) await setValue(residualField.name, risk.ratingAfterControls);
     if (signedField) {
-      setValue(signedField.name, buildSignedLabel(assessment));
+      await setValue(signedField.name, buildSignedLabel(assessment));
     }
     if (harmedField) {
       const harmedValues = parseWhoHarmed(risk.whoWillBeHarmed);
-      setMultiSelect(harmedField.name, harmedValues);
+      await setMultiSelect(harmedField.name, harmedValues);
     }
-  });
+  }
 };
 
 const loadStorage = (keys) =>
@@ -188,8 +276,11 @@ const uploadSignature = async () => {
   const signatureField = document.querySelector('[name="form_component_18_19"]');
   if (!signatureField || signatureField.type !== "file") return false;
 
-  const storedField = document.querySelector('[name="form_component_18_19_stored"]');
-  if (storedField && storedField.value) return true;
+  if (DRY_RUN) {
+    highlightField(signatureField);
+    logAction("Dry run: would upload signature.");
+    return true;
+  }
 
   try {
     const response = await fetch(SIGNATURE_URL, { cache: "no-store" });
@@ -200,29 +291,91 @@ const uploadSignature = async () => {
     dataTransfer.items.add(file);
     signatureField.files = dataTransfer.files;
     signatureField.dispatchEvent(new Event("change", { bubbles: true }));
-    return true;
+    await wait(300);
+    if (signatureField.files && signatureField.files.length > 0) {
+      logAction(`Signature selected: ${signatureField.files[0].name}`);
+      return true;
+    }
+    logAction("Signature upload attempted but file input is empty.");
+    return false;
   } catch (error) {
     console.warn("Signature upload failed", error);
+    logAction("Signature upload failed.");
     return false;
   }
 };
 
-const run = async () => {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("caAutofill") !== "1") return;
+const uploadSignatureFromDataUrl = async (dataUrl, fileName, mimeType) => {
+  const signatureField = document.querySelector('[name="form_component_18_19"]');
+  if (!signatureField || signatureField.type !== "file") return false;
 
-  const { caAcpPayload, caAcpQueueState, caAcpAutoSubmit } = await loadStorage([
+  try {
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const file = new File([blob], fileName || "signature.jpg", {
+      type: mimeType || blob.type || "image/jpeg",
+    });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    signatureField.files = dataTransfer.files;
+    signatureField.dispatchEvent(new Event("change", { bubbles: true }));
+    await wait(300);
+    if (signatureField.files && signatureField.files.length > 0) {
+      logAction(`Manual signature selected: ${signatureField.files[0].name}`);
+      return true;
+    }
+    logAction("Manual signature upload attempted but file input is empty.");
+    return false;
+  } catch (error) {
+    console.warn("Manual signature upload failed", error);
+    logAction("Manual signature upload failed.");
+    return false;
+  }
+};
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== "CA_EXTENSION_UPLOAD_SIGNATURE") return false;
+  const payload = message.payload || {};
+  uploadSignatureFromDataUrl(payload.dataUrl, payload.fileName, payload.mimeType)
+    .then((ok) => sendResponse({ ok }))
+    .catch((error) => sendResponse({ ok: false, error: error.message }));
+  return true;
+});
+
+const isAutofillTargetPage = () => {
+  if (!window.location.pathname.includes("new_case_form")) return false;
+  const params = new URLSearchParams(window.location.search);
+  const formId = params.get("formId");
+  return formId === "1048191";
+};
+
+const run = async () => {
+  if (!isAutofillTargetPage()) return;
+
+  const { caAcpPayload, caAcpQueueState, caAcpAutoSubmit, caAcpDryRun, caAcpInteractionMode } = await loadStorage([
     STORAGE_KEYS.payload,
     STORAGE_KEYS.queueState,
     STORAGE_KEYS.autoSubmit,
+    STORAGE_KEYS.dryRun,
+    STORAGE_KEYS.interactionMode,
   ]);
 
   if (!caAcpPayload || !Array.isArray(caAcpPayload.assessments)) return;
   if (!caAcpQueueState || typeof caAcpQueueState.currentIndex !== "number") return;
+
+  const processedKey = `caAutofillProcessed_${caAcpQueueState.currentIndex}`;
+  if (sessionStorage.getItem(processedKey)) return;
+  sessionStorage.setItem(processedKey, "1");
   if (!isRiskFormPage()) return;
 
   const assessment = caAcpPayload.assessments[caAcpQueueState.currentIndex];
   if (!assessment) return;
+
+  DRY_RUN = Boolean(caAcpDryRun);
+  INTERACTION_MODE = caAcpInteractionMode || "auto";
+  if (DRY_RUN) {
+    logAction("Dry run enabled. No fields will be changed.");
+  }
 
   await wait(1000);
 

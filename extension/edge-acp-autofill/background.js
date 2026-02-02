@@ -2,6 +2,7 @@ const STORAGE_KEYS = {
   payload: "caAcpPayload",
   caseInfo: "caAcpCaseInfo",
   queueState: "caAcpQueueState",
+  logs: "caAcpLogs",
 };
 
 const DEFAULT_FORM_URL = "https://clece.mobizio.com/new_case_form";
@@ -18,7 +19,6 @@ const buildFormUrl = (caseId, serviceDataGroupId) => {
   url.searchParams.set("caseId", caseId);
   url.searchParams.set("serviceDataGroupId", serviceDataGroupId);
   url.searchParams.set("formId", ACP_FORM_ID);
-  url.searchParams.set("caAutofill", "1");
   return url.toString();
 };
 
@@ -79,6 +79,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "CA_EXTENSION_STEP_COMPLETE") {
     openNextForm().then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
+  if (message?.type === "CA_EXTENSION_LOG") {
+    const entry = message.entry;
+    getStored([STORAGE_KEYS.logs]).then(({ caAcpLogs }) => {
+      const logs = Array.isArray(caAcpLogs) ? caAcpLogs : [];
+      logs.push(entry);
+      const capped = logs.slice(-200);
+      setStored({ [STORAGE_KEYS.logs]: capped }).then(() => sendResponse({ ok: true }));
+    });
     return true;
   }
 
