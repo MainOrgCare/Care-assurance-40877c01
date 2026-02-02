@@ -10888,7 +10888,10 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
       const { documentContent, existingPlanContent, allowSensitive } = req.body;
       const allowSensitiveView = Boolean(allowSensitive) && req.user?.role === "admin";
       
-      if (!documentContent && !existingPlanContent) {
+      const documentText = typeof documentContent === "string" ? documentContent.trim() : "";
+      const existingPlanText = typeof existingPlanContent === "string" ? existingPlanContent.trim() : "";
+
+      if (!documentText && !existingPlanText) {
         return res.status(400).json({ message: "Document content or existing plan required" });
       }
 
@@ -10945,10 +10948,15 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
       await new Promise(resolve => setTimeout(resolve, 50));
       sendProgress(10, "Preparing documents...", "preparing");
 
-      const rawContent = existingPlanContent || documentContent;
-      const contentToEnhance = typeof rawContent === 'string'
-        ? (allowSensitiveView ? rawContent : sanitizeNarrativePII(rawContent))
-        : rawContent;
+      const rawContentParts: string[] = [];
+      if (existingPlanText) {
+        rawContentParts.push(`=== EXISTING CARE PLAN (UPLOAD) ===\n${existingPlanText}`);
+      }
+      if (documentText) {
+        rawContentParts.push(`=== SUPPORTING DOCUMENTS AND USER NOTES ===\n${documentText}`);
+      }
+      const rawContent = rawContentParts.join("\n\n");
+      const contentToEnhance = allowSensitiveView ? rawContent : sanitizeNarrativePII(rawContent);
 
       const carePlanPolicies = await storage.getPolicyDocumentsByCategory("care_plan");
       const initialAssessmentPolicies = await storage.getPolicyDocumentsByCategory("initial_assessment");
@@ -10973,6 +10981,7 @@ ${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.versio
       const systemPrompt = `You are an expert care plan writer for a UK care facility following CQC standards.
 ${policyContext}
 Analyze the uploaded documents and generate content for a COMPLETE Initial Assessment/Care Plan template.
+The input includes multiple labeled sections (Existing Care Plan, Supporting Documents and User Notes). Use ALL of them, including Moving and Handling plans, Additional Documents and Additional Context notes.
 
 ${privacyDirective}
 Keep place names and locations as written. Do not redact places.
@@ -10983,10 +10992,12 @@ FORMATTING RULES:
 - ALL content must be in FIRST PERSON ("I", "my", "me")
 - Be extremely detailed - minimum 100-150 words per main narrative section
 
-Generate content for EVERY section. Extract relevant information from documents and expand with rich detail.
+Generate content for EVERY section. Extract relevant information from documents and expand with rich detail. Never leave any field blank. If a detail is missing, state that it is not specified in documents and provide cautious, generalized detail without inventing names, dates or locations.
+If any detail is uncertain or inferred, add a clear question to verificationQuestions so the user can confirm it. If everything is well-supported, return an empty array.
 
 OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
 {
+  "verificationQuestions": ["Question about missing or uncertain details"],
   "thisIsMe": {
     "whoAmI": "Detailed first-person (minimum 150 words): Where I was born, grew up, occupation, what is important to me.",
     "hobbiesInterests": "What hobbies and interests I have - be specific.",

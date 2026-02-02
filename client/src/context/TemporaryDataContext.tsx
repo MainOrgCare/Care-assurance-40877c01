@@ -32,7 +32,7 @@ interface TemporaryDataContextType {
   timeLeft: number | null; // Time left in seconds
   startTimer: () => void;
   resetTimer: () => void;
-  getAllDocumentContent: () => string; // Combined content from all uploaded documents
+  getAllDocumentContent: (options?: { includeCarePlan?: boolean }) => string; // Combined content from all uploaded documents
   isAnyParsing: () => boolean;
   loadDemoData: () => void; // Load sample data for demo mode
   setAdditionalNotes: (notes: string) => void;
@@ -296,7 +296,8 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     setTimeLeft(30 * 60);
   }, []);
 
-  const getAllDocumentContent = useCallback((): string => {
+  const getAllDocumentContent = useCallback((options?: { includeCarePlan?: boolean }): string => {
+    const includeCarePlan = options?.includeCarePlan !== false;
     const parts: string[] = [];
     
     if (serviceUserData.socialWork?.content) {
@@ -305,7 +306,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     if (serviceUserData.initialAssessment?.content) {
       parts.push(`=== INITIAL ASSESSMENT ===\n${serviceUserData.initialAssessment.content}`);
     }
-    if (serviceUserData.carePlan?.content) {
+    if (includeCarePlan && serviceUserData.carePlan?.content) {
       parts.push(`=== CURRENT CARE PLAN ===\n${serviceUserData.carePlan.content}`);
     }
     if (serviceUserData.movingHandling?.content) {

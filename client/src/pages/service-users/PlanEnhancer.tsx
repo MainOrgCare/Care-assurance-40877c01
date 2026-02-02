@@ -1,10 +1,12 @@
 import { useState, useRef, useMemo } from "react";
+import jsPDF from "jspdf";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText } from "lucide-react";
+import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText, Download } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
@@ -13,6 +15,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface CarePlanTemplate {
+  verificationQuestions?: string[];
   thisIsMe: {
     whoAmI: string;
     hobbiesInterests: string;
@@ -136,6 +139,7 @@ export default function PlanEnhancer() {
   const [progressStatus, setProgressStatus] = useState("");
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [allowSensitive, setAllowSensitive] = useState(false);
+  const [updateNotes, setUpdateNotes] = useState("");
 
   const isAdmin = user?.role === "admin";
   const showSensitive = isAdmin && allowSensitive;
@@ -145,21 +149,154 @@ export default function PlanEnhancer() {
   );
   const copyResult = resultScrubbed || resultRaw;
 
-  const hasData = serviceUserData.carePlan || serviceUserData.socialWork || serviceUserData.initialAssessment;
+  const recommendedTopics = useMemo(() => {
+    if (!displayResult) return [];
+    const topics = new Set<string>();
+
+    const isMissing = (value?: string) => {
+      if (!value) return true;
+      const trimmed = value.trim();
+      if (!trimmed) return true;
+      const lower = trimmed.toLowerCase();
+      return (
+        lower === "n/a" ||
+        lower === "na" ||
+        lower.includes("not specified") ||
+        lower.includes("not provided") ||
+        lower.includes("unknown") ||
+        lower.includes("not available")
+      );
+    };
+
+    const missingAny = (values: Array<string | undefined>) => values.some(isMissing);
+
+    if (missingAny([
+      displayResult.thisIsMe?.whoAmI,
+      displayResult.thisIsMe?.hobbiesInterests,
+      displayResult.thisIsMe?.whatMakesGoodDay,
+    ])) {
+      topics.add("Personal background and preferences");
+    }
+
+    const goals = displayResult.goalSetting?.goals || [];
+    if (
+      goals.length === 0 ||
+      goals.some((g) =>
+        missingAny([g.goal, g.howToAchieve, g.potentialBarriers, g.timeFrame])
+      ) ||
+      missingAny([displayResult.goalSetting?.internetSupport, displayResult.goalSetting?.assistiveTechnology])
+    ) {
+      topics.add("Goal setting and support needs");
+    }
+
+    if (missingAny([
+      displayResult.advanceDecisions?.advanceDecisionInPlace,
+      displayResult.advanceDecisions?.dnrDetails,
+      displayResult.advanceDecisions?.lastingPOA,
+      displayResult.advanceDecisions?.poaType,
+      displayResult.advanceDecisions?.poaContact,
+    ])) {
+      topics.add("Advance decisions and legal arrangements");
+    }
+
+    if (missingAny([
+      displayResult.myCarePlan?.capacityAndSafeguarding,
+      displayResult.myCarePlan?.healthAndWellbeing,
+      displayResult.myCarePlan?.triggerPoints,
+      displayResult.myCarePlan?.personalCareNeeds,
+    ])) {
+      topics.add("Health, wellbeing and daily care");
+    }
+
+    if (missingAny([
+      displayResult.myCarePlan?.mobilityAndEquipment,
+      displayResult.riskSection5Mobility?.walking,
+      displayResult.riskSection5Mobility?.transfers,
+      displayResult.riskSection5Mobility?.moveInBed,
+    ])) {
+      topics.add("Mobility, transfers and equipment");
+    }
+
+    if (missingAny([
+      displayResult.myCarePlan?.medicationRequirements,
+      displayResult.riskSection2Medication?.medicationStorage,
+      displayResult.riskSection2Medication?.dosageSystem,
+      displayResult.riskSection2Medication?.prnMedication,
+    ])) {
+      topics.add("Medication management and support");
+    }
+
+    if (missingAny([
+      displayResult.myCarePlan?.nutrition,
+      displayResult.riskSection3Nutrition?.normalDiet,
+      displayResult.riskSection3Nutrition?.foodAllergies,
+      displayResult.riskSection3Nutrition?.fluidIntake,
+    ])) {
+      topics.add("Nutrition, allergies and hydration");
+    }
+
+    if (missingAny([
+      displayResult.riskSection6Appliances?.cooker,
+      displayResult.riskSection6Appliances?.centralHeating,
+      displayResult.riskSection7Fire?.smokeAlarmWorking,
+      displayResult.riskSection7Fire?.canEvacuate,
+    ])) {
+      topics.add("Home safety and fire precautions");
+    }
+
+    if (missingAny([
+      displayResult.riskSection9External?.access,
+      displayResult.riskSection10Security?.meansOfAccess,
+      displayResult.riskSection10Security?.enterUsing,
+    ])) {
+      topics.add("Access, security and entry arrangements");
+    }
+
+    if (missingAny([
+      displayResult.section11Bands?.personalCare,
+      displayResult.section11Bands?.mentalHealth,
+      displayResult.section11Bands?.physicalDisability,
+    ])) {
+      topics.add("Service user bands");
+    }
+
+    if (displayResult.verificationQuestions && displayResult.verificationQuestions.length > 0) {
+      topics.add("Clarifications raised by the AI output");
+    }
+
+    return Array.from(topics).slice(0, 6);
+  }, [displayResult]);
+
+  const hasData = Boolean(
+    serviceUserData.carePlan ||
+    serviceUserData.socialWork ||
+    serviceUserData.initialAssessment ||
+    serviceUserData.movingHandling ||
+    (serviceUserData.additionalDocuments && serviceUserData.additionalDocuments.length > 0) ||
+    (serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim().length > 0) ||
+    updateNotes.trim().length > 0
+  );
 
   const enhanceMutation = useMutation({
     mutationFn: async () => {
-      const documentContent = getAllDocumentContent();
+      const supportingContent = getAllDocumentContent({ includeCarePlan: false });
+      const updateContent = updateNotes.trim();
+      const combinedSupporting = [
+        supportingContent,
+        updateContent ? `=== USER UPDATES (PLAN ENHANCER) ===\n${updateContent}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
       const carePlanContent = serviceUserData.carePlan?.content;
       
-      if (!documentContent.trim() && !carePlanContent) {
+      if (!combinedSupporting.trim() && !carePlanContent) {
         throw new Error("No document content available");
       }
 
       // Store the original content for comparison view
       const combinedOriginal = [
         carePlanContent ? `=== Original Care Plan ===\n${carePlanContent}` : "",
-        documentContent ? `=== Supporting Documents ===\n${documentContent}` : ""
+        combinedSupporting ? `=== Supporting Documents ===\n${combinedSupporting}` : ""
       ].filter(Boolean).join("\n\n");
       setOriginalContent(combinedOriginal);
       setResultRaw(null);
@@ -173,7 +310,7 @@ export default function PlanEnhancer() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ 
-          documentContent,
+          documentContent: combinedSupporting,
           existingPlanContent: carePlanContent,
           allowSensitive: isAdmin && allowSensitive
         }),
@@ -262,6 +399,314 @@ export default function PlanEnhancer() {
     },
   });
 
+  const exportPlanPdf = () => {
+    if (!displayResult) return;
+
+    const doc = new jsPDF();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const marginX = 14;
+    const maxWidth = pageWidth - marginX * 2;
+    let y = 18;
+
+    const ensureSpace = (lineHeight: number) => {
+      if (y + lineHeight > pageHeight - 12) {
+        doc.addPage();
+        y = 18;
+      }
+    };
+
+    const addLines = (
+      text: string,
+      opts?: { bold?: boolean; size?: number; lineHeight?: number; spacing?: number }
+    ) => {
+      const size = opts?.size ?? 11;
+      const lineHeight = opts?.lineHeight ?? 6;
+      doc.setFont("helvetica", opts?.bold ? "bold" : "normal");
+      doc.setFontSize(size);
+      const lines = doc.splitTextToSize(text, maxWidth);
+      lines.forEach((line) => {
+        ensureSpace(lineHeight);
+        doc.text(String(line), marginX, y);
+        y += lineHeight;
+      });
+      if (opts?.spacing) {
+        y += opts.spacing;
+      }
+    };
+
+    const safeValue = (value?: string) => {
+      const trimmed = value?.trim();
+      return trimmed ? trimmed : "Not specified in documents.";
+    };
+
+    const addHeading = (text: string) => {
+      addLines(text, { bold: true, size: 14, lineHeight: 8, spacing: 2 });
+    };
+
+    const addSubheading = (text: string) => {
+      addLines(text, { bold: true, size: 12, lineHeight: 7, spacing: 1 });
+    };
+
+    const addField = (label: string, value?: string) => {
+      addLines(`${label}: ${safeValue(value)}`);
+    };
+
+    const addBlock = (label: string, value?: string) => {
+      addLines(label, { bold: true, size: 11, lineHeight: 6 });
+      addLines(safeValue(value), { spacing: 1 });
+    };
+
+    addHeading("Plan Enhancer Export");
+    addLines(`Exported: ${new Date().toLocaleDateString("en-GB")}`, { size: 10, lineHeight: 5 });
+    addLines(
+      showSensitive ? "View: Sensitive admin output." : "View: Scrubbed output.",
+      { size: 10, lineHeight: 5, spacing: 2 }
+    );
+
+    addHeading("This Is Me");
+    addBlock("Who am I and what is important to me?", displayResult.thisIsMe?.whoAmI);
+    addBlock("What hobbies and interests do I have?", displayResult.thisIsMe?.hobbiesInterests);
+    addBlock("What makes a good day for me?", displayResult.thisIsMe?.whatMakesGoodDay);
+
+    addHeading("My Goal Setting");
+    const goals = displayResult.goalSetting?.goals || [];
+    if (goals.length) {
+      goals.forEach((goal, idx) => {
+        addSubheading(`Goal ${idx + 1}`);
+        addField("My Goal", goal.goal);
+        addField("How I will achieve it", goal.howToAchieve);
+        addField("Potential Barriers", goal.potentialBarriers);
+        addField("Time Frame", goal.timeFrame);
+      });
+    } else {
+      addLines("Goals: Not specified in documents.", { spacing: 1 });
+    }
+    addField("Internet Support Required", displayResult.goalSetting?.internetSupport);
+    addField("Assistive Technology", displayResult.goalSetting?.assistiveTechnology);
+
+    addHeading("Advance Decisions / DNR / Lasting Power of Attorney");
+    addField("Advance Decision in Place", displayResult.advanceDecisions?.advanceDecisionInPlace);
+    addField("DNR/Advance Decision Details", displayResult.advanceDecisions?.dnrDetails);
+    addField("Lasting Power of Attorney", displayResult.advanceDecisions?.lastingPOA);
+    addField("POA Type", displayResult.advanceDecisions?.poaType);
+    addField("POA Contact", displayResult.advanceDecisions?.poaContact);
+
+    addHeading("My Care Plan");
+    addBlock("Capacity, Decision Making and Safeguarding", displayResult.myCarePlan?.capacityAndSafeguarding);
+    addBlock("My Health and Current Wellbeing", displayResult.myCarePlan?.healthAndWellbeing);
+    addBlock("Trigger Points to Alert to Potential Changes", displayResult.myCarePlan?.triggerPoints);
+    addBlock("My Medication Requirements", displayResult.myCarePlan?.medicationRequirements);
+    addBlock("Nutrition (Dietary needs or preferences)", displayResult.myCarePlan?.nutrition);
+    addBlock("My Personal Care Needs", displayResult.myCarePlan?.personalCareNeeds);
+    addBlock("Mobility and Equipment / Methods", displayResult.myCarePlan?.mobilityAndEquipment);
+    addBlock("Housework/Shopping and Social Support", displayResult.myCarePlan?.houseworkAndSocial);
+    addBlock("Financial Arrangements", displayResult.myCarePlan?.financialArrangements);
+
+    addHeading("Risk Assessment Section 1: Mental and Physical Health");
+    addSubheading("Communication");
+    addField("Speech", displayResult.riskSection1Health?.speech);
+    addField("Speech Details", displayResult.riskSection1Health?.speechDetails);
+    addField("Hearing", displayResult.riskSection1Health?.hearing);
+    addField("Hearing Details", displayResult.riskSection1Health?.hearingDetails);
+    addField("Eyesight", displayResult.riskSection1Health?.eyesight);
+    addField("Eyesight Details", displayResult.riskSection1Health?.eyesightDetails);
+    addSubheading("General Health");
+    addField("Breathlessness", displayResult.riskSection1Health?.breathlessness);
+    addField("Details", displayResult.riskSection1Health?.breathlessnessDetails);
+    addField("Urinary Incontinence", displayResult.riskSection1Health?.urinaryIncontinence);
+    addField("Details", displayResult.riskSection1Health?.urinaryDetails);
+    addField("Faecal Incontinence", displayResult.riskSection1Health?.faecalIncontinence);
+    addField("Details", displayResult.riskSection1Health?.faecalDetails);
+    addSubheading("Mental Health Assessment");
+    addField("Memory", displayResult.riskSection1Health?.memory);
+    addField("Moods", displayResult.riskSection1Health?.moods);
+    addField("Orientation", displayResult.riskSection1Health?.orientation);
+    addField("Sleep Pattern", displayResult.riskSection1Health?.sleepPattern);
+    addField("Behaviours", displayResult.riskSection1Health?.behaviours);
+    addSubheading("Mental Capacity Assessment");
+    addField("Understands Information", displayResult.riskSection1Health?.understandsInfo);
+    addField("Retains Information", displayResult.riskSection1Health?.retainsInfo);
+    addField("Weighs Up Decision", displayResult.riskSection1Health?.weighsDecision);
+    addField("Communicates Decision", displayResult.riskSection1Health?.communicatesDecision);
+    addBlock("Capacity Details", displayResult.riskSection1Health?.capacityDetails);
+    addSubheading("Risk");
+    addField("Risk Level", displayResult.riskSection1Health?.riskLevel);
+    addBlock("Risk Prevention", displayResult.riskSection1Health?.riskPrevention);
+
+    addHeading("Risk Assessment Section 2: Medication");
+    addField("Prescription Ordering", displayResult.riskSection2Medication?.prescriptionOrdering);
+    addField("Dosage System", displayResult.riskSection2Medication?.dosageSystem);
+    addField("System Maintainer", displayResult.riskSection2Medication?.systemMaintainer);
+    addField("Medication Storage", displayResult.riskSection2Medication?.medicationStorage);
+    addField("Current Investigations", displayResult.riskSection2Medication?.currentInvestigations);
+    addField("Surplus Medication", displayResult.riskSection2Medication?.surplusMedication);
+    addField("Medication Concerns", displayResult.riskSection2Medication?.medicationConcerns);
+    addField("Homeopathic/OTC Meds", displayResult.riskSection2Medication?.homeopathicMeds);
+    addField("PRN Medication", displayResult.riskSection2Medication?.prnMedication);
+    addField("Covert Medication", displayResult.riskSection2Medication?.covertMedication);
+    addSubheading("Medication Difficulties");
+    addField("Picking Up Tablets", displayResult.riskSection2Medication?.pickingUpTablets);
+    addField("Opening Boxes", displayResult.riskSection2Medication?.openingBoxes);
+    addField("Pouring Liquids", displayResult.riskSection2Medication?.pouringLiquids);
+    addField("Using Dosage System", displayResult.riskSection2Medication?.usingDosageSystem);
+    addField("Applying Creams", displayResult.riskSection2Medication?.applyingCreams);
+    addField("Swallowing Tablets", displayResult.riskSection2Medication?.swallowingTablets);
+    addField("Understanding Instructions", displayResult.riskSection2Medication?.understandingInstructions);
+    addField("Managing Inhalers", displayResult.riskSection2Medication?.managingInhalers);
+    addField("Instilling Drops", displayResult.riskSection2Medication?.instillingDrops);
+    addField("Controlled Drugs", displayResult.riskSection2Medication?.controlledDrugs);
+    addField("Warfarin", displayResult.riskSection2Medication?.warfarin);
+    addField("Skin Integrity Risk", displayResult.riskSection2Medication?.skinIntegrity);
+    addBlock("Skin Details", displayResult.riskSection2Medication?.skinDetails);
+    addSubheading("Risk");
+    addField("Risk Level", displayResult.riskSection2Medication?.riskLevel);
+    addBlock("Risk Prevention", displayResult.riskSection2Medication?.riskPrevention);
+
+    addHeading("Risk Assessment Section 3: Nutrition");
+    addField("Meal Assistance Required", displayResult.riskSection3Nutrition?.mealAssistance);
+    addField("Normal Diet", displayResult.riskSection3Nutrition?.normalDiet);
+    addField("Special Dietary Requirements", displayResult.riskSection3Nutrition?.specialDietary);
+    addField("Food Allergies", displayResult.riskSection3Nutrition?.foodAllergies);
+    addField("Soft Diet", displayResult.riskSection3Nutrition?.softDiet);
+    addField("Food Intolerances", displayResult.riskSection3Nutrition?.foodIntolerances);
+    addField("Tube Feed", displayResult.riskSection3Nutrition?.tubeFeed);
+    addField("Supplementary Foods/Thickeners", displayResult.riskSection3Nutrition?.supplementaryFoods);
+    addField("Foods I Like", displayResult.riskSection3Nutrition?.foodLikes);
+    addField("Foods I Dislike", displayResult.riskSection3Nutrition?.foodDislikes);
+    addField("Portion Size", displayResult.riskSection3Nutrition?.portionSize);
+    addField("Preferred Main Meal Time", displayResult.riskSection3Nutrition?.mainMealTime);
+    addField("Fluid Intake", displayResult.riskSection3Nutrition?.fluidIntake);
+    addSubheading("Risk");
+    addField("Risk Level", displayResult.riskSection3Nutrition?.riskLevel);
+    addBlock("Risk Prevention", displayResult.riskSection3Nutrition?.riskPrevention);
+
+    addHeading("Risk Assessment Section 4: Equipment");
+    const equipmentList = displayResult.riskSection4Equipment?.equipment || [];
+    if (equipmentList.length) {
+      equipmentList.forEach((eq, idx) => {
+        addSubheading(`Equipment ${idx + 1}`);
+        addField("Equipment", eq.name);
+        addField("Fit For Purpose", eq.fitForPurpose);
+        addField("Supplier", eq.supplier);
+        addField("Next Service Date", eq.nextService);
+      });
+    } else {
+      addLines("Equipment: Not specified in documents.", { spacing: 1 });
+    }
+    addBlock("Remedial Action", displayResult.riskSection4Equipment?.remedialAction);
+    addSubheading("Risk");
+    addField("Risk Level", displayResult.riskSection4Equipment?.riskLevel);
+    addBlock("Risk Prevention", displayResult.riskSection4Equipment?.riskPrevention);
+
+    addHeading("Risk Assessment Section 5: Mobility");
+    addField("Weight Bearing", displayResult.riskSection5Mobility?.weightBearing);
+    addField("Details", displayResult.riskSection5Mobility?.weightBearingDetails);
+    addField("Walking", displayResult.riskSection5Mobility?.walking);
+    addField("Details", displayResult.riskSection5Mobility?.walkingDetails);
+    addField("Stairs", displayResult.riskSection5Mobility?.stairs);
+    addField("Details", displayResult.riskSection5Mobility?.stairsDetails);
+    addField("Sit to Stand", displayResult.riskSection5Mobility?.sitToStand);
+    addField("Details", displayResult.riskSection5Mobility?.sitToStandDetails);
+    addField("Washing", displayResult.riskSection5Mobility?.washing);
+    addField("Details", displayResult.riskSection5Mobility?.washingDetails);
+    addField("Dressing", displayResult.riskSection5Mobility?.dressing);
+    addField("Details", displayResult.riskSection5Mobility?.dressingDetails);
+    addField("Oral Care", displayResult.riskSection5Mobility?.oralCare);
+    addField("Details", displayResult.riskSection5Mobility?.oralCareDetails);
+    addField("Bath/Shower", displayResult.riskSection5Mobility?.bathShower);
+    addField("Toilet/Commode", displayResult.riskSection5Mobility?.toiletCommode);
+    addField("Wheelchair", displayResult.riskSection5Mobility?.wheelchair);
+    addField("Transfers", displayResult.riskSection5Mobility?.transfers);
+    addField("Move in Bed", displayResult.riskSection5Mobility?.moveInBed);
+    addField("In/Out of Bed", displayResult.riskSection5Mobility?.inOutOfBed);
+    addField("Can Be Left Alone", displayResult.riskSection5Mobility?.canBeLeftAlone);
+    addField("Prone to Falls", displayResult.riskSection5Mobility?.proneToFalls);
+    addSubheading("Risk");
+    addField("Risk Level", displayResult.riskSection5Mobility?.riskLevel);
+    addBlock("Risk Prevention", displayResult.riskSection5Mobility?.riskPrevention);
+
+    addHeading("Risk Assessment Section 6: Appliances/Equipment");
+    addField("Cooker", displayResult.riskSection6Appliances?.cooker);
+    addField("Microwave", displayResult.riskSection6Appliances?.microwave);
+    addField("Iron", displayResult.riskSection6Appliances?.iron);
+    addField("Kettle", displayResult.riskSection6Appliances?.kettle);
+    addField("Toaster", displayResult.riskSection6Appliances?.toaster);
+    addField("Tumble Dryer", displayResult.riskSection6Appliances?.tumbleDryer);
+    addField("Floor Coverings", displayResult.riskSection6Appliances?.floorCoverings);
+    addField("Hand/Grab Rails", displayResult.riskSection6Appliances?.handRails);
+    addField("Electric Blanket", displayResult.riskSection6Appliances?.electricBlanket);
+    addField("Bed", displayResult.riskSection6Appliances?.bed);
+    addField("Washing Machine", displayResult.riskSection6Appliances?.washingMachine);
+    addField("Central Heating/Boiler", displayResult.riskSection6Appliances?.centralHeating);
+    addBlock("Actions Required", displayResult.riskSection6Appliances?.actionsRequired);
+
+    addHeading("Risk Assessment Section 7: Fire Safety");
+    addField("At Risk of Fire", displayResult.riskSection7Fire?.atRisk);
+    addField("Risk Reason", displayResult.riskSection7Fire?.riskReason);
+    addField("RAG Rating", displayResult.riskSection7Fire?.ragRating);
+    addField("Plug Sockets", displayResult.riskSection7Fire?.plugSockets);
+    addField("Electric Cables", displayResult.riskSection7Fire?.electricCables);
+    addField("Smoking Policy Explained", displayResult.riskSection7Fire?.smokingPolicy);
+    addField("Smoke Alarm Location", displayResult.riskSection7Fire?.smokeAlarmLocation);
+    addField("Smoke Alarm Working", displayResult.riskSection7Fire?.smokeAlarmWorking);
+    addField("CO Detector Location", displayResult.riskSection7Fire?.coDetectorLocation);
+    addField("CO Detector Working", displayResult.riskSection7Fire?.coDetectorWorking);
+    addField("Can Evacuate Without Assistance", displayResult.riskSection7Fire?.canEvacuate);
+    addBlock("Actions and Safety Measures", displayResult.riskSection7Fire?.actionsAndSafety);
+
+    addHeading("Risk Assessment Section 8: COSHH");
+    addField("Cleaning Materials Storage", displayResult.riskSection8COSHH?.cleaningStorage);
+    addField("RIDDOR Explained", displayResult.riskSection8COSHH?.riddorExplained);
+
+    addHeading("Risk Assessment Section 9: External Safe Working");
+    addField("Access", displayResult.riskSection9External?.access);
+    addField("Clear Pathways", displayResult.riskSection9External?.clearPathways);
+    addField("Handrails", displayResult.riskSection9External?.handrails);
+    addField("Entrance Steps", displayResult.riskSection9External?.entranceSteps);
+    addField("Lighting", displayResult.riskSection9External?.lighting);
+    addField("Ramps", displayResult.riskSection9External?.ramps);
+    addField("Personal Security", displayResult.riskSection9External?.personalSecurity);
+    addField("Parking", displayResult.riskSection9External?.parking);
+    addBlock("Actions Required", displayResult.riskSection9External?.actionsRequired);
+    addSubheading("Risk");
+    addField("Risk Level", displayResult.riskSection9External?.riskLevel);
+    addBlock("Risk Prevention", displayResult.riskSection9External?.riskPrevention);
+
+    addHeading("Risk Assessment Section 10: Security/Entry/Emergency Access");
+    addField("Means of Access", displayResult.riskSection10Security?.meansOfAccess);
+    addField("Property Type", displayResult.riskSection10Security?.propertyType);
+    addField("Enter Using", displayResult.riskSection10Security?.enterUsing);
+    addField("Keysafe Consent", displayResult.riskSection10Security?.keysafeConsent);
+    addField("Gas Shut Off Location", displayResult.riskSection10Security?.gasShutOff);
+    addField("Stop Tap/Mains Location", displayResult.riskSection10Security?.stopTap);
+    addField("Fuse Box Location", displayResult.riskSection10Security?.fuseBox);
+    addSubheading("Risk");
+    addField("Risk Level", displayResult.riskSection10Security?.riskLevel);
+    addBlock("Risk Prevention", displayResult.riskSection10Security?.riskPrevention);
+
+    addHeading("Section 11: Service User Bands");
+    addField("Personal Care", displayResult.section11Bands?.personalCare);
+    addField("Mental Health", displayResult.section11Bands?.mentalHealth);
+    addField("Physical Disability", displayResult.section11Bands?.physicalDisability);
+    addField("Dementia", displayResult.section11Bands?.dementia);
+    addField("Eating Disorder", displayResult.section11Bands?.eatingDisorder);
+    addField("Sensory Impairment", displayResult.section11Bands?.sensoryImpairment);
+    addField("Detained under MHA", displayResult.section11Bands?.detainedMHA);
+    addField("Drug/Alcohol Misuse", displayResult.section11Bands?.drugAlcoholMisuse);
+    addField("Learning Difficulties", displayResult.section11Bands?.learningDifficulties);
+
+    if (displayResult.verificationQuestions && displayResult.verificationQuestions.length > 0) {
+      addHeading("Verification Questions");
+      displayResult.verificationQuestions.forEach((question, index) => {
+        addLines(`${index + 1}. ${question}`, { spacing: 1 });
+      });
+    }
+
+    const fileName = `plan-enhancer-${new Date().toISOString().split("T")[0]}.pdf`;
+    doc.save(fileName);
+  };
+
   if (!hasData) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6 animate-in fade-in zoom-in duration-500">
@@ -303,7 +748,72 @@ export default function PlanEnhancer() {
         </div>
       </div>
 
-      <Card className="glass-card animate-slide-up stagger-2 overflow-hidden mt-6">
+      <Card className="glass-card animate-slide-up stagger-2 mt-6 border-primary/20">
+        <CardHeader className="border-b border-border/40 pb-3">
+          <CardTitle className="text-sm">Suggested updates to add</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {recommendedTopics.length > 0 ? (
+            <div className="flex flex-wrap gap-2 text-xs">
+              {recommendedTopics.map((topic) => (
+                <span
+                  key={topic}
+                  className="rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-muted-foreground"
+                >
+                  {topic}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Generate an output to see tailored suggestions for missing areas.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="glass-card animate-slide-up stagger-2 mt-6">
+        <CardHeader className="border-b border-border/40 pb-4">
+          <CardTitle className="text-base">Update Information (Optional)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-4">
+          <p className="text-xs text-muted-foreground">
+            Add clarifications or corrections here. This will be included in the next generation and used to resolve any uncertain details.
+          </p>
+          <Textarea
+            value={updateNotes}
+            onChange={(e) => setUpdateNotes(e.target.value)}
+            placeholder="E.g. prefers afternoon visits, no allergies, uses a walking frame, has a weekly GP visit..."
+            className="min-h-[120px] bg-background/60"
+            data-testid="input-plan-enhancer-updates"
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground/70">
+            <span>{updateNotes.trim().length.toLocaleString()} chars</span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setUpdateNotes("")}
+                disabled={!updateNotes.trim().length || enhanceMutation.isPending}
+              >
+                Clear updates
+              </Button>
+              <Button
+                size="sm"
+                className="gap-2"
+                onClick={() => enhanceMutation.mutate()}
+                disabled={enhanceMutation.isPending || isAnyParsing() || !hasData}
+                data-testid="button-regenerate-plan"
+              >
+                {enhanceMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                Update & Regenerate
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="glass-card animate-slide-up stagger-3 overflow-hidden mt-6">
         <CardHeader className="border-b border-border/40 pb-6">
           <CardTitle className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10 shadow-xs">
@@ -344,6 +854,43 @@ export default function PlanEnhancer() {
                 <div>
                   <p className="font-bold text-foreground tracking-tight">Assessment</p>
                   <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.initialAssessment.name}</p>
+                </div>
+              </div>
+            )}
+            {serviceUserData.movingHandling && (
+              <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-moving-handling-doc">
+                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground shadow-xs">
+                  <FileText size={16} />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground tracking-tight">Moving & Handling</p>
+                  <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.movingHandling.name}</p>
+                </div>
+              </div>
+            )}
+            {serviceUserData.additionalDocuments && serviceUserData.additionalDocuments.length > 0 && (
+              <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-additional-docs">
+                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground shadow-xs">
+                  <FileText size={16} />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground tracking-tight">Additional Docs</p>
+                  <p className="text-[10px] text-muted-foreground font-medium">
+                    {serviceUserData.additionalDocuments.length} file{serviceUserData.additionalDocuments.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </div>
+            )}
+            {serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim().length > 0 && (
+              <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-additional-notes">
+                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground shadow-xs">
+                  <FileText size={16} />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground tracking-tight">Additional Notes</p>
+                  <p className="text-[10px] text-muted-foreground font-medium">
+                    {serviceUserData.additionalNotes.trim().length.toLocaleString()} chars
+                  </p>
                 </div>
               </div>
             )}
@@ -410,27 +957,58 @@ export default function PlanEnhancer() {
 
       {displayResult && (
         <div className="space-y-6 animate-slide-up">
-          <div className="flex flex-wrap items-center justify-between gap-4 px-1">
-            <h3 className="text-xl font-black tracking-tight text-foreground flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-success/15 flex items-center justify-center text-success">
-                <Check size={18} />
-              </div>
-              Composite Output
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-4 px-1">
+              <h3 className="text-xl font-black tracking-tight text-foreground flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-success/15 flex items-center justify-center text-success">
+                  <Check size={18} />
+                </div>
+                Composite Output
+              </h3>
             
-            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "enhanced" | "comparison")} className="bg-muted/20 p-1 rounded-xl border border-border/40">
-              <TabsList className="bg-transparent border-0 h-9 p-0">
-                <TabsTrigger value="enhanced" className="rounded-lg font-bold text-[10px] uppercase gap-2 h-7" data-testid="tab-enhanced-view">
-                  <FileText size={12} />
-                  Enhanced
-                </TabsTrigger>
-                <TabsTrigger value="comparison" className="rounded-lg font-bold text-[10px] uppercase gap-2 h-7" data-testid="tab-comparison-view">
-                  <Columns size={12} />
-                  Comparison
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="gap-2"
+                onClick={exportPlanPdf}
+                disabled={!displayResult}
+                data-testid="button-export-plan-pdf"
+              >
+                <Download size={14} />
+                Export PDF
+              </Button>
+              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "enhanced" | "comparison")} className="bg-muted/20 p-1 rounded-xl border border-border/40">
+                <TabsList className="bg-transparent border-0 h-9 p-0">
+                  <TabsTrigger value="enhanced" className="rounded-lg font-bold text-[10px] uppercase gap-2 h-7" data-testid="tab-enhanced-view">
+                    <FileText size={12} />
+                    Enhanced
+                  </TabsTrigger>
+                  <TabsTrigger value="comparison" className="rounded-lg font-bold text-[10px] uppercase gap-2 h-7" data-testid="tab-comparison-view">
+                    <Columns size={12} />
+                    Comparison
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+            </div>
+
+          {displayResult.verificationQuestions && displayResult.verificationQuestions.length > 0 && (
+            <Card className="glass-card border-amber-500/30 bg-amber-500/10">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Verification Needed</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-amber-50">
+                <p className="text-xs text-amber-100/80">
+                  Please confirm the items below in the update box above, then regenerate.
+                </p>
+                <ul className="list-disc list-inside space-y-1">
+                  {displayResult.verificationQuestions.map((question, index) => (
+                    <li key={`${question}-${index}`}>{question}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
           {viewMode === "comparison" && originalContent && (
             <Card className="glass-card overflow-hidden border-primary/20">
