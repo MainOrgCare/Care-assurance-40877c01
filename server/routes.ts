@@ -842,6 +842,16 @@ function normalizeFullName(value: unknown): string {
   return trimmed;
 }
 
+function formatRiskAssessmentDate(value?: Date): string {
+  const date = value ?? new Date();
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+  return formatter.format(date).replace(/ /g, "/");
+}
+
 const extractServiceUserFullName = (text: string): string => {
   if (!text) return "";
   const stopPattern = /\b(?:allerg(?:y|ies)|allergy status|dob|date of birth|nhs|case id)\b/i;
@@ -10406,7 +10416,7 @@ Respond ONLY with valid JSON in this exact format:
 {
   "category": "${assessmentCategory}",
   "serviceUserInitials": "${serviceUserInitials || 'N.N.'}",
-  "assessmentDate": "Today's date in DD/MM/YYYY format",
+  "assessmentDate": "Today's date in DD/Mon/YYYY format",
   "risks": [
     {
       "riskDefinition": "What is the specific risk",
@@ -10445,7 +10455,7 @@ Respond ONLY with valid JSON in this exact format:
         
         // Preserve fields that should NOT be scrubbed (they contain expected values)
         const preservedFields = {
-          assessmentDate: result.assessmentDate || new Date().toLocaleDateString("en-GB"),
+          assessmentDate: formatRiskAssessmentDate(),
           signedBy: result.signedBy || performedBy || 'Staff member',
           jobTitle: result.jobTitle || performedByJobTitle || 'Care Staff',
           category: result.category,

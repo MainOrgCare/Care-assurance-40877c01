@@ -21,6 +21,7 @@ type ServiceUserDataState = {
   carePlan?: FileData;
   movingHandling?: FileData;
   additionalDocuments?: FileData[];
+  additionalNotes?: string;
 };
 
 interface TemporaryDataContextType {
@@ -34,6 +35,7 @@ interface TemporaryDataContextType {
   getAllDocumentContent: () => string; // Combined content from all uploaded documents
   isAnyParsing: () => boolean;
   loadDemoData: () => void; // Load sample data for demo mode
+  setAdditionalNotes: (notes: string) => void;
 }
 
 const TemporaryDataContext = createContext<TemporaryDataContextType | undefined>(undefined);
@@ -316,6 +318,9 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
         parts.push(`=== ADDITIONAL DOCUMENT: ${label} ===\n${doc.content}`);
       });
     }
+    if (serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim()) {
+      parts.push(`=== ADDITIONAL CONTEXT (USER ENTERED) ===\n${serviceUserData.additionalNotes.trim()}`);
+    }
     
     return parts.join("\n\n");
   }, [serviceUserData]);
@@ -356,10 +361,19 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
         isParsing: false,
       },
       additionalDocuments: [],
+      additionalNotes: "",
     });
     startTimer();
     console.log("Demo Mode: Sample data loaded.");
   }, [startTimer]);
+
+  const setAdditionalNotes = useCallback((notes: string) => {
+    setServiceUserData(prev => ({
+      ...prev,
+      additionalNotes: notes,
+    }));
+    resetTimer();
+  }, [resetTimer]);
 
   const contextValue = useMemo(() => ({
     serviceUserData,
@@ -372,7 +386,8 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     getAllDocumentContent,
     isAnyParsing,
     loadDemoData,
-  }), [serviceUserData, uploadFile, removeAdditionalDocument, clearServiceUserData, timeLeft, startTimer, resetTimer, getAllDocumentContent, isAnyParsing, loadDemoData]);
+    setAdditionalNotes,
+  }), [serviceUserData, uploadFile, removeAdditionalDocument, clearServiceUserData, timeLeft, startTimer, resetTimer, getAllDocumentContent, isAnyParsing, loadDemoData, setAdditionalNotes]);
 
   return (
     <TemporaryDataContext.Provider value={contextValue}>

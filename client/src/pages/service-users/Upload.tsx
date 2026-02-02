@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Upload, FileText, CheckCircle, Shield, AlertCircle, Loader2, CloudUpload, File, Check } from "lucide-react";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useToast } from "@/hooks/use-toast";
@@ -24,7 +25,7 @@ const formatTimestamp = (timestamp: number) =>
   });
 
 export default function ServiceUserUpload() {
-  const { uploadFile, serviceUserData, removeAdditionalDocument } = useTemporaryData();
+  const { uploadFile, serviceUserData, removeAdditionalDocument, setAdditionalNotes } = useTemporaryData();
   const { toast } = useToast();
   const [dragOver, setDragOver] = useState<string | null>(null);
   const initialAssessmentInputRef = useRef<HTMLInputElement | null>(null);
@@ -479,6 +480,28 @@ export default function ServiceUserUpload() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mt-6 border-border/60 bg-muted/20 animate-slide-up stagger-3">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Additional Service User Context</CardTitle>
+          <CardDescription className="text-xs text-muted-foreground/70">
+            Add any extra details that should be included in care plans, risk assessments and initial assessments.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            value={serviceUserData.additionalNotes || ""}
+            onChange={(e) => setAdditionalNotes(e.target.value)}
+            placeholder="E.g. prefers morning visits, needs quiet environment, specific communication cues, known triggers..."
+            className="min-h-[140px] bg-background/60"
+            data-testid="input-service-user-additional-notes"
+          />
+          <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground/70">
+            <span>Stored in this session only</span>
+            <span>{(serviceUserData.additionalNotes || "").length.toLocaleString()} chars</span>
+          </div>
+        </CardContent>
+      </Card>
 
       <UploadDisclaimer />
     </div>
