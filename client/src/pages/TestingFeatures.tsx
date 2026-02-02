@@ -5993,7 +5993,7 @@ export default function TestingFeatures() {
                         )}
                       </Button>
                       <Button size="sm" variant="outline" asChild>
-                        <Link href="/care-worker-rotas">Open rota library</Link>
+                        <Link href="/rostering-studio">Open Rostering Studio</Link>
                       </Button>
                     </div>
                     </CardHeader>

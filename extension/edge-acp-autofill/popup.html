@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ACP Autofill</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <header>
+        <h1>ACP Autofill</h1>
+        <p>Fill Access Care Planning risk assessments from Care Assurance.</p>
+      </header>
+
+      <section class="section">
+        <h2>Payload Status</h2>
+        <div id="payload-status" class="status">Waiting for data...</div>
+      </section>
+
+      <section class="section">
+        <h2>Case Details</h2>
+        <label>
+          Case ID
+          <input id="case-id" type="text" placeholder="e.g. 61758" />
+        </label>
+        <label>
+          Service Data Group ID
+          <input id="service-data-group-id" type="text" placeholder="e.g. 1017650" />
+        </label>
+        <button id="start-autofill" class="primary">Start Autofill</button>
+        <div id="autofill-status" class="status"></div>
+      </section>
+
+      <section class="section">
+        <h2>Notes</h2>
+        <ul>
+          <li>Open the ACP case page before starting autofill.</li>
+          <li>The extension will open a new form for each assessment.</li>
+        </ul>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

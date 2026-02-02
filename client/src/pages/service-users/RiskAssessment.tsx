@@ -11,7 +11,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { ShieldAlert, ArrowRight, Loader2, AlertTriangle, CheckCircle, FileText, Info, Search, Copy, Check, X } from "lucide-react";
+import { ShieldAlert, ArrowRight, Loader2, AlertTriangle, CheckCircle, FileText, Info, Search, Copy, Check, X, Send } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
@@ -793,6 +793,87 @@ export default function RiskAssessment() {
     doc.save(fileName);
   };
 
+  const sendAssessmentsToExtension = async () => {
+    if (generatedAssessmentsForCopy.length === 0) return;
+    if (typeof window === "undefined") return;
+
+    const requestId =
+      typeof window.crypto !== "undefined" && typeof window.crypto.randomUUID === "function"
+        ? window.crypto.randomUUID()
+        : String(Date.now());
+    const payload = {
+      version: 1,
+      createdAt: new Date().toISOString(),
+      serviceUserDisplayName,
+      serviceUserInitials:
+        analysisScrubbed?.serviceUser?.initials || analysisRaw?.serviceUser?.initials || "N.N.",
+      assessments: generatedAssessmentsForCopy.map((assessment) => ({
+        category: assessment.category,
+        serviceUserInitials: assessment.serviceUserInitials,
+        assessmentDate: assessment.assessmentDate,
+        signedBy: assessment.signedBy,
+        jobTitle: assessment.jobTitle,
+        additionalNotes: assessment.additionalNotes,
+        risks: assessment.risks.map((risk) => ({
+          riskDefinition: risk.riskDefinition,
+          initialRating: risk.initialRating,
+          whoWillBeHarmed: risk.whoWillBeHarmed,
+          howItsARisk: risk.howItsARisk,
+          controlMeasures: risk.controlMeasures,
+          ratingAfterControls: risk.ratingAfterControls,
+        })),
+      })),
+    };
+
+    try {
+      const response = await new Promise<{ ok: boolean; error?: string }>((resolve, reject) => {
+        let handler: ((event: MessageEvent) => void) | null = null;
+        const timeoutId = window.setTimeout(() => {
+          if (handler) window.removeEventListener("message", handler);
+          reject(new Error("Edge extension not detected."));
+        }, 1500);
+
+        handler = (event: MessageEvent) => {
+          if (event.source !== window) return;
+          if (!event.data || event.data.type !== "CA_EXTENSION_ACK") return;
+          if (event.data.requestId !== requestId) return;
+          window.clearTimeout(timeoutId);
+          window.removeEventListener("message", handler!);
+          resolve({ ok: Boolean(event.data.ok), error: event.data.error });
+        };
+
+        window.addEventListener("message", handler);
+        window.postMessage(
+          {
+            type: "CA_SEND_TO_ACP_EXTENSION",
+            requestId,
+            payload,
+          },
+          window.location.origin
+        );
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Sent to extension",
+          description: `Queued ${generatedAssessmentsForCopy.length} assessment(s) for ACP autofill.`,
+        });
+      } else {
+        toast({
+          title: "Extension error",
+          description: response.error || "Failed to send to extension.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Extension not detected",
+        description: error?.message || "Could not reach the Edge extension.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Step 1: No data uploaded
   if (!hasData) {
     return (
@@ -1335,6 +1416,15 @@ export default function RiskAssessment() {
             <Button variant="outline" onClick={copyAllAssessments} data-testid="button-copy-all-assessments">
               <Copy size={16} /> Copy All
             </Button>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                onClick={sendAssessmentsToExtension}
+                data-testid="button-send-acp-extension"
+              >
+                <Send size={16} /> Send to ACP Extension
+              </Button>
+            )}
             <Button variant="outline" onClick={exportAssessmentsPdf} data-testid="button-export-risk-pdf">
               <FileText size={16} /> Export PDF
             </Button>

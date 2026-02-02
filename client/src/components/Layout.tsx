@@ -64,6 +64,7 @@ const SidebarContent = memo(function SidebarContent({
     location === "/shadow-admin-portal" ||
     location === "/testing-features" ||
     location === "/care-worker-rotas" ||
+    location === "/rostering-studio" ||
     location === "/rostering-hub" ||
     location === "/billing-tool" ||
     location === "/system-logs";
@@ -78,6 +79,7 @@ const SidebarContent = memo(function SidebarContent({
           location === "/shadow-admin-portal" ||
           location === "/testing-features" ||
           location === "/care-worker-rotas" ||
+          location === "/rostering-studio" ||
           location === "/rostering-hub" ||
           location === "/billing-tool" ||
           location === "/system-logs")
@@ -333,7 +335,8 @@ const SidebarContent = memo(function SidebarContent({
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const isFullBleed = location === "/rostering-hub";
-  const isSingleScreenRoute = location === "/rostering-hub" || location === "/care-worker-rotas";
+  const isSingleScreenRoute =
+    location === "/rostering-hub" || location === "/rostering-studio" || location === "/care-worker-rotas";
   const [clickCount, setClickCount] = useState(0);
   const { user, logout } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);

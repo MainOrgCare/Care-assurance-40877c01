@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -46,7 +46,6 @@ import {
   Search,
   SlidersHorizontal,
   Users,
-  Library,
   Clock,
   Calendar,
   Keyboard,
@@ -399,6 +398,7 @@ export default function RosteringStudio({
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [location, setLocation] = useLocation();
 
   // Local state
   const [selectedWorkbookId, setSelectedWorkbookId] = useState<string | null>(null);
@@ -412,6 +412,7 @@ export default function RosteringStudio({
   const [careWorkerSearch, setCareWorkerSearch] = useState("");
   const [rosterCallSearch, setRosterCallSearch] = useState("");
   const [hubTab, setHubTab] = useState<"rostering" | "service-user" | "employee" | "search" | "optimize">("rostering");
+  const [hubMemberView, setHubMemberView] = useState<"service-users" | "employees">("service-users");
   const [isHubSidebarCollapsed, setIsHubSidebarCollapsed] = useState(false);
   const [serviceUserSearch, setServiceUserSearch] = useState("");
   const [serviceUserAreaFilter, setServiceUserAreaFilter] = useState("all");
@@ -434,6 +435,16 @@ export default function RosteringStudio({
   // Template selection
   const [selectedTemplateWeek, setSelectedTemplateWeek] = useState<TemplateWeekKey>(DEFAULT_TEMPLATE_WEEK);
   const [selectedTemplateDay, setSelectedTemplateDay] = useState<WeekdayLabel>(DEFAULT_TEMPLATE_DAY);
+  const focusWorkerRef = useRef<string | null>(null);
+
+  const { focusWorkerKey, focusWeek, focusDay, focusTab } = useMemo(() => {
+    const params = new URLSearchParams(location.split("?")[1] ?? "");
+    const worker = params.get("worker") ?? "";
+    const week = params.get("week");
+    const day = params.get("day");
+    const tab = params.get("tab") ?? params.get("view");
+    return { focusWorkerKey: worker, focusWeek: week, focusDay: day, focusTab: tab };
+  }, [location]);
 
   const routePlannerRef = useRef<HTMLDivElement | null>(null);
 
@@ -787,6 +798,19 @@ export default function RosteringStudio({
     [selectedTemplateWeek, selectedTemplateDay]
   );
 
+  const openWorkerTools = useCallback(
+    (workerKey: string) => {
+      if (!workerKey) return;
+      const params = new URLSearchParams();
+      params.set("worker", workerKey);
+      params.set("week", selectedTemplateWeek);
+      params.set("day", selectedTemplateDay);
+      params.set("tab", "map");
+      setLocation(`/rostering-studio?${params.toString()}`);
+    },
+    [selectedTemplateDay, selectedTemplateWeek, setLocation]
+  );
+
   const selectedWeekDateKeys = useMemo(() => {
     return new Set(
       WEEKDAY_OPTIONS.map((day) =>
@@ -863,11 +887,41 @@ export default function RosteringStudio({
 
   // Auto-select first worker when workbook changes
   useEffect(() => {
+    if (focusWorkerKey) return;
     if (careWorkerRosters.length > 0 && !selectedCareWorkerKey) {
       setSelectedCareWorkerKey(careWorkerRosters[0].key);
       setSelectedServiceUserKey(null);
     }
-  }, [careWorkerRosters, selectedCareWorkerKey]);
+  }, [careWorkerRosters, focusWorkerKey, selectedCareWorkerKey]);
+
+  useEffect(() => {
+    if (mode !== "studio") return;
+    if (!focusWorkerKey) {
+      focusWorkerRef.current = null;
+      return;
+    }
+    if (!careWorkerRosters.length) return;
+    if (focusWorkerRef.current === focusWorkerKey) return;
+    const match = careWorkerRosters.find((worker) => worker.key === focusWorkerKey);
+    if (!match) return;
+    setSelectedCareWorkerKey(focusWorkerKey);
+    setSelectedServiceUserKey(null);
+    setSelectedWorkerCallKeys([]);
+    setShowAllWorkers(false);
+    if (focusWeek === "week1" || focusWeek === "week2") {
+      setSelectedTemplateWeek(focusWeek);
+    }
+    if (focusDay && WEEKDAY_OPTIONS.includes(focusDay as WeekdayLabel)) {
+      setSelectedTemplateDay(focusDay as WeekdayLabel);
+    }
+    if (focusTab) {
+      const allowedTabs = new Set(["timeline", "map", "call-times", "constraints", "workload", "schedules"]);
+      if (allowedTabs.has(focusTab)) {
+        setStudioTab(focusTab as typeof studioTab);
+      }
+    }
+    focusWorkerRef.current = focusWorkerKey;
+  }, [careWorkerRosters, focusDay, focusTab, focusWeek, focusWorkerKey, mode]);
 
   // Call groups for selected worker
   const selectedWorkerCallGroups = useMemo<WorkerCallGroup[]>(() => {
@@ -2384,6 +2438,18 @@ export default function RosteringStudio({
             </TabsList>
           </Tabs>
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Member</span>
+              <Select value={hubMemberView} onValueChange={(value) => setHubMemberView(value as typeof hubMemberView)}>
+                <SelectTrigger className="h-8 w-[140px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="service-users">Service users</SelectItem>
+                  <SelectItem value="employees">Employees</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
               <Badge variant="outline" className="text-[10px]">
                 {selectedTemplateWeekLabel}
@@ -2417,6 +2483,9 @@ export default function RosteringStudio({
         <div className="border-t border-border/50 px-4 py-1.5">{hubToolbar}</div>
       </div>
     );
+
+    const showServiceUsers = hubMemberView === "service-users";
+    const showEmployees = hubMemberView === "employees";
 
     const hubMain =
       !selectedWorkbookId ? (
@@ -2467,66 +2536,70 @@ export default function RosteringStudio({
               : "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]"
           }`}
         >
-          <div className="grid min-h-0 grid-rows-[minmax(0,1.2fr)_minmax(0,0.9fr)] gap-3">
-            <div className="flex min-h-0 flex-col rounded-xl border border-border/60 bg-background">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-muted/20 px-3 py-2">
-                <div className="text-xs font-semibold">Service Users</div>
-                <div className="text-[11px] text-muted-foreground">
-                  {selectedTemplateDay} {selectedTemplateDate.dateLabel} · Total {selectedDayMetrics.allocated + selectedDayMetrics.unallocated} visits · {formatMinutesDisplay(selectedDayMetrics.totalMinutes)}
+          <div className={`grid min-h-0 gap-3 ${showServiceUsers && showEmployees ? "grid-rows-[minmax(0,1.2fr)_minmax(0,0.9fr)]" : "grid-rows-1"}`}>
+            {showServiceUsers && (
+              <div className="flex min-h-0 flex-col rounded-xl border border-border/60 bg-background">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-muted/20 px-3 py-2">
+                  <div className="text-xs font-semibold">Service Users</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {selectedTemplateDay} {selectedTemplateDate.dateLabel} · Total {selectedDayMetrics.allocated + selectedDayMetrics.unallocated} visits · {formatMinutesDisplay(selectedDayMetrics.totalMinutes)}
+                  </div>
                 </div>
-              </div>
-              <div className="flex-1 min-h-0">
-                <GanttTimeline
-                  lanes={filteredServiceUserLanes}
-                  startMinutes={ROSTER_DAY_START_MINUTES}
-                  endMinutes={ROSTER_DAY_HARD_END_MINUTES}
-                  snapMinutes={snapMinutes}
-                  showHalfHourTicks={showHalfHourTicks}
-                  rowHeight={timelineRowHeight}
-                  fitHeight
-                  showHeader={false}
-                  selectedEntryId={selectedTimelineEntryId}
-                  selectedEntryIds={rosterState.present.selectedEntryIds}
-                  focusedEntryId={rosterState.present.focusedEntryId}
-                  onSelectEntry={handleSelectEntry}
-                  enableDrag={false}
-                  recommendedTimes={callTimesForEditor}
-                />
-              </div>
-            </div>
-            <div className="flex min-h-0 flex-col rounded-xl border border-border/60 bg-background">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-muted/20 px-3 py-2">
-                <div className="text-xs font-semibold">Employees</div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Switch
-                    id="hub-show-all"
-                    checked={showAllWorkers}
-                    onCheckedChange={setShowAllWorkers}
+                <div className="flex-1 min-h-0">
+                  <GanttTimeline
+                    lanes={filteredServiceUserLanes}
+                    startMinutes={ROSTER_DAY_START_MINUTES}
+                    endMinutes={ROSTER_DAY_HARD_END_MINUTES}
+                    snapMinutes={snapMinutes}
+                    showHalfHourTicks={showHalfHourTicks}
+                    rowHeight={timelineRowHeight}
+                    fitHeight
+                    showHeader={false}
+                    selectedEntryId={selectedTimelineEntryId}
+                    selectedEntryIds={rosterState.present.selectedEntryIds}
+                    focusedEntryId={rosterState.present.focusedEntryId}
+                    onSelectEntry={handleSelectEntry}
+                    enableDrag={false}
+                    recommendedTimes={callTimesForEditor}
                   />
-                  <label htmlFor="hub-show-all" className="text-xs font-medium">
-                    Show all workers
-                  </label>
                 </div>
               </div>
-              <div className="flex-1 min-h-0">
-                <GanttTimeline
-                  lanes={hubTimelineLanes}
-                  startMinutes={ROSTER_DAY_START_MINUTES}
-                  endMinutes={ROSTER_DAY_HARD_END_MINUTES}
-                  snapMinutes={snapMinutes}
-                  showHalfHourTicks={showHalfHourTicks}
-                  rowHeight={timelineRowHeight}
-                  fitHeight
-                  showHeader={false}
-                  selectedEntryId={selectedTimelineEntryId}
-                  selectedEntryIds={rosterState.present.selectedEntryIds}
-                  focusedEntryId={rosterState.present.focusedEntryId}
-                  onSelectEntry={handleSelectEntry}
-                  onEntryMove={handleEntryMove}
-                  recommendedTimes={callTimesForEditor}
-                />
+            )}
+            {showEmployees && (
+              <div className="flex min-h-0 flex-col rounded-xl border border-border/60 bg-background">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-muted/20 px-3 py-2">
+                  <div className="text-xs font-semibold">Employees</div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Switch
+                      id="hub-show-all"
+                      checked={showAllWorkers}
+                      onCheckedChange={setShowAllWorkers}
+                    />
+                    <label htmlFor="hub-show-all" className="text-xs font-medium">
+                      Show all workers
+                    </label>
+                  </div>
+                </div>
+                <div className="flex-1 min-h-0">
+                  <GanttTimeline
+                    lanes={hubTimelineLanes}
+                    startMinutes={ROSTER_DAY_START_MINUTES}
+                    endMinutes={ROSTER_DAY_HARD_END_MINUTES}
+                    snapMinutes={snapMinutes}
+                    showHalfHourTicks={showHalfHourTicks}
+                    rowHeight={timelineRowHeight}
+                    fitHeight
+                    showHeader={false}
+                    selectedEntryId={selectedTimelineEntryId}
+                    selectedEntryIds={rosterState.present.selectedEntryIds}
+                    focusedEntryId={rosterState.present.focusedEntryId}
+                    onSelectEntry={handleSelectEntry}
+                    onEntryMove={handleEntryMove}
+                    recommendedTimes={callTimesForEditor}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
           {!isHubSidebarCollapsed && (
             <div className="flex min-h-0 flex-col gap-3">
@@ -2534,49 +2607,73 @@ export default function RosteringStudio({
                 <div className="border-b border-border/50 bg-muted/20 px-3 py-2 text-xs font-semibold">Week overview</div>
                 <ScrollArea className="min-h-0 flex-1">
                   <div className="p-3 space-y-4">
-                    {(["week1", "week2"] as const).map((week) => (
-                      <div key={week} className="space-y-2">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="font-semibold">{getTemplateWeekLabel(week, templateWeekReferenceDayNumber)}</span>
-                          {week === selectedTemplateWeek && (
-                            <Badge variant="secondary" className="text-[10px]">
-                              Selected
-                            </Badge>
-                          )}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() =>
+                                setSelectedTemplateWeek((prev) => (prev === "week1" ? "week2" : "week1"))
+                              }
+                              aria-label="Previous week"
+                            >
+                              <ChevronLeft className="h-3.5 w-3.5" />
+                            </Button>
+                          <span className="font-semibold">
+                            {getTemplateWeekLabel(selectedTemplateWeek, templateWeekReferenceDayNumber)}
+                          </span>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() =>
+                                setSelectedTemplateWeek((prev) => (prev === "week1" ? "week2" : "week1"))
+                              }
+                              aria-label="Next week"
+                            >
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            </Button>
                         </div>
-                        <div className="grid grid-cols-4 text-[10px] uppercase tracking-wide text-muted-foreground">
-                          <span>Day</span>
-                          <span className="text-center">Total</span>
-                          <span className="text-center">Templated</span>
-                          <span className="text-center">Not templated</span>
-                        </div>
-                        <div className="rounded-lg border border-border/60 overflow-hidden">
-                          <div className="divide-y divide-border/50">
-                            {weeklyOverviewRows[week].map((day) => {
-                              const isSelected = selectedTemplateWeek === week && selectedTemplateDay === day.day;
-                              return (
-                                <button
-                                  key={`${week}-${day.dateKey}`}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedTemplateWeek(week);
-                                    setSelectedTemplateDay(day.day);
-                                  }}
-                                  className={`grid w-full grid-cols-4 px-2 py-1 text-[11px] transition ${
-                                    isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted/30 text-foreground"
-                                  }`}
-                                >
-                                  <span className="text-left">{day.day.slice(0, 3)}</span>
-                                  <span className="text-center">{day.total}</span>
-                                  <span className="text-center text-emerald-600">{day.templated}</span>
-                                  <span className="text-center text-rose-600">{day.nonTemplated}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
+                        <Badge variant="secondary" className="text-[10px]">
+                          Selected
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-4 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        <span>Day</span>
+                        <span className="text-center">Total</span>
+                        <span className="text-center">Templated</span>
+                        <span className="text-center">Not templated</span>
+                      </div>
+                      <div className="rounded-lg border border-border/60 overflow-hidden">
+                        <div className="divide-y divide-border/50">
+                          {weeklyOverviewRows[selectedTemplateWeek].map((day) => {
+                            const isSelected = selectedTemplateDay === day.day;
+                            return (
+                              <button
+                                key={`${selectedTemplateWeek}-${day.dateKey}`}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedTemplateWeek(selectedTemplateWeek);
+                                  setSelectedTemplateDay(day.day);
+                                }}
+                                className={`grid w-full grid-cols-4 px-2 py-1 text-[11px] transition ${
+                                  isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted/30 text-foreground"
+                                }`}
+                              >
+                                <span className="text-left">{day.day.slice(0, 3)}</span>
+                                <span className="text-center">{day.total}</span>
+                                <span className="text-center text-emerald-600">{day.templated}</span>
+                                <span className="text-center text-rose-600">{day.nonTemplated}</span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
-                    ))}
+                    </div>
                   </div>
                 </ScrollArea>
               </div>
@@ -2615,9 +2712,9 @@ export default function RosteringStudio({
                             type="button"
                             style={{ height: HUB_EMPLOYEE_ROW_HEIGHT }}
                             onClick={() => {
-                              setSelectedCareWorkerKey(worker.key);
-                              setShowAllWorkers(false);
+                              openWorkerTools(worker.key);
                             }}
+                            title="Open worker tools"
                             className={`w-full flex items-start gap-3 px-3 py-2 text-left transition ${
                               worker.key === selectedCareWorkerKey ? "bg-primary/10" : "hover:bg-muted/30"
                             }`}
@@ -2730,12 +2827,6 @@ export default function RosteringStudio({
             >
               <Download className="h-4 w-4 mr-2" />
               Export PDF
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/care-worker-rotas">
-                <Library className="h-4 w-4 mr-2" />
-                Rota Library
-              </Link>
             </Button>
           </div>
         </div>

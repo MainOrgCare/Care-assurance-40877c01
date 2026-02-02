@@ -100,14 +100,14 @@ function Router() {
       <AdminRoute path="/roi-calculator" component={ROICalculator} />
       <AdminRoute path="/testing-features" component={TestingFeatures} />
       <AdminRoute path="/system-logs" component={SystemLogs} />
-      <AdminRoute path="/care-worker-rotas" component={RosteringStudio} />
+      <AdminRoute path="/rostering-studio" component={RosteringStudio} />
       <AdminRoute path="/rostering-hub" component={RosteringHub} />
       <AdminRoute path="/billing-tool" component={BillingTool} />
       <Route path="/admin/care-worker-rotas">
-        <Redirect to="/care-worker-rotas" />
+        <Redirect to="/rostering-studio" />
       </Route>
-      <Route path="/rostering-studio">
-        <Redirect to="/care-worker-rotas" />
+      <Route path="/care-worker-rotas">
+        <Redirect to="/rostering-studio" />
       </Route>
       <ProtectedRoute path="/settings" component={Settings} />
 

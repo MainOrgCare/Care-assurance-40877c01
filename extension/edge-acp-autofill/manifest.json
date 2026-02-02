@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Care Assurance ACP Autofill",
+  "version": "0.1.0",
+  "description": "Autofill Access Care Planning risk assessments from Care Assurance.",
+  "action": {
+    "default_title": "ACP Autofill",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["storage", "tabs", "activeTab", "scripting"],
+  "host_permissions": [
+    "https://clece.mobizio.com/*",
+    "https://careassurance.uk/*",
+    "https://www.careassurance.uk/*",
+    "https://raw.githubusercontent.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://careassurance.uk/*", "https://www.careassurance.uk/*"],
+      "js": ["content-app.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://clece.mobizio.com/*"],
+      "js": ["content-acp.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -12333,6 +12333,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
           templateWorkerName: row.templateWorker ?? undefined,
           callTypeLabel: row.callTypeLabel || "Other",
           callDate: row.plannedDateKey,
+          templateWeek: row.templateWeek === "week1" || row.templateWeek === "week2" ? row.templateWeek : undefined,
+          templateDay: row.templateDay ?? undefined,
           serviceUserArea: row.serviceUserArea ?? undefined,
           serviceUserAddress: row.serviceUserAddress ?? undefined,
           serviceLocationBranch: row.serviceLocationBranch ?? undefined,

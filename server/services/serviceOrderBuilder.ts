@@ -24,6 +24,8 @@ export interface RawCallRecord {
   templateWorkerName?: string;
   callTypeLabel: string;
   callDate: string; // YYYY-MM-DD
+  templateWeek?: 'week1' | 'week2';
+  templateDay?: string;
   serviceUserArea?: string;
   serviceUserAddress?: string;
   serviceLocationBranch?: string;
@@ -272,9 +274,10 @@ export function getTimeBand(minutes?: number): string {
 export function getTemplateWeek(dateStr: string, referenceDate?: string): 'week1' | 'week2' {
   // Use a reference date to establish consistent week numbering.
   // Default reference: Jan 3, 2000 (Monday) as week 1.
-  const ref = referenceDate ? new Date(referenceDate) : new Date('2000-01-03');
-  const date = new Date(dateStr);
-  
+  const ref = referenceDate ? parseDateValue(referenceDate) : new Date(Date.UTC(2000, 0, 3));
+  const date = parseDateValue(dateStr);
+  if (!date || !ref) return 'week2';
+
   const diffDays = Math.floor((date.getTime() - ref.getTime()) / (1000 * 60 * 60 * 24));
   const weekOffset = Math.floor(diffDays / 7);
   const parity = ((weekOffset % 2) + 2) % 2;
@@ -286,10 +289,77 @@ export function getTemplateWeek(dateStr: string, referenceDate?: string): 'week1
  * Get day name from date
  */
 export function getDayName(dateStr: string): string {
-  const date = new Date(dateStr);
+  const date = parseDateValue(dateStr);
+  if (!date) return 'Unknown';
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  return days[date.getDay()];
+  return days[date.getUTCDay()];
 }
+
+function parseDateValue(value?: string | null): Date | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]);
+    const day = Number(isoMatch[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    ) {
+      return date;
+    }
+    return null;
+  }
+
+  const dmyMatch = trimmed.match(/^(\d{1,2})[\\/-](\d{1,2})[\\/-](\d{2,4})$/);
+  if (dmyMatch) {
+    const day = Number(dmyMatch[1]);
+    const month = Number(dmyMatch[2]);
+    let year = Number(dmyMatch[3]);
+    if (year < 100) year += 2000;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    ) {
+      return date;
+    }
+    return null;
+  }
+
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
+  }
+  return null;
+}
+
+const normalizeDateKey = (value?: string | null): string | null => {
+  const parsed = parseDateValue(value);
+  if (!parsed) return null;
+  const yyyy = parsed.getUTCFullYear();
+  const mm = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(parsed.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const normalizeTemplateDay = (value?: string | null): string | null => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const match = days.find((day) => day.toLowerCase() === trimmed.toLowerCase());
+  return match || null;
+};
+
+const isTemplateWeek = (value?: string | null): value is 'week1' | 'week2' =>
+  value === 'week1' || value === 'week2';
 
 
 /**
@@ -393,8 +463,37 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
     carersRequired: number;
   }>();
 
+  const normalizedCalls = calls
+    .map((call) => {
+      const normalizedDate = normalizeDateKey(call.callDate);
+      if (!normalizedDate) return null;
+      return { ...call, callDate: normalizedDate };
+    })
+    .filter((call): call is RawCallRecord => Boolean(call));
+
+  if (!normalizedCalls.length) {
+    return {
+      serviceUsers: [],
+      careWorkers: [],
+      calls: [],
+      serviceOrders: [],
+      templateAssignments: [],
+      templateSlotStates: [],
+      recommendations: [],
+      stats: {
+        totalRows: 0,
+        careWorkersExtracted: 0,
+        serviceUsersExtracted: 0,
+        callsExtracted: 0,
+        serviceOrdersGenerated: 0,
+        templatesDetected: 0,
+        recommendationsCreated: 0,
+      },
+    };
+  }
+
   // Sort calls by date (most recent last for template detection)
-  const sortedCalls = [...calls]
+  const sortedCalls = [...normalizedCalls]
     .map((call, index) => ({ call, index }))
     .sort((a, b) => a.call.callDate.localeCompare(b.call.callDate) || a.index - b.index);
 
@@ -415,8 +514,8 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
     const workerKey = generateWorkerKey(call.workerName);
     const callTypeKey = getCallTypeKey(call.callTypeLabel);
     const timeBand = getTimeBand(call.actualStart ?? call.scheduledStart ?? call.serviceRequirementStart);
-    const templateWeek = getTemplateWeek(call.callDate);
-    const templateDay = getDayName(call.callDate);
+    const templateWeek = isTemplateWeek(call.templateWeek) ? call.templateWeek : getTemplateWeek(call.callDate);
+    const templateDay = normalizeTemplateDay(call.templateDay) ?? getDayName(call.callDate);
     
     // Update service user
     if (!serviceUserMap.has(serviceUserKey)) {
