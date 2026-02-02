@@ -58,6 +58,8 @@ export interface GanttTimelineProps {
   rowHeight?: number;
   /** When true, timeline fills available height and scrolls internally */
   fitHeight?: boolean;
+  /** Hide the timeline header/legend row */
+  showHeader?: boolean;
 }
 
 const formatTimeLabel = (minutes: number) => {
@@ -173,6 +175,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   recommendedTimes = [],
   rowHeight: rowHeightProp,
   fitHeight = false,
+  showHeader = true,
 }) => {
   const rowHeight = clamp(rowHeightProp ?? 72, 52, 120);
   const entryHeight = Math.max(26, Math.round(rowHeight * 0.68));
@@ -434,37 +437,41 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
 
   const totalConflicts = allConflicts.size;
 
+  const containerPadding = showHeader ? "p-4" : "p-3";
+
   return (
     <div
-      className={`rounded-2xl border bg-card/70 p-4 shadow-sm ${fitHeight ? "flex h-full min-h-0 flex-col" : ""}`}
+      className={`rounded-2xl border bg-card/70 ${containerPadding} shadow-sm ${fitHeight ? "flex h-full min-h-0 flex-col" : ""}`}
     >
+      {showHeader && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
-        <div>
-          <p className="text-sm font-semibold">Timeline</p>
-          <p className="text-xs text-muted-foreground">
-            {formatTimeLabel(startMinutes)} — {formatTimeLabel(endMinutes)} · Snap: {snapMinutes}m
-          </p>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground flex-wrap">
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-blue-600" /> AM
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-amber-600" /> Lunch
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-emerald-600" /> Tea
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-indigo-600" /> Evening
-          </span>
-          {totalConflicts > 0 && (
-            <span className="inline-flex items-center gap-1 text-red-500 font-medium">
-              <AlertTriangle className="h-3 w-3" /> {totalConflicts / 2} conflicts
+          <div>
+            <p className="text-sm font-semibold">Timeline</p>
+            <p className="text-xs text-muted-foreground">
+              {formatTimeLabel(startMinutes)} — {formatTimeLabel(endMinutes)} · Snap: {snapMinutes}m
+            </p>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground flex-wrap">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-blue-600" /> AM
             </span>
-          )}
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-amber-600" /> Lunch
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-600" /> Tea
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-indigo-600" /> Evening
+            </span>
+            {totalConflicts > 0 && (
+              <span className="inline-flex items-center gap-1 text-red-500 font-medium">
+                <AlertTriangle className="h-3 w-3" /> {totalConflicts / 2} conflicts
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div
         className={`rounded-xl border bg-background/60 overflow-hidden ${fitHeight ? "flex min-h-0 flex-1 flex-col" : ""}`}

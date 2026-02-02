@@ -1109,11 +1109,20 @@ const isMeaningfulEvidence = (value: string | undefined | null): boolean => {
   if (!value) return false;
   const trimmed = value.trim();
   if (!trimmed) return false;
+  const wordCount = trimmed.split(/\s+/).filter((token) => /[a-z0-9]/i.test(token)).length;
+  if (wordCount < 2) return false;
+  if (trimmed.length < 8) return false;
   const lower = trimmed.toLowerCase();
   if (lower.includes("information not found in documents")) return false;
   if (lower.includes("i'm not aware of") || lower.includes("im not aware of")) return false;
   if (lower.includes("not found in the provided documents")) return false;
   return true;
+};
+
+const pickEvidenceSnippet = (snippets: string[]): string => {
+  if (!Array.isArray(snippets) || snippets.length === 0) return "";
+  const candidate = snippets.find((snippet) => isMeaningfulEvidence(snippet));
+  return candidate ? truncateEvidence(candidate) : "";
 };
 
 const buildAssessmentRecommendations = (analysis: {
@@ -1127,16 +1136,9 @@ const buildAssessmentRecommendations = (analysis: {
   };
 
   const addIfEvidence = (name: string, terms: string[], reason: string) => {
-    const evidenceMatches = collectAssessmentEvidence(analysis, terms);
-    let evidence = "";
-    if (evidenceMatches.length > 0) {
-      evidence = truncateEvidence(evidenceMatches.join("; "));
-    } else if (evidenceFinder) {
-      const snippets = evidenceFinder.findSnippets(terms);
-      if (snippets.length > 0) {
-        evidence = truncateEvidence(snippets.join("; "));
-      }
-    }
+    if (!evidenceFinder) return;
+    const snippets = evidenceFinder.findSnippets(terms);
+    const evidence = pickEvidenceSnippet(snippets);
     if (!evidence) return;
     add(name, reason, evidence);
   };
@@ -1225,35 +1227,15 @@ const attachAssessmentEvidence = (
 ) =>
   recommendations.map((item) => {
     const evidenceTerms = ASSESSMENT_EVIDENCE_TERMS[normalizeAssessmentKey(item.name)] || [];
-    if (item.evidence && item.evidence.trim()) {
-      return { ...item, name: canonicalizeAssessmentName(item.name) };
+    if (!evidenceFinder || evidenceTerms.length === 0) {
+      return { ...item, name: canonicalizeAssessmentName(item.name), evidence: "" };
     }
-    if (evidenceTerms.length === 0) return item;
-    const evidenceMatches = collectAssessmentEvidence(analysis, evidenceTerms);
-    if (evidenceMatches.length > 0) {
-      return {
-        ...item,
-        name: canonicalizeAssessmentName(item.name),
-        evidence: truncateEvidence(evidenceMatches.join("; ")),
-      };
-    }
-    if (evidenceFinder) {
-      const snippets = evidenceFinder.findSnippets(evidenceTerms);
-      if (snippets.length > 0) {
-        return {
-          ...item,
-          name: canonicalizeAssessmentName(item.name),
-          evidence: truncateEvidence(snippets.join("; ")),
-        };
-      }
-    }
-    const summary = analysis.documentSummary || "";
-    const summaryEvidence = extractSummaryEvidence(summary, evidenceTerms);
-    if (!summaryEvidence) return item;
+    const snippets = evidenceFinder.findSnippets(evidenceTerms);
+    const evidence = pickEvidenceSnippet(snippets);
     return {
       ...item,
       name: canonicalizeAssessmentName(item.name),
-      evidence: summaryEvidence,
+      evidence,
     };
   });
 
@@ -10087,6 +10069,8 @@ Return JSON - include ALL by default:
         .update(documentContentForAi || "")
         .update("|")
         .update(policyFingerprint)
+        .update("|")
+        .update("evidence_v2")
         .update("|")
         .update(allowSensitiveView ? "1" : "0")
         .digest("hex");

@@ -424,7 +424,7 @@ export default function PlanEnhancer() {
       const lineHeight = opts?.lineHeight ?? 6;
       doc.setFont("helvetica", opts?.bold ? "bold" : "normal");
       doc.setFontSize(size);
-      const lines = doc.splitTextToSize(text, maxWidth);
+      const lines = doc.splitTextToSize(text, maxWidth) as string[];
       lines.forEach((line) => {
         ensureSpace(lineHeight);
         doc.text(String(line), marginX, y);

@@ -372,13 +372,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
 
     handleChange();
-    if ("addEventListener" in media) {
-      media.addEventListener("change", handleChange);
-      return () => media.removeEventListener("change", handleChange);
-    }
-
-    media.addListener(handleChange);
-    return () => media.removeListener(handleChange);
+    media.addEventListener("change", handleChange);
+    return () => media.removeEventListener("change", handleChange);
   }, []);
 
   const handleSecretClick = (e: React.MouseEvent) => {

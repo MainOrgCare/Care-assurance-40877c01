@@ -182,6 +182,7 @@ interface RowAnalysis {
 
 interface WorkerCallGroup {
   key: string;
+  serviceUserKey?: string | null;
   serviceUserName: string | null;
   serviceUserArea: string | null;
   serviceUserAddress: string | null;
@@ -743,6 +744,8 @@ export default function RosteringStudio({
   }, [workbook]);
 
   const templateWeekReferenceDayNumber = useMemo(() => {
+    const isTemplateWeekKey = (value: unknown): value is TemplateWeekKey =>
+      value === "week1" || value === "week2";
     let latest: { date: Date; templateWeek?: TemplateWeekKey | null } | null = null;
     careWorkerRosters.forEach((roster) => {
       const rows = roster.callRows ?? roster.rows ?? [];
@@ -756,15 +759,15 @@ export default function RosteringStudio({
       });
     });
     if (!latest) return null;
-    const pivotWeek =
-      latest.templateWeek === "week1" || latest.templateWeek === "week2"
-        ? latest.templateWeek
-        : deriveTemplateWeekKey(latest.date, TEMPLATE_WEEK_1_START_DAY_NUMBER);
-    const pivotDay = deriveWeekdayLabel(latest.date);
+    const latestEntry = latest as { date: Date; templateWeek?: TemplateWeekKey | null };
+    const pivotWeek = isTemplateWeekKey(latestEntry.templateWeek)
+      ? latestEntry.templateWeek
+      : deriveTemplateWeekKey(latestEntry.date, TEMPLATE_WEEK_1_START_DAY_NUMBER);
+    const pivotDay = deriveWeekdayLabel(latestEntry.date);
     const dayOffset = WEEKDAY_OPTIONS.indexOf(pivotDay);
     if (dayOffset < 0) return null;
     const weekOffset = pivotWeek === "week2" ? 7 : 0;
-    return getDateDayNumber(latest.date) - weekOffset - dayOffset;
+    return getDateDayNumber(latestEntry.date) - weekOffset - dayOffset;
   }, [careWorkerRosters]);
 
   const templateWeekReferenceDayNumberForCalc =
@@ -1251,7 +1254,7 @@ export default function RosteringStudio({
 
         const serviceUserKey =
           group.serviceUserKey || group.normalizedServiceUserKey || group.serviceUserName || entryId;
-        const lane = laneMap.get(serviceUserKey) ?? {
+        const lane: GanttLane = laneMap.get(serviceUserKey) ?? {
           id: serviceUserKey,
           label: group.serviceUserName || "Unknown service user",
           entries: [],
@@ -2083,7 +2086,7 @@ export default function RosteringStudio({
 
   if (isHub) {
     const hubFilters = (
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
         {hubTab === "rostering" && (
           <>
             <div className="space-y-1">
@@ -2370,7 +2373,7 @@ export default function RosteringStudio({
 
     const hubHeader = (
       <div className="rounded-xl border border-border/60 bg-background">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 bg-muted/20 px-4 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 bg-muted/20 px-4 py-1.5">
           <Tabs value={hubTab} onValueChange={(value) => setHubTab(value as typeof hubTab)}>
             <TabsList className="bg-transparent p-0 flex flex-wrap gap-1">
               <TabsTrigger value="rostering">Rostering</TabsTrigger>
@@ -2410,8 +2413,8 @@ export default function RosteringStudio({
             </Button>
           </div>
         </div>
-        <div className="px-4 py-3">{hubFilters}</div>
-        <div className="border-t border-border/50 px-4 py-2">{hubToolbar}</div>
+        <div className="px-4 py-2">{hubFilters}</div>
+        <div className="border-t border-border/50 px-4 py-1.5">{hubToolbar}</div>
       </div>
     );
 
@@ -2481,6 +2484,7 @@ export default function RosteringStudio({
                   showHalfHourTicks={showHalfHourTicks}
                   rowHeight={timelineRowHeight}
                   fitHeight
+                  showHeader={false}
                   selectedEntryId={selectedTimelineEntryId}
                   selectedEntryIds={rosterState.present.selectedEntryIds}
                   focusedEntryId={rosterState.present.focusedEntryId}
@@ -2513,6 +2517,7 @@ export default function RosteringStudio({
                   showHalfHourTicks={showHalfHourTicks}
                   rowHeight={timelineRowHeight}
                   fitHeight
+                  showHeader={false}
                   selectedEntryId={selectedTimelineEntryId}
                   selectedEntryIds={rosterState.present.selectedEntryIds}
                   focusedEntryId={rosterState.present.focusedEntryId}
@@ -2664,7 +2669,7 @@ export default function RosteringStudio({
       );
 
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
         {hubHeader}
         {hubMain}
       </div>

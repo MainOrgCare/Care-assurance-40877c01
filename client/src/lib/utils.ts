@@ -17,7 +17,8 @@ export async function createHash(data: string | ArrayBuffer | Uint8Array): Promi
     : new Uint8Array(data);
 
   if (typeof window !== "undefined" && window.crypto?.subtle) {
-    const hashBuffer = await window.crypto.subtle.digest("SHA-256", bytes);
+    const digestInput = new Uint8Array(bytes).buffer;
+    const hashBuffer = await window.crypto.subtle.digest("SHA-256", digestInput);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
   }
