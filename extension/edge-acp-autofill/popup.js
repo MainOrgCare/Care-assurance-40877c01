@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
   dryRun: "caAcpDryRun",
   logs: "caAcpLogs",
   interactionMode: "caAcpInteractionMode",
+  signatureData: "caAcpSignatureData",
 };
 
 const loadStorage = (keys) =>
@@ -146,6 +147,14 @@ const sendSignatureToActiveTab = async (file) => {
     reader.onload = () => resolve(reader.result);
     reader.onerror = () => reject(new Error("Failed to read file"));
     reader.readAsDataURL(file);
+  });
+
+  await setStorage({
+    [STORAGE_KEYS.signatureData]: {
+      dataUrl,
+      fileName: file.name,
+      mimeType: file.type,
+    },
   });
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

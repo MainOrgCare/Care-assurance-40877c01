@@ -6,8 +6,7 @@ const STORAGE_KEYS = {
   dryRun: "caAcpDryRun",
   interactionMode: "caAcpInteractionMode",
 };
-const SIGNATURE_URL =
-  "https://raw.githubusercontent.com/MainOrgCare/Care-assurance-40877c01/main/attached_assets/Signature.jpg";
+const SIGNATURE_STORAGE_KEY = "caAcpSignatureData";
 
 const FORM_FIELD_NAMES = {
   serviceUser: "form_component_4_3",
@@ -282,11 +281,18 @@ const uploadSignature = async () => {
     return true;
   }
 
+  const { caAcpSignatureData } = await loadStorage([SIGNATURE_STORAGE_KEY]);
+  if (!caAcpSignatureData || !caAcpSignatureData.dataUrl) {
+    logAction("Signature missing: upload it in the extension popup.");
+    return false;
+  }
+
   try {
-    const response = await fetch(SIGNATURE_URL, { cache: "no-store" });
-    if (!response.ok) return false;
+    const response = await fetch(caAcpSignatureData.dataUrl);
     const blob = await response.blob();
-    const file = new File([blob], "signature.jpg", { type: blob.type || "image/jpeg" });
+    const file = new File([blob], caAcpSignatureData.fileName || "signature.jpg", {
+      type: caAcpSignatureData.mimeType || blob.type || "image/jpeg",
+    });
     const dataTransfer = new DataTransfer();
     dataTransfer.items.add(file);
     signatureField.files = dataTransfer.files;

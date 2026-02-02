@@ -15,8 +15,7 @@
   "host_permissions": [
     "https://clece.mobizio.com/*",
     "https://careassurance.uk/*",
-    "https://www.careassurance.uk/*",
-    "https://raw.githubusercontent.com/*"
+    "https://www.careassurance.uk/*"
   ],
   "content_scripts": [
     {
