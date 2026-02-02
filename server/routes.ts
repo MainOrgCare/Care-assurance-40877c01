@@ -1100,6 +1100,17 @@ const normalizeStringArray = (values: unknown): string[] => {
   return result;
 };
 
+const isMeaningfulEvidence = (value: string | undefined | null): boolean => {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+  if (lower.includes("information not found in documents")) return false;
+  if (lower.includes("i'm not aware of") || lower.includes("im not aware of")) return false;
+  if (lower.includes("not found in the provided documents")) return false;
+  return true;
+};
+
 const buildAssessmentRecommendations = (analysis: {
   medicalConditions?: string[];
   careActivities?: string[];
@@ -10280,7 +10291,7 @@ Respond ONLY with valid JSON in this exact format:
       result.recommendedAssessments = mergeAssessmentRecommendations(result.recommendedAssessments, derivedRecommendations);
       result.recommendedAssessments = attachAssessmentEvidence(result.recommendedAssessments, result, evidenceFinder);
       result.recommendedAssessments = result.recommendedAssessments.filter(
-        (assessment: any) => typeof assessment?.evidence === "string" && assessment.evidence.trim().length > 0
+        (assessment: any) => isMeaningfulEvidence(assessment?.evidence)
       );
 
       const scrubbedResult = sanitizeNarrativePII(result);
