@@ -9602,7 +9602,14 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    const corsOrigin = process.env.CORS_ORIGIN;
+    if (corsOrigin) {
+      res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Vary', 'Origin');
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
     res.flushHeaders();
 
     // Heartbeat to keep connection alive
@@ -9983,7 +9990,14 @@ Return JSON - include ALL by default:
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      const corsOrigin = process.env.CORS_ORIGIN;
+      if (corsOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
       res.flushHeaders();
 
       // Small delay to ensure headers are flushed through proxies
@@ -10270,7 +10284,14 @@ Respond ONLY with valid JSON in this exact format:
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      const corsOrigin = process.env.CORS_ORIGIN;
+      if (corsOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
       res.flushHeaders();
 
       // Heartbeat to keep connection alive during long AI processing
@@ -10481,7 +10502,14 @@ Respond ONLY with valid JSON in this exact format:
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      const corsOrigin = process.env.CORS_ORIGIN;
+      if (corsOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
       res.flushHeaders();
 
       // Heartbeat every 5 seconds to keep connection alive
@@ -10815,7 +10843,14 @@ Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes":
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      const corsOrigin = process.env.CORS_ORIGIN;
+      if (corsOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
       res.flushHeaders();
 
       // Small delay to ensure headers are flushed through proxies

@@ -34,8 +34,6 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   CheckCircle2,
   Clock4,
   Download,
@@ -61,6 +59,8 @@ import {
   Trash2,
   History,
   ClipboardList,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { GanttTimeline } from "@/components/rostering/GanttTimeline";
 import { MultiWorkerDashboard } from "@/components/rostering/MultiWorkerDashboard";
@@ -104,6 +104,8 @@ const SHIFT_BAR_DURATION_MINUTES = 8 * 60;
 const ROSTER_DAY_START_MINUTES = 6 * 60;
 const ROSTER_DAY_SOFT_END_MINUTES = 22 * 60;
 const ROSTER_DAY_HARD_END_MINUTES = 22 * 60;
+const TIMELINE_ZOOM_LEVELS = [70, 85, 100, 115, 130] as const;
+const BASE_TIMELINE_ROW_HEIGHT = 72;
 
 const TEMPLATE_WEEK_OPTIONS = [
   { key: "week1", label: "Week 1" },
@@ -378,16 +380,8 @@ const deriveWeekdayLabel = (date: Date): WeekdayLabel => {
   return WEEKDAY_OPTIONS[(dayIndex + 6) % 7];
 };
 
-const getTemplateWeekLabel = (week: TemplateWeekKey, referenceDayNumber: number | null): string => {
-  const base = week === "week1" ? "Week 1" : "Week 2";
-  if (referenceDayNumber === null) return base;
-  const dayOffset = week === "week2" ? 7 : 0;
-  const targetDayNumber = referenceDayNumber + dayOffset;
-  const targetDate = new Date(targetDayNumber * 86400000);
-  const dd = String(targetDate.getUTCDate()).padStart(2, "0");
-  const mm = String(targetDate.getUTCMonth() + 1).padStart(2, "0");
-  const yyyy = targetDate.getUTCFullYear();
-  return `${base} (starts ${dd}/${mm}/${yyyy})`;
+const getTemplateWeekLabel = (week: TemplateWeekKey, _referenceDayNumber: number | null): string => {
+  return week === "week1" ? "Week 1" : "Week 2";
 };
 
 const computeTemplateSelectionKey = (week: TemplateWeekKey, day: WeekdayLabel) => {
@@ -428,6 +422,7 @@ export default function RosteringStudio({
   const [showAllWorkers, setShowAllWorkers] = useState(false);
   const [snapMinutes, setSnapMinutes] = useState(10);
   const [showHalfHourTicks, setShowHalfHourTicks] = useState(true);
+  const [timelineZoomIndex, setTimelineZoomIndex] = useState(2);
   const [selectedTimelineEntryId, setSelectedTimelineEntryId] = useState<string | null>(null);
   const [reassignWorkerKey, setReassignWorkerKey] = useState<string>("");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -440,6 +435,22 @@ export default function RosteringStudio({
   const [selectedTemplateDay, setSelectedTemplateDay] = useState<WeekdayLabel>(DEFAULT_TEMPLATE_DAY);
 
   const routePlannerRef = useRef<HTMLDivElement | null>(null);
+
+  const timelineZoom = TIMELINE_ZOOM_LEVELS[timelineZoomIndex] ?? 100;
+  const timelineRowHeight = useMemo(
+    () => Math.round(BASE_TIMELINE_ROW_HEIGHT * (timelineZoom / 100)),
+    [timelineZoom]
+  );
+  const handleTimelineZoomIn = useCallback(() => {
+    setTimelineZoomIndex((prev) => Math.min(prev + 1, TIMELINE_ZOOM_LEVELS.length - 1));
+  }, []);
+  const handleTimelineZoomOut = useCallback(() => {
+    setTimelineZoomIndex((prev) => Math.max(prev - 1, 0));
+  }, []);
+  const handleTimelineZoomReset = useCallback(() => {
+    const defaultIndex = TIMELINE_ZOOM_LEVELS.indexOf(100);
+    setTimelineZoomIndex(defaultIndex === -1 ? 0 : defaultIndex);
+  }, []);
   
   // Optimization settings
   const [optimizationWeights, setOptimizationWeights] = useState<OptimizationWeights>(defaultWeights);
@@ -1916,38 +1927,6 @@ export default function RosteringStudio({
     });
   }, [dispatchRoster, hasRosterChanges, toast]);
 
-  const handlePrevDay = useCallback(() => {
-    const idx = WEEKDAY_OPTIONS.indexOf(selectedTemplateDay);
-    if (idx > 0) {
-      setSelectedTemplateDay(WEEKDAY_OPTIONS[idx - 1]);
-    } else if (selectedTemplateWeek === "week2") {
-      setSelectedTemplateWeek("week1");
-      setSelectedTemplateDay(WEEKDAY_OPTIONS[WEEKDAY_OPTIONS.length - 1]);
-    }
-  }, [selectedTemplateDay, selectedTemplateWeek]);
-
-  const handleNextDay = useCallback(() => {
-    const idx = WEEKDAY_OPTIONS.indexOf(selectedTemplateDay);
-    if (idx < WEEKDAY_OPTIONS.length - 1) {
-      setSelectedTemplateDay(WEEKDAY_OPTIONS[idx + 1]);
-    } else if (selectedTemplateWeek === "week1") {
-      setSelectedTemplateWeek("week2");
-      setSelectedTemplateDay(WEEKDAY_OPTIONS[0]);
-    }
-  }, [selectedTemplateDay, selectedTemplateWeek]);
-
-  const handlePrevWeek = useCallback(() => {
-    if (selectedTemplateWeek === "week2") {
-      setSelectedTemplateWeek("week1");
-    }
-  }, [selectedTemplateWeek]);
-
-  const handleNextWeek = useCallback(() => {
-    if (selectedTemplateWeek === "week1") {
-      setSelectedTemplateWeek("week2");
-    }
-  }, [selectedTemplateWeek]);
-
   const handleExportPdf = useCallback(() => {
     if (timelineLanes.length === 0) {
       toast({
@@ -2055,11 +2034,11 @@ export default function RosteringStudio({
   const keyboardShortcuts = useMemo(() => buildRosteringShortcuts({
     onClearSelection: () => setSelectedTimelineEntryId(null),
     onOptimize: handleOptimizeTravel,
-    onZoomIn: () => setSnapMinutes((prev) => Math.max(5, prev - 5)),
-    onZoomOut: () => setSnapMinutes((prev) => Math.min(30, prev + 5)),
+    onZoomIn: handleTimelineZoomIn,
+    onZoomOut: handleTimelineZoomOut,
     onUndo: handleUndo,
     onRedo: handleRedo,
-  }), [handleOptimizeTravel, handleUndo, handleRedo]);
+  }), [handleOptimizeTravel, handleTimelineZoomIn, handleTimelineZoomOut, handleUndo, handleRedo]);
 
   const shortcutHelp = useMemo(() => {
     const grouped = new Map<string, string[]>();
@@ -2333,6 +2312,38 @@ export default function RosteringStudio({
           </label>
         </div>
         <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-wide">Zoom</span>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              onClick={handleTimelineZoomOut}
+              disabled={timelineZoomIndex === 0}
+            >
+              <ZoomOut className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={handleTimelineZoomReset}
+              className="h-8 px-2 text-[11px]"
+            >
+              {timelineZoom}%
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              onClick={handleTimelineZoomIn}
+              disabled={timelineZoomIndex === TIMELINE_ZOOM_LEVELS.length - 1}
+            >
+              <ZoomIn className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
           <Button type="button" size="sm" variant="outline" onClick={handleUndo} disabled={!canUndo(rosterState)}>
             <Undo2 className="h-3.5 w-3.5 mr-1" />
             Undo
@@ -2468,6 +2479,8 @@ export default function RosteringStudio({
                   endMinutes={ROSTER_DAY_HARD_END_MINUTES}
                   snapMinutes={snapMinutes}
                   showHalfHourTicks={showHalfHourTicks}
+                  rowHeight={timelineRowHeight}
+                  fitHeight
                   selectedEntryId={selectedTimelineEntryId}
                   selectedEntryIds={rosterState.present.selectedEntryIds}
                   focusedEntryId={rosterState.present.focusedEntryId}
@@ -2498,6 +2511,8 @@ export default function RosteringStudio({
                   endMinutes={ROSTER_DAY_HARD_END_MINUTES}
                   snapMinutes={snapMinutes}
                   showHalfHourTicks={showHalfHourTicks}
+                  rowHeight={timelineRowHeight}
+                  fitHeight
                   selectedEntryId={selectedTimelineEntryId}
                   selectedEntryIds={rosterState.present.selectedEntryIds}
                   focusedEntryId={rosterState.present.focusedEntryId}
@@ -2510,82 +2525,6 @@ export default function RosteringStudio({
           </div>
           {!isHubSidebarCollapsed && (
             <div className="flex min-h-0 flex-col gap-3">
-              <div className="flex min-h-0 flex-col rounded-xl border border-border/60 bg-background">
-                <div className="flex items-center justify-between border-b border-border/50 bg-muted/20 px-3 py-2">
-                  <span className="text-xs font-semibold">Info</span>
-                  <Badge variant="outline" className="text-[10px]">
-                    {selectedTemplateWeekLabel}
-                  </Badge>
-                </div>
-                <div className="p-3 space-y-3">
-                <div className="grid grid-cols-4 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  <span>Date</span>
-                  <span className="text-center">Unrostered</span>
-                  <span className="text-center">Rostered</span>
-                  <span className="text-center">Total</span>
-                </div>
-                <div className="rounded-lg border border-border/60 overflow-hidden">
-                  <ScrollArea className="h-48">
-                    <div className="divide-y divide-border/50">
-                        {templateWeekDays.map((day) => {
-                          const metrics = dailyMetrics.get(day.dateKey) ?? { allocated: 0, unallocated: 0, totalMinutes: 0 };
-                          const total = metrics.allocated + metrics.unallocated;
-                          const isSelected = day.day === selectedTemplateDay;
-                          return (
-                            <button
-                              key={day.dateKey}
-                              type="button"
-                              onClick={() => setSelectedTemplateDay(day.day)}
-                              className={`grid w-full grid-cols-4 px-2 py-1 text-[11px] transition ${
-                                isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted/30 text-foreground"
-                              }`}
-                            >
-                              <span className="text-left">{day.day.slice(0, 3)} {day.dateLabel}</span>
-                              <span className="text-center text-rose-600">{metrics.unallocated}</span>
-                              <span className="text-center text-emerald-600">{metrics.allocated}</span>
-                              <span className="text-center">{total}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                </div>
-                <div className="border-t border-border/50 px-3 py-2 flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={handlePrevWeek}
-                      disabled={selectedTemplateWeek === "week1"}
-                    >
-                      <ChevronsLeft className="h-4 w-4" />
-                    </Button>
-                    <Button type="button" size="icon" variant="ghost" onClick={handlePrevDay}>
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <CalendarDays className="h-4 w-4" />
-                    <span>{selectedTemplateDate.dateLabel}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button type="button" size="icon" variant="ghost" onClick={handleNextDay}>
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={handleNextWeek}
-                      disabled={selectedTemplateWeek === "week2"}
-                    >
-                      <ChevronsRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
               <div className="rounded-xl border border-border/60 bg-background">
                 <div className="border-b border-border/50 bg-muted/20 px-3 py-2 text-xs font-semibold">Week overview</div>
                 <div className="p-3 space-y-4">
@@ -2621,7 +2560,7 @@ export default function RosteringStudio({
                                   isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted/30 text-foreground"
                                 }`}
                               >
-                                <span className="text-left">{day.day.slice(0, 3)} {day.dateLabel}</span>
+                                <span className="text-left">{day.day.slice(0, 3)}</span>
                                 <span className="text-center">{day.total}</span>
                                 <span className="text-center text-emerald-600">{day.templated}</span>
                                 <span className="text-center text-rose-600">{day.nonTemplated}</span>
@@ -3142,6 +3081,35 @@ export default function RosteringStudio({
                           Show 30‑minute ticks
                         </label>
                       </div>
+                      <div className="mt-3 flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          onClick={handleTimelineZoomOut}
+                          disabled={timelineZoomIndex === 0}
+                        >
+                          <ZoomOut className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={handleTimelineZoomReset}
+                          className="h-8 px-2 text-[11px]"
+                        >
+                          {timelineZoom}%
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          onClick={handleTimelineZoomIn}
+                          disabled={timelineZoomIndex === TIMELINE_ZOOM_LEVELS.length - 1}
+                        >
+                          <ZoomIn className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                     <div className="rounded-xl border border-border/60 bg-background/60 px-3 py-2">
                       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Planner tips</p>
@@ -3173,6 +3141,7 @@ export default function RosteringStudio({
                         endMinutes={ROSTER_DAY_HARD_END_MINUTES}
                         snapMinutes={snapMinutes}
                         showHalfHourTicks={showHalfHourTicks}
+                        rowHeight={timelineRowHeight}
                         selectedEntryId={selectedTimelineEntryId}
                         selectedEntryIds={rosterState.present.selectedEntryIds}
                         focusedEntryId={rosterState.present.focusedEntryId}

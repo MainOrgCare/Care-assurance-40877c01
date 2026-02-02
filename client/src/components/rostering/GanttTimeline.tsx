@@ -54,6 +54,10 @@ export interface GanttTimelineProps {
   enableDrag?: boolean;
   /** Recommended call time windows - shows target indicators for scheduled times */
   recommendedTimes?: RecommendedTimeWindow[];
+  /** Row height in pixels for each timeline lane */
+  rowHeight?: number;
+  /** When true, timeline fills available height and scrolls internally */
+  fitHeight?: boolean;
 }
 
 const formatTimeLabel = (minutes: number) => {
@@ -118,6 +122,7 @@ interface DroppableLaneProps {
   isDropTarget: boolean;
   isSourceLane: boolean;
   className?: string;
+  style?: React.CSSProperties;
   children: React.ReactNode;
 }
 
@@ -126,6 +131,7 @@ const DroppableLane: React.FC<DroppableLaneProps> = ({
   isDropTarget,
   isSourceLane,
   className = "",
+  style,
   children,
 }) => {
   const { setNodeRef, isOver } = useDroppable({ id: laneId });
@@ -133,6 +139,7 @@ const DroppableLane: React.FC<DroppableLaneProps> = ({
   return (
     <div
       ref={setNodeRef}
+      style={style}
       className={`${className} ${
         isDropTarget || isOver
           ? "bg-primary/10 ring-2 ring-primary/30 ring-inset"
@@ -164,7 +171,15 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   showTravelGaps = true,
   enableDrag = true,
   recommendedTimes = [],
+  rowHeight: rowHeightProp,
+  fitHeight = false,
 }) => {
+  const rowHeight = clamp(rowHeightProp ?? 72, 52, 120);
+  const entryHeight = Math.max(26, Math.round(rowHeight * 0.68));
+  const rowPadding = Math.max(2, Math.round((rowHeight - entryHeight) / 2));
+  const entryTop = rowPadding;
+  const gapHeight = Math.max(8, entryHeight - 6);
+  const gapTop = entryTop + Math.max(0, Math.round((entryHeight - gapHeight) / 2));
   const totalMinutes = Math.max(endMinutes - startMinutes, 1);
   const hours = Math.ceil(totalMinutes / 60);
   const hourTicks = Array.from({ length: hours + 1 }, (_, idx) => startMinutes + idx * 60);
@@ -181,7 +196,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   // Virtual scrolling state
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(400);
-  const ROW_HEIGHT = 72; // Height of each lane row in pixels
+  const ROW_HEIGHT = rowHeight; // Height of each lane row in pixels
   const OVERSCAN = 3; // Number of extra rows to render above/below viewport
   const VIRTUAL_SCROLL_THRESHOLD = 10; // Only virtualize when > this many lanes
 
@@ -235,7 +250,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
       startIndex: start,
       totalHeight: lanes.length * ROW_HEIGHT,
     };
-  }, [lanes, scrollTop, viewportHeight]);
+  }, [lanes, scrollTop, viewportHeight, ROW_HEIGHT]);
 
   // Multi-sensor setup for mouse, touch, and keyboard
   const sensors = useSensors(
@@ -420,7 +435,9 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   const totalConflicts = allConflicts.size;
 
   return (
-    <div className="rounded-2xl border bg-card/70 p-4 shadow-sm">
+    <div
+      className={`rounded-2xl border bg-card/70 p-4 shadow-sm ${fitHeight ? "flex h-full min-h-0 flex-col" : ""}`}
+    >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
         <div>
           <p className="text-sm font-semibold">Timeline</p>
@@ -449,8 +466,10 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
         </div>
       </div>
 
-      <div className="rounded-xl border bg-background/60 overflow-hidden">
-        <div className="flex items-center gap-2 border-b bg-muted/40 px-2 sm:px-4 py-2">
+      <div
+        className={`rounded-xl border bg-background/60 overflow-hidden ${fitHeight ? "flex min-h-0 flex-1 flex-col" : ""}`}
+      >
+        <div className="flex items-center gap-2 border-b bg-muted/40 px-2 sm:px-4 py-2 flex-shrink-0">
           <div className="w-[120px] sm:w-[200px] text-xs font-semibold uppercase tracking-wide text-muted-foreground shrink-0">Worker</div>
           <div className="flex-1">
             <div className="relative h-8">
@@ -493,12 +512,21 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
         >
           <div 
             ref={scrollContainerRef}
-            className={`divide-y divide-border/40 ${lanes.length > VIRTUAL_SCROLL_THRESHOLD ? "max-h-[500px] overflow-y-auto" : ""}`}
+            className={`divide-y divide-border/40 ${
+              fitHeight
+                ? "flex-1 min-h-0 overflow-y-auto"
+                : lanes.length > VIRTUAL_SCROLL_THRESHOLD
+                  ? "max-h-[500px] overflow-y-auto"
+                  : ""
+            }`}
           >
             {/* Drag overlay for smoother visual feedback with time preview */}
             <DragOverlay dropAnimation={null}>
               {activeEntry && (
-                <div className="h-14 rounded-lg px-3 text-left text-[11px] font-semibold text-white shadow-lg bg-slate-700 border-l-4 border-slate-900 pointer-events-none">
+                <div
+                  className="rounded-lg px-3 text-left text-[11px] font-semibold text-white shadow-lg bg-slate-700 border-l-4 border-slate-900 pointer-events-none"
+                  style={{ height: entryHeight }}
+                >
                   <div className="flex items-center gap-1.5 pt-1.5">
                     {activeEntry.isTimeCritical && <AlertTriangle className="h-3 w-3" />}
                     {activeEntry.isDoubleUp && (
@@ -540,7 +568,8 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                         laneId={lane.id}
                         isDropTarget={isDropTarget}
                         isSourceLane={isSourceLane}
-                        className={`flex items-stretch gap-2 px-2 sm:px-4 py-2 sm:py-3 h-full transition-colors ${actualIdx % 2 === 0 ? "bg-background/40" : "bg-muted/20"}`}
+                        style={{ paddingTop: rowPadding, paddingBottom: rowPadding }}
+                        className={`flex items-stretch gap-2 px-2 sm:px-4 h-full transition-colors ${actualIdx % 2 === 0 ? "bg-background/40" : "bg-muted/20"}`}
                       >
                         <div className="w-[120px] sm:w-[200px] flex items-start gap-2 shrink-0">
                           <WorkerAvatar name={lane.label} size="md" />
@@ -563,7 +592,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                           </div>
                         </div>
                         <div ref={actualIdx === 0 ? trackRef : undefined} className="relative flex-1">
-                          <div className="h-14 rounded-lg bg-muted/20 relative overflow-hidden">
+                          <div className="rounded-lg bg-muted/20 relative overflow-hidden" style={{ height: entryHeight }}>
                             {hourTicks.slice(0, -1).map((tick) => {
                               const left = ((tick - startMinutes) / totalMinutes) * 100;
                               return (
@@ -579,8 +608,8 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                           {gaps.map((gap) => (
                             <div
                               key={`gap-${gap.afterEntryId}`}
-                              className="absolute top-1 h-12 sm:h-14 hidden sm:flex items-center justify-center"
-                              style={{ left: `${gap.leftPercent}%`, width: `${gap.widthPercent}%` }}
+                              className="absolute hidden sm:flex items-center justify-center"
+                              style={{ left: `${gap.leftPercent}%`, width: `${gap.widthPercent}%`, top: `${gapTop}px`, height: `${gapHeight}px` }}
                               title={`${gap.gapMinutes} minute gap`}
                             >
                               <div className="h-6 w-full rounded border border-dashed border-muted-foreground/30 bg-muted/10" />
@@ -599,6 +628,8 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                               hasConflict={allConflicts.has(entry.id)}
                               enableDrag={enableDrag}
                               recommendedStatus={recommendedTimeStatus.get(entry.id)}
+                              entryHeight={entryHeight}
+                              entryTop={entryTop}
                             />
                           ))}
                         </div>
@@ -617,13 +648,14 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                 const isSourceLane = activeLaneId === lane.id;
                 
                 return (
-                  <DroppableLane
-                    key={lane.id}
-                    laneId={lane.id}
-                    isDropTarget={isDropTarget}
-                    isSourceLane={isSourceLane}
-                    className={`flex items-stretch gap-2 px-2 sm:px-4 py-2 sm:py-3 transition-colors ${idx % 2 === 0 ? "bg-background/40" : "bg-muted/20"}`}
-                  >
+                <DroppableLane
+                  key={lane.id}
+                  laneId={lane.id}
+                  isDropTarget={isDropTarget}
+                  isSourceLane={isSourceLane}
+                  style={{ paddingTop: rowPadding, paddingBottom: rowPadding }}
+                  className={`flex items-stretch gap-2 px-2 sm:px-4 transition-colors ${idx % 2 === 0 ? "bg-background/40" : "bg-muted/20"}`}
+                >
                     <div className="w-[120px] sm:w-[200px] flex items-start gap-2 shrink-0">
                       <WorkerAvatar name={lane.label} size="md" />
                       <div className="flex-1 min-w-0">
@@ -646,7 +678,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                     </div>
                     <div ref={idx === 0 ? trackRef : undefined} className="relative flex-1">
                       {/* Background track with hour divisions */}
-                      <div className="h-14 rounded-lg bg-muted/20 relative overflow-hidden">
+                      <div className="rounded-lg bg-muted/20 relative overflow-hidden" style={{ height: entryHeight }}>
                         {hourTicks.slice(0, -1).map((tick) => {
                           const left = ((tick - startMinutes) / totalMinutes) * 100;
                           return (
@@ -662,8 +694,8 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                       {gaps.map((gap) => (
                         <div
                           key={`gap-${gap.afterEntryId}`}
-                          className="absolute top-1 h-12 sm:h-14 hidden sm:flex items-center justify-center"
-                          style={{ left: `${gap.leftPercent}%`, width: `${gap.widthPercent}%` }}
+                          className="absolute hidden sm:flex items-center justify-center"
+                          style={{ left: `${gap.leftPercent}%`, width: `${gap.widthPercent}%`, top: `${gapTop}px`, height: `${gapHeight}px` }}
                           title={`${gap.gapMinutes} minute gap`}
                         >
                           <div className="h-6 w-full rounded border border-dashed border-muted-foreground/30 bg-muted/10" />
@@ -683,6 +715,8 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                           hasConflict={allConflicts.has(entry.id)}
                           enableDrag={enableDrag}
                           recommendedStatus={recommendedTimeStatus.get(entry.id)}
+                          entryHeight={entryHeight}
+                          entryTop={entryTop}
                         />
                       ))}
                     </div>
@@ -702,6 +736,8 @@ interface DraggableEntryProps {
   startMinutes: number;
   endMinutes: number;
   totalMinutes: number;
+  entryHeight: number;
+  entryTop: number;
   onSelect?: (entry: TimelineEntry, event?: React.MouseEvent) => void;
   isSelected?: boolean;
   isFocused?: boolean;
@@ -715,6 +751,8 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
   startMinutes,
   endMinutes,
   totalMinutes,
+  entryHeight,
+  entryTop,
   onSelect,
   isSelected = false,
   isFocused = false,
@@ -738,6 +776,8 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
   const style = {
     left: `${left}%`,
     width: `${Math.max(width, 2)}%`,
+    top: entryTop,
+    height: entryHeight,
     transform: CSS.Translate.toString(transform),
   } as React.CSSProperties;
 
@@ -770,7 +810,7 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
             ref={setNodeRef}
             type="button"
             onClick={handleClick}
-            className={`absolute top-1 h-14 sm:h-12 rounded-lg px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-white shadow-sm touch-manipulation
+            className={`absolute rounded-lg px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-white shadow-sm touch-manipulation
               focus:outline-none focus:ring-2 focus:ring-primary/60 
               ${colors.bg} border-l-4 ${colors.border}
               ${isDragging ? "opacity-60 shadow-md z-20" : ""}
@@ -834,6 +874,8 @@ const MemoizedDraggableEntry = memo(DraggableEntry, (prev, next) => {
     prev.startMinutes === next.startMinutes &&
     prev.endMinutes === next.endMinutes &&
     prev.totalMinutes === next.totalMinutes &&
+    prev.entryHeight === next.entryHeight &&
+    prev.entryTop === next.entryTop &&
     prev.isSelected === next.isSelected &&
     prev.isFocused === next.isFocused &&
     prev.hasConflict === next.hasConflict &&
