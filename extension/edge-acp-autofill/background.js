@@ -44,6 +44,7 @@ const startAutofill = async (caseId, serviceDataGroupId) => {
       currentIndex: 0,
       total: formType === "acp" ? caAcpPayload.assessments.length : 1,
       formType,
+      batchId: `${Date.now()}`,
     },
   });
   await clearLastError();
@@ -63,6 +64,8 @@ const openNextForm = async () => {
       [STORAGE_KEYS.queueState]: null,
       [STORAGE_KEYS.payload]: null,
       [STORAGE_KEYS.caseInfo]: null,
+      [STORAGE_KEYS.signatureData]: null,
+      [STORAGE_KEYS.signatureBatchId]: null,
     });
     return;
   }
@@ -72,6 +75,8 @@ const openNextForm = async () => {
       [STORAGE_KEYS.queueState]: null,
       [STORAGE_KEYS.payload]: null,
       [STORAGE_KEYS.caseInfo]: null,
+      [STORAGE_KEYS.signatureData]: null,
+      [STORAGE_KEYS.signatureBatchId]: null,
     });
     return;
   }
@@ -133,11 +138,16 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (formType !== 'acp') return;
   
   // If we're on a success/confirmation page (not the form page), advance to next
-  const isFormPage = tab.url && tab.url.includes('new_case_form') && tab.url.includes('formId=');
-  const isSuccessPage = tab.url && (tab.url.includes('case_form_success') || tab.url.includes('/cases/'));
-  
+  const isFormPage =
+    tab.url && tab.url.includes("new_case_form") && tab.url.includes("formId=");
+  const isSuccessPage =
+    tab.url &&
+    (tab.url.includes("case_form_success") ||
+      tab.url.includes("/cases/") ||
+      !isFormPage);
+
   if (isSuccessPage && caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
-    console.log('[ACP Extension] Detected form submission success, advancing to next assessment');
+    console.log("[ACP Extension] Detected form completion, advancing to next assessment");
     await openNextForm();
   }
 });

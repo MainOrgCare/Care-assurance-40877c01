@@ -6,6 +6,7 @@ const FALLBACK_STORAGE_KEYS = {
   dryRun: "caAcpDryRun",
   interactionMode: "caAcpInteractionMode",
   signatureData: "caAcpSignatureData",
+  signatureBatchId: "caAcpSignatureBatchId",
 };
 const FALLBACK_FORM_CONFIGS = {
   acp: { formId: "1048191" },
@@ -30,6 +31,12 @@ const FORM_FIELD_NAMES = {
   reason: "form_component_25_8",
 };
 
+const SIGNATURE_FIELD_SELECTORS = [
+  '[name="form_component_18_19"]',
+  'input[type="file"][name*="signature" i]',
+  'input[type="file"][id*="signature" i]',
+];
+
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const waitForSelector = async (selector, timeoutMs = 15000, intervalMs = 200) => {
@@ -48,10 +55,260 @@ const logAction = (message) => {
     type: MESSAGE_TYPES?.log || "CA_EXTENSION_LOG",
     entry: `[${timestamp}] ${message}`,
   });
+  if (typeof refreshOverlaySoon === "function") {
+    refreshOverlaySoon();
+  }
 };
 
 let DRY_RUN = false;
 let INTERACTION_MODE = "auto";
+let overlayInitialized = false;
+let overlayElements = null;
+let overlayCollapsed = false;
+
+const initOverlay = () => {
+  if (overlayInitialized) return;
+  overlayInitialized = true;
+
+  const container = document.createElement("div");
+  container.id = "ca-autofill-overlay";
+  container.style.position = "fixed";
+  container.style.right = "16px";
+  container.style.top = "16px";
+  container.style.zIndex = "2147483647";
+  container.style.fontFamily = "system-ui, -apple-system, Segoe UI, sans-serif";
+  container.style.color = "#1b1b1b";
+  container.style.pointerEvents = "none";
+
+  const panel = document.createElement("div");
+  panel.style.background = "rgba(255, 255, 255, 0.95)";
+  panel.style.border = "1px solid #d4d4d8";
+  panel.style.borderRadius = "12px";
+  panel.style.boxShadow = "0 10px 25px rgba(0, 0, 0, 0.12)";
+  panel.style.padding = "10px 12px";
+  panel.style.minWidth = "220px";
+  panel.style.maxWidth = "320px";
+
+  const header = document.createElement("div");
+  header.style.display = "flex";
+  header.style.alignItems = "center";
+  header.style.gap = "8px";
+  header.style.marginBottom = "8px";
+
+  const icon = document.createElement("div");
+  icon.textContent = "CA";
+  icon.style.width = "26px";
+  icon.style.height = "26px";
+  icon.style.borderRadius = "50%";
+  icon.style.background = "#1ea97a";
+  icon.style.color = "white";
+  icon.style.display = "flex";
+  icon.style.alignItems = "center";
+  icon.style.justifyContent = "center";
+  icon.style.fontSize = "12px";
+  icon.style.fontWeight = "600";
+  icon.style.letterSpacing = "0.4px";
+
+  const title = document.createElement("div");
+  title.textContent = "Risk Assessment";
+  title.style.fontWeight = "600";
+  title.style.fontSize = "13px";
+
+  const minimizeButton = document.createElement("button");
+  minimizeButton.type = "button";
+  minimizeButton.textContent = "–";
+  minimizeButton.style.marginLeft = "auto";
+  minimizeButton.style.width = "24px";
+  minimizeButton.style.height = "24px";
+  minimizeButton.style.borderRadius = "6px";
+  minimizeButton.style.border = "1px solid #d4d4d8";
+  minimizeButton.style.background = "#ffffff";
+  minimizeButton.style.color = "#374151";
+  minimizeButton.style.cursor = "pointer";
+  minimizeButton.style.fontSize = "16px";
+  minimizeButton.style.lineHeight = "18px";
+  minimizeButton.style.padding = "0";
+  minimizeButton.style.pointerEvents = "auto";
+
+  const progress = document.createElement("div");
+  progress.textContent = "Waiting...";
+  progress.style.fontSize = "12px";
+  progress.style.color = "#4b5563";
+
+  const logsLabel = document.createElement("div");
+  logsLabel.textContent = "Logs";
+  logsLabel.style.fontSize = "11px";
+  logsLabel.style.marginTop = "8px";
+  logsLabel.style.color = "#6b7280";
+  logsLabel.style.textTransform = "uppercase";
+  logsLabel.style.letterSpacing = "0.06em";
+
+  const logsBox = document.createElement("div");
+  logsBox.style.marginTop = "6px";
+  logsBox.style.padding = "6px 8px";
+  logsBox.style.borderRadius = "8px";
+  logsBox.style.background = "#f9fafb";
+  logsBox.style.border = "1px solid #e5e7eb";
+  logsBox.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, monospace";
+  logsBox.style.fontSize = "11px";
+  logsBox.style.whiteSpace = "pre-line";
+  logsBox.style.maxHeight = "90px";
+  logsBox.style.overflow = "hidden";
+  logsBox.textContent = "No actions yet.";
+
+  header.appendChild(icon);
+  header.appendChild(title);
+  header.appendChild(minimizeButton);
+  panel.appendChild(header);
+  panel.appendChild(progress);
+  panel.appendChild(logsLabel);
+  panel.appendChild(logsBox);
+  container.appendChild(panel);
+
+  document.body.appendChild(container);
+  overlayElements = { progress, logsBox, logsLabel, panel, minimizeButton, title };
+
+  minimizeButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setOverlayCollapsed(true);
+  });
+};
+
+let overlayRefreshTimer = null;
+let overlayIntervalId = null;
+const refreshOverlaySoon = () => {
+  if (!overlayInitialized) return;
+  if (overlayCollapsed) return;
+  if (overlayRefreshTimer) return;
+  overlayRefreshTimer = setTimeout(() => {
+    overlayRefreshTimer = null;
+    refreshOverlay();
+  }, 150);
+};
+
+const refreshOverlay = async () => {
+  if (!overlayInitialized || !overlayElements) return;
+  if (overlayCollapsed) return;
+  const { caAcpQueueState, caAcpLogs } = await loadStorage([STORAGE_KEYS.queueState, STORAGE_KEYS.logs]);
+  if (caAcpQueueState && typeof caAcpQueueState.currentIndex === "number") {
+    const current = caAcpQueueState.currentIndex + 1;
+    const total = caAcpQueueState.total || "?";
+    overlayElements.progress.textContent = `Assessment ${current} of ${total}`;
+  } else {
+    overlayElements.progress.textContent = "Waiting...";
+  }
+
+  const logs = Array.isArray(caAcpLogs) ? caAcpLogs : [];
+  if (logs.length === 0) {
+    overlayElements.logsBox.textContent = "No actions yet.";
+  } else {
+    overlayElements.logsBox.textContent = logs.slice(-6).join("\n");
+  }
+};
+
+const setOverlayCollapsed = (collapsed) => {
+  overlayCollapsed = collapsed;
+  if (!overlayElements) return;
+  if (collapsed) {
+    overlayElements.panel.style.minWidth = "160px";
+    overlayElements.panel.style.maxWidth = "200px";
+    overlayElements.logsBox.style.display = "none";
+    overlayElements.logsLabel.style.display = "none";
+    overlayElements.progress.style.display = "none";
+    overlayElements.title.textContent = "ACP Autofill";
+  } else {
+    overlayElements.panel.style.minWidth = "220px";
+    overlayElements.panel.style.maxWidth = "320px";
+    overlayElements.logsBox.style.display = "block";
+    overlayElements.logsLabel.style.display = "block";
+    overlayElements.progress.style.display = "block";
+    overlayElements.title.textContent = "Risk Assessment";
+    refreshOverlay();
+  }
+};
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== (MESSAGE_TYPES?.toggleOverlay || "CA_EXTENSION_TOGGLE_OVERLAY")) return false;
+  initOverlay();
+  if (message?.payload?.open) {
+    setOverlayCollapsed(false);
+  } else if (message?.payload?.minimize) {
+    setOverlayCollapsed(true);
+  } else {
+    setOverlayCollapsed(!overlayCollapsed);
+  }
+  sendResponse?.({ ok: true });
+  return true;
+});
+
+const getLabelTextForInput = (input) => {
+  if (!input) return "";
+  const labels = [];
+  const ariaLabel = input.getAttribute("aria-label");
+  if (ariaLabel) labels.push(ariaLabel);
+
+  const ariaLabelledBy = input.getAttribute("aria-labelledby");
+  if (ariaLabelledBy) {
+    ariaLabelledBy
+      .split(/\s+/)
+      .map((id) => document.getElementById(id))
+      .filter(Boolean)
+      .forEach((el) => labels.push(el.textContent || ""));
+  }
+
+  const inputId = input.getAttribute("id");
+  if (inputId) {
+    const safeId = window.CSS && typeof window.CSS.escape === "function" ? window.CSS.escape(inputId) : inputId;
+    const byFor = document.querySelector(`label[for="${safeId}"]`);
+    if (byFor) labels.push(byFor.textContent || "");
+  }
+
+  const wrappedLabel = input.closest("label");
+  if (wrappedLabel) labels.push(wrappedLabel.textContent || "");
+
+  const container = input.closest("div");
+  if (container) {
+    const nearbyLabel = container.querySelector("label");
+    if (nearbyLabel) labels.push(nearbyLabel.textContent || "");
+  }
+
+  const prev = input.previousElementSibling;
+  if (prev && prev.tagName === "LABEL") labels.push(prev.textContent || "");
+
+  return labels.join(" ").replace(/\s+/g, " ").trim();
+};
+
+const findSignatureField = () => {
+  for (const selector of SIGNATURE_FIELD_SELECTORS) {
+    const field = document.querySelector(selector);
+    if (field && field.type === "file") return field;
+  }
+
+  const fileInputs = Array.from(document.querySelectorAll('input[type="file"]'));
+  if (fileInputs.length === 1) return fileInputs[0];
+
+  const signatureRegex = /signature/i;
+  const named = fileInputs.find((input) => signatureRegex.test(input.name || ""));
+  if (named) return named;
+
+  for (const input of fileInputs) {
+    const labelText = getLabelTextForInput(input);
+    if (labelText && signatureRegex.test(labelText)) return input;
+  }
+
+  return null;
+};
+
+const waitForSignatureField = async (timeoutMs = 15000, intervalMs = 250) => {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const field = findSignatureField();
+    if (field) return field;
+    await wait(intervalMs);
+  }
+  return null;
+};
 
 const highlightField = (field) => {
   if (!field) return;
@@ -297,8 +554,11 @@ const notifyStepComplete = () =>
 const isRiskFormPage = () => Boolean(document.querySelector("#Table_9_9_Table"));
 
 const uploadSignature = async () => {
-  const signatureField = document.querySelector('[name="form_component_18_19"]');
-  if (!signatureField || signatureField.type !== "file") return false;
+  const signatureField = await waitForSignatureField();
+  if (!signatureField || signatureField.type !== "file") {
+    logAction("Signature field not found. Please upload manually.");
+    return false;
+  }
 
   if (DRY_RUN) {
     highlightField(signatureField);
@@ -306,9 +566,17 @@ const uploadSignature = async () => {
     return true;
   }
 
-  const { caAcpSignatureData } = await loadStorage([STORAGE_KEYS.signatureData]);
+  const { caAcpSignatureData, caAcpSignatureBatchId, caAcpQueueState } = await loadStorage([
+    STORAGE_KEYS.signatureData,
+    STORAGE_KEYS.signatureBatchId,
+    STORAGE_KEYS.queueState,
+  ]);
   if (!caAcpSignatureData || !caAcpSignatureData.dataUrl) {
     logAction("Signature missing: upload it in the extension popup.");
+    return false;
+  }
+  if (caAcpSignatureBatchId && caAcpQueueState?.batchId && caAcpSignatureBatchId !== caAcpQueueState.batchId) {
+    logAction("Signature not set for this batch: upload it in the extension popup.");
     return false;
   }
 
@@ -337,8 +605,11 @@ const uploadSignature = async () => {
 };
 
 const uploadSignatureFromDataUrl = async (dataUrl, fileName, mimeType) => {
-  const signatureField = document.querySelector('[name="form_component_18_19"]');
-  if (!signatureField || signatureField.type !== "file") return false;
+  const signatureField = await waitForSignatureField();
+  if (!signatureField || signatureField.type !== "file") {
+    logAction("Signature field not found. Please upload manually.");
+    return false;
+  }
 
   try {
     const response = await fetch(dataUrl);
@@ -383,6 +654,11 @@ const isAutofillTargetPage = () => {
 
 const run = async () => {
   if (!isAutofillTargetPage()) return;
+  initOverlay();
+  refreshOverlay();
+  if (!overlayIntervalId) {
+    overlayIntervalId = setInterval(refreshOverlay, 1500);
+  }
 
   const { caAcpPayload, caAcpQueueState, caAcpAutoSubmit, caAcpDryRun, caAcpInteractionMode } = await loadStorage([
     STORAGE_KEYS.payload,
@@ -440,7 +716,6 @@ const run = async () => {
     // The background script also monitors tab navigation as a backup
     const notifyWithRetry = async () => {
       for (let attempt = 0; attempt < 3; attempt++) {
-        await wait(1500);
         try {
           if (caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
             notifyStepComplete();
@@ -450,6 +725,8 @@ const run = async () => {
               [STORAGE_KEYS.queueState]: null,
               [STORAGE_KEYS.payload]: null,
               [STORAGE_KEYS.caseInfo]: null,
+              [STORAGE_KEYS.signatureData]: null,
+              [STORAGE_KEYS.signatureBatchId]: null,
             });
             logAction("All assessments completed!");
           }
@@ -457,6 +734,7 @@ const run = async () => {
         } catch (e) {
           logAction(`Retry ${attempt + 1}: ${e.message}`);
         }
+        await wait(500);
       }
     };
     notifyWithRetry();

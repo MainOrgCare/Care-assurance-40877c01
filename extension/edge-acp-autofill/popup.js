@@ -7,6 +7,7 @@ const FALLBACK_STORAGE_KEYS = {
   logs: "caAcpLogs",
   interactionMode: "caAcpInteractionMode",
   signatureData: "caAcpSignatureData",
+  signatureBatchId: "caAcpSignatureBatchId",
   lastError: "caAcpLastError",
 };
 
@@ -40,6 +41,7 @@ const interactionModeSelect = document.getElementById("interaction-mode");
 const signatureInput = document.getElementById("signature-file");
 const uploadSignatureButton = document.getElementById("upload-signature");
 const signatureStatus = document.getElementById("signature-status");
+const showOverlayButton = document.getElementById("show-overlay");
 const logStatus = document.getElementById("log-status");
 const logList = document.getElementById("log-list");
 const clearLogsButton = document.getElementById("clear-logs");
@@ -184,6 +186,8 @@ if (clearButton) {
       [STORAGE_KEYS.caseInfo]: null,
       [STORAGE_KEYS.queueState]: null,
       [STORAGE_KEYS.lastError]: null,
+      [STORAGE_KEYS.signatureData]: null,
+      [STORAGE_KEYS.signatureBatchId]: null,
     });
     status.textContent = "Cleared stored data.";
     await refreshPayloadStatus();
@@ -213,12 +217,16 @@ const sendSignatureToActiveTab = async (file) => {
     reader.readAsDataURL(file);
   });
 
+  const { caAcpQueueState } = await loadStorage([STORAGE_KEYS.queueState]);
+  const signatureBatchId = caAcpQueueState?.batchId || null;
+
   await setStorage({
     [STORAGE_KEYS.signatureData]: {
       dataUrl,
       fileName: file.name,
       mimeType: file.type,
     },
+    [STORAGE_KEYS.signatureBatchId]: signatureBatchId,
   });
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -265,6 +273,27 @@ if (uploadSignatureButton) {
     } catch (error) {
       signatureStatus.textContent = error.message || "Signature upload failed.";
     }
+  });
+}
+
+if (showOverlayButton) {
+  showOverlayButton.addEventListener("click", async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      status.textContent = "No active tab found.";
+      return;
+    }
+    chrome.tabs.sendMessage(
+      tab.id,
+      { type: MESSAGE_TYPES?.toggleOverlay || "CA_EXTENSION_TOGGLE_OVERLAY", payload: { open: true } },
+      () => {
+        if (chrome.runtime.lastError) {
+          status.textContent = chrome.runtime.lastError.message;
+          return;
+        }
+        status.textContent = "Status overlay shown.";
+      }
+    );
   });
 }
 

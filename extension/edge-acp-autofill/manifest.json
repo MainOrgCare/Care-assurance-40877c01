@@ -25,6 +25,7 @@
     {
       "matches": ["https://clece.mobizio.com/*"],
       "js": ["constants.js", "content-acp.js", "content-emar.js", "content-generic.js"],
+      "all_frames": true,
       "run_at": "document_idle"
     }
   ]

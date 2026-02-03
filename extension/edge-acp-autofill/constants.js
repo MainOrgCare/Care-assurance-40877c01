@@ -11,6 +11,7 @@
     dryRun: "caAcpDryRun",
     interactionMode: "caAcpInteractionMode",
     signatureData: "caAcpSignatureData",
+    signatureBatchId: "caAcpSignatureBatchId",
     lastError: "caAcpLastError",
   };
 
@@ -36,6 +37,7 @@
     uploadSignature: "CA_EXTENSION_UPLOAD_SIGNATURE",
     stopAutofill: "CA_EXTENSION_STOP_AUTOFILL",
     clearError: "CA_EXTENSION_CLEAR_ERROR",
+    toggleOverlay: "CA_EXTENSION_TOGGLE_OVERLAY",
   };
 
   globalScope.CA_EXTENSION_CONSTANTS = { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES };
