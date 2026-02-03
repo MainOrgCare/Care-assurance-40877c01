@@ -625,6 +625,33 @@ export default function RiskAssessment() {
     const documentContent = getAllDocumentContent();
     const assessmentsArray = Array.from(selectedAssessments);
     const total = assessmentsArray.length;
+    const errors: string[] = [];
+
+    if (!documentContent || documentContent.trim().length < 50) {
+      setIsGenerating(false);
+      setProgress(0);
+      setProgressStatus("");
+      setStep("select");
+      toast({
+        title: "No document text detected",
+        description: "Please upload readable documents before generating assessments.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (total === 0) {
+      setIsGenerating(false);
+      setProgress(0);
+      setProgressStatus("");
+      setStep("select");
+      toast({
+        title: "No assessments selected",
+        description: "Select at least one assessment to generate.",
+        variant: "destructive",
+      });
+      return;
+    }
     const generatedRawMap = new Map<string, GeneratedAssessment>();
     const generatedScrubbedMap = new Map<string, GeneratedAssessment>();
     const inFlightProgress = new Map<string, number>();
@@ -657,52 +684,67 @@ export default function RiskAssessment() {
           }),
         });
 
-        if (response.ok) {
-          const reader = response.body?.getReader();
-          if (reader) {
-            const decoder = new TextDecoder();
-            let buffer = "";
-            let resultRaw: GeneratedAssessment | null = null;
-            let resultScrubbed: GeneratedAssessment | null = null;
+        if (!response.ok) {
+          let message = `Failed to generate ${assessmentName}`;
+          try {
+            const data = await response.json();
+            if (data?.message) message = data.message;
+          } catch {
+            // ignore
+          }
+          throw new Error(message);
+        }
 
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error(`No response stream for ${assessmentName}`);
+        }
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let resultRaw: GeneratedAssessment | null = null;
+        let resultScrubbed: GeneratedAssessment | null = null;
 
-              buffer += decoder.decode(value, { stream: true });
-              const messages = buffer.split("\n\n");
-              buffer = messages.pop() || "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-              for (const message of messages) {
-                if (!message.trim()) continue;
-                const lines = message.split("\n");
-                let eventType = "";
-                let dataStr = "";
-                for (const line of lines) {
-                  if (line.startsWith("event: ")) eventType = line.substring(7).trim();
-                  else if (line.startsWith("data: ")) dataStr = line.substring(6);
-                }
-                if (eventType && dataStr) {
-                  const data = JSON.parse(dataStr);
-                  if (eventType === "progress") {
-                    inFlightProgress.set(assessmentName, Math.min(100, Math.max(0, data.percent)));
-                    updateOverallProgress();
-                  } else if (eventType === "result") {
-                    resultRaw = data;
-                    resultScrubbed = data?.scrubbedResult || data;
-                  }
-                }
-              }
+          buffer += decoder.decode(value, { stream: true });
+          const messages = buffer.split("\n\n");
+          buffer = messages.pop() || "";
+
+          for (const message of messages) {
+            if (!message.trim()) continue;
+            const lines = message.split("\n");
+            let eventType = "";
+            let dataStr = "";
+            for (const line of lines) {
+              if (line.startsWith("event: ")) eventType = line.substring(7).trim();
+              else if (line.startsWith("data: ")) dataStr = line.substring(6);
             }
-
-            if (resultRaw) {
-              generatedRawMap.set(assessmentName, resultRaw);
-              generatedScrubbedMap.set(assessmentName, resultScrubbed || resultRaw);
+            if (eventType && dataStr) {
+              const data = JSON.parse(dataStr);
+              if (eventType === "progress") {
+                inFlightProgress.set(assessmentName, Math.min(100, Math.max(0, data.percent)));
+                updateOverallProgress();
+              } else if (eventType === "result") {
+                resultRaw = data;
+                resultScrubbed = data?.scrubbedResult || data;
+              } else if (eventType === "error") {
+                throw new Error(data?.message || `Failed to generate ${assessmentName}`);
+              }
             }
           }
         }
-      } catch (error) {
+
+        if (resultRaw) {
+          generatedRawMap.set(assessmentName, resultRaw);
+          generatedScrubbedMap.set(assessmentName, resultScrubbed || resultRaw);
+        } else {
+          throw new Error(`No result received for ${assessmentName}`);
+        }
+      } catch (error: any) {
         console.error(`Failed to generate ${assessmentName}:`, error);
+        errors.push(error?.message || `Failed to generate ${assessmentName}`);
       } finally {
         inFlightProgress.delete(assessmentName);
         completed += 1;
@@ -750,6 +792,19 @@ export default function RiskAssessment() {
       .map((name) => generatedScrubbedMap.get(name))
       .filter(Boolean) as GeneratedAssessment[];
     
+    if (orderedRaw.length === 0) {
+      setIsGenerating(false);
+      setProgress(0);
+      setProgressStatus("");
+      setStep("select");
+      toast({
+        title: "Generation failed",
+        description: errors[0] || "No assessments were generated. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Select all assessments for ACP by default
     setSelectedForAcp(new Set(orderedScrubbed.map((_, idx) => idx)));
 

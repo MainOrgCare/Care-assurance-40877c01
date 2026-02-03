@@ -936,7 +936,7 @@ const parseJsonFromContent = (content: string): any | null => {
 
 const getLowCostModel = () => "gpt-4o-mini";
 const getAccurateModel = () => getPreferredModel();
-const getRiskAssessmentModel = () => "gpt-5-mini"; // Higher quality model for detailed risk assessment writing
+const getRiskAssessmentModel = () => "gpt-4o";
 
 const inferGenericNameFromMedicationLabel = (name: string): string => {
   if (!name) return "";
