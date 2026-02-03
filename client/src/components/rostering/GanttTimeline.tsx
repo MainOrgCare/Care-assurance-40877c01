@@ -62,6 +62,8 @@ export interface GanttTimelineProps {
   fitHeight?: boolean;
   /** Hide the timeline header/legend row */
   showHeader?: boolean;
+  /** When true, timeline never scrolls horizontally; it scales to the container */
+  lockToContainer?: boolean;
 }
 
 const formatTimeLabel = (minutes: number) => {
@@ -179,6 +181,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   horizontalZoom = 100,
   fitHeight = false,
   showHeader = true,
+  lockToContainer = false,
 }) => {
   const rowHeight = clamp(rowHeightProp ?? 72, 52, 120);
   const entryHeight = Math.max(26, Math.round(rowHeight * 0.68));
@@ -192,7 +195,10 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   // Horizontal zoom factor: 100 = 1x, 150 = 1.5x width, etc.
   const zoomFactor = clamp(horizontalZoom, 50, 200) / 100;
   const baseMinWidth = 800; // Minimum width at 100% zoom
-  const trackMinWidth = Math.round(baseMinWidth * zoomFactor);
+  const trackMinWidth = lockToContainer ? 0 : Math.round(baseMinWidth * zoomFactor);
+  const trackWidthStyle = lockToContainer
+    ? { width: "100%", minWidth: 0 }
+    : { minWidth: `${trackMinWidth}px` };
   
   // Hour ticks for header
   const hourTicks = Array.from({ length: hours + 1 }, (_, idx) => startMinutes + idx * 60);
@@ -493,8 +499,8 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
             <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted-foreground">Worker</span>
           </div>
           {/* Time ruler */}
-          <div className="flex-1 overflow-x-auto">
-            <div className="relative h-10" style={{ minWidth: `${trackMinWidth}px` }}>
+          <div className={lockToContainer ? "flex-1 overflow-x-hidden" : "flex-1 overflow-x-auto"}>
+            <div className="relative h-10" style={trackWidthStyle}>
               {/* Minor tick marks (half-hour) */}
               {minorTicks.map((tick) => {
                 const left = ((tick - startMinutes) / totalMinutes) * 100;
@@ -654,11 +660,11 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                           </div>
                         </div>
                         {/* Timeline track - scrollable with zoom */}
-                        <div className="flex-1 overflow-x-auto">
+                        <div className={lockToContainer ? "flex-1 overflow-x-hidden" : "flex-1 overflow-x-auto"}>
                           <div 
                             ref={actualIdx === 0 ? trackRef : undefined} 
                             className="relative h-full"
-                            style={{ minWidth: `${trackMinWidth}px` }}
+                            style={trackWidthStyle}
                           >
                             {/* Background grid */}
                             <div className="rounded bg-muted/15 relative overflow-hidden" style={{ height: entryHeight }}>
@@ -749,11 +755,11 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                       </div>
                     </div>
                     {/* Timeline track - scrollable with zoom */}
-                    <div className="flex-1 overflow-x-auto">
+                    <div className={lockToContainer ? "flex-1 overflow-x-hidden" : "flex-1 overflow-x-auto"}>
                       <div 
                         ref={idx === 0 ? trackRef : undefined} 
                         className="relative h-full"
-                        style={{ minWidth: `${trackMinWidth}px` }}
+                        style={trackWidthStyle}
                       >
                         {/* Background grid */}
                         <div className="rounded bg-muted/15 relative overflow-hidden" style={{ height: entryHeight }}>

@@ -1340,12 +1340,12 @@ export default function RosteringStudioUnified({
 
         {/* MAIN WORKSPACE - Grid Layout */}
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <ResizablePanelGroup direction="horizontal">
+          <ResizablePanelGroup direction="horizontal" className="min-h-0">
             {/* LEFT SIDEBAR - Workers */}
             {panelVisibility.workers && (
               <>
-                <ResizablePanel defaultSize={12} minSize={8} maxSize={18}>
-                  <div className="flex h-full flex-col border-r bg-background/50">
+                <ResizablePanel defaultSize={12} minSize={8} maxSize={18} className="min-h-0">
+                  <div className="flex h-full min-h-0 flex-col border-r bg-background/50">
                     <div className="flex items-center justify-between border-b px-2 py-1">
                       <span className="text-[9px] font-semibold uppercase tracking-wide">Workers</span>
                       <Button
@@ -1365,7 +1365,7 @@ export default function RosteringStudioUnified({
                         className="h-5 text-[10px]"
                       />
                     </div>
-                    <ScrollArea className="flex-1">
+                    <ScrollArea className="flex-1 min-h-0">
                       <div className="divide-y">
                         {filteredWorkers.map((worker: CareWorkerRoster) => {
                           const summary = workerSummaryByKey.get(worker.key);
@@ -1403,11 +1403,11 @@ export default function RosteringStudioUnified({
             )}
 
             {/* MAIN CONTENT - Fixed Grid Layout */}
-            <ResizablePanel defaultSize={panelVisibility.workers ? 63 : 78}>
-              <div className="flex h-full flex-col">
+                <ResizablePanel defaultSize={panelVisibility.workers ? 63 : 78} className="min-h-0">
+              <div className="flex h-full min-h-0 flex-col">
                 {/* Top Row: Timeline (takes most space) */}
                 {panelVisibility.timeline && (
-                  <div className="flex-[2] min-h-[150px] border-b flex flex-col overflow-hidden">
+                  <div className="flex-[2] min-h-0 border-b flex flex-col overflow-hidden">
                     <div className="flex items-center justify-between bg-muted/30 px-2 py-0.5 border-b shrink-0">
                       <div className="flex items-center gap-1.5">
                         <Timer className="h-3 w-3" />
@@ -1442,7 +1442,7 @@ export default function RosteringStudioUnified({
                         </div>
                       )}
                     </div>
-                    <div className="flex-1 overflow-auto p-1">
+                    <div className="flex-1 min-h-0 overflow-auto p-0.5">
                       <GanttTimeline
                         lanes={showAllWorkers ? timelineLanes : selectedWorkerLanes}
                         startMinutes={ROSTER_DAY_START_MINUTES}
@@ -1457,16 +1457,18 @@ export default function RosteringStudioUnified({
                         onSelectEntry={handleSelectEntry}
                         onEntryMove={handleEntryMove}
                         recommendedTimes={callTimesForEditor}
+                        fitHeight
+                        lockToContainer
                       />
                     </div>
                   </div>
                 )}
 
                 {/* Bottom Row: Horizontal panels */}
-                <div className="flex-1 min-h-[100px] max-h-[160px] flex border-t overflow-hidden">
+                <div className="flex-1 min-h-0 max-h-[160px] flex border-t overflow-hidden">
                   {/* Map Panel */}
                   {panelVisibility.map && (
-                    <div className="flex-1 min-w-0 border-r flex flex-col">
+                    <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
                       <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
                         <MapIcon className="h-3 w-3" />
                         <span className="text-[11px] font-semibold">Map</span>
@@ -1474,7 +1476,7 @@ export default function RosteringStudioUnified({
                           {routeEntriesSorted.length}
                         </Badge>
                       </div>
-                      <div className="flex-1 min-h-0 p-1 overflow-hidden">
+                      <div className="flex-1 min-h-0 p-0.5 overflow-hidden">
                         <RouteMapView entries={routeEntriesSorted} />
                       </div>
                     </div>
@@ -1482,7 +1484,7 @@ export default function RosteringStudioUnified({
 
                   {/* Call Times Panel */}
                   {panelVisibility.callTimes && (
-                    <div className="flex-1 min-w-0 border-r flex flex-col">
+                    <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
                       <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
                         <Clock className="h-3 w-3" />
                         <span className="text-[11px] font-semibold">Call Times</span>
@@ -1491,7 +1493,7 @@ export default function RosteringStudioUnified({
                         </Badge>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
-                        <div className="p-1">
+                        <div className="p-0.5">
                           <CallTimeEditor
                             serviceUsers={uniqueServiceUsers}
                             callTypes={uniqueCallTypes}
@@ -1507,7 +1509,7 @@ export default function RosteringStudioUnified({
 
                   {/* Constraints Panel */}
                   {panelVisibility.constraints && (
-                    <div className="flex-1 min-w-0 border-r flex flex-col">
+                    <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
                       <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
                         <UserCog className="h-3 w-3" />
                         <span className="text-[11px] font-semibold">Constraints</span>
@@ -1516,7 +1518,7 @@ export default function RosteringStudioUnified({
                         </Badge>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
-                        <div className="p-1">
+                        <div className="p-0.5">
                           <WorkerConstraintsEditor
                             workers={careWorkerRosters.map((r: CareWorkerRoster) => ({
                               key: r.key,
@@ -1536,12 +1538,12 @@ export default function RosteringStudioUnified({
 
                   {/* Workload Heatmap */}
                   {panelVisibility.workload && (
-                    <div className="flex-1 min-w-0 border-r flex flex-col">
+                    <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
                       <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
                         <BarChart3 className="h-3 w-3" />
                         <span className="text-[11px] font-semibold">Workload</span>
                       </div>
-                      <div className="flex-1 min-h-0 p-1 overflow-auto">
+                      <div className="flex-1 min-h-0 p-0.5 overflow-auto">
                         <WorkloadHeatmap
                           workers={heatmapSummaries}
                           constraints={constraintsForEditor}
@@ -1558,13 +1560,13 @@ export default function RosteringStudioUnified({
 
                   {/* Optimization Panel */}
                   {panelVisibility.optimization && (
-                    <div className="flex-1 min-w-0 border-r flex flex-col">
+                    <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
                       <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
                         <Sliders className="h-3 w-3" />
                         <span className="text-[11px] font-semibold">Optimization</span>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
-                        <div className="p-1">
+                        <div className="p-0.5">
                           <OptimizationSettings
                             weights={optimizationWeights}
                             constraints={optimizationConstraints}
@@ -1580,13 +1582,13 @@ export default function RosteringStudioUnified({
 
                   {/* Database Panel */}
                   {panelVisibility.database && (
-                    <div className="flex-1 min-w-0 flex flex-col">
+                    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
                         <Database className="h-3 w-3" />
                         <span className="text-[11px] font-semibold">Database</span>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
-                        <div className="p-1">
+                        <div className="p-0.5">
                           <AdminDatabasePanel />
                         </div>
                       </ScrollArea>
@@ -1608,12 +1610,12 @@ export default function RosteringStudioUnified({
             {panelVisibility.details && (
               <>
                 <ResizableHandle withHandle />
-                <ResizablePanel defaultSize={25} minSize={15} maxSize={35}>
-                  <div className="flex h-full flex-col border-l bg-background/50">
+                <ResizablePanel defaultSize={25} minSize={15} maxSize={35} className="min-h-0">
+                  <div className="flex h-full min-h-0 flex-col border-l bg-background/50">
                     <div className="border-b px-2 py-1">
                       <span className="text-[9px] font-semibold uppercase tracking-wide">Details</span>
                     </div>
-                    <ScrollArea className="flex-1">
+                    <ScrollArea className="flex-1 min-h-0">
                       <div className="p-1.5 space-y-2">
                         {/* Selected Visit Details */}
                         <div className="rounded-lg border p-1.5">
