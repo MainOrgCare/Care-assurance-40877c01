@@ -40,10 +40,13 @@ const upload = multer({
   limits: { fileSize: 40 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const name = file.originalname.toLowerCase();
-    const isPdf = file.mimetype === "application/pdf" || name.endsWith(".pdf");
-    const isDocx = file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || name.endsWith(".docx");
-    const isDoc = file.mimetype === "application/msword" || name.endsWith(".doc");
-    if (isPdf || isDocx || isDoc) {
+    const mime = (file.mimetype || "").toLowerCase();
+    const isPdf = mime === "application/pdf" || name.endsWith(".pdf");
+    const isDocx = mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || name.endsWith(".docx");
+    const isDoc = mime === "application/msword" || name.endsWith(".doc");
+    const isOctetWithKnownExt =
+      mime === "application/octet-stream" && (name.endsWith(".pdf") || name.endsWith(".doc") || name.endsWith(".docx"));
+    if (isPdf || isDocx || isDoc || isOctetWithKnownExt) {
       cb(null, true);
     } else {
       cb(new Error("Only PDF and Word files are allowed"));
@@ -933,6 +936,7 @@ const parseJsonFromContent = (content: string): any | null => {
 
 const getLowCostModel = () => "gpt-4o-mini";
 const getAccurateModel = () => getPreferredModel();
+const getRiskAssessmentModel = () => "gpt-4.1"; // Higher quality model for detailed risk assessment writing
 
 const inferGenericNameFromMedicationLabel = (name: string): string => {
   if (!name) return "";
@@ -1156,7 +1160,7 @@ const sanitizeOutOfScopeText = (text: string) => {
 
 const isAssessmentRelevantServer = (
   assessment: { name?: string; reason?: string; evidence?: string },
-  analysis: { medicalConditions?: string[]; careActivities?: string[]; concerns?: string[]; documentSummary?: string }
+  analysis: { medicalConditions?: string[]; careActivities?: string[]; concerns?: string[]; equipment?: string[]; communicationNeeds?: string[]; environmentalFactors?: string[]; documentSummary?: string }
 ): boolean => {
   if (!assessment?.name) return false;
   if (!assessment?.evidence || !assessment.evidence.trim()) return false;
@@ -1166,6 +1170,7 @@ const isAssessmentRelevantServer = (
   const terms = ASSESSMENT_EVIDENCE_TERMS[key];
   if (!terms || terms.length === 0) return true;
 
+  // Include ALL service user profile fields in the search haystack
   const haystack = [
     assessment.name,
     assessment.reason,
@@ -1174,6 +1179,9 @@ const isAssessmentRelevantServer = (
     ...(analysis.concerns || []),
     ...(analysis.medicalConditions || []),
     ...(analysis.careActivities || []),
+    ...(analysis.equipment || []),
+    ...(analysis.communicationNeeds || []),
+    ...(analysis.environmentalFactors || []),
   ]
     .filter(Boolean)
     .join(" ")
@@ -1192,6 +1200,9 @@ const buildAssessmentRecommendations = (analysis: {
   medicalConditions?: string[];
   careActivities?: string[];
   concerns?: string[];
+  equipment?: string[];
+  communicationNeeds?: string[];
+  environmentalFactors?: string[];
 }, evidenceFinder?: { findSnippets: (terms: string[], maxMatches?: number) => string[] }): { name: string; isMandatory: boolean; reason: string; evidence?: string }[] => {
   const recommendations: { name: string; isMandatory: boolean; reason: string; evidence?: string }[] = [];
   const add = (name: string, reason: string, evidence?: string) => {
@@ -1206,26 +1217,37 @@ const buildAssessmentRecommendations = (analysis: {
     add(name, reason, evidence);
   };
 
-  addIfEvidence("Diabetes Management", ASSESSMENT_EVIDENCE_TERMS["diabetes management"], "Document notes diabetes.");
-  addIfEvidence("Epilepsy Management", ASSESSMENT_EVIDENCE_TERMS["epilepsy management"], "Document notes epilepsy or seizures.");
-  addIfEvidence("Medication Administration", ASSESSMENT_EVIDENCE_TERMS["medication administration"], "Document indicates medication support is required.");
-  addIfEvidence("Nutrition", ASSESSMENT_EVIDENCE_TERMS["nutrition"], "Document indicates nutrition or hydration support.");
-  addIfEvidence("Mobility & Moving and Handling", ASSESSMENT_EVIDENCE_TERMS["mobility and moving and handling"], "Document indicates mobility or transfer support.");
-  addIfEvidence("Personal Care", ASSESSMENT_EVIDENCE_TERMS["personal care"], "Document indicates personal care support.");
-  addIfEvidence("Skin Integrity", ASSESSMENT_EVIDENCE_TERMS["skin integrity"], "Document indicates skin integrity or pressure area concerns.");
-  addIfEvidence("Falls Prevention", ASSESSMENT_EVIDENCE_TERMS["falls prevention"], "Document indicates fall risk or poor mobility.");
-  addIfEvidence("Continence Care", ASSESSMENT_EVIDENCE_TERMS["continence care"], "Document indicates continence support.");
-  addIfEvidence("Dementia Care", ASSESSMENT_EVIDENCE_TERMS["dementia care"], "Document indicates cognitive impairment.");
-  addIfEvidence("Mental Health", ASSESSMENT_EVIDENCE_TERMS["mental health"], "Document indicates mental health support.");
-  addIfEvidence("Communication", ASSESSMENT_EVIDENCE_TERMS["communication"], "Document indicates communication or sensory support.");
-  addIfEvidence("Behavior Support", ASSESSMENT_EVIDENCE_TERMS["behavior support"], "Document indicates behaviour support needs.");
-  addIfEvidence("End of Life Care", ASSESSMENT_EVIDENCE_TERMS["end of life care"], "Document indicates end of life or palliative care.");
-  addIfEvidence("Infection Control", ASSESSMENT_EVIDENCE_TERMS["infection control"], "Document indicates infection control considerations.");
-  addIfEvidence("Fire Safety", ASSESSMENT_EVIDENCE_TERMS["fire safety"], "Document indicates fire safety considerations.");
-  addIfEvidence("Environmental Safety", ASSESSMENT_EVIDENCE_TERMS["environmental safety"], "Document indicates environmental hazards.");
-  addIfEvidence("Lone Working", ASSESSMENT_EVIDENCE_TERMS["lone working"], "Document indicates lone working considerations.");
-  addIfEvidence("Safeguarding", ASSESSMENT_EVIDENCE_TERMS["safeguarding"], "Document indicates safeguarding concerns.");
-  addIfEvidence("COSHH", ASSESSMENT_EVIDENCE_TERMS["coshh"], "Document indicates chemical or cleaning product handling.");
+  // Check service user profile arrays directly for quick matching
+  const profileText = [
+    ...(analysis.medicalConditions || []),
+    ...(analysis.careActivities || []),
+    ...(analysis.concerns || []),
+    ...(analysis.equipment || []),
+    ...(analysis.communicationNeeds || []),
+    ...(analysis.environmentalFactors || []),
+  ].join(" ").toLowerCase();
+
+  // Profile-based recommendations with evidence lookup
+  addIfEvidence("Diabetes Management", ASSESSMENT_EVIDENCE_TERMS["diabetes management"], "Service user profile indicates diabetes.");
+  addIfEvidence("Epilepsy Management", ASSESSMENT_EVIDENCE_TERMS["epilepsy management"], "Service user profile indicates epilepsy or seizures.");
+  addIfEvidence("Medication Administration", ASSESSMENT_EVIDENCE_TERMS["medication administration"], "Service user requires medication support.");
+  addIfEvidence("Nutrition", ASSESSMENT_EVIDENCE_TERMS["nutrition"], "Service user requires nutrition or hydration support.");
+  addIfEvidence("Mobility & Moving and Handling", ASSESSMENT_EVIDENCE_TERMS["mobility and moving and handling"], "Service user requires mobility or transfer support.");
+  addIfEvidence("Personal Care", ASSESSMENT_EVIDENCE_TERMS["personal care"], "Service user requires personal care support.");
+  addIfEvidence("Skin Integrity", ASSESSMENT_EVIDENCE_TERMS["skin integrity"], "Service user has skin integrity or pressure area concerns.");
+  addIfEvidence("Falls Prevention", ASSESSMENT_EVIDENCE_TERMS["falls prevention"], "Service user has fall risk factors in their profile.");
+  addIfEvidence("Continence Care", ASSESSMENT_EVIDENCE_TERMS["continence care"], "Service user requires continence support.");
+  addIfEvidence("Dementia Care", ASSESSMENT_EVIDENCE_TERMS["dementia care"], "Service user profile indicates cognitive impairment.");
+  addIfEvidence("Mental Health", ASSESSMENT_EVIDENCE_TERMS["mental health"], "Service user profile indicates mental health needs.");
+  addIfEvidence("Communication", ASSESSMENT_EVIDENCE_TERMS["communication"], "Service user has communication or sensory needs.");
+  addIfEvidence("Behavior Support", ASSESSMENT_EVIDENCE_TERMS["behavior support"], "Service user profile indicates behaviour support needs.");
+  addIfEvidence("End of Life Care", ASSESSMENT_EVIDENCE_TERMS["end of life care"], "Service user requires end of life or palliative care.");
+  addIfEvidence("Infection Control", ASSESSMENT_EVIDENCE_TERMS["infection control"], "Service user profile indicates infection control considerations.");
+  addIfEvidence("Fire Safety", ASSESSMENT_EVIDENCE_TERMS["fire safety"], "Service user profile indicates fire safety considerations.");
+  addIfEvidence("Environmental Safety", ASSESSMENT_EVIDENCE_TERMS["environmental safety"], "Service user's environment has identified hazards.");
+  addIfEvidence("Lone Working", ASSESSMENT_EVIDENCE_TERMS["lone working"], "Care setting requires lone working considerations.");
+  addIfEvidence("Safeguarding", ASSESSMENT_EVIDENCE_TERMS["safeguarding"], "Service user profile indicates safeguarding concerns.");
+  addIfEvidence("COSHH", ASSESSMENT_EVIDENCE_TERMS["coshh"], "Care activities involve chemical or cleaning product handling.");
 
   return recommendations;
 };
@@ -10199,74 +10221,91 @@ CRITICAL: You MUST structure your response using the templates above as referenc
     "initials": "Initials in format F.O. (first initial + dot + last initial + dot) or 'N.N.' if not found"
   },`;
 
-      const systemPrompt = `You are an expert care assessor for a UK care facility. Analyze the uploaded documents to identify service user information and determine which risk assessments are needed.
+      const systemPrompt = `You are an expert care assessor for a UK care facility. Your task is to:
+1. SCAN ALL UPLOADED DOCUMENTS THOROUGHLY to build a complete profile of the service user
+2. Use the service user's profile (conditions, care needs, concerns) to determine which risk assessments are required
+
 ${policyContext}
 FORMATTING RULES - MUST FOLLOW:
 - Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas instead.
 - Never use Oxford commas (the comma before "and" or "or" in a list). Write "apples, oranges and bananas" not "apples, oranges, and bananas".
 
 IMPORTANT RULES:
-1. ONLY use information explicitly stated in the documents. Never make assumptions.
-2. If you cannot find specific information, state "Information not found in documents"
-3. Be very careful to extract the correct service user details
-4. Write narrative fields in FIRST PERSON using "I" and "my"
-5. ONLY recommend a risk assessment if you can cite evidence from the documents. If no evidence is found, omit it.
-6. For every recommended assessment, include a short evidence phrase from the documents.
-7. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
-8. All recommendations must remain within a care worker's scope of practice. Do not include clinical decisions (diagnosis, prescribing, dose changes).
+1. SCAN EVERY DOCUMENT PROVIDED - including social work assessments, initial assessments, care plans, moving and handling plans, and any additional documents
+2. ONLY use information explicitly stated in the documents. Never make assumptions.
+3. If you cannot find specific information, state "Information not found in documents"
+4. Be very careful to extract the correct service user details
+5. Write narrative fields in FIRST PERSON using "I" and "my"
+6. ONLY recommend a risk assessment if you can cite evidence from the documents. If no evidence is found, omit it.
+7. For every recommended assessment, include a short evidence phrase from the documents.
+8. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
+9. All recommendations must remain within a care worker's scope of practice. Do not include clinical decisions (diagnosis, prescribing, dose changes).
 ${privacyRules}
 
-EXTRACT FROM DOCUMENTS:
+STEP 1 - BUILD SERVICE USER PROFILE BY EXTRACTING FROM ALL DOCUMENTS:
 ${serviceUserExtractionRules}
-- Medical conditions mentioned (diabetes, epilepsy, strokes, dementia, etc.)
-- Care activities we assist with (feeding, medication, mobility, personal care, etc.)
-- Any concerns mentioned (falls history, skin issues, behavioral concerns, etc.)
+- ALL medical conditions mentioned anywhere (diabetes, epilepsy, strokes, dementia, heart conditions, respiratory issues, arthritis, Parkinson's, etc.)
+- ALL care activities we assist with (feeding, medication, mobility, personal care, cooking, laundry, shopping, etc.)
+- ALL concerns or risks mentioned (falls history, skin issues, behavioral concerns, weight loss, choking risk, pressure sores, wandering, etc.)
+- Equipment mentioned (wheelchair, hoist, walking frame, pressure cushion, hospital bed, etc.)
+- Communication needs (hearing impaired, visual impairment, speech difficulties, language barriers, etc.)
+- Mental capacity considerations
+- Environmental factors (stairs, pets, access issues, lone working required, etc.)
 
 PRIVACY REQUIREMENT:
 - NEVER include dates of birth
 - Extract initials in format "F.O." (first initial + dot + last initial + dot)
 - Example: "Freda O'Neill" becomes "F.O."
 
-MANDATORY RISK ASSESSMENTS (if applicable):
-- "Nutrition" - if we assist with feeding or food preparation
-- "Diabetes Management" - if service user is diabetic
-- "Epilepsy Management" - if service user has epilepsy
-- "Medication Administration" - if we assist with medications
-- "Mobility & Moving and Handling" - if we assist with mobility or transfers
-- "Personal Care" - if we assist with personal care
-- "Skin Integrity" - if there are concerns about skin or pressure areas
-- "Falls Prevention" - if poor mobility or history of falls
-- "Continence Care" - if we assist with continence
-- "Dementia Care" - if service user has dementia or cognitive impairment
-- "Mental Health" - if mental health conditions mentioned
-- "Communication" - if communication difficulties
-- "Behavior Support" - if challenging behaviors mentioned
-- "End of Life Care" - if palliative or end of life care mentioned
-- "Infection Control" - if infection risks mentioned
-- "Fire Safety" - if fire safety concerns
-- "Environmental Safety" - if environmental hazards mentioned
-- "Lone Working" - if carer works alone
-- "Safeguarding" - if safeguarding concerns
-- "COSHH" - if handling hazardous substances
+STEP 2 - DETERMINE RISK ASSESSMENTS BASED ON SERVICE USER PROFILE:
+The service user's profile DIRECTLY determines which assessments are needed. Match their conditions and needs to appropriate assessments:
+
+| Service User Has | Requires Assessment |
+|------------------|---------------------|
+| Diabetes | "Diabetes Management" |
+| Epilepsy or seizures | "Epilepsy Management" |
+| Takes medications we administer | "Medication Administration" |
+| Needs help with eating, drinking, or meal prep | "Nutrition" |
+| Mobility issues, uses aids, needs transfers | "Mobility & Moving and Handling" |
+| Needs washing, dressing, toileting support | "Personal Care" |
+| Skin concerns, pressure areas, wounds | "Skin Integrity" |
+| Falls history, unsteady, poor balance | "Falls Prevention" |
+| Incontinence, catheter, stoma care | "Continence Care" |
+| Dementia, memory problems, confusion | "Dementia Care" |
+| Depression, anxiety, mental health conditions | "Mental Health" |
+| Hearing, vision, speech, or language barriers | "Communication" |
+| Challenging behaviour, aggression, resistance | "Behavior Support" |
+| Palliative, terminal illness, end of life | "End of Life Care" |
+| Infection risks, MRSA, wounds, weakened immunity | "Infection Control" |
+| Smokes, uses oxygen, fire risks at home | "Fire Safety" |
+| Home hazards, trip risks, clutter, pets | "Environmental Safety" |
+| Carer works alone at property | "Lone Working" |
+| Abuse concerns, self-neglect, exploitation risks | "Safeguarding" |
+| Cleaning chemicals, hazardous substances used | "COSHH" |
+
+CRITICAL: Only recommend an assessment if the service user's profile contains relevant information. Each recommendation MUST cite specific evidence from the documents.
 
 Respond ONLY with valid JSON in this exact format:
 {
   ${serviceUserJsonSchema}
-  "medicalConditions": ["List of conditions found in documents"],
-  "careActivities": ["List of care activities we provide"],
-  "concerns": ["List of concerns or risks identified"],
+  "medicalConditions": ["List ALL conditions found across ALL documents - be thorough"],
+  "careActivities": ["List ALL care activities we provide - check every document section"],
+  "concerns": ["List ALL concerns or risks identified from every document"],
+  "equipment": ["List any equipment mentioned: wheelchair, hoist, walking frame, etc."],
+  "communicationNeeds": ["List any communication needs: hearing, vision, speech, language"],
+  "environmentalFactors": ["List home/environmental factors: stairs, pets, access, lone working"],
   "recommendedAssessments": [
     {
       "name": "Assessment category name",
-      "isMandatory": true/false,
-      "reason": "Why this is recommended based on document content",
+      "isMandatory": true,
+      "reason": "Why this is recommended - link to specific service user profile item",
       "evidence": "Exact phrase or short paraphrase from the documents that supports this recommendation"
     }
   ],
-  "documentSummary": "Brief summary of what was found in the documents"
+  "documentSummary": "Brief summary of the service user's overall profile based on ALL documents scanned"
 }`;
 
-      sendProgress(20, "Analyzing documents with AI...", "ai_analysis");
+      sendProgress(20, "Scanning all documents with AI...", "ai_analysis");
 
       // Simulated progress during AI call
       let simulatedProgress = 20;
@@ -10274,12 +10313,12 @@ Respond ONLY with valid JSON in this exact format:
         if (simulatedProgress < 75) {
           simulatedProgress += 5;
           const messages = [
-            "Analyzing document content...",
-            "Identifying care needs...",
-            "Evaluating risk factors...",
-            "Reviewing medical conditions...",
-            "Checking assessment requirements...",
-            "Processing recommendations...",
+            "Scanning all uploaded documents...",
+            "Building service user profile...",
+            "Extracting medical conditions...",
+            "Identifying care needs and activities...",
+            "Matching profile to assessments...",
+            "Finalizing recommendations...",
           ];
           const msgIndex = Math.floor((simulatedProgress - 20) / 10) % messages.length;
           sendProgress(simulatedProgress, messages[msgIndex], "ai_analysis");
@@ -10290,7 +10329,7 @@ Respond ONLY with valid JSON in this exact format:
         model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Analyze these documents for risk assessment needs:\n\n${documentContentForAi}` }
+          { role: "user", content: `IMPORTANT: Scan ALL of the following documents thoroughly to build the service user's complete profile, then determine which risk assessments are needed based on their profile:\n\n${documentContentForAi}` }
         ],
         max_completion_tokens: 4000,
         temperature: 0,
@@ -10333,6 +10372,9 @@ Respond ONLY with valid JSON in this exact format:
         medicalConditions: normalizeStringArray(parsed?.medicalConditions),
         careActivities: normalizeStringArray(parsed?.careActivities),
         concerns: normalizeStringArray(parsed?.concerns),
+        equipment: normalizeStringArray(parsed?.equipment),
+        communicationNeeds: normalizeStringArray(parsed?.communicationNeeds),
+        environmentalFactors: normalizeStringArray(parsed?.environmentalFactors),
         recommendedAssessments: normalizedRecommendations,
         documentSummary: typeof parsed?.documentSummary === "string" ? parsed.documentSummary.trim() : "Information not found in documents",
       };
@@ -10452,23 +10494,31 @@ ${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.versio
         ? "Privacy requirement: You may include full names only if present in the documents. Do not invent names. Never include dates of birth."
         : "Privacy requirement: Never include full names or dates of birth. Use only initials.";
 
-      const systemPrompt = `You are an expert care risk assessor for a UK care facility. Generate a detailed risk assessment for the specified category.
+      const systemPrompt = `You are an expert care risk assessor for a UK care facility. Generate a detailed, comprehensive risk assessment for the specified category.
 ${policyContext}
 
 FORMATTING RULES - MUST FOLLOW:
 - Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas instead.
 - Never use Oxford commas (the comma before "and" or "or" in a list). Write "apples, oranges and bananas" not "apples, oranges, and bananas".
 
+CRITICAL - FIRST PERSON WRITING:
+- Write EVERYTHING as if you are the service user speaking about themselves
+- Use "I", "me", "my", "myself" throughout ALL fields
+- Example: "I have difficulty with mobility" NOT "The service user has difficulty with mobility"
+- Example: "My carers help me to..." NOT "Carers help the service user to..."
+- Example: "I am at risk of falls because..." NOT "There is a risk of falls because..."
+
 IMPORTANT RULES:
-1. ONLY use information explicitly stated in the documents provided
-2. If something isn't in the documents, say "I'm not aware of this information based on the documents provided"
+1. Extract and synthesize ALL relevant information from the documents provided
+2. Write detailed, informative content - be thorough and comprehensive
 3. Use professional but clear language suitable for care documentation
 4. Follow CQC (Care Quality Commission) standards
-5. Write narrative fields in FIRST PERSON using "I" and "my"
-6. Do NOT include any person names. Use role terms (my carer, my GP, my family member)
-7. Keep place names and locations as written. Do not redact places.
-8. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
-9. Stay within a care worker's scope of practice. Do not diagnose, prescribe, change doses, or make clinical decisions.
+5. Do NOT include any person names. Use role terms (my carer, my GP, my family member)
+6. Keep place names and locations as written. Do not redact places.
+7. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
+8. Stay within a care worker's scope of practice. Do not diagnose, prescribe, change doses, or make clinical decisions.
+9. NEVER write phrases like "I'm not aware of", "information not found", "not mentioned in documents", or similar. Only write what IS known.
+10. If a field has limited information, write what is relevant from the documents - do not apologise or explain gaps.
 
 SERVICE USER DETAILS:
 - Service User Initials: ${serviceUserInitials || 'N.N.'}
@@ -10477,12 +10527,12 @@ ${privacyDirective}
 
 RISK ASSESSMENT CATEGORY: ${assessmentCategory}
 
-For each risk identified in this category, provide:
-- Risk definition (what is the risk)
+For each risk identified in this category, provide detailed first-person content:
+- Risk definition (what is the risk - written as "I am at risk of...")
 - Initial risk rating (Low/Medium/High)
-- How it's a risk (explanation)
+- How it's a risk (detailed explanation in first person - "This affects me because...")
 - Who will be harmed
-- Control measures (what we do to mitigate)
+- Control measures (comprehensive measures in first person - "My carers help me by...")
 - Risk rating after controls (Low/Medium/High)
 
 Respond ONLY with valid JSON in this exact format:
@@ -10492,30 +10542,30 @@ Respond ONLY with valid JSON in this exact format:
   "assessmentDate": "Today's date in DD/Mon/YYYY format",
   "risks": [
     {
-      "riskDefinition": "What is the specific risk",
+      "riskDefinition": "First person description: I am at risk of...",
       "initialRating": "Low/Medium/High",
-      "howItsARisk": "Explanation of how this poses a risk",
+      "howItsARisk": "First person explanation: This affects me because...",
       "whoWillBeHarmed": "Service user/Carer/Both/Visitors",
-      "controlMeasures": "Detailed control measures",
+      "controlMeasures": "First person detailed control measures: My carers help me by...",
       "ratingAfterControls": "Low/Medium/High"
     }
   ],
   "signedBy": "${performedBy || 'Staff member'}",
   "jobTitle": "${performedByJobTitle || 'Care Staff'}",
-  "additionalNotes": "Any additional notes or observations from the documents, or 'I'm not aware of additional information based on the documents provided'"
+  "additionalNotes": "Any relevant first-person observations: I also need support with... (leave empty string if nothing additional to add)"
 }`;
 
       sendProgress(30, "Generating risk assessment...", "ai_generation");
 
       const response = await createChatCompletionWithLogging({
-        model: getAccurateModel(),
+        model: getRiskAssessmentModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a ${assessmentCategory} risk assessment based on these documents:\n\n${allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent)}` }
+          { role: "user", content: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on these documents. Write detailed, thorough content for each field. ONLY use information explicitly stated in the documents - do not invent or assume any details:\n\n${allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent)}` }
         ],
         temperature: 0,
         seed: 42,
-        max_completion_tokens: 4000,
+        max_completion_tokens: 6000,
         response_format: { type: "json_object" },
       }, "risk_assessment", aiUserContext);
 
@@ -10537,14 +10587,33 @@ Respond ONLY with valid JSON in this exact format:
         // Apply PII scrubbing to the rest (risks, notes, etc.)
         result.serviceUserInitials = normalizeInitials(result.serviceUserInitials);
 
+        // Helper to clean "not aware" type phrases from any string
+        const cleanNotAwarePhrases = (text: string): string => {
+          if (!text || typeof text !== "string") return text;
+          const patterns = [
+            /I'?m not aware[^.]*\.?\s*/gi,
+            /information not found[^.]*\.?\s*/gi,
+            /not mentioned in[^.]*documents[^.]*\.?\s*/gi,
+            /no additional information[^.]*\.?\s*/gi,
+            /based on the documents provided[^.]*\.?\s*/gi,
+            /I don'?t have[^.]*information[^.]*\.?\s*/gi,
+            /details were not[^.]*\.?\s*/gi,
+          ];
+          let cleaned = text;
+          for (const pattern of patterns) {
+            cleaned = cleaned.replace(pattern, "").trim();
+          }
+          return cleaned;
+        };
+
         if (!Array.isArray(result.risks) || result.risks.length === 0) {
           result.risks = [
             {
-              riskDefinition: "Information not found in documents",
-              initialRating: "Low",
-              howItsARisk: "Relevant detail was not found in the provided documents.",
+              riskDefinition: "I require support with this area of my care",
+              initialRating: "Medium",
+              howItsARisk: "Without appropriate support in this area, my health and wellbeing could be affected.",
               whoWillBeHarmed: "Service user",
-              controlMeasures: "Confirm details with the service user or commissioning team.",
+              controlMeasures: "My care team will assess my needs in this area and provide appropriate support as outlined in my care plan.",
               ratingAfterControls: "Low",
             },
           ];
@@ -10561,19 +10630,23 @@ Respond ONLY with valid JSON in this exact format:
             ...risk,
             initialRating: normalizeRiskRating(risk?.initialRating),
             riskDefinition: typeof risk?.riskDefinition === "string"
-              ? toFirstPerson(risk.riskDefinition)
+              ? cleanNotAwarePhrases(toFirstPerson(risk.riskDefinition))
               : risk?.riskDefinition,
             howItsARisk: typeof risk?.howItsARisk === "string"
-              ? toFirstPerson(risk.howItsARisk)
+              ? cleanNotAwarePhrases(toFirstPerson(risk.howItsARisk))
               : risk?.howItsARisk,
             controlMeasures: typeof risk?.controlMeasures === "string"
-              ? toFirstPerson(sanitizeOutOfScopeText(risk.controlMeasures))
+              ? cleanNotAwarePhrases(toFirstPerson(sanitizeOutOfScopeText(risk.controlMeasures)))
               : risk?.controlMeasures,
             ratingAfterControls: normalizeRiskRating(risk?.ratingAfterControls),
           }));
         }
         if (typeof result.additionalNotes === "string") {
-          result.additionalNotes = toFirstPerson(result.additionalNotes);
+          result.additionalNotes = cleanNotAwarePhrases(toFirstPerson(result.additionalNotes));
+          // If additionalNotes is now empty or just whitespace, set to empty string
+          if (!result.additionalNotes || result.additionalNotes.trim().length < 5) {
+            result.additionalNotes = "";
+          }
         }
         const scrubbedResult = sanitizeNarrativePII(result);
         const payload = allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult;

@@ -31,6 +31,9 @@ interface RiskAnalysis {
   medicalConditions: string[];
   careActivities: string[];
   concerns: string[];
+  equipment?: string[];
+  communicationNeeds?: string[];
+  environmentalFactors?: string[];
   recommendedAssessments: RecommendedAssessment[];
   documentSummary: string;
 }
@@ -78,6 +81,7 @@ export default function RiskAssessment() {
   const [customAssessmentName, setCustomAssessmentName] = useState("");
   const [customAssessments, setCustomAssessments] = useState<RecommendedAssessment[]>([]);
   const [isRefreshingIdentity, setIsRefreshingIdentity] = useState(false);
+  const [selectedForAcp, setSelectedForAcp] = useState<Set<number>>(new Set());
 
   const isAdmin = user?.role === "admin";
   const showSensitive = isAdmin && allowSensitive;
@@ -220,6 +224,7 @@ export default function RiskAssessment() {
     const key = canonicalizeAssessmentName(assessment.name);
     const keywords = assessmentRelevanceKeywords[key];
     if (!keywords || keywords.length === 0) return true;
+    // Include ALL service user profile fields in the search haystack
     const haystack = [
       assessment.name,
       assessment.reason,
@@ -228,6 +233,9 @@ export default function RiskAssessment() {
       ...(analysis?.concerns || []),
       ...(analysis?.medicalConditions || []),
       ...(analysis?.careActivities || []),
+      ...(analysis?.equipment || []),
+      ...(analysis?.communicationNeeds || []),
+      ...(analysis?.environmentalFactors || []),
     ]
       .filter(Boolean)
       .join(" ")
@@ -240,6 +248,7 @@ export default function RiskAssessment() {
     const key = canonicalizeAssessmentName(assessment.name);
     const keywords = assessmentRelevanceKeywords[key];
     if (!keywords || keywords.length === 0) return null;
+    // Include ALL service user profile fields in the search haystack
     const haystack = [
       assessment.name,
       assessment.reason,
@@ -248,6 +257,9 @@ export default function RiskAssessment() {
       ...(analysis?.concerns || []),
       ...(analysis?.medicalConditions || []),
       ...(analysis?.careActivities || []),
+      ...(analysis?.equipment || []),
+      ...(analysis?.communicationNeeds || []),
+      ...(analysis?.environmentalFactors || []),
     ]
       .filter(Boolean)
       .join(" ")
@@ -737,6 +749,9 @@ export default function RiskAssessment() {
     const orderedScrubbed = assessmentsArray
       .map((name) => generatedScrubbedMap.get(name))
       .filter(Boolean) as GeneratedAssessment[];
+    
+    // Select all assessments for ACP by default
+    setSelectedForAcp(new Set(orderedScrubbed.map((_, idx) => idx)));
 
     setGeneratedAssessmentsRaw(orderedRaw);
     setGeneratedAssessmentsScrubbed(orderedScrubbed);
@@ -877,11 +892,39 @@ export default function RiskAssessment() {
     doc.save(fileName);
   };
 
+  const toggleAcpSelection = (index: number) => {
+    setSelectedForAcp(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
+  const selectAllForAcp = () => {
+    setSelectedForAcp(new Set(generatedAssessmentsForCopy.map((_, idx) => idx)));
+  };
+
+  const deselectAllForAcp = () => {
+    setSelectedForAcp(new Set());
+  };
+
   const sendAssessmentsToExtension = async (assessmentsToSend?: GeneratedAssessment[]) => {
+    // If no specific assessments provided, use the selected ones
     const assessments = assessmentsToSend && assessmentsToSend.length > 0
       ? assessmentsToSend
-      : generatedAssessmentsForCopy;
-    if (assessments.length === 0) return;
+      : generatedAssessmentsForCopy.filter((_, idx) => selectedForAcp.has(idx));
+    if (assessments.length === 0) {
+      toast({
+        title: "No assessments selected",
+        description: "Please select at least one assessment to send to ACP.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (typeof window === "undefined") return;
 
     const requestId =
@@ -1521,13 +1564,24 @@ export default function RiskAssessment() {
               <Copy size={16} /> Copy All
             </Button>
             {isAdmin && (
-              <Button
-                variant="outline"
-                onClick={() => sendAssessmentsToExtension()}
-                data-testid="button-send-acp-extension"
-              >
-                <Send size={16} /> Send to ACP Extension
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={selectedForAcp.size === generatedAssessments.length ? deselectAllForAcp : selectAllForAcp}
+                  data-testid="button-toggle-all-acp"
+                >
+                  {selectedForAcp.size === generatedAssessments.length ? "Deselect All" : "Select All"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => sendAssessmentsToExtension()}
+                  disabled={selectedForAcp.size === 0}
+                  data-testid="button-send-acp-extension"
+                >
+                  <Send size={16} /> Send to ACP ({selectedForAcp.size})
+                </Button>
+              </div>
             )}
             <Button variant="outline" onClick={exportAssessmentsPdf} data-testid="button-export-risk-pdf">
               <FileText size={16} /> Export PDF
@@ -1539,6 +1593,7 @@ export default function RiskAssessment() {
                 setGeneratedAssessmentsRaw([]);
                 setGeneratedAssessmentsScrubbed([]);
                 setCopiedAssessment(null);
+                setSelectedForAcp(new Set());
               }}
               data-testid="button-back-to-select"
             >
@@ -1548,12 +1603,24 @@ export default function RiskAssessment() {
         </div>
 
         {generatedAssessments.map((assessment, idx) => (
-          <Card key={idx} className="bg-card border-border print:bg-white print:text-black">
+          <Card key={idx} className={`bg-card border-border print:bg-white print:text-black ${isAdmin && selectedForAcp.has(idx) ? 'ring-2 ring-primary/50' : ''}`}>
             <CardHeader className="border-b border-border">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <CardTitle className="text-xl">{assessment.category}</CardTitle>
-                  <CardDescription>Risk Assessment</CardDescription>
+                <div className="flex items-center gap-3">
+                  {isAdmin && (
+                    <input
+                      type="checkbox"
+                      checked={selectedForAcp.has(idx)}
+                      onChange={() => toggleAcpSelection(idx)}
+                      className="h-5 w-5 rounded border-border text-primary focus:ring-primary cursor-pointer"
+                      data-testid={`checkbox-acp-${idx}`}
+                      title="Select for ACP"
+                    />
+                  )}
+                  <div>
+                    <CardTitle className="text-xl">{assessment.category}</CardTitle>
+                    <CardDescription>Risk Assessment</CardDescription>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-sm">

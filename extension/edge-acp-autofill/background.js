@@ -93,14 +93,54 @@ const stopAutofill = async () => {
   });
 };
 
+let activeAutofillTabId = null;
+
 const reuseOrCreateTab = async (url) => {
+  // Try to reuse the tracked tab first
+  if (activeAutofillTabId) {
+    try {
+      await chrome.tabs.update(activeAutofillTabId, { url, active: true });
+      return;
+    } catch (e) {
+      // Tab might have been closed
+      activeAutofillTabId = null;
+    }
+  }
+  
+  // Fall back to finding any matching tab
   const tabs = await chrome.tabs.query({ url: `${FORM_CONFIGS.acp.url}*` });
   if (tabs.length > 0) {
+    activeAutofillTabId = tabs[0].id;
     await chrome.tabs.update(tabs[0].id, { url, active: true });
     return;
   }
-  await chrome.tabs.create({ url });
+  
+  // Create new tab and track it
+  const newTab = await chrome.tabs.create({ url });
+  activeAutofillTabId = newTab.id;
 };
+
+// Listen for tab updates to detect form submission completion
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (tabId !== activeAutofillTabId) return;
+  if (changeInfo.status !== 'complete') return;
+  
+  // Check if we navigated away from the form (submission complete)
+  const { caAcpQueueState, caAcpPayload } = await getStored([STORAGE_KEYS.queueState, STORAGE_KEYS.payload]);
+  if (!caAcpQueueState || !caAcpPayload) return;
+  
+  const formType = caAcpQueueState.formType || 'acp';
+  if (formType !== 'acp') return;
+  
+  // If we're on a success/confirmation page (not the form page), advance to next
+  const isFormPage = tab.url && tab.url.includes('new_case_form') && tab.url.includes('formId=');
+  const isSuccessPage = tab.url && (tab.url.includes('case_form_success') || tab.url.includes('/cases/'));
+  
+  if (isSuccessPage && caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
+    console.log('[ACP Extension] Detected form submission success, advancing to next assessment');
+    await openNextForm();
+  }
+});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === MESSAGE_TYPES.storePayload) {

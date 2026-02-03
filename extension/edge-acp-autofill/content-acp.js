@@ -435,16 +435,31 @@ const run = async () => {
       logAction("Submit button not found. Please submit manually.");
       return;
     }
-    await wait(2000);
-    if (caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
-      notifyStepComplete();
-    } else {
-      chrome.storage.local.set({
-        [STORAGE_KEYS.queueState]: null,
-        [STORAGE_KEYS.payload]: null,
-        [STORAGE_KEYS.caseInfo]: null,
-      });
-    }
+    
+    // Try to notify step complete multiple times in case page navigates
+    // The background script also monitors tab navigation as a backup
+    const notifyWithRetry = async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await wait(1500);
+        try {
+          if (caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
+            notifyStepComplete();
+            logAction(`Step complete notification sent (attempt ${attempt + 1})`);
+          } else {
+            chrome.storage.local.set({
+              [STORAGE_KEYS.queueState]: null,
+              [STORAGE_KEYS.payload]: null,
+              [STORAGE_KEYS.caseInfo]: null,
+            });
+            logAction("All assessments completed!");
+          }
+          return;
+        } catch (e) {
+          logAction(`Retry ${attempt + 1}: ${e.message}`);
+        }
+      }
+    };
+    notifyWithRetry();
     return;
   }
 
