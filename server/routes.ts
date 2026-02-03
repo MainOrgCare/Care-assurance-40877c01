@@ -1257,10 +1257,11 @@ const pickEvidenceSnippet = (snippets: string[]): string => {
   return candidate ? truncateEvidence(candidate) : "";
 };
 
-// Assessments that are ALWAYS mandatory for every service user
-const ALWAYS_MANDATORY_ASSESSMENTS = new Set([
-  "fire safety",
-  "environmental safety",
+// NO ASSESSMENTS ARE AUTOMATICALLY MANDATORY
+// CQC 2024 Principle: Risk assessments must be person-centred and based on individual needs
+// NHS England Principle: Risk management should be proportionate to the individual's circumstances
+const ALWAYS_MANDATORY_ASSESSMENTS = new Set<string>([
+  // Intentionally empty - assessments are recommended only when supported by documented evidence
 ]);
 
 const buildAssessmentRecommendations = (analysis: {
@@ -10313,9 +10314,56 @@ CRITICAL REMINDER:
     "initials": "Initials in format F.O. (first initial + dot + last initial + dot) or 'N.N.' if not found"
   },`;
 
-      const systemPrompt = `You are an expert care assessor for a UK care facility. Your task is to:
-1. SCAN ALL SERVICE USER DOCUMENTS (in the "Documents to analyze:" section) THOROUGHLY to build a complete profile of the service user
-2. Use the service user's profile (conditions, care needs, concerns) to determine which risk assessments are required
+      const systemPrompt = `You are an expert care assessor following CQC 2024 standards and NHS England principles for risk assessment.
+
+═══════════════════════════════════════════════════════════════════════════════
+NHS ENGLAND 12 PRINCIPLES FOR RISK ASSESSMENT (2024)
+═══════════════════════════════════════════════════════════════════════════════
+
+1. PERSON-CENTRED: "Actively focus on the experience of people using services"
+   → Only recommend assessments that address the individual's documented needs
+   → Consider their unique circumstances, preferences and concerns
+   
+2. COLLABORATIVE: Work with information from multiple sources (family, professionals)
+   
+3. INTELLIGENCE SHARING: Use all available documented information
+   
+4. COMMON LANGUAGE: Use clear, consistent terminology
+   
+5. CLEAR ROLES & RESPONSIBILITIES: Identify who needs to act on each risk
+   
+6. RECORDING & MONITORING: Ensure risks are documented with evidence
+   
+7. ACTION PLANNING: Each assessment must lead to actionable care plans
+   
+8. ESCALATION: Know when to escalate to registered professionals
+   
+9. COMPETENT DECISION-MAKING: Stay within care worker scope of practice
+   
+10. EQUALITIES & INEQUALITIES: Consider individual circumstances
+   
+11. EXTERNAL FACTORS: Consider home environment, social factors
+   
+12. DYNAMIC REVIEW: Risk assessment is ongoing, based on changing needs
+
+═══════════════════════════════════════════════════════════════════════════════
+CQC 2024 STANDARDS: PERSON-CENTRED CARE
+═══════════════════════════════════════════════════════════════════════════════
+
+"Care must be individualised and meet each person's unique preferences and needs"
+
+✓ Base recommendations ONLY on documented evidence about THIS service user
+✓ Risk management must protect from harm while promoting independence
+✓ Regular assessments should identify specific, documented hazards
+✓ Restrictive practice is a FAILURE of person-centred planning
+
+═══════════════════════════════════════════════════════════════════════════════
+YOUR TASK: BUILD A PERSON-CENTRED RISK PROFILE
+═══════════════════════════════════════════════════════════════════════════════
+
+1. SCAN ALL SERVICE USER DOCUMENTS (in "Documents to analyze:" section) THOROUGHLY
+2. Extract ONLY information EXPLICITLY documented about THIS service user
+3. Recommend assessments ONLY when you have STRONG DOCUMENTED EVIDENCE
 
 ${policyContext}
 FORMATTING RULES - MUST FOLLOW:
@@ -10328,95 +10376,148 @@ FORMATTING RULES - MUST FOLLOW:
 3. DO NOT extract medical conditions, care needs, or risks from templates - they are examples only
 4. DO NOT confuse template questions/prompts with actual service user information
 
-EVIDENCE-BASED ANALYSIS - CRITICAL REQUIREMENTS:
-1. ONLY extract information EXPLICITLY stated in the SERVICE USER documents (in "Documents to analyze:" section) - never from templates
-2. Do NOT make up medical conditions, incidents, falls, behaviors, or risks that are not mentioned in the SERVICE USER documents
-3. Every recommended assessment MUST be based on ACTUAL evidence found in the SERVICE USER documents
-4. If you cannot find specific information in the SERVICE USER documents, state "Information not found in documents"
-5. For every recommended assessment, you MUST cite the specific evidence from the SERVICE USER documents that supports it
-6. For every recommended assessment, include an "evidenceSnippets" array with 2-6 short snippets or phrases from the SERVICE USER documents that support it
-7. Do NOT recommend assessments based on speculation or "what might be needed" - only recommend based on documented facts
-8. Accuracy is paramount - it is better to omit an assessment than to recommend one without documented evidence
-9. Templates contain placeholder text like "risk of falls", "diabetes", etc. - these are EXAMPLES, not real conditions
+═══════════════════════════════════════════════════════════════════════════════
+EVIDENCE-BASED ANALYSIS - NHS ENGLAND STANDARDS
+═══════════════════════════════════════════════════════════════════════════════
 
-IMPORTANT RULES:
-1. SCAN EVERY DOCUMENT PROVIDED - including social work assessments, initial assessments, care plans, moving and handling plans, and any additional documents
-2. Be very careful to extract the correct service user details
-3. Write narrative fields in FIRST PERSON using "I" and "my"
-4. ONLY recommend a risk assessment if you can cite evidence from the documents. If no evidence is found, omit it.
-5. For every recommended assessment, include a short evidence phrase from the documents.
-6. For every recommended assessment, include an "evidenceSnippets" array with 2-6 short snippets or phrases from the documents that support it.
-6. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
-7. All recommendations must remain within a care worker's scope of practice. Do not include clinical decisions (diagnosis, prescribing, dose changes).
+CRITICAL REQUIREMENTS FOR EVIDENCE:
+
+1. ONLY DOCUMENTED FACTS: Extract information EXPLICITLY stated in SERVICE USER documents
+   ✗ DO NOT make assumptions or infer conditions not mentioned
+   ✗ DO NOT extract from template/policy documents (they contain placeholder text)
+   ✓ DO extract from "Documents to analyze:" section ONLY
+
+2. SIGNIFICANT EVIDENCE REQUIRED: Each recommended assessment needs SUBSTANTIAL documented evidence
+   ✗ DO NOT recommend based on vague mentions or single keywords
+   ✗ DO NOT recommend "just in case" or for speculation
+   ✓ DO recommend when multiple pieces of evidence support the need
+   ✓ DO recommend when the risk is clearly documented and significant
+
+3. PERSON-CENTRED APPROACH (CQC 2024 Principle #1):
+   ✗ DO NOT recommend generic "everyone needs this" assessments
+   ✗ DO NOT apply blanket rules or assumptions
+   ✓ DO tailor recommendations to THIS individual's documented needs
+   ✓ DO explain the specific relevance to THIS service user
+
+4. EVIDENCE TRACEABILITY:
+   ✓ Every assessment MUST cite specific text from SERVICE USER documents
+   ✓ Include 2-6 short direct quotes supporting each recommendation
+   ✓ If no specific evidence → DO NOT recommend the assessment
+
+5. COMPREHENSIVE APPROACH - RECOMMEND ALL RELEVANT ASSESSMENTS:
+   ✓ DO recommend ALL assessments with documented evidence (minimum 3-5 if risks exist)
+   ✓ DO NOT limit recommendations - if service user has many risks, recommend all relevant assessments
+   ✓ Focus on quality evidence for each, but don't restrict quantity if multiple risks documented
+
+6. ACCURACY IS PARAMOUNT (CQC 2024 Standard):
+   ✗ DO NOT make up conditions, incidents, falls, behaviors not mentioned
+   ✗ DO NOT assume risks based on age, gender or generalizations
+   ✓ DO state "Information not found in documents" if evidence is lacking
+
+═══════════════════════════════════════════════════════════════════════════════
+SCOPE OF PRACTICE - CARE WORKER BOUNDARIES
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ WITHIN SCOPE: Observations, assistance with activities of daily living, following care plans
+✗ OUT OF SCOPE: Diagnosis, prescribing, changing medication doses, clinical decisions
+
+All recommendations must remain within a care worker's scope of practice.
+
 ${privacyRules}
 
-STEP 1 - BUILD SERVICE USER PROFILE BY EXTRACTING FROM ALL DOCUMENTS:
+═══════════════════════════════════════════════════════════════════════════════
+STEP 1: BUILD SERVICE USER PROFILE (From "Documents to analyze:" section ONLY)
+═══════════════════════════════════════════════════════════════════════════════
+
+Extract ONLY what is EXPLICITLY documented:
+
 ${serviceUserExtractionRules}
-- ALL medical conditions mentioned anywhere (diabetes, epilepsy, strokes, dementia, heart conditions, respiratory issues, arthritis, Parkinson's, etc.)
+- ALL medical conditions mentioned (diabetes, epilepsy, stroke, dementia, heart conditions, respiratory issues, arthritis, Parkinson's, etc.)
 - ALL care activities we assist with (feeding, medication, mobility, personal care, cooking, laundry, shopping, etc.)
-- ALL concerns or risks mentioned (falls history, skin issues, behavioral concerns, weight loss, choking risk, pressure sores, wandering, etc.)
+- ALL documented concerns or risks (falls history, skin issues, behavioral concerns, weight loss, choking risk, pressure sores, wandering, etc.)
 - Equipment mentioned (wheelchair, hoist, walking frame, pressure cushion, hospital bed, etc.)
-- Communication needs (hearing impaired, visual impairment, speech difficulties, language barriers, etc.)
+- Communication needs (hearing, visual, speech difficulties, language barriers, etc.)
 - Mental capacity considerations
-- Environmental factors (stairs, pets, access issues, lone working required, etc.)
+- Environmental factors (stairs, pets, access issues, lone working needed, etc.)
 
 PRIVACY REQUIREMENT:
 - NEVER include dates of birth
 - Extract initials in format "F.O." (first initial + dot + last initial + dot)
-- Example: "Freda O'Neill" becomes "F.O."
+- Example: "Freda O'Neill" → "F.O."
 
-STEP 2 - DETERMINE RISK ASSESSMENTS BASED ON SERVICE USER PROFILE:
-The service user's profile DIRECTLY determines which assessments are needed. Match their conditions and needs to appropriate assessments:
+═══════════════════════════════════════════════════════════════════════════════
+STEP 2: RECOMMEND RISK ASSESSMENTS (ONLY WITH STRONG DOCUMENTED EVIDENCE)
+═══════════════════════════════════════════════════════════════════════════════
 
-| Service User Has | Requires Assessment |
-|------------------|---------------------|
-| Diabetes | "Diabetes Management" |
-| Epilepsy or seizures | "Epilepsy Management" |
-| Takes medications we administer | "Medication Administration" |
-| Needs help with eating, drinking, or meal prep | "Nutrition" |
-| Mobility issues, uses aids, needs transfers | "Mobility & Moving and Handling" |
-| Needs washing, dressing, toileting support | "Personal Care" |
-| Skin concerns, pressure areas, wounds | "Skin Integrity" |
-| Falls history, unsteady, poor balance | "Falls Prevention" |
-| Incontinence, catheter, stoma care | "Continence Care" |
-| Dementia, memory problems, confusion | "Dementia Care" |
-| Depression, anxiety, mental health conditions | "Mental Health" |
-| Hearing, vision, speech, or language barriers | "Communication" |
-| Challenging behaviour, aggression, resistance | "Behavior Support" |
-| Palliative, terminal illness, end of life | "End of Life Care" |
-| Infection risks, MRSA, wounds, weakened immunity | "Infection Control" |
-| Smokes, uses oxygen, fire risks at home | "Fire Safety" |
-| Home hazards, trip risks, clutter, pets | "Environmental Safety" |
-| Carer works alone at property | "Lone Working" |
-| Abuse concerns, self-neglect, exploitation risks | "Safeguarding" |
-| Cleaning chemicals, hazardous substances used | "COSHH" |
+ASSESSMENT SELECTION GUIDE (Reference only - requires documented evidence for YOUR service user):
 
-CRITICAL: Only recommend an assessment if the service user's profile contains relevant information. Each recommendation MUST cite specific evidence from the documents.
+| Evidence Type | Potential Assessment | Evidence Threshold |
+|---------------|---------------------|-------------------|
+| Documented diabetes with care needs | Diabetes Management | STRONG: Multiple mentions of blood sugar monitoring, diabetes medication, dietary needs |
+| Documented epilepsy/seizures | Epilepsy Management | STRONG: Seizure history, rescue medication, monitoring needs |
+| Medications we administer | Medication Administration | STRONG: List of medications we help with, administration times |
+| Help with eating/drinking/meals | Nutrition | STRONG: Feeding assistance, dietary restrictions, weight concerns |
+| Mobility issues, transfers, aids | Mobility & Moving and Handling | STRONG: Walking difficulties, uses aids, needs help with transfers |
+| Help with washing/dressing/toileting | Personal Care | STRONG: Needs physical assistance with personal hygiene |
+| Documented skin concerns/wounds | Skin Integrity | STRONG: Pressure areas, existing wounds, fragile skin |
+| Falls history, unsteady gait | Falls Prevention | STRONG: Previous falls documented, poor balance, instability |
+| Incontinence, catheter, stoma | Continence Care | STRONG: Continence products, catheter care, toileting support |
+| Dementia, memory problems | Dementia Care | STRONG: Diagnosed dementia, confusion, memory issues |
+| Depression, anxiety, mental health dx | Mental Health | STRONG: Diagnosed mental health condition, emotional support needs |
+| Hearing/vision/speech impairment | Communication | STRONG: Uses hearing aids, visual impairment, speech difficulties |
+| Challenging behaviour documented | Behavior Support | STRONG: Aggression, resistance to care, distressed behaviors |
+| Palliative/terminal diagnosis | End of Life Care | STRONG: Palliative care status, end of life preferences |
+| Infection risks documented | Infection Control | STRONG: MRSA, open wounds, immunocompromised |
+| Smoker, oxygen use, fire hazards | Fire Safety | STRONG: Smoking documented, oxygen cylinders, fire risks |
+| Home hazards documented | Environmental Safety | STRONG: Trip hazards, clutter, unsafe environment |
+| Lone working at property | Lone Working | STRONG: Remote location, accessibility issues, safety concerns |
+| Safeguarding concerns documented | Safeguarding | STRONG: Abuse history, self-neglect, exploitation risks |
+| Cleaning chemicals/hazardous substances | COSHH | STRONG: Chemical use documented in care tasks |
 
-MANDATORY FLAG RULES:
-- Set "isMandatory": true ONLY for "Fire Safety" and "Environmental Safety" - these apply to every service user
-- Set "isMandatory": false for ALL other assessments - they are profile-based suggestions
+⚠️ CRITICAL RULES FOR ASSESSMENT RECOMMENDATIONS:
+
+1. DO NOT RECOMMEND unless you have MULTIPLE pieces of documented evidence
+2. DO NOT RECOMMEND "just in case" or based on assumptions
+3. DO NOT RECOMMEND for everyone - be person-centred (NHS Principle #1)
+4. EACH recommendation MUST include:
+   - "isMandatory": false (NO assessments are automatically mandatory per CQC 2024)
+   - Specific evidence snippets FROM THE SERVICE USER DOCUMENTS
+   - Clear explanation of relevance to THIS service user's documented needs
+
+5. IF INSUFFICIENT EVIDENCE → DO NOT RECOMMEND THE ASSESSMENT
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT FORMAT (JSON ONLY)
+═══════════════════════════════════════════════════════════════════════════════
 
 Respond ONLY with valid JSON in this exact format:
 {
   ${serviceUserJsonSchema}
-  "medicalConditions": ["List ALL conditions found across ALL documents - be thorough"],
-  "careActivities": ["List ALL care activities we provide - check every document section"],
-  "concerns": ["List ALL concerns or risks identified from every document"],
-  "equipment": ["List any equipment mentioned: wheelchair, hoist, walking frame, etc."],
-  "communicationNeeds": ["List any communication needs: hearing, vision, speech, language"],
+  "medicalConditions": ["List ALL conditions explicitly documented - NO assumptions"],
+  "careActivities": ["List ALL care activities we provide per documents - be thorough"],
+  "concerns": ["List ALL concerns or risks explicitly identified in documents"],
+  "equipment": ["List equipment mentioned: wheelchair, hoist, walking frame, etc."],
+  "communicationNeeds": ["List communication needs: hearing, vision, speech, language"],
   "environmentalFactors": ["List home/environmental factors: stairs, pets, access, lone working"],
   "recommendedAssessments": [
     {
       "name": "Assessment category name",
       "isMandatory": false,
-      "reason": "Why this is recommended - link to specific service user profile item",
-      "evidence": "Exact phrase or short paraphrase from the documents that supports this recommendation",
-      "evidenceSnippets": ["Short snippets from the documents that support this recommendation"]
+      "reason": "FIRST PERSON explanation - why I need this assessment based on my documented needs. Start with 'I' or 'My'",
+      "evidence": "Direct quote or paraphrase from documents showing this assessment is needed",
+      "evidenceSnippets": ["2-6 short direct quotes from SERVICE USER documents supporting this assessment"]
     }
   ],
-  "documentSummary": "Brief summary of the service user's overall profile based on ALL documents scanned"
-}`;
+  "documentSummary": "Brief first-person summary of my overall profile based on ALL documents scanned - use 'I' and 'my'"
+}
+
+QUALITY CHECKLIST BEFORE RESPONDING:
+✓ Did I extract information ONLY from "Documents to analyze:" section (not templates)?
+✓ Does each recommended assessment have STRONG documented evidence?
+✓ Did I use FIRST PERSON ("I need", "My condition") in reason fields?
+✓ Did I set "isMandatory": false for ALL assessments?
+✓ Did I avoid recommending assessments without solid evidence?
+✓ Is this truly person-centred for THIS service user (CQC 2024 / NHS England Principle #1)?`;
 
       sendProgress(20, "Scanning all documents with AI...", "ai_analysis");
 
@@ -10442,22 +10543,51 @@ Respond ONLY with valid JSON in this exact format:
         model: getRiskAssessmentRecommendationModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `⚠️ CRITICAL INSTRUCTIONS - READ CAREFULLY ⚠️
+          { role: "user", content: `⚠️ CRITICAL INSTRUCTIONS ⚠️
 
-1. The template documents above are for STRUCTURE REFERENCE ONLY - ignore any medical conditions, care needs, or risks mentioned in them
-2. The documents below are the REAL SERVICE USER DOCUMENTS - scan ALL of these thoroughly to build the service user's complete profile
-3. Determine which risk assessments are needed based ONLY on evidence found in the SERVICE USER documents below
-4. DO NOT make up or assume medical conditions, incidents, or risks not mentioned in the SERVICE USER documents
-5. Every recommended assessment MUST include specific evidence from the SERVICE USER documents below
-6. If no evidence exists for an assessment in the SERVICE USER documents, DO NOT recommend it
+═══════════════════════════════════════════════════════════════════════════════
+REMINDER: NHS ENGLAND PRINCIPLE #1 - PERSON-CENTRED CARE
+═══════════════════════════════════════════════════════════════════════════════
 
-=== REAL SERVICE USER DOCUMENTS TO ANALYZE (EXTRACT INFORMATION FROM THESE ONLY) ===
+"Actively focus on the experience of people using services"
+
+→ Recommend ONLY assessments supported by STRONG DOCUMENTED EVIDENCE about THIS service user
+→ DO NOT recommend generic/blanket assessments "just in case"
+→ Quality over quantity - better to omit than recommend without solid evidence
+
+═══════════════════════════════════════════════════════════════════════════════
+DOCUMENT SOURCE RULES
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Template documents above = STRUCTURE REFERENCE ONLY
+   - They contain placeholder/example text (NOT real service user data)
+   - DO NOT extract medical conditions, risks or needs from templates
+   
+2. Documents below = REAL SERVICE USER DOCUMENTS
+   - Extract information ONLY from these documents
+   - Scan thoroughly to build complete profile
+   - Only recommend assessments with multiple supporting quotes
+
+═══════════════════════════════════════════════════════════════════════════════
+REAL SERVICE USER DOCUMENTS TO ANALYZE (EXTRACT FROM THESE ONLY)
+═══════════════════════════════════════════════════════════════════════════════
 
 ${documentContentForAi}
 
-=== END SERVICE USER DOCUMENTS ===
+═══════════════════════════════════════════════════════════════════════════════
+END SERVICE USER DOCUMENTS
+═══════════════════════════════════════════════════════════════════════════════
 
-Remember: Extract information ONLY from the service user documents above. Templates contain placeholder/example text that should be ignored.` }
+FINAL REMINDERS BEFORE YOU RESPOND:
+
+1. COMPREHENSIVE APPROACH: Recommend ALL assessments with STRONG evidence (minimum 3-5, but can be more)
+2. PERSON-CENTRED: Tailor to THIS individual's documented needs (CQC 2024)
+3. FIRST PERSON: Write all "reason" fields using "I" and "my"
+4. NO MANDATORY FLAGS: Set "isMandatory": false for ALL assessments
+5. EVIDENCE REQUIRED: Each assessment needs 2-6 direct quotes from documents above
+6. NO SPECULATION: Do not assume or infer conditions not explicitly documented
+
+Remember: Extract information ONLY from service user documents above. Templates contain placeholder text to ignore.` }
         ],
         max_completion_tokens: 4000,
         temperature: 0,
@@ -10924,6 +11054,49 @@ Remember: Extract information ONLY from the service user documents above. Templa
 
   // Generate detailed first-person care plan from uploaded documents - CHUNKED APPROACH
   // Generates each section individually for faster feedback and better reliability
+  // Get service user call types from database
+  app.post("/api/service-user/call-types", requireAuth, async (req: any, res) => {
+    try {
+      const { serviceUserName } = req.body;
+      if (!serviceUserName || typeof serviceUserName !== "string") {
+        return res.status(400).json({ message: "Service user name required" });
+      }
+
+      // Search for service orders matching this service user (fuzzy match)
+      const allOrders = await storage.getAllServiceOrders();
+      const matchedOrders = allOrders.filter((order) => {
+        const orderName = (order.serviceUserName || "").toLowerCase().trim();
+        const searchName = serviceUserName.toLowerCase().trim();
+        // Match if names are similar (contains, starts with, or exact match)
+        return orderName.includes(searchName) || searchName.includes(orderName) || orderName === searchName;
+      });
+
+      if (matchedOrders.length === 0) {
+        return res.json({ callTypes: [], message: "No call types found for this service user" });
+      }
+
+      // Extract unique call types
+      const callTypes = Array.from(new Set(matchedOrders.map((o) => o.callTypeLabel)));
+      const serviceUserKey = matchedOrders[0]?.serviceUserKey;
+      
+      return res.json({ 
+        callTypes, 
+        serviceUserKey,
+        serviceUserName: matchedOrders[0]?.serviceUserName,
+        orders: matchedOrders.map(o => ({
+          callType: o.callTypeLabel,
+          timeBand: o.timeBand,
+          daysPerWeek: o.daysPerWeek,
+          duration: o.serviceRequirementMinutes,
+          carersRequired: o.carersRequired
+        }))
+      });
+    } catch (error: any) {
+      console.error("Get call types error:", error);
+      return res.status(500).json({ message: error.message || "Failed to get call types" });
+    }
+  });
+
   app.post("/api/ai/generate-care-plan", requireAuth, async (req: any, res) => {
     let heartbeatInterval: NodeJS.Timeout | null = null;
     
@@ -10931,7 +11104,7 @@ Remember: Extract information ONLY from the service user documents above. Templa
     const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
     
     try {
-      const { documentContent, serviceUserInitials, allowSensitive } = req.body;
+      const { documentContent, serviceUserInitials, allowSensitive, callType } = req.body;
       const allowSensitiveView = Boolean(allowSensitive) && req.user?.role === "admin";
       
       if (!documentContent) {
@@ -11030,227 +11203,126 @@ REQUIREMENTS:
         ? "- Full names may be included only if present in the documents. Do not invent names."
         : "- Do NOT include any person names. Use role terms (my carer, my GP, my family member).";
 
-      const baseSystemPrompt = `You are an expert care plan writer for a UK care facility following CQC standards.
-${policyContext}
-RULES:
-- Write EVERYTHING in FIRST PERSON from the service user's perspective using "I", "my", "me".
-- CORRECT: "I need two carers to help me transfer." WRONG: "The client needs..."
-- Never use m-dashes or en-dashes. Use hyphens or commas.
-- Never use Oxford commas.
-- Be detailed and specific with times, preferences, routines.
-- Only include information found in the documents. If no info, say "Please ask me about my preferences."
-${privacyRules}
-- Keep place names and locations as written. Do not redact places.
+      // Call type context for specific care plans
+      const callTypeLabel = callType || "General";
+      const callTypeContext = callType ? `
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ CALL TYPE: ${callType}
+═══════════════════════════════════════════════════════════════════════════════
 
-OUTPUT: Return ONLY valid JSON matching this structure:
+This care plan is for ${callType} calls ONLY.
+Focus on tasks and support needed during ${callType} visits.
+
+Examples by call type:
+- Morning: Wake up, breakfast, morning meds, washing, dressing
+- Lunch: Lunch prep/eating, fluids, repositioning, check skin
+- Tea: Tea/snack, evening meds, personal care if needed
+- Bed: Night meds, personal care, night routine, safe sleep environment
+- Domestic: Cleaning, laundry, shopping, meal prep, household tasks
+
+Include ONLY ${callType}-specific tasks - do not mix other call types!
+═══════════════════════════════════════════════════════════════════════════════
+` : "";
+
+      const baseSystemPrompt = `You are an expert care plan writer for UK care facilities following CQC 2024 standards.
+
+═══════════════════════════════════════════════════════════════════════════════
+CQC 2024 PERSON-CENTRED CARE PLANNING
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ Individual preferences must be met
+✓ Physical, mental, emotional and social needs
+✓ Build on strengths, prevent declines
+✓ Quality of life: dignity, autonomy, meaningful activity
+✓ Person-centred: holistic support, not just tasks
+
+${policyContext}${callTypeContext}
+RULES:
+- Write in FIRST PERSON: "I", "my", "me" (not "the service user")
+- Never use m-dashes, en-dashes, or Oxford commas
+- Be detailed: times, preferences, routines
+- Only use document info - if missing say "Ask me about preferences"
+${privacyRules}
+- Keep place names as written
+
+OUTPUT FORMAT - Return ONLY valid JSON:
 {
-  "title": "Section title",
-  "priority": "high/medium/low",
-  "content": "Detailed first-person content (minimum 150 words)",
-  "steps": ["Step 1", "Step 2", "Step 3", "Step 4", "Step 5"],
-  "risks": ["Risk if applicable"],
-  "equipment": ["Equipment if applicable"]
+  "content": "Detailed first-person narrative (200+ words) covering all aspects of care for this call type in one flowing text block"
 }`;
 
-      sendProgress(10, "Starting section generation...", "generating");
+      sendProgress(10, "Generating care plan...", "generating");
 
       const toStringSafe = (value: unknown) =>
         typeof value === "string" ? value : value == null ? "" : String(value);
       const scrubText = (value: unknown) => sanitizeNarrativePII(toStringSafe(value));
       const viewText = (value: unknown) => allowSensitiveView ? toStringSafe(value) : scrubText(value);
 
-      const completedSections: any[] = [];
-      const scrubbedSections: any[] = [];
-      let emergencyContactsView = "Not found in documents";
-      let gpDetailsView = "Not found in documents";
-      let additionalNotesView = "No additional notes";
-      let emergencyContactsScrubbed = "Not found in documents";
-      let gpDetailsScrubbed = "Not found in documents";
-      let additionalNotesScrubbed = "No additional notes";
       const documentContentForAi = allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent);
 
-      // Generate each section individually
-      for (let i = 0; i < mandatorySections.length; i++) {
-        const section = mandatorySections[i];
-        const progressPercent = 10 + Math.round((i / mandatorySections.length) * 80);
-        
-        sendProgress(progressPercent, `Generating: ${section.title}...`, "generating");
-        console.log(`[CarePlan] Generating section ${i + 1}/${mandatorySections.length}: ${section.title}`);
+      sendProgress(20, `Generating ${callTypeLabel} care plan...`, "generating");
+      console.log(`[CarePlan] Generating ${callTypeLabel} care plan`);
 
-        try {
-          const sectionResponse = await createChatCompletionWithLogging({
-            model: getAccurateModel(),
-            messages: [
-              { role: "system", content: baseSystemPrompt },
-              { role: "user", content: `Generate the "${section.title}" section (priority: ${section.priority}).
-
-FOCUS ON: ${section.focus}
+      try {
+        const response = await createChatCompletionWithLogging({
+          model: getAccurateModel(),
+          messages: [
+            { role: "system", content: baseSystemPrompt },
+            { role: "user", content: `Generate a comprehensive ${callTypeLabel} care plan.
 
 Service user documents:
 ${documentContentForAi}
 
-Remember: Write as if I am the service user speaking about my own needs. Return ONLY valid JSON.` }
-            ],
-            temperature: 0.2,
-            max_completion_tokens: 1500,
-            seed: 42,
-            response_format: { type: "json_object" },
-          }, "care_plan_section", aiUserContext);
-
-          const sectionContent = sectionResponse.choices[0]?.message?.content || "";
-          const parsed = parseJsonFromContent(sectionContent);
-          
-          if (parsed) {
-            let enhancedContent = parsed.content || "";
-            
-            // Ensure first-person perspective
-            if (!enhancedContent.includes("I ") && !enhancedContent.includes("my ")) {
-              enhancedContent = enhancedContent.replace(/The (client|service user|patient)/gi, "I");
-              enhancedContent = enhancedContent.replace(/Staff should/gi, "I need my carers to");
-            }
-            
-            const stepsRaw = (Array.isArray(parsed.steps) && parsed.steps.length > 0
-              ? parsed.steps
-              : ["Please refer to my preferences above", "Check my care notes", "Ask me if unsure"]);
-            const risksRaw = Array.isArray(parsed.risks) ? parsed.risks : [];
-            const equipmentRaw = Array.isArray(parsed.equipment) ? parsed.equipment : [];
-
-            const completedSection = {
-              title: section.title,
-              priority: section.priority,
-              content: viewText(enhancedContent),
-              steps: stepsRaw.map((s: any) => viewText(s)),
-              risks: risksRaw.map((r: any) => viewText(r)),
-              equipment: equipmentRaw.map((e: any) => viewText(e)),
-            };
-
-            const scrubbedSection = {
-              title: section.title,
-              priority: section.priority,
-              content: scrubText(enhancedContent),
-              steps: stepsRaw.map((s: any) => scrubText(s)),
-              risks: risksRaw.map((r: any) => scrubText(r)),
-              equipment: equipmentRaw.map((e: any) => scrubText(e)),
-            };
-
-            completedSections.push(completedSection);
-            scrubbedSections.push(scrubbedSection);
-            
-            // Send this section immediately to the frontend
-            sendEvent('section', allowSensitiveView
-              ? { index: i, section: completedSection, scrubbedSection }
-              : { index: i, section: completedSection }
-            );
-            
-          } else {
-            // Section generation failed - use placeholder
-            const fallbackSection = {
-              title: section.title,
-              priority: section.priority,
-              content: "Based on my documents, I do not have specific requirements in this area. Please ask me about my preferences.",
-              steps: ["Ask me about my preferences for this area"],
-              risks: [],
-              equipment: [],
-            };
-            completedSections.push(fallbackSection);
-            scrubbedSections.push(fallbackSection);
-            sendEvent('section', allowSensitiveView
-              ? { index: i, section: fallbackSection, scrubbedSection: fallbackSection }
-              : { index: i, section: fallbackSection }
-            );
-          }
-        } catch (sectionError: any) {
-          console.error(`[CarePlan] Error generating section "${section.title}":`, sectionError.message);
-          // Continue with fallback section
-          const fallbackSection = {
-            title: section.title,
-            priority: section.priority,
-            content: "Unable to generate this section. Please add information manually.",
-            steps: ["Add information for this section manually"],
-            risks: [],
-            equipment: [],
-          };
-          completedSections.push(fallbackSection);
-          scrubbedSections.push(fallbackSection);
-          sendEvent('section', allowSensitiveView
-            ? { index: i, section: fallbackSection, scrubbedSection: fallbackSection }
-            : { index: i, section: fallbackSection }
-          );
-        }
-      }
-
-      // Extract emergency contacts and GP details from first successful section response
-      try {
-        const metaResponse = await createChatCompletionWithLogging({
-          model: getAccurateModel(),
-          messages: [
-            { role: "system", content: "Extract contact information from the documents. Return JSON only." },
-            { role: "user", content: `From these documents, extract:
-1. Emergency contacts (names, relationships, phone numbers)
-2. GP details (name, surgery, phone)
-3. Any additional important notes
-
-Documents:
-${documentContentForAi.substring(0, 3000)}
-
-Return JSON: {"emergencyContacts": "...", "gpDetails": "...", "additionalNotes": "..."}` }
+Remember: Write as if I am the service user. Cover all ${callTypeLabel}-specific care needs in one detailed narrative. Return ONLY valid JSON.` }
           ],
-          temperature: 0,
-          max_completion_tokens: 500,
+          temperature: 0.2,
+          max_completion_tokens: 2000,
           seed: 42,
           response_format: { type: "json_object" },
-        }, "care_plan_meta", aiUserContext);
+        }, "care_plan_calltype", aiUserContext);
+
+        const content = response.choices[0]?.message?.content || "";
+        const parsed = parseJsonFromContent(content);
         
-        const metaContent = metaResponse.choices[0]?.message?.content || "";
-        const meta = parseJsonFromContent(metaContent);
-        if (meta) {
-          // Ensure all fields are strings, not objects
-          const extractedEmergency = meta.emergencyContacts || emergencyContactsView;
-          const extractedGp = meta.gpDetails || gpDetailsView;
-          const extractedNotes = meta.additionalNotes || additionalNotesView;
-          
-          // Convert objects to strings if needed
-          const emergencyStr = typeof extractedEmergency === 'string' ? extractedEmergency : 
-                               extractedEmergency ? JSON.stringify(extractedEmergency) : emergencyContactsView;
-          const gpStr = typeof extractedGp === 'string' ? extractedGp : 
-                        extractedGp ? JSON.stringify(extractedGp) : gpDetailsView;
-          const notesStr = typeof extractedNotes === 'string' ? extractedNotes : 
-                           extractedNotes ? JSON.stringify(extractedNotes) : additionalNotesView;
-          
-          emergencyContactsView = viewText(emergencyStr);
-          gpDetailsView = viewText(gpStr);
-          additionalNotesView = viewText(notesStr);
-          emergencyContactsScrubbed = scrubText(emergencyStr);
-          gpDetailsScrubbed = scrubText(gpStr);
-          additionalNotesScrubbed = scrubText(notesStr);
+        if (!parsed || !parsed.content) {
+          sendEvent('error', { message: "Failed to generate care plan content" });
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+          return res.end();
         }
-      } catch (e) {
-        console.log("[CarePlan] Could not extract meta info, using defaults");
+
+        let enhancedContent = parsed.content || "";
+        
+        // Ensure first-person perspective
+        if (!enhancedContent.includes("I ") && !enhancedContent.includes("my ")) {
+          enhancedContent = enhancedContent.replace(/The (client|service user|patient)/gi, "I");
+          enhancedContent = enhancedContent.replace(/Staff should/gi, "I need my carers to");
+        }
+
+        const today = new Date().toLocaleDateString("en-GB");
+        const result = {
+          serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
+          generatedDate: today,
+          callType: callTypeLabel,
+          content: viewText(enhancedContent),
+        };
+        const scrubbedResult = {
+          serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
+          generatedDate: today,
+          callType: callTypeLabel,
+          content: scrubText(enhancedContent),
+        };
+
+        sendProgress(100, "Complete!", "complete");
+        sendEvent('result', allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult);
+        
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+        
+      } catch (genError: any) {
+        console.error("[CarePlan] Generation error:", genError.message);
+        sendEvent('error', { message: genError.message || "AI generation failed" });
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
       }
-
-      // Build final result - ensure all fields are correct types
-      const result = {
-        serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
-        generatedDate: today,
-        sections: Array.isArray(completedSections) ? completedSections.filter((s): s is any => s != null && typeof s === 'object') : [],
-        emergencyContacts: String(emergencyContactsView || ""),
-        gpDetails: String(gpDetailsView || ""),
-        additionalNotes: String(additionalNotesView || ""),
-      };
-      const scrubbedResult = {
-        serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
-        generatedDate: today,
-        sections: Array.isArray(scrubbedSections) ? scrubbedSections.filter((s): s is any => s != null && typeof s === 'object') : [],
-        emergencyContacts: String(emergencyContactsScrubbed || ""),
-        gpDetails: String(gpDetailsScrubbed || ""),
-        additionalNotes: String(additionalNotesScrubbed || ""),
-      };
-
-      sendProgress(100, "Complete!", "complete");
-      sendEvent('result', allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult);
-      
-      if (heartbeatInterval) clearInterval(heartbeatInterval);
-      return res.end();
       
     } catch (error: any) {
       console.error("Care Plan Generation Error:", error);

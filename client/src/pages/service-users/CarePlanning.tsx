@@ -26,10 +26,20 @@ interface CarePlanSection {
 interface CarePlanResult {
   serviceUserInitials: string;
   generatedDate: string;
-  sections: CarePlanSection[];
-  emergencyContacts: string;
-  gpDetails: string;
-  additionalNotes: string;
+  callType?: string;
+  content?: string; // New simplified format
+  sections?: CarePlanSection[]; // Legacy format
+  emergencyContacts?: string;
+  gpDetails?: string;
+  additionalNotes?: string;
+}
+
+interface CallTypeInfo {
+  callType: string;
+  timeBand?: string;
+  daysPerWeek?: number;
+  duration?: number;
+  carersRequired?: number;
 }
 
 type CarePlanMutationResult = {
@@ -41,8 +51,21 @@ export default function CarePlanning() {
   const { serviceUserData, getAllDocumentContent, isAnyParsing } = useTemporaryData();
   const { user } = useAuth();
   const { toast } = useToast();
+  
+  // Call type management
+  const [availableCallTypes, setAvailableCallTypes] = useState<string[]>([]);
+  const [callTypeDetails, setCallTypeDetails] = useState<CallTypeInfo[]>([]);
+  const [selectedCallType, setSelectedCallType] = useState<string | null>(null);
+  const [loadingCallTypes, setLoadingCallTypes] = useState(false);
+  
+  // Care plans by call type
+  const [carePlansByTypeRaw, setCarePlansByTypeRaw] = useState<Map<string, CarePlanResult>>(new Map());
+  const [carePlansByTypeScrubbed, setCarePlansByTypeScrubbed] = useState<Map<string, CarePlanResult>>(new Map());
+  
+  // Legacy single care plan state (for backward compatibility)
   const [carePlanRaw, setCarePlanRaw] = useState<CarePlanResult | null>(null);
   const [carePlanScrubbed, setCarePlanScrubbed] = useState<CarePlanResult | null>(null);
+  
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
   const [copiedSection, setCopiedSection] = useState<number | null>(null);
   const [progress, setProgress] = useState(0);
@@ -54,18 +77,31 @@ export default function CarePlanning() {
 
   const isAdmin = user?.role === "admin";
   const showSensitive = isAdmin && allowSensitive;
+  
+  // Get current care plan based on selected call type or fall back to legacy single plan
+  const currentCarePlanRaw = selectedCallType ? carePlansByTypeRaw.get(selectedCallType) : carePlanRaw;
+  const currentCarePlanScrubbed = selectedCallType ? carePlansByTypeScrubbed.get(selectedCallType) : carePlanScrubbed;
+  
   const carePlan = useMemo(
-    () => (showSensitive && carePlanRaw ? carePlanRaw : carePlanScrubbed),
-    [showSensitive, carePlanRaw, carePlanScrubbed]
+    () => (showSensitive && currentCarePlanRaw ? currentCarePlanRaw : currentCarePlanScrubbed),
+    [showSensitive, currentCarePlanRaw, currentCarePlanScrubbed]
   );
 
   const hasData = serviceUserData.socialWork || serviceUserData.initialAssessment;
+  
+  // Handle both new simplified format (content field) and legacy format (sections array)
+  const isSimplifiedFormat = !!(carePlan?.content && !carePlan?.sections);
+  
   const sectionsWithIndex = useMemo(() => {
+    if (isSimplifiedFormat) {
+      // New format - single content block
+      return [];
+    }
     if (!carePlan?.sections) return [];
     return carePlan.sections
       .map((section, index) => ({ section, index }))
       .filter(({ section }) => section != null);
-  }, [carePlan?.sections]);
+  }, [carePlan?.sections, carePlan?.content, isSimplifiedFormat]);
   const sectionStats = useMemo(() => {
     const summary = {
       total: sectionsWithIndex.length,
