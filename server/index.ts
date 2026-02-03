@@ -30,16 +30,46 @@ app.use((req, res, next) => {
 // CORS middleware
 const corsOriginEnv = process.env.CORS_ORIGIN;
 const defaultOrigins = [`https://${CANONICAL_DOMAIN}`, `https://www.${CANONICAL_DOMAIN}`];
-const devOrigins = process.env.NODE_ENV !== "production" ? ["http://localhost:5173", "http://localhost:3000"] : [];
+const devOrigins = process.env.NODE_ENV !== "production" ? [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:5000", // Express default
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5000",
+] : [];
 const allowedOrigins = (corsOriginEnv ? corsOriginEnv.split(",") : defaultOrigins)
   .map((origin) => origin.trim())
   .filter(Boolean)
   .concat(devOrigins);
 
+log(`Allowed CORS origins: ${allowedOrigins.join(", ")}`);
+log(`NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+
 const corsOptions: CorsOptions = {
   origin: (origin, cb) => {
+    // Log the origin for debugging
+    log(`CORS request from origin: ${origin || '(no origin - same origin request)'}`);
+    
+    // In development, allow ALL origins for easier debugging
+    if (process.env.NODE_ENV !== "production") {
+      if (!origin) {
+        log(`✓ No origin header - same-origin request allowed`);
+        return cb(null, true);
+      }
+      log(`✓ Origin allowed (dev mode - all origins permitted): ${origin}`);
+      return cb(null, true);
+    }
+    
+    // Production mode - strict checking
     if (!origin) return cb(null, true);
-    if (allowedOrigins.includes(origin)) return cb(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      log(`✓ Origin allowed (in allowedOrigins): ${origin}`);
+      return cb(null, true);
+    }
+    
+    log(`✗ Origin rejected: ${origin} (not in allowed list)`);
     return cb(new Error("Not allowed by CORS"));
   },
   credentials: true,

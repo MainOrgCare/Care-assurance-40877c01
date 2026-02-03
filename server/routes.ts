@@ -13980,5 +13980,33 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     }
   });
 
+  // AI-powered schedule analysis
+  app.post("/api/admin/rostering/workbooks/:id/analyze-schedule", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { analyzeScheduleWithAI } = await import("./services/scheduleAnalyzer");
+      const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
+      const analysis = await analyzeScheduleWithAI(req.body, aiUserContext);
+      console.log(`[Rostering] Schedule analysis completed for workbook: ${req.params.id}`);
+      return res.json(analysis);
+    } catch (error: any) {
+      console.error("[Rostering] Schedule analysis failed:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // AI-powered schedule comparison
+  app.post("/api/admin/rostering/workbooks/:id/compare-schedules", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { compareSchedulesWithAI } = await import("./services/scheduleAnalyzer");
+      const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
+      const comparison = await compareSchedulesWithAI(req.body, aiUserContext);
+      console.log(`[Rostering] Schedule comparison completed for workbook: ${req.params.id}`);
+      return res.json(comparison);
+    } catch (error: any) {
+      console.error("[Rostering] Schedule comparison failed:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }
