@@ -1453,7 +1453,7 @@ export default function TestingFeatures() {
         };
       }
       if (seen.has(duplicateKey)) {
-        // This is a duplicate row - for double-up calls, we still track but don't count
+        // True duplicate: same worker appearing twice for the same slot
         return {
           ...row,
           status: "attention" as RowStatus,
@@ -1461,13 +1461,9 @@ export default function TestingFeatures() {
           isDoubleUpSlot: isDoubleUp || false,
           doubleUpWorkers,
           doubleUpSlotKey,
-          issues: isDoubleUp
-            ? (row.issues.includes(`Double-up call with ${doubleUpWorkers?.length} workers`)
-              ? row.issues
-              : [...row.issues, `Double-up call with ${doubleUpWorkers?.length} workers (showing once)`])
-            : (row.issues.includes("Duplicate care slot (possible double-up; ignored in totals)")
-              ? row.issues
-              : [...row.issues, "Duplicate care slot (possible double-up; ignored in totals)"]),
+          issues: row.issues.includes("Duplicate row (same worker, same slot)")
+            ? row.issues
+            : [...row.issues, "Duplicate row (same worker, same slot)"],
         };
       }
       seen.set(duplicateKey, true);
@@ -8870,10 +8866,14 @@ function formatTimeInputValue(minutes: number | null): string {
 }
 
 function buildDuplicateSlotKey(row: RowAnalysis): string | null {
+  // Include worker in the key so that different workers at the same slot
+  // are NOT considered duplicates (they are double-up calls)
   if (!row.normalizedServiceUserKey) return null;
   if (!row.plannedDateKey) return null;
   if (typeof row.plannedTimeMinutes !== "number") return null;
-  return `${row.normalizedServiceUserKey}|${row.plannedDateKey}|${Math.round(row.plannedTimeMinutes)}`;
+  const workerName = getRowAssignedWorkerName(row);
+  const workerKey = workerName ? (normalizeWorkerName(workerName) || workerName.toLowerCase()) : "unknown";
+  return `${row.normalizedServiceUserKey}|${row.plannedDateKey}|${Math.round(row.plannedTimeMinutes)}|${workerKey}`;
 }
 
 function getRowAssignedWorkerName(row: RowAnalysis): string | null {

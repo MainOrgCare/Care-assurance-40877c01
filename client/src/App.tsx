@@ -105,10 +105,10 @@ function Router() {
       <AdminRoute path="/rostering-unified" component={RosteringStudioUnified} />
       <AdminRoute path="/billing-tool" component={BillingTool} />
       <Route path="/admin/care-worker-rotas">
-        <Redirect to="/rostering-studio" />
+        <Redirect to="/rostering-unified" />
       </Route>
       <Route path="/care-worker-rotas">
-        <Redirect to="/rostering-studio" />
+        <Redirect to="/rostering-unified" />
       </Route>
       <ProtectedRoute path="/settings" component={Settings} />
 

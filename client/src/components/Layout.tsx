@@ -64,8 +64,7 @@ const SidebarContent = memo(function SidebarContent({
     location === "/shadow-admin-portal" ||
     location === "/testing-features" ||
     location === "/care-worker-rotas" ||
-    location === "/rostering-studio" ||
-    location === "/rostering-hub" ||
+    location === "/rostering-unified" ||
     location === "/billing-tool" ||
     location === "/system-logs";
   const [openAdmin, setOpenAdmin] = useState(isAdminUser && isAdminRoute);
@@ -79,8 +78,7 @@ const SidebarContent = memo(function SidebarContent({
           location === "/shadow-admin-portal" ||
           location === "/testing-features" ||
           location === "/care-worker-rotas" ||
-          location === "/rostering-studio" ||
-          location === "/rostering-hub" ||
+          location === "/rostering-unified" ||
           location === "/billing-tool" ||
           location === "/system-logs")
       ) {
@@ -288,8 +286,8 @@ const SidebarContent = memo(function SidebarContent({
                 <Terminal size={15} /> System Logs
               </Link>
               <Link
-                href="/rostering-studio"
-                className={subNavLinkClass(location === "/rostering-studio" || location === "/rostering-hub")}
+                href="/rostering-unified"
+                className={subNavLinkClass(location === "/rostering-unified")}
               >
                 <ClipboardList size={15} /> Rostering Studio
               </Link>
@@ -334,9 +332,9 @@ const SidebarContent = memo(function SidebarContent({
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
-  const isFullBleed = location === "/rostering-hub" || location === "/rostering-studio";
+  const isFullBleed = location === "/rostering-unified";
   const isSingleScreenRoute =
-    location === "/rostering-hub" || location === "/rostering-studio" || location === "/care-worker-rotas";
+    location === "/rostering-unified" || location === "/care-worker-rotas";
   const [clickCount, setClickCount] = useState(0);
   const { user, logout } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
