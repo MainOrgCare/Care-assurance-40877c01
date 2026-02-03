@@ -176,6 +176,29 @@ export default function RiskAssessment() {
   };
 
   const normalizeAssessmentName = (value: string) => canonicalizeAssessmentName(value).trim().replace(/\s+/g, " ");
+  const assessmentRelevanceKeywords: Record<string, string[]> = {
+    "Fire Safety": ["fire", "smoke", "cigarette", "smoking", "matches", "candles", "burns"],
+    "Falls Prevention": ["fall", "falls", "unsteady", "trip", "balance", "dizziness", "slip"],
+    "Medication Administration": ["medication", "medications", "meds", "tablets", "medicine", "prescribed", "administer"],
+    "Mobility & Moving and Handling": ["mobility", "moving", "handling", "transfer", "hoist", "wheelchair", "standing", "walking"],
+    "Skin Integrity": ["skin", "pressure", "ulcer", "pressure area", "wound", "tissue", "integrity"],
+    "Nutrition": ["nutrition", "hydration", "food", "eating", "drinking", "diet", "weight", "malnutrition"],
+    "Continence Care": ["continence", "incontinence", "toileting", "pads", "catheter", "urine", "bowel"],
+    "Dementia Care": ["dementia", "cognitive", "memory", "confusion", "alzheim"],
+    "Mental Health": ["mental health", "depression", "anxiety", "mood", "bipolar", "psychosis"],
+    "Behavior Support": ["behavior", "behaviour", "agitation", "aggressive", "challenging", "self-harm"],
+    "Communication": ["communication", "speech", "hearing", "vision", "aphasia", "language", "non verbal"],
+    "Infection Control": ["infection", "infectious", "covid", "mrsa", "c diff", "c. diff", "flu", "sepsis"],
+    "Safeguarding": ["safeguard", "abuse", "neglect", "financial", "exploitation"],
+    "Environmental Safety": ["environment", "hazard", "unsafe", "clutter", "trip hazard", "lighting"],
+    "Diabetes Management": ["diabetes", "insulin", "hypo", "hypergly", "blood sugar", "glucose"],
+    "Epilepsy Management": ["epilepsy", "seizure", "fit", "convulsion"],
+    "End of Life Care": ["end of life", "palliative", "hospice", "terminal"],
+    "Personal Care": ["personal care", "washing", "bathing", "dressing", "hygiene", "shower"],
+    "Lone Working": ["lone working", "alone", "single carer", "solo"],
+    "COSHH": ["coshh", "hazardous", "chemicals", "cleaning products", "bleach"],
+  };
+
   const isNegatedEvidence = (value?: string) => {
     if (!value) return false;
     const lower = value.toLowerCase();
@@ -194,7 +217,43 @@ export default function RiskAssessment() {
   const isAssessmentRelevant = (assessment: RecommendedAssessment) => {
     if (!assessment?.evidence || !assessment.evidence.trim()) return false;
     if (isNegatedEvidence(assessment.evidence) || isNegatedEvidence(assessment.reason)) return false;
-    return true;
+    const key = canonicalizeAssessmentName(assessment.name);
+    const keywords = assessmentRelevanceKeywords[key];
+    if (!keywords || keywords.length === 0) return true;
+    const haystack = [
+      assessment.name,
+      assessment.reason,
+      assessment.evidence,
+      analysis?.documentSummary,
+      ...(analysis?.concerns || []),
+      ...(analysis?.medicalConditions || []),
+      ...(analysis?.careActivities || []),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const matched = keywords.some((term) => haystack.includes(term));
+    return matched;
+  };
+
+  const getAssessmentRelevanceMatch = (assessment: RecommendedAssessment) => {
+    const key = canonicalizeAssessmentName(assessment.name);
+    const keywords = assessmentRelevanceKeywords[key];
+    if (!keywords || keywords.length === 0) return null;
+    const haystack = [
+      assessment.name,
+      assessment.reason,
+      assessment.evidence,
+      analysis?.documentSummary,
+      ...(analysis?.concerns || []),
+      ...(analysis?.medicalConditions || []),
+      ...(analysis?.careActivities || []),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const match = keywords.find((term) => haystack.includes(term));
+    return match || null;
   };
   const combinedAssessments = useMemo(() => {
     if (!analysis) return [];
@@ -1325,43 +1384,51 @@ export default function RiskAssessment() {
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredAssessments.map(({ assessment, index }) => (
-                  <div
-                    key={assessment.name}
-                    className={`flex items-start space-x-3 p-3 rounded-lg border transition-colors ${
-                      selectedAssessments.has(assessment.name)
-                        ? "bg-blue-500/10 border-blue-500/30"
-                        : "bg-muted border-border hover:border-muted-foreground/30"
-                    }`}
-                  >
-                    <Checkbox
-                      id={`assessment-${index}`}
-                      checked={selectedAssessments.has(assessment.name)}
-                      onCheckedChange={() => toggleAssessment(assessment.name)}
-                      data-testid={`checkbox-assessment-${index}`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <Label
-                        htmlFor={`assessment-${index}`}
-                        className="flex items-center gap-2 cursor-pointer"
-                      >
-                        <span className="text-foreground font-medium">{assessment.name}</span>
-                        {assessment.isMandatory && (
-                          <Badge variant="destructive" className="text-xs">Mandatory</Badge>
+                {filteredAssessments.map(({ assessment, index }) => {
+                  const match = getAssessmentRelevanceMatch(assessment);
+                  return (
+                    <div
+                      key={assessment.name}
+                      className={`flex items-start space-x-3 p-3 rounded-lg border transition-colors ${
+                        selectedAssessments.has(assessment.name)
+                          ? "bg-blue-500/10 border-blue-500/30"
+                          : "bg-muted border-border hover:border-muted-foreground/30"
+                      }`}
+                    >
+                      <Checkbox
+                        id={`assessment-${index}`}
+                        checked={selectedAssessments.has(assessment.name)}
+                        onCheckedChange={() => toggleAssessment(assessment.name)}
+                        data-testid={`checkbox-assessment-${index}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <Label
+                          htmlFor={`assessment-${index}`}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <span className="text-foreground font-medium">{assessment.name}</span>
+                          {assessment.isMandatory && (
+                            <Badge variant="destructive" className="text-xs">Mandatory</Badge>
+                          )}
+                          {!assessment.isMandatory && customAssessmentKeys.has(normalizeAssessmentKey(assessment.name)) && (
+                            <Badge variant="outline" className="text-xs">Custom</Badge>
+                          )}
+                          {match && (
+                            <Badge variant="success" className="text-xs">
+                              Match: {match}
+                            </Badge>
+                          )}
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1">{assessment.reason}</p>
+                        {assessment.evidence && (
+                          <p className="text-xs text-muted-foreground/80 mt-1">
+                            Evidence: {assessment.evidence}
+                          </p>
                         )}
-                        {!assessment.isMandatory && customAssessmentKeys.has(normalizeAssessmentKey(assessment.name)) && (
-                          <Badge variant="outline" className="text-xs">Custom</Badge>
-                        )}
-                      </Label>
-                      <p className="text-xs text-muted-foreground mt-1">{assessment.reason}</p>
-                      {assessment.evidence && (
-                        <p className="text-xs text-muted-foreground/80 mt-1">
-                          Evidence: {assessment.evidence}
-                        </p>
-                      )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

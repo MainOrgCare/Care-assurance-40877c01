@@ -9,7 +9,7 @@ import {
   categorizeTravelTime,
   getTravelCategoryColor,
 } from "@/lib/rostering/travelUtils";
-import { Car, Clock, MapPin } from "lucide-react";
+import { Clock, MapPin } from "lucide-react";
 
 // Helper component to auto-fit map bounds to markers
 const FitBoundsHelper: React.FC<{ points: Array<{ lat: number; lon: number }> }> = ({ points }) => {
@@ -24,14 +24,15 @@ const FitBoundsHelper: React.FC<{ points: Array<{ lat: number; lon: number }> }>
     } else {
       // Multiple points: fit bounds with padding
       const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lon]));
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
     }
   }, [map, points]);
 
   return null;
 };
 
-const DEFAULT_CENTER: [number, number] = [54.5, -2.5];
+// Default center: UK midpoint (used only if no data)
+const DEFAULT_CENTER: [number, number] = [52.5, -1.5];
 
 export interface RouteMapViewProps {
   entries: TimelineEntry[];
@@ -39,33 +40,57 @@ export interface RouteMapViewProps {
 }
 
 export const RouteMapView: React.FC<RouteMapViewProps> = ({ entries, showTravelLegend = true }) => {
-  const [points, setPoints] = useState<Record<string, GeocodeResult>>({});
+  const [geocodedPoints, setGeocodedPoints] = useState<Record<string, GeocodeResult>>({});
 
   const orderedEntries = useMemo(
     () => [...entries].sort((a, b) => a.startMinutes - b.startMinutes),
     [entries]
   );
 
+  // Build points from pre-fetched coordinates first, then geocode missing ones
+  const points = useMemo(() => {
+    const result: Record<string, GeocodeResult> = {};
+    for (const entry of orderedEntries) {
+      // Use pre-fetched latitude/longitude if available
+      if (entry.latitude != null && entry.longitude != null) {
+        result[entry.id] = {
+          lat: entry.latitude,
+          lon: entry.longitude,
+          displayName: entry.address || entry.serviceUserName || "",
+        };
+      } else if (geocodedPoints[entry.id]) {
+        // Use geocoded result
+        result[entry.id] = geocodedPoints[entry.id];
+      }
+    }
+    return result;
+  }, [orderedEntries, geocodedPoints]);
+
+  // Geocode entries that don't have coordinates
   useEffect(() => {
     let isMounted = true;
-    const fetchAll = async () => {
+    const fetchMissing = async () => {
       const updates: Record<string, GeocodeResult> = {};
       for (const entry of orderedEntries) {
+        // Skip if already have coordinates or no address
+        if (entry.latitude != null && entry.longitude != null) continue;
         if (!entry.address) continue;
+        if (geocodedPoints[entry.id]) continue;
+
         const result = await geocodeAddressClient(entry.address);
         if (result && isMounted) {
           updates[entry.id] = result;
         }
       }
-      if (isMounted) {
-        setPoints((prev) => ({ ...prev, ...updates }));
+      if (isMounted && Object.keys(updates).length > 0) {
+        setGeocodedPoints((prev) => ({ ...prev, ...updates }));
       }
     };
-    fetchAll();
+    fetchMissing();
     return () => {
       isMounted = false;
     };
-  }, [orderedEntries]);
+  }, [orderedEntries, geocodedPoints]);
 
   // Build color-coded route segments
   const routeSegments = useMemo(() => {
@@ -111,50 +136,63 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ entries, showTravelL
     .filter(Boolean)
     .map((result) => [result.lat, result.lon]) as Array<[number, number]>;
 
-  // Collect all geocoded points for map bounds fitting
-  const geocodedPoints = useMemo(() => {
+  // Collect all points for map bounds fitting
+  const allMapPoints = useMemo(() => {
     return Object.values(points).filter((p): p is GeocodeResult => p != null);
   }, [points]);
 
-  const mapCenter = polyline[0] ?? DEFAULT_CENTER;
+  // Calculate map center from the first point or use default
+  const mapCenter = useMemo<[number, number]>(() => {
+    if (allMapPoints.length > 0) {
+      return [allMapPoints[0].lat, allMapPoints[0].lon];
+    }
+    return DEFAULT_CENTER;
+  }, [allMapPoints]);
+
+  // Show placeholder if no data
+  if (orderedEntries.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center rounded border bg-muted/20">
+        <div className="text-center text-muted-foreground">
+          <MapPin className="mx-auto mb-1 h-5 w-5 opacity-50" />
+          <p className="text-[10px]">No stops</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="rounded-2xl border bg-card/70 p-4 shadow-sm">
-      <div className="mb-3 flex items-start justify-between">
-        <div>
-          <p className="text-sm font-semibold">Route map</p>
-          <p className="text-xs text-muted-foreground">
-            {orderedEntries.length} stops · {Math.round(totalDistanceKm)} km · ~{totalTravelMinutes} min travel
-          </p>
-        </div>
-        {showTravelLegend && (
-          <div className="flex items-center gap-3 text-[10px]">
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-4 rounded" style={{ backgroundColor: getTravelCategoryColor("short") }} />
-              &lt;10m
+    <div className="flex h-full flex-col rounded border bg-card/70 overflow-hidden">
+      {showTravelLegend && allMapPoints.length > 1 && (
+        <div className="flex items-center justify-between bg-muted/20 px-1.5 py-0.5 border-b text-[8px] shrink-0">
+          <span className="text-muted-foreground">{orderedEntries.length} stops · {Math.round(totalDistanceKm)}km</span>
+          <div className="flex items-center gap-1.5">
+            <span className="flex items-center gap-0.5">
+              <span className="h-1 w-2 rounded-sm" style={{ backgroundColor: getTravelCategoryColor("short") }} />
+              &lt;10
             </span>
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-4 rounded" style={{ backgroundColor: getTravelCategoryColor("medium") }} />
-              10-20m
+            <span className="flex items-center gap-0.5">
+              <span className="h-1 w-2 rounded-sm" style={{ backgroundColor: getTravelCategoryColor("medium") }} />
+              10-20
             </span>
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-4 rounded" style={{ backgroundColor: getTravelCategoryColor("long") }} />
-              20-30m
+            <span className="flex items-center gap-0.5">
+              <span className="h-1 w-2 rounded-sm" style={{ backgroundColor: getTravelCategoryColor("long") }} />
+              20-30
             </span>
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-4 rounded" style={{ backgroundColor: getTravelCategoryColor("very-long") }} />
+            <span className="flex items-center gap-0.5">
+              <span className="h-1 w-2 rounded-sm" style={{ backgroundColor: getTravelCategoryColor("very-long") }} />
               &gt;30m
             </span>
           </div>
-        )}
-      </div>
-      <div className="h-[420px] overflow-hidden rounded-xl border">
-        <MapContainer center={mapCenter} zoom={11} style={{ height: "100%", width: "100%" }}>
+        </div>
+      )}
+      <div className="flex-1 min-h-0">
+        <MapContainer center={mapCenter} zoom={12} style={{ height: "100%", width: "100%" }}>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <FitBoundsHelper points={geocodedPoints} />
+          <FitBoundsHelper points={allMapPoints} />
           {/* Color-coded route segments */}
           {routeSegments.map((segment, idx) => (
             <Polyline
@@ -204,23 +242,6 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ entries, showTravelL
           })}
         </MapContainer>
       </div>
-      {/* Travel segments summary */}
-      {routeSegments.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {routeSegments.map((segment, idx) => (
-            <div
-              key={idx}
-              className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px]"
-              style={{ borderColor: segment.color, backgroundColor: `${segment.color}15` }}
-            >
-              <Car className="h-3 w-3" style={{ color: segment.color }} />
-              <span style={{ color: segment.color }} className="font-medium">
-                {idx + 1}→{idx + 2}: {segment.travelMinutes}m
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 };

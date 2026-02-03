@@ -1134,6 +1134,54 @@ const isMeaningfulEvidence = (value: string | undefined | null): boolean => {
   return true;
 };
 
+const OUT_OF_SCOPE_PATTERNS = [
+  /\bprescrib(e|ing|ed)\b/i,
+  /\bdiagnos(e|is|ing)\b/i,
+  /\bchange (medication|dose|dosage)\b/i,
+  /\badjust (medication|dose|dosage)\b/i,
+  /\badminister (iv|intravenous|injection|inject)\b/i,
+  /\bset up (iv|intravenous)\b/i,
+  /\bcatheter(i[sz]e|isation|ization|insert|remove)\b/i,
+  /\bdebrid(e|ement)\b/i,
+  /\bstitch|suturing\b/i,
+  /\binterpret (ecg|x-ray|scan|ct|mri)\b/i,
+];
+
+const sanitizeOutOfScopeText = (text: string) => {
+  if (!text) return text;
+  const hasOutOfScope = OUT_OF_SCOPE_PATTERNS.some((pattern) => pattern.test(text));
+  if (!hasOutOfScope) return text;
+  return "Follow the care plan, record observations and escalate to a registered professional or GP for any clinical decisions.";
+};
+
+const isAssessmentRelevantServer = (
+  assessment: { name?: string; reason?: string; evidence?: string },
+  analysis: { medicalConditions?: string[]; careActivities?: string[]; concerns?: string[]; documentSummary?: string }
+): boolean => {
+  if (!assessment?.name) return false;
+  if (!assessment?.evidence || !assessment.evidence.trim()) return false;
+  if (isNegatedEvidence(assessment.evidence) || isNegatedEvidence(assessment.reason || "")) return false;
+
+  const key = normalizeAssessmentKey(assessment.name);
+  const terms = ASSESSMENT_EVIDENCE_TERMS[key];
+  if (!terms || terms.length === 0) return true;
+
+  const haystack = [
+    assessment.name,
+    assessment.reason,
+    assessment.evidence,
+    analysis.documentSummary,
+    ...(analysis.concerns || []),
+    ...(analysis.medicalConditions || []),
+    ...(analysis.careActivities || []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return terms.some((term) => haystack.includes(term));
+};
+
 const pickEvidenceSnippet = (snippets: string[]): string => {
   if (!Array.isArray(snippets) || snippets.length === 0) return "";
   const candidate = snippets.find((snippet) => isMeaningfulEvidence(snippet));
@@ -10165,6 +10213,7 @@ IMPORTANT RULES:
 5. ONLY recommend a risk assessment if you can cite evidence from the documents. If no evidence is found, omit it.
 6. For every recommended assessment, include a short evidence phrase from the documents.
 7. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
+8. All recommendations must remain within a care worker's scope of practice. Do not include clinical decisions (diagnosis, prescribing, dose changes).
 ${privacyRules}
 
 EXTRACT FROM DOCUMENTS:
@@ -10301,6 +10350,9 @@ Respond ONLY with valid JSON in this exact format:
       result.recommendedAssessments = result.recommendedAssessments.filter(
         (assessment: any) => isMeaningfulEvidence(assessment?.evidence)
       );
+      result.recommendedAssessments = result.recommendedAssessments.filter(
+        (assessment: any) => isAssessmentRelevantServer(assessment, result)
+      );
 
       const scrubbedResult = sanitizeNarrativePII(result);
       const payload = allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult;
@@ -10416,6 +10468,7 @@ IMPORTANT RULES:
 6. Do NOT include any person names. Use role terms (my carer, my GP, my family member)
 7. Keep place names and locations as written. Do not redact places.
 8. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
+9. Stay within a care worker's scope of practice. Do not diagnose, prescribe, change doses, or make clinical decisions.
 
 SERVICE USER DETAILS:
 - Service User Initials: ${serviceUserInitials || 'N.N.'}
@@ -10507,9 +10560,15 @@ Respond ONLY with valid JSON in this exact format:
           result.risks = result.risks.map((risk: any) => ({
             ...risk,
             initialRating: normalizeRiskRating(risk?.initialRating),
-            riskDefinition: typeof risk?.riskDefinition === "string" ? toFirstPerson(risk.riskDefinition) : risk?.riskDefinition,
-            howItsARisk: typeof risk?.howItsARisk === "string" ? toFirstPerson(risk.howItsARisk) : risk?.howItsARisk,
-            controlMeasures: typeof risk?.controlMeasures === "string" ? toFirstPerson(risk.controlMeasures) : risk?.controlMeasures,
+            riskDefinition: typeof risk?.riskDefinition === "string"
+              ? toFirstPerson(risk.riskDefinition)
+              : risk?.riskDefinition,
+            howItsARisk: typeof risk?.howItsARisk === "string"
+              ? toFirstPerson(risk.howItsARisk)
+              : risk?.howItsARisk,
+            controlMeasures: typeof risk?.controlMeasures === "string"
+              ? toFirstPerson(sanitizeOutOfScopeText(risk.controlMeasures))
+              : risk?.controlMeasures,
             ratingAfterControls: normalizeRiskRating(risk?.ratingAfterControls),
           }));
         }
@@ -12718,8 +12777,10 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
           group = {
             key: groupKey,
             serviceUserName: call.serviceUserName,
-            serviceUserArea: null,
-            serviceUserAddress: null,
+            serviceUserArea: serviceUserProfile?.serviceUserArea ?? null,
+            serviceUserAddress: serviceUserProfile?.serviceUserAddress ?? null,
+            serviceUserLatitude: serviceUserProfile?.latitude ? parseFloat(serviceUserProfile.latitude) : null,
+            serviceUserLongitude: serviceUserProfile?.longitude ? parseFloat(serviceUserProfile.longitude) : null,
             normalizedServiceUserKey: call.serviceUserKey,
             serviceUserKey: call.serviceUserKey,
             callTypeLabel: call.callTypeLabel,
@@ -13172,8 +13233,10 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
           group = {
             key: groupKey,
             serviceUserName: call.serviceUserName,
-            serviceUserArea: null,
-            serviceUserAddress: null,
+            serviceUserArea: serviceUserProfile?.serviceUserArea ?? null,
+            serviceUserAddress: serviceUserProfile?.serviceUserAddress ?? null,
+            serviceUserLatitude: serviceUserProfile?.latitude ? parseFloat(serviceUserProfile.latitude) : null,
+            serviceUserLongitude: serviceUserProfile?.longitude ? parseFloat(serviceUserProfile.longitude) : null,
             normalizedServiceUserKey: call.serviceUserKey,
             serviceUserKey: call.serviceUserKey,
             callTypeLabel: call.callTypeLabel,

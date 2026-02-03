@@ -1346,23 +1346,23 @@ export default function RosteringStudioUnified({
               <>
                 <ResizablePanel defaultSize={12} minSize={8} maxSize={18}>
                   <div className="flex h-full flex-col border-r bg-background/50">
-                    <div className="flex items-center justify-between border-b px-2 py-1.5">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide">Workers</span>
+                    <div className="flex items-center justify-between border-b px-2 py-1">
+                      <span className="text-[9px] font-semibold uppercase tracking-wide">Workers</span>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-5 w-5"
+                        className="h-4 w-4"
                         onClick={() => setShowAllWorkers(!showAllWorkers)}
                       >
                         {showAllWorkers ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                       </Button>
                     </div>
-                    <div className="px-2 py-1.5">
+                    <div className="px-1.5 py-1">
                       <Input
                         placeholder="Search..."
                         value={careWorkerSearch}
                         onChange={(e) => setCareWorkerSearch(e.target.value)}
-                        className="h-6 text-[10px]"
+                        className="h-5 text-[10px]"
                       />
                     </div>
                     <ScrollArea className="flex-1">
@@ -1378,16 +1378,16 @@ export default function RosteringStudioUnified({
                                 (e.target as HTMLElement).blur(); // Prevent aria-hidden focus issue
                                 openWorkerTools(worker.key);
                               }}
-                              className={`w-full px-2 py-1.5 text-left transition hover:bg-muted/50 ${
+                              className={`w-full px-1.5 py-1 text-left transition hover:bg-muted/50 ${
                                 isSelected ? "bg-primary/10" : ""
                               }`}
                             >
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1">
                                 <WorkerAvatar name={worker.workerName} size="sm" />
                                 <div className="min-w-0 flex-1">
-                                  <p className="truncate text-xs font-semibold">{worker.workerName}</p>
-                                  <p className="text-[10px] text-muted-foreground">
-                                    {summary ? `${summary.totalCalls} calls` : "No data"}
+                                  <p className="truncate text-[11px] font-medium leading-tight">{worker.workerName}</p>
+                                  <p className="text-[9px] text-muted-foreground leading-tight">
+                                    {summary ? `${summary.totalCalls} calls` : "—"}
                                   </p>
                                 </div>
                               </div>
@@ -1407,17 +1407,17 @@ export default function RosteringStudioUnified({
               <div className="flex h-full flex-col">
                 {/* Top Row: Timeline (takes most space) */}
                 {panelVisibility.timeline && (
-                  <div className="flex-[2] min-h-[200px] border-b flex flex-col overflow-hidden">
-                    <div className="flex items-center justify-between bg-muted/30 px-3 py-1 border-b shrink-0">
-                      <div className="flex items-center gap-2">
-                        <Timer className="h-3.5 w-3.5" />
-                        <span className="text-xs font-semibold">Timeline</span>
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0">
-                          {showAllWorkers ? `${timelineLanes.length} workers` : selectedCareWorkerKey ? "1 worker" : "Select"}
+                  <div className="flex-[2] min-h-[180px] border-b flex flex-col overflow-hidden">
+                    <div className="flex items-center justify-between bg-muted/30 px-2 py-0.5 border-b shrink-0">
+                      <div className="flex items-center gap-1.5">
+                        <Timer className="h-3 w-3" />
+                        <span className="text-[11px] font-semibold">Timeline</span>
+                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-4">
+                          {showAllWorkers ? `${timelineLanes.length}` : selectedCareWorkerKey ? "1" : "—"}
                         </Badge>
                         {conflictsCount > 0 && (
-                          <Badge variant="destructive" className="text-[9px] px-1.5 py-0">
-                            {conflictsCount} conflicts
+                          <Badge variant="destructive" className="text-[8px] px-1 py-0 h-4">
+                            {conflictsCount}
                           </Badge>
                         )}
                       </div>
@@ -1442,7 +1442,7 @@ export default function RosteringStudioUnified({
                         </div>
                       )}
                     </div>
-                    <div className="flex-1 overflow-auto p-2">
+                    <div className="flex-1 overflow-auto p-1">
                       <GanttTimeline
                         lanes={showAllWorkers ? timelineLanes : selectedWorkerLanes}
                         startMinutes={ROSTER_DAY_START_MINUTES}
@@ -1463,18 +1463,18 @@ export default function RosteringStudioUnified({
                 )}
 
                 {/* Bottom Row: Horizontal panels */}
-                <div className="flex-1 min-h-[160px] max-h-[250px] flex border-t overflow-hidden">
+                <div className="flex-1 min-h-[140px] max-h-[200px] flex border-t overflow-hidden">
                   {/* Map Panel */}
                   {panelVisibility.map && (
                     <div className="flex-1 min-w-0 border-r flex flex-col">
-                      <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 border-b">
-                        <MapIcon className="h-3.5 w-3.5" />
-                        <span className="text-xs font-semibold">Route Map</span>
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0">
-                          {routeEntriesSorted.length} stops
+                      <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
+                        <MapIcon className="h-3 w-3" />
+                        <span className="text-[11px] font-semibold">Map</span>
+                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-4">
+                          {routeEntriesSorted.length}
                         </Badge>
                       </div>
-                      <div className="flex-1 min-h-0 p-2 overflow-hidden">
+                      <div className="flex-1 min-h-0 p-1 overflow-hidden">
                         <RouteMapView entries={routeEntriesSorted} />
                       </div>
                     </div>
@@ -1483,15 +1483,15 @@ export default function RosteringStudioUnified({
                   {/* Call Times Panel */}
                   {panelVisibility.callTimes && (
                     <div className="flex-1 min-w-0 border-r flex flex-col">
-                      <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 border-b">
-                        <Clock className="h-3.5 w-3.5" />
-                        <span className="text-xs font-semibold">Call Times</span>
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                      <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
+                        <Clock className="h-3 w-3" />
+                        <span className="text-[11px] font-semibold">Call Times</span>
+                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-4">
                           {callTimesForEditor.length}
                         </Badge>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
-                        <div className="p-2">
+                        <div className="p-1">
                           <CallTimeEditor
                             serviceUsers={uniqueServiceUsers}
                             callTypes={uniqueCallTypes}
@@ -1508,15 +1508,15 @@ export default function RosteringStudioUnified({
                   {/* Constraints Panel */}
                   {panelVisibility.constraints && (
                     <div className="flex-1 min-w-0 border-r flex flex-col">
-                      <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 border-b">
-                        <UserCog className="h-3.5 w-3.5" />
-                        <span className="text-xs font-semibold">Constraints</span>
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                      <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
+                        <UserCog className="h-3 w-3" />
+                        <span className="text-[11px] font-semibold">Constraints</span>
+                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-4">
                           {constraintsForEditor.length}
                         </Badge>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
-                        <div className="p-2">
+                        <div className="p-1">
                           <WorkerConstraintsEditor
                             workers={careWorkerRosters.map((r: CareWorkerRoster) => ({
                               key: r.key,
@@ -1537,11 +1537,11 @@ export default function RosteringStudioUnified({
                   {/* Workload Heatmap */}
                   {panelVisibility.workload && (
                     <div className="flex-1 min-w-0 border-r flex flex-col">
-                      <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 border-b">
-                        <BarChart3 className="h-3.5 w-3.5" />
-                        <span className="text-xs font-semibold">Workload</span>
+                      <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
+                        <BarChart3 className="h-3 w-3" />
+                        <span className="text-[11px] font-semibold">Workload</span>
                       </div>
-                      <div className="flex-1 min-h-0 p-2 overflow-auto">
+                      <div className="flex-1 min-h-0 p-1 overflow-auto">
                         <WorkloadHeatmap
                           workers={heatmapSummaries}
                           constraints={constraintsForEditor}
@@ -1559,12 +1559,12 @@ export default function RosteringStudioUnified({
                   {/* Optimization Panel */}
                   {panelVisibility.optimization && (
                     <div className="flex-1 min-w-0 border-r flex flex-col">
-                      <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 border-b">
-                        <Sliders className="h-3.5 w-3.5" />
-                        <span className="text-xs font-semibold">Optimization</span>
+                      <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
+                        <Sliders className="h-3 w-3" />
+                        <span className="text-[11px] font-semibold">Optimization</span>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
-                        <div className="p-2">
+                        <div className="p-1">
                           <OptimizationSettings
                             weights={optimizationWeights}
                             constraints={optimizationConstraints}
@@ -1581,12 +1581,12 @@ export default function RosteringStudioUnified({
                   {/* Database Panel */}
                   {panelVisibility.database && (
                     <div className="flex-1 min-w-0 flex flex-col">
-                      <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 border-b">
-                        <Database className="h-3.5 w-3.5" />
-                        <span className="text-xs font-semibold">Database</span>
+                      <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
+                        <Database className="h-3 w-3" />
+                        <span className="text-[11px] font-semibold">Database</span>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
-                        <div className="p-2">
+                        <div className="p-1">
                           <AdminDatabasePanel />
                         </div>
                       </ScrollArea>
@@ -1610,21 +1610,21 @@ export default function RosteringStudioUnified({
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize={25} minSize={15} maxSize={35}>
                   <div className="flex h-full flex-col border-l bg-background/50">
-                    <div className="border-b px-2 py-1.5">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide">Details</span>
+                    <div className="border-b px-2 py-1">
+                      <span className="text-[9px] font-semibold uppercase tracking-wide">Details</span>
                     </div>
                     <ScrollArea className="flex-1">
-                      <div className="p-2 space-y-3">
+                      <div className="p-1.5 space-y-2">
                         {/* Selected Visit Details */}
-                        <div className="rounded-lg border p-2">
-                          <p className="text-[9px] uppercase tracking-wide text-muted-foreground mb-1.5">
+                        <div className="rounded-lg border p-1.5">
+                          <p className="text-[8px] uppercase tracking-wide text-muted-foreground mb-1">
                             Selected Visit
                           </p>
                           {selectedTimelineEntry ? (
-                            <div className="space-y-1.5">
-                              <p className="text-xs font-semibold">{selectedTimelineEntry.title}</p>
-                              <div className="flex items-center gap-1.5 text-[10px]">
-                                <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                            <div className="space-y-1">
+                              <p className="text-[11px] font-semibold leading-tight">{selectedTimelineEntry.title}</p>
+                              <div className="flex items-center gap-1 text-[9px]">
+                                <Badge variant="outline" className="text-[8px] px-1 py-0 h-4">
                                   {formatMinutesToTime(selectedTimelineEntry.startMinutes)}
                                 </Badge>
                                 <span className="text-muted-foreground">
@@ -1677,47 +1677,47 @@ export default function RosteringStudioUnified({
                         </div>
 
                         {/* Quick Actions */}
-                        <div className="rounded-lg border p-3">
-                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
+                        <div className="rounded-lg border p-1.5">
+                          <p className="text-[8px] uppercase tracking-wide text-muted-foreground mb-1">
                             Quick Actions
                           </p>
-                          <div className="space-y-2">
+                          <div className="space-y-1">
                             <Button
                               variant="outline"
                               size="sm"
-                              className="w-full justify-start"
+                              className="w-full justify-start h-6 text-[10px]"
                               onClick={handleRunOptimization}
                               disabled={isOptimizing}
                             >
-                              <Zap className="mr-2 h-3.5 w-3.5" />
-                              {isOptimizing ? "Optimizing..." : "Run Optimization"}
+                              <Zap className="mr-1.5 h-3 w-3" />
+                              {isOptimizing ? "Optimizing..." : "Optimize"}
                             </Button>
                             <Button
                               variant="outline"
                               size="sm"
-                              className="w-full justify-start"
+                              className="w-full justify-start h-6 text-[10px]"
                               onClick={handleApplyRecommendedTimes}
                               disabled={callTimesForEditor.length === 0}
                             >
-                              <Clock4 className="mr-2 h-3.5 w-3.5" />
-                              Apply Recommendations
+                              <Clock4 className="mr-1.5 h-3 w-3" />
+                              Apply Times
                             </Button>
                             <Button
                               variant="outline"
                               size="sm"
-                              className="w-full justify-start"
+                              className="w-full justify-start h-6 text-[10px]"
                               onClick={handleAutoBalance}
                             >
-                              <ArrowDownUp className="mr-2 h-3.5 w-3.5" />
-                              Auto-Balance
+                              <ArrowDownUp className="mr-1.5 h-3 w-3" />
+                              Balance
                             </Button>
                           </div>
                         </div>
 
                         {/* Saved Schedules */}
-                        <div className="rounded-lg border p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        <div className="rounded-lg border p-1.5">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-[8px] uppercase tracking-wide text-muted-foreground">
                               Saved Schedules
                             </p>
                             <Button

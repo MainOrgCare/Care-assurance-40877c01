@@ -11,6 +11,8 @@ export interface TimelineEntry {
   isTemplated?: boolean;
   requiredStartMinutes?: number | null;
   address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface GanttLane {
@@ -34,6 +36,8 @@ interface WorkerCallGroupShape {
   serviceUserName: string | null;
   serviceUserKey?: string | null;
   serviceUserAddress?: string | null;
+  serviceUserLatitude?: number | null;
+  serviceUserLongitude?: number | null;
   callTypeLabel: string;
   requirementStartMinutes: number | null;
   durationMinutes: number | null;
@@ -89,6 +93,8 @@ export const buildWorkerTimelineEntries = (
         : false,
       requiredStartMinutes: group.requirementStartMinutes ?? null,
       address: group.serviceUserAddress ?? null,
+      latitude: group.serviceUserLatitude ?? null,
+      longitude: group.serviceUserLongitude ?? null,
     }));
 };
 
