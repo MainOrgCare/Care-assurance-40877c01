@@ -47,6 +47,44 @@ const logList = document.getElementById("log-list");
 const clearLogsButton = document.getElementById("clear-logs");
 const progressStatus = document.getElementById("progress-status");
 const errorBanner = document.getElementById("error-banner");
+let lastAutoFilledCaseInfo = { caseId: "", serviceDataGroupId: "" };
+
+const maybeAutofillCaseInfoFromActiveTab = async () => {
+  if (!caseIdInput || !serviceDataGroupInput) return;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.url) return;
+    const url = new URL(tab.url);
+    if (!url.pathname.includes("case_data_group")) return;
+    const caseId = (url.searchParams.get("caseId") || "").trim();
+    const serviceDataGroupId = (url.searchParams.get("serviceDataGroupId") || "").trim();
+    if (!caseId || !serviceDataGroupId) return;
+
+    const existingCaseId = caseIdInput.value.trim();
+    const existingServiceDataGroupId = serviceDataGroupInput.value.trim();
+    const shouldSetCaseId = !existingCaseId;
+    const shouldSetServiceDataGroupId = !existingServiceDataGroupId;
+
+    if (!shouldSetCaseId && !shouldSetServiceDataGroupId) return;
+    if (caseId === lastAutoFilledCaseInfo.caseId && serviceDataGroupId === lastAutoFilledCaseInfo.serviceDataGroupId) {
+      return;
+    }
+
+    if (shouldSetCaseId) caseIdInput.value = caseId;
+    if (shouldSetServiceDataGroupId) serviceDataGroupInput.value = serviceDataGroupId;
+
+    lastAutoFilledCaseInfo = { caseId, serviceDataGroupId };
+
+    await setStorage({
+      [STORAGE_KEYS.caseInfo]: {
+        caseId: caseIdInput.value.trim(),
+        serviceDataGroupId: serviceDataGroupInput.value.trim(),
+      },
+    });
+  } catch (error) {
+    console.warn("Failed to auto-fill case info from URL", error);
+  }
+};
 
 const refreshPayloadStatus = async () => {
   const {
@@ -118,6 +156,8 @@ const refreshPayloadStatus = async () => {
       errorBanner.hidden = true;
     }
   }
+
+  await maybeAutofillCaseInfoFromActiveTab();
 };
 
 startButton.addEventListener("click", async () => {
