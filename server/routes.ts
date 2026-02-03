@@ -3513,9 +3513,12 @@ export async function registerRoutes(
       }
 
       if (!gridBaseline || !Array.isArray(gridBaseline.cells) || gridBaseline.cells.length === 0) {
-        sendEvent('error', { message: "Unable to parse EMAR grid from PDF. Please upload a text-based EMAR grid PDF." });
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        return res.end();
+        sendEvent('warning', {
+          message: "Unable to parse EMAR grid from PDF. Continuing with text-based extraction.",
+          kind: "grid_fallback",
+          userFacing: true,
+        });
+        gridBaseline = null;
       }
 
       // STEP 1: Extract text from PDF (primary method while Vision API unavailable)

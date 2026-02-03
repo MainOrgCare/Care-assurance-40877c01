@@ -1,7 +1,8 @@
 const EXTENSION_MESSAGE_TYPE = "CA_SEND_TO_ACP_EXTENSION";
 const EXTENSION_ACK_TYPE = "CA_EXTENSION_ACK";
 
-const { MESSAGE_TYPES } = window.CA_EXTENSION_CONSTANTS || {};
+// Use MESSAGE_TYPES from constants.js (already loaded) or fallback
+const APP_MESSAGE_TYPES = window.CA_EXTENSION_CONSTANTS?.MESSAGE_TYPES || {};
 
 const sendAck = (requestId, ok, error) => {
   window.postMessage(
@@ -26,7 +27,7 @@ window.addEventListener("message", (event) => {
   }
 
   chrome.runtime.sendMessage(
-    { type: MESSAGE_TYPES?.storePayload || "CA_EXTENSION_STORE_PAYLOAD", payload },
+    { type: APP_MESSAGE_TYPES?.storePayload || "CA_EXTENSION_STORE_PAYLOAD", payload },
     (response) => {
       if (chrome.runtime.lastError) {
         sendAck(requestId, false, chrome.runtime.lastError.message);

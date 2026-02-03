@@ -972,10 +972,10 @@ export default function RosteringStudioUnified({
     <TooltipProvider>
       <div className="flex h-full flex-col bg-background">
         {/* TOP MENU BAR */}
-        <div className="flex h-12 items-center justify-between border-b bg-muted/30 px-4">
-          <div className="flex items-center gap-1">
+        <div className="flex h-9 items-center justify-between border-b bg-muted/30 px-3">
+          <div className="flex items-center gap-0.5">
             {!embedded && (
-              <Button variant="ghost" size="sm" asChild className="mr-2">
+              <Button variant="ghost" size="sm" asChild className="mr-1 h-7 w-7 p-0">
                 <Link href="/testing-features">
                   <ArrowLeft className="h-4 w-4" />
                 </Link>
@@ -985,7 +985,7 @@ export default function RosteringStudioUnified({
             {/* File Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 px-3 text-sm font-medium">
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-sm font-medium">
                   File
                 </Button>
               </DropdownMenuTrigger>
@@ -1050,7 +1050,7 @@ export default function RosteringStudioUnified({
             {/* Edit Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 px-3 text-sm font-medium">
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-sm font-medium">
                   Edit
                 </Button>
               </DropdownMenuTrigger>
@@ -1080,7 +1080,7 @@ export default function RosteringStudioUnified({
             {/* View Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 px-3 text-sm font-medium">
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-sm font-medium">
                   View
                 </Button>
               </DropdownMenuTrigger>
@@ -1194,7 +1194,7 @@ export default function RosteringStudioUnified({
             {/* Optimize Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 px-3 text-sm font-medium">
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-sm font-medium">
                   Optimize
                 </Button>
               </DropdownMenuTrigger>
@@ -1233,7 +1233,7 @@ export default function RosteringStudioUnified({
             {/* Help Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 px-3 text-sm font-medium">
+                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-sm font-medium">
                   Help
                 </Button>
               </DropdownMenuTrigger>
@@ -1248,31 +1248,31 @@ export default function RosteringStudioUnified({
           </div>
 
           {/* Quick date selector in menu bar */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-7 w-7"
               onClick={() => setSelectedTemplateWeek((p) => (p === "week1" ? "week2" : "week1"))}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
-            <Badge variant="secondary" className="text-xs font-semibold">
+            <Badge variant="secondary" className="text-[11px] font-semibold px-2 py-0.5">
               {getTemplateWeekLabel(selectedTemplateWeek)} • {selectedTemplateDay}
             </Badge>
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-7 w-7"
               onClick={() => setSelectedTemplateWeek((p) => (p === "week1" ? "week2" : "week1"))}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3.5 w-3.5" />
             </Button>
             <Select
               value={selectedTemplateDay}
               onValueChange={(v) => setSelectedTemplateDay(v as WeekdayLabel)}
             >
-              <SelectTrigger className="h-8 w-[120px] text-xs">
+              <SelectTrigger className="h-7 w-[100px] text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1287,7 +1287,7 @@ export default function RosteringStudioUnified({
         </div>
 
         {/* STATS BAR */}
-        <div className="flex h-10 items-center justify-between border-b bg-muted/20 px-4 text-xs">
+        <div className="flex h-8 items-center justify-between border-b bg-muted/20 px-3 text-xs">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-1.5">
               <Users className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1374,7 +1374,10 @@ export default function RosteringStudioUnified({
                             <button
                               key={worker.key}
                               type="button"
-                              onClick={() => openWorkerTools(worker.key)}
+                              onClick={(e) => {
+                                (e.target as HTMLElement).blur(); // Prevent aria-hidden focus issue
+                                openWorkerTools(worker.key);
+                              }}
                               className={`w-full px-2 py-1.5 text-left transition hover:bg-muted/50 ${
                                 isSelected ? "bg-primary/10" : ""
                               }`}
