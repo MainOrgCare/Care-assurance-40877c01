@@ -426,31 +426,6 @@ export default function RosteringStudioUnified({
     [timelineZoom]
   );
 
-  const timelineVisibleLanes = useMemo(
-    () => (showAllWorkers ? timelineLanes : selectedWorkerLanes),
-    [showAllWorkers, timelineLanes, selectedWorkerLanes]
-  );
-
-  const timelineWindow = useMemo(() => {
-    const defaultStart = ROSTER_DAY_START_MINUTES;
-    const defaultEnd = ROSTER_DAY_HARD_END_MINUTES;
-    if (showAllWorkers || timelineVisibleLanes.length === 0) {
-      return { start: defaultStart, end: defaultEnd };
-    }
-    const entries = timelineVisibleLanes.flatMap((lane) => lane.entries);
-    if (entries.length === 0) return { start: defaultStart, end: defaultEnd };
-    let minStart = defaultEnd;
-    let maxEnd = defaultStart;
-    for (const entry of entries) {
-      minStart = Math.min(minStart, entry.startMinutes);
-      maxEnd = Math.max(maxEnd, entry.startMinutes + entry.durationMinutes);
-    }
-    const pad = 30;
-    const start = Math.max(defaultStart, minStart - pad);
-    const end = Math.min(defaultEnd, maxEnd + pad);
-    return { start, end: Math.max(start + 60, end) };
-  }, [showAllWorkers, timelineVisibleLanes]);
-
   const templateSelectionKey = computeTemplateSelectionKey(selectedTemplateWeek, selectedTemplateDay);
 
   // ===== DATA QUERIES =====
@@ -558,6 +533,28 @@ export default function RosteringStudioUnified({
     if (!selectedCareWorkerKey) return [];
     return timelineLanes.filter((lane) => lane.id === selectedCareWorkerKey);
   }, [timelineLanes, selectedCareWorkerKey, showAllWorkers]);
+
+  const timelineVisibleLanes = showAllWorkers ? timelineLanes : selectedWorkerLanes;
+
+  const timelineWindow = useMemo(() => {
+    const defaultStart = ROSTER_DAY_START_MINUTES;
+    const defaultEnd = ROSTER_DAY_HARD_END_MINUTES;
+    if (showAllWorkers || timelineVisibleLanes.length === 0) {
+      return { start: defaultStart, end: defaultEnd };
+    }
+    const entries = timelineVisibleLanes.flatMap((lane) => lane.entries);
+    if (entries.length === 0) return { start: defaultStart, end: defaultEnd };
+    let minStart = defaultEnd;
+    let maxEnd = defaultStart;
+    for (const entry of entries) {
+      minStart = Math.min(minStart, entry.startMinutes);
+      maxEnd = Math.max(maxEnd, entry.startMinutes + entry.durationMinutes);
+    }
+    const pad = 30;
+    const start = Math.max(defaultStart, minStart - pad);
+    const end = Math.min(defaultEnd, maxEnd + pad);
+    return { start, end: Math.max(start + 60, end) };
+  }, [showAllWorkers, timelineVisibleLanes]);
 
   // Selected entry
   const selectedTimelineEntry = useMemo(() => {
