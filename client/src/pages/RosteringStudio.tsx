@@ -2555,6 +2555,7 @@ export default function RosteringStudio({
                     snapMinutes={snapMinutes}
                     showHalfHourTicks={showHalfHourTicks}
                     rowHeight={timelineRowHeight}
+                    horizontalZoom={timelineZoom}
                     fitHeight
                     showHeader={false}
                     selectedEntryId={selectedTimelineEntryId}
@@ -2590,6 +2591,7 @@ export default function RosteringStudio({
                     snapMinutes={snapMinutes}
                     showHalfHourTicks={showHalfHourTicks}
                     rowHeight={timelineRowHeight}
+                    horizontalZoom={timelineZoom}
                     fitHeight
                     showHeader={false}
                     selectedEntryId={selectedTimelineEntryId}
@@ -3249,6 +3251,7 @@ export default function RosteringStudio({
                         snapMinutes={snapMinutes}
                         showHalfHourTicks={showHalfHourTicks}
                         rowHeight={timelineRowHeight}
+                        horizontalZoom={timelineZoom}
                         selectedEntryId={selectedTimelineEntryId}
                         selectedEntryIds={rosterState.present.selectedEntryIds}
                         focusedEntryId={rosterState.present.focusedEntryId}

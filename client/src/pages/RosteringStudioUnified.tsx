@@ -402,7 +402,7 @@ export default function RosteringStudioUnified({
   const [showHalfHourTicks, setShowHalfHourTicks] = useState(true);
   const [timelineZoomIndex, setTimelineZoomIndex] = useState(2);
   const [selectedTimelineEntryId, setSelectedTimelineEntryId] = useState<string | null>(null);
-  const [showAllWorkers, setShowAllWorkers] = useState(false);
+  const [showAllWorkers, setShowAllWorkers] = useState(true);
 
   // Optimization settings
   const [optimizationWeights, setOptimizationWeights] = useState<OptimizationWeights>(defaultWeights);
@@ -435,7 +435,20 @@ export default function RosteringStudioUnified({
     enabled: !!activeWorkbookId,
   });
 
-  const careWorkerRosters = workbookData?.careWorkerRosters ?? [];
+  // Convert arrays to Sets for templatedWeekdayKeys and doubleUpWeekdayKeys
+  const careWorkerRosters = useMemo<CareWorkerRoster[]>(() => {
+    if (!workbookData?.careWorkerRosters) return [];
+    // Reconstruct Sets from arrays (JSON doesn't preserve Sets)
+    return workbookData.careWorkerRosters.map((roster: CareWorkerRoster) => ({
+      ...roster,
+      callGroups: roster.callGroups?.map((group: WorkerCallGroup & { templatedWeekdayKeys?: string[] | Set<string>; doubleUpWeekdayKeys?: string[] | Set<string> }) => ({
+        ...group,
+        templatedWeekdayKeys: new Set<string>(Array.isArray(group.templatedWeekdayKeys) ? group.templatedWeekdayKeys : []),
+        doubleUpWeekdayKeys: new Set<string>(Array.isArray(group.doubleUpWeekdayKeys) ? group.doubleUpWeekdayKeys : []),
+      })) || [],
+    }));
+  }, [workbookData]);
+
   const doubleUpSlots = useMemo((): Map<string, string[]> => {
     const entries: [string, string[]][] = Object.entries(workbookData?.doubleUpSlots ?? {});
     return new Map(entries);
@@ -1368,11 +1381,11 @@ export default function RosteringStudioUnified({
 
             {/* MAIN CONTENT - Fixed Grid Layout */}
             <ResizablePanel defaultSize={panelVisibility.workers ? 63 : 78}>
-              <div className="flex h-full flex-col overflow-hidden">
+              <div className="flex h-full flex-col">
                 {/* Top Row: Timeline (takes most space) */}
                 {panelVisibility.timeline && (
-                  <div className="flex-1 min-h-0 border-b flex flex-col">
-                    <div className="flex items-center justify-between bg-muted/30 px-3 py-1 border-b">
+                  <div className="flex-[2] min-h-[200px] border-b flex flex-col overflow-hidden">
+                    <div className="flex items-center justify-between bg-muted/30 px-3 py-1 border-b shrink-0">
                       <div className="flex items-center gap-2">
                         <Timer className="h-3.5 w-3.5" />
                         <span className="text-xs font-semibold">Timeline</span>
@@ -1406,7 +1419,7 @@ export default function RosteringStudioUnified({
                         </div>
                       )}
                     </div>
-                    <div className="flex-1 min-h-0 overflow-auto p-2">
+                    <div className="flex-1 overflow-auto p-2">
                       <GanttTimeline
                         lanes={showAllWorkers ? timelineLanes : selectedWorkerLanes}
                         startMinutes={ROSTER_DAY_START_MINUTES}
@@ -1414,6 +1427,7 @@ export default function RosteringStudioUnified({
                         snapMinutes={snapMinutes}
                         showHalfHourTicks={showHalfHourTicks}
                         rowHeight={timelineRowHeight}
+                        horizontalZoom={timelineZoom}
                         selectedEntryId={selectedTimelineEntryId}
                         selectedEntryIds={rosterState.present.selectedEntryIds}
                         focusedEntryId={rosterState.present.focusedEntryId}
@@ -1426,7 +1440,7 @@ export default function RosteringStudioUnified({
                 )}
 
                 {/* Bottom Row: Horizontal panels */}
-                <div className="flex h-[35%] min-h-[180px] max-h-[280px] border-t">
+                <div className="flex-1 min-h-[160px] max-h-[250px] flex border-t overflow-hidden">
                   {/* Map Panel */}
                   {panelVisibility.map && (
                     <div className="flex-1 min-w-0 border-r flex flex-col">

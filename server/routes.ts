@@ -1105,6 +1105,20 @@ const normalizeStringArray = (values: unknown): string[] => {
   return result;
 };
 
+const isNegatedEvidence = (value: string): boolean => {
+  const lower = value.toLowerCase();
+  const patterns = [
+    /\bno (known |documented |reported )?(risk|risks|concerns?)\b/,
+    /\bno evidence\b/,
+    /\bnot (reported|documented|noted|mentioned)\b/,
+    /\bwithout (any |known )?(risk|risks|concerns?)\b/,
+    /\bdenies\b/,
+    /\bnone reported\b/,
+    /\binformation not found\b/,
+  ];
+  return patterns.some((pattern) => pattern.test(lower));
+};
+
 const isMeaningfulEvidence = (value: string | undefined | null): boolean => {
   if (!value) return false;
   const trimmed = value.trim();
@@ -1116,6 +1130,7 @@ const isMeaningfulEvidence = (value: string | undefined | null): boolean => {
   if (lower.includes("information not found in documents")) return false;
   if (lower.includes("i'm not aware of") || lower.includes("im not aware of")) return false;
   if (lower.includes("not found in the provided documents")) return false;
+  if (isNegatedEvidence(trimmed)) return false;
   return true;
 };
 
@@ -10146,6 +10161,7 @@ IMPORTANT RULES:
 4. Write narrative fields in FIRST PERSON using "I" and "my"
 5. ONLY recommend a risk assessment if you can cite evidence from the documents. If no evidence is found, omit it.
 6. For every recommended assessment, include a short evidence phrase from the documents.
+7. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
 ${privacyRules}
 
 EXTRACT FROM DOCUMENTS:
@@ -10396,6 +10412,7 @@ IMPORTANT RULES:
 5. Write narrative fields in FIRST PERSON using "I" and "my"
 6. Do NOT include any person names. Use role terms (my carer, my GP, my family member)
 7. Keep place names and locations as written. Do not redact places.
+8. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
 
 SERVICE USER DETAILS:
 - Service User Initials: ${serviceUserInitials || 'N.N.'}

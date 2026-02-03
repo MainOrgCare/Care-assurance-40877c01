@@ -56,6 +56,8 @@ export interface GanttTimelineProps {
   recommendedTimes?: RecommendedTimeWindow[];
   /** Row height in pixels for each timeline lane */
   rowHeight?: number;
+  /** Horizontal zoom factor (percentage 50-200). Higher = tighter time spacing */
+  horizontalZoom?: number;
   /** When true, timeline fills available height and scrolls internally */
   fitHeight?: boolean;
   /** Hide the timeline header/legend row */
@@ -174,6 +176,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   enableDrag = true,
   recommendedTimes = [],
   rowHeight: rowHeightProp,
+  horizontalZoom = 100,
   fitHeight = false,
   showHeader = true,
 }) => {
@@ -185,6 +188,13 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   const gapTop = entryTop + Math.max(0, Math.round((entryHeight - gapHeight) / 2));
   const totalMinutes = Math.max(endMinutes - startMinutes, 1);
   const hours = Math.ceil(totalMinutes / 60);
+  
+  // Horizontal zoom factor: 100 = 1x, 150 = 1.5x width, etc.
+  const zoomFactor = clamp(horizontalZoom, 50, 200) / 100;
+  const baseMinWidth = 800; // Minimum width at 100% zoom
+  const trackMinWidth = Math.round(baseMinWidth * zoomFactor);
+  
+  // Hour ticks for header
   const hourTicks = Array.from({ length: hours + 1 }, (_, idx) => startMinutes + idx * 60);
   const minorTicks = showHalfHourTicks
     ? Array.from({ length: hours * 2 + 1 }, (_, idx) => startMinutes + idx * 30)
@@ -437,11 +447,11 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
 
   const totalConflicts = allConflicts.size;
 
-  const containerPadding = showHeader ? "p-4" : "p-3";
+  const containerPadding = showHeader ? "p-3" : "p-2";
 
   return (
     <div
-      className={`rounded-2xl border bg-card/70 ${containerPadding} shadow-sm ${fitHeight ? "flex h-full min-h-0 flex-col" : ""}`}
+      className={`rounded-lg border bg-card ${containerPadding} shadow-sm ${fitHeight ? "flex h-full min-h-0 flex-col" : ""}`}
     >
       {showHeader && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
@@ -474,37 +484,81 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
       )}
 
       <div
-        className={`rounded-xl border bg-background/60 overflow-hidden ${fitHeight ? "flex min-h-0 flex-1 flex-col" : ""}`}
+        className={`rounded-lg border bg-background overflow-hidden ${fitHeight ? "flex min-h-0 flex-1 flex-col" : ""}`}
       >
-        <div className="flex items-center gap-2 border-b bg-muted/40 px-2 sm:px-4 py-2 flex-shrink-0">
-          <div className="w-[120px] sm:w-[200px] text-xs font-semibold uppercase tracking-wide text-muted-foreground shrink-0">Worker</div>
-          <div className="flex-1">
-            <div className="relative h-8">
+        {/* Timeline Header - Professional time ruler */}
+        <div className="flex items-stretch border-b bg-muted/30 flex-shrink-0">
+          {/* Worker column header */}
+          <div className="w-[100px] sm:w-[180px] px-2 sm:px-3 py-2 flex items-center border-r bg-muted/40 shrink-0">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted-foreground">Worker</span>
+          </div>
+          {/* Time ruler */}
+          <div className="flex-1 overflow-x-auto">
+            <div className="relative h-10" style={{ minWidth: `${trackMinWidth}px` }}>
+              {/* Minor tick marks (half-hour) */}
               {minorTicks.map((tick) => {
                 const left = ((tick - startMinutes) / totalMinutes) * 100;
+                const isHour = tick % 60 === 0;
+                if (isHour) return null;
                 return (
                   <div
                     key={`minor-${tick}`}
-                    className="absolute inset-y-0"
+                    className="absolute top-0 bottom-0"
                     style={{ left: `${left}%` }}
                   >
-                    <div className="h-8 w-px bg-border/30" />
+                    <div className="h-2.5 w-px bg-border/40 mt-auto" style={{ marginTop: 'auto', position: 'absolute', bottom: 0 }} />
                   </div>
                 );
               })}
-              {hourTicks.map((tick) => {
+              {/* Hour tick marks with labels */}
+              {hourTicks.map((tick, idx) => {
                 const left = ((tick - startMinutes) / totalMinutes) * 100;
+                const isLast = idx === hourTicks.length - 1;
                 return (
                   <div
                     key={tick}
-                    className="absolute inset-y-0 flex items-center"
+                    className="absolute top-0 bottom-0 flex flex-col"
                     style={{ left: `${left}%` }}
                   >
-                    <div className="h-8 w-px bg-border/60" />
-                    <span className="ml-1 text-[10px] text-muted-foreground font-medium">{formatTimeLabel(tick)}</span>
+                    {/* Hour line */}
+                    <div className="h-full w-px bg-border/60" />
+                    {/* Time label - positioned to not overlap */}
+                    {!isLast && (
+                      <div 
+                        className="absolute top-1 text-[10px] sm:text-[11px] font-medium text-muted-foreground whitespace-nowrap"
+                        style={{ left: '4px' }}
+                      >
+                        {formatTimeLabel(tick)}
+                      </div>
+                    )}
+                    {isLast && (
+                      <div 
+                        className="absolute top-1 text-[10px] sm:text-[11px] font-medium text-muted-foreground whitespace-nowrap"
+                        style={{ right: '4px' }}
+                      >
+                        {formatTimeLabel(tick)}
+                      </div>
+                    )}
                   </div>
                 );
               })}
+              {/* Current time indicator (if within range) */}
+              {(() => {
+                const now = new Date();
+                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                if (currentMinutes >= startMinutes && currentMinutes <= endMinutes) {
+                  const left = ((currentMinutes - startMinutes) / totalMinutes) * 100;
+                  return (
+                    <div
+                      className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
+                      style={{ left: `${left}%` }}
+                    >
+                      <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-red-500" />
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           </div>
         </div>
@@ -576,17 +630,18 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                         isDropTarget={isDropTarget}
                         isSourceLane={isSourceLane}
                         style={{ paddingTop: rowPadding, paddingBottom: rowPadding }}
-                        className={`flex items-stretch gap-2 px-2 sm:px-4 h-full transition-colors ${actualIdx % 2 === 0 ? "bg-background/40" : "bg-muted/20"}`}
+                        className={`flex items-stretch h-full transition-colors ${actualIdx % 2 === 0 ? "bg-background/40" : "bg-muted/20"}`}
                       >
-                        <div className="w-[120px] sm:w-[200px] flex items-start gap-2 shrink-0">
-                          <WorkerAvatar name={lane.label} size="md" />
+                        {/* Worker info - fixed width */}
+                        <div className="w-[100px] sm:w-[180px] px-2 sm:px-3 flex items-start gap-2 shrink-0 border-r">
+                          <WorkerAvatar name={lane.label} size="sm" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">{lane.label}</p>
-                            <p className="text-[11px] text-muted-foreground">
-                              {lane.entries.length} slots · {Math.round(laneTotalMinutes)} mins
+                            <p className="text-xs font-semibold text-foreground truncate">{lane.label}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {lane.entries.length} calls · {Math.round(laneTotalMinutes)}m
                             </p>
-                            <div className="mt-1.5 flex items-center gap-1.5">
-                              <div className="flex-1 h-1 rounded-full bg-muted/50 max-w-[80px]">
+                            <div className="mt-1 flex items-center gap-1">
+                              <div className="flex-1 h-1 rounded-full bg-muted/50 max-w-[60px]">
                                 <div
                                   className={`h-1 rounded-full transition-all ${
                                     utilization > 100 ? "bg-red-500" : utilization > 80 ? "bg-amber-500" : "bg-emerald-500"
@@ -594,51 +649,60 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                                   style={{ width: `${Math.min(utilization, 100)}%` }}
                                 />
                               </div>
-                              <span className="text-[10px] text-muted-foreground">{utilization}%</span>
+                              <span className="text-[9px] text-muted-foreground">{utilization}%</span>
                             </div>
                           </div>
                         </div>
-                        <div ref={actualIdx === 0 ? trackRef : undefined} className="relative flex-1">
-                          <div className="rounded-lg bg-muted/20 relative overflow-hidden" style={{ height: entryHeight }}>
-                            {hourTicks.slice(0, -1).map((tick) => {
-                              const left = ((tick - startMinutes) / totalMinutes) * 100;
-                              return (
-                                <div
-                                  key={`bg-${tick}`}
-                                  className="absolute inset-y-0 w-px bg-border/20"
-                                  style={{ left: `${left}%` }}
-                                />
-                              );
-                            })}
-                          </div>
-                          {/* Travel gap indicators - simplified without duration text */}
-                          {gaps.map((gap) => (
-                            <div
-                              key={`gap-${gap.afterEntryId}`}
-                              className="absolute hidden sm:flex items-center justify-center"
-                              style={{ left: `${gap.leftPercent}%`, width: `${gap.widthPercent}%`, top: `${gapTop}px`, height: `${gapHeight}px` }}
-                              title={`${gap.gapMinutes} minute gap`}
-                            >
-                              <div className="h-6 w-full rounded border border-dashed border-muted-foreground/30 bg-muted/10" />
+                        {/* Timeline track - scrollable with zoom */}
+                        <div className="flex-1 overflow-x-auto">
+                          <div 
+                            ref={actualIdx === 0 ? trackRef : undefined} 
+                            className="relative h-full"
+                            style={{ minWidth: `${trackMinWidth}px` }}
+                          >
+                            {/* Background grid */}
+                            <div className="rounded bg-muted/15 relative overflow-hidden" style={{ height: entryHeight }}>
+                              {hourTicks.slice(0, -1).map((tick) => {
+                                const left = ((tick - startMinutes) / totalMinutes) * 100;
+                                return (
+                                  <div
+                                    key={`bg-${tick}`}
+                                    className="absolute inset-y-0 w-px bg-border/20"
+                                    style={{ left: `${left}%` }}
+                                  />
+                                );
+                              })}
                             </div>
-                          ))}
-                          {lane.entries.map((entry) => (
-                            <MemoizedDraggableEntry
-                              key={entry.id}
-                              entry={entry}
-                              startMinutes={startMinutes}
-                              endMinutes={endMinutes}
-                              totalMinutes={totalMinutes}
-                              onSelect={onSelectEntry}
-                              isSelected={selectedEntryId === entry.id || selectedEntryIds?.has(entry.id)}
-                              isFocused={focusedEntryId === entry.id}
-                              hasConflict={allConflicts.has(entry.id)}
-                              enableDrag={enableDrag}
-                              recommendedStatus={recommendedTimeStatus.get(entry.id)}
-                              entryHeight={entryHeight}
-                              entryTop={entryTop}
-                            />
-                          ))}
+                            {/* Travel gap indicators */}
+                            {gaps.map((gap) => (
+                              <div
+                                key={`gap-${gap.afterEntryId}`}
+                                className="absolute hidden sm:flex items-center justify-center"
+                                style={{ left: `${gap.leftPercent}%`, width: `${gap.widthPercent}%`, top: `${gapTop}px`, height: `${gapHeight}px` }}
+                                title={`${gap.gapMinutes} minute gap`}
+                              >
+                                <div className="h-full w-full rounded border border-dashed border-amber-400/40 bg-amber-50/10" />
+                              </div>
+                            ))}
+                            {/* Entry blocks */}
+                            {lane.entries.map((entry) => (
+                              <MemoizedDraggableEntry
+                                key={entry.id}
+                                entry={entry}
+                                startMinutes={startMinutes}
+                                endMinutes={endMinutes}
+                                totalMinutes={totalMinutes}
+                                onSelect={onSelectEntry}
+                                isSelected={selectedEntryId === entry.id || selectedEntryIds?.has(entry.id)}
+                                isFocused={focusedEntryId === entry.id}
+                                hasConflict={allConflicts.has(entry.id)}
+                                enableDrag={enableDrag}
+                                recommendedStatus={recommendedTimeStatus.get(entry.id)}
+                                entryHeight={entryHeight}
+                                entryTop={entryTop}
+                              />
+                            ))}
+                          </div>
                         </div>
                       </DroppableLane>
                     </div>
@@ -661,17 +725,18 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                   isDropTarget={isDropTarget}
                   isSourceLane={isSourceLane}
                   style={{ paddingTop: rowPadding, paddingBottom: rowPadding }}
-                  className={`flex items-stretch gap-2 px-2 sm:px-4 transition-colors ${idx % 2 === 0 ? "bg-background/40" : "bg-muted/20"}`}
+                  className={`flex items-stretch transition-colors ${idx % 2 === 0 ? "bg-background/40" : "bg-muted/20"}`}
                 >
-                    <div className="w-[120px] sm:w-[200px] flex items-start gap-2 shrink-0">
-                      <WorkerAvatar name={lane.label} size="md" />
+                    {/* Worker info - fixed width */}
+                    <div className="w-[100px] sm:w-[180px] px-2 sm:px-3 flex items-start gap-2 shrink-0 border-r">
+                      <WorkerAvatar name={lane.label} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{lane.label}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {lane.entries.length} slots · {Math.round(laneTotalMinutes)} mins
+                        <p className="text-xs font-semibold text-foreground truncate">{lane.label}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {lane.entries.length} calls · {Math.round(laneTotalMinutes)}m
                         </p>
-                        <div className="mt-1.5 flex items-center gap-1.5">
-                          <div className="flex-1 h-1 rounded-full bg-muted/50 max-w-[80px]">
+                        <div className="mt-1 flex items-center gap-1">
+                          <div className="flex-1 h-1 rounded-full bg-muted/50 max-w-[60px]">
                             <div
                               className={`h-1 rounded-full transition-all ${
                                 utilization > 100 ? "bg-red-500" : utilization > 80 ? "bg-amber-500" : "bg-emerald-500"
@@ -679,53 +744,60 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                               style={{ width: `${Math.min(utilization, 100)}%` }}
                             />
                           </div>
-                          <span className="text-[10px] text-muted-foreground">{utilization}%</span>
+                          <span className="text-[9px] text-muted-foreground">{utilization}%</span>
                         </div>
                       </div>
                     </div>
-                    <div ref={idx === 0 ? trackRef : undefined} className="relative flex-1">
-                      {/* Background track with hour divisions */}
-                      <div className="rounded-lg bg-muted/20 relative overflow-hidden" style={{ height: entryHeight }}>
-                        {hourTicks.slice(0, -1).map((tick) => {
-                          const left = ((tick - startMinutes) / totalMinutes) * 100;
-                          return (
-                            <div
-                              key={`bg-${tick}`}
-                              className="absolute inset-y-0 w-px bg-border/20"
-                              style={{ left: `${left}%` }}
-                            />
-                          );
-                        })}
-                      </div>
-                      {/* Travel gap indicators - simplified without duration text */}
-                      {gaps.map((gap) => (
-                        <div
-                          key={`gap-${gap.afterEntryId}`}
-                          className="absolute hidden sm:flex items-center justify-center"
-                          style={{ left: `${gap.leftPercent}%`, width: `${gap.widthPercent}%`, top: `${gapTop}px`, height: `${gapHeight}px` }}
-                          title={`${gap.gapMinutes} minute gap`}
-                        >
-                          <div className="h-6 w-full rounded border border-dashed border-muted-foreground/30 bg-muted/10" />
+                    {/* Timeline track - scrollable with zoom */}
+                    <div className="flex-1 overflow-x-auto">
+                      <div 
+                        ref={idx === 0 ? trackRef : undefined} 
+                        className="relative h-full"
+                        style={{ minWidth: `${trackMinWidth}px` }}
+                      >
+                        {/* Background grid */}
+                        <div className="rounded bg-muted/15 relative overflow-hidden" style={{ height: entryHeight }}>
+                          {hourTicks.slice(0, -1).map((tick) => {
+                            const left = ((tick - startMinutes) / totalMinutes) * 100;
+                            return (
+                              <div
+                                key={`bg-${tick}`}
+                                className="absolute inset-y-0 w-px bg-border/20"
+                                style={{ left: `${left}%` }}
+                              />
+                            );
+                          })}
                         </div>
-                      ))}
-                      {/* Entry blocks */}
-                      {lane.entries.map((entry) => (
-                        <MemoizedDraggableEntry
-                          key={entry.id}
-                          entry={entry}
-                          startMinutes={startMinutes}
-                          endMinutes={endMinutes}
-                          totalMinutes={totalMinutes}
-                          onSelect={onSelectEntry}
-                          isSelected={selectedEntryId === entry.id || selectedEntryIds?.has(entry.id)}
-                          isFocused={focusedEntryId === entry.id}
-                          hasConflict={allConflicts.has(entry.id)}
-                          enableDrag={enableDrag}
-                          recommendedStatus={recommendedTimeStatus.get(entry.id)}
-                          entryHeight={entryHeight}
-                          entryTop={entryTop}
-                        />
-                      ))}
+                        {/* Travel gap indicators */}
+                        {gaps.map((gap) => (
+                          <div
+                            key={`gap-${gap.afterEntryId}`}
+                            className="absolute hidden sm:flex items-center justify-center"
+                            style={{ left: `${gap.leftPercent}%`, width: `${gap.widthPercent}%`, top: `${gapTop}px`, height: `${gapHeight}px` }}
+                            title={`${gap.gapMinutes} minute gap`}
+                          >
+                            <div className="h-full w-full rounded border border-dashed border-amber-400/40 bg-amber-50/10" />
+                          </div>
+                        ))}
+                        {/* Entry blocks */}
+                        {lane.entries.map((entry) => (
+                          <MemoizedDraggableEntry
+                            key={entry.id}
+                            entry={entry}
+                            startMinutes={startMinutes}
+                            endMinutes={endMinutes}
+                            totalMinutes={totalMinutes}
+                            onSelect={onSelectEntry}
+                            isSelected={selectedEntryId === entry.id || selectedEntryIds?.has(entry.id)}
+                            isFocused={focusedEntryId === entry.id}
+                            hasConflict={allConflicts.has(entry.id)}
+                            enableDrag={enableDrag}
+                            recommendedStatus={recommendedTimeStatus.get(entry.id)}
+                            entryHeight={entryHeight}
+                            entryTop={entryTop}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </DroppableLane>
                 );

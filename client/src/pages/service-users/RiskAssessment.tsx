@@ -89,7 +89,11 @@ export default function RiskAssessment() {
     () => (showSensitive && generatedAssessmentsRaw.length > 0 ? generatedAssessmentsRaw : generatedAssessmentsScrubbed),
     [showSensitive, generatedAssessmentsRaw, generatedAssessmentsScrubbed]
   );
-  const generatedAssessmentsForCopy = generatedAssessmentsScrubbed.length > 0 ? generatedAssessmentsScrubbed : generatedAssessmentsRaw;
+  const generatedAssessmentsForCopy = useMemo(() => {
+    if (showSensitive && generatedAssessmentsRaw.length > 0) return generatedAssessmentsRaw;
+    if (generatedAssessmentsScrubbed.length > 0) return generatedAssessmentsScrubbed;
+    return generatedAssessmentsRaw;
+  }, [showSensitive, generatedAssessmentsRaw, generatedAssessmentsScrubbed]);
   const serviceUserDisplayName = useMemo(() => {
     const fullName = showSensitive ? analysisRaw?.serviceUser?.fullName : null;
     if (fullName && !/information not found/i.test(fullName)) return fullName.trim();
@@ -172,12 +176,33 @@ export default function RiskAssessment() {
   };
 
   const normalizeAssessmentName = (value: string) => canonicalizeAssessmentName(value).trim().replace(/\s+/g, " ");
+  const isNegatedEvidence = (value?: string) => {
+    if (!value) return false;
+    const lower = value.toLowerCase();
+    const patterns = [
+      /\bno (known |documented |reported )?(risk|risks|concerns?)\b/,
+      /\bno evidence\b/,
+      /\bnot (reported|documented|noted|mentioned)\b/,
+      /\bwithout (any |known )?(risk|risks|concerns?)\b/,
+      /\bdenies\b/,
+      /\bnone reported\b/,
+      /\binformation not found\b/,
+    ];
+    return patterns.some((pattern) => pattern.test(lower));
+  };
+
+  const isAssessmentRelevant = (assessment: RecommendedAssessment) => {
+    if (!assessment?.evidence || !assessment.evidence.trim()) return false;
+    if (isNegatedEvidence(assessment.evidence) || isNegatedEvidence(assessment.reason)) return false;
+    return true;
+  };
   const combinedAssessments = useMemo(() => {
     if (!analysis) return [];
     const combined: RecommendedAssessment[] = [];
     const seen = new Set<string>();
     analysis.recommendedAssessments.forEach((assessment) => {
       if (!assessment?.evidence || !assessment.evidence.trim()) return;
+      if (!isAssessmentRelevant(assessment)) return;
       const key = normalizeAssessmentKey(assessment.name);
       if (!key || seen.has(key)) return;
       seen.add(key);
@@ -793,21 +818,27 @@ export default function RiskAssessment() {
     doc.save(fileName);
   };
 
-  const sendAssessmentsToExtension = async () => {
-    if (generatedAssessmentsForCopy.length === 0) return;
+  const sendAssessmentsToExtension = async (assessmentsToSend?: GeneratedAssessment[]) => {
+    const assessments = assessmentsToSend && assessmentsToSend.length > 0
+      ? assessmentsToSend
+      : generatedAssessmentsForCopy;
+    if (assessments.length === 0) return;
     if (typeof window === "undefined") return;
 
     const requestId =
       typeof window.crypto !== "undefined" && typeof window.crypto.randomUUID === "function"
         ? window.crypto.randomUUID()
         : String(Date.now());
+    const payloadInitials =
+      (showSensitive ? analysisRaw?.serviceUser?.initials : analysisScrubbed?.serviceUser?.initials) ||
+      analysisRaw?.serviceUser?.initials ||
+      "N.N.";
     const payload = {
       version: 1,
       createdAt: new Date().toISOString(),
       serviceUserDisplayName,
-      serviceUserInitials:
-        analysisScrubbed?.serviceUser?.initials || analysisRaw?.serviceUser?.initials || "N.N.",
-      assessments: generatedAssessmentsForCopy.map((assessment) => ({
+      serviceUserInitials: payloadInitials,
+      assessments: assessments.map((assessment) => ({
         category: assessment.category,
         serviceUserInitials: assessment.serviceUserInitials,
         assessmentDate: assessment.assessmentDate,
@@ -856,7 +887,7 @@ export default function RiskAssessment() {
       if (response.ok) {
         toast({
           title: "Sent to extension",
-          description: `Queued ${generatedAssessmentsForCopy.length} assessment(s) for ACP autofill.`,
+          description: `Queued ${assessments.length} assessment(s) for ACP autofill.`,
         });
       } else {
         toast({
@@ -872,6 +903,12 @@ export default function RiskAssessment() {
         variant: "destructive",
       });
     }
+  };
+
+  const sendSingleAssessmentToExtension = async (index: number) => {
+    const assessment = generatedAssessmentsForCopy[index];
+    if (!assessment) return;
+    await sendAssessmentsToExtension([assessment]);
   };
 
   // Step 1: No data uploaded
@@ -1464,6 +1501,17 @@ export default function RiskAssessment() {
                     {copiedAssessment === idx ? <Check size={14} /> : <Copy size={14} />}
                     Copy
                   </Button>
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => sendSingleAssessmentToExtension(idx)}
+                      data-testid={`button-send-assessment-${idx}`}
+                    >
+                      <Send size={14} />
+                      Send
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
