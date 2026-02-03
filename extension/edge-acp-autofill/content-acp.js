@@ -711,33 +711,7 @@ const run = async () => {
       logAction("Submit button not found. Please submit manually.");
       return;
     }
-    
-    // Try to notify step complete multiple times in case page navigates
-    // The background script also monitors tab navigation as a backup
-    const notifyWithRetry = async () => {
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          if (caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
-            notifyStepComplete();
-            logAction(`Step complete notification sent (attempt ${attempt + 1})`);
-          } else {
-            chrome.storage.local.set({
-              [STORAGE_KEYS.queueState]: null,
-              [STORAGE_KEYS.payload]: null,
-              [STORAGE_KEYS.caseInfo]: null,
-              [STORAGE_KEYS.signatureData]: null,
-              [STORAGE_KEYS.signatureBatchId]: null,
-            });
-            logAction("All assessments completed!");
-          }
-          return;
-        } catch (e) {
-          logAction(`Retry ${attempt + 1}: ${e.message}`);
-        }
-        await wait(500);
-      }
-    };
-    notifyWithRetry();
+    logAction("Submitted. Waiting for confirmation page to advance.");
     return;
   }
 
@@ -749,6 +723,8 @@ const run = async () => {
         [STORAGE_KEYS.queueState]: null,
         [STORAGE_KEYS.payload]: null,
         [STORAGE_KEYS.caseInfo]: null,
+        [STORAGE_KEYS.signatureData]: null,
+        [STORAGE_KEYS.signatureBatchId]: null,
       });
     }
   });

@@ -143,6 +143,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   const isSuccessPage =
     tab.url &&
     (tab.url.includes("case_form_success") ||
+      tab.url.includes("case_data_group") ||
       tab.url.includes("/cases/") ||
       !isFormPage);
 
