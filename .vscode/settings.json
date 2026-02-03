@@ -32,5 +32,6 @@
                 "copilot/grok-code-fast-1"
             ]
         }
-    }
+    },
+    "markdown.validate.enabled": true
 }

@@ -21,6 +21,7 @@ interface RecommendedAssessment {
   isMandatory: boolean;
   reason: string;
   evidence?: string;
+  evidenceSnippets?: string[];
 }
 
 interface RiskAnalysis {
@@ -229,6 +230,7 @@ export default function RiskAssessment() {
       assessment.name,
       assessment.reason,
       assessment.evidence,
+      ...(assessment.evidenceSnippets || []),
       analysis?.documentSummary,
       ...(analysis?.concerns || []),
       ...(analysis?.medicalConditions || []),
@@ -308,7 +310,7 @@ export default function RiskAssessment() {
       if (assessmentFilter === "mandatory" && !assessment.isMandatory) return false;
       if (assessmentFilter === "optional" && assessment.isMandatory) return false;
       if (!query) return true;
-      const haystack = [assessment.name, assessment.reason, assessment.evidence]
+      const haystack = [assessment.name, assessment.reason, assessment.evidence, ...(assessment.evidenceSnippets || [])]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -670,6 +672,21 @@ export default function RiskAssessment() {
       setProgressStatus(`Generating ${assessmentName}... (${completed + 1}/${total})`);
       
       try {
+        const assessmentEvidence =
+          analysis?.recommendedAssessments?.find(
+            (assessment) => normalizeAssessmentKey(assessment.name) === normalizeAssessmentKey(assessmentName)
+          ) || null;
+        const analysisContext = analysis
+          ? {
+              medicalConditions: analysis.medicalConditions,
+              careActivities: analysis.careActivities,
+              concerns: analysis.concerns,
+              equipment: analysis.equipment,
+              communicationNeeds: analysis.communicationNeeds,
+              environmentalFactors: analysis.environmentalFactors,
+              documentSummary: analysis.documentSummary,
+            }
+          : null;
         const response = await fetch("/api/ai/generate-risk-assessment", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -681,6 +698,15 @@ export default function RiskAssessment() {
             performedBy: user?.username,
             performedByJobTitle: user?.jobTitle || "Care Staff",
             allowSensitive: isAdmin && allowSensitive,
+            assessmentEvidence: assessmentEvidence
+              ? {
+                  name: assessmentEvidence.name,
+                  reason: assessmentEvidence.reason,
+                  evidence: assessmentEvidence.evidence,
+                  evidenceSnippets: assessmentEvidence.evidenceSnippets,
+                }
+              : null,
+            analysisContext,
           }),
         });
 

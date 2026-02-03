@@ -937,6 +937,8 @@ const parseJsonFromContent = (content: string): any | null => {
 const getLowCostModel = () => "gpt-4o-mini";
 const getAccurateModel = () => getPreferredModel();
 const getRiskAssessmentModel = () => getPreferredModel();
+const getRiskAssessmentRecommendationModel = () => "gpt-5.2";
+const getRiskAssessmentGenerationModel = () => "gpt-4.1";
 
 const inferGenericNameFromMedicationLabel = (name: string): string => {
   if (!name) return "";
@@ -1063,6 +1065,33 @@ const truncateEvidence = (text: string, maxLength = 160) => {
   return `${text.slice(0, maxLength - 3)}...`;
 };
 
+const QUESTION_LIKE_PATTERNS = [
+  /\?/,
+  /^\s*(q:|question\b)/i,
+  /^\s*(do|does|did|is|are|was|were|have|has|had|can|could|would|should|may|might|must)\b/i,
+  /\bdo you have\b/i,
+  /\bdoes the service user\b/i,
+  /\bdo they have\b/i,
+  /\bhas the service user\b/i,
+  /\bare there\b/i,
+  /\bany history of\b/i,
+  /\bplease (state|describe|specify|confirm)\b/i,
+  /\byes\s*\/\s*no\b/i,
+  /\byes\s+no\b/i,
+  /\b(check|tick)\b/i,
+  /\bselect (one|all|any)\b/i,
+  /\bif yes\b/i,
+  /\bif no\b/i,
+  /\bn\/a\b/i,
+];
+
+const isQuestionLikeText = (text: string | undefined | null): boolean => {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  return QUESTION_LIKE_PATTERNS.some((pattern) => pattern.test(trimmed));
+};
+
 const buildDocumentEvidenceFinder = (documentContent: string) => {
   const content = documentContent || "";
   const lower = content.toLowerCase();
@@ -1081,6 +1110,7 @@ const buildDocumentEvidenceFinder = (documentContent: string) => {
       const end = Math.min(content.length, index + needle.length + 60);
       const snippet = content.slice(start, end).replace(/\s+/g, " ").trim();
       if (!snippet) continue;
+      if (isQuestionLikeText(snippet)) continue;
       const key = snippet.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
@@ -1090,7 +1120,35 @@ const buildDocumentEvidenceFinder = (documentContent: string) => {
     return snippets;
   };
 
-  return { findSnippets };
+  const findAllSnippets = (terms: string[], maxMatches = 8) => {
+    if (!content || terms.length === 0) return [];
+    const snippets: string[] = [];
+    const seen = new Set<string>();
+
+    for (const term of terms) {
+      if (!term) continue;
+      const needle = term.toLowerCase();
+      let startIndex = 0;
+      while (startIndex < lower.length) {
+        const index = lower.indexOf(needle, startIndex);
+        if (index < 0) break;
+        const start = Math.max(0, index - 70);
+        const end = Math.min(content.length, index + needle.length + 70);
+        const snippet = content.slice(start, end).replace(/\s+/g, " ").trim();
+        startIndex = index + needle.length;
+        if (!snippet) continue;
+        if (isQuestionLikeText(snippet)) continue;
+        const key = snippet.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        snippets.push(truncateEvidence(snippet));
+        if (snippets.length >= maxMatches) return snippets;
+      }
+    }
+    return snippets;
+  };
+
+  return { findSnippets, findAllSnippets };
 };
 
 const normalizeStringArray = (values: unknown): string[] => {
@@ -1101,6 +1159,7 @@ const normalizeStringArray = (values: unknown): string[] => {
     if (typeof value !== "string") continue;
     const trimmed = value.trim();
     if (!trimmed) continue;
+    if (isQuestionLikeText(trimmed)) continue;
     const key = trimmed.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
@@ -1134,6 +1193,7 @@ const isMeaningfulEvidence = (value: string | undefined | null): boolean => {
   if (lower.includes("information not found in documents")) return false;
   if (lower.includes("i'm not aware of") || lower.includes("im not aware of")) return false;
   if (lower.includes("not found in the provided documents")) return false;
+  if (isQuestionLikeText(trimmed)) return false;
   if (isNegatedEvidence(trimmed)) return false;
   return true;
 };
@@ -1159,7 +1219,7 @@ const sanitizeOutOfScopeText = (text: string) => {
 };
 
 const isAssessmentRelevantServer = (
-  assessment: { name?: string; reason?: string; evidence?: string },
+  assessment: { name?: string; reason?: string; evidence?: string; evidenceSnippets?: string[] },
   analysis: { medicalConditions?: string[]; careActivities?: string[]; concerns?: string[]; equipment?: string[]; communicationNeeds?: string[]; environmentalFactors?: string[]; documentSummary?: string }
 ): boolean => {
   if (!assessment?.name) return false;
@@ -1175,6 +1235,7 @@ const isAssessmentRelevantServer = (
     assessment.name,
     assessment.reason,
     assessment.evidence,
+    ...(assessment.evidenceSnippets || []),
     analysis.documentSummary,
     ...(analysis.concerns || []),
     ...(analysis.medicalConditions || []),
@@ -1209,19 +1270,19 @@ const buildAssessmentRecommendations = (analysis: {
   equipment?: string[];
   communicationNeeds?: string[];
   environmentalFactors?: string[];
-}, evidenceFinder?: { findSnippets: (terms: string[], maxMatches?: number) => string[] }): { name: string; isMandatory: boolean; reason: string; evidence?: string }[] => {
-  const recommendations: { name: string; isMandatory: boolean; reason: string; evidence?: string }[] = [];
-  const add = (name: string, reason: string, evidence?: string, forceMandatory?: boolean) => {
+}, evidenceFinder?: { findSnippets: (terms: string[], maxMatches?: number) => string[]; findAllSnippets: (terms: string[], maxMatches?: number) => string[] }): { name: string; isMandatory: boolean; reason: string; evidence?: string; evidenceSnippets?: string[] }[] => {
+  const recommendations: { name: string; isMandatory: boolean; reason: string; evidence?: string; evidenceSnippets?: string[] }[] = [];
+  const add = (name: string, reason: string, evidence?: string, evidenceSnippets?: string[], forceMandatory?: boolean) => {
     const isMandatory = forceMandatory || ALWAYS_MANDATORY_ASSESSMENTS.has(normalizeAssessmentKey(name));
-    recommendations.push({ name: canonicalizeAssessmentName(name), isMandatory, reason, evidence });
+    recommendations.push({ name: canonicalizeAssessmentName(name), isMandatory, reason, evidence, evidenceSnippets });
   };
 
   const addIfEvidence = (name: string, terms: string[], reason: string) => {
     if (!evidenceFinder) return;
-    const snippets = evidenceFinder.findSnippets(terms);
+    const snippets = evidenceFinder.findAllSnippets(terms);
     const evidence = pickEvidenceSnippet(snippets);
     if (!evidence) return;
-    add(name, reason, evidence);
+    add(name, reason, evidence, snippets);
   };
 
   // Check service user profile arrays directly for quick matching
@@ -1260,20 +1321,22 @@ const buildAssessmentRecommendations = (analysis: {
 };
 
 const mergeAssessmentRecommendations = (
-  existing: Array<{ name: string; isMandatory?: boolean; reason?: string; evidence?: string }> = [],
-  derived: Array<{ name: string; isMandatory?: boolean; reason?: string; evidence?: string }> = []
+  existing: Array<{ name: string; isMandatory?: boolean; reason?: string; evidence?: string; evidenceSnippets?: string[] }> = [],
+  derived: Array<{ name: string; isMandatory?: boolean; reason?: string; evidence?: string; evidenceSnippets?: string[] }> = []
 ) => {
-  const merged = new Map<string, { name: string; isMandatory: boolean; reason: string; evidence?: string }>();
-  const apply = (item: { name: string; isMandatory?: boolean; reason?: string; evidence?: string }) => {
+  const merged = new Map<string, { name: string; isMandatory: boolean; reason: string; evidence?: string; evidenceSnippets?: string[] }>();
+  const apply = (item: { name: string; isMandatory?: boolean; reason?: string; evidence?: string; evidenceSnippets?: string[] }) => {
     if (!item?.name) return;
     const key = normalizeAssessmentKey(item.name);
     if (!key) return;
     const canonicalName = canonicalizeAssessmentName(item.name);
+    const evidenceSnippets = Array.isArray(item.evidenceSnippets) ? item.evidenceSnippets.filter(isMeaningfulEvidence) : [];
     const normalized = {
       name: canonicalName,
       isMandatory: Boolean(item.isMandatory),
       reason: item.reason?.trim() || (item.evidence?.trim() ? "Evidence noted in documents." : ""),
       evidence: item.evidence?.trim() || "",
+      evidenceSnippets,
     };
     const current = merged.get(key);
     if (!current) {
@@ -1283,6 +1346,17 @@ const mergeAssessmentRecommendations = (
     current.isMandatory = current.isMandatory || normalized.isMandatory;
     if (!current.reason && normalized.reason) current.reason = normalized.reason;
     if (!current.evidence && normalized.evidence) current.evidence = normalized.evidence;
+    if (normalized.evidenceSnippets && normalized.evidenceSnippets.length) {
+      const existingSnippets = Array.isArray(current.evidenceSnippets) ? current.evidenceSnippets : [];
+      const mergedSnippets = [...existingSnippets, ...normalized.evidenceSnippets];
+      const seen = new Set<string>();
+      current.evidenceSnippets = mergedSnippets.filter((snippet) => {
+        const key = snippet.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
     if (current.evidence && normalized.evidence && current.evidence !== normalized.evidence) {
       const combinedEvidence = `${current.evidence}; ${normalized.evidence}`;
       current.evidence = truncateEvidence(combinedEvidence);
@@ -1313,21 +1387,22 @@ const extractSummaryEvidence = (summary: string, terms: string[]) => {
 };
 
 const attachAssessmentEvidence = (
-  recommendations: Array<{ name: string; isMandatory?: boolean; reason?: string; evidence?: string }>,
+  recommendations: Array<{ name: string; isMandatory?: boolean; reason?: string; evidence?: string; evidenceSnippets?: string[] }>,
   analysis: { medicalConditions?: string[]; careActivities?: string[]; concerns?: string[]; documentSummary?: string },
-  evidenceFinder?: { findSnippets: (terms: string[], maxMatches?: number) => string[] }
+  evidenceFinder?: { findSnippets: (terms: string[], maxMatches?: number) => string[]; findAllSnippets: (terms: string[], maxMatches?: number) => string[] }
 ) =>
   recommendations.map((item) => {
     const evidenceTerms = ASSESSMENT_EVIDENCE_TERMS[normalizeAssessmentKey(item.name)] || [];
     if (!evidenceFinder || evidenceTerms.length === 0) {
       return { ...item, name: canonicalizeAssessmentName(item.name), evidence: "" };
     }
-    const snippets = evidenceFinder.findSnippets(evidenceTerms);
+    const snippets = evidenceFinder.findAllSnippets(evidenceTerms).filter(isMeaningfulEvidence);
     const evidence = pickEvidenceSnippet(snippets);
     return {
       ...item,
       name: canonicalizeAssessmentName(item.name),
       evidence,
+      evidenceSnippets: snippets,
     };
   });
 
@@ -10165,7 +10240,7 @@ Return JSON - include ALL by default:
         .update("|")
         .update(policyFingerprint)
         .update("|")
-        .update("evidence_v2")
+        .update("evidence_v4")
         .update("|")
         .update(allowSensitiveView ? "1" : "0")
         .digest("hex");
@@ -10243,6 +10318,7 @@ EVIDENCE-BASED ANALYSIS - CRITICAL REQUIREMENTS:
 3. Every recommended assessment MUST be based on ACTUAL evidence found in the documents
 4. If you cannot find specific information in the documents, state "Information not found in documents"
 5. For every recommended assessment, you MUST cite the specific evidence from the documents that supports it
+6. For every recommended assessment, include an "evidenceSnippets" array with 2-6 short snippets or phrases from the documents that support it
 6. Do NOT recommend assessments based on speculation or "what might be needed" - only recommend based on documented facts
 7. Accuracy is paramount - it is better to omit an assessment than to recommend one without documented evidence
 
@@ -10252,6 +10328,7 @@ IMPORTANT RULES:
 3. Write narrative fields in FIRST PERSON using "I" and "my"
 4. ONLY recommend a risk assessment if you can cite evidence from the documents. If no evidence is found, omit it.
 5. For every recommended assessment, include a short evidence phrase from the documents.
+6. For every recommended assessment, include an "evidenceSnippets" array with 2-6 short snippets or phrases from the documents that support it.
 6. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
 7. All recommendations must remain within a care worker's scope of practice. Do not include clinical decisions (diagnosis, prescribing, dose changes).
 ${privacyRules}
@@ -10317,7 +10394,8 @@ Respond ONLY with valid JSON in this exact format:
       "name": "Assessment category name",
       "isMandatory": false,
       "reason": "Why this is recommended - link to specific service user profile item",
-      "evidence": "Exact phrase or short paraphrase from the documents that supports this recommendation"
+      "evidence": "Exact phrase or short paraphrase from the documents that supports this recommendation",
+      "evidenceSnippets": ["Short snippets from the documents that support this recommendation"]
     }
   ],
   "documentSummary": "Brief summary of the service user's overall profile based on ALL documents scanned"
@@ -10344,7 +10422,7 @@ Respond ONLY with valid JSON in this exact format:
       }, 3000);
 
       const response = await createChatCompletionWithLogging({
-        model: getAccurateModel(),
+        model: getRiskAssessmentRecommendationModel(),
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `CRITICAL INSTRUCTIONS:
@@ -10383,6 +10461,7 @@ ${documentContentForAi}` }
               isMandatory: Boolean(item.isMandatory),
               reason: typeof item?.reason === "string" ? item.reason.trim() : "",
               evidence: typeof item?.evidence === "string" ? item.evidence.trim() : "",
+              evidenceSnippets: normalizeStringArray(item?.evidenceSnippets),
             }))
         : [];
 
@@ -10409,7 +10488,7 @@ ${documentContentForAi}` }
       result.documentSummary = toFirstPerson(result.documentSummary);
       result.recommendedAssessments = result.recommendedAssessments.map((assessment: any) => ({
         ...assessment,
-        reason: typeof assessment?.reason === "string" ? toFirstPerson(assessment.reason) : assessment?.reason
+        reason: typeof assessment?.reason === "string" ? toFirstPerson(assessment.reason) : assessment?.reason,
       }));
 
       const evidenceFinder = buildDocumentEvidenceFinder(documentContentForAi || "");
@@ -10422,6 +10501,10 @@ ${documentContentForAi}` }
       result.recommendedAssessments = result.recommendedAssessments.filter(
         (assessment: any) => isAssessmentRelevantServer(assessment, result)
       );
+      result.recommendedAssessments = result.recommendedAssessments.map((assessment: any) => ({
+        ...assessment,
+        evidenceSnippets: normalizeStringArray(assessment?.evidenceSnippets).filter(isMeaningfulEvidence),
+      }));
 
       const scrubbedResult = sanitizeNarrativePII(result);
       const payload = allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult;
@@ -10450,7 +10533,16 @@ ${documentContentForAi}` }
     const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
     
     try {
-      const { documentContent, assessmentCategory, serviceUserInitials, performedBy, performedByJobTitle, allowSensitive } = req.body;
+      const {
+        documentContent,
+        assessmentCategory,
+        serviceUserInitials,
+        performedBy,
+        performedByJobTitle,
+        allowSensitive,
+        assessmentEvidence,
+        analysisContext,
+      } = req.body;
       const allowSensitiveView = Boolean(allowSensitive) && req.user?.role === "admin";
       
       if (!documentContent || !assessmentCategory) {
@@ -10521,6 +10613,35 @@ ${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.versio
         ? "Privacy requirement: You may include full names only if present in the documents. Do not invent names. Never include dates of birth."
         : "Privacy requirement: Never include full names or dates of birth. Use only initials.";
 
+      const evidenceSnippets = Array.isArray(assessmentEvidence?.evidenceSnippets)
+        ? assessmentEvidence.evidenceSnippets.filter(isMeaningfulEvidence)
+        : [];
+      const evidencePack = [
+        typeof assessmentEvidence?.evidence === "string" ? assessmentEvidence.evidence.trim() : "",
+        ...evidenceSnippets,
+      ]
+        .filter((snippet) => isMeaningfulEvidence(snippet))
+        .join("\n- ");
+
+      const profileContext = analysisContext
+        ? JSON.stringify(
+            {
+              medicalConditions: normalizeStringArray(analysisContext.medicalConditions),
+              careActivities: normalizeStringArray(analysisContext.careActivities),
+              concerns: normalizeStringArray(analysisContext.concerns),
+              equipment: normalizeStringArray(analysisContext.equipment),
+              communicationNeeds: normalizeStringArray(analysisContext.communicationNeeds),
+              environmentalFactors: normalizeStringArray(analysisContext.environmentalFactors),
+              documentSummary:
+                typeof analysisContext.documentSummary === "string"
+                  ? analysisContext.documentSummary.trim()
+                  : undefined,
+            },
+            null,
+            2
+          )
+        : "";
+
       const systemPrompt = `You are an expert care risk assessor for a UK care facility. Generate a detailed, comprehensive risk assessment for the specified category.
 ${policyContext}
 
@@ -10565,6 +10686,12 @@ IMPORTANT RULES:
 
 SERVICE USER DETAILS:
 - Service User Initials: ${serviceUserInitials || 'N.N.'}
+
+EVIDENCE PACK - USE THIS FIRST:
+${evidencePack ? `- ${evidencePack}` : "- No pre-extracted evidence pack provided. Use only the document content."}
+
+PROFILE CONTEXT (from analysis):
+${profileContext || "Not provided."}
 
 ${privacyDirective}
 
@@ -10617,10 +10744,10 @@ Respond ONLY with valid JSON in this exact format:
       sendProgress(30, "Generating risk assessment...", "ai_generation");
 
       const response = await createChatCompletionWithLogging({
-        model: getRiskAssessmentModel(),
+        model: getRiskAssessmentGenerationModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on these documents.
+          { role: "user", content: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on these documents and the evidence pack.
 
 CRITICAL INSTRUCTIONS:
 1. Identify and list ALL distinct risks within this category (typically 3-8 separate risks)
@@ -10629,6 +10756,9 @@ CRITICAL INSTRUCTIONS:
 4. Every risk must be evidence-based - traceable to specific information in the documents
 5. Do not make up falls, behaviors, medical events, or other incidents that are not documented
 6. Write detailed, thorough content for each field based ONLY on documented facts
+
+Evidence pack for this category (use these facts first and ensure every risk maps to them or the documents):
+${evidencePack ? `- ${evidencePack}` : "- No evidence pack provided."}
 
 Documents to analyze:
 
@@ -11426,7 +11556,7 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
       }, 3000);
 
       const response = await createChatCompletionWithLogging({
-        model: getAccurateModel(),
+        model: getRiskAssessmentGenerationModel(),
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Analyze this document and generate a complete care plan template. Extract all relevant information and write detailed first-person content for each section:\n\n${contentToEnhance}` }

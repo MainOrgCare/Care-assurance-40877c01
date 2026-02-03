@@ -22,6 +22,15 @@
 - Custom autofill uses `fields` with `selector`, `name`, or `label` plus a `value`, and can target any formId.
 - If the ACP form URL or selectors change, update content-acp.js.
 
+## Edge Add-ons Publishing (Unlisted)
+
+1. Bump the version: `npm run bump:extension`
+2. Package the zip: `npm run package:extension` (outputs `dist/edge-acp-autofill.zip`)
+3. Upload the zip in the Edge Add-ons dashboard (Unlisted)
+4. Use privacy policy URL: `https://careassurance.uk/privacy`
+
+Note: If the store rejects SVG icons, replace the icon set with PNGs at `assets/icon-16.png`, `assets/icon-32.png`, `assets/icon-48.png`, `assets/icon-128.png` and update `manifest.json`.
+
 ### Custom payload example
 
 ```json

@@ -2,8 +2,6 @@
 
 > **Complete visual design documentation** with exact color values, layout structure, and theme variations.
 
----
-
 ## Table of Contents
 
 1. [Layout Structure](#layout-structure)
@@ -20,7 +18,7 @@
 
 ### Overall Page Structure
 
-```
+```text
 +----------------------------------------------------------+
 |                    FULL SCREEN (100vh)                    |
 +----------------------------------------------------------+
@@ -43,7 +41,7 @@
 
 ### Desktop Layout (md: 768px+)
 
-```
+```text
 Sidebar Width:       256px (w-64)
 Main Content:        flex-1 (remaining width)
 Content Max Width:   1280px (max-w-7xl)
@@ -53,7 +51,7 @@ Header Height:       64px (h-16)
 
 ### Mobile Layout (< 768px)
 
-```
+```text
 Sidebar:             Hidden (slide-out sheet via hamburger)
 Sheet Width:         256px (w-64)
 Content Padding:     16px (p-4)
@@ -62,7 +60,7 @@ Hamburger Button:    Left side of header
 
 ### Sidebar Structure
 
-```
+```text
 +----------------------------------+
 |  LOGO SECTION (p-6 padding)      |
 |  +----------------------------+  |
@@ -100,7 +98,7 @@ Hamburger Button:    Left side of header
 
 ### Header Structure
 
-```
+```text
 +------------------------------------------------------------------+
 |  [Menu] (mobile only)     |                    [Name] [Avatar]   |
 |                           |                    Role               |
@@ -109,7 +107,7 @@ Hamburger Button:    Left side of header
 
 ### Footer Structure
 
-```
+```text
 +------------------------------------------------------------------+
 |  (c) 2025 CareAssurance.     |     Terms & Conditions | Privacy  |
 +------------------------------------------------------------------+
