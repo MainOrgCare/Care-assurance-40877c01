@@ -28,19 +28,26 @@ app.use((req, res, next) => {
 });
 
 // CORS middleware
-const corsOrigin = process.env.CORS_ORIGIN;
-if (corsOrigin) {
-  const corsOptions: CorsOptions = {
-    origin: corsOrigin,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  };
-  app.use(cors(corsOptions));
-  log(`CORS enabled for origin: ${corsOrigin}`);
-} else {
-  log("CORS_ORIGIN not set. Cross-origin requests will be blocked.");
-}
+const corsOriginEnv = process.env.CORS_ORIGIN;
+const defaultOrigins = [`https://${CANONICAL_DOMAIN}`, `https://www.${CANONICAL_DOMAIN}`];
+const devOrigins = process.env.NODE_ENV !== "production" ? ["http://localhost:5173", "http://localhost:3000"] : [];
+const allowedOrigins = (corsOriginEnv ? corsOriginEnv.split(",") : defaultOrigins)
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+  .concat(devOrigins);
+
+const corsOptions: CorsOptions = {
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+app.use(cors(corsOptions));
+log(`CORS enabled for origin(s): ${allowedOrigins.join(", ")}`);
 
 // Compression middleware - configured to allow flushing for SSE streams
 // The compression middleware adds res.flush() which is needed to push SSE events through proxies
