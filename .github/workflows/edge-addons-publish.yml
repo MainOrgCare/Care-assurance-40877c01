@@ -1,0 +1,46 @@
+name: Publish Edge Add-on
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: "Notes for Edge Add-ons certification"
+        required: false
+        default: ""
+  push:
+    branches:
+      - main
+    paths:
+      - extension/edge-acp-autofill/**
+      - script/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/edge-addons-publish.yml
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Package extension
+        run: npm run package:extension
+
+      - name: Publish to Edge Add-ons
+        env:
+          EDGE_ADDONS_PRODUCT_ID: ${{ secrets.EDGE_ADDONS_PRODUCT_ID }}
+          EDGE_ADDONS_CLIENT_ID: ${{ secrets.EDGE_ADDONS_CLIENT_ID }}
+          EDGE_ADDONS_API_KEY: ${{ secrets.EDGE_ADDONS_API_KEY }}
+          EDGE_ADDONS_NOTES: "Automated update from GitHub Actions. Commit: ${{ github.sha }}"
+        run: python script/edge-addons-publish.py --zip dist/edge-acp-autofill.zip --notes "${{ inputs.notes }}"

@@ -12,6 +12,8 @@
     "build": "npm run build:client && npm run build:server && npm run build:worker",
     "bump:extension": "python script/bump-extension-version.py --part patch",
     "package:extension": "python script/package-extension.py",
+    "release:extension": "npm run bump:extension && npm run package:extension",
+    "publish:edge-addon": "python script/edge-addons-publish.py --zip dist/edge-acp-autofill.zip",
     "start:api": "NODE_ENV=production node dist/index.cjs",
     "start:worker": "NODE_ENV=production node dist/worker.cjs",
     "start": "npm run start:api",

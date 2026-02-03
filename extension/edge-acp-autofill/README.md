@@ -31,6 +31,20 @@
 
 Note: If the store rejects SVG icons, replace the icon set with PNGs at `assets/icon-16.png`, `assets/icon-32.png`, `assets/icon-48.png`, `assets/icon-128.png` and update `manifest.json`.
 
+### GitHub Actions Auto-Publish (Edge Add-ons API)
+
+This repo includes `.github/workflows/edge-addons-publish.yml` which publishes automatically on pushes to `main` (when extension files change) or via manual dispatch.
+
+Secrets required in GitHub:
+- `EDGE_ADDONS_PRODUCT_ID`
+- `EDGE_ADDONS_CLIENT_ID`
+- `EDGE_ADDONS_API_KEY`
+
+Local publish command (optional, uses the same API):
+`npm run publish:edge-addon`
+
+Notes for certification can be passed via the workflow input or by setting `EDGE_ADDONS_NOTES`.
+
 ### Custom payload example
 
 ```json
