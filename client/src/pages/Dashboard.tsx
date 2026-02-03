@@ -195,7 +195,7 @@ export default function Dashboard() {
   };
 
   const stats = data?.stats;
-  const recentAlerts = data?.recentAlerts || [];
+  const recentAlerts: AdminAlert[] = data?.recentAlerts ?? [];
 
   const formatTimeAgo = useCallback((dateStr: string) => {
     const date = new Date(dateStr);

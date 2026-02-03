@@ -57,6 +57,11 @@ interface CarePlanTemplate {
   section11Bands: Record<string, string>;
 }
 
+type PlanEnhancerResult = {
+  raw: CarePlanTemplate;
+  scrubbed: CarePlanTemplate;
+};
+
 function CopyButton({ text, label }: { text: string; label?: string }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
@@ -374,7 +379,7 @@ export default function PlanEnhancer() {
 
       return { raw: resultRaw, scrubbed: resultScrubbed || resultRaw };
     },
-    onSuccess: ({ raw, scrubbed }) => {
+    onSuccess: ({ raw, scrubbed }: PlanEnhancerResult) => {
       setProgress(100);
       setProgressStatus("Complete!");
       setTimeout(() => {

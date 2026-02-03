@@ -87,7 +87,7 @@ export const AdminDatabasePanel: React.FC = () => {
   });
 
   // Cleanup mutation
-  const cleanupMutation = useMutation({
+  const cleanupMutation = useMutation<CleanupResult, Error, void>({
     mutationFn: async () => {
       const response = await fetch("/api/admin/rostering/cleanup-expired", {
         method: "POST",
@@ -98,8 +98,8 @@ export const AdminDatabasePanel: React.FC = () => {
       }
       return response.json() as Promise<CleanupResult>;
     },
-    onSuccess: (data) => {
-      const totalDeleted = Object.values(data.deleted).reduce((a, b) => a + b, 0);
+    onSuccess: (data: CleanupResult) => {
+      const totalDeleted = (Object.values(data.deleted) as number[]).reduce((sum, value) => sum + value, 0);
       toast({
         title: "Cleanup Complete",
         description: totalDeleted > 0 
@@ -108,7 +108,7 @@ export const AdminDatabasePanel: React.FC = () => {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/data-stats"] });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Cleanup Failed",
         description: error.message,
@@ -117,7 +117,7 @@ export const AdminDatabasePanel: React.FC = () => {
     },
   });
 
-  const resetMutation = useMutation({
+  const resetMutation = useMutation<ResetResult, Error, void>({
     mutationFn: async () => {
       const confirmed = window.confirm(
         "This will remove ALL rostering and care worker rota data. This cannot be undone. Continue?"
@@ -134,8 +134,8 @@ export const AdminDatabasePanel: React.FC = () => {
       }
       return response.json() as Promise<ResetResult>;
     },
-    onSuccess: (data) => {
-      const totalDeleted = Object.values(data.deleted).reduce((a, b) => a + b, 0);
+    onSuccess: (data: ResetResult) => {
+      const totalDeleted = (Object.values(data.deleted) as number[]).reduce((sum, value) => sum + value, 0);
       toast({
         title: "Reset Complete",
         description: `Removed ${totalDeleted} records. Fresh start ready.`,
@@ -143,7 +143,7 @@ export const AdminDatabasePanel: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/data-stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbook-uploads"] });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       if (error.message === "Reset cancelled") return;
       toast({
         title: "Reset Failed",
@@ -153,7 +153,7 @@ export const AdminDatabasePanel: React.FC = () => {
     },
   });
 
-  const deleteUploadMutation = useMutation({
+  const deleteUploadMutation = useMutation<{ success: boolean }, Error, string>({
     mutationFn: async (uploadId: string) => {
       const confirmed = window.confirm("Delete this workbook upload? This cannot be undone.");
       if (!confirmed) {
@@ -176,7 +176,7 @@ export const AdminDatabasePanel: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbook-uploads"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/data-stats"] });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       if (error.message === "Delete cancelled") return;
       toast({
         title: "Delete Failed",
@@ -307,7 +307,7 @@ export const AdminDatabasePanel: React.FC = () => {
             <p className="text-xs text-muted-foreground">No saved uploads found.</p>
           ) : (
             <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-              {uploads.map((upload) => {
+              {uploads.map((upload: WorkbookUploadSummary) => {
                 const dateLabel = upload.completedAt || upload.createdAt;
                 const rangeLabel =
                   upload.dateRangeStart && upload.dateRangeEnd
@@ -347,7 +347,7 @@ export const AdminDatabasePanel: React.FC = () => {
               <div>
                 <h4 className="font-medium text-green-900 dark:text-green-100">Last Cleanup Result</h4>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {Object.entries(cleanupMutation.data.deleted).map(([key, value]) => (
+                  {Object.entries(cleanupMutation.data.deleted as Record<string, number>).map(([key, value]) => (
                     <Badge key={key} variant="secondary" className="text-xs">
                       {key}: {value}
                     </Badge>

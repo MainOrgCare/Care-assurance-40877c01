@@ -32,6 +32,11 @@ interface CarePlanResult {
   additionalNotes: string;
 }
 
+type CarePlanMutationResult = {
+  raw: CarePlanResult;
+  scrubbed: CarePlanResult;
+};
+
 export default function CarePlanning() {
   const { serviceUserData, getAllDocumentContent, isAnyParsing } = useTemporaryData();
   const { user } = useAuth();
@@ -259,7 +264,7 @@ export default function CarePlanning() {
 
       return { raw: resultRaw, scrubbed: resultScrubbed || resultRaw };
     },
-    onSuccess: ({ raw, scrubbed }) => {
+    onSuccess: ({ raw, scrubbed }: CarePlanMutationResult) => {
       console.log("[CarePlan] onSuccess called with data:", JSON.stringify(raw).substring(0, 500));
       setProgress(100);
       setProgressStatus("Complete!");

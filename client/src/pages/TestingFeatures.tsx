@@ -674,7 +674,7 @@ export default function TestingFeatures() {
       }
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { deduped?: boolean }) => {
       toast({
         title: data.deduped ? "Upload already exists" : "Workbook ingested",
         description: data.deduped

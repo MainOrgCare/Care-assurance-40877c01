@@ -275,6 +275,30 @@ interface WorkbookFull {
   updatedAt: string;
 }
 
+type WorkerConstraintSummary = {
+  workerKey: string;
+  workerName: string;
+  maxCallsPerDay?: number;
+  maxMinutesPerDay?: number;
+  maxCallsPerWeek?: number;
+  maxMinutesPerWeek?: number;
+};
+
+type SavedRosterStateSummary = {
+  id: string;
+  name: string;
+  description?: string;
+  templateWeek: string;
+  templateDay: string;
+  timeOverrides: Record<string, number>;
+  laneOverrides: Record<string, string>;
+  metrics?: Record<string, number>;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdByUsername?: string;
+};
+
 type DayTemplateStats = {
   dateKey: string;
   day: WeekdayLabel;
@@ -563,14 +587,7 @@ export default function RosteringStudio({
   });
 
   // Fetch worker constraints (max calls per day)
-  const { data: workerConstraints = [] } = useQuery<{
-    workerKey: string;
-    workerName: string;
-    maxCallsPerDay?: number;
-    maxMinutesPerDay?: number;
-    maxCallsPerWeek?: number;
-    maxMinutesPerWeek?: number;
-  }[]>({
+  const { data: workerConstraints = [] } = useQuery<WorkerConstraintSummary[]>({
     queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "worker-constraints"],
     queryFn: async () => {
       if (!selectedWorkbookId) return [];
@@ -582,20 +599,7 @@ export default function RosteringStudio({
   });
 
   // Fetch saved roster states
-  const { data: savedStates = [] } = useQuery<{
-    id: string;
-    name: string;
-    description?: string;
-    templateWeek: string;
-    templateDay: string;
-    timeOverrides: Record<string, number>;
-    laneOverrides: Record<string, string>;
-    metrics?: Record<string, number>;
-    isActive: boolean;
-    createdAt: string;
-    updatedAt: string;
-    createdByUsername?: string;
-  }[]>({
+  const { data: savedStates = [] } = useQuery<SavedRosterStateSummary[]>({
     queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "saved-states"],
     queryFn: async () => {
       if (!selectedWorkbookId) return [];
@@ -787,7 +791,7 @@ export default function RosteringStudio({
   const doubleUpSlots = useMemo<Map<string, Set<string>>>(() => {
     if (!workbook?.doubleUpSlots) return new Map();
     const map = new Map<string, Set<string>>();
-    for (const [key, workers] of Object.entries(workbook.doubleUpSlots)) {
+    for (const [key, workers] of Object.entries(workbook.doubleUpSlots) as [string, string[]][]) {
       map.set(key, new Set(workers));
     }
     return map;
@@ -2876,7 +2880,7 @@ export default function RosteringStudio({
               </CardHeader>
               <CardContent>
                 <div className="space-y-1">
-                  {workerConstraints.map((c) => (
+                  {workerConstraints.map((c: WorkerConstraintSummary) => (
                     <div key={c.workerKey} className="flex items-center justify-between text-xs">
                       <span className="text-foreground">{c.workerName}</span>
                       <div className="flex gap-2">
@@ -3499,7 +3503,7 @@ export default function RosteringStudio({
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            {savedStates.map((state) => (
+                            {savedStates.map((state: SavedRosterStateSummary) => (
                               <div
                                 key={state.id}
                                 className={`flex items-center justify-between rounded-xl border p-3 transition-colors ${

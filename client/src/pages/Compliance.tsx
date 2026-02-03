@@ -45,17 +45,17 @@ export default function Compliance() {
     );
   }
 
-  const auditList = audits || [];
+  const auditList: Audit[] = audits ?? [];
   
-  const emarAudits = auditList.filter(a => a.auditType === "EMAR");
-  const visitAudits = auditList.filter(a => a.auditType === "Visit");
+  const emarAudits = auditList.filter((a: Audit) => a.auditType === "EMAR");
+  const visitAudits = auditList.filter((a: Audit) => a.auditType === "Visit");
   
-  const totalDiscrepancies = auditList.reduce((sum, audit) => {
+  const totalDiscrepancies = auditList.reduce((sum: number, audit: Audit) => {
     const results = audit.results as any;
     return sum + (results?.discrepancies?.length || 0);
   }, 0);
 
-  const totalWarnings = auditList.reduce((sum, audit) => {
+  const totalWarnings = auditList.reduce((sum: number, audit: Audit) => {
     const results = audit.results as any;
     return sum + (results?.warnings?.length || 0);
   }, 0);
@@ -211,7 +211,7 @@ export default function Compliance() {
         <CardContent>
           {auditList.length > 0 ? (
             <div className="space-y-4">
-              {auditList.slice(0, 10).map((audit) => {
+              {auditList.slice(0, 10).map((audit: Audit) => {
                 const results = audit.results as any;
                 const discrepancyCount = results?.discrepancies?.length || 0;
                 const warningCount = results?.warnings?.length || 0;
@@ -276,7 +276,7 @@ export default function Compliance() {
 function getMonthlyAuditData(audits: Audit[]) {
   const monthCounts: { [key: string]: number } = {};
   
-  audits.forEach(audit => {
+  audits.forEach((audit: Audit) => {
     const date = new Date(audit.createdAt);
     const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
     monthCounts[monthKey] = (monthCounts[monthKey] || 0) + 1;
