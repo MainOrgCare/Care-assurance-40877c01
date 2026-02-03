@@ -10237,16 +10237,23 @@ FORMATTING RULES - MUST FOLLOW:
 - Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas instead.
 - Never use Oxford commas (the comma before "and" or "or" in a list). Write "apples, oranges and bananas" not "apples, oranges, and bananas".
 
+EVIDENCE-BASED ANALYSIS - CRITICAL REQUIREMENTS:
+1. ONLY extract information EXPLICITLY stated in the documents - never invent, assume, or fabricate details
+2. Do NOT make up medical conditions, incidents, falls, behaviors, or risks that are not mentioned in the documents
+3. Every recommended assessment MUST be based on ACTUAL evidence found in the documents
+4. If you cannot find specific information in the documents, state "Information not found in documents"
+5. For every recommended assessment, you MUST cite the specific evidence from the documents that supports it
+6. Do NOT recommend assessments based on speculation or "what might be needed" - only recommend based on documented facts
+7. Accuracy is paramount - it is better to omit an assessment than to recommend one without documented evidence
+
 IMPORTANT RULES:
 1. SCAN EVERY DOCUMENT PROVIDED - including social work assessments, initial assessments, care plans, moving and handling plans, and any additional documents
-2. ONLY use information explicitly stated in the documents. Never make assumptions.
-3. If you cannot find specific information, state "Information not found in documents"
-4. Be very careful to extract the correct service user details
-5. Write narrative fields in FIRST PERSON using "I" and "my"
-6. ONLY recommend a risk assessment if you can cite evidence from the documents. If no evidence is found, omit it.
-7. For every recommended assessment, include a short evidence phrase from the documents.
-8. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
-9. All recommendations must remain within a care worker's scope of practice. Do not include clinical decisions (diagnosis, prescribing, dose changes).
+2. Be very careful to extract the correct service user details
+3. Write narrative fields in FIRST PERSON using "I" and "my"
+4. ONLY recommend a risk assessment if you can cite evidence from the documents. If no evidence is found, omit it.
+5. For every recommended assessment, include a short evidence phrase from the documents.
+6. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
+7. All recommendations must remain within a care worker's scope of practice. Do not include clinical decisions (diagnosis, prescribing, dose changes).
 ${privacyRules}
 
 STEP 1 - BUILD SERVICE USER PROFILE BY EXTRACTING FROM ALL DOCUMENTS:
@@ -10340,7 +10347,16 @@ Respond ONLY with valid JSON in this exact format:
         model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `IMPORTANT: Scan ALL of the following documents thoroughly to build the service user's complete profile, then determine which risk assessments are needed based on their profile:\n\n${documentContentForAi}` }
+          { role: "user", content: `CRITICAL INSTRUCTIONS:
+1. Scan ALL of the following documents thoroughly to build the service user's complete profile
+2. Determine which risk assessments are needed based ONLY on evidence found in the documents
+3. DO NOT make up or assume medical conditions, incidents, or risks not mentioned in the documents
+4. Every recommended assessment MUST include specific evidence from the documents
+5. If no evidence exists for an assessment, DO NOT recommend it
+
+Documents to analyze:
+
+${documentContentForAi}` }
         ],
         max_completion_tokens: 4000,
         temperature: 0,
@@ -10523,17 +10539,29 @@ WHO WILL BE HARMED - BE ACCURATE:
 - Be specific - if multiple people could be harmed, list them (e.g., "Service User and Care Workers" or "Service User, Family Members and Visitors")
 - Think about who is actually present during care activities
 
+EVIDENCE-BASED PRACTICE - CRITICAL REQUIREMENTS:
+1. ONLY use information EXPLICITLY stated in the documents provided - never invent, assume, or fabricate details
+2. Base ALL risk identifications on ACTUAL evidence from the documents (conditions, incidents, concerns mentioned)
+3. Do NOT make up medical conditions, incidents, or risks that are not documented
+4. If information is not in the documents, DO NOT include it - leave it out entirely
+5. Control measures must be based on standard care practices relevant to the documented risks
+6. Risk ratings must reflect the ACTUAL severity based on what is documented, not hypothetical scenarios
+7. NEVER fabricate incidents, falls, behaviors, or medical events that are not mentioned in the documents
+8. Use clinical reasoning based on documented facts, not speculation
+
 IMPORTANT RULES:
 1. Extract and synthesize ALL relevant information from the documents provided
 2. Write detailed, informative content - be thorough and comprehensive
 3. Use professional but clear language suitable for care documentation
-4. Follow CQC (Care Quality Commission) standards
+4. Follow CQC (Care Quality Commission) evidence-based standards
 5. Do NOT include any person names. Use role terms (my carer, my GP, my family member, my care team)
 6. Keep place names and locations as written. Do not redact places.
 7. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
 8. Stay within a care worker's scope of practice. Do not diagnose, prescribe, change doses, or make clinical decisions.
 9. NEVER write phrases like "I'm not aware of", "information not found", "not mentioned in documents", or similar. Only write what IS known.
 10. If a field has limited information, write what is relevant from the documents - do not apologise or explain gaps.
+11. Every risk you identify MUST be traceable to specific evidence in the documents provided.
+12. Do not embellish or exaggerate - stick to the facts as documented.
 
 SERVICE USER DETAILS:
 - Service User Initials: ${serviceUserInitials || 'N.N.'}
@@ -10592,7 +10620,19 @@ Respond ONLY with valid JSON in this exact format:
         model: getRiskAssessmentModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on these documents. IMPORTANT: Identify and list ALL distinct risks within this category (typically 3-8 separate risks). Write detailed, thorough content for each field. ONLY use information explicitly stated in the documents - do not invent or assume any details:\n\n${allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent)}` }
+          { role: "user", content: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on these documents.
+
+CRITICAL INSTRUCTIONS:
+1. Identify and list ALL distinct risks within this category (typically 3-8 separate risks)
+2. ONLY use information EXPLICITLY stated in the documents below
+3. DO NOT invent, fabricate, or assume any medical conditions, incidents, or risks not mentioned in the documents
+4. Every risk must be evidence-based - traceable to specific information in the documents
+5. Do not make up falls, behaviors, medical events, or other incidents that are not documented
+6. Write detailed, thorough content for each field based ONLY on documented facts
+
+Documents to analyze:
+
+${allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent)}` }
         ],
         temperature: 0.8,
         max_completion_tokens: 12000,
