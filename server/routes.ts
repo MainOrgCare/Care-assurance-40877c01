@@ -937,8 +937,8 @@ const parseJsonFromContent = (content: string): any | null => {
 const getLowCostModel = () => "gpt-4o-mini";
 const getAccurateModel = () => getPreferredModel();
 const getRiskAssessmentModel = () => getPreferredModel();
-const getRiskAssessmentRecommendationModel = () => "gpt-5.2";
-const getRiskAssessmentGenerationModel = () => "gpt-4.1";
+const getRiskAssessmentRecommendationModel = () => "gpt-5.2"; // Most capable for complex reasoning
+const getRiskAssessmentGenerationModel = () => "gpt-5.2"; // Maximum accuracy and thoroughness
 
 const inferGenericNameFromMedicationLabel = (name: string): string => {
   if (!name) return "";
@@ -10258,26 +10258,36 @@ Return JSON - include ALL by default:
       let policyContext = "";
       if (allPolicies.length > 0) {
         policyContext = `
-=== POLICY DOCUMENTS - YOU MUST FOLLOW THESE AS REFERENCE ===
+=== POLICY/TEMPLATE DOCUMENTS - FOR STRUCTURE REFERENCE ONLY ===
+
+⚠️ CRITICAL WARNING: The documents below are TEMPLATES/EXAMPLES containing PLACEHOLDER and EXAMPLE text.
+⚠️ DO NOT extract ANY information from these templates as if it were real service user data.
+⚠️ These templates show you the STRUCTURE and FORMAT to follow, but contain NO actual service user information.
+⚠️ Any text in these templates (medical conditions, care needs, risks, etc.) is EXAMPLE TEXT ONLY - IGNORE IT.
+⚠️ ONLY extract information from the "Documents to analyze:" section below, which contains REAL service user documents.
+
 ${initialAssessmentPolicies.map(p => `
---- INITIAL ASSESSMENT TEMPLATE: ${p.name} (${p.version || 'v1.0'}) ---
+--- INITIAL ASSESSMENT TEMPLATE (STRUCTURE REFERENCE ONLY): ${p.name} (${p.version || 'v1.0'}) ---
 ${p.content}
 `).join('\n')}
 ${riskAssessmentPolicies.map(p => `
---- RISK ASSESSMENT TEMPLATE: ${p.name} (${p.version || 'v1.0'}) ---
+--- RISK ASSESSMENT TEMPLATE (STRUCTURE REFERENCE ONLY): ${p.name} (${p.version || 'v1.0'}) ---
 ${p.content}
 `).join('\n')}
 ${carePlanPolicies.map(p => `
---- CARE PLAN TEMPLATE: ${p.name} (${p.version || 'v1.0'}) ---
+--- CARE PLAN TEMPLATE (STRUCTURE REFERENCE ONLY): ${p.name} (${p.version || 'v1.0'}) ---
 ${p.content}
 `).join('\n')}
 ${scopeOfPracticePolicies.map(p => `
---- SCOPE OF PRACTICE: ${p.name} (${p.version || 'v1.0'}) ---
+--- SCOPE OF PRACTICE (STRUCTURE REFERENCE ONLY): ${p.name} (${p.version || 'v1.0'}) ---
 ${p.content}
 `).join('\n')}
-=== END POLICY DOCUMENTS ===
+=== END POLICY/TEMPLATE DOCUMENTS ===
 
-CRITICAL: You MUST structure your response using the templates above as reference. Cover EVERY point from the initial assessment template. Do not skip any sections.
+CRITICAL REMINDER:
+- Templates above are for STRUCTURE/FORMAT reference only
+- DO NOT use any content from templates as service user information
+- ONLY extract information from the actual service user documents below
 
 `;
       }
@@ -10304,7 +10314,7 @@ CRITICAL: You MUST structure your response using the templates above as referenc
   },`;
 
       const systemPrompt = `You are an expert care assessor for a UK care facility. Your task is to:
-1. SCAN ALL UPLOADED DOCUMENTS THOROUGHLY to build a complete profile of the service user
+1. SCAN ALL SERVICE USER DOCUMENTS (in the "Documents to analyze:" section) THOROUGHLY to build a complete profile of the service user
 2. Use the service user's profile (conditions, care needs, concerns) to determine which risk assessments are required
 
 ${policyContext}
@@ -10312,15 +10322,22 @@ FORMATTING RULES - MUST FOLLOW:
 - Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas instead.
 - Never use Oxford commas (the comma before "and" or "or" in a list). Write "apples, oranges and bananas" not "apples, oranges, and bananas".
 
+⚠️ CRITICAL: DOCUMENT SOURCE SEPARATION ⚠️
+1. Template/policy documents above are for STRUCTURE REFERENCE ONLY - they contain example/placeholder text
+2. REAL service user information is ONLY in the "Documents to analyze:" section below
+3. DO NOT extract medical conditions, care needs, or risks from templates - they are examples only
+4. DO NOT confuse template questions/prompts with actual service user information
+
 EVIDENCE-BASED ANALYSIS - CRITICAL REQUIREMENTS:
-1. ONLY extract information EXPLICITLY stated in the documents - never invent, assume, or fabricate details
-2. Do NOT make up medical conditions, incidents, falls, behaviors, or risks that are not mentioned in the documents
-3. Every recommended assessment MUST be based on ACTUAL evidence found in the documents
-4. If you cannot find specific information in the documents, state "Information not found in documents"
-5. For every recommended assessment, you MUST cite the specific evidence from the documents that supports it
-6. For every recommended assessment, include an "evidenceSnippets" array with 2-6 short snippets or phrases from the documents that support it
-6. Do NOT recommend assessments based on speculation or "what might be needed" - only recommend based on documented facts
-7. Accuracy is paramount - it is better to omit an assessment than to recommend one without documented evidence
+1. ONLY extract information EXPLICITLY stated in the SERVICE USER documents (in "Documents to analyze:" section) - never from templates
+2. Do NOT make up medical conditions, incidents, falls, behaviors, or risks that are not mentioned in the SERVICE USER documents
+3. Every recommended assessment MUST be based on ACTUAL evidence found in the SERVICE USER documents
+4. If you cannot find specific information in the SERVICE USER documents, state "Information not found in documents"
+5. For every recommended assessment, you MUST cite the specific evidence from the SERVICE USER documents that supports it
+6. For every recommended assessment, include an "evidenceSnippets" array with 2-6 short snippets or phrases from the SERVICE USER documents that support it
+7. Do NOT recommend assessments based on speculation or "what might be needed" - only recommend based on documented facts
+8. Accuracy is paramount - it is better to omit an assessment than to recommend one without documented evidence
+9. Templates contain placeholder text like "risk of falls", "diabetes", etc. - these are EXAMPLES, not real conditions
 
 IMPORTANT RULES:
 1. SCAN EVERY DOCUMENT PROVIDED - including social work assessments, initial assessments, care plans, moving and handling plans, and any additional documents
@@ -10425,16 +10442,22 @@ Respond ONLY with valid JSON in this exact format:
         model: getRiskAssessmentRecommendationModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `CRITICAL INSTRUCTIONS:
-1. Scan ALL of the following documents thoroughly to build the service user's complete profile
-2. Determine which risk assessments are needed based ONLY on evidence found in the documents
-3. DO NOT make up or assume medical conditions, incidents, or risks not mentioned in the documents
-4. Every recommended assessment MUST include specific evidence from the documents
-5. If no evidence exists for an assessment, DO NOT recommend it
+          { role: "user", content: `⚠️ CRITICAL INSTRUCTIONS - READ CAREFULLY ⚠️
 
-Documents to analyze:
+1. The template documents above are for STRUCTURE REFERENCE ONLY - ignore any medical conditions, care needs, or risks mentioned in them
+2. The documents below are the REAL SERVICE USER DOCUMENTS - scan ALL of these thoroughly to build the service user's complete profile
+3. Determine which risk assessments are needed based ONLY on evidence found in the SERVICE USER documents below
+4. DO NOT make up or assume medical conditions, incidents, or risks not mentioned in the SERVICE USER documents
+5. Every recommended assessment MUST include specific evidence from the SERVICE USER documents below
+6. If no evidence exists for an assessment in the SERVICE USER documents, DO NOT recommend it
 
-${documentContentForAi}` }
+=== REAL SERVICE USER DOCUMENTS TO ANALYZE (EXTRACT INFORMATION FROM THESE ONLY) ===
+
+${documentContentForAi}
+
+=== END SERVICE USER DOCUMENTS ===
+
+Remember: Extract information ONLY from the service user documents above. Templates contain placeholder/example text that should be ignored.` }
         ],
         max_completion_tokens: 4000,
         temperature: 0,
@@ -10601,11 +10624,25 @@ ${documentContentForAi}` }
       const allPolicies = [...riskAssessmentPolicies, ...initialAssessmentPolicies, ...scopeOfPracticePolicies];
       if (allPolicies.length > 0) {
         policyContext = `
-=== POLICY DOCUMENTS - FOLLOW THESE AS REFERENCE ===
-${riskAssessmentPolicies.map(p => `--- RISK ASSESSMENT TEMPLATE: ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
-${initialAssessmentPolicies.map(p => `--- INITIAL ASSESSMENT TEMPLATE: ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
-${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
-=== END POLICY DOCUMENTS ===
+=== POLICY/TEMPLATE DOCUMENTS - FOR STRUCTURE REFERENCE ONLY ===
+
+⚠️ CRITICAL WARNING: The documents below are TEMPLATES/EXAMPLES containing PLACEHOLDER and EXAMPLE text.
+⚠️ DO NOT use ANY information from these templates as real service user data.
+⚠️ These templates show you the STRUCTURE and FORMAT to follow, but contain NO actual service user information.
+⚠️ Any risks, conditions, or care needs in these templates are EXAMPLES ONLY - IGNORE THEM.
+⚠️ ONLY use information from the "Documents to analyze:" section which contains REAL service user documents.
+
+${riskAssessmentPolicies.map(p => `--- RISK ASSESSMENT TEMPLATE (STRUCTURE REFERENCE ONLY): ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+${initialAssessmentPolicies.map(p => `--- INITIAL ASSESSMENT TEMPLATE (STRUCTURE REFERENCE ONLY): ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE (REFERENCE ONLY): ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+
+=== END POLICY/TEMPLATE DOCUMENTS ===
+
+CRITICAL REMINDER:
+- Templates above are for STRUCTURE/FORMAT reference only
+- DO NOT use any content from templates as service user information
+- ONLY extract information from the actual service user documents provided below
+
 `;
       }
 
@@ -10649,6 +10686,13 @@ FORMATTING RULES - MUST FOLLOW:
 - Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas instead.
 - Never use Oxford commas (the comma before "and" or "or" in a list). Write "apples, oranges and bananas" not "apples, oranges, and bananas".
 
+⚠️ CRITICAL: DOCUMENT SOURCE SEPARATION ⚠️
+1. Template/policy documents above are for STRUCTURE REFERENCE ONLY - they contain example/placeholder text
+2. REAL service user information is ONLY in the "Documents to analyze:" section
+3. DO NOT extract risks, conditions, or care needs from templates - they are examples only
+4. DO NOT confuse template content with actual service user information
+5. Templates may contain example risks like "falls", "choking", etc. - these are PLACEHOLDERS, not real incidents
+
 FIRST PERSON WRITING:
 - Write EVERYTHING in first person as the service user speaking about themselves
 - Use "I", "me", "my", "myself" throughout ALL fields
@@ -10661,14 +10705,15 @@ WHO WILL BE HARMED - BE ACCURATE:
 - Think about who is actually present during care activities
 
 EVIDENCE-BASED PRACTICE - CRITICAL REQUIREMENTS:
-1. ONLY use information EXPLICITLY stated in the documents provided - never invent, assume, or fabricate details
-2. Base ALL risk identifications on ACTUAL evidence from the documents (conditions, incidents, concerns mentioned)
-3. Do NOT make up medical conditions, incidents, or risks that are not documented
-4. If information is not in the documents, DO NOT include it - leave it out entirely
-5. Control measures must be based on standard care practices relevant to the documented risks
-6. Risk ratings must reflect the ACTUAL severity based on what is documented, not hypothetical scenarios
-7. NEVER fabricate incidents, falls, behaviors, or medical events that are not mentioned in the documents
-8. Use clinical reasoning based on documented facts, not speculation
+1. ONLY use information EXPLICITLY stated in the SERVICE USER documents provided (not from templates) - never invent, assume, or fabricate details
+2. Base ALL risk identifications on ACTUAL evidence from the SERVICE USER documents (conditions, incidents, concerns mentioned)
+3. Do NOT make up medical conditions, incidents, or risks that are not documented in the SERVICE USER documents
+4. Templates may mention example risks - IGNORE these and only use SERVICE USER document content
+5. If information is not in the SERVICE USER documents, DO NOT include it - leave it out entirely
+6. Control measures must be based on standard care practices relevant to the documented risks
+7. Risk ratings must reflect the ACTUAL severity based on what is documented, not hypothetical scenarios
+8. NEVER fabricate incidents, falls, behaviors, or medical events that are not mentioned in the SERVICE USER documents
+9. Use clinical reasoning based on documented facts from SERVICE USER documents, not speculation or template examples
 
 IMPORTANT RULES:
 1. Extract and synthesize ALL relevant information from the documents provided
@@ -10747,22 +10792,28 @@ Respond ONLY with valid JSON in this exact format:
         model: getRiskAssessmentGenerationModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on these documents and the evidence pack.
+          { role: "user", content: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
 
-CRITICAL INSTRUCTIONS:
+⚠️ CRITICAL INSTRUCTIONS - READ CAREFULLY ⚠️
+
 1. Identify and list ALL distinct risks within this category (typically 3-8 separate risks)
-2. ONLY use information EXPLICITLY stated in the documents below
-3. DO NOT invent, fabricate, or assume any medical conditions, incidents, or risks not mentioned in the documents
-4. Every risk must be evidence-based - traceable to specific information in the documents
-5. Do not make up falls, behaviors, medical events, or other incidents that are not documented
-6. Write detailed, thorough content for each field based ONLY on documented facts
+2. ONLY use information EXPLICITLY stated in the SERVICE USER documents below (NOT from templates above)
+3. Templates above contain EXAMPLE text - IGNORE any risks, conditions, or care needs mentioned in templates
+4. DO NOT invent, fabricate, or assume any medical conditions, incidents, or risks not mentioned in the SERVICE USER documents
+5. Every risk must be evidence-based - traceable to specific information in the SERVICE USER documents below
+6. Do not make up falls, behaviors, medical events, or other incidents that are not documented in the SERVICE USER documents
+7. Write detailed, thorough content for each field based ONLY on documented facts from SERVICE USER documents
 
-Evidence pack for this category (use these facts first and ensure every risk maps to them or the documents):
+Evidence pack for this category (use these facts first and ensure every risk maps to them or the SERVICE USER documents):
 ${evidencePack ? `- ${evidencePack}` : "- No evidence pack provided."}
 
-Documents to analyze:
+=== REAL SERVICE USER DOCUMENTS TO ANALYZE (EXTRACT INFORMATION FROM THESE ONLY) ===
 
-${allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent)}` }
+${allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent)}
+
+=== END SERVICE USER DOCUMENTS ===
+
+Remember: Extract information ONLY from the service user documents above. Templates contain placeholder/example text that should be ignored.` }
         ],
         temperature: 0.8,
         max_completion_tokens: 12000,
