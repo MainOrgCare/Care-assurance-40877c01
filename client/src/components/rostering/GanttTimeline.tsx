@@ -78,21 +78,21 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
 const getCallTypeColor = (callTypeLabel: string | null | undefined): { bg: string; border: string } => {
   const label = (callTypeLabel || "").toLowerCase();
   if (label.includes("am") || label.includes("morning")) {
-    return { bg: "bg-blue-600", border: "border-blue-700" };
+    return { bg: "bg-blue-100", border: "border-blue-300" };
   }
   if (label.includes("lunch")) {
-    return { bg: "bg-amber-600", border: "border-amber-700" };
+    return { bg: "bg-amber-100", border: "border-amber-300" };
   }
   if (label.includes("tea")) {
-    return { bg: "bg-emerald-600", border: "border-emerald-700" };
+    return { bg: "bg-emerald-100", border: "border-emerald-300" };
   }
   if (label.includes("evening") || label.includes("pm")) {
-    return { bg: "bg-indigo-600", border: "border-indigo-700" };
+    return { bg: "bg-indigo-100", border: "border-indigo-300" };
   }
   if (label.includes("night")) {
-    return { bg: "bg-slate-700", border: "border-slate-800" };
+    return { bg: "bg-slate-100", border: "border-slate-300" };
   }
-  return { bg: "bg-slate-600", border: "border-slate-700" };
+  return { bg: "bg-slate-100", border: "border-slate-300" };
 };
 
 // Check for overlaps in a lane
@@ -457,12 +457,12 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
 
   return (
     <div
-      className={`rounded-lg border bg-card ${containerPadding} shadow-sm ${fitHeight ? "flex h-full min-h-0 flex-col" : ""}`}
+      className={`rounded-lg border border-border/60 bg-background/70 ${containerPadding} shadow-md backdrop-blur-sm ${fitHeight ? "flex h-full min-h-0 flex-col" : ""}`}
     >
       {showHeader && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
           <div>
-            <p className="text-sm font-semibold">Timeline</p>
+            <p className="text-sm font-semibold tracking-tight">Timeline</p>
             <p className="text-xs text-muted-foreground">
               {formatTimeLabel(startMinutes)} — {formatTimeLabel(endMinutes)} · Snap: {snapMinutes}m
             </p>
@@ -490,10 +490,10 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
       )}
 
       <div
-        className={`rounded-lg border bg-background overflow-hidden ${fitHeight ? "flex min-h-0 flex-1 flex-col" : ""}`}
+        className={`rounded-lg border border-border/60 bg-background/80 overflow-hidden ${fitHeight ? "flex min-h-0 flex-1 flex-col" : ""}`}
       >
         {/* Timeline Header - Professional time ruler */}
-        <div className="flex items-stretch border-b bg-muted/30 flex-shrink-0">
+        <div className="flex items-stretch border-b bg-gradient-to-b from-muted/50 to-muted/20 flex-shrink-0 sticky top-0 z-20 backdrop-blur-sm">
           {/* Worker column header */}
           <div className="w-[100px] sm:w-[180px] px-2 sm:px-3 py-2 flex items-center border-r bg-muted/40 shrink-0">
             <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted-foreground">Worker</span>
@@ -531,7 +531,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                     {/* Time label - positioned to not overlap */}
                     {!isLast && (
                       <div 
-                        className="absolute top-1 text-[10px] sm:text-[11px] font-medium text-muted-foreground whitespace-nowrap"
+                        className="absolute top-1 text-[9px] sm:text-[10px] font-semibold text-muted-foreground whitespace-nowrap"
                         style={{ left: '4px' }}
                       >
                         {formatTimeLabel(tick)}
@@ -539,7 +539,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                     )}
                     {isLast && (
                       <div 
-                        className="absolute top-1 text-[10px] sm:text-[11px] font-medium text-muted-foreground whitespace-nowrap"
+                        className="absolute top-1 text-[9px] sm:text-[10px] font-semibold text-muted-foreground whitespace-nowrap"
                         style={{ right: '4px' }}
                       >
                         {formatTimeLabel(tick)}
@@ -845,6 +845,13 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
   enableDrag = true,
   recommendedStatus,
 }) => {
+  const buildInitials = (name: string) => {
+    const clean = name.trim().split(/\s+/).filter(Boolean);
+    if (clean.length === 0) return "";
+    if (clean.length === 1) return clean[0].slice(0, 2).toUpperCase();
+    return `${clean[0][0]}${clean[clean.length - 1][0]}`.toUpperCase();
+  };
+
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: entry.id,
     disabled: !enableDrag,
@@ -855,7 +862,7 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
   const width = ((end - start) / totalMinutes) * 100;
 
   const colors = entry.isTimeCritical 
-    ? { bg: "bg-rose-600", border: "border-rose-700" }
+    ? { bg: "bg-rose-100", border: "border-rose-300" }
     : getCallTypeColor(entry.callTypeLabel);
 
   const style = {
@@ -887,6 +894,9 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
     </div>
   );
 
+  const initialsSource = entry.serviceUserName || entry.title || "";
+  const initials = buildInitials(initialsSource);
+
   return (
     <TooltipProvider delayDuration={300}>
       <Tooltip>
@@ -895,9 +905,9 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
             ref={setNodeRef}
             type="button"
             onClick={handleClick}
-            className={`absolute rounded-lg px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-white shadow-sm touch-manipulation
+            className={`absolute rounded-none px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-slate-800 shadow-xs touch-manipulation
               focus:outline-none focus:ring-2 focus:ring-primary/60 
-              ${colors.bg} border-l-4 ${colors.border}
+              ${colors.bg} border ${colors.border}
               ${isDragging ? "opacity-60 shadow-md z-20" : ""}
               ${isSelected ? "ring-2 ring-white shadow-md z-10" : ""}
               ${isFocused ? "ring-2 ring-primary ring-offset-1 z-10" : ""}
@@ -918,9 +928,10 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
                 <span className="text-[9px] font-bold text-white">2</span>
               </div>
             )}
-            <div className="flex items-center gap-1">
-              {entry.isTimeCritical && <AlertTriangle className="h-3 w-3 shrink-0" />}
-              <span className="truncate">{entry.title}</span>
+            <div className="flex h-full w-full items-center justify-center">
+              <span className="text-[9px] sm:text-[10px] font-bold tracking-wide">
+                {initials || "?"}
+              </span>
             </div>
             {hasConflict && !entry.isDoubleUp && (
               <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border border-white" />

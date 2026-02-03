@@ -89,6 +89,13 @@ interface LaneWorkload {
 const DEFAULT_WORKING_HOURS_START = 6 * 60;  // 6:00 AM
 const DEFAULT_WORKING_HOURS_END = 22 * 60;   // 10:00 PM
 const DEFAULT_TIME_CRITICAL_TOLERANCE = 15;  // ±15 minutes
+const CALL_TIME_WINDOWS = [
+  { match: /am|morning/, start: 6 * 60, end: 10 * 60 },
+  { match: /lunch/, start: 11 * 60, end: 14 * 60 },
+  { match: /tea/, start: 14 * 60, end: 17 * 60 },
+  { match: /pm|evening|bed|night/, start: 17 * 60, end: 22 * 60 },
+];
+const UNTIMED_CALL_MATCH = /escort|shopping|housework|domestic|befriending/;
 
 // ============================================================================
 // Helper Functions
@@ -108,6 +115,84 @@ const clampToWorkingHours = (
   // Ensure the call fits within working hours
   const clampedStart = Math.max(start, Math.min(startMinutes, end - durationMinutes));
   return clampedStart;
+};
+
+const getCallTypeWindow = (
+  callTypeLabel: string | null | undefined,
+  constraints?: OptimizationConstraints
+): { start: number; end: number } | null => {
+  if (!callTypeLabel) return null;
+  const normalized = callTypeLabel.toLowerCase();
+  const workingStart = constraints?.workingHoursStart ?? DEFAULT_WORKING_HOURS_START;
+  const workingEnd = constraints?.workingHoursEnd ?? DEFAULT_WORKING_HOURS_END;
+  for (const window of CALL_TIME_WINDOWS) {
+    if (window.match.test(normalized)) {
+      return {
+        start: Math.max(workingStart, window.start),
+        end: Math.min(workingEnd, window.end),
+      };
+    }
+  }
+  return null;
+};
+
+const clampToCallTypeWindow = (
+  proposedStart: number,
+  durationMinutes: number,
+  callTypeLabel: string | null | undefined,
+  constraints?: OptimizationConstraints
+): number => {
+  const window = getCallTypeWindow(callTypeLabel, constraints);
+  if (!window) return proposedStart;
+  const maxStart = Math.max(window.start, window.end - durationMinutes);
+  if (proposedStart < window.start) return window.start;
+  if (proposedStart > maxStart) return maxStart;
+  return proposedStart;
+};
+
+const isUntimedCallType = (callTypeLabel: string | null | undefined): boolean => {
+  if (!callTypeLabel) return false;
+  return UNTIMED_CALL_MATCH.test(callTypeLabel.toLowerCase());
+};
+
+const getUntimedWindows = (
+  constraints?: OptimizationConstraints
+): Array<{ start: number; end: number }> => {
+  const workingStart = constraints?.workingHoursStart ?? DEFAULT_WORKING_HOURS_START;
+  const workingEnd = constraints?.workingHoursEnd ?? DEFAULT_WORKING_HOURS_END;
+  const windows = CALL_TIME_WINDOWS
+    .map((window) => ({
+      start: Math.max(workingStart, window.start),
+      end: Math.min(workingEnd, window.end),
+    }))
+    .filter((window) => window.end > window.start)
+    .sort((a, b) => a.start - b.start);
+
+  const gaps: Array<{ start: number; end: number }> = [];
+  for (let i = 0; i < windows.length - 1; i += 1) {
+    const gapStart = windows[i].end;
+    const gapEnd = windows[i + 1].start;
+    if (gapEnd > gapStart) {
+      gaps.push({ start: gapStart, end: gapEnd });
+    }
+  }
+  return gaps.length > 0 ? gaps : [{ start: workingStart, end: workingEnd }];
+};
+
+const clampToUntimedGap = (
+  proposedStart: number,
+  durationMinutes: number,
+  constraints?: OptimizationConstraints
+): number => {
+  const gaps = getUntimedWindows(constraints);
+  for (const gap of gaps) {
+    const maxStart = Math.max(gap.start, gap.end - durationMinutes);
+    if (proposedStart <= maxStart) {
+      return Math.max(proposedStart, gap.start);
+    }
+  }
+  const lastGap = gaps[gaps.length - 1];
+  return Math.max(lastGap.start, lastGap.end - durationMinutes);
 };
 
 /**
@@ -195,7 +280,8 @@ export const runFullOptimization = (
     const recommendedResult = applyRecommendedCallTimes(
       workloads,
       rosteringData.recommendedCallTimes,
-      enforcedConstraints.respectTimeCritical
+      enforcedConstraints.respectTimeCritical,
+      enforcedConstraints
     );
     mergeOverrides(resultOverrides, recommendedResult);
     applyOverridesToWorkloads(workloads, recommendedResult);
@@ -513,9 +599,29 @@ const packAllLanes = (
         timeOverrides[entry.id] = entry.startMinutes;
         cursor = Math.max(cursor, entry.startMinutes + entry.durationMinutes + bufferMinutes);
       } else {
-        const newStart = Math.max(cursor, workingStart);
-        const clampedStart = Math.min(newStart, workingEnd - entry.durationMinutes);
-        timeOverrides[entry.id] = Math.max(clampedStart, workingStart);
+        const window = getCallTypeWindow(entry.callTypeLabel, constraints);
+        let proposed = Math.max(cursor, workingStart);
+        const isUntimed = isUntimedCallType(entry.callTypeLabel);
+        if (window && !entry.isTemplated && !isUntimed) {
+          proposed = Math.max(proposed, window.start);
+        }
+        const maxStart = Math.min(
+          workingEnd - entry.durationMinutes,
+          window && !entry.isTemplated && !isUntimed
+            ? window.end - entry.durationMinutes
+            : workingEnd - entry.durationMinutes
+        );
+        if (proposed > maxStart) {
+          proposed = Math.max(cursor, workingStart);
+        }
+        proposed = Math.min(proposed, workingEnd - entry.durationMinutes);
+        if (!entry.isTemplated && !isUntimed) {
+          proposed = clampToCallTypeWindow(proposed, entry.durationMinutes, entry.callTypeLabel, constraints);
+        } else if (!entry.isTemplated && isUntimed) {
+          proposed = clampToUntimedGap(proposed, entry.durationMinutes, constraints);
+        }
+        if (proposed < cursor) proposed = cursor;
+        timeOverrides[entry.id] = Math.max(proposed, workingStart);
         cursor = timeOverrides[entry.id] + entry.durationMinutes + bufferMinutes;
       }
     }
@@ -530,7 +636,8 @@ const packAllLanes = (
 const applyRecommendedCallTimes = (
   workloads: LaneWorkload[],
   recommendedTimes: RecommendedCallTime[],
-  respectTimeCritical: boolean
+  respectTimeCritical: boolean,
+  constraints?: OptimizationConstraints
 ): { time: Record<string, number>; lane: Record<string, string> } => {
   const timeOverrides: Record<string, number> = {};
   
@@ -552,7 +659,22 @@ const applyRecommendedCallTimes = (
       const key = `${suKey}|${callType}`;
       const recommended = recommendedLookup.get(key);
       if (recommended) {
-        timeOverrides[entry.id] = recommended.recommendedStartMinutes;
+        let clamped = recommended.recommendedStartMinutes;
+        if (!entry.isTemplated && !isUntimedCallType(entry.callTypeLabel)) {
+          clamped = clampToCallTypeWindow(
+            recommended.recommendedStartMinutes,
+            entry.durationMinutes,
+            entry.callTypeLabel,
+            constraints
+          );
+        } else if (!entry.isTemplated && isUntimedCallType(entry.callTypeLabel)) {
+          clamped = clampToUntimedGap(
+            recommended.recommendedStartMinutes,
+            entry.durationMinutes,
+            constraints
+          );
+        }
+        timeOverrides[entry.id] = clamped;
       }
     }
   }

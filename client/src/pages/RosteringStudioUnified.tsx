@@ -426,6 +426,31 @@ export default function RosteringStudioUnified({
     [timelineZoom]
   );
 
+  const timelineVisibleLanes = useMemo(
+    () => (showAllWorkers ? timelineLanes : selectedWorkerLanes),
+    [showAllWorkers, timelineLanes, selectedWorkerLanes]
+  );
+
+  const timelineWindow = useMemo(() => {
+    const defaultStart = ROSTER_DAY_START_MINUTES;
+    const defaultEnd = ROSTER_DAY_HARD_END_MINUTES;
+    if (showAllWorkers || timelineVisibleLanes.length === 0) {
+      return { start: defaultStart, end: defaultEnd };
+    }
+    const entries = timelineVisibleLanes.flatMap((lane) => lane.entries);
+    if (entries.length === 0) return { start: defaultStart, end: defaultEnd };
+    let minStart = defaultEnd;
+    let maxEnd = defaultStart;
+    for (const entry of entries) {
+      minStart = Math.min(minStart, entry.startMinutes);
+      maxEnd = Math.max(maxEnd, entry.startMinutes + entry.durationMinutes);
+    }
+    const pad = 30;
+    const start = Math.max(defaultStart, minStart - pad);
+    const end = Math.min(defaultEnd, maxEnd + pad);
+    return { start, end: Math.max(start + 60, end) };
+  }, [showAllWorkers, timelineVisibleLanes]);
+
   const templateSelectionKey = computeTemplateSelectionKey(selectedTemplateWeek, selectedTemplateDay);
 
   // ===== DATA QUERIES =====
@@ -1410,8 +1435,9 @@ export default function RosteringStudioUnified({
                         ))}
                       </div>
                     </div>
-                    <ScrollArea className="flex-1 min-h-0">
-                      <div className="divide-y">
+                    <div className="px-1.5 pb-2">
+                      <ScrollArea className="max-h-[288px]">
+                        <div className="divide-y">
                         {filteredWorkers.map((worker: CareWorkerRoster) => {
                           const summary = workerSummaryByKey.get(worker.key);
                           const isSelected = worker.key === selectedCareWorkerKey;
@@ -1423,7 +1449,7 @@ export default function RosteringStudioUnified({
                                 (e.target as HTMLElement).blur(); // Prevent aria-hidden focus issue
                                 openWorkerTools(worker.key);
                               }}
-                              className={`w-full px-1.5 py-1 text-left transition hover:bg-muted/50 ${
+                              className={`w-full h-9 px-1.5 py-1 text-left transition hover:bg-muted/50 ${
                                 isSelected ? "bg-primary/10" : ""
                               }`}
                             >
@@ -1441,8 +1467,9 @@ export default function RosteringStudioUnified({
                             </button>
                           );
                         })}
-                      </div>
-                    </ScrollArea>
+                        </div>
+                      </ScrollArea>
+                    </div>
                   </div>
                 </ResizablePanel>
                 <ResizableHandle withHandle />
@@ -1454,7 +1481,7 @@ export default function RosteringStudioUnified({
               <div className="flex h-full min-h-0 flex-col">
                 {/* Top Row: Timeline (takes most space) */}
                 {panelVisibility.timeline && (
-                  <div className="flex-[2] min-h-0 border-b flex flex-col overflow-hidden">
+                  <div className="flex-[2] min-h-[260px] border-b flex flex-col overflow-hidden">
                     <div className="flex items-center justify-between bg-muted/30 px-2 py-0.5 border-b shrink-0">
                       <div className="flex items-center gap-1.5">
                         <Timer className="h-3 w-3" />
@@ -1576,11 +1603,11 @@ export default function RosteringStudioUnified({
                         </Button>
                       </div>
                     </div>
-                    <div className="flex-1 min-h-0 overflow-auto p-0.5">
+                    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-0.5">
                       <GanttTimeline
-                        lanes={showAllWorkers ? timelineLanes : selectedWorkerLanes}
-                        startMinutes={ROSTER_DAY_START_MINUTES}
-                        endMinutes={ROSTER_DAY_HARD_END_MINUTES}
+                        lanes={timelineVisibleLanes}
+                        startMinutes={timelineWindow.start}
+                        endMinutes={timelineWindow.end}
                         snapMinutes={snapMinutes}
                         showHalfHourTicks={showHalfHourTicks}
                         rowHeight={timelineRowHeight}
@@ -1599,7 +1626,7 @@ export default function RosteringStudioUnified({
                 )}
 
                 {/* Bottom Row: Horizontal panels */}
-                <div className="flex-1 min-h-0 max-h-[160px] flex border-t overflow-hidden">
+                <div className="flex-1 min-h-[220px] flex border-t overflow-hidden">
                   {/* Map Panel */}
                   {panelVisibility.map && (
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">

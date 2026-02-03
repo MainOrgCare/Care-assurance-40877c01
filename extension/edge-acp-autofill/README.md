@@ -11,9 +11,9 @@
 1. Load unpacked extension from extension/edge-acp-autofill in Edge.
 2. Open Care Assurance and use the admin-only "Send to ACP Extension" or "Send to EMAR Extension" button.
 3. For custom documents, send a payload with `formType: "custom"`, a `formId` (optional), and `fields`.
-3. Open the Access Care Planning new case form page and set Case ID + Service Data Group ID in the popup.
-4. Click Start Autofill.
-5. Use Stop Autofill to cancel and click the error banner to clear errors if needed.
+4. Open the Access Care Planning new case form page and set Case ID + Service Data Group ID in the popup.
+5. Click Start Autofill.
+6. Use Stop Autofill to cancel and click the error banner to clear errors if needed.
 
 ## Notes
 
@@ -23,6 +23,7 @@
 - If the ACP form URL or selectors change, update content-acp.js.
 
 ### Custom payload example
+
 ```json
 {
   "formType": "custom",

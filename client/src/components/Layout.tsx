@@ -350,7 +350,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   );
   const cardClass = cn(
     "glass-card rounded-lg border border-border/70 p-4 sm:p-6 lg:p-8 flex flex-col shadow-md animate-fade-in w-full flex-1 min-h-0",
-    isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent" : ""
+    isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
     "flex-1 flex flex-col w-full relative z-10 scroll-smooth",
@@ -551,23 +551,25 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Footer */}
-        <footer className="px-4 py-3 border-t border-border/80 bg-background flex-shrink-0">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1.5 font-medium">
-              <span>{new Date().getFullYear()} CareAssurance</span>
-              <span className="hidden sm:inline text-muted-foreground">·</span>
-              <span className="hidden sm:inline">Precision tools for high-trust care teams</span>
+        {!isSingleScreenRoute && (
+          <footer className="px-4 py-3 border-t border-border/80 bg-background flex-shrink-0">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1.5 font-medium">
+                <span>{new Date().getFullYear()} CareAssurance</span>
+                <span className="hidden sm:inline text-muted-foreground">·</span>
+                <span className="hidden sm:inline">Precision tools for high-trust care teams</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <Link href="/terms" className="transition-colors hover:text-foreground" data-testid="link-footer-terms">
+                  Terms & Conditions
+                </Link>
+                <Link href="/privacy" className="transition-colors hover:text-foreground" data-testid="link-footer-privacy">
+                  Privacy Policy
+                </Link>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              <Link href="/terms" className="transition-colors hover:text-foreground" data-testid="link-footer-terms">
-                Terms & Conditions
-              </Link>
-              <Link href="/privacy" className="transition-colors hover:text-foreground" data-testid="link-footer-privacy">
-                Privacy Policy
-              </Link>
-            </div>
-          </div>
-        </footer>
+          </footer>
+        )}
       </main>
     </div>
   );
