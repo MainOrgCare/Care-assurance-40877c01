@@ -1,5 +1,9 @@
 # CareAssurance - Complete Application Specification
 
+```text
+Plain text in a code block
+```
+
 > **Purpose**: This document provides a comprehensive technical specification for recreating the CareAssurance healthcare compliance management application. It covers architecture, database schema, API endpoints, AI integration, authentication, and all features in detail.
 
 ---
@@ -44,7 +48,7 @@ CareAssurance is an AI-powered healthcare compliance management application desi
 
 ### Frontend
 
-```
+```text
 Framework:        React 18 with TypeScript
 Routing:          Wouter (lightweight alternative to React Router)
 State Management: TanStack React Query v5 (server state)
@@ -57,7 +61,7 @@ Icons:            Lucide React
 
 ### Backend
 
-```
+```text
 Runtime:          Node.js
 Framework:        Express.js
 Language:         TypeScript (ES modules)
@@ -71,7 +75,7 @@ WebSocket:        ws library for real-time notifications
 
 ### AI/External APIs
 
-```
+```text
 Primary AI:       OpenAI API (direct)
 Models Used:      GPT-4.1-mini (core extraction), GPT-4.1-mini (auxiliary tasks)
 Virus Scanning:   Cloudmersive Virus Scan API
@@ -104,7 +108,7 @@ Virus Scanning:   Cloudmersive Virus Scan API
 
 ## Project Structure
 
-```
+```text
 /
 ├── client/                      # Frontend React application
 │   └── src/
@@ -484,98 +488,98 @@ app.post("/api/blocked-ips", requireAuth, requireAdmin, ...);
 
 ### Authentication Routes
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/api/auth/login` | No | Login with username/password |
-| POST | `/api/auth/register` | No | Create pending account |
-| GET | `/api/auth/me` | Yes | Get current user |
-| POST | `/api/auth/logout` | Yes | Logout and destroy session |
-| POST | `/api/auth/accept-terms` | Yes | Accept terms with signature |
-| PATCH | `/api/auth/password` | Yes | Change own password |
-| PATCH | `/api/auth/profile` | Yes | Update own profile |
+| Method | Path                      | Auth | Description                   |
+| ------ | ------------------------- | ---- | ----------------------------- |
+| POST   | `/api/auth/login`         | No   | Login with username/password  |
+| POST   | `/api/auth/register`      | No   | Create pending account        |
+| GET    | `/api/auth/me`            | Yes  | Get current user              |
+| POST   | `/api/auth/logout`        | Yes  | Logout and destroy session    |
+| POST   | `/api/auth/accept-terms`  | Yes  | Accept terms with signature   |
+| PATCH  | `/api/auth/password`      | Yes  | Change own password           |
+| PATCH  | `/api/auth/profile`       | Yes  | Update own profile            |
 
 ### User Management (Admin Only)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/users` | Get all users |
-| GET | `/api/users/pending` | Get pending users |
-| POST | `/api/users` | Create user (immediately active) |
-| PATCH | `/api/users/:id/approve` | Approve pending user |
-| DELETE | `/api/users/:id` | Delete user |
-| PATCH | `/api/users/:id/job-title` | Update job title |
-| PATCH | `/api/users/:id/role` | Update role (admin/staff) |
-| PUT | `/api/users/:id/username` | Change username |
+| Method | Path                       | Description                      |
+| ------ | -------------------------- | -------------------------------- |
+| GET    | `/api/users`               | Get all users                    |
+| GET    | `/api/users/pending`       | Get pending users                |
+| POST   | `/api/users`               | Create user (immediately active) |
+| PATCH  | `/api/users/:id/approve`   | Approve pending user             |
+| DELETE | `/api/users/:id`           | Delete user                      |
+| PATCH  | `/api/users/:id/job-title` | Update job title                 |
+| PATCH  | `/api/users/:id/role`      | Update role (admin/staff)        |
+| PUT    | `/api/users/:id/username`  | Change username                  |
 
 ### Session Management (Admin Only)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/active-sessions` | Get all active sessions |
-| POST | `/api/sessions/:userId/disconnect` | Force disconnect user |
-| GET | `/api/active-sessions/detailed` | Sessions with IP/location |
+| Method | Path                               | Description               |
+| ------ | ---------------------------------- | ------------------------- |
+| GET    | `/api/active-sessions`             | Get all active sessions   |
+| POST   | `/api/sessions/:userId/disconnect` | Force disconnect user     |
+| GET    | `/api/active-sessions/detailed`    | Sessions with IP/location |
 
 ### Care Workers
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/care-workers` | Yes | List all care workers |
-| GET | `/api/care-workers/:id` | Yes | Get single care worker |
-| POST | `/api/care-workers` | Yes | Create care worker |
-| PATCH | `/api/care-workers/:id` | Yes | Update care worker |
+| Method | Path                    | Auth | Description            |
+| ------ | ----------------------- | ---- | ---------------------- |
+| GET    | `/api/care-workers`     | Yes  | List all care workers  |
+| GET    | `/api/care-workers/:id` | Yes  | Get single care worker |
+| POST   | `/api/care-workers`     | Yes  | Create care worker     |
+| PATCH  | `/api/care-workers/:id` | Yes  | Update care worker     |
 
 ### Discrepancies
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/discrepancies` | Yes | Get all discrepancies |
-| POST | `/api/discrepancies` | Yes | Create discrepancy |
-| GET | `/api/care-workers/:id/discrepancies` | Yes | Get by care worker |
+| Method | Path                                  | Auth | Description           |
+| ------ | ------------------------------------- | ---- | --------------------- |
+| GET    | `/api/discrepancies`                  | Yes  | Get all discrepancies |
+| POST   | `/api/discrepancies`                  | Yes  | Create discrepancy    |
+| GET    | `/api/care-workers/:id/discrepancies` | Yes  | Get by care worker    |
 
 ### Audits
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/api/audits` | Yes | Save audit result |
-| GET | `/api/audits` | Yes | Get all audits |
-| GET | `/api/audits/:id` | Yes | Get single audit |
+| Method | Path              | Auth | Description       |
+| ------ | ----------------- | ---- | ----------------- |
+| POST   | `/api/audits`     | Yes  | Save audit result |
+| GET    | `/api/audits`     | Yes  | Get all audits    |
+| GET    | `/api/audits/:id` | Yes  | Get single audit  |
 
 ### EMAR Analysis
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/api/analyze-emar` | Yes | Analyze EMAR document (SSE stream) |
-| POST | `/api/emar-corrections` | Admin | Save AI extraction corrections |
-| POST | `/api/emar-refusal-reviews` | Admin | Review refused medications |
-| POST | `/api/emar-refusal-reviews/bulk` | Admin | Bulk review refusals |
+| Method | Path                             | Auth  | Description                        |
+| ------ | -------------------------------- | ----- | ---------------------------------- |
+| POST   | `/api/analyze-emar`              | Yes   | Analyze EMAR document (SSE stream) |
+| POST   | `/api/emar-corrections`          | Admin | Save AI extraction corrections     |
+| POST   | `/api/emar-refusal-reviews`      | Admin | Review refused medications         |
+| POST   | `/api/emar-refusal-reviews/bulk` | Admin | Bulk review refusals               |
 
 ### Care Planning
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/api/parse-pdf` | Yes | Extract text from PDF/DOCX |
-| POST | `/api/risk-assessments/analyze` | Yes | AI risk assessment (SSE) |
-| POST | `/api/care-plans/enhance` | Yes | AI care plan enhancement (SSE) |
-| POST | `/api/prn-protocols/generate` | Yes | Generate PRN protocol (SSE) |
+| Method | Path                            | Auth | Description                      |
+| ------ | ------------------------------- | ---- | -------------------------------- |
+| POST   | `/api/parse-pdf`                | Yes  | Extract text from PDF/DOCX       |
+| POST   | `/api/risk-assessments/analyze` | Yes  | AI risk assessment (SSE)         |
+| POST   | `/api/care-plans/enhance`       | Yes  | AI care plan enhancement (SSE)   |
+| POST   | `/api/prn-protocols/generate`   | Yes  | Generate PRN protocol (SSE)      |
 
 ### Admin Portal
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/admin-alerts` | Admin | Get unread alerts |
-| PATCH | `/api/admin-alerts/:id/read` | Admin | Mark alert as read |
-| GET | `/api/blocked-ips` | Admin | Get blocked IPs |
-| POST | `/api/blocked-ips` | Admin | Block IP address |
-| DELETE | `/api/blocked-ips/:id` | Admin | Unblock IP |
-| GET | `/api/ai-usage` | Admin | AI usage logs and stats |
-| GET | `/api/admin/ai-provider` | Admin | Get AI provider config |
-| POST | `/api/admin/ai-provider` | Admin | Set AI provider |
+| Method | Path                         | Auth  | Description             |
+| ------ | ---------------------------- | ----- | ----------------------- |
+| GET    | `/api/admin-alerts`          | Admin | Get unread alerts       |
+| PATCH  | `/api/admin-alerts/:id/read` | Admin | Mark alert as read      |
+| GET    | `/api/blocked-ips`           | Admin | Get blocked IPs         |
+| POST   | `/api/blocked-ips`           | Admin | Block IP address        |
+| DELETE | `/api/blocked-ips/:id`       | Admin | Unblock IP              |
+| GET    | `/api/ai-usage`              | Admin | AI usage logs and stats |
+| GET    | `/api/admin/ai-provider`     | Admin | Get AI provider config  |
+| POST   | `/api/admin/ai-provider`     | Admin | Set AI provider         |
 
 ### Call Reconciliation
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/api/reconciliation/analyze` | Admin | Process Excel file |
+| Method | Path                          | Auth  | Description        |
+| ------ | ----------------------------- | ----- | ------------------ |
+| POST   | `/api/reconciliation/analyze` | Admin | Process Excel file |
 
 **Reconciliation Logic:**
 
@@ -587,12 +591,12 @@ app.post("/api/blocked-ips", requireAuth, requireAdmin, ...);
 
 ### Policy Documents
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/policy-documents` | Yes | Get all policies |
-| POST | `/api/policy-documents` | Admin | Create policy |
-| PUT | `/api/policy-documents/:id` | Admin | Update policy |
-| DELETE | `/api/policy-documents/:id` | Admin | Delete policy |
+| Method | Path                        | Auth  | Description      |
+| ------ | --------------------------- | ----- | ---------------- |
+| GET    | `/api/policy-documents`     | Yes   | Get all policies |
+| POST   | `/api/policy-documents`     | Admin | Create policy    |
+| PUT    | `/api/policy-documents/:id` | Admin | Update policy    |
+| DELETE | `/api/policy-documents/:id` | Admin | Delete policy    |
 
 ---
 
@@ -610,17 +614,17 @@ const AUX_MODEL = "gpt-4.1-mini";  // $0.40/1M input, $1.60/1M output
 
 ### Model Assignment by Task
 
-| Task | Model | Reason |
-|------|-------|--------|
-| EMAR metadata extraction | GPT-4.1-mini | 2-pass parallel extraction |
-| EMAR entry extraction | GPT-4.1-mini | 3-pass parallel with voting |
-| Count validation | GPT-4.1-mini | Simple verification |
-| Equivalence checks | GPT-4.1-mini | Pattern matching |
-| Drug interactions | GPT-4.1-mini | Lookup-based |
-| Validation passes 2/3 | GPT-4.1-mini | Confirmation only |
-| Care plan enhancement | GPT-4.1-mini | Quality content |
-| Risk assessment | GPT-4.1-mini | Safety critical |
-| PRN protocol generation | GPT-4.1-mini | Clinical accuracy |
+| Task                     | Model        | Reason                       |
+| ------------------------ | ------------ | ---------------------------- |
+| EMAR metadata extraction | GPT-4.1-mini | 2-pass parallel extraction   |
+| EMAR entry extraction    | GPT-4.1-mini | 3-pass parallel with voting  |
+| Count validation         | GPT-4.1-mini | Simple verification          |
+| Equivalence checks       | GPT-4.1-mini | Pattern matching             |
+| Drug interactions        | GPT-4.1-mini | Lookup-based                 |
+| Validation passes 2/3    | GPT-4.1-mini | Confirmation only            |
+| Care plan enhancement    | GPT-4.1-mini | Quality content              |
+| Risk assessment          | GPT-4.1-mini | Safety critical              |
+| PRN protocol generation  | GPT-4.1-mini | Clinical accuracy            |
 
 ### AI Client Implementation
 
@@ -685,16 +689,16 @@ async function createChatCompletionWithLogging(params, featureName, userContext)
 
 export const AI_PRICING = {
   "gpt-4.1-mini": { input: 400, output: 1600 },     // $0.40/$1.60 per 1M
-  "gpt-4.1-mini": { input: 400, output: 1600 },  // $0.40/$1.60 per 1M
-  "gpt-4o": { input: 2500, output: 10000 },      // $2.50/$10.00 per 1M
-  "gpt-4o-mini": { input: 150, output: 600 },    // $0.15/$0.60 per 1M
+  "gpt-4o": { input: 2500, output: 10000 },         // $2.50/$10.00 per 1M
+  "gpt-4o-mini": { input: 150, output: 600 },       // $0.15/$0.60 per 1M
+  "default": { input: 400, output: 1600 },
   // ... more models
 };
 
 export function calculateCostMicroDollars(model, inputTokens, outputTokens) {
   const pricing = AI_PRICING[model] || AI_PRICING["default"];
-  const inputCost = (inputTokens / 1000) * pricing.input;
-  const outputCost = (outputTokens / 1000) * pricing.output;
+  const inputCost = (inputTokens / 1_000_000) * pricing.input;
+  const outputCost = (outputTokens / 1_000_000) * pricing.output;
   return Math.round(inputCost + outputCost);
 }
 ```
@@ -1138,7 +1142,7 @@ export default {
 
 ## Deployment
 
-### Deployment
+### Running the Application
 
 1. **Development**: `npm run dev` - Runs Express + Vite on port 5000
 2. **Production**: Build with `npm run build`, then run `npm run start`

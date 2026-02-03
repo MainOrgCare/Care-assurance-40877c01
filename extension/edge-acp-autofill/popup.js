@@ -1,4 +1,4 @@
-const STORAGE_KEYS = {
+const FALLBACK_STORAGE_KEYS = {
   payload: "caAcpPayload",
   caseInfo: "caAcpCaseInfo",
   queueState: "caAcpQueueState",
@@ -7,6 +7,18 @@ const STORAGE_KEYS = {
   logs: "caAcpLogs",
   interactionMode: "caAcpInteractionMode",
   signatureData: "caAcpSignatureData",
+  lastError: "caAcpLastError",
+};
+
+const FALLBACK_MESSAGE_TYPES = {
+  startAutofill: "CA_EXTENSION_START_AUTOFILL",
+  stopAutofill: "CA_EXTENSION_STOP_AUTOFILL",
+  clearError: "CA_EXTENSION_CLEAR_ERROR",
+};
+
+const { STORAGE_KEYS, MESSAGE_TYPES } = window.CA_EXTENSION_CONSTANTS || {
+  STORAGE_KEYS: FALLBACK_STORAGE_KEYS,
+  MESSAGE_TYPES: FALLBACK_MESSAGE_TYPES,
 };
 
 const loadStorage = (keys) =>
@@ -19,6 +31,7 @@ const payloadStatus = document.getElementById("payload-status");
 const caseIdInput = document.getElementById("case-id");
 const serviceDataGroupInput = document.getElementById("service-data-group-id");
 const startButton = document.getElementById("start-autofill");
+const stopButton = document.getElementById("stop-autofill");
 const status = document.getElementById("autofill-status");
 const clearButton = document.getElementById("clear-data");
 const autoSubmitToggle = document.getElementById("auto-submit");
@@ -30,15 +43,28 @@ const signatureStatus = document.getElementById("signature-status");
 const logStatus = document.getElementById("log-status");
 const logList = document.getElementById("log-list");
 const clearLogsButton = document.getElementById("clear-logs");
+const progressStatus = document.getElementById("progress-status");
+const errorBanner = document.getElementById("error-banner");
 
 const refreshPayloadStatus = async () => {
-  const { caAcpPayload, caAcpCaseInfo, caAcpAutoSubmit, caAcpDryRun, caAcpLogs, caAcpInteractionMode } = await loadStorage([
+  const {
+    caAcpPayload,
+    caAcpCaseInfo,
+    caAcpAutoSubmit,
+    caAcpDryRun,
+    caAcpLogs,
+    caAcpInteractionMode,
+    caAcpQueueState,
+    caAcpLastError,
+  } = await loadStorage([
     STORAGE_KEYS.payload,
     STORAGE_KEYS.caseInfo,
     STORAGE_KEYS.autoSubmit,
     STORAGE_KEYS.dryRun,
     STORAGE_KEYS.logs,
     STORAGE_KEYS.interactionMode,
+    STORAGE_KEYS.queueState,
+    STORAGE_KEYS.lastError,
   ]);
 
   if (caAcpPayload && Array.isArray(caAcpPayload.assessments)) {
@@ -69,6 +95,23 @@ const refreshPayloadStatus = async () => {
     logList.textContent = logs.join("\n");
     logStatus.textContent = logs.length > 0 ? `Entries: ${logs.length}` : "No actions yet.";
   }
+
+  if (progressStatus) {
+    if (caAcpQueueState && typeof caAcpQueueState.currentIndex === "number") {
+      progressStatus.textContent = `Progress: ${caAcpQueueState.currentIndex + 1} of ${caAcpQueueState.total}`;
+    } else {
+      progressStatus.textContent = "Not started.";
+    }
+  }
+
+  if (errorBanner) {
+    if (caAcpLastError) {
+      errorBanner.textContent = caAcpLastError;
+      errorBanner.hidden = false;
+    } else {
+      errorBanner.hidden = true;
+    }
+  }
 };
 
 startButton.addEventListener("click", async () => {
@@ -91,7 +134,7 @@ startButton.addEventListener("click", async () => {
   });
 
   chrome.runtime.sendMessage(
-    { type: "CA_EXTENSION_START_AUTOFILL", caseId, serviceDataGroupId },
+    { type: MESSAGE_TYPES.startAutofill, caseId, serviceDataGroupId },
     (response) => {
       if (chrome.runtime.lastError) {
         status.textContent = chrome.runtime.lastError.message;
@@ -103,6 +146,14 @@ startButton.addEventListener("click", async () => {
     }
   );
 });
+
+if (stopButton) {
+  stopButton.addEventListener("click", async () => {
+    chrome.runtime.sendMessage({ type: MESSAGE_TYPES.stopAutofill }, () => {
+      status.textContent = "Autofill stopped.";
+    });
+  });
+}
 
 if (autoSubmitToggle) {
   autoSubmitToggle.addEventListener("change", async () => {
@@ -128,6 +179,7 @@ if (clearButton) {
       [STORAGE_KEYS.payload]: null,
       [STORAGE_KEYS.caseInfo]: null,
       [STORAGE_KEYS.queueState]: null,
+      [STORAGE_KEYS.lastError]: null,
     });
     status.textContent = "Cleared stored data.";
     await refreshPayloadStatus();
@@ -138,6 +190,14 @@ if (clearLogsButton) {
   clearLogsButton.addEventListener("click", async () => {
     await setStorage({ [STORAGE_KEYS.logs]: [] });
     await refreshPayloadStatus();
+  });
+}
+
+if (errorBanner) {
+  errorBanner.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: MESSAGE_TYPES.clearError }, () => {
+      refreshPayloadStatus();
+    });
   });
 }
 

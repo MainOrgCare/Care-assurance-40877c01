@@ -13,6 +13,8 @@
         <p>Fill Access Care Planning risk assessments from Care Assurance.</p>
       </header>
 
+      <div id="error-banner" class="status error" hidden></div>
+
       <section class="section">
         <h2>Payload Status</h2>
         <div id="payload-status" class="status">Waiting for data...</div>
@@ -44,7 +46,9 @@
             <option value="manual">Manual assist</option>
           </select>
         </label>
+        <div id="progress-status" class="status">Not started.</div>
         <button id="start-autofill" class="primary">Start Autofill</button>
+        <button id="stop-autofill" class="secondary" type="button">Stop Autofill</button>
         <button id="clear-data" class="secondary" type="button">Clear Stored Data</button>
         <div id="autofill-status" class="status"></div>
       </section>
@@ -75,6 +79,7 @@
         </ul>
       </section>
     </main>
+    <script src="constants.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

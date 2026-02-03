@@ -12447,13 +12447,13 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         const staleSlots = extracted.templateSlotStates.filter((slot) => !slot.hasTemplate);
         const uniqueKeys = new Set(
           staleSlots.map(
-            (slot) => `${slot.serviceUserKey}|${slot.callTypeKey}|${slot.templateWeek}|${slot.templateDay}`
+            (slot) => `${slot.serviceUserKey}|${slot.callTypeLabel}|${slot.templateWeek}|${slot.templateDay}`
           )
         );
         await Promise.all(
           Array.from(uniqueKeys).map((key) => {
-            const [serviceUserKey, callTypeKey, templateWeek, templateDay] = key.split("|");
-            return storage.deleteTemplateAssignmentsForSlot(serviceUserKey, callTypeKey, templateWeek, templateDay);
+            const [serviceUserKey, callTypeLabel, templateWeek, templateDay] = key.split("|");
+            return storage.deleteTemplateAssignmentsForSlot(serviceUserKey, callTypeLabel, templateWeek, templateDay);
           })
         );
       }
@@ -12578,7 +12578,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       let rowCounter = 0;
 
       for (const call of calls) {
-        const assignmentKey = `${call.serviceUserKey}|${call.callTypeKey}|${call.templateWeek}|${call.templateDay}`;
+        // Use callTypeLabel for lookup to match how templateAssignmentMap is keyed
+        const assignmentKey = `${call.serviceUserKey}|${call.callTypeLabel}|${call.templateWeek}|${call.templateDay}`;
         const templateAssignment = templateAssignmentMap.get(assignmentKey);
         const workerKey = templateAssignment?.workerKey ?? call.workerKey;
         const workerName = templateAssignment?.workerName ?? call.workerName;
@@ -13030,7 +13031,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       let rowCounter = 0;
 
       for (const call of calls) {
-        const assignmentKey = `${call.serviceUserKey}|${call.callTypeKey}|${call.templateWeek}|${call.templateDay}`;
+        // Use callTypeLabel for lookup to match how templateAssignmentMap is keyed
+        const assignmentKey = `${call.serviceUserKey}|${call.callTypeLabel}|${call.templateWeek}|${call.templateDay}`;
         const templateAssignment = templateAssignmentMap.get(assignmentKey);
         const workerKey = templateAssignment?.workerKey ?? call.workerKey;
         const workerName = templateAssignment?.workerName ?? call.workerName;

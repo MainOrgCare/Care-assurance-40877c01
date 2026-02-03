@@ -425,13 +425,13 @@ export default function RosteringStudioUnified({
 
   // ===== DATA QUERIES =====
   const { data: workbooksList = [], isLoading: workbooksLoading } = useQuery<WorkbookSummary[]>({
-    queryKey: ["/api/care-worker-rotas/workbooks"],
+    queryKey: ["/api/admin/rostering/workbook-uploads"],
   });
 
   const activeWorkbookId = selectedWorkbookId || workbooksList[0]?.id || null;
 
   const { data: workbookData, isLoading: workbookLoading } = useQuery<WorkbookFull>({
-    queryKey: ["/api/care-worker-rotas/workbooks", activeWorkbookId],
+    queryKey: ["/api/admin/rostering/workbook-uploads", activeWorkbookId],
     enabled: !!activeWorkbookId,
   });
 
@@ -443,19 +443,22 @@ export default function RosteringStudioUnified({
 
   // Call times
   const { data: callTimesRaw = [] } = useQuery<RecommendedCallTime[]>({
-    queryKey: ["/api/rostering/call-times"],
+    queryKey: ["/api/admin/rostering/workbooks", activeWorkbookId, "call-times"],
+    enabled: !!activeWorkbookId,
   });
   const callTimesForEditor = useMemo(() => callTimesRaw, [callTimesRaw]);
 
   // Constraints
   const { data: constraintsRaw = [] } = useQuery<WorkerConstraintUI[]>({
-    queryKey: ["/api/rostering/worker-constraints"],
+    queryKey: ["/api/admin/rostering/workbooks", activeWorkbookId, "worker-constraints"],
+    enabled: !!activeWorkbookId,
   });
   const constraintsForEditor = useMemo(() => constraintsRaw, [constraintsRaw]);
 
   // Saved states
   const { data: savedStates = [] } = useQuery<SavedRosterStateSummary[]>({
-    queryKey: ["/api/rostering/saved-states", selectedTemplateWeek, selectedTemplateDay],
+    queryKey: ["/api/admin/rostering/workbooks", activeWorkbookId, "saved-states"],
+    enabled: !!activeWorkbookId,
   });
 
   // ===== COMPUTED DATA =====
@@ -1302,31 +1305,31 @@ export default function RosteringStudioUnified({
           </div>
         </div>
 
-        {/* MAIN WORKSPACE */}
+        {/* MAIN WORKSPACE - Grid Layout */}
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <ResizablePanelGroup direction="horizontal">
             {/* LEFT SIDEBAR - Workers */}
             {panelVisibility.workers && (
               <>
-                <ResizablePanel defaultSize={15} minSize={10} maxSize={25}>
+                <ResizablePanel defaultSize={12} minSize={8} maxSize={18}>
                   <div className="flex h-full flex-col border-r bg-background/50">
-                    <div className="flex items-center justify-between border-b px-3 py-2">
-                      <span className="text-xs font-semibold">Workers</span>
+                    <div className="flex items-center justify-between border-b px-2 py-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide">Workers</span>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6"
+                        className="h-5 w-5"
                         onClick={() => setShowAllWorkers(!showAllWorkers)}
                       >
-                        {showAllWorkers ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                        {showAllWorkers ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                       </Button>
                     </div>
-                    <div className="px-3 py-2">
+                    <div className="px-2 py-1.5">
                       <Input
-                        placeholder="Search workers..."
+                        placeholder="Search..."
                         value={careWorkerSearch}
                         onChange={(e) => setCareWorkerSearch(e.target.value)}
-                        className="h-8 text-xs"
+                        className="h-6 text-[10px]"
                       />
                     </div>
                     <ScrollArea className="flex-1">
@@ -1339,11 +1342,11 @@ export default function RosteringStudioUnified({
                               key={worker.key}
                               type="button"
                               onClick={() => openWorkerTools(worker.key)}
-                              className={`w-full px-3 py-2 text-left transition hover:bg-muted/50 ${
+                              className={`w-full px-2 py-1.5 text-left transition hover:bg-muted/50 ${
                                 isSelected ? "bg-primary/10" : ""
                               }`}
                             >
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1.5">
                                 <WorkerAvatar name={worker.workerName} size="sm" />
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate text-xs font-semibold">{worker.workerName}</p>
@@ -1363,123 +1366,95 @@ export default function RosteringStudioUnified({
               </>
             )}
 
-            {/* MAIN CONTENT */}
-            <ResizablePanel defaultSize={panelVisibility.workers ? 60 : 75}>
+            {/* MAIN CONTENT - Fixed Grid Layout */}
+            <ResizablePanel defaultSize={panelVisibility.workers ? 63 : 78}>
               <div className="flex h-full flex-col overflow-hidden">
-                <ScrollArea className="flex-1">
-                  {/* Timeline Panel */}
-                  {panelVisibility.timeline && (
-                    <Collapsible defaultOpen className="border-b">
-                      <CollapsibleTrigger asChild>
-                        <div className="flex cursor-pointer items-center justify-between bg-muted/30 px-4 py-2 hover:bg-muted/50">
-                          <div className="flex items-center gap-2">
-                            <Timer className="h-4 w-4" />
-                            <span className="text-sm font-semibold">Timeline</span>
-                            <Badge variant="outline" className="text-[10px]">
-                              {showAllWorkers ? `${timelineLanes.length} workers` : selectedCareWorkerKey ? "1 worker" : "Select worker"}
-                            </Badge>
-                          </div>
-                          <ChevronDown className="h-4 w-4 transition-transform [[data-state=closed]_&]:-rotate-90" />
+                {/* Top Row: Timeline (takes most space) */}
+                {panelVisibility.timeline && (
+                  <div className="flex-1 min-h-0 border-b flex flex-col">
+                    <div className="flex items-center justify-between bg-muted/30 px-3 py-1 border-b">
+                      <div className="flex items-center gap-2">
+                        <Timer className="h-3.5 w-3.5" />
+                        <span className="text-xs font-semibold">Timeline</span>
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                          {showAllWorkers ? `${timelineLanes.length} workers` : selectedCareWorkerKey ? "1 worker" : "Select"}
+                        </Badge>
+                        {conflictsCount > 0 && (
+                          <Badge variant="destructive" className="text-[9px] px-1.5 py-0">
+                            {conflictsCount} conflicts
+                          </Badge>
+                        )}
+                      </div>
+                      {rosterState.present.selectedEntryIds.size > 1 && (
+                        <div className="flex items-center gap-1">
+                          <Badge variant="default" className="text-[9px]">{rosterState.present.selectedEntryIds.size} selected</Badge>
+                          <Select onValueChange={handleBulkReassign}>
+                            <SelectTrigger className="h-6 w-[120px] text-[10px]">
+                              <SelectValue placeholder="Move to..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {timelineLanes.map((lane: GanttLane) => (
+                                <SelectItem key={lane.id} value={lane.id} className="text-xs">
+                                  {lane.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={handleClearSelection}>
+                            Clear
+                          </Button>
                         </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="relative overflow-auto p-4" style={{ maxHeight: "40vh" }}>
-                          {conflictsCount > 0 && (
-                            <Alert className="mb-3">
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertTitle>Schedule conflicts</AlertTitle>
-                              <AlertDescription>
-                                {conflictsCount} overlapping visits detected. Drag to resolve.
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                          <GanttTimeline
-                            lanes={showAllWorkers ? timelineLanes : selectedWorkerLanes}
-                            startMinutes={ROSTER_DAY_START_MINUTES}
-                            endMinutes={ROSTER_DAY_HARD_END_MINUTES}
-                            snapMinutes={snapMinutes}
-                            showHalfHourTicks={showHalfHourTicks}
-                            rowHeight={timelineRowHeight}
-                            selectedEntryId={selectedTimelineEntryId}
-                            selectedEntryIds={rosterState.present.selectedEntryIds}
-                            focusedEntryId={rosterState.present.focusedEntryId}
-                            onSelectEntry={handleSelectEntry}
-                            onEntryMove={handleEntryMove}
-                            recommendedTimes={callTimesForEditor}
-                          />
-                          {rosterState.present.selectedEntryIds.size > 1 && (
-                            <div className="mt-3 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-2">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="default">{rosterState.present.selectedEntryIds.size}</Badge>
-                                <span className="text-sm">entries selected</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Select onValueChange={handleBulkReassign}>
-                                  <SelectTrigger className="h-8 w-[160px] text-xs">
-                                    <SelectValue placeholder="Move all to..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {timelineLanes.map((lane: GanttLane) => (
-                                      <SelectItem key={lane.id} value={lane.id}>
-                                        {lane.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <Button size="sm" variant="destructive" onClick={handleBulkDelete}>
-                                  Remove
-                                </Button>
-                                <Button size="sm" variant="ghost" onClick={handleClearSelection}>
-                                  Clear
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )}
+                      )}
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-auto p-2">
+                      <GanttTimeline
+                        lanes={showAllWorkers ? timelineLanes : selectedWorkerLanes}
+                        startMinutes={ROSTER_DAY_START_MINUTES}
+                        endMinutes={ROSTER_DAY_HARD_END_MINUTES}
+                        snapMinutes={snapMinutes}
+                        showHalfHourTicks={showHalfHourTicks}
+                        rowHeight={timelineRowHeight}
+                        selectedEntryId={selectedTimelineEntryId}
+                        selectedEntryIds={rosterState.present.selectedEntryIds}
+                        focusedEntryId={rosterState.present.focusedEntryId}
+                        onSelectEntry={handleSelectEntry}
+                        onEntryMove={handleEntryMove}
+                        recommendedTimes={callTimesForEditor}
+                      />
+                    </div>
+                  </div>
+                )}
 
+                {/* Bottom Row: Horizontal panels */}
+                <div className="flex h-[35%] min-h-[180px] max-h-[280px] border-t">
                   {/* Map Panel */}
                   {panelVisibility.map && (
-                    <Collapsible defaultOpen className="border-b">
-                      <CollapsibleTrigger asChild>
-                        <div className="flex cursor-pointer items-center justify-between bg-muted/30 px-4 py-2 hover:bg-muted/50">
-                          <div className="flex items-center gap-2">
-                            <MapIcon className="h-4 w-4" />
-                            <span className="text-sm font-semibold">Route Map</span>
-                            <Badge variant="outline" className="text-[10px]">
-                              {routeEntriesSorted.length} stops
-                            </Badge>
-                          </div>
-                          <ChevronDown className="h-4 w-4 transition-transform [[data-state=closed]_&]:-rotate-90" />
-                        </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="p-4" style={{ maxHeight: "35vh" }}>
-                          <RouteMapView entries={routeEntriesSorted} />
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
+                    <div className="flex-1 min-w-0 border-r flex flex-col">
+                      <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 border-b">
+                        <MapIcon className="h-3.5 w-3.5" />
+                        <span className="text-xs font-semibold">Route Map</span>
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                          {routeEntriesSorted.length} stops
+                        </Badge>
+                      </div>
+                      <div className="flex-1 min-h-0 p-2 overflow-hidden">
+                        <RouteMapView entries={routeEntriesSorted} />
+                      </div>
+                    </div>
                   )}
 
-                  {/* Call Times Editor */}
+                  {/* Call Times Panel */}
                   {panelVisibility.callTimes && (
-                    <Collapsible className="border-b">
-                      <CollapsibleTrigger asChild>
-                        <div className="flex cursor-pointer items-center justify-between bg-muted/30 px-4 py-2 hover:bg-muted/50">
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4" />
-                            <span className="text-sm font-semibold">Call Times</span>
-                            <Badge variant="outline" className="text-[10px]">
-                              {callTimesForEditor.length} configured
-                            </Badge>
-                          </div>
-                          <ChevronDown className="h-4 w-4 transition-transform [[data-state=closed]_&]:-rotate-90" />
-                        </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="p-4" style={{ maxHeight: "40vh", overflow: "auto" }}>
+                    <div className="flex-1 min-w-0 border-r flex flex-col">
+                      <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 border-b">
+                        <Clock className="h-3.5 w-3.5" />
+                        <span className="text-xs font-semibold">Call Times</span>
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                          {callTimesForEditor.length}
+                        </Badge>
+                      </div>
+                      <ScrollArea className="flex-1 min-h-0">
+                        <div className="p-2">
                           <CallTimeEditor
                             serviceUsers={uniqueServiceUsers}
                             callTypes={uniqueCallTypes}
@@ -1489,29 +1464,27 @@ export default function RosteringStudioUnified({
                             isSaving={saveCallTimeMutation.isPending}
                           />
                         </div>
-                      </CollapsibleContent>
-                    </Collapsible>
+                      </ScrollArea>
+                    </div>
                   )}
 
-                  {/* Constraints Editor */}
+                  {/* Constraints Panel */}
                   {panelVisibility.constraints && (
-                    <Collapsible className="border-b">
-                      <CollapsibleTrigger asChild>
-                        <div className="flex cursor-pointer items-center justify-between bg-muted/30 px-4 py-2 hover:bg-muted/50">
-                          <div className="flex items-center gap-2">
-                            <UserCog className="h-4 w-4" />
-                            <span className="text-sm font-semibold">Worker Constraints</span>
-                            <Badge variant="outline" className="text-[10px]">
-                              {constraintsForEditor.length} set
-                            </Badge>
-                          </div>
-                          <ChevronDown className="h-4 w-4 transition-transform [[data-state=closed]_&]:-rotate-90" />
-                        </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="p-4" style={{ maxHeight: "40vh", overflow: "auto" }}>
+                    <div className="flex-1 min-w-0 border-r flex flex-col">
+                      <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 border-b">
+                        <UserCog className="h-3.5 w-3.5" />
+                        <span className="text-xs font-semibold">Constraints</span>
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                          {constraintsForEditor.length}
+                        </Badge>
+                      </div>
+                      <ScrollArea className="flex-1 min-h-0">
+                        <div className="p-2">
                           <WorkerConstraintsEditor
-                            workers={careWorkerRosters.map((r: CareWorkerRoster) => ({ key: r.key, name: r.workerName }))}
+                            workers={careWorkerRosters.map((r: CareWorkerRoster) => ({
+                              key: r.key,
+                              name: r.workerName,
+                            }))}
                             constraints={constraintsForEditor}
                             workerSummaries={heatmapSummaries}
                             weeklyTotals={weeklyTotals}
@@ -1520,53 +1493,41 @@ export default function RosteringStudioUnified({
                             isSaving={saveConstraintMutation.isPending}
                           />
                         </div>
-                      </CollapsibleContent>
-                    </Collapsible>
+                      </ScrollArea>
+                    </div>
                   )}
 
                   {/* Workload Heatmap */}
                   {panelVisibility.workload && (
-                    <Collapsible className="border-b">
-                      <CollapsibleTrigger asChild>
-                        <div className="flex cursor-pointer items-center justify-between bg-muted/30 px-4 py-2 hover:bg-muted/50">
-                          <div className="flex items-center gap-2">
-                            <BarChart3 className="h-4 w-4" />
-                            <span className="text-sm font-semibold">Workload Heatmap</span>
-                          </div>
-                          <ChevronDown className="h-4 w-4 transition-transform [[data-state=closed]_&]:-rotate-90" />
-                        </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="p-4" style={{ maxHeight: "40vh", overflow: "auto" }}>
-                          <WorkloadHeatmap
-                            workers={heatmapSummaries}
-                            constraints={constraintsForEditor}
-                            weeklyTotals={weeklyTotals}
-                            selectedWorkerKey={selectedCareWorkerKey}
-                            onWorkerClick={(key: string) => {
-                              setSelectedCareWorkerKey(key);
-                              setShowAllWorkers(false);
-                            }}
-                          />
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
+                    <div className="flex-1 min-w-0 border-r flex flex-col">
+                      <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 border-b">
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        <span className="text-xs font-semibold">Workload</span>
+                      </div>
+                      <div className="flex-1 min-h-0 p-2 overflow-auto">
+                        <WorkloadHeatmap
+                          workers={heatmapSummaries}
+                          constraints={constraintsForEditor}
+                          weeklyTotals={weeklyTotals}
+                          selectedWorkerKey={selectedCareWorkerKey}
+                          onWorkerClick={(key: string) => {
+                            setSelectedCareWorkerKey(key);
+                            setShowAllWorkers(false);
+                          }}
+                        />
+                      </div>
+                    </div>
                   )}
 
-                  {/* Optimization Settings */}
+                  {/* Optimization Panel */}
                   {panelVisibility.optimization && (
-                    <Collapsible className="border-b">
-                      <CollapsibleTrigger asChild>
-                        <div className="flex cursor-pointer items-center justify-between bg-muted/30 px-4 py-2 hover:bg-muted/50">
-                          <div className="flex items-center gap-2">
-                            <Sliders className="h-4 w-4" />
-                            <span className="text-sm font-semibold">Optimization Settings</span>
-                          </div>
-                          <ChevronDown className="h-4 w-4 transition-transform [[data-state=closed]_&]:-rotate-90" />
-                        </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="p-4" style={{ maxHeight: "40vh", overflow: "auto" }}>
+                    <div className="flex-1 min-w-0 border-r flex flex-col">
+                      <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 border-b">
+                        <Sliders className="h-3.5 w-3.5" />
+                        <span className="text-xs font-semibold">Optimization</span>
+                      </div>
+                      <ScrollArea className="flex-1 min-h-0">
+                        <div className="p-2">
                           <OptimizationSettings
                             weights={optimizationWeights}
                             constraints={optimizationConstraints}
@@ -1576,30 +1537,33 @@ export default function RosteringStudioUnified({
                             isOptimizing={isOptimizing}
                           />
                         </div>
-                      </CollapsibleContent>
-                    </Collapsible>
+                      </ScrollArea>
+                    </div>
                   )}
 
-                  {/* Database Admin */}
+                  {/* Database Panel */}
                   {panelVisibility.database && (
-                    <Collapsible className="border-b">
-                      <CollapsibleTrigger asChild>
-                        <div className="flex cursor-pointer items-center justify-between bg-muted/30 px-4 py-2 hover:bg-muted/50">
-                          <div className="flex items-center gap-2">
-                            <Database className="h-4 w-4" />
-                            <span className="text-sm font-semibold">Database Admin</span>
-                          </div>
-                          <ChevronDown className="h-4 w-4 transition-transform [[data-state=closed]_&]:-rotate-90" />
-                        </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="p-4" style={{ maxHeight: "40vh", overflow: "auto" }}>
+                    <div className="flex-1 min-w-0 flex flex-col">
+                      <div className="flex items-center gap-2 bg-muted/30 px-3 py-1 border-b">
+                        <Database className="h-3.5 w-3.5" />
+                        <span className="text-xs font-semibold">Database</span>
+                      </div>
+                      <ScrollArea className="flex-1 min-h-0">
+                        <div className="p-2">
                           <AdminDatabasePanel />
                         </div>
-                      </CollapsibleContent>
-                    </Collapsible>
+                      </ScrollArea>
+                    </div>
                   )}
-                </ScrollArea>
+
+                  {/* Placeholder when no bottom panels visible */}
+                  {!panelVisibility.map && !panelVisibility.callTimes && !panelVisibility.constraints && 
+                   !panelVisibility.workload && !panelVisibility.optimization && !panelVisibility.database && (
+                    <div className="flex-1 flex items-center justify-center text-muted-foreground text-xs">
+                      Use View menu to show panels
+                    </div>
+                  )}
+                </div>
               </div>
             </ResizablePanel>
 
@@ -1609,21 +1573,21 @@ export default function RosteringStudioUnified({
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize={25} minSize={15} maxSize={35}>
                   <div className="flex h-full flex-col border-l bg-background/50">
-                    <div className="border-b px-3 py-2">
-                      <span className="text-xs font-semibold">Details</span>
+                    <div className="border-b px-2 py-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide">Details</span>
                     </div>
                     <ScrollArea className="flex-1">
-                      <div className="p-3 space-y-4">
+                      <div className="p-2 space-y-3">
                         {/* Selected Visit Details */}
-                        <div className="rounded-lg border p-3">
-                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
+                        <div className="rounded-lg border p-2">
+                          <p className="text-[9px] uppercase tracking-wide text-muted-foreground mb-1.5">
                             Selected Visit
                           </p>
                           {selectedTimelineEntry ? (
-                            <div className="space-y-2">
-                              <p className="text-sm font-semibold">{selectedTimelineEntry.title}</p>
-                              <div className="flex items-center gap-2 text-xs">
-                                <Badge variant="outline">
+                            <div className="space-y-1.5">
+                              <p className="text-xs font-semibold">{selectedTimelineEntry.title}</p>
+                              <div className="flex items-center gap-1.5 text-[10px]">
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0">
                                   {formatMinutesToTime(selectedTimelineEntry.startMinutes)}
                                 </Badge>
                                 <span className="text-muted-foreground">
@@ -1634,12 +1598,12 @@ export default function RosteringStudioUnified({
                                 <CallTypeChip callType={selectedTimelineEntry.callTypeLabel} size="sm" />
                               )}
                               {selectedTimelineEntry.address && (
-                                <p className="text-xs text-muted-foreground border-l-2 border-primary/30 pl-2">
+                                <p className="text-[10px] text-muted-foreground border-l-2 border-primary/30 pl-1.5">
                                   {selectedTimelineEntry.address}
                                 </p>
                               )}
-                              <div className="pt-2 border-t">
-                                <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                              <div className="pt-1.5 border-t">
+                                <p className="text-[9px] uppercase tracking-wide text-muted-foreground mb-1">
                                   Reassign to
                                 </p>
                                 <Select
@@ -1647,12 +1611,12 @@ export default function RosteringStudioUnified({
                                     handleReassignEntry(selectedTimelineEntry.id, laneId)
                                   }
                                 >
-                                  <SelectTrigger className="h-8 text-xs">
+                                  <SelectTrigger className="h-6 text-[10px]">
                                     <SelectValue placeholder="Select worker..." />
                                   </SelectTrigger>
                                   <SelectContent>
                                     {timelineLanes.map((lane: GanttLane) => (
-                                      <SelectItem key={lane.id} value={lane.id}>
+                                      <SelectItem key={lane.id} value={lane.id} className="text-xs">
                                         {lane.label}
                                       </SelectItem>
                                     ))}
@@ -1662,7 +1626,7 @@ export default function RosteringStudioUnified({
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="w-full"
+                                className="w-full h-6 text-[10px]"
                                 onClick={() => setSelectedTimelineEntryId(null)}
                               >
                                 Clear selection

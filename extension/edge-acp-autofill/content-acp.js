@@ -1,12 +1,24 @@
-const STORAGE_KEYS = {
+const FALLBACK_STORAGE_KEYS = {
   payload: "caAcpPayload",
   caseInfo: "caAcpCaseInfo",
   queueState: "caAcpQueueState",
   autoSubmit: "caAcpAutoSubmit",
   dryRun: "caAcpDryRun",
   interactionMode: "caAcpInteractionMode",
+  signatureData: "caAcpSignatureData",
 };
-const SIGNATURE_STORAGE_KEY = "caAcpSignatureData";
+const FALLBACK_FORM_CONFIG = { formId: "1048191" };
+const FALLBACK_MESSAGE_TYPES = {
+  log: "CA_EXTENSION_LOG",
+  stepComplete: "CA_EXTENSION_STEP_COMPLETE",
+  uploadSignature: "CA_EXTENSION_UPLOAD_SIGNATURE",
+};
+
+const { STORAGE_KEYS, FORM_CONFIG, MESSAGE_TYPES } = window.CA_EXTENSION_CONSTANTS || {
+  STORAGE_KEYS: FALLBACK_STORAGE_KEYS,
+  FORM_CONFIG: FALLBACK_FORM_CONFIG,
+  MESSAGE_TYPES: FALLBACK_MESSAGE_TYPES,
+};
 
 const FORM_FIELD_NAMES = {
   serviceUser: "form_component_4_3",
@@ -17,10 +29,20 @@ const FORM_FIELD_NAMES = {
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const waitForSelector = async (selector, timeoutMs = 15000, intervalMs = 200) => {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const element = document.querySelector(selector);
+    if (element) return element;
+    await wait(intervalMs);
+  }
+  return null;
+};
+
 const logAction = (message) => {
   const timestamp = new Date().toLocaleTimeString();
   chrome.runtime.sendMessage({
-    type: "CA_EXTENSION_LOG",
+    type: MESSAGE_TYPES?.log || "CA_EXTENSION_LOG",
     entry: `[${timestamp}] ${message}`,
   });
 };
@@ -267,7 +289,7 @@ const loadStorage = (keys) =>
   new Promise((resolve) => chrome.storage.local.get(keys, (items) => resolve(items)));
 
 const notifyStepComplete = () =>
-  chrome.runtime.sendMessage({ type: "CA_EXTENSION_STEP_COMPLETE" });
+  chrome.runtime.sendMessage({ type: MESSAGE_TYPES?.stepComplete || "CA_EXTENSION_STEP_COMPLETE" });
 
 const isRiskFormPage = () => Boolean(document.querySelector("#Table_9_9_Table"));
 
@@ -281,7 +303,7 @@ const uploadSignature = async () => {
     return true;
   }
 
-  const { caAcpSignatureData } = await loadStorage([SIGNATURE_STORAGE_KEY]);
+  const { caAcpSignatureData } = await loadStorage([STORAGE_KEYS.signatureData]);
   if (!caAcpSignatureData || !caAcpSignatureData.dataUrl) {
     logAction("Signature missing: upload it in the extension popup.");
     return false;
@@ -340,7 +362,7 @@ const uploadSignatureFromDataUrl = async (dataUrl, fileName, mimeType) => {
 };
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "CA_EXTENSION_UPLOAD_SIGNATURE") return false;
+  if (message?.type !== (MESSAGE_TYPES?.uploadSignature || "CA_EXTENSION_UPLOAD_SIGNATURE")) return false;
   const payload = message.payload || {};
   uploadSignatureFromDataUrl(payload.dataUrl, payload.fileName, payload.mimeType)
     .then((ok) => sendResponse({ ok }))
@@ -352,7 +374,7 @@ const isAutofillTargetPage = () => {
   if (!window.location.pathname.includes("new_case_form")) return false;
   const params = new URLSearchParams(window.location.search);
   const formId = params.get("formId");
-  return formId === "1048191";
+  return formId === FORM_CONFIG?.formId || "1048191";
 };
 
 const run = async () => {
@@ -372,7 +394,11 @@ const run = async () => {
   const processedKey = `caAutofillProcessed_${caAcpQueueState.currentIndex}`;
   if (sessionStorage.getItem(processedKey)) return;
   sessionStorage.setItem(processedKey, "1");
-  if (!isRiskFormPage()) return;
+  const formReady = await waitForSelector("#Table_9_9_Table");
+  if (!formReady || !isRiskFormPage()) {
+    logAction("Risk form table not found. Autofill skipped.");
+    return;
+  }
 
   const assessment = caAcpPayload.assessments[caAcpQueueState.currentIndex];
   if (!assessment) return;
@@ -387,6 +413,11 @@ const run = async () => {
 
   const serviceUserLabel =
     caAcpPayload.serviceUserDisplayName || caAcpPayload.serviceUserInitials || "Service User";
+  if (!Array.isArray(assessment.risks)) {
+    logAction("Assessment has no risks array. Skipping autofill.");
+    return;
+  }
+
   await fillRiskAssessment(assessment, serviceUserLabel);
 
   await uploadSignature();
@@ -394,12 +425,20 @@ const run = async () => {
 
   const shouldAutoSubmit = caAcpAutoSubmit !== false;
   if (shouldAutoSubmit) {
-    clickSubmit();
+    const submitted = clickSubmit();
+    if (!submitted) {
+      logAction("Submit button not found. Please submit manually.");
+      return;
+    }
     await wait(2000);
     if (caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
       notifyStepComplete();
     } else {
-      chrome.storage.local.set({ [STORAGE_KEYS.queueState]: null });
+      chrome.storage.local.set({
+        [STORAGE_KEYS.queueState]: null,
+        [STORAGE_KEYS.payload]: null,
+        [STORAGE_KEYS.caseInfo]: null,
+      });
     }
     return;
   }
@@ -408,7 +447,11 @@ const run = async () => {
     if (caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
       notifyStepComplete();
     } else {
-      chrome.storage.local.set({ [STORAGE_KEYS.queueState]: null });
+      chrome.storage.local.set({
+        [STORAGE_KEYS.queueState]: null,
+        [STORAGE_KEYS.payload]: null,
+        [STORAGE_KEYS.caseInfo]: null,
+      });
     }
   });
 };

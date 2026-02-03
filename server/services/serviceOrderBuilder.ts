@@ -220,6 +220,7 @@ export function generateCallHash(
 export interface TemplateSlotState {
   serviceUserKey: string;
   callTypeKey: string;
+  callTypeLabel: string; // Original label for database matching
   templateWeek: 'week1' | 'week2';
   templateDay: string;
   hasTemplate: boolean;
@@ -676,6 +677,7 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
     templateSlotStates.push({
       serviceUserKey,
       callTypeKey: _callTypeKey,
+      callTypeLabel: slotData.callTypeLabel, // Original label for database matching
       templateWeek: templateWeek as 'week1' | 'week2',
       templateDay,
       hasTemplate: slotData.hasTemplate,
@@ -690,7 +692,7 @@ export function extractFromRawCalls(calls: RawCallRecord[]): ExtractionResult {
       workerName: slotData.workerName,
       serviceUserKey,
       serviceUserName: su?.serviceUserName || 'Unknown',
-      callTypeLabel: _callTypeKey, // Keep key for consistent matching
+      callTypeLabel: slotData.callTypeLabel, // Use actual label from raw data, not normalized key
       timeBand: slotData.timeBand,
       templateWeek: templateWeek as 'week1' | 'week2',
       templateDay,

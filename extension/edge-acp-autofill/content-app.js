@@ -1,6 +1,8 @@
 const EXTENSION_MESSAGE_TYPE = "CA_SEND_TO_ACP_EXTENSION";
 const EXTENSION_ACK_TYPE = "CA_EXTENSION_ACK";
 
+const { MESSAGE_TYPES } = window.CA_EXTENSION_CONSTANTS || {};
+
 const sendAck = (requestId, ok, error) => {
   window.postMessage(
     {
@@ -24,7 +26,7 @@ window.addEventListener("message", (event) => {
   }
 
   chrome.runtime.sendMessage(
-    { type: "CA_EXTENSION_STORE_PAYLOAD", payload },
+    { type: MESSAGE_TYPES?.storePayload || "CA_EXTENSION_STORE_PAYLOAD", payload },
     (response) => {
       if (chrome.runtime.lastError) {
         sendAck(requestId, false, chrome.runtime.lastError.message);

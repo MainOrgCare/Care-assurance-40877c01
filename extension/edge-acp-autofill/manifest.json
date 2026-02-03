@@ -8,8 +8,7 @@
     "default_popup": "popup.html"
   },
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "permissions": ["storage", "tabs", "activeTab", "scripting"],
   "host_permissions": [
@@ -20,12 +19,12 @@
   "content_scripts": [
     {
       "matches": ["https://careassurance.uk/*", "https://www.careassurance.uk/*"],
-      "js": ["content-app.js"],
+      "js": ["constants.js", "content-app.js"],
       "run_at": "document_start"
     },
     {
       "matches": ["https://clece.mobizio.com/*"],
-      "js": ["content-acp.js"],
+      "js": ["constants.js", "content-acp.js"],
       "run_at": "document_idle"
     }
   ]
