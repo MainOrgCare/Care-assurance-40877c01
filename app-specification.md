@@ -43,6 +43,7 @@ CareAssurance is an AI-powered healthcare compliance management application desi
 ## Technology Stack
 
 ### Frontend
+
 ```
 Framework:        React 18 with TypeScript
 Routing:          Wouter (lightweight alternative to React Router)
@@ -55,6 +56,7 @@ Icons:            Lucide React
 ```
 
 ### Backend
+
 ```
 Runtime:          Node.js
 Framework:        Express.js
@@ -68,6 +70,7 @@ WebSocket:        ws library for real-time notifications
 ```
 
 ### AI/External APIs
+
 ```
 Primary AI:       OpenAI API (direct)
 Models Used:      GPT-4.1-mini (core extraction), GPT-4.1-mini (auxiliary tasks)
@@ -75,6 +78,7 @@ Virus Scanning:   Cloudmersive Virus Scan API
 ```
 
 ### Key Dependencies
+
 ```json
 {
   "express": "^4.x",
@@ -169,6 +173,7 @@ Virus Scanning:   Cloudmersive Virus Scan API
 All tables use UUID primary keys generated with `gen_random_uuid()`.
 
 ### Users Table
+
 ```typescript
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -191,6 +196,7 @@ export const users = pgTable("users", {
 ```
 
 ### Care Workers Table
+
 ```typescript
 export const careWorkers = pgTable("care_workers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -202,6 +208,7 @@ export const careWorkers = pgTable("care_workers", {
 ```
 
 ### Discrepancies Table
+
 ```typescript
 export const discrepancies = pgTable("discrepancies", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -219,6 +226,7 @@ export const discrepancies = pgTable("discrepancies", {
 ```
 
 ### Audits Table
+
 ```typescript
 export const audits = pgTable("audits", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -233,6 +241,7 @@ export const audits = pgTable("audits", {
 ```
 
 ### Active Sessions Table
+
 ```typescript
 export const activeSessions = pgTable("active_sessions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -252,6 +261,7 @@ export const activeSessions = pgTable("active_sessions", {
 ```
 
 ### Admin Alerts Table
+
 ```typescript
 export const adminAlerts = pgTable("admin_alerts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -266,6 +276,7 @@ export const adminAlerts = pgTable("admin_alerts", {
 ```
 
 ### Blocked IPs Table
+
 ```typescript
 export const blockedIps = pgTable("blocked_ips", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -278,6 +289,7 @@ export const blockedIps = pgTable("blocked_ips", {
 ```
 
 ### EMAR Refusal Reviews Table
+
 ```typescript
 export const emarRefusalReviews = pgTable("emar_refusal_reviews", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -295,6 +307,7 @@ export const emarRefusalReviews = pgTable("emar_refusal_reviews", {
 ```
 
 ### EMAR Corrections Table
+
 ```typescript
 export const emarCorrections = pgTable("emar_corrections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -318,6 +331,7 @@ export const emarCorrections = pgTable("emar_corrections", {
 ```
 
 ### AI Usage Logs Table
+
 ```typescript
 export const aiUsageLogs = pgTable("ai_usage_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -337,6 +351,7 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
 ```
 
 ### File Scan Logs Table
+
 ```typescript
 export const fileScanLogs = pgTable("file_scan_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -353,6 +368,7 @@ export const fileScanLogs = pgTable("file_scan_logs", {
 ```
 
 ### Additional Tables
+
 - `riskAssessmentLogs` - Tracks offered vs selected risk assessments
 - `policyDocuments` - Stores policy content for AI reference
 - `systemLogs` - General system event logging
@@ -562,6 +578,7 @@ app.post("/api/blocked-ips", requireAuth, requireAdmin, ...);
 | POST | `/api/reconciliation/analyze` | Admin | Process Excel file |
 
 **Reconciliation Logic:**
+
 - Removes columns: A-E, G-I, K-T, U, V-W, Z-AD, AE, AH-AM, AP-BO, BR-DY, DZ, EA-FW
 - Maps cancellation reasons: Hospital→L1, >24hrs→L4, <24hrs/Capacity→L5
 - Empty Service Requirement → A1
@@ -729,6 +746,7 @@ The EMAR analysis uses a multi-pass approach:
 6. **Drug Interaction Check**: Identify high-risk medication combinations
 
 **EMAR Codes:**
+
 - `AD` = Administered
 - `R` = Refused (requires admin review)
 - `NH` = Not Home
@@ -777,6 +795,7 @@ const CLINICAL_WHITELIST = new Set([
 ### 1. EMAR Audit
 
 **Upload Flow:**
+
 1. User uploads PDF/DOCX of medication record
 2. File scanned for malware (Cloudmersive API)
 3. Text extracted (pdf-parse or mammoth)
@@ -784,6 +803,7 @@ const CLINICAL_WHITELIST = new Set([
 5. Results displayed with discrepancy highlighting
 
 **Discrepancy Types:**
+
 - Missed doses (blank entries)
 - Time gaps between administrations
 - Refused medications without reason
@@ -791,6 +811,7 @@ const CLINICAL_WHITELIST = new Set([
 - PRN without documentation
 
 **Admin Review:**
+
 - Review refused medication reasons
 - Correct AI extraction errors
 - Corrections stored for AI training
@@ -798,6 +819,7 @@ const CLINICAL_WHITELIST = new Set([
 ### 2. Care Planning
 
 **11 Sections:**
+
 1. Personal Background
 2. Communication Needs
 3. Physical Health
@@ -811,6 +833,7 @@ const CLINICAL_WHITELIST = new Set([
 11. End of Life Preferences
 
 **AI Enhancement:**
+
 - Upload existing care plan
 - AI suggests improvements
 - Generates missing sections
@@ -819,6 +842,7 @@ const CLINICAL_WHITELIST = new Set([
 ### 3. Risk Assessment
 
 **Categories:**
+
 - Falls Prevention
 - Medication Administration
 - Skin Integrity
@@ -830,6 +854,7 @@ const CLINICAL_WHITELIST = new Set([
 - And more...
 
 **AI Analysis:**
+
 - Reads uploaded documents
 - Identifies applicable assessments
 - Recommends mandatory vs optional
@@ -838,6 +863,7 @@ const CLINICAL_WHITELIST = new Set([
 ### 4. Call Reconciliation
 
 **Excel Processing:**
+
 ```typescript
 // Columns to DELETE
 const columnsToDelete = [
@@ -870,12 +896,14 @@ function mapCancellationToCode(reason) {
 ### 5. Performance Tracking
 
 **Metrics:**
+
 - Total discrepancies by type
 - Trend over time
 - Action outcomes
 - Manager referrals
 
 **Alert System:**
+
 - Auto-alert on threshold (3+ EMAR discrepancies)
 - Admin notification panel
 - Dismissible alerts
@@ -1145,21 +1173,27 @@ npm run db:push --force
 ## Key Implementation Notes
 
 ### 1. EMAR Grid Detection
+
 The system detects table structure in uploaded documents to handle both grid layouts (dates as columns) and list formats (each entry on separate line).
 
 ### 2. Prompt Caching
+
 OpenAI automatically caches static system prompts (50% discount, 5-10 min TTL). Structure prompts with static content first, dynamic content in user messages.
 
 ### 3. SSE Streaming
+
 AI responses use Server-Sent Events for real-time display. Frontend uses `EventSource` API or fetch with readable streams.
 
 ### 4. Session Cookies
+
 Uses `SameSite=None; Secure; Partitioned` for cross-origin iframe compatibility when required.
 
 ### 5. File Scanning
+
 All uploads go through Cloudmersive virus scan. Results are cached by file hash. Threats block upload immediately.
 
 ### 6. Initials Only
+
 Never store or display full service user names. Always normalize to initials format (e.g., "K.S.").
 
 ---
@@ -1167,6 +1201,7 @@ Never store or display full service user names. Always normalize to initials for
 ## Summary
 
 CareAssurance is a comprehensive healthcare compliance platform built with:
+
 - React + TypeScript frontend with TanStack Query
 - Express + TypeScript backend with Drizzle ORM
 - PostgreSQL database with UUID primary keys

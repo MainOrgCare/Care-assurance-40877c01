@@ -386,6 +386,8 @@ interface RowAnalysis {
   doubleUpSlotKey?: string | null;
   excludeFromMetrics?: boolean;
   callTypeLabel?: string | null;
+  templateWeek?: "week1" | "week2" | null;
+  templateDay?: string | null;
 }
 
 interface FileMeta {
@@ -4948,6 +4950,23 @@ export default function TestingFeatures() {
                         }
                       });
 
+                      // Enrich analysisResults with computed templateWeek, templateDay, and isDoubleUpSlot
+                      const enrichedRowAnalysis = analysisResults.map((row) => {
+                        const templateDate = parseDateKeyToLocalDate(row.plannedDateKey ?? null);
+                        const templateWeek = templateDate
+                          ? deriveTemplateWeekKey(templateDate, TEMPLATE_WEEK_1_START_DAY_NUMBER)
+                          : null;
+                        const templateDay = templateDate ? deriveWeekdayLabel(templateDate) : null;
+                        const doubleUpKey = buildDoubleUpSlotKey(row);
+                        const isDoubleUpSlot = Boolean(doubleUpKey && doubleUpSlots.has(doubleUpKey));
+                        return {
+                          ...row,
+                          templateWeek,
+                          templateDay,
+                          isDoubleUpSlot,
+                        };
+                      });
+
                       saveWorkbookMutation.mutate({
                         name: fileMeta.name.replace(/\.[^/.]+$/, ""), // Remove file extension
                         fileName: fileMeta.name,
@@ -4958,7 +4977,7 @@ export default function TestingFeatures() {
                         careWorkerCount: careWorkerRosters.length,
                         serviceUserCount: serviceUserStacks.length,
                         callGroupCount: callGroups.length,
-                        rowAnalysis: analysisResults,
+                        rowAnalysis: enrichedRowAnalysis,
                         callGroups: [],
                         careWorkerRosters: serializableRosters,
                         doubleUpSlots: serializableDoubleUpSlots,
