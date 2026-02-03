@@ -33,5 +33,7 @@
             ]
         }
     },
-    "markdown.validate.enabled": true
+    "markdown.validate.enabled": true,
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python-envs.pythonProjects": []
 }
