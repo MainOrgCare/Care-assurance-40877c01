@@ -142,10 +142,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     tab.url && tab.url.includes("new_case_form") && tab.url.includes("formId=");
   const isSuccessPage =
     tab.url &&
-    (tab.url.includes("case_form_success") ||
-      tab.url.includes("case_data_group") ||
-      tab.url.includes("/cases/") ||
-      !isFormPage);
+    (tab.url.includes("case_form_success") || tab.url.includes("case_data_group") || tab.url.includes("/cases/"));
 
   if (isSuccessPage && caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
     console.log("[ACP Extension] Detected form completion, advancing to next assessment");

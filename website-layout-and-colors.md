@@ -9,11 +9,10 @@
 1. [Layout Structure](#layout-structure)
 2. [Theme System](#theme-system)
 3. [Color Palettes](#color-palettes)
-4. [Component Colors](#component-colors)
-5. [Glass Morphism Effects](#glass-morphism-effects)
-6. [Typography](#typography)
-7. [Spacing & Sizing](#spacing--sizing)
-8. [Scrollbar Styling](#scrollbar-styling)
+4. [Glass Morphism Effects](#glass-morphism-effects)
+5. [Typography](#typography)
+6. [Spacing & Sizing](#spacing--sizing)
+7. [Scrollbar Styling](#scrollbar-styling)
 
 ---
 
@@ -183,6 +182,7 @@ Theme is applied to `<html>` element and stored in localStorage.
 | `--color-chart-5` | `hsl(280 65% 60%)` | `#A855F7` | Purple - Additional |
 
 **Background Gradient (Dark):**
+
 ```css
 background-image: 
   radial-gradient(at 0% 0%, hsla(215, 60%, 18%, 1) 0px, transparent 50%),
@@ -223,6 +223,7 @@ background-image:
 | `--color-sidebar-border` | `hsl(260 30% 15% / 0.5)` |
 
 **Background Gradient (Midnight):**
+
 ```css
 background-image: 
   radial-gradient(at 0% 0%, hsla(280, 50%, 15%, 1) 0px, transparent 50%),
@@ -263,6 +264,7 @@ background-image:
 | `--color-sidebar-border` | `hsl(200 35% 18% / 0.5)` |
 
 **Background Gradient (Ocean):**
+
 ```css
 background-image: 
   radial-gradient(at 0% 0%, hsla(200, 60%, 15%, 1) 0px, transparent 50%),
@@ -318,6 +320,7 @@ background-image:
 | `--color-chart-5` | `hsl(280 60% 55%)` | `#9333EA` |
 
 **Background (Light):**
+
 ```css
 background-image: none;
 background-color: hsl(220 20% 97%);  /* #F5F7FA */

@@ -77,17 +77,18 @@ const initOverlay = () => {
   container.style.top = "16px";
   container.style.zIndex = "2147483647";
   container.style.fontFamily = "system-ui, -apple-system, Segoe UI, sans-serif";
-  container.style.color = "#1b1b1b";
+  container.style.color = "#0f172a";
   container.style.pointerEvents = "none";
 
   const panel = document.createElement("div");
-  panel.style.background = "rgba(255, 255, 255, 0.95)";
-  panel.style.border = "1px solid #d4d4d8";
+  panel.style.background = "rgba(255, 255, 255, 0.96)";
+  panel.style.border = "1px solid rgba(226, 232, 240, 0.9)";
   panel.style.borderRadius = "12px";
-  panel.style.boxShadow = "0 10px 25px rgba(0, 0, 0, 0.12)";
+  panel.style.boxShadow = "0 16px 28px rgba(15, 23, 42, 0.12)";
   panel.style.padding = "10px 12px";
   panel.style.minWidth = "220px";
   panel.style.maxWidth = "320px";
+  panel.style.backdropFilter = "blur(10px)";
 
   const header = document.createElement("div");
   header.style.display = "flex";
@@ -100,8 +101,8 @@ const initOverlay = () => {
   icon.style.width = "26px";
   icon.style.height = "26px";
   icon.style.borderRadius = "50%";
-  icon.style.background = "#1ea97a";
-  icon.style.color = "white";
+  icon.style.background = "linear-gradient(135deg, #1f6feb, #2eb88a)";
+  icon.style.color = "#ffffff";
   icon.style.display = "flex";
   icon.style.alignItems = "center";
   icon.style.justifyContent = "center";
@@ -113,6 +114,7 @@ const initOverlay = () => {
   title.textContent = "Risk Assessment";
   title.style.fontWeight = "600";
   title.style.fontSize = "13px";
+  title.style.color = "#0f172a";
 
   const minimizeButton = document.createElement("button");
   minimizeButton.type = "button";
@@ -121,9 +123,9 @@ const initOverlay = () => {
   minimizeButton.style.width = "24px";
   minimizeButton.style.height = "24px";
   minimizeButton.style.borderRadius = "6px";
-  minimizeButton.style.border = "1px solid #d4d4d8";
-  minimizeButton.style.background = "#ffffff";
-  minimizeButton.style.color = "#374151";
+  minimizeButton.style.border = "1px solid rgba(226, 232, 240, 0.9)";
+  minimizeButton.style.background = "#f8fafc";
+  minimizeButton.style.color = "#475569";
   minimizeButton.style.cursor = "pointer";
   minimizeButton.style.fontSize = "16px";
   minimizeButton.style.lineHeight = "18px";
@@ -133,13 +135,13 @@ const initOverlay = () => {
   const progress = document.createElement("div");
   progress.textContent = "Waiting...";
   progress.style.fontSize = "12px";
-  progress.style.color = "#4b5563";
+  progress.style.color = "#64748b";
 
   const logsLabel = document.createElement("div");
   logsLabel.textContent = "Logs";
   logsLabel.style.fontSize = "11px";
   logsLabel.style.marginTop = "8px";
-  logsLabel.style.color = "#6b7280";
+  logsLabel.style.color = "#64748b";
   logsLabel.style.textTransform = "uppercase";
   logsLabel.style.letterSpacing = "0.06em";
 
@@ -147,10 +149,11 @@ const initOverlay = () => {
   logsBox.style.marginTop = "6px";
   logsBox.style.padding = "6px 8px";
   logsBox.style.borderRadius = "8px";
-  logsBox.style.background = "#f9fafb";
-  logsBox.style.border = "1px solid #e5e7eb";
+  logsBox.style.background = "#f3f6fb";
+  logsBox.style.border = "1px solid rgba(226, 232, 240, 0.9)";
   logsBox.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, monospace";
   logsBox.style.fontSize = "11px";
+  logsBox.style.color = "#64748b";
   logsBox.style.whiteSpace = "pre-line";
   logsBox.style.maxHeight = "90px";
   logsBox.style.overflow = "hidden";

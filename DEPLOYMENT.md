@@ -29,9 +29,9 @@ In Render, create a **Web Service** (Environment: **Node**) pointing at this rep
 - **Start Command**: `npm run start`
 - **Node version**: use Node 20 (already declared via `package.json` `engines.node = 20.x`).
 - **Environment variables**:
-   - `NODE_ENV=production`
-   - `DATABASE_URL` (if using Postgres)
-   - Contact form SMTP vars (see below)
+  - `NODE_ENV=production`
+  - `DATABASE_URL` (if using Postgres)
+  - Contact form SMTP vars (see below)
 
 Important: The server build uses `esbuild --packages=external`, so `dist/index.cjs` requires installed runtime dependencies at start-up.
 
@@ -43,6 +43,7 @@ If you are using Render **Docker** instead of Node:
 ### Testing
 
 The application has been tested locally in production mode:
+
 - Build process completes successfully
 - Frontend renders correctly
 - Static assets (favicon, images, JS, CSS) are served properly
@@ -59,6 +60,7 @@ NODE_ENV=production npm run start
 ```
 
 The build creates:
+
 - Client bundle in `dist/public/`
 - Server bundle at `dist/index.cjs`
 
