@@ -404,6 +404,10 @@ export default function RosteringStudioUnified({
   const [selectedTimelineEntryId, setSelectedTimelineEntryId] = useState<string | null>(null);
   const [showAllWorkers, setShowAllWorkers] = useState(true);
   const [showOnlyTemplated, setShowOnlyTemplated] = useState(false); // Show all calls by default
+  const [workerFilter, setWorkerFilter] = useState<"all" | "over" | "under">("all");
+
+  const WORKLOAD_OVER_MINUTES = 8 * 60;
+  const WORKLOAD_UNDER_MINUTES = 4 * 60;
 
   // Optimization settings
   const [optimizationWeights, setOptimizationWeights] = useState<OptimizationWeights>(defaultWeights);
@@ -476,12 +480,6 @@ export default function RosteringStudioUnified({
   });
 
   // ===== COMPUTED DATA =====
-  const filteredWorkers = useMemo((): CareWorkerRoster[] => {
-    const term = careWorkerSearch.toLowerCase().trim();
-    if (!term) return careWorkerRosters;
-    return careWorkerRosters.filter((w: CareWorkerRoster) => w.workerName.toLowerCase().includes(term));
-  }, [careWorkerRosters, careWorkerSearch]);
-
   const workerSummaries = useMemo(() => {
     if (!careWorkerRosters.length) return [];
     return buildWorkerSummaries(careWorkerRosters);
@@ -495,6 +493,30 @@ export default function RosteringStudioUnified({
     }
     return map;
   }, [workerSummaries]);
+
+  const filteredWorkers = useMemo((): CareWorkerRoster[] => {
+    const term = careWorkerSearch.toLowerCase().trim();
+    return careWorkerRosters.filter((worker: CareWorkerRoster) => {
+      if (term && !worker.workerName.toLowerCase().includes(term)) return false;
+      if (workerFilter === "all") return true;
+      const summary = workerSummaryByKey.get(worker.key);
+      const minutes = summary?.totalDurationMinutes ?? 0;
+      if (workerFilter === "over") return minutes >= WORKLOAD_OVER_MINUTES;
+      if (workerFilter === "under") return minutes > 0 && minutes <= WORKLOAD_UNDER_MINUTES;
+      return true;
+    });
+  }, [careWorkerRosters, careWorkerSearch, workerFilter, workerSummaryByKey]);
+
+  const workerFilterCounts = useMemo(() => {
+    const counts = { all: careWorkerRosters.length, over: 0, under: 0 };
+    for (const worker of careWorkerRosters) {
+      const summary = workerSummaryByKey.get(worker.key);
+      const minutes = summary?.totalDurationMinutes ?? 0;
+      if (minutes >= WORKLOAD_OVER_MINUTES) counts.over += 1;
+      if (minutes > 0 && minutes <= WORKLOAD_UNDER_MINUTES) counts.under += 1;
+    }
+    return counts;
+  }, [careWorkerRosters, workerSummaryByKey]);
 
   // Build timeline lanes
   const timelineLanes = useMemo(() => {
@@ -1347,7 +1369,12 @@ export default function RosteringStudioUnified({
                 <ResizablePanel defaultSize={12} minSize={8} maxSize={18} className="min-h-0">
                   <div className="flex h-full min-h-0 flex-col border-r bg-background/50">
                     <div className="flex items-center justify-between border-b px-2 py-1">
-                      <span className="text-[9px] font-semibold uppercase tracking-wide">Workers</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] font-semibold uppercase tracking-wide">Workers</span>
+                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-4">
+                          {filteredWorkers.length}/{careWorkerRosters.length}
+                        </Badge>
+                      </div>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1357,13 +1384,31 @@ export default function RosteringStudioUnified({
                         {showAllWorkers ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                       </Button>
                     </div>
-                    <div className="px-1.5 py-1">
+                    <div className="px-1.5 py-1 space-y-1">
                       <Input
                         placeholder="Search..."
                         value={careWorkerSearch}
                         onChange={(e) => setCareWorkerSearch(e.target.value)}
                         className="h-5 text-[10px]"
                       />
+                      <div className="flex items-center gap-1">
+                        {[
+                          { key: "all", label: "All", count: workerFilterCounts.all },
+                          { key: "over", label: ">8h", count: workerFilterCounts.over },
+                          { key: "under", label: "<4h", count: workerFilterCounts.under },
+                        ].map((filter) => (
+                          <Button
+                            key={filter.key}
+                            type="button"
+                            size="sm"
+                            variant={workerFilter === filter.key ? "default" : "outline"}
+                            className="h-5 px-2 text-[9px]"
+                            onClick={() => setWorkerFilter(filter.key as typeof workerFilter)}
+                          >
+                            {filter.label} {filter.count}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
                     <ScrollArea className="flex-1 min-h-0">
                       <div className="divide-y">
@@ -1387,7 +1432,9 @@ export default function RosteringStudioUnified({
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate text-[11px] font-medium leading-tight">{worker.workerName}</p>
                                   <p className="text-[9px] text-muted-foreground leading-tight">
-                                    {summary ? `${summary.totalCalls} calls` : "—"}
+                                    {summary
+                                      ? `${summary.totalCalls} calls · ${(summary.totalDurationMinutes / 60).toFixed(1)}h`
+                                      : "—"}
                                   </p>
                                 </div>
                               </div>
@@ -1441,6 +1488,93 @@ export default function RosteringStudioUnified({
                           </Button>
                         </div>
                       )}
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/10 px-2 py-1 border-b">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={showAllWorkers ? "default" : "outline"}
+                          className="h-6 px-2 text-[10px]"
+                          onClick={() => setShowAllWorkers(true)}
+                        >
+                          All workers
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={!showAllWorkers ? "default" : "outline"}
+                          className="h-6 px-2 text-[10px]"
+                          onClick={() => setShowAllWorkers(false)}
+                          disabled={!selectedCareWorkerKey}
+                        >
+                          Focus
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={showOnlyTemplated ? "default" : "outline"}
+                          className="h-6 px-2 text-[10px]"
+                          onClick={() => setShowOnlyTemplated((prev) => !prev)}
+                        >
+                          Templated
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={showHalfHourTicks ? "default" : "outline"}
+                          className="h-6 px-2 text-[10px]"
+                          onClick={() => setShowHalfHourTicks((prev) => !prev)}
+                        >
+                          30m ticks
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Select
+                          value={String(snapMinutes)}
+                          onValueChange={(value: string) => setSnapMinutes(Number(value))}
+                        >
+                          <SelectTrigger className="h-6 w-[90px] text-[10px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[5, 10, 15, 30].map((value) => (
+                              <SelectItem key={value} value={String(value)} className="text-xs">
+                                Snap {value}m
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          className="h-6 w-6"
+                          onClick={handleTimelineZoomOut}
+                          disabled={timelineZoomIndex === 0}
+                        >
+                          <ZoomOut className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-[10px]"
+                          onClick={handleTimelineZoomReset}
+                        >
+                          {timelineZoom}%
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          className="h-6 w-6"
+                          onClick={handleTimelineZoomIn}
+                          disabled={timelineZoomIndex === TIMELINE_ZOOM_LEVELS.length - 1}
+                        >
+                          <ZoomIn className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                     <div className="flex-1 min-h-0 overflow-auto p-0.5">
                       <GanttTimeline
