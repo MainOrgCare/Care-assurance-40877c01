@@ -29,6 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useState, useEffect, Suspense, memo, useCallback, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useSession } from "@/context/SessionContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -337,13 +338,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     location === "/rostering-unified" || location === "/care-worker-rotas";
   const [clickCount, setClickCount] = useState(0);
   const { user, logout } = useAuth();
+  const { isConnected } = useSession();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const autoCollapseRef = useRef(false);
 
   const contentWrapperClass = cn(
     "w-full flex-1 min-h-0",
-    isFullBleed ? "px-0 py-0 pt-16" : "px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6",
+    isFullBleed ? "px-0 py-0 pt-12" : "px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6",
     isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(
@@ -413,7 +415,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main Content */}
       <main className={mainClass}>
         {/* Header */}
-        <header className="h-16 px-6 md:px-8 flex items-center justify-between sticky top-0 z-30 bg-background/95 border-b border-border/40">
+        <header className="h-12 px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 bg-background/95 border-b border-border/40">
           <div className="flex items-center gap-4">
             {/* Mobile Menu Trigger */}
             <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -449,8 +451,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </Button>
 
             <div className="flex items-center gap-2 px-1">
-              <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-              <span className="text-xs font-bold tracking-widest text-muted-foreground uppercase">Network Operational</span>
+              <div className={cn(
+                "h-2 w-2 rounded-full",
+                isConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+              )} />
+              <span className={cn(
+                "text-xs font-bold tracking-widest uppercase",
+                isConnected ? "text-muted-foreground" : "text-red-500"
+              )}>
+                {isConnected ? "Network Operational" : "Disconnected"}
+              </span>
             </div>
           </div>
 
@@ -465,7 +475,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <div className="relative h-8 w-8 rounded-xl flex items-center justify-center font-black uppercase text-[10px] bg-primary text-primary-foreground shadow-sm shadow-primary/20 group-hover:scale-105 transition-transform">
                 {user?.firstName ? user.firstName.substring(0, 1) : user?.username?.substring(0, 1) || "?"}
                 {user?.lastName ? user.lastName.substring(0, 1) : ""}
-                <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-success border-2 border-background shadow-xs" />
+                <div className={cn(
+                  "absolute -top-1 -right-1 h-3 w-3 rounded-full border-2 border-background shadow-xs",
+                  isConnected ? "bg-emerald-500" : "bg-red-500"
+                )} />
               </div>
             </div>
           </div>
@@ -501,12 +514,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium border",
+                      isConnected 
+                        ? "border-emerald-200 text-emerald-700 bg-emerald-50" 
+                        : "border-red-200 text-red-700 bg-red-50"
+                    )}>
+                      <span className={cn(
+                        "h-2 w-2 rounded-full",
+                        isConnected ? "bg-emerald-500" : "bg-red-500"
+                      )} />
+                      {isConnected ? "Live" : "Offline"}
+                    </span>
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium border border-emerald-200 text-emerald-700 bg-emerald-50">
                       <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                      Live
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium border border-primary/30 text-primary bg-primary/10">
-                      <span className="h-2 w-2 rounded-full bg-primary" />
                       Secure
                     </span>
                   </div>

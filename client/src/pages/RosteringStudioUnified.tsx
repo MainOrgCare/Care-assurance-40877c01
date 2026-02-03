@@ -972,7 +972,7 @@ export default function RosteringStudioUnified({
     <TooltipProvider>
       <div className="flex h-full flex-col bg-background">
         {/* TOP MENU BAR */}
-        <div className="flex h-9 items-center justify-between border-b bg-muted/30 px-3">
+        <div className="flex h-8 items-center justify-between border-b bg-muted/30 px-2">
           <div className="flex items-center gap-0.5">
             {!embedded && (
               <Button variant="ghost" size="sm" asChild className="mr-1 h-7 w-7 p-0">
@@ -1287,43 +1287,43 @@ export default function RosteringStudioUnified({
         </div>
 
         {/* STATS BAR */}
-        <div className="flex h-8 items-center justify-between border-b bg-muted/20 px-3 text-xs">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+        <div className="flex h-6 items-center justify-between border-b bg-muted/20 px-2 text-[10px]">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              <Users className="h-3 w-3 text-muted-foreground" />
               <span className="font-semibold">{totalWorkersCount}</span>
               <span className="text-muted-foreground">Workers</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+            <div className="flex items-center gap-1">
+              <MapPin className="h-3 w-3 text-muted-foreground" />
               <span className="font-semibold">{totalServiceUsersCount}</span>
-              <span className="text-muted-foreground">Service Users</span>
+              <span className="text-muted-foreground">SUs</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <ClipboardList className="h-3.5 w-3.5 text-muted-foreground" />
+            <div className="flex items-center gap-1">
+              <ClipboardList className="h-3 w-3 text-muted-foreground" />
               <span className="font-semibold">{totalCallsCount}</span>
               <span className="text-muted-foreground">Calls</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3 text-muted-foreground" />
               <span className="font-semibold">{totalHoursCount}</span>
-              <span className="text-muted-foreground">Hours</span>
+              <span className="text-muted-foreground">Hrs</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               {conflictsCount > 0 ? (
-                <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                <AlertTriangle className="h-3 w-3 text-destructive" />
               ) : (
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                <CheckCircle2 className="h-3 w-3 text-emerald-500" />
               )}
               <span className={`font-semibold ${conflictsCount > 0 ? "text-destructive" : "text-emerald-600"}`}>
                 {conflictsCount}
               </span>
               <span className="text-muted-foreground">Conflicts</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+            <div className="flex items-center gap-1">
+              <Users className="h-3 w-3 text-muted-foreground" />
               <span className="font-semibold">{doubleUpsCount}</span>
-              <span className="text-muted-foreground">Double-ups</span>
+              <span className="text-muted-foreground">2-ups</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1407,7 +1407,7 @@ export default function RosteringStudioUnified({
               <div className="flex h-full flex-col">
                 {/* Top Row: Timeline (takes most space) */}
                 {panelVisibility.timeline && (
-                  <div className="flex-[2] min-h-[180px] border-b flex flex-col overflow-hidden">
+                  <div className="flex-[2] min-h-[150px] border-b flex flex-col overflow-hidden">
                     <div className="flex items-center justify-between bg-muted/30 px-2 py-0.5 border-b shrink-0">
                       <div className="flex items-center gap-1.5">
                         <Timer className="h-3 w-3" />
@@ -1463,7 +1463,7 @@ export default function RosteringStudioUnified({
                 )}
 
                 {/* Bottom Row: Horizontal panels */}
-                <div className="flex-1 min-h-[140px] max-h-[200px] flex border-t overflow-hidden">
+                <div className="flex-1 min-h-[100px] max-h-[160px] flex border-t overflow-hidden">
                   {/* Map Panel */}
                   {panelVisibility.map && (
                     <div className="flex-1 min-w-0 border-r flex flex-col">

@@ -6,6 +6,7 @@ interface SessionContextType {
   isForceLogoutPending: boolean;
   forceLogoutCountdown: number | null;
   forceLogoutMessage: string | null;
+  isConnected: boolean;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -17,6 +18,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [forceLogoutCountdown, setForceLogoutCountdown] = useState<number | null>(null);
   const [forceLogoutMessage, setForceLogoutMessage] = useState<string | null>(null);
   const [ws, setWs] = useState<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -45,6 +47,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     
     socket.onopen = () => {
       console.log("Session WebSocket connected");
+      setIsConnected(true);
     };
     
     socket.onmessage = (event) => {
@@ -86,6 +89,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     
     socket.onclose = () => {
       console.log("Session WebSocket disconnected");
+      setIsConnected(false);
     };
     
     setWs(socket);
@@ -109,7 +113,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     <SessionContext.Provider value={{ 
       isForceLogoutPending, 
       forceLogoutCountdown, 
-      forceLogoutMessage 
+      forceLogoutMessage,
+      isConnected 
     }}>
       {children}
       {isForceLogoutPending && forceLogoutCountdown !== null && (

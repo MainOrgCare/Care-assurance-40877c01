@@ -1523,7 +1523,7 @@ export default function RiskAssessment() {
             {isAdmin && (
               <Button
                 variant="outline"
-                onClick={sendAssessmentsToExtension}
+                onClick={() => sendAssessmentsToExtension()}
                 data-testid="button-send-acp-extension"
               >
                 <Send size={16} /> Send to ACP Extension
