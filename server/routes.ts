@@ -936,7 +936,7 @@ const parseJsonFromContent = (content: string): any | null => {
 
 const getLowCostModel = () => "gpt-4o-mini";
 const getAccurateModel = () => getPreferredModel();
-const getRiskAssessmentModel = () => "gpt-4o";
+const getRiskAssessmentModel = () => getPreferredModel();
 
 const inferGenericNameFromMedicationLabel = (name: string): string => {
   if (!name) return "";
@@ -10542,6 +10542,13 @@ ${privacyDirective}
 
 RISK ASSESSMENT CATEGORY: ${assessmentCategory}
 
+CRITICAL REQUIREMENT - IDENTIFY ALL RISKS:
+- A comprehensive risk assessment typically has MULTIPLE risks (usually 3-8 risks depending on the category)
+- For EACH distinct risk identified in this category, create a separate entry in the "risks" array
+- Think broadly about all the different ways this category could present risks for this service user
+- Examples: Falls Prevention might include risks from: dizziness/balance issues, environmental hazards, medication side effects, visual impairment, footwear, etc.
+- DO NOT combine multiple distinct risks into a single entry - separate them out
+
 For each risk identified in this category, provide detailed first-person content:
 - Risk definition (what is the risk - written in first person)
 - Initial risk rating (Low/Medium/High)
@@ -10563,7 +10570,16 @@ Respond ONLY with valid JSON in this exact format:
       "whoWillBeHarmed": "List ALL relevant people who could be harmed (e.g., 'Service User and Care Workers' or 'Service User, Family Members and Visitors')",
       "controlMeasures": "First person detailed control measures",
       "ratingAfterControls": "Low/Medium/High"
+    },
+    {
+      "riskDefinition": "Second distinct risk in first person",
+      "initialRating": "Low/Medium/High",
+      "howItsARisk": "Explanation of second risk",
+      "whoWillBeHarmed": "People affected by this risk",
+      "controlMeasures": "Control measures for this specific risk",
+      "ratingAfterControls": "Low/Medium/High"
     }
+    // ... include ALL relevant risks for this category - typically 3-8 risks total
   ],
   "signedBy": "${performedBy || 'Staff member'}",
   "jobTitle": "${performedByJobTitle || 'Care Staff'}",
@@ -10576,11 +10592,10 @@ Respond ONLY with valid JSON in this exact format:
         model: getRiskAssessmentModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on these documents. Write detailed, thorough content for each field. ONLY use information explicitly stated in the documents - do not invent or assume any details:\n\n${allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent)}` }
+          { role: "user", content: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on these documents. IMPORTANT: Identify and list ALL distinct risks within this category (typically 3-8 separate risks). Write detailed, thorough content for each field. ONLY use information explicitly stated in the documents - do not invent or assume any details:\n\n${allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent)}` }
         ],
-        temperature: 0,
-        seed: 42,
-        max_completion_tokens: 6000,
+        temperature: 0.8,
+        max_completion_tokens: 12000,
         response_format: { type: "json_object" },
       }, "risk_assessment", aiUserContext);
 
