@@ -1270,7 +1270,7 @@ export default function RosteringStudioUnified({
             </Button>
             <Select
               value={selectedTemplateDay}
-              onValueChange={(v) => setSelectedTemplateDay(v as WeekdayLabel)}
+              onValueChange={(v: string) => setSelectedTemplateDay(v as WeekdayLabel)}
             >
               <SelectTrigger className="h-7 w-[100px] text-xs">
                 <SelectValue />

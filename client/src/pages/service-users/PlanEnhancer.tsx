@@ -982,7 +982,7 @@ export default function PlanEnhancer() {
                 <Download size={14} />
                 Export PDF
               </Button>
-              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "enhanced" | "comparison")} className="bg-muted/20 p-1 rounded-xl border border-border/40">
+              <Tabs value={viewMode} onValueChange={(v: string) => setViewMode(v as "enhanced" | "comparison")} className="bg-muted/20 p-1 rounded-xl border border-border/40">
                 <TabsList className="bg-transparent border-0 h-9 p-0">
                   <TabsTrigger value="enhanced" className="rounded-lg font-bold text-[10px] uppercase gap-2 h-7" data-testid="tab-enhanced-view">
                     <FileText size={12} />

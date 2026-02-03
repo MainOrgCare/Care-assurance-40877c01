@@ -6601,7 +6601,7 @@ export default function TestingFeatures() {
                                               </div>
                                                 <Switch
                                                   checked={isSelected}
-                                                  onCheckedChange={(checked) => {
+                                                  onCheckedChange={(checked: boolean) => {
                                                     if (!isSelectable) return;
                                                     if (checked && selectedCareWorker && !isTemplatedForSelection) {
                                                       addTemplateRecommendation(

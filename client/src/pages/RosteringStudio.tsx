@@ -2147,7 +2147,7 @@ export default function RosteringStudio({
           <>
             <div className="space-y-1">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Week</p>
-              <Select value={selectedTemplateWeek} onValueChange={(value) => setSelectedTemplateWeek(value as TemplateWeekKey)}>
+              <Select value={selectedTemplateWeek} onValueChange={(value: string) => setSelectedTemplateWeek(value as TemplateWeekKey)}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue />
                 </SelectTrigger>
@@ -2162,7 +2162,7 @@ export default function RosteringStudio({
             </div>
             <div className="space-y-1">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Day</p>
-              <Select value={selectedTemplateDay} onValueChange={(value) => setSelectedTemplateDay(value as WeekdayLabel)}>
+              <Select value={selectedTemplateDay} onValueChange={(value: string) => setSelectedTemplateDay(value as WeekdayLabel)}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue />
                 </SelectTrigger>
@@ -2347,7 +2347,7 @@ export default function RosteringStudio({
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
           <span className="text-[10px] uppercase tracking-wide">Snap</span>
-          <Select value={String(snapMinutes)} onValueChange={(value) => setSnapMinutes(Number(value))}>
+          <Select value={String(snapMinutes)} onValueChange={(value: string) => setSnapMinutes(Number(value))}>
             <SelectTrigger className="h-8 w-[90px] text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -2430,7 +2430,7 @@ export default function RosteringStudio({
   const hubHeader = (
       <div className="rounded-xl border border-border/60 bg-background">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 bg-muted/20 px-4 py-1.5">
-          <Tabs value={hubTab} onValueChange={(value) => setHubTab(value as typeof hubTab)}>
+          <Tabs value={hubTab} onValueChange={(value: string) => setHubTab(value as typeof hubTab)}>
             <TabsList className="bg-transparent p-0 flex flex-wrap gap-1">
               <TabsTrigger value="rostering">Rostering</TabsTrigger>
               <TabsTrigger value="service-user">Service User</TabsTrigger>
@@ -2442,7 +2442,7 @@ export default function RosteringStudio({
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Member</span>
-              <Select value={hubMemberView} onValueChange={(value) => setHubMemberView(value as typeof hubMemberView)}>
+              <Select value={hubMemberView} onValueChange={(value: string) => setHubMemberView(value as typeof hubMemberView)}>
                 <SelectTrigger className="h-8 w-[140px] text-xs">
                   <SelectValue />
                 </SelectTrigger>
@@ -3225,7 +3225,7 @@ export default function RosteringStudio({
                       <p className="text-xs text-muted-foreground mt-2">Drag blocks to reschedule. Use the snap interval for precision.</p>
                     </div>
                   </div>
-                  <Tabs value={studioTab} onValueChange={(value) => setStudioTab(value as typeof studioTab)}>
+                  <Tabs value={studioTab} onValueChange={(value: string) => setStudioTab(value as typeof studioTab)}>
                     <TabsList className="mb-4">
                       <TabsTrigger value="timeline">Timeline</TabsTrigger>
                       <TabsTrigger value="map">Map</TabsTrigger>

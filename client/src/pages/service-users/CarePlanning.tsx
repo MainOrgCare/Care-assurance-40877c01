@@ -603,7 +603,7 @@ export default function CarePlanning() {
                   <ToggleGroup
                     type="single"
                     value={priorityFilter}
-                    onValueChange={(value) =>
+                    onValueChange={(value: string) =>
                       setPriorityFilter((value as "all" | "high" | "medium" | "low") || "all")
                     }
                     variant="outline"
@@ -623,7 +623,7 @@ export default function CarePlanning() {
                   <ToggleGroup
                     type="single"
                     value={sortMode}
-                    onValueChange={(value) =>
+                    onValueChange={(value: string) =>
                       setSortMode((value as "default" | "priority") || "default")
                     }
                     variant="outline"
