@@ -1,6 +1,6 @@
 importScripts("constants.js");
 
-const { STORAGE_KEYS, FORM_CONFIG, MESSAGE_TYPES } = self.CA_EXTENSION_CONSTANTS;
+const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES } = self.CA_EXTENSION_CONSTANTS;
 
 const getStored = (keys) =>
   new Promise((resolve) => chrome.storage.local.get(keys, (items) => resolve(items)));
@@ -8,11 +8,12 @@ const getStored = (keys) =>
 const setStored = (items) =>
   new Promise((resolve) => chrome.storage.local.set(items, () => resolve()));
 
-const buildFormUrl = (caseId, serviceDataGroupId) => {
-  const url = new URL(FORM_CONFIG.url);
+const buildFormUrl = (formType, caseId, serviceDataGroupId) => {
+  const config = FORM_CONFIGS[formType] || FORM_CONFIGS.acp;
+  const url = new URL(config.url);
   url.searchParams.set("caseId", caseId);
   url.searchParams.set("serviceDataGroupId", serviceDataGroupId);
-  url.searchParams.set("formId", FORM_CONFIG.formId);
+  url.searchParams.set("formId", config.formId);
   return url.toString();
 };
 
@@ -25,13 +26,21 @@ const setLastError = async (error) => {
 
 const startAutofill = async (caseId, serviceDataGroupId) => {
   const { caAcpPayload } = await getStored([STORAGE_KEYS.payload]);
-  if (!caAcpPayload || !Array.isArray(caAcpPayload.assessments)) {
+  if (!caAcpPayload) {
+    throw new Error("No payload stored yet.");
+  }
+  const formType = caAcpPayload.formType || "acp";
+  if (formType === "acp" && !Array.isArray(caAcpPayload.assessments)) {
     throw new Error("No assessments payload stored yet.");
   }
 
   await setStored({
     [STORAGE_KEYS.caseInfo]: { caseId, serviceDataGroupId },
-    [STORAGE_KEYS.queueState]: { currentIndex: 0, total: caAcpPayload.assessments.length },
+    [STORAGE_KEYS.queueState]: {
+      currentIndex: 0,
+      total: formType === "acp" ? caAcpPayload.assessments.length : 1,
+      formType,
+    },
   });
   await clearLastError();
 };
@@ -44,6 +53,15 @@ const openNextForm = async () => {
   ]);
 
   if (!caAcpPayload || !caAcpCaseInfo || !caAcpQueueState) return;
+  const formType = caAcpQueueState.formType || caAcpPayload.formType || "acp";
+  if (formType !== "acp") {
+    await setStored({
+      [STORAGE_KEYS.queueState]: null,
+      [STORAGE_KEYS.payload]: null,
+      [STORAGE_KEYS.caseInfo]: null,
+    });
+    return;
+  }
   const nextIndex = caAcpQueueState.currentIndex + 1;
   if (nextIndex >= caAcpQueueState.total) {
     await setStored({
@@ -61,7 +79,7 @@ const openNextForm = async () => {
     },
   });
 
-  const url = buildFormUrl(caAcpCaseInfo.caseId, caAcpCaseInfo.serviceDataGroupId);
+  const url = buildFormUrl(formType, caAcpCaseInfo.caseId, caAcpCaseInfo.serviceDataGroupId);
   await reuseOrCreateTab(url);
 };
 
@@ -72,7 +90,7 @@ const stopAutofill = async () => {
 };
 
 const reuseOrCreateTab = async (url) => {
-  const tabs = await chrome.tabs.query({ url: `${FORM_CONFIG.url}*` });
+  const tabs = await chrome.tabs.query({ url: `${FORM_CONFIGS.acp.url}*` });
   if (tabs.length > 0) {
     await chrome.tabs.update(tabs[0].id, { url, active: true });
     return;
@@ -94,7 +112,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === MESSAGE_TYPES.startAutofill) {
     startAutofill(message.caseId, message.serviceDataGroupId)
       .then(async () => {
-        const url = buildFormUrl(message.caseId, message.serviceDataGroupId);
+        const { caAcpPayload } = await getStored([STORAGE_KEYS.payload]);
+        const formType = caAcpPayload?.formType || "acp";
+        const url = buildFormUrl(formType, message.caseId, message.serviceDataGroupId);
         await reuseOrCreateTab(url);
         sendResponse({ ok: true });
       })

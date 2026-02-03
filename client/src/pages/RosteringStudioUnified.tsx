@@ -403,6 +403,7 @@ export default function RosteringStudioUnified({
   const [timelineZoomIndex, setTimelineZoomIndex] = useState(2);
   const [selectedTimelineEntryId, setSelectedTimelineEntryId] = useState<string | null>(null);
   const [showAllWorkers, setShowAllWorkers] = useState(true);
+  const [showOnlyTemplated, setShowOnlyTemplated] = useState(false); // Show all calls by default
 
   // Optimization settings
   const [optimizationWeights, setOptimizationWeights] = useState<OptimizationWeights>(defaultWeights);
@@ -498,9 +499,11 @@ export default function RosteringStudioUnified({
   // Build timeline lanes
   const timelineLanes = useMemo(() => {
     if (!careWorkerRosters.length) return [];
-    const baseLanes = buildAllWorkerLanes(careWorkerRosters, templateSelectionKey);
+    // Only filter by template key if showOnlyTemplated is enabled
+    const filterKey = showOnlyTemplated ? templateSelectionKey : undefined;
+    const baseLanes = buildAllWorkerLanes(careWorkerRosters, filterKey);
     return applyOverridesToLanes(baseLanes, rosterState.present);
-  }, [careWorkerRosters, templateSelectionKey, rosterState.present]);
+  }, [careWorkerRosters, templateSelectionKey, showOnlyTemplated, rosterState.present]);
 
   // Selected worker's lanes
   const selectedWorkerLanes = useMemo(() => {
@@ -860,11 +863,21 @@ export default function RosteringStudioUnified({
   }, [timelineLanes, callTimesForEditor, toast]);
 
   const handleAutoBalance = useCallback(() => {
-    toast({ title: "Auto-balance not yet implemented" });
+    // Open optimization settings panel with workload balance focus
+    setPanelVisibility((prev) => ({ ...prev, optimization: true, workload: true }));
+    toast({ 
+      title: "Workload Balancing",
+      description: "Use the Optimization Settings and Workload Heatmap panels to analyze and balance worker schedules."
+    });
   }, [toast]);
 
   const handleOptimizeTravel = useCallback(() => {
-    toast({ title: "Travel optimization not yet implemented" });
+    // Open map and optimization panels
+    setPanelVisibility((prev) => ({ ...prev, optimization: true, map: true }));
+    toast({ 
+      title: "Travel Optimization",
+      description: "Use the Route Map and Optimization Settings to minimize travel between calls."
+    });
   }, [toast]);
 
   const handleTimelineZoomIn = useCallback(() => {
@@ -1160,6 +1173,13 @@ export default function RosteringStudioUnified({
                 >
                   <Layers className="mr-2 h-4 w-4" />
                   Show All Workers
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={showOnlyTemplated}
+                  onCheckedChange={() => setShowOnlyTemplated(!showOnlyTemplated)}
+                >
+                  <ClipboardList className="mr-2 h-4 w-4" />
+                  Only Templated Calls
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuCheckboxItem
                   checked={showHalfHourTicks}

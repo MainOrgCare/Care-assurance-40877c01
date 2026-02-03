@@ -7,16 +7,19 @@ const FALLBACK_STORAGE_KEYS = {
   interactionMode: "caAcpInteractionMode",
   signatureData: "caAcpSignatureData",
 };
-const FALLBACK_FORM_CONFIG = { formId: "1048191" };
+const FALLBACK_FORM_CONFIGS = {
+  acp: { formId: "1048191" },
+  emar: { formId: "1044009" },
+};
 const FALLBACK_MESSAGE_TYPES = {
   log: "CA_EXTENSION_LOG",
   stepComplete: "CA_EXTENSION_STEP_COMPLETE",
   uploadSignature: "CA_EXTENSION_UPLOAD_SIGNATURE",
 };
 
-const { STORAGE_KEYS, FORM_CONFIG, MESSAGE_TYPES } = window.CA_EXTENSION_CONSTANTS || {
+const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES } = window.CA_EXTENSION_CONSTANTS || {
   STORAGE_KEYS: FALLBACK_STORAGE_KEYS,
-  FORM_CONFIG: FALLBACK_FORM_CONFIG,
+  FORM_CONFIGS: FALLBACK_FORM_CONFIGS,
   MESSAGE_TYPES: FALLBACK_MESSAGE_TYPES,
 };
 
@@ -374,7 +377,8 @@ const isAutofillTargetPage = () => {
   if (!window.location.pathname.includes("new_case_form")) return false;
   const params = new URLSearchParams(window.location.search);
   const formId = params.get("formId");
-  return formId === FORM_CONFIG?.formId || "1048191";
+  const acpFormId = FORM_CONFIGS?.acp?.formId || "1048191";
+  return formId === acpFormId;
 };
 
 const run = async () => {
@@ -388,7 +392,8 @@ const run = async () => {
     STORAGE_KEYS.interactionMode,
   ]);
 
-  if (!caAcpPayload || !Array.isArray(caAcpPayload.assessments)) return;
+  if (!caAcpPayload || caAcpPayload.formType === "emar") return;
+  if (!Array.isArray(caAcpPayload.assessments)) return;
   if (!caAcpQueueState || typeof caAcpQueueState.currentIndex !== "number") return;
 
   const processedKey = `caAutofillProcessed_${caAcpQueueState.currentIndex}`;

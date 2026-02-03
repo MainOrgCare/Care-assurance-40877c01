@@ -12574,10 +12574,14 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         serviceOrderMap.set(key, order);
       });
       const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string; updatedAtMs: number }>();
+      // Track which (serviceUserKey, callTypeLabel) combos have ANY template assignments
+      const templatedSlots = new Set<string>();
       templateAssignments
         .filter((assignment) => assignment.isTemplated)
         .forEach((assignment) => {
           const key = `${assignment.serviceUserKey}|${assignment.callTypeLabel}|${assignment.templateWeek}|${assignment.templateDay}`;
+          const slotKey = `${assignment.serviceUserKey}|${assignment.callTypeLabel}`;
+          templatedSlots.add(slotKey);
           const existing = templateAssignmentMap.get(key);
           const updatedAtMs = (assignment.updatedAt ?? assignment.createdAt ?? new Date(0)).getTime();
           if (!existing || updatedAtMs > existing.updatedAtMs) {
@@ -12742,9 +12746,14 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         group.totalCalls += 1;
         if (call.isTimeCritical) group.isTimeCritical = true;
         const templateKey = `${call.templateWeek}|${call.templateDay}`;
-        if (templateAssignment) {
+        // Check if this slot (serviceUser + callType) has ANY template assignments
+        const slotKey = `${call.serviceUserKey}|${call.callTypeLabel}`;
+        const isSlotTemplated = templatedSlots.has(slotKey);
+        if (templateAssignment || isSlotTemplated) {
           group.templatedWeekdayKeys.add(templateKey);
-          group.templatedRows += 1;
+          if (templateAssignment) {
+            group.templatedRows += 1;
+          }
           roster.usesTemplateAssignments = true;
         }
         if (call.isDoubleUp) {
@@ -13027,10 +13036,14 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       const serviceUserMap = new Map(serviceUsers.map((su) => [su.serviceUserKey, su]));
       const templateAssignments = await storage.getAllTemplateAssignments();
       const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string; updatedAtMs: number }>();
+      // Track which (serviceUserKey, callTypeLabel) combos have ANY template assignments
+      const templatedSlots = new Set<string>();
       templateAssignments
         .filter((assignment) => assignment.isTemplated)
         .forEach((assignment) => {
           const key = `${assignment.serviceUserKey}|${assignment.callTypeLabel}|${assignment.templateWeek}|${assignment.templateDay}`;
+          const slotKey = `${assignment.serviceUserKey}|${assignment.callTypeLabel}`;
+          templatedSlots.add(slotKey);
           const existing = templateAssignmentMap.get(key);
           const updatedAtMs = (assignment.updatedAt ?? assignment.createdAt ?? new Date(0)).getTime();
           if (!existing || updatedAtMs > existing.updatedAtMs) {
@@ -13054,6 +13067,9 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         const workerKey = templateAssignment?.workerKey ?? call.workerKey;
         const workerName = templateAssignment?.workerName ?? call.workerName;
         const serviceUserProfile = serviceUserMap.get(call.serviceUserKey);
+        // Check if this slot (serviceUser + callType) has ANY template assignments
+        const slotKey = `${call.serviceUserKey}|${call.callTypeLabel}`;
+        const isSlotTemplated = templatedSlots.has(slotKey);
         const serviceRequirementEndMinutes =
           typeof call.serviceRequirementEndMinutes === "number" ? call.serviceRequirementEndMinutes : null;
         const plannedEndMinutes =
@@ -13178,9 +13194,11 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         group.totalCalls += 1;
         if (call.isTimeCritical) group.isTimeCritical = true;
         const templateKey = `${call.templateWeek}|${call.templateDay}`;
-        if (templateAssignment) {
+        if (templateAssignment || isSlotTemplated) {
           group.templatedWeekdayKeys.add(templateKey);
-          group.templatedRows += 1;
+          if (templateAssignment) {
+            group.templatedRows += 1;
+          }
           roster.usesTemplateAssignments = true;
         }
         if (call.isDoubleUp) {

@@ -1851,6 +1851,119 @@ ${generatedProtocol.additionalComments}`;
     });
   };
 
+  const buildEmarExtensionPayload = () => {
+    if (!result) return null;
+    const discrepancies = getAllDiscrepancies();
+    const medicationLevel = medicationLevelOverride || result.serviceUserType;
+    const levelMap: Record<string, string> = {
+      prompt: "Level 1 (Prompt)",
+      assist: "Level 2 (Assist)",
+      administer: "Level 3 (Administer)",
+    };
+    const prnInfo = result.prnMedications;
+    const prnProtocolCompleted = prnInfo?.hasPRN
+      ? prnInfo?.protocolsCompleted ? "Yes" : "No"
+      : "N/A";
+    const actionsInLine = discrepancies.length > 0 ? "No" : "Yes";
+
+    const nonConformance = discrepancies.map((item) => ({
+      careWorkerName: item.careWorkerName,
+      dates: item.date,
+      details: item.issue,
+      occasions: "1",
+      actions: getActionsText(item.actions),
+    }));
+
+    const staffIdentified = Array.from(new Set(discrepancies.map((item) => item.careWorkerName)))
+      .filter(Boolean)
+      .map((name) => ({
+        name,
+        comments: "Identified in audit discrepancies.",
+      }));
+
+    return {
+      formType: "emar",
+      version: 1,
+      createdAt: new Date().toISOString(),
+      serviceUserName: serviceUserDisplay,
+      auditor: auditorDisplay,
+      auditPeriodStart: result.auditPeriodStart,
+      auditPeriodEnd: result.auditPeriodEnd,
+      purposeOfAudit: discrepancies.length > 0 ? "Following a medication incident" : "Quality Assurance",
+      medicationSupportLevel: levelMap[medicationLevel] || "",
+      prnProtocolCompleted,
+      actionsInLine,
+      nonConformance,
+      timeCritical: "",
+      timeCriticalMedications: "",
+      timeCriticalAdministered: "",
+      timeCriticalActions: "",
+      themesAndTrends: result.themesAndTrends || "",
+      staffIdentified,
+      furtherActions: result.gapsInKnowledge || "",
+      auditDate: formatDate(new Date()),
+    };
+  };
+
+  const sendEmarToExtension = async () => {
+    if (typeof window === "undefined") return;
+    const payload = buildEmarExtensionPayload();
+    if (!payload) return;
+
+    const requestId =
+      typeof window.crypto !== "undefined" && typeof window.crypto.randomUUID === "function"
+        ? window.crypto.randomUUID()
+        : String(Date.now());
+
+    try {
+      const response = await new Promise<{ ok: boolean; error?: string }>((resolve, reject) => {
+        let handler: ((event: MessageEvent) => void) | null = null;
+        const timeoutId = window.setTimeout(() => {
+          if (handler) window.removeEventListener("message", handler);
+          reject(new Error("Edge extension not detected."));
+        }, 1500);
+
+        handler = (event: MessageEvent) => {
+          if (event.source !== window) return;
+          if (!event.data || event.data.type !== "CA_EXTENSION_ACK") return;
+          if (event.data.requestId !== requestId) return;
+          window.clearTimeout(timeoutId);
+          window.removeEventListener("message", handler!);
+          resolve({ ok: Boolean(event.data.ok), error: event.data.error });
+        };
+
+        window.addEventListener("message", handler);
+        window.postMessage(
+          {
+            type: "CA_SEND_TO_ACP_EXTENSION",
+            requestId,
+            payload,
+          },
+          window.location.origin
+        );
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Sent to extension",
+          description: "EMAR audit queued for autofill.",
+        });
+      } else {
+        toast({
+          title: "Extension error",
+          description: response.error || "Failed to send to extension.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Extension not detected",
+        description: error?.message || "Could not reach the Edge extension.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // State for expanded care worker cards
   const [expandedCareWorkers, setExpandedCareWorkers] = useState<Set<string>>(new Set());
 
@@ -2777,6 +2890,18 @@ ${generatedProtocol.additionalComments}`;
                   <Download size={15} />
                   Export PDF Report
                 </Button>
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={sendEmarToExtension}
+                    className="rounded-xl border-border/60 font-bold bg-background/50 gap-2 shadow-xs hover:shadow-sm transition-all"
+                    data-testid="button-send-emar-extension"
+                  >
+                    <Activity size={15} />
+                    Send to EMAR Extension
+                  </Button>
+                )}
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-5">
                 <CopyableBox label="Service User" value={serviceUserDisplay} className="bg-muted/40 border border-border/40" />

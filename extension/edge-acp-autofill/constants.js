@@ -10,9 +10,15 @@ const STORAGE_KEYS = {
   lastError: "caAcpLastError",
 };
 
-const FORM_CONFIG = {
-  url: "https://clece.mobizio.com/new_case_form",
-  formId: "1048191",
+const FORM_CONFIGS = {
+  acp: {
+    url: "https://clece.mobizio.com/new_case_form",
+    formId: "1048191",
+  },
+  emar: {
+    url: "https://clece.mobizio.com/new_case_form",
+    formId: "1044009",
+  },
 };
 
 const MESSAGE_TYPES = {
@@ -27,9 +33,9 @@ const MESSAGE_TYPES = {
 
 // Expose for non-module scripts.
 if (typeof window !== "undefined") {
-  window.CA_EXTENSION_CONSTANTS = { STORAGE_KEYS, FORM_CONFIG, MESSAGE_TYPES };
+  window.CA_EXTENSION_CONSTANTS = { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES };
 }
 
 if (typeof self !== "undefined") {
-  self.CA_EXTENSION_CONSTANTS = { STORAGE_KEYS, FORM_CONFIG, MESSAGE_TYPES };
+  self.CA_EXTENSION_CONSTANTS = { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES };
 }

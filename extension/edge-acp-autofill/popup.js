@@ -69,6 +69,8 @@ const refreshPayloadStatus = async () => {
 
   if (caAcpPayload && Array.isArray(caAcpPayload.assessments)) {
     payloadStatus.textContent = `Ready: ${caAcpPayload.assessments.length} assessment(s)`;
+  } else if (caAcpPayload && caAcpPayload.formType === "emar") {
+    payloadStatus.textContent = "Ready: EMAR audit";
   } else {
     payloadStatus.textContent = "Waiting for data...";
   }
