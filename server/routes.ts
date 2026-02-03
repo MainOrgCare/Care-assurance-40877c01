@@ -936,7 +936,7 @@ const parseJsonFromContent = (content: string): any | null => {
 
 const getLowCostModel = () => "gpt-4o-mini";
 const getAccurateModel = () => getPreferredModel();
-const getRiskAssessmentModel = () => "gpt-4.1"; // Higher quality model for detailed risk assessment writing
+const getRiskAssessmentModel = () => "gpt-5-mini"; // Higher quality model for detailed risk assessment writing
 
 const inferGenericNameFromMedicationLabel = (name: string): string => {
   if (!name) return "";
@@ -1196,6 +1196,12 @@ const pickEvidenceSnippet = (snippets: string[]): string => {
   return candidate ? truncateEvidence(candidate) : "";
 };
 
+// Assessments that are ALWAYS mandatory for every service user
+const ALWAYS_MANDATORY_ASSESSMENTS = new Set([
+  "fire safety",
+  "environmental safety",
+]);
+
 const buildAssessmentRecommendations = (analysis: {
   medicalConditions?: string[];
   careActivities?: string[];
@@ -1205,8 +1211,9 @@ const buildAssessmentRecommendations = (analysis: {
   environmentalFactors?: string[];
 }, evidenceFinder?: { findSnippets: (terms: string[], maxMatches?: number) => string[] }): { name: string; isMandatory: boolean; reason: string; evidence?: string }[] => {
   const recommendations: { name: string; isMandatory: boolean; reason: string; evidence?: string }[] = [];
-  const add = (name: string, reason: string, evidence?: string) => {
-    recommendations.push({ name: canonicalizeAssessmentName(name), isMandatory: true, reason, evidence });
+  const add = (name: string, reason: string, evidence?: string, forceMandatory?: boolean) => {
+    const isMandatory = forceMandatory || ALWAYS_MANDATORY_ASSESSMENTS.has(normalizeAssessmentKey(name));
+    recommendations.push({ name: canonicalizeAssessmentName(name), isMandatory, reason, evidence });
   };
 
   const addIfEvidence = (name: string, terms: string[], reason: string) => {
@@ -10285,6 +10292,10 @@ The service user's profile DIRECTLY determines which assessments are needed. Mat
 
 CRITICAL: Only recommend an assessment if the service user's profile contains relevant information. Each recommendation MUST cite specific evidence from the documents.
 
+MANDATORY FLAG RULES:
+- Set "isMandatory": true ONLY for "Fire Safety" and "Environmental Safety" - these apply to every service user
+- Set "isMandatory": false for ALL other assessments - they are profile-based suggestions
+
 Respond ONLY with valid JSON in this exact format:
 {
   ${serviceUserJsonSchema}
@@ -10297,7 +10308,7 @@ Respond ONLY with valid JSON in this exact format:
   "recommendedAssessments": [
     {
       "name": "Assessment category name",
-      "isMandatory": true,
+      "isMandatory": false,
       "reason": "Why this is recommended - link to specific service user profile item",
       "evidence": "Exact phrase or short paraphrase from the documents that supports this recommendation"
     }
@@ -10501,19 +10512,23 @@ FORMATTING RULES - MUST FOLLOW:
 - Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas instead.
 - Never use Oxford commas (the comma before "and" or "or" in a list). Write "apples, oranges and bananas" not "apples, oranges, and bananas".
 
-CRITICAL - FIRST PERSON WRITING:
-- Write EVERYTHING as if you are the service user speaking about themselves
+FIRST PERSON WRITING:
+- Write EVERYTHING in first person as the service user speaking about themselves
 - Use "I", "me", "my", "myself" throughout ALL fields
-- Example: "I have difficulty with mobility" NOT "The service user has difficulty with mobility"
-- Example: "My carers help me to..." NOT "Carers help the service user to..."
-- Example: "I am at risk of falls because..." NOT "There is a risk of falls because..."
+- Vary your sentence structure naturally - do not repeat the same opening phrases
+
+WHO WILL BE HARMED - BE ACCURATE:
+- Consider ALL people who could be affected, not just carers
+- Options include combinations of: Service User, Care Workers, Family Members, Health Professionals, Visitors, Other Service Users
+- Be specific - if multiple people could be harmed, list them (e.g., "Service User and Care Workers" or "Service User, Family Members and Visitors")
+- Think about who is actually present during care activities
 
 IMPORTANT RULES:
 1. Extract and synthesize ALL relevant information from the documents provided
 2. Write detailed, informative content - be thorough and comprehensive
 3. Use professional but clear language suitable for care documentation
 4. Follow CQC (Care Quality Commission) standards
-5. Do NOT include any person names. Use role terms (my carer, my GP, my family member)
+5. Do NOT include any person names. Use role terms (my carer, my GP, my family member, my care team)
 6. Keep place names and locations as written. Do not redact places.
 7. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
 8. Stay within a care worker's scope of practice. Do not diagnose, prescribe, change doses, or make clinical decisions.
@@ -10528,11 +10543,11 @@ ${privacyDirective}
 RISK ASSESSMENT CATEGORY: ${assessmentCategory}
 
 For each risk identified in this category, provide detailed first-person content:
-- Risk definition (what is the risk - written as "I am at risk of...")
+- Risk definition (what is the risk - written in first person)
 - Initial risk rating (Low/Medium/High)
-- How it's a risk (detailed explanation in first person - "This affects me because...")
-- Who will be harmed
-- Control measures (comprehensive measures in first person - "My carers help me by...")
+- How it's a risk (detailed first-person explanation of the consequences)
+- Who will be harmed (be accurate - list all relevant people)
+- Control measures (comprehensive measures in first person)
 - Risk rating after controls (Low/Medium/High)
 
 Respond ONLY with valid JSON in this exact format:
@@ -10542,17 +10557,17 @@ Respond ONLY with valid JSON in this exact format:
   "assessmentDate": "Today's date in DD/Mon/YYYY format",
   "risks": [
     {
-      "riskDefinition": "First person description: I am at risk of...",
+      "riskDefinition": "First person description with varied openings - not always 'I am at risk of'",
       "initialRating": "Low/Medium/High",
-      "howItsARisk": "First person explanation: This affects me because...",
-      "whoWillBeHarmed": "Service user/Carer/Both/Visitors",
-      "controlMeasures": "First person detailed control measures: My carers help me by...",
+      "howItsARisk": "First person explanation with varied sentence structure - not always 'This affects me'",
+      "whoWillBeHarmed": "List ALL relevant people who could be harmed (e.g., 'Service User and Care Workers' or 'Service User, Family Members and Visitors')",
+      "controlMeasures": "First person detailed control measures",
       "ratingAfterControls": "Low/Medium/High"
     }
   ],
   "signedBy": "${performedBy || 'Staff member'}",
   "jobTitle": "${performedByJobTitle || 'Care Staff'}",
-  "additionalNotes": "Any relevant first-person observations: I also need support with... (leave empty string if nothing additional to add)"
+  "additionalNotes": "Any relevant first-person observations (leave empty string if nothing additional to add)"
 }`;
 
       sendProgress(30, "Generating risk assessment...", "ai_generation");
