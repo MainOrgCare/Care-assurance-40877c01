@@ -345,7 +345,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const contentWrapperClass = cn(
     "w-full flex-1 min-h-0",
-    isFullBleed ? "px-0 py-0 pt-12" : "px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6",
+    isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6",
     isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(

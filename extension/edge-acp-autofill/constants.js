@@ -19,6 +19,9 @@ const FORM_CONFIGS = {
     url: "https://clece.mobizio.com/new_case_form",
     formId: "1044009",
   },
+  custom: {
+    url: "https://clece.mobizio.com/new_case_form",
+  },
 };
 
 const MESSAGE_TYPES = {

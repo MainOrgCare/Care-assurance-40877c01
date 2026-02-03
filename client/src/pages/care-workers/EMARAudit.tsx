@@ -1935,7 +1935,7 @@ ${generatedProtocol.additionalComments}`;
         window.addEventListener("message", handler);
         window.postMessage(
           {
-            type: "CA_SEND_TO_ACP_EXTENSION",
+            type: "CA_SEND_TO_EMAR_EXTENSION",
             requestId,
             payload,
           },

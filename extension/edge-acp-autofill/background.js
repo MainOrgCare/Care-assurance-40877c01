@@ -8,12 +8,16 @@ const getStored = (keys) =>
 const setStored = (items) =>
   new Promise((resolve) => chrome.storage.local.set(items, () => resolve()));
 
-const buildFormUrl = (formType, caseId, serviceDataGroupId) => {
+const buildFormUrl = (formType, caseId, serviceDataGroupId, payload) => {
   const config = FORM_CONFIGS[formType] || FORM_CONFIGS.acp;
-  const url = new URL(config.url);
+  const baseUrl = payload?.formUrl || config.url;
+  const url = new URL(baseUrl);
   url.searchParams.set("caseId", caseId);
   url.searchParams.set("serviceDataGroupId", serviceDataGroupId);
-  url.searchParams.set("formId", config.formId);
+  const formId = payload?.formId || config.formId;
+  if (formId) {
+    url.searchParams.set("formId", formId);
+  }
   return url.toString();
 };
 
@@ -79,7 +83,7 @@ const openNextForm = async () => {
     },
   });
 
-  const url = buildFormUrl(formType, caAcpCaseInfo.caseId, caAcpCaseInfo.serviceDataGroupId);
+  const url = buildFormUrl(formType, caAcpCaseInfo.caseId, caAcpCaseInfo.serviceDataGroupId, caAcpPayload);
   await reuseOrCreateTab(url);
 };
 
@@ -114,7 +118,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       .then(async () => {
         const { caAcpPayload } = await getStored([STORAGE_KEYS.payload]);
         const formType = caAcpPayload?.formType || "acp";
-        const url = buildFormUrl(formType, message.caseId, message.serviceDataGroupId);
+        const url = buildFormUrl(formType, message.caseId, message.serviceDataGroupId, caAcpPayload);
         await reuseOrCreateTab(url);
         sendResponse({ ok: true });
       })

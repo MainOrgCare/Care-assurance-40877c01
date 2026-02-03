@@ -24,7 +24,7 @@
     },
     {
       "matches": ["https://clece.mobizio.com/*"],
-      "js": ["constants.js", "content-acp.js", "content-emar.js"],
+      "js": ["constants.js", "content-acp.js", "content-emar.js", "content-generic.js"],
       "run_at": "document_idle"
     }
   ]
