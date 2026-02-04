@@ -108,7 +108,7 @@ Provide comprehensive analysis with actionable recommendations to optimize this 
 
   const response = await createChatCompletionWithLogging(
     {
-      model: "gpt-5.2",
+      model: "gpt-4.1-mini", // Cost-effective: $0.40/$1.60 vs GPT-5.2 $1.75/$14 (89% cheaper)
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -209,7 +209,7 @@ Evaluate if this optimization improved the schedule.`;
 
   const response = await createChatCompletionWithLogging(
     {
-      model: "gpt-5.2",
+      model: "gpt-4.1-mini", // Cost-effective: $0.40/$1.60 vs GPT-5.2 $1.75/$14 (89% cheaper)
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

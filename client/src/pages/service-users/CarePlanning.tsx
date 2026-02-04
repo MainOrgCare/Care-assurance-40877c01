@@ -170,6 +170,56 @@ export default function CarePlanning() {
       : null,
   ].filter(Boolean) as { label: string; message: string }[];
 
+  // Fetch call types from database for this service user
+  const fetchCallTypes = useCallback(async () => {
+    setLoadingCallTypes(true);
+    try {
+      // Extract service user name from documents
+      const documentContent = getAllDocumentContent();
+      const nameMatch = documentContent.match(/(?:Name|Known as|Full name)[:;]?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i);
+      const serviceUserName = nameMatch?.[1] || "Unknown";
+
+      const response = await fetch("/api/service-user/call-types", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ serviceUserName }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch call types");
+      }
+
+      const data = await response.json();
+      
+      if (data.callTypes && data.callTypes.length > 0) {
+        setAvailableCallTypes(data.callTypes);
+        setCallTypeDetails(data.orders || []);
+        setSelectedCallType(data.callTypes[0]); // Auto-select first
+        
+        toast({
+          title: "Call Types Found",
+          description: `Found ${data.callTypes.length} call type(s): ${data.callTypes.join(", ")}`,
+        });
+      } else {
+        toast({
+          title: "No Call Types Found",
+          description: "Service user not found in database. You can still generate a general care plan.",
+          variant: "default",
+        });
+      }
+    } catch (error: any) {
+      console.error("Fetch call types error:", error);
+      toast({
+        title: "Error Fetching Call Types",
+        description: error.message || "Failed to fetch call types from database.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingCallTypes(false);
+    }
+  }, [getAllDocumentContent, toast]);
+
   const generateMutation = useMutation({
     mutationFn: async () => {
       const documentContent = getAllDocumentContent();
@@ -177,16 +227,14 @@ export default function CarePlanning() {
         throw new Error("No document content available");
       }
 
-      setProgress(0);
-      setProgressStatus("Preparing documents...");
+      if (!selectedCallType) {
+        throw new Error("Please select a call type first");
+      }
 
-      // Clear any existing care plan and prepare for incremental updates
-      setCarePlanRaw(null);
-      setCarePlanScrubbed(null);
-      setExpandedSections(new Set());
-      setSearchQuery("");
-      setPriorityFilter("all");
-      setSortMode("default");
+      setProgress(0);
+      setProgressStatus(`Preparing ${selectedCallType} care plan...`);
+
+      // Don't clear existing plans - we're building up a collection
       const sectionsInProgressRaw: CarePlanSection[] = [];
       const sectionsInProgressScrubbed: CarePlanSection[] = [];
 
@@ -194,7 +242,11 @@ export default function CarePlanning() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ documentContent, allowSensitive: isAdmin && allowSensitive }),
+        body: JSON.stringify({ 
+          documentContent, 
+          callType: selectedCallType,
+          allowSensitive: isAdmin && allowSensitive 
+        }),
       });
 
       if (!response.ok) {
@@ -247,16 +299,15 @@ export default function CarePlanning() {
                 setProgress(data.percent);
                 setProgressStatus(data.status);
               } else if (eventType === "section") {
-                // New section arrived - add it to the list immediately
-                console.log("[CarePlan] Section received:", data.index, data.section?.title, "keys:", Object.keys(data.section || {}));
+                // Legacy format - handle sections (still supported for backward compatibility)
+                console.log("[CarePlan] Section received:", data.index, data.section?.title);
                 if (data.section && typeof data.index === "number") {
                   const sectionScrubbed = data.scrubbedSection || data.section;
                   sectionsInProgressRaw[data.index] = data.section;
                   sectionsInProgressScrubbed[data.index] = sectionScrubbed;
-                  // Filter out undefined entries (sparse array)
                   const validSectionsRaw = sectionsInProgressRaw.filter((s): s is CarePlanSection => s !== undefined);
                   const validSectionsScrubbed = sectionsInProgressScrubbed.filter((s): s is CarePlanSection => s !== undefined);
-                  // Update care plan in real-time so user sees progress
+                  // Update legacy single care plan state
                   setCarePlanRaw(prev => ({
                     serviceUserInitials: prev?.serviceUserInitials || "N.N.",
                     generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
@@ -273,7 +324,6 @@ export default function CarePlanning() {
                     gpDetails: prev?.gpDetails || "Loading...",
                     additionalNotes: prev?.additionalNotes || "Loading...",
                   }));
-                  // Auto-expand the new section
                   setExpandedSections(prev => {
                     const newSet = new Set(prev);
                     newSet.add(data.index);
@@ -281,7 +331,7 @@ export default function CarePlanning() {
                   });
                 }
               } else if (eventType === "result") {
-                console.log("[CarePlan] Final result received, sections count:", data?.sections?.length, "keys:", Object.keys(data || {}));
+                console.log("[CarePlan] Final result received, format:", data.content ? "simplified" : "legacy");
                 resultRaw = data;
                 resultScrubbed = data?.scrubbedResult || data;
               } else if (eventType === "error") {
@@ -301,7 +351,7 @@ export default function CarePlanning() {
       return { raw: resultRaw, scrubbed: resultScrubbed || resultRaw };
     },
     onSuccess: ({ raw, scrubbed }: CarePlanMutationResult) => {
-      console.log("[CarePlan] onSuccess called with data:", JSON.stringify(raw).substring(0, 500));
+      console.log("[CarePlan] onSuccess - callType:", selectedCallType, "format:", raw.content ? "simplified" : "legacy");
       setProgress(100);
       setProgressStatus("Complete!");
       setTimeout(() => {
@@ -309,34 +359,59 @@ export default function CarePlanning() {
         setProgressStatus("");
       }, 500);
       
-      // Ensure sections is always an array
-      const safeSectionsRaw = Array.isArray(raw?.sections) ? raw.sections : [];
-      const safeSectionsScrubbed = Array.isArray(scrubbed?.sections) ? scrubbed.sections : [];
-      const safeDataRaw: CarePlanResult = {
-        serviceUserInitials: raw?.serviceUserInitials || "N.N.",
-        generatedDate: raw?.generatedDate || new Date().toLocaleDateString("en-GB"),
-        sections: safeSectionsRaw,
-        emergencyContacts: raw?.emergencyContacts || "",
-        gpDetails: raw?.gpDetails || "",
-        additionalNotes: raw?.additionalNotes || "",
-      };
-      const safeDataScrubbed: CarePlanResult = {
-        serviceUserInitials: scrubbed?.serviceUserInitials || "N.N.",
-        generatedDate: scrubbed?.generatedDate || new Date().toLocaleDateString("en-GB"),
-        sections: safeSectionsScrubbed,
-        emergencyContacts: scrubbed?.emergencyContacts || "",
-        gpDetails: scrubbed?.gpDetails || "",
-        additionalNotes: scrubbed?.additionalNotes || "",
-      };
-      
-      setCarePlanRaw(safeDataRaw);
-      setCarePlanScrubbed(safeDataScrubbed);
-      setExpandedSections(new Set(safeSectionsScrubbed.map((_: CarePlanSection, i: number) => i)));
+      if (!selectedCallType) {
+        console.error("[CarePlan] No call type selected - this shouldn't happen");
+        return;
+      }
+
+      // Store in call-type-specific maps
+      setCarePlansByTypeRaw(prev => {
+        const next = new Map(prev);
+        next.set(selectedCallType, raw);
+        return next;
+      });
+      setCarePlansByTypeScrubbed(prev => {
+        const next = new Map(prev);
+        next.set(selectedCallType, scrubbed || raw);
+        return next;
+      });
+
+      // Also update legacy single state for backward compatibility
+      if (raw.sections) {
+        // Legacy format with sections
+        const safeSectionsRaw = Array.isArray(raw.sections) ? raw.sections : [];
+        const safeSectionsScrubbed = Array.isArray(scrubbed?.sections) ? scrubbed.sections : [];
+        const safeDataRaw: CarePlanResult = {
+          serviceUserInitials: raw.serviceUserInitials || "N.N.",
+          generatedDate: raw.generatedDate || new Date().toLocaleDateString("en-GB"),
+          sections: safeSectionsRaw,
+          emergencyContacts: raw.emergencyContacts || "",
+          gpDetails: raw.gpDetails || "",
+          additionalNotes: raw.additionalNotes || "",
+        };
+        const safeDataScrubbed: CarePlanResult = {
+          serviceUserInitials: scrubbed?.serviceUserInitials || "N.N.",
+          generatedDate: scrubbed?.generatedDate || new Date().toLocaleDateString("en-GB"),
+          sections: safeSectionsScrubbed,
+          emergencyContacts: scrubbed?.emergencyContacts || "",
+          gpDetails: scrubbed?.gpDetails || "",
+          additionalNotes: scrubbed?.additionalNotes || "",
+        };
+        setCarePlanRaw(safeDataRaw);
+        setCarePlanScrubbed(safeDataScrubbed);
+        setExpandedSections(new Set(safeSectionsScrubbed.map((_: CarePlanSection, i: number) => i)));
+      } else {
+        // New simplified format with content block
+        setCarePlanRaw(raw);
+        setCarePlanScrubbed(scrubbed || raw);
+      }
+
       setSearchQuery("");
       setPriorityFilter("all");
       setSortMode("default");
+      
       toast({
-        title: "Care Plan Generated",
+        title: `${selectedCallType} Care Plan Generated`,
         description: "Your detailed first-person care plan is ready.",
       });
     },
@@ -554,21 +629,95 @@ export default function CarePlanning() {
             </div>
           )}
           
+          {/* Call Type Selection */}
+          {!availableCallTypes.length && (
+            <Button 
+              onClick={fetchCallTypes}
+              disabled={loadingCallTypes || isAnyParsing()}
+              variant="outline"
+              className="w-full mt-2 gap-2.5 h-11 rounded-xl font-bold tracking-tight border-primary/30 hover:bg-primary/5"
+            >
+              {loadingCallTypes ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Finding Call Types...
+                </>
+              ) : (
+                <>
+                  <Search size={16} />
+                  Find Call Types for This Service User
+                </>
+              )}
+            </Button>
+          )}
+
+          {availableCallTypes.length > 0 && (
+            <div className="space-y-3 mt-2 p-4 rounded-xl bg-primary/5 border border-primary/20">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-widest text-primary">Select Call Type:</span>
+                <Badge variant="outline" className="text-[10px]">
+                  {carePlansByTypeRaw.size}/{availableCallTypes.length} Generated
+                </Badge>
+              </div>
+              <ToggleGroup 
+                type="single"
+                value={selectedCallType || ""}
+                onValueChange={(value) => setSelectedCallType(value || null)}
+                className="grid grid-cols-2 sm:grid-cols-3 gap-2"
+              >
+                {availableCallTypes.map(callType => {
+                  const hasGenerated = carePlansByTypeRaw.has(callType);
+                  const details = callTypeDetails.find(d => d.callType === callType);
+                  return (
+                    <ToggleGroupItem 
+                      key={callType} 
+                      value={callType}
+                      className={cn(
+                        "relative flex flex-col items-start h-auto py-3 px-4",
+                        hasGenerated && "border-success/50 bg-success/5"
+                      )}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <span className="font-bold text-sm">{callType}</span>
+                        {hasGenerated && (
+                          <CheckCircle2 size={14} className="text-success" />
+                        )}
+                      </div>
+                      {details && (
+                        <div className="text-[10px] text-muted-foreground font-medium text-left">
+                          {details.duration}min • {details.carersRequired} carer{details.carersRequired > 1 ? 's' : ''}
+                          {details.timeBand && (
+                            <div className="text-[9px] opacity-70">{details.timeBand}</div>
+                          )}
+                        </div>
+                      )}
+                    </ToggleGroupItem>
+                  );
+                })}
+              </ToggleGroup>
+            </div>
+          )}
+          
           <Button 
             onClick={() => generateMutation.mutate()}
-            disabled={generateMutation.isPending || isAnyParsing()}
+            disabled={generateMutation.isPending || isAnyParsing() || !selectedCallType}
             className="w-full mt-2 gap-2.5 h-12 rounded-xl font-bold tracking-tight shadow-glow"
             data-testid="button-generate-care-plan"
           >
             {generateMutation.isPending ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                Generating Operational Directives...
+                Generating {selectedCallType} Plan...
+              </>
+            ) : selectedCallType ? (
+              <>
+                <Sparkles size={18} />
+                Generate {selectedCallType} Care Plan
               </>
             ) : (
               <>
                 <Sparkles size={18} />
-                Generate Intelligence-Led Care Plan
+                Select Call Type First
               </>
             )}
           </Button>
@@ -598,7 +747,7 @@ export default function CarePlanning() {
         <div className="space-y-6 animate-slide-up">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-xl font-black tracking-tight text-foreground" data-testid="text-care-plan-title">
-              Operational Plan: {carePlan.serviceUserInitials}
+              {carePlan.callType ? `${carePlan.callType} Care Plan` : "Operational Plan"}: {carePlan.serviceUserInitials}
             </h3>
             <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest bg-muted/40 px-3 py-1 rounded-full border border-border/40">
               <Clock size={12} className="text-primary" />
@@ -606,6 +755,77 @@ export default function CarePlanning() {
             </div>
           </div>
 
+          {/* Call Type Tabs - show if multiple plans generated */}
+          {carePlansByTypeRaw.size > 0 && (
+            <Card className="glass-card overflow-hidden">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-sm font-bold text-muted-foreground">Generated Plans:</span>
+                  <Badge variant="outline">{carePlansByTypeRaw.size} available</Badge>
+                </div>
+                <ToggleGroup
+                  type="single"
+                  value={selectedCallType || ""}
+                  onValueChange={(value) => setSelectedCallType(value || null)}
+                  className="flex flex-wrap gap-2"
+                >
+                  {Array.from(carePlansByTypeRaw.keys()).map(callType => (
+                    <ToggleGroupItem
+                      key={callType}
+                      value={callType}
+                      className="font-bold"
+                    >
+                      {callType}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* New Simplified Format Display - Single Content Block */}
+          {isSimplifiedFormat && carePlan.content && (
+            <Card className="glass-card overflow-hidden">
+              <CardHeader className="border-b border-border/40 pb-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      {carePlan.callType && (
+                        <Badge variant="outline" className="font-bold">{carePlan.callType}</Badge>
+                      )}
+                      Person-Centred Care Plan
+                    </CardTitle>
+                    <CardDescription className="text-xs font-medium mt-1">
+                      CQC 2024 compliant • First-person narrative • Evidence-based
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(carePlan.content || "");
+                      toast({
+                        title: "Copied to Clipboard",
+                        description: `${carePlan.callType} care plan copied`,
+                      });
+                    }}
+                    className="gap-2.5 rounded-xl border-border/60 font-bold tracking-tight shadow-sm"
+                  >
+                    <Copy size={16} /> Copy Care Plan
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="prose prose-sm max-w-none">
+                  <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground bg-muted/20 p-6 rounded-xl border border-border/40">
+                    {carePlan.content}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Legacy Sections Format Display */}
+          {!isSimplifiedFormat && sectionsWithIndex.length > 0 && (
           <Card className="glass-card overflow-hidden">
             <CardHeader className="border-b border-border/40 pb-6">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -714,11 +934,9 @@ export default function CarePlanning() {
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
 
-          <div className="grid gap-5">
-            {visibleSections.length === 0 ? (
+              <div className="grid gap-5">
+                {visibleSections.length === 0 ? (
               <div className="py-20 text-center glass-card rounded-2xl border-dashed">
                 <div className="h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-6">
                   <Search size={24} className="text-muted-foreground/40" />
@@ -873,8 +1091,12 @@ export default function CarePlanning() {
               ))
             )}
           </div>
+        </CardContent>
+      </Card>
+          )}
 
-          {(carePlan.emergencyContacts || carePlan.gpDetails || carePlan.additionalNotes) && (
+          {/* Meta-data section - only show for legacy format with these fields */}
+          {!isSimplifiedFormat && (carePlan.emergencyContacts || carePlan.gpDetails || carePlan.additionalNotes) && (
             <Card className="glass-card overflow-hidden">
               <CardHeader className="border-b border-border/40">
                 <CardTitle className="text-base">Logistical Meta-Data</CardTitle>

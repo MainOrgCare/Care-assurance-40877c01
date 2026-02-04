@@ -937,8 +937,8 @@ const parseJsonFromContent = (content: string): any | null => {
 const getLowCostModel = () => "gpt-4o-mini";
 const getAccurateModel = () => getPreferredModel();
 const getRiskAssessmentModel = () => getPreferredModel();
-const getRiskAssessmentRecommendationModel = () => "gpt-5.2"; // Most capable for complex reasoning
-const getRiskAssessmentGenerationModel = () => "gpt-5.2"; // Maximum accuracy and thoroughness
+const getRiskAssessmentRecommendationModel = () => "gpt-5-mini"; // Cost-effective ($0.25/$2 vs GPT-5.2 $1.75/$14)
+const getRiskAssessmentGenerationModel = () => "gpt-5-mini"; // 87% cheaper, still excellent quality
 
 const inferGenericNameFromMedicationLabel = (name: string): string => {
   if (!name) return "";
@@ -1216,6 +1216,157 @@ const sanitizeOutOfScopeText = (text: string) => {
   const hasOutOfScope = OUT_OF_SCOPE_PATTERNS.some((pattern) => pattern.test(text));
   if (!hasOutOfScope) return text;
   return "Follow the care plan, record observations and escalate to a registered professional or GP for any clinical decisions.";
+};
+
+/**
+ * Check if evidence snippets show diverse aspects (not just repetition)
+ * Returns true if snippets cover different aspects of the risk
+ */
+const hasEvidenceDiversity = (snippets: string[]): boolean => {
+  if (snippets.length < 2) return false;
+  
+  // Check for significant word overlap between snippets
+  const getSignificantWords = (text: string): Set<string> => {
+    const words = text.toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 3); // Only words longer than 3 chars
+    return new Set(words);
+  };
+  
+  // Compare each pair of snippets
+  for (let i = 0; i < snippets.length - 1; i++) {
+    for (let j = i + 1; j < snippets.length; j++) {
+      const words1 = getSignificantWords(snippets[i]);
+      const words2 = getSignificantWords(snippets[j]);
+      
+      // Count overlapping words
+      const overlap = [...words1].filter(w => words2.has(w)).length;
+      const minSize = Math.min(words1.size, words2.size);
+      
+      // If less than 60% overlap, they're diverse enough
+      if (minSize > 0 && overlap / minSize < 0.6) {
+        return true; // Found at least one diverse pair
+      }
+    }
+  }
+  
+  // All snippets are too similar
+  return false;
+};
+
+/**
+ * Detect if an assessment is too similar to others already included
+ * Prevents duplicate recommendations for the same underlying issue
+ */
+const isSimilarAssessment = (assessment: string, existingAssessments: string[]): boolean => {
+  const key1 = normalizeAssessmentKey(assessment);
+  
+  // Check for exact duplicates or very similar names
+  return existingAssessments.some(existing => {
+    const key2 = normalizeAssessmentKey(existing);
+    
+    // Exact match
+    if (key1 === key2) return true;
+    
+    // Check for overlapping key terms
+    const words1 = key1.split(/[\s_]+/).filter(w => w.length > 3);
+    const words2 = key2.split(/[\s_]+/).filter(w => w.length > 3);
+    
+    if (words1.length === 0 || words2.length === 0) return false;
+    
+    // Count matching significant words
+    const matches = words1.filter(w => words2.includes(w)).length;
+    const similarity = matches / Math.min(words1.length, words2.length);
+    
+    // 70%+ word overlap = too similar
+    return similarity >= 0.7;
+  });
+};
+
+/**
+ * Score evidence quality from 0-100
+ * Higher scores = stronger, more specific evidence
+ * Lower scores = vague, generic, weak evidence
+ */
+const scoreEvidenceQuality = (evidence: string, evidenceSnippets: string[]): number => {
+  let score = 0;
+  
+  // Check main evidence field
+  const evidenceLower = evidence.toLowerCase();
+  const wordCount = evidence.split(/\s+/).length;
+  
+  // Base score from evidence length and detail
+  if (wordCount >= 15) score += 20; // Detailed evidence
+  else if (wordCount >= 10) score += 15;
+  else if (wordCount >= 5) score += 10;
+  else score += 5; // Very short evidence
+  
+  // Bonus for specific medical terms or conditions
+  const specificTerms = [
+    'diabetes', 'dementia', 'parkinson', 'stroke', 'arthritis', 
+    'copd', 'asthma', 'epilepsy', 'cardiac', 'hypertension',
+    'fall', 'fell', 'fracture', 'injury', 'wound', 'pressure sore',
+    'catheter', 'stoma', 'peg', 'hoist', 'wheelchair',
+    'swallowing', 'dysphagia', 'choking', 'aspiration'
+  ];
+  const matchedSpecificTerms = specificTerms.filter(term => evidenceLower.includes(term)).length;
+  score += matchedSpecificTerms * 8; // 8 points per specific term
+  
+  // Bonus for quantifiable details (dates, numbers, frequencies)
+  const hasNumbers = /\d+/.test(evidence);
+  const hasDates = /(january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2}\/\d{1,2}|last week|yesterday|today)/i.test(evidence);
+  const hasFrequency = /(daily|weekly|monthly|twice|three times|frequently|often|regular)/i.test(evidence);
+  if (hasNumbers) score += 5;
+  if (hasDates) score += 8; // Recent events are valuable
+  if (hasFrequency) score += 6;
+  
+  // Penalty for vague phrases
+  const vagueTerms = [
+    'may need', 'might need', 'could need', 'possibly',
+    'general support', 'as needed', 'if required',
+    'appropriate care', 'standard care', 'normal care',
+    'suitable assessment', 'various needs'
+  ];
+  const matchedVagueTerms = vagueTerms.filter(term => evidenceLower.includes(term)).length;
+  score -= matchedVagueTerms * 10; // -10 points per vague term
+  
+  // Check evidence snippets quality
+  const meaningfulSnippets = evidenceSnippets.filter(isMeaningfulEvidence);
+  score += meaningfulSnippets.length * 15; // 15 points per snippet
+  
+  // Bonus for evidence diversity (different aspects, not repetition)
+  if (meaningfulSnippets.length >= 2 && hasEvidenceDiversity(meaningfulSnippets)) {
+    score += 20; // Significant bonus for diverse evidence
+  }
+  
+  // Bonus for snippets with specific details
+  meaningfulSnippets.forEach(snippet => {
+    const snippetWords = snippet.split(/\s+/).length;
+    if (snippetWords >= 10) score += 10; // Detailed snippet
+    
+    // Check for quotes from documents
+    if (snippet.includes('"') || snippet.includes('states') || snippet.includes('reports')) {
+      score += 5; // Direct quote/reference
+    }
+    
+    // Check for temporal context (recent events are more relevant)
+    if (/(last|past|recent|yesterday|this week|this month)/i.test(snippet)) {
+      score += 7; // Recent evidence
+    }
+  });
+  
+  // Penalty for generic assessment names in evidence
+  const genericPhrases = [
+    'requires assessment', 'needs assessment', 'assessment recommended',
+    'should be assessed', 'assessment required'
+  ];
+  if (genericPhrases.some(phrase => evidenceLower.includes(phrase))) {
+    score -= 15; // Generic recommendation
+  }
+  
+  // Cap score between 0-100
+  return Math.max(0, Math.min(100, score));
 };
 
 const isAssessmentRelevantServer = (
@@ -10221,9 +10372,9 @@ Return JSON - include ALL by default:
         sendEvent('progress', { percent, status, stage });
       };
 
-      sendProgress(5, "Initializing...", "init");
-      await new Promise(resolve => setTimeout(resolve, 50));
-      sendProgress(8, "Loading policy documents...", "loading_policies");
+      sendProgress(5, "Initializing risk assessment...", "init");
+      await new Promise(resolve => setTimeout(resolve, 150)); // Give client time to process
+      sendProgress(10, "Loading policy documents...", "loading_policies");
 
       // Fetch ALL policy documents for comprehensive risk assessment
       const initialAssessmentPolicies = await storage.getPolicyDocumentsByCategory("initial_assessment");
@@ -10327,10 +10478,14 @@ NHS ENGLAND 12 PRINCIPLES FOR RISK ASSESSMENT (2024)
 2. COLLABORATIVE: Work with information from multiple sources (family, professionals)
    
 3. INTELLIGENCE SHARING: Use all available documented information
+   → Look for multiple evidence sources: medical records, care notes, incident reports
+   → Recent information is more relevant than old information
    
 4. COMMON LANGUAGE: Use clear, consistent terminology
+   → Use specific terms not vague descriptions
    
 5. CLEAR ROLES & RESPONSIBILITIES: Identify who needs to act on each risk
+   → Each assessment must have actionable steps for care workers
    
 6. RECORDING & MONITORING: Ensure risks are documented with evidence
    
@@ -10404,10 +10559,16 @@ CRITICAL REQUIREMENTS FOR EVIDENCE:
    ✓ Include 2-6 short direct quotes supporting each recommendation
    ✓ If no specific evidence → DO NOT recommend the assessment
 
-5. COMPREHENSIVE APPROACH - RECOMMEND ALL RELEVANT ASSESSMENTS:
-   ✓ DO recommend ALL assessments with documented evidence (minimum 3-5 if risks exist)
-   ✓ DO NOT limit recommendations - if service user has many risks, recommend all relevant assessments
-   ✓ Focus on quality evidence for each, but don't restrict quantity if multiple risks documented
+5. SELECTIVE APPROACH - ONLY STRONG EVIDENCE ASSESSMENTS:
+   ✓ Each assessment needs MULTIPLE pieces of SPECIFIC documented evidence (2+ diverse quotes)
+   ✓ Evidence must contain concrete details: names, dates, equipment, conditions, incidents
+   ✓ Evidence diversity required: prefer varied sources (medical + behavioral + environmental)
+   ✓ Recent evidence weighted higher: incidents in past month > incidents from years ago
+   ✓ TYPICAL RESULT: 3-7 assessments for most service users (only more if extensive risks documented)
+   ✓ Quality over quantity - 5 strong assessments better than 15 weak ones
+   ✓ Avoid duplicates: don't recommend "Falls" AND "Mobility" if evidence overlaps >70%
+   ✓ If evidence is vague/generic (e.g., "may need support", "requires assessment") → DO NOT recommend
+   ✓ If in doubt about evidence quality, diversity or specificity → DO NOT recommend
 
 6. ACCURACY IS PARAMOUNT (CQC 2024 Standard):
    ✗ DO NOT make up conditions, incidents, falls, behaviors not mentioned
@@ -10504,12 +10665,44 @@ Respond ONLY with valid JSON in this exact format:
       "name": "Assessment category name",
       "isMandatory": false,
       "reason": "FIRST PERSON explanation - why I need this assessment based on my documented needs. Start with 'I' or 'My'",
-      "evidence": "Direct quote or paraphrase from documents showing this assessment is needed",
-      "evidenceSnippets": ["2-6 short direct quotes from SERVICE USER documents supporting this assessment"]
+      "evidence": "Specific, detailed summary citing concrete facts from documents (NOT generic phrases like 'requires assessment')",
+      "evidenceSnippets": [
+        "Direct quote 1 from documents showing specific risk/need",
+        "Direct quote 2 from documents with concrete details",
+        "MINIMUM 2 quotes required - must be SPECIFIC not vague"
+      ]
     }
   ],
   "documentSummary": "Brief first-person summary of my overall profile based on ALL documents scanned - use 'I' and 'my'"
 }
+
+EVIDENCE QUALITY REQUIREMENTS - CRITICAL:
+
+✓ STRONG EVIDENCE (Include assessment):
+  - "Has fallen twice in the past month, once in bathroom" (specific incidents, dates, location)
+  - "Diagnosed with Type 2 diabetes, takes metformin 500mg twice daily" (diagnosis + medication)
+  - "Uses a zimmer frame but struggles on stairs due to arthritis" (equipment + limitation + reason)
+  - "Has a pressure sore on left heel, grade 2, being treated by district nurse" (specific location, stage, treatment)
+  - "Becomes confused and agitated in the evenings, diagnosed dementia 2023" (behavior + diagnosis + timeframe)
+  
+✗ WEAK/VAGUE EVIDENCE (Do NOT include):
+  - "May need mobility support" (too vague, no concrete evidence)
+  - "Has various health conditions" (too generic, no specifics)
+  - "Should be assessed for risks" (circular reasoning)
+  - "Requires appropriate care" (meaningless filler)
+  - "Mobility assessment needed" (stating need, not evidence)
+  - "Has some difficulty walking" (vague - how much? why? what equipment?)
+
+EVIDENCE DIVERSITY REQUIREMENT:
+Each assessment needs 2+ snippets showing DIFFERENT aspects:
+✓ GOOD (diverse): "Fell in bathroom in January 2026" + "Uses walking frame due to arthritis" (different aspects)
+✗ BAD (repetitive): "Has mobility issues" + "Requires mobility support" (same thing said twice)
+
+Each evidenceSnippets entry must be:
+- A direct quote or close paraphrase from documents
+- Contain SPECIFIC details (names, dates, numbers, equipment, conditions, incidents)
+- Show a DIFFERENT aspect/facet of the risk (not just repetition)
+- Not just state "needs assessment" - show WHY assessment is needed with concrete facts
 
 QUALITY CHECKLIST BEFORE RESPONDING:
 ✓ Did I extract information ONLY from "Documents to analyze:" section (not templates)?
@@ -10638,6 +10831,9 @@ Remember: Extract information ONLY from service user documents above. Templates 
         documentSummary: typeof parsed?.documentSummary === "string" ? parsed.documentSummary.trim() : "Information not found in documents",
       };
 
+      console.log(`[Risks] AI initially returned ${normalizedRecommendations.length} assessments`);
+      console.log(`[Risks] Assessment names:`, normalizedRecommendations.map((a: any) => a.name));
+
       result.documentSummary = toFirstPerson(result.documentSummary);
       result.recommendedAssessments = result.recommendedAssessments.map((assessment: any) => ({
         ...assessment,
@@ -10647,17 +10843,79 @@ Remember: Extract information ONLY from service user documents above. Templates 
       const evidenceFinder = buildDocumentEvidenceFinder(documentContentForAi || "");
       const derivedRecommendations = buildAssessmentRecommendations(result, evidenceFinder);
       result.recommendedAssessments = mergeAssessmentRecommendations(result.recommendedAssessments, derivedRecommendations);
-      result.recommendedAssessments = attachAssessmentEvidence(result.recommendedAssessments, result, evidenceFinder);
-      result.recommendedAssessments = result.recommendedAssessments.filter(
-        (assessment: any) => isMeaningfulEvidence(assessment?.evidence)
-      );
-      result.recommendedAssessments = result.recommendedAssessments.filter(
-        (assessment: any) => isAssessmentRelevantServer(assessment, result)
-      );
+      // CRITICAL FILTERING: Remove assessments without STRONG evidence
+      // NHS England Principle #1: Person-centred care - only recommend what's documented
+      const includedAssessmentNames: string[] = [];
+      
+      result.recommendedAssessments = result.recommendedAssessments.filter((assessment: any) => {
+        const assessmentName = assessment?.name || 'Unknown';
+        
+        // Must have evidence field
+        if (!assessment?.evidence || !assessment.evidence.trim()) {
+          console.log(`[Risks] ❌ ${assessmentName}: No evidence field`);
+          return false;
+        }
+        
+        // Must have meaningful evidence (not negated)
+        if (!isMeaningfulEvidence(assessment.evidence)) {
+          console.log(`[Risks] ❌ ${assessmentName}: Evidence not meaningful`);
+          return false;
+        }
+        
+        // Must have at least 2 evidence snippets (STRONG evidence requirement)
+        const snippets = normalizeStringArray(assessment?.evidenceSnippets || []).filter(isMeaningfulEvidence);
+        if (snippets.length < 2) {
+          console.log(`[Risks] ❌ ${assessmentName}: Only ${snippets.length} snippet(s), need 2+`);
+          return false;
+        }
+        
+        // Score evidence quality (0-100)
+        const qualityScore = scoreEvidenceQuality(assessment.evidence, snippets);
+        const MINIMUM_QUALITY_SCORE = 40; // Require at least 40/100 quality score
+        
+        if (qualityScore < MINIMUM_QUALITY_SCORE) {
+          console.log(`[Risks] ❌ ${assessmentName}: Quality score ${qualityScore}/100 (minimum ${MINIMUM_QUALITY_SCORE})`);
+          return false;
+        }
+        
+        // Must be relevant to service user profile
+        if (!isAssessmentRelevantServer(assessment, result)) {
+          console.log(`[Risks] ❌ ${assessmentName}: Not relevant to profile`);
+          return false;
+        }
+        
+        // Check for duplicates/similar assessments already included
+        if (isSimilarAssessment(assessmentName, includedAssessmentNames)) {
+          console.log(`[Risks] ❌ ${assessmentName}: Too similar to existing assessment`);
+          return false;
+        }
+        
+        // Check evidence diversity
+        if (snippets.length >= 2 && !hasEvidenceDiversity(snippets)) {
+          console.log(`[Risks] ⚠️  ${assessmentName}: Evidence lacks diversity (repetitive snippets)`);
+          // Don't reject, but log warning
+        }
+        
+        console.log(`[Risks] ✅ ${assessmentName}: ${snippets.length} snippets, quality ${qualityScore}/100`);
+        includedAssessmentNames.push(assessmentName);
+        return true;
+      });
+
+      // Clean up evidence snippets on remaining assessments
       result.recommendedAssessments = result.recommendedAssessments.map((assessment: any) => ({
         ...assessment,
         evidenceSnippets: normalizeStringArray(assessment?.evidenceSnippets).filter(isMeaningfulEvidence),
       }));
+
+      console.log(`[Risks] FINAL: Sending ${result.recommendedAssessments.length} assessments to user`);
+      console.log(`[Risks] Final assessment names:`, result.recommendedAssessments.map((a: any) => a.name));
+      
+      // Quality metrics summary
+      if (result.recommendedAssessments.length > 0) {
+        const avgSnippets = result.recommendedAssessments.reduce((sum: number, a: any) => 
+          sum + (a.evidenceSnippets?.length || 0), 0) / result.recommendedAssessments.length;
+        console.log(`[Risks] Quality metrics: ${result.recommendedAssessments.length} assessments, avg ${avgSnippets.toFixed(1)} snippets/assessment`);
+      }
 
       const scrubbedResult = sanitizeNarrativePII(result);
       const payload = allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult;
@@ -11207,20 +11465,65 @@ REQUIREMENTS:
       const callTypeLabel = callType || "General";
       const callTypeContext = callType ? `
 ═══════════════════════════════════════════════════════════════════════════════
-⚠️ CALL TYPE: ${callType}
+⚠️ CALL TYPE: ${callType} - DETAILED GUIDANCE
 ═══════════════════════════════════════════════════════════════════════════════
 
-This care plan is for ${callType} calls ONLY.
-Focus on tasks and support needed during ${callType} visits.
+This care plan is for ${callType} calls ONLY. Focus EXCLUSIVELY on tasks during ${callType} visits.
 
-Examples by call type:
-- Morning: Wake up, breakfast, morning meds, washing, dressing
-- Lunch: Lunch prep/eating, fluids, repositioning, check skin
-- Tea: Tea/snack, evening meds, personal care if needed
-- Bed: Night meds, personal care, night routine, safe sleep environment
-- Domestic: Cleaning, laundry, shopping, meal prep, household tasks
+${callType === 'Morning' ? `MORNING CALL FOCUS:
+✓ Waking up routine: how I like to be woken, time preferences
+✓ Personal care: washing, bathing/shower, oral care, skin care
+✓ Dressing: my clothing preferences, dignity, assistance level needed
+✓ Continence care: pad changes, toilet assistance
+✓ Breakfast: what I eat, dietary needs, assistance with eating/drinking
+✓ Morning medications: which meds, prompts vs. administration
+✓ Mobility: getting out of bed, transfers, equipment used
+✓ Safety: check environment, remove hazards` : ''}
 
-Include ONLY ${callType}-specific tasks - do not mix other call types!
+${callType === 'Lunch' ? `LUNCH CALL FOCUS:
+✓ Meal preparation: what I eat for lunch, preferences, dietary requirements
+✓ Eating assistance: level of support, utensils, positioning
+✓ Hydration: drinks offered, fluid intake monitoring
+✓ Lunchtime medications if applicable
+✓ Personal care: toileting, pad changes if needed
+✓ Repositioning: pressure relief, comfort, skin checks
+✓ Activities: social interaction, engagement during visit
+✓ Safety checks: environment, wellbeing, any concerns` : ''}
+
+${callType === 'Tea' ? `TEA CALL FOCUS:
+✓ Tea/snack preparation: preferences, dietary needs
+✓ Hydration: afternoon fluids, preferences
+✓ Evening medications if scheduled
+✓ Personal care: toileting, hygiene, pad changes if needed  
+✓ Light activities: conversation, TV, comfort
+✓ Repositioning: pressure relief if applicable
+✓ Check wellbeing: mood, pain, concerns
+✓ Prepare for evening: lighting, comfort, safety` : ''}
+
+${callType === 'Bed' ? `BEDTIME CALL FOCUS:
+✓ Night medications: which meds, timing, prompts
+✓ Personal care: evening wash, oral care, skincare routine
+✓ Continence care: pad changes, toileting
+✓ Undressing: night clothes, dignity, preferences
+✓ Bed transfers: safe transfer to bed, equipment, positioning
+✓ Comfort: pillows, covers, positioning for sleep
+✓ Night routine: anything that helps me sleep (music, TV, lights)
+✓ Safety: call bell within reach, room secure, night light
+✓ Secure property: all doors locked, windows closed, appliances off` : ''}
+
+${callType === 'Domestic' ? `DOMESTIC CALL FOCUS:
+✓ Cleaning: which rooms, specific tasks (hoover, dust, mop)
+✓ Laundry: washing, drying, ironing, putting away
+✓ Kitchen: dishes, surfaces, bin emptying
+✓ Shopping: list preparation, shopping assistance, putting away
+✓ Meal preparation: batch cooking, freezer meals
+✓ Bathroom: cleaning, restocking supplies
+✓ Bedroom: changing bed linen, tidying
+✓ General tidying: sorting, organizing
+✓ Note: Include ONLY domestic tasks - no personal care unless specifically documented` : ''}
+
+CRITICAL: Include ONLY the tasks relevant to ${callType} calls.
+Do NOT include tasks from other call types (e.g., don't mention breakfast in a Bed call).
 ═══════════════════════════════════════════════════════════════════════════════
 ` : "";
 
@@ -11232,22 +11535,50 @@ CQC 2024 PERSON-CENTRED CARE PLANNING
 
 ✓ Individual preferences must be met
 ✓ Physical, mental, emotional and social needs
-✓ Build on strengths, prevent declines
+✓ Build on strengths, prevent declines  
 ✓ Quality of life: dignity, autonomy, meaningful activity
 ✓ Person-centred: holistic support, not just tasks
 
+NHS ENGLAND CARE PLANNING PRINCIPLES:
+1. Person-centred: Focus on MY needs, preferences and goals
+2. Collaborative: Include information from family, professionals
+3. Specific & Detailed: Times, methods, preferences, equipment
+4. Outcome-focused: State what good care achieves for me
+5. Living document: Can be updated as my needs change
+
 ${policyContext}${callTypeContext}
-RULES:
-- Write in FIRST PERSON: "I", "my", "me" (not "the service user")
-- Never use m-dashes, en-dashes, or Oxford commas
-- Be detailed: times, preferences, routines
-- Only use document info - if missing say "Ask me about preferences"
+WRITING QUALITY STANDARDS:
+
+✓ FIRST PERSON: Write as "I", "my", "me" (never "the service user" or "client")
+✓ SPECIFIC DETAIL: Include exact times, specific preferences, named equipment
+✓ ACTIONABLE: Carers must know EXACTLY what to do from reading this
+✓ STEP-BY-STEP: Describe routines in sequence (first this, then that)
+✓ COMPREHENSIVE: Cover ALL aspects relevant to this call type
+✓ DIGNIFIED: Maintain my dignity, privacy and respect throughout
+✓ SAFETY: Highlight any risks, equipment needs, medical considerations
+✓ READABLE: Use clear sentences (15-25 words average), avoid jargon
+✓ CONSISTENT: Use same terms throughout (don't switch between "walking frame" and "zimmer")
+
+FORMATTING RULES:
+- Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas
+- Never use Oxford commas (no comma before final "and" in a list)
+- Use British English spelling and terms
 ${privacyRules}
 - Keep place names as written
 
+EXAMPLE QUALITY (Morning call - 250 words):
+"I like to wake up naturally around 8am - please knock gently and wait for my response before entering. I need support to sit up in bed using the bed rail on my right side. My morning routine starts with toileting - I can walk to the bathroom with my walking frame but need supervision for safety as I had a fall last year. I prefer a wash at the sink rather than a shower on morning calls. Please help me wash my upper body and back as I struggle to reach. I like the water warm but not too hot. After washing I need help drying thoroughly, especially between my toes as I have diabetes and poor circulation. For dressing I prefer comfortable loose clothing - my clothes are laid out in the wardrobe. I can manage my upper body but need full assistance with lower body dressing due to my hip arthritis. Please help me put on my compression stockings - left leg first as this is weaker. I take 3 medications at breakfast time which are in the dosette box in the kitchen. I need prompting but can take them myself with a glass of water. For breakfast I like porridge made with semi-skimmed milk and a mug of tea with one sugar. Please ensure I eat and drink as I sometimes forget. Before leaving please check I have my call pendant on and my mobile phone is within reach."
+
+✓ This example shows: specific times (8am), named equipment (walking frame, bed rail, dosette box), safety notes (fall last year), dignity maintained, clear preferences (porridge, warm water), step-by-step routine, medical conditions context (diabetes, arthritis)
+
+✗ BAD EXAMPLE - TOO VAGUE:
+"I need help in the morning. Staff should assist me with personal care and give me breakfast. I take medications. Please make sure I'm safe and comfortable."
+
+✗ Avoid vague phrases: "assist as needed", "provide support", "ensure comfort", "appropriate care" - be SPECIFIC
+
 OUTPUT FORMAT - Return ONLY valid JSON:
 {
-  "content": "Detailed first-person narrative (200+ words) covering all aspects of care for this call type in one flowing text block"
+  "content": "Detailed first-person narrative (300+ words minimum) covering ALL aspects of care for this call type in one flowing paragraph"
 }`;
 
       sendProgress(10, "Generating care plan...", "generating");
@@ -11267,15 +11598,40 @@ OUTPUT FORMAT - Return ONLY valid JSON:
           model: getAccurateModel(),
           messages: [
             { role: "system", content: baseSystemPrompt },
-            { role: "user", content: `Generate a comprehensive ${callTypeLabel} care plan.
+            { role: "user", content: `Generate a comprehensive ${callTypeLabel} care plan following CQC 2024 person-centred standards.
 
-Service user documents:
+═══════════════════════════════════════════════════════════════════════════════
+SERVICE USER DOCUMENTS
+═══════════════════════════════════════════════════════════════════════════════
+
 ${documentContentForAi}
 
-Remember: Write as if I am the service user. Cover all ${callTypeLabel}-specific care needs in one detailed narrative. Return ONLY valid JSON.` }
+═══════════════════════════════════════════════════════════════════════════════
+YOUR TASK
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Read ALL the documents thoroughly
+2. Extract information relevant to ${callTypeLabel} calls ONLY
+3. Write in FIRST PERSON as if I am describing my own care needs
+4. Be SPECIFIC: times, preferences, equipment, step-by-step routines
+5. Include safety considerations and dignity throughout
+6. Minimum 300 words - comprehensive detail is essential
+7. Write as ONE flowing paragraph (not bullet points)
+
+QUALITY CHECKLIST:
+✓ Written in first person (I, my, me)?
+✓ Specific times and preferences included?
+✓ Equipment and assistance levels detailed?
+✓ Safety considerations mentioned?
+✓ Dignity and respect maintained?
+✓ Focused ONLY on ${callTypeLabel} tasks?
+✓ Actionable - carers know exactly what to do?
+✓ Minimum 300 words of comprehensive detail?
+
+Return ONLY valid JSON with content field.` }
           ],
-          temperature: 0.2,
-          max_completion_tokens: 2000,
+          temperature: 0.1,
+          max_completion_tokens: 3000,
           seed: 42,
           response_format: { type: "json_object" },
         }, "care_plan_calltype", aiUserContext);
@@ -11291,10 +11647,106 @@ Remember: Write as if I am the service user. Cover all ${callTypeLabel}-specific
 
         let enhancedContent = parsed.content || "";
         
+        // Comprehensive Quality Validation
+        const wordCount = enhancedContent.split(/\s+/).length;
+        const sentenceCount = enhancedContent.split(/[.!?]+/).filter(s => s.trim().length > 10).length;
+        const avgWordsPerSentence = sentenceCount > 0 ? wordCount / sentenceCount : 0;
+        
+        console.log(`[CarePlan] Generated ${wordCount} words, ${sentenceCount} sentences for ${callTypeLabel} plan`);
+        
+        // Length check
+        if (wordCount < 150) {
+          console.warn(`[CarePlan] ⚠️  Content too short (${wordCount} words, minimum 300 recommended)`);
+        } else if (wordCount < 250) {
+          console.log(`[CarePlan] ⚠️  Content adequate but could be more detailed (${wordCount} words)`);
+        } else {
+          console.log(`[CarePlan] ✅ Content length good (${wordCount} words)`);
+        }
+        
+        // Readability scoring (aim for 15-25 words per sentence for care plans)
+        if (avgWordsPerSentence > 35) {
+          console.warn(`[CarePlan] ⚠️  Sentences too long (avg ${avgWordsPerSentence.toFixed(1)} words) - may be hard to read`);
+        } else if (avgWordsPerSentence > 0 && avgWordsPerSentence < 10) {
+          console.warn(`[CarePlan] ⚠️  Sentences very short (avg ${avgWordsPerSentence.toFixed(1)} words) - may lack detail`);
+        } else if (avgWordsPerSentence > 0) {
+          console.log(`[CarePlan] ✅ Readability good (avg ${avgWordsPerSentence.toFixed(1)} words/sentence)`);
+        }
+        
+        // Safety keyword check
+        const contentLower = enhancedContent.toLowerCase();
+        const safetyTerms = ['safety', 'risk', 'danger', 'emergency', 'fall', 'choking', 'allergic'];
+        const hasSafetyContent = safetyTerms.some(term => contentLower.includes(term));
+        if (!hasSafetyContent && callType !== 'Domestic') {
+          console.warn(`[CarePlan] ⚠️  No safety considerations mentioned (should include risks/precautions)`);
+        }
+        
+        // Equipment mention check
+        const equipmentTerms = ['hoist', 'frame', 'wheelchair', 'walker', 'zimmer', 'stick', 'aid', 'equipment'];
+        const mentionsEquipment = equipmentTerms.some(term => contentLower.includes(term));
+        if (mentionsEquipment) {
+          // Check if usage is explained
+          const hasUsageExplanation = contentLower.includes('use') || contentLower.includes('using') || 
+                                       contentLower.includes('assist') || contentLower.includes('help');
+          if (!hasUsageExplanation) {
+            console.warn(`[CarePlan] ⚠️  Equipment mentioned but usage not clearly explained`);
+          }
+        }
+        
+        // Missing information detection
+        const missingInfoPhrases = [
+          'ask me about', 'information not found', 'not specified', 'details unclear',
+          'preferences not stated', 'not documented', 'check with'
+        ];
+        const hasMissingInfo = missingInfoPhrases.some(phrase => contentLower.includes(phrase));
+        if (hasMissingInfo) {
+          console.log(`[CarePlan] ℹ️  Plan includes prompts for missing information (good practice)`);
+        }
+        
         // Ensure first-person perspective
         if (!enhancedContent.includes("I ") && !enhancedContent.includes("my ")) {
+          console.log(`[CarePlan] Converting to first person`);
           enhancedContent = enhancedContent.replace(/The (client|service user|patient)/gi, "I");
           enhancedContent = enhancedContent.replace(/Staff should/gi, "I need my carers to");
+          enhancedContent = enhancedContent.replace(/\b(He|She)\b/gi, "I");
+          enhancedContent = enhancedContent.replace(/\b(his|her)\b/gi, "my");
+        }
+        
+        // Enhanced call type relevance validation
+        if (callType) {
+          const wrongCallTypeTerms: Record<string, string[]> = {
+            'Morning': ['bedtime', 'night medication', 'night routine', 'prepare for sleep', 'going to bed'],
+            'Bed': ['breakfast', 'waking up', 'morning routine', 'morning medication', 'morning wash'],
+            'Domestic': ['personal care', 'washing', 'dressing', 'medication', 'toileting', 'continence'],
+            'Lunch': ['breakfast', 'bedtime', 'night routine', 'waking'],
+            'Tea': ['breakfast', 'waking up', 'bedtime', 'night'],
+          };
+          
+          const wrongTerms = wrongCallTypeTerms[callType] || [];
+          const foundWrongTerms = wrongTerms.filter(term => 
+            contentLower.includes(term.toLowerCase())
+          );
+          
+          if (foundWrongTerms.length > 0) {
+            console.warn(`[CarePlan] ❌ ${callType} plan contains terms from other call types: ${foundWrongTerms.join(', ')}`);
+          }
+          
+          // Check for expected call-type content
+          const expectedTerms: Record<string, string[]> = {
+            'Morning': ['wash', 'dress', 'breakfast', 'wake', 'routine'],
+            'Bed': ['night', 'sleep', 'evening', 'bedtime', 'rest'],
+            'Domestic': ['clean', 'tidy', 'laundry', 'shopping', 'household'],
+            'Lunch': ['lunch', 'meal', 'eat', 'drink', 'food'],
+            'Tea': ['tea', 'snack', 'evening', 'afternoon'],
+          };
+          
+          const expected = expectedTerms[callType] || [];
+          const hasExpectedContent = expected.some(term => contentLower.includes(term));
+          
+          if (!hasExpectedContent && expected.length > 0) {
+            console.warn(`[CarePlan] ⚠️  ${callType} plan missing expected content keywords`);
+          } else {
+            console.log(`[CarePlan] ✅ ${callType} plan contains appropriate call-type content`);
+          }
         }
 
         const today = new Date().toLocaleDateString("en-GB");
@@ -11437,22 +11889,116 @@ ${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.versio
         ? "Privacy rules: Full names may be included only if present in the documents. Do not invent names. Never include dates of birth."
         : "Privacy rules: Replace any service user names with I. NEVER include dates of birth. Do NOT include any person names. Use role terms (my carer, my GP, my family member).";
 
-      const systemPrompt = `You are an expert care plan writer for a UK care facility following CQC standards.
+      const systemPrompt = `You are an expert care plan writer for a UK care facility following CQC 2024 Person-Centred Care standards and NHS England Care Planning Principles.
+
 ${policyContext}
-Analyze the uploaded documents and generate content for a COMPLETE Initial Assessment/Care Plan template.
-The input includes multiple labeled sections (Existing Care Plan, Supporting Documents and User Notes). Use ALL of them, including Moving and Handling plans, Additional Documents and Additional Context notes.
+
+═══════════════════════════════════════════════════════════════════════════════
+CRITICAL: MAXIMUM DEPTH AND DETAIL REQUIRED
+═══════════════════════════════════════════════════════════════════════════════
+
+This is a COMPREHENSIVE care plan requiring EXTENSIVE detail in every section.
+You will analyze ALL uploaded documents including:
+- Existing Care Plans (if provided)
+- Moving and Handling Plans
+- Support Plans
+- Risk Assessments  
+- Medical Records
+- Additional Documents
+- User Notes and Context
+
+Use EVERY piece of information from ALL sources to create the most detailed possible care plan.
 
 ${privacyDirective}
 Keep place names and locations as written. Do not redact places.
 
-FORMATTING RULES:
-- Never use m-dashes or en-dashes. Use hyphens (-) or commas instead.
-- Never use Oxford commas. Write "apples, oranges and bananas" not "apples, oranges, and bananas".
-- ALL content must be in FIRST PERSON ("I", "my", "me")
-- Be extremely detailed - minimum 100-150 words per main narrative section
+═══════════════════════════════════════════════════════════════════════════════
+DEPTH REQUIREMENTS - MINIMUM WORD COUNTS:
+═══════════════════════════════════════════════════════════════════════════════
 
-Generate content for EVERY section. Extract relevant information from documents and expand with rich detail. Never leave any field blank. If a detail is missing, state that it is not specified in documents and provide cautious, generalized detail without inventing names, dates or locations.
-If any detail is uncertain or inferred, add a clear question to verificationQuestions so the user can confirm it. If everything is well-supported, return an empty array.
+▶ "whoAmI": MINIMUM 250 words (aim for 300-400)
+▶ "healthAndWellbeing": MINIMUM 300 words (aim for 400-500)
+▶ "personalCareNeeds": MINIMUM 300 words (aim for 400-500)
+▶ "capacityAndSafeguarding": MINIMUM 200 words (aim for 250-300)
+▶ "medicationRequirements": MINIMUM 200 words (aim for 250-300)
+▶ "nutrition": MINIMUM 200 words (aim for 250-300)
+▶ "mobilityAndEquipment": MINIMUM 200 words (aim for 250-300)
+▶ Other narrative fields: MINIMUM 150 words each
+
+═══════════════════════════════════════════════════════════════════════════════
+WRITING STYLE - WHAT "IN-DEPTH" MEANS:
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ STEP-BY-STEP PROCESSES: Break down every routine into detailed steps
+✓ SPECIFIC TIMES: Include exact times, durations, frequencies
+✓ NAMED EQUIPMENT: List all equipment with specific details
+✓ PREFERENCES EXPLAINED: Not just "I like tea" but "I prefer strong Yorkshire tea with semi-skimmed milk and one sugar, in my blue mug"
+✓ CONTEXT & REASONING: Explain WHY things are done certain ways
+✓ CONSEQUENCES: What happens if routines aren't followed
+✓ SCENARIOS: Cover different situations (good days vs difficult days)
+✓ SENSORY DETAILS: Temperatures, textures, positions, lighting
+✓ COMMUNICATION: How I express needs, what signs to watch for
+✓ EMOTIONAL NEEDS: How I feel, what reassures me, what distresses me
+
+═══════════════════════════════════════════════════════════════════════════════
+EXAMPLES OF DEPTH (Learn from these):
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ SHALLOW (DO NOT DO THIS):
+"I need help with washing and dressing. I use a walking frame and take medication."
+
+✅ IN-DEPTH (DO THIS):
+"My morning routine starts around 7:30am when I wake naturally - I don't like being rushed so please allow at least 90 minutes for my full morning care. I need support to sit up in bed using the bed rail on my right side as my left shoulder is weak from my stroke in 2023. Once sitting, I take a moment to orient myself as I sometimes feel dizzy on first waking. My carers should wait for me to nod before helping me stand. I use my red wheeled walking frame to get to the bathroom - it has my name on a label and brakes on both handles which must be applied when I'm standing still. I can walk about 15 steps but tire quickly so please stay close on my left side as this is my weaker side. In the bathroom I prefer to wash at the sink rather than shower in the mornings as the shower can be overwhelming when I'm still waking up. I like the water warm but not hot - test it first. I can wash my face and front but need help with my back, underarms and lower body. Please use the Simple soap as other brands irritate my skin. After washing I need thorough drying especially between my toes as I have poor circulation due to diabetes and any moisture can lead to infections. I had a fungal infection last year that took months to clear so this is very important to me."
+
+═══════════════════════════════════════════════════════════════════════════════
+CONTENT GENERATION RULES:
+═══════════════════════════════════════════════════════════════════════════════
+
+1. FIRST PERSON ALWAYS: Write as "I", "my", "me" - NEVER "the service user", "the client"
+
+2. NO GENERIC STATEMENTS: Replace vague phrases with specific details:
+   ❌ "I need assistance" → ✅ "I need full assistance from two carers using the hoist"
+   ❌ "I take medication" → ✅ "I take 3 tablets at 8am (metformin 500mg for diabetes, ramipril 5mg for blood pressure, and omeprazole 20mg for acid reflux) which are in my weekly dosette box"
+
+3. COVER ALL ASPECTS: For each topic, address:
+   - Current situation
+   - How I do things / How carers help
+   - Equipment and aids used
+   - Preferences and dislikes
+   - Safety considerations
+   - What works well
+   - What makes things difficult
+   - Variations (good days vs bad days)
+
+4. FORMATTING:
+   - Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas
+   - Never use Oxford commas: "apples, oranges and bananas" NOT "apples, oranges, and bananas"
+   - Write in flowing paragraphs, not bullet points
+   - Use natural, conversational language
+
+5. MISSING INFORMATION:
+   - If detail is missing, acknowledge it: "My medication routine is not fully documented but..."
+   - Add verification question for anything uncertain
+   - Provide thoughtful general guidance without inventing specifics
+
+6. VERIFICATION:
+   - Return empty verificationQuestions array if everything is clear
+   - Add specific questions for any uncertainty: "What time do you prefer your evening meal?"
+
+═══════════════════════════════════════════════════════════════════════════════
+QUALITY CHECKLIST (Every response must pass all checks):
+═══════════════════════════════════════════════════════════════════════════════
+
+☐ Every narrative field has minimum word count
+☐ All fields populated (none empty)
+☐ First person throughout
+☐ Specific times, names, equipment mentioned
+☐ Step-by-step processes explained
+☐ Preferences with reasoning
+☐ Safety considerations included
+☐ Emotional and dignity needs addressed
+☐ Scenarios covered (variations in routine)
+☐ No generic statements ("as needed", "appropriate support")
 
 OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
 {
@@ -11684,9 +12230,9 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
           { role: "system", content: systemPrompt },
           { role: "user", content: `Analyze this document and generate a complete care plan template. Extract all relevant information and write detailed first-person content for each section:\n\n${contentToEnhance}` }
         ],
-        temperature: 0,
+        temperature: 0.1,
         seed: 42,
-        max_completion_tokens: 12000,
+        max_completion_tokens: 16000,
         response_format: { type: "json_object" },
       }, "plan_enhancer", aiUserContext);
 
