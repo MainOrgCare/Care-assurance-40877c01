@@ -89,12 +89,26 @@ interface LaneWorkload {
 const DEFAULT_WORKING_HOURS_START = 6 * 60;  // 6:00 AM
 const DEFAULT_WORKING_HOURS_END = 22 * 60;   // 10:00 PM
 const DEFAULT_TIME_CRITICAL_TOLERANCE = 15;  // ±15 minutes
+
+const normalizeLabelForMatch = (value: string | null | undefined) =>
+  (value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+
+/**
+ * Call time windows keep the day in a predictable order:
+ * AM → Lunch → Tea/PM → Bed/Evening
+ *
+ * NOTE: Treat "PM" as Tea/Afternoon (common rostering convention), not Bed.
+ */
 const CALL_TIME_WINDOWS = [
-  { match: /am|morning/, start: 6 * 60, end: 10 * 60 },
-  { match: /lunch/, start: 11 * 60, end: 14 * 60 },
-  { match: /tea/, start: 14 * 60, end: 17 * 60 },
-  { match: /pm|evening|bed|night/, start: 17 * 60, end: 22 * 60 },
-];
+  { match: /(^| )(am|morning|wake|breakfast)( |$)/, start: 6 * 60, end: 12 * 60 },
+  { match: /(^| )(lunch|midday|noon)( |$)/, start: 12 * 60, end: 14 * 60 },
+  { match: /(^| )(tea|afternoon|pm)( |$)/, start: 14 * 60, end: 17 * 60 },
+  { match: /(^| )(bed|evening|night|late|eve)( |$)/, start: 17 * 60, end: 22 * 60 },
+] as const;
 const UNTIMED_CALL_MATCH = /escort|shopping|housework|domestic|befriending/;
 
 // ============================================================================
@@ -122,7 +136,7 @@ const getCallTypeWindow = (
   constraints?: OptimizationConstraints
 ): { start: number; end: number } | null => {
   if (!callTypeLabel) return null;
-  const normalized = callTypeLabel.toLowerCase();
+  const normalized = normalizeLabelForMatch(callTypeLabel);
   const workingStart = constraints?.workingHoursStart ?? DEFAULT_WORKING_HOURS_START;
   const workingEnd = constraints?.workingHoursEnd ?? DEFAULT_WORKING_HOURS_END;
   for (const window of CALL_TIME_WINDOWS) {
@@ -132,6 +146,24 @@ const getCallTypeWindow = (
         end: Math.min(workingEnd, window.end),
       };
     }
+  }
+  return null;
+};
+
+const getCallTypePriority = (callTypeLabel: string | null | undefined): number => {
+  if (!callTypeLabel) return 99;
+  const normalized = normalizeLabelForMatch(callTypeLabel);
+  for (let i = 0; i < CALL_TIME_WINDOWS.length; i += 1) {
+    if (CALL_TIME_WINDOWS[i].match.test(normalized)) return i + 1; // 1..N
+  }
+  return 99;
+};
+
+const getCallTypeWindowIndex = (callTypeLabel: string | null | undefined): number | null => {
+  if (!callTypeLabel) return null;
+  const normalized = normalizeLabelForMatch(callTypeLabel);
+  for (let i = 0; i < CALL_TIME_WINDOWS.length; i += 1) {
+    if (CALL_TIME_WINDOWS[i].match.test(normalized)) return i;
   }
   return null;
 };
@@ -366,26 +398,38 @@ export const optimizeForTravel = (
     const timeCritical = workload.entries.filter((e) => e.isTimeCritical && constraints.respectTimeCritical);
     const flexible = workload.entries.filter((e) => !e.isTimeCritical || !constraints.respectTimeCritical);
 
-    // Order flexible entries by nearest neighbor
-    const orderedIds = orderByNearestNeighbor(
-      flexible.map((e) => ({
-        id: e.id,
-        startMinutes: e.startMinutes,
-        durationMinutes: e.durationMinutes,
-        lat: e.lat ?? null,
-        lon: e.lon ?? null,
-      }))
-    );
+    // Order flexible entries within each time band (AM -> Lunch -> Tea -> Bed -> Other),
+    // then by nearest-neighbor to reduce travel within that band.
+    const flexibleByPriority = new Map<number, EntryWithLocation[]>();
+    for (const entry of flexible) {
+      const prio = getCallTypePriority(entry.callTypeLabel);
+      const group = flexibleByPriority.get(prio) ?? [];
+      group.push(entry);
+      flexibleByPriority.set(prio, group);
+    }
+    const priorities = Array.from(flexibleByPriority.keys()).sort((a, b) => a - b);
+    const flexibleOrdered: EntryWithLocation[] = [];
+    for (const prio of priorities) {
+      const group = flexibleByPriority.get(prio) ?? [];
+      const orderedIds = orderByNearestNeighbor(
+        group.map((e) => ({
+          id: e.id,
+          startMinutes: e.startMinutes,
+          durationMinutes: e.durationMinutes,
+          lat: e.lat ?? null,
+          lon: e.lon ?? null,
+        }))
+      );
+      for (const id of orderedIds) {
+        const found = group.find((e) => e.id === id);
+        if (found) flexibleOrdered.push(found);
+      }
+    }
 
     // Create ordered entry list with time-critical entries in their original positions
     const allEntriesSorted = [...workload.entries].sort((a, b) => a.startMinutes - b.startMinutes);
     const workingStart = constraints.workingHoursStart ?? DEFAULT_WORKING_HOURS_START;
     let cursor = allEntriesSorted[0]?.startMinutes ?? workingStart;
-
-    // Build a combined schedule
-    const flexibleOrdered = orderedIds
-      .map((id) => flexible.find((e) => e.id === id))
-      .filter((e): e is EntryWithLocation => e !== undefined);
 
     let flexIdx = 0;
     for (const original of allEntriesSorted) {
@@ -395,9 +439,16 @@ export const optimizeForTravel = (
         cursor = Math.max(cursor, original.startMinutes + original.durationMinutes + 5);
       } else if (flexIdx < flexibleOrdered.length) {
         const entry = flexibleOrdered[flexIdx];
-        const newStart = Math.max(cursor, workingStart);
-        timeOverrides[entry.id] = clampToWorkingHours(newStart, entry.durationMinutes, constraints);
-        cursor = newStart + entry.durationMinutes + 5;
+        let proposed = Math.max(cursor, workingStart);
+        proposed = clampToWorkingHours(proposed, entry.durationMinutes, constraints);
+        const isUntimed = isUntimedCallType(entry.callTypeLabel);
+        if (!isUntimed) {
+          proposed = clampToCallTypeWindow(proposed, entry.durationMinutes, entry.callTypeLabel, constraints);
+        } else {
+          proposed = clampToUntimedGap(proposed, entry.durationMinutes, constraints);
+        }
+        timeOverrides[entry.id] = proposed;
+        cursor = proposed + entry.durationMinutes + 5;
         flexIdx++;
       }
     }
@@ -582,48 +633,153 @@ const packAllLanes = (
   workloads: LaneWorkload[],
   bufferMinutes: number,
   respectTimeCritical: boolean,
-  constraints?: OptimizationConstraints
+  constraints: OptimizationConstraints
 ): { time: Record<string, number>; lane: Record<string, string> } => {
   const timeOverrides: Record<string, number> = {};
-  const workingStart = constraints?.workingHoursStart ?? DEFAULT_WORKING_HOURS_START;
-  const workingEnd = constraints?.workingHoursEnd ?? DEFAULT_WORKING_HOURS_END;
+  const workingStart = constraints.workingHoursStart ?? DEFAULT_WORKING_HOURS_START;
+  const workingEnd = constraints.workingHoursEnd ?? DEFAULT_WORKING_HOURS_END;
+
+  type Block = { start: number; end: number };
+  const insertBlock = (blocks: Block[], block: Block) => {
+    if (!Number.isFinite(block.start) || !Number.isFinite(block.end) || block.end <= block.start) return;
+    blocks.push(block);
+    blocks.sort((a, b) => a.start - b.start);
+    // Merge overlaps
+    let write = 0;
+    for (let i = 0; i < blocks.length; i += 1) {
+      const curr = blocks[i];
+      if (write === 0) {
+        blocks[write++] = curr;
+        continue;
+      }
+      const prev = blocks[write - 1];
+      if (curr.start <= prev.end) {
+        prev.end = Math.max(prev.end, curr.end);
+      } else {
+        blocks[write++] = curr;
+      }
+    }
+    blocks.length = write;
+  };
+
+  const findEarliestInRange = (
+    blocks: Block[],
+    rangeStart: number,
+    rangeEnd: number,
+    desiredStart: number,
+    durationMinutes: number
+  ): number | null => {
+    let cursor = Math.max(rangeStart, desiredStart);
+    if (cursor + durationMinutes > rangeEnd) return null;
+    for (const block of blocks) {
+      if (cursor + durationMinutes <= block.start) {
+        return cursor;
+      }
+      if (cursor < block.end) {
+        cursor = block.end;
+      }
+      if (cursor + durationMinutes > rangeEnd) {
+        return null;
+      }
+    }
+    return cursor + durationMinutes <= rangeEnd ? cursor : null;
+  };
+
+  const orderedBands = CALL_TIME_WINDOWS.map((band) => ({
+    start: Math.max(workingStart, band.start),
+    end: Math.min(workingEnd, band.end),
+  }));
 
   for (const workload of workloads) {
-    const sorted = [...workload.entries].sort((a, b) => a.startMinutes - b.startMinutes);
-    let cursor = workingStart;
+    const blocks: Block[] = [];
+    const used = new Set<string>();
 
-    for (const entry of sorted) {
-      if (entry.isTimeCritical && respectTimeCritical) {
-        // Time-critical: keep at original time (within tolerance if constraints provided)
-        const tolerance = constraints?.timeCriticalToleranceMinutes ?? DEFAULT_TIME_CRITICAL_TOLERANCE;
-        timeOverrides[entry.id] = entry.startMinutes;
-        cursor = Math.max(cursor, entry.startMinutes + entry.durationMinutes + bufferMinutes);
-      } else {
-        const window = getCallTypeWindow(entry.callTypeLabel, constraints);
-        let proposed = Math.max(cursor, workingStart);
-        const isUntimed = isUntimedCallType(entry.callTypeLabel);
-        if (window && !entry.isTemplated && !isUntimed) {
-          proposed = Math.max(proposed, window.start);
-        }
-        const maxStart = Math.min(
-          workingEnd - entry.durationMinutes,
-          window && !entry.isTemplated && !isUntimed
-            ? window.end - entry.durationMinutes
-            : workingEnd - entry.durationMinutes
-        );
-        if (proposed > maxStart) {
-          proposed = Math.max(cursor, workingStart);
-        }
-        proposed = Math.min(proposed, workingEnd - entry.durationMinutes);
-        if (!entry.isTemplated && !isUntimed) {
-          proposed = clampToCallTypeWindow(proposed, entry.durationMinutes, entry.callTypeLabel, constraints);
-        } else if (!entry.isTemplated && isUntimed) {
-          proposed = clampToUntimedGap(proposed, entry.durationMinutes, constraints);
-        }
-        if (proposed < cursor) proposed = cursor;
-        timeOverrides[entry.id] = Math.max(proposed, workingStart);
-        cursor = timeOverrides[entry.id] + entry.durationMinutes + bufferMinutes;
+    // 1) Anchor time-critical calls first (prevents overlaps caused by priority sorting).
+    if (respectTimeCritical) {
+      const fixed = workload.entries
+        .filter((e) => e.isTimeCritical)
+        .sort((a, b) => a.startMinutes - b.startMinutes);
+      for (const entry of fixed) {
+        const start = clampToWorkingHours(entry.startMinutes, entry.durationMinutes, constraints);
+        timeOverrides[entry.id] = start;
+        insertBlock(blocks, { start, end: start + entry.durationMinutes + bufferMinutes });
+        used.add(entry.id);
       }
+    }
+
+    const flexible = workload.entries.filter((e) => !used.has(e.id));
+
+    // 2) Timed calls by band order: AM → Lunch → Tea/PM → Bed/Evening
+    for (let bandIdx = 0; bandIdx < orderedBands.length; bandIdx += 1) {
+      const band = orderedBands[bandIdx];
+      if (band.end <= band.start) continue;
+
+      const bandEntries = flexible
+        .filter(
+          (e) =>
+            !used.has(e.id) &&
+            !isUntimedCallType(e.callTypeLabel) &&
+            getCallTypeWindowIndex(e.callTypeLabel) === bandIdx
+        )
+        .sort((a, b) => a.startMinutes - b.startMinutes);
+
+      let cursor = band.start;
+      for (const entry of bandEntries) {
+        const desired = Math.max(band.start, cursor, entry.startMinutes);
+        let start =
+          findEarliestInRange(blocks, band.start, band.end, desired, entry.durationMinutes) ??
+          // If the band is saturated, spill forward (keeps AM before Lunch, etc.)
+          findEarliestInRange(
+            blocks,
+            Math.max(band.end, workingStart),
+            workingEnd,
+            Math.max(band.end, cursor),
+            entry.durationMinutes
+          ) ??
+          Math.max(workingStart, Math.min(workingEnd - entry.durationMinutes, desired));
+
+        start = clampToWorkingHours(start, entry.durationMinutes, constraints);
+        start = clampToCallTypeWindow(start, entry.durationMinutes, entry.callTypeLabel, constraints);
+
+        timeOverrides[entry.id] = start;
+        insertBlock(blocks, { start, end: start + entry.durationMinutes + bufferMinutes });
+        used.add(entry.id);
+        cursor = start + entry.durationMinutes + bufferMinutes;
+      }
+    }
+
+    // 3) Untimed calls: try to place in natural gaps.
+    const untimed = flexible
+      .filter((e) => !used.has(e.id) && isUntimedCallType(e.callTypeLabel))
+      .sort((a, b) => a.startMinutes - b.startMinutes);
+
+    for (const entry of untimed) {
+      const desired = clampToWorkingHours(entry.startMinutes, entry.durationMinutes, constraints);
+      const preferred = clampToUntimedGap(desired, entry.durationMinutes, constraints);
+      const start =
+        findEarliestInRange(blocks, workingStart, workingEnd, preferred, entry.durationMinutes) ??
+        findEarliestInRange(blocks, workingStart, workingEnd, desired, entry.durationMinutes) ??
+        Math.max(workingStart, Math.min(workingEnd - entry.durationMinutes, desired));
+
+      timeOverrides[entry.id] = start;
+      insertBlock(blocks, { start, end: start + entry.durationMinutes + bufferMinutes });
+      used.add(entry.id);
+    }
+
+    // 4) Everything else (unknown call labels): schedule wherever it fits.
+    const remaining = flexible
+      .filter((e) => !used.has(e.id))
+      .sort((a, b) => a.startMinutes - b.startMinutes);
+
+    for (const entry of remaining) {
+      const desired = clampToWorkingHours(entry.startMinutes, entry.durationMinutes, constraints);
+      const start =
+        findEarliestInRange(blocks, workingStart, workingEnd, desired, entry.durationMinutes) ??
+        Math.max(workingStart, Math.min(workingEnd - entry.durationMinutes, desired));
+
+      timeOverrides[entry.id] = start;
+      insertBlock(blocks, { start, end: start + entry.durationMinutes + bufferMinutes });
+      used.add(entry.id);
     }
   }
 

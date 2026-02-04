@@ -12,7 +12,8 @@ const callTypeColors: Record<string, { bg: string; text: string; border: string 
   tea: { bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-300" },
   teatime: { bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-300" },
   evening: { bg: "bg-violet-100", text: "text-violet-700", border: "border-violet-300" },
-  pm: { bg: "bg-violet-100", text: "text-violet-700", border: "border-violet-300" },
+  // NOTE: In many rosters "PM" is used interchangeably with "Tea"/Afternoon.
+  pm: { bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-300" },
   night: { bg: "bg-indigo-100", text: "text-indigo-700", border: "border-indigo-300" },
   overnight: { bg: "bg-indigo-100", text: "text-indigo-700", border: "border-indigo-300" },
   medication: { bg: "bg-rose-100", text: "text-rose-700", border: "border-rose-300" },

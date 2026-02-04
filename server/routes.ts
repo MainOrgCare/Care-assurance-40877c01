@@ -1013,7 +1013,7 @@ const canonicalizeAssessmentName = (name: string) => {
 const ASSESSMENT_EVIDENCE_TERMS: Record<string, string[]> = {
   "nutrition": ["nutrition", "feed", "feeding", "meal", "diet", "hydration", "swallow", "appetite", "thicken", "puree", "peg", "enteral", "tube feed", "weight loss", "malnutrition"],
   "diabetes management": ["diabet", "insulin", "blood glucose", "glucose", "hypo", "hypergly"],
-  "epilepsy management": ["epilep", "seizure", "fit", "convulsion"],
+  "epilepsy management": ["epilep", "seizure"],
   "medication administration": ["medication", "medicine", "tablet", "drug", "prescription", "mar", "dosette", "blister pack", "inhaler", "drops", "cream", "patch"],
   "mobility and moving and handling": ["mobility", "transfer", "moving", "handling", "hoist", "wheelchair", "zimmer", "frame", "walker", "walking aid", "stairs", "reposition", "stand aid", "sit to stand"],
   "personal care": ["personal care", "wash", "bathing", "shower", "toilet", "toileting", "dressing", "groom", "oral care", "hair", "shave"],
@@ -2430,6 +2430,18 @@ export async function registerRoutes(
         ipAddress: clientIp !== 'unknown' ? clientIp : null,
       });
       
+      // Audit log: User login
+      await storage.createSystemLog({
+        eventType: 'user_login',
+        userId: user.id,
+        username: user.username,
+        details: {
+          ipAddress: clientIp,
+          role: user.role,
+          forced_logout: forcingLogout,
+        },
+      });
+      
       // Create session history entry with IP address
       await storage.createSessionHistory({
         userId: user.id,
@@ -2458,8 +2470,9 @@ export async function registerRoutes(
     }
   });
 
-  // Demo Login (development only): lets you log in without a database.
-  if (process.env.NODE_ENV !== "production") {
+  // Demo Login DISABLED for security (previously development only)
+  // Re-enable by setting ENABLE_DEMO_MODE=true in development only
+  if (process.env.NODE_ENV !== "production" && process.env.ENABLE_DEMO_MODE === "true") {
     app.post("/api/auth/demo", async (req, res) => {
       try {
         const clientIp = getClientIp(req);
@@ -2727,12 +2740,24 @@ export async function registerRoutes(
   });
 
   // Approve user
-  app.patch("/api/users/:id/approve", requireAuth, requireAdmin, async (req, res) => {
+  app.patch("/api/users/:id/approve", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       const user = await storage.updateUserStatus(req.params.id, "active");
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
+      
+      // Audit log: Admin approved user
+      await storage.createSystemLog({
+        eventType: 'user_approved',
+        userId: req.user.id,
+        username: req.user.username,
+        details: {
+          approved_user_id: user.id,
+          approved_username: user.username,
+        },
+      });
+      
       return res.json({
         id: user.id,
         username: user.username,
@@ -2745,9 +2770,23 @@ export async function registerRoutes(
   });
 
   // Reject user (delete)
-  app.delete("/api/users/:id", requireAuth, requireAdmin, async (req, res) => {
+  app.delete("/api/users/:id", requireAuth, requireAdmin, async (req: any, res) => {
     try {
+      const users = await storage.getAllUsers();
+      const userToDelete = users.find(u => u.id === req.params.id);
       await storage.deleteUser(req.params.id);
+      
+      // Audit log: Admin deleted user
+      await storage.createSystemLog({
+        eventType: 'user_deleted',
+        userId: req.user.id,
+        username: req.user.username,
+        details: {
+          deleted_user_id: req.params.id,
+          deleted_username: userToDelete?.username || 'unknown',
+        },
+      });
+      
       return res.json({ message: "User deleted successfully" });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
@@ -2778,7 +2817,7 @@ export async function registerRoutes(
   });
 
   // Update user role
-  app.patch("/api/users/:id/role", requireAuth, requireAdmin, async (req, res) => {
+  app.patch("/api/users/:id/role", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       const { role } = req.body;
       if (!role || !["admin", "staff"].includes(role)) {
@@ -2788,6 +2827,19 @@ export async function registerRoutes(
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
+      
+      // Audit log: Admin changed user role
+      await storage.createSystemLog({
+        eventType: 'user_role_changed',
+        userId: req.user.id,
+        username: req.user.username,
+        details: {
+          target_user_id: user.id,
+          target_username: user.username,
+          new_role: role,
+        },
+      });
+      
       return res.json({
         id: user.id,
         username: user.username,
@@ -10681,42 +10733,72 @@ PRIVACY REQUIREMENT:
 STEP 2: RECOMMEND RISK ASSESSMENTS (ONLY WITH STRONG DOCUMENTED EVIDENCE)
 ═══════════════════════════════════════════════════════════════════════════════
 
-ASSESSMENT SELECTION GUIDE (Reference only - requires documented evidence for YOUR service user):
+POTENTIAL RISK AREAS TO CONSIDER (Recommend ONLY if documented evidence exists for THIS service user):
 
-| Evidence Type | Potential Assessment | Evidence Threshold |
-|---------------|---------------------|-------------------|
-| Documented diabetes with care needs | Diabetes Management | STRONG: Multiple mentions of blood sugar monitoring, diabetes medication, dietary needs |
-| Documented epilepsy/seizures | Epilepsy Management | STRONG: Seizure history, rescue medication, monitoring needs |
-| Medications we administer | Medication Administration | STRONG: List of medications we help with, administration times |
-| Help with eating/drinking/meals | Nutrition | STRONG: Feeding assistance, dietary restrictions, weight concerns |
-| Mobility issues, transfers, aids | Mobility & Moving and Handling | STRONG: Walking difficulties, uses aids, needs help with transfers |
-| Help with washing/dressing/toileting | Personal Care | STRONG: Needs physical assistance with personal hygiene |
-| Documented skin concerns/wounds | Skin Integrity | STRONG: Pressure areas, existing wounds, fragile skin |
-| Falls history, unsteady gait | Falls Prevention | STRONG: Previous falls documented, poor balance, instability |
-| Incontinence, catheter, stoma | Continence Care | STRONG: Continence products, catheter care, toileting support |
-| Dementia, memory problems | Dementia Care | STRONG: Diagnosed dementia, confusion, memory issues |
-| Depression, anxiety, mental health dx | Mental Health | STRONG: Diagnosed mental health condition, emotional support needs |
-| Hearing/vision/speech impairment | Communication | STRONG: Uses hearing aids, visual impairment, speech difficulties |
-| Challenging behaviour documented | Behavior Support | STRONG: Aggression, resistance to care, distressed behaviors |
-| Palliative/terminal diagnosis | End of Life Care | STRONG: Palliative care status, end of life preferences |
-| Infection risks documented | Infection Control | STRONG: MRSA, open wounds, immunocompromised |
-| Smoker, oxygen use, fire hazards | Fire Safety | STRONG: Smoking documented, oxygen cylinders, fire risks |
-| Home hazards documented | Environmental Safety | STRONG: Trip hazards, clutter, unsafe environment |
-| Lone working at property | Lone Working | STRONG: Remote location, accessibility issues, safety concerns |
-| Safeguarding concerns documented | Safeguarding | STRONG: Abuse history, self-neglect, exploitation risks |
-| Cleaning chemicals/hazardous substances | COSHH | STRONG: Chemical use documented in care tasks |
+IDENTITY & COMMUNICATION:
+Personal identity and emergency contact details, Communication needs, Language and interpreter needs, Hearing impairment, Vision impairment, Literacy support, Cognitive impairment, Capacity and decision making, Fluctuating capacity, Memory loss, Disorientation, Delirium risk, Dementia related risks, Learning disability support, Autism related needs
+
+MENTAL HEALTH & WELLBEING:
+Mental health and wellbeing, Depression indicators, Anxiety indicators, Sleep disturbance, Social isolation, Loneliness impact, Motivation and engagement, Self neglect indicators
+
+PERSONAL CARE & HYGIENE:
+Personal hygiene support, Bathing safety, Showering safety, Water temperature scald risk, Dressing and undressing, Grooming and shaving safety, Oral health and denture care, Menstrual care needs
+
+SKIN & TISSUE INTEGRITY:
+Skin integrity, Pressure ulcer risk, Skin tears risk, Wound care needs, Wound healing concerns
+
+INFECTION CONTROL:
+Infection risk, Hand hygiene facilities, PPE suitability for tasks, Waste disposal practice, Laundry handling, Cross contamination in kitchen, Outbreak management readiness, Vaccination status awareness
+
+NUTRITION & HYDRATION:
+Nutrition, Hydration, Food shopping access, Food preparation safety, Food hygiene and storage, Texture modified diets, Choking risk, Aspiration risk, Allergies and intolerances, Religious or cultural diets, Unplanned weight loss, Specialist nutrition support, Alcohol use impact
+
+MOBILITY & FALLS:
+Mobility, Falls history, Falls prevention plan, Transfer safety, Bed mobility, Chair and seating safety, Walking aids suitability, Wheelchair safety, Outdoor mobility, Fatigue related falls, Orthostatic hypotension, Dizziness or syncope, Footwear suitability, Orthotics and prosthetics
+
+CONTINENCE:
+Continence, Toileting access, Nocturia and night toileting, Urinary incontinence, Faecal incontinence, Constipation, Diarrhoea, Catheter care, Stoma care
+
+MEDICATION MANAGEMENT:
+Medication management, Time critical medications, PRN guidance, Controlled drugs security, Covert medication governance, Anticoagulant risks, Insulin administration, Inhaler and nebuliser use, Oxygen therapy safety, Swallowing tablets, Side effects monitoring, Antibiotic course adherence, MAR and recording accuracy
+
+LONG TERM CONDITIONS:
+Heart failure deterioration, COPD exacerbation, Asthma control, Diabetes control, Hypoglycaemia risk, Hyperglycaemia risk, Stroke recognition, Seizure management, Sepsis recognition, Pain management, Temperature and fever monitoring, Deconditioning risk, Post hospital discharge risks
+
+END OF LIFE:
+Palliative care needs, Advance wishes awareness, DNACPR and TEP awareness
+
+HOME ENVIRONMENT:
+Home layout, Lighting levels, Flooring and rugs, Clutter and hoarding, Furniture stability, Bed height and placement, Chair height and stability, Staircases and handrails, Grab rails and bathroom aids, Wet room or bath safety, Kitchen layout and reach, Air quality and ventilation, Temperature regulation in the home, Damp and mold exposure
+
+FIRE & ELECTRICAL SAFETY:
+Electrical safety, Gas safety, Carbon monoxide risk, Smoke alarm presence, Fire escape routes, Fire plan and drills, Cooking safety, Heaters and open flames, Flammable emollients near heat, Candle use, Smoking safety, Oxygen near ignition sources
+
+ACCESS & SECURITY:
+External access and steps, Garden paths and paving, Weather related access risks, Key safe access, Door and window security, Bogus caller risk, Neighbourhood safety, Visitor management in the home
+
+ANIMALS & ENVIRONMENT:
+Pets and animal hazards, Pest and vermin control
+
+SAFEGUARDING:
+Boundaries with informal carers, Financial exploitation risk, Domestic abuse indicators, Lone working visit safety for helpers
 
 ⚠️ CRITICAL RULES FOR ASSESSMENT RECOMMENDATIONS:
 
-1. DO NOT RECOMMEND unless you have MULTIPLE pieces of documented evidence
-2. DO NOT RECOMMEND "just in case" or based on assumptions
-3. DO NOT RECOMMEND for everyone - be person-centred (NHS Principle #1)
-4. EACH recommendation MUST include:
-   - "isMandatory": false (NO assessments are automatically mandatory per CQC 2024)
-   - Specific evidence snippets FROM THE SERVICE USER DOCUMENTS
-   - Clear explanation of relevance to THIS service user's documented needs
+1. SELECT WISELY: Only recommend risks where THIS service user has STRONG documented evidence (not generic "everyone needs this")
+2. EVIDENCE REQUIRED: Each recommendation needs MULTIPLE concrete documented facts (2+ diverse quotes)
+3. BE SPECIFIC: Tie each risk to documented conditions, incidents, equipment, behaviors, or environmental factors
+4. QUALITY > QUANTITY: Better to recommend 3-7 strong evidence-based assessments than 15 weak ones
+5. NO MANDATORY FLAGS: "isMandatory": false for ALL assessments (CQC 2024 person-centred principle)
+6. IF INSUFFICIENT EVIDENCE → DO NOT RECOMMEND THE ASSESSMENT
 
-5. IF INSUFFICIENT EVIDENCE → DO NOT RECOMMEND THE ASSESSMENT
+EXAMPLE OF STRONG EVIDENCE:
+✓ Falls Prevention: "Fell in bathroom Jan 2026 requiring A&E" + "Uses walking frame due to arthritis" + "Unsteady on stairs"
+✓ Diabetes Management: "Type 2 diabetes diagnosed 2020" + "Takes metformin 500mg twice daily" + "Blood sugar monitoring required"
+
+EXAMPLE OF WEAK EVIDENCE (DO NOT RECOMMEND):
+✗ Mobility: "May need support with walking" (too vague)
+✗ Nutrition: "Requires appropriate diet" (circular reasoning, no specifics)
 
 ═══════════════════════════════════════════════════════════════════════════════
 OUTPUT FORMAT (JSON ONLY)
@@ -11980,86 +12062,189 @@ ${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.versio
         ? "Privacy rules: Full names may be included only if present in the documents. Do not invent names. Never include dates of birth."
         : "Privacy rules: Replace any service user names with I. NEVER include dates of birth. Do NOT include any person names. Use role terms (my carer, my GP, my family member).";
 
-      const systemPrompt = `You are an expert care plan writer for a UK care facility following CQC 2024 standards and NHS England Person-Centred Care Planning principles.
+      const systemPrompt = `You are an expert care plan writer for a UK care facility following CQC 2024 standards, NHS England Person-Centred Care Planning principles, and NICE guidelines.
 ${policyContext}
 
 ════════════════════════════════════════════════════════════════════════════════
-🎯 YOUR MISSION: Create a COMPREHENSIVE, DETAILED, EVIDENCE-BASED Care Plan
+🎯 YOUR MISSION: Create an EXCEPTIONALLY DETAILED, DEEPLY PERSON-CENTRED Care Plan
 ════════════════════════════════════════════════════════════════════════════════
 
-Analyze ALL uploaded documents thoroughly:
-- Existing Care Plans
-- Moving and Handling assessments  
-- Medical records and reports
-- Risk assessments
-- Additional documents and context notes
-- Any support plans or professional assessments
+You are creating a comprehensive, evidence-based care plan that will guide care workers in delivering outstanding, individualized care. This document must paint a complete picture of the person - their life story, their health journey, their preferences, fears, hopes, and exactly how they want their care delivered.
 
-Use EVERY piece of information to build a complete, rich, individualized assessment.
+Analyze ALL uploaded documents with extreme thoroughness:
+- Existing Care Plans - extract every detail
+- Moving and Handling assessments - every limitation and requirement
+- Medical records and reports - every diagnosis and how it affects daily life
+- Risk assessments - every identified risk and mitigation
+- Additional documents and context notes - any personal details
+- Professional assessments - every recommendation
+- GP letters, hospital discharge summaries, specialist reports
+
+Use EVERY piece of information. DO NOT SUMMARISE - EXPAND. If a document mentions a condition, explain what that condition is, how it manifests for THIS person, and what care workers need to do differently because of it.
 
 ${privacyDirective}
-Keep place names and locations as written. Do not redact places.
+Keep place names, locations, and healthcare facility names as written. Do not redact places.
 
 ════════════════════════════════════════════════════════════════════════════════
-✍️ WRITING QUALITY STANDARDS - CRITICAL REQUIREMENTS
+⚖️ CARE WORKER SCOPE OF PRACTICE - CRITICAL
+════════════════════════════════════════════════════════════════════════════════
+
+This care plan must be actionable by care workers within their scope of practice:
+- Care workers CAN: Personal care, medication prompting/administration (if MAR trained), mobility assistance, meal preparation, emotional support, observations, basic health monitoring
+- Care workers CANNOT: Diagnose conditions, adjust medication, provide nursing care (wound dressings requiring sterile technique, catheter care, insulin adjustments), physiotherapy, make clinical decisions
+- For anything outside scope: Document what to observe, who to escalate to, and contact numbers
+
+Always include: "If concerned about [X], contact [GP/District Nurse/999] immediately"
+
+════════════════════════════════════════════════════════════════════════════════
+✍️ WRITING QUALITY STANDARDS - NON-NEGOTIABLE REQUIREMENTS
 ════════════════════════════════════════════════════════════════════════════════
 
 📋 FORMATTING RULES:
 - Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas
 - Never use Oxford commas: "apples, oranges and bananas" not "apples, oranges, and bananas"
-- ALL narrative content MUST be FIRST PERSON: "I", "my", "me" (never "the service user" or "client")
-- Write in clear, readable sentences (15-25 words average)
-- Use specific details: names of equipment, specific times, exact preferences
+- ALL narrative content MUST be FIRST PERSON: "I", "my", "me" (never "the service user", "client", or "they")
+- Write in clear, flowing sentences that read naturally
+- Use specific details: equipment names, times, quantities, preferences
+- NO PLACEHOLDERS MID-SENTENCE. Never write "I need [needs user input]" or "My condition [to be confirmed]"
 
-📏 WORD COUNT REQUIREMENTS - MINIMUM STANDARDS:
-- **thisIsMe.whoAmI**: MINIMUM 300 words (comprehensive life story)
-- **thisIsMe.hobbiesInterests**: MINIMUM 150 words (detailed interests)
-- **thisIsMe.whatMakesGoodDay**: MINIMUM 100 words (specific preferences)
-- **myCarePlan.capacityAndSafeguarding**: MINIMUM 200 words (detailed capacity assessment)
-- **myCarePlan.healthAndWellbeing**: MINIMUM 400 words (comprehensive health overview)
-- **myCarePlan.personalCareNeeds**: MINIMUM 300 words (detailed care routines)
-- **myCarePlan.medicationRequirements**: MINIMUM 250 words (full medication profile)
-- **myCarePlan.nutrition**: MINIMUM 200 words (dietary needs and preferences)
-- **myCarePlan.mobilityAndEquipment**: MINIMUM 200 words (mobility assessment)
-- **Risk section narrative fields**: MINIMUM 100-150 words each
-- **All "Details" fields**: MINIMUM 50-100 words with specific information
+📏 WORD COUNT REQUIREMENTS - SUBSTANTIALLY INCREASED MINIMUMS:
+- **thisIsMe.whoAmI**: MINIMUM 600 words (full life story - see format below)
+- **thisIsMe.hobbiesInterests**: MINIMUM 300 words (detailed with specific examples)
+- **thisIsMe.whatMakesGoodDay**: MINIMUM 200 words (very specific preferences)
+- **myCarePlan.capacityAndSafeguarding**: MINIMUM 400 words (comprehensive capacity assessment)
+- **myCarePlan.healthAndWellbeing**: MINIMUM 800 words (EVERY condition and its impact)
+- **myCarePlan.personalCareNeeds**: MINIMUM 600 words (complete minute-by-minute routine)
+- **myCarePlan.medicationRequirements**: MINIMUM 500 words (every medication in detail)
+- **myCarePlan.nutrition**: MINIMUM 400 words (complete dietary profile)
+- **myCarePlan.mobilityAndEquipment**: MINIMUM 400 words (detailed mobility assessment)
+- **Risk section narrative fields**: MINIMUM 150-200 words each
+- **All "Details" fields**: MINIMUM 75-150 words with specific information
 
-✅ QUALITY REQUIREMENTS:
+🚫 ABSOLUTELY FORBIDDEN - NEVER INCLUDE:
+- "Needs user input" or "[to be confirmed]" or "[insert X]" anywhere in text
+- Generic phrases: "support is provided", "as needed", "appropriate care"
+- Vague terms: "various conditions", "some assistance", "occasional help"
+- Clinical distance: "the service user", "the client", "the individual"
+- Invented medical details not in documents (diagnoses, medications, dates)
+- Assumed family relationships not explicitly stated
+- Fabricated names of healthcare professionals
 
-1. **EVIDENCE-BASED**: Every statement must be traceable to document sources
-   ✓ Good: "I was diagnosed with Type 2 diabetes in 2020 and currently take Metformin 500mg twice daily"
-   ✗ Bad: "I have various health conditions"
+✅ QUALITY REQUIREMENTS - EXEMPLARY STANDARDS:
 
-2. **SPECIFIC & DETAILED**: Use concrete details, not vague generalizations
-   ✓ Good: "I need my zimmer frame to walk to the bathroom. I can manage 10-15 steps but need to rest. My left hip hurts if I stand too long due to arthritis."
-   ✗ Bad: "I need help with mobility"
+1. **100% EVIDENCE-BASED**: Every single statement MUST be traceable to document sources
+   ✓ "I was diagnosed with Type 2 diabetes in 2019 according to my GP records. I take Metformin 500mg twice daily with breakfast and dinner."
+   ✗ "I have diabetes" (no detail)
+   ✗ "I was diagnosed around five years ago" (invented timeframe)
 
-3. **PERSON-CENTRED**: Focus on MY preferences, routines, and what matters to ME
-   ✓ Good: "I like to wake up naturally around 8am with my curtains open. I prefer a shower to a bath and like the water quite warm. My favorite breakfast is porridge with honey."
-   ✗ Bad: "Morning care is provided as needed"
+2. **MEDICAL CONDITIONS - HOW THEY AFFECT ME**:
+   For EVERY health condition, explain:
+   - What the condition is (in simple terms)
+   - How it affects MY daily life specifically
+   - What symptoms or difficulties it causes for ME
+   - What care workers need to do differently because of it
+   - Warning signs to watch for
+   
+   ✓ "I have osteoarthritis in both knees and my right hip. This means my joints are stiff and painful, especially in the morning and in cold weather. I find it very difficult to bend down - I cannot pick things up from the floor or put on my own socks. Walking is painful after about 10 minutes and I need to rest. My right hip gives me sharp pain if I twist. Care workers need to allow me extra time for transfers and never rush me. If my joints are particularly swollen or I have increased pain, this should be reported to my GP."
+   ✗ "I have arthritis in several joints"
 
-4. **ACTIONABLE**: Care workers must know EXACTLY what to do
-   ✓ Good: "Help me put on my compression stockings - left leg first as it's weaker. Roll them up carefully from the toes. Make sure there are no wrinkles as these can cause sores."
-   ✗ Bad: "Assist with compression stockings"
+3. **DEEPLY PERSON-CENTRED**: This is MY life, MY voice, MY story
+   ✓ "I absolutely love listening to Frank Sinatra - it reminds me of dancing with my late husband George at the Tower Ballroom in Blackpool in the 1960s. If I'm feeling low, putting on 'My Way' always lifts my spirits. I prefer CDs to the radio as I like to choose the songs."
+   ✗ "Music is enjoyed"
 
-5. **COMPREHENSIVE**: Cover ALL aspects thoroughly
-   - For health: ALL conditions, symptoms, treatments, specialist involvement
-   - For medication: EVERY medication, dose, time, purpose, difficulties
-   - For personal care: FULL routine from waking to sleeping, step-by-step
-   - For mobility: Equipment used, transfer methods, limitations, safety needs
+4. **ACTIONABLE & SPECIFIC**: Care workers must know EXACTLY what to do
+   ✓ "To help me wash, first fill the sink with warm water - I like it quite hot but test with your elbow. Put my flannel and Imperial Leather soap ready. I can wash my face, neck and arms myself if you pass me the flannel. I need help washing my back, under my arms and my feet as I cannot reach. Please dry me thoroughly especially between my toes because of my diabetes. Apply Aveeno cream to my legs afterwards as my skin gets very dry."
+   ✗ "Help with washing as needed"
+
+5. **COMPREHENSIVE & THOROUGH**: Cover EVERY aspect in detail
+   - Health: EVERY diagnosis, symptom, treatment, specialist, what to watch for
+   - Medication: EVERY drug, dose, timing, purpose, side effects, difficulties
+   - Personal care: COMPLETE routine from eyes opening to sleeping
+   - Mobility: EVERY transfer, equipment, limitation, techniques that work
+   - Social: EVERY relationship, visitor, activity, outing
 
 ════════════════════════════════════════════════════════════════════════════════
-📚 SECTION-BY-SECTION QUALITY EXAMPLES
+📋 "THIS IS ME" MANDATORY FORMAT - LIFE STORY STRUCTURE
 ════════════════════════════════════════════════════════════════════════════════
 
-🟢 EXCELLENT "whoAmI" EXAMPLE (300+ words):
-"I was born in Manchester in 1945 and grew up in a terraced house on Oldham Street with my parents and three siblings. My father worked in the cotton mills and my mother was a seamstress. I left school at 15 to become an apprentice electrician, which I absolutely loved. I worked in electrical contracting for 45 years before retiring at 60 due to my arthritis. I married my late wife Margaret in 1967 and we had two wonderful children - Sarah who's now a teacher in Leeds and Michael who works in IT in London. Margaret passed away five years ago from cancer which was the hardest time of my life. We had 48 happy years together. I moved to this area three years ago to be closer to Sarah and her family - my two grandchildren Emma and Jack who I adore. They visit every Sunday which is the highlight of my week. What's most important to me is maintaining my independence as much as possible and staying connected with my family. I take great pride in keeping my home tidy and presentable. I've always been a practical person who likes to fix things and solve problems. My faith is also very important - I've been Catholic all my life and find great comfort in my prayers. I value my dignity and privacy highly and prefer to do things myself when I can, even if it takes longer."
+The whoAmI section MUST begin exactly like this and follow this structure:
 
-🟢 EXCELLENT "healthAndWellbeing" EXAMPLE (400+ words):
-"I was diagnosed with Type 2 diabetes 12 years ago and it's generally well-controlled with Metformin 500mg which I take twice daily with food. I test my blood sugar every morning before breakfast - my target is between 4-7 mmol/L and I usually stay within range. I see the diabetes nurse every three months at the GP surgery and have annual eye checks at the hospital. I also have osteoarthritis which affects both my hips, knees and hands. The pain is worse in cold weather and first thing in the morning. I take Naproxen 500mg twice daily for the pain and it helps significantly. On bad days I also use Paracetamol but try not to take it every day. My left hip is particularly bad and I'm on the waiting list for a hip replacement - I've been waiting 18 months now. The arthritis means I struggle with stairs and can only manage them once or twice a day with the handrail. I had a mild heart attack eight years ago which was a huge shock. Since then I've been on Aspirin 75mg daily, Atorvastatin 40mg at night for cholesterol and Ramipril 5mg for blood pressure. I have six-monthly check-ups with the cardiac nurse and my heart function is stable now. My blood pressure usually runs around 135/80 which they're happy with. I also have hearing loss from years of working with loud machinery. I wear hearing aids in both ears - they're the small behind-the-ear type from Specsavers. I need new batteries about once a week. Without them I really struggle to follow conversations, especially if there's background noise. My eyesight is also declining - I have cataracts in both eyes and wear varifocal glasses for everything. I can't read small print even with glasses. I saw the optician last month and they've referred me to the hospital about the cataracts. My sleep isn't great - I often wake 3-4 times a night to use the toilet due to an enlarged prostate. The doctor says it's benign but it does disturb my sleep. I feel tired during the day as a result. Overall I'd say my health is fair for my age but the combination of conditions does limit what I can do compared to ten years ago. My main concern is the hip pain as it really affects my quality of life."
+"My name is [Full Name]. I was born in [Place] in [Year] and [brief early life context]..."
 
-🟢 EXCELLENT "personalCareNeeds" EXAMPLE (300+ words):
-"I can manage most of my personal care independently but I do need support with some tasks. In the morning I wake naturally around 7:30am and like to use the commode beside my bed rather than walk to the bathroom straight away as my hips are stiff. I can manage this myself but the commode needs emptying. Once I'm up I use my walking frame to get to the bathroom. I prefer to shave myself using my electric razor - it's important to me to keep up my grooming. I wash at the sink as I can't get in the bath anymore and don't trust my balance in the shower. I can wash my face, arms and front independently but I need help washing my back and feet as I can't bend that far. I like to use Imperial Leather soap and have quite sensitive skin so I need to be dried thoroughly, especially between my toes because of my diabetes. Getting dressed is challenging - I can manage my upper body clothes but struggle with socks, trousers and shoes due to my hip arthritis. I need someone to help me put my compression stockings on - left leg first as that's weaker. They need to be smooth with no wrinkles or they cause sores. I prefer loose comfortable clothes - elasticated waist trousers and slip-on shoes. I have a long-handled shoe horn which helps. For oral care I have my own teeth but several are loose. I brush twice daily with a soft toothbrush and Sensodyne toothpaste. I wear dentures on my upper jaw which need taking out at night and cleaning with denture tablets. At bedtime I follow a similar routine in reverse. I like to listen to Radio 4 for about half an hour before sleeping. My continence is generally okay during the day but I do have occasional urgency, particularly if I've had too much tea. I wear pads at night for security as I sometimes don't make it to the commode in time. I'm embarrassed about this but it's better than having accidents. The district nurse visits weekly to check my feet and skin due to the diabetes risk."
+Then continue with a flowing life story covering:
+1. CHILDHOOD: Where I grew up, family background, siblings, childhood memories
+2. EDUCATION & WORK: Schools, apprenticeships, career, jobs I had, what I was proud of
+3. FAMILY LIFE: Marriage(s), partner(s), children, grandchildren, significant relationships
+4. LIFE EVENTS: Key moments, achievements, challenges overcome, places lived
+5. LOSSES & BEREAVEMENTS: People I have lost and how this affects me
+6. WHAT DEFINES ME: My personality, values, faith/beliefs, what matters most
+7. WHY I NEED CARE: How my circumstances changed, how I feel about needing support
+
+This must read as a genuine life story, not a list. It should make care workers understand WHO I am as a person, not just my care needs.
+
+════════════════════════════════════════════════════════════════════════════════
+📚 SECTION-BY-SECTION EXEMPLARY EXAMPLES - FOLLOW THESE STANDARDS
+════════════════════════════════════════════════════════════════════════════════
+
+🟢 EXEMPLARY "whoAmI" - LIFE STORY FORMAT (600+ words):
+"My name is Harold Thompson. I was born in Manchester in 1945 and grew up in a terraced house on Oldham Street with my parents Albert and Doris and my three siblings - older brother Frank, younger sisters Betty and Jean. My father worked long hours in the cotton mills at Mather & Platt and my mother was a seamstress who took in work from the neighbours. We didn't have much money but we were a close family and I have fond memories of Sunday dinners when we'd all squeeze around the kitchen table.
+
+I left school at 15 as was common then and started apprenticing as an electrician at Bolton Electrical Services. I absolutely loved the work - there was something satisfying about solving problems and making things work safely. I qualified in 1964 and worked my way up to foreman over the years. I spent 45 years in electrical contracting, mainly industrial work at factories and mills around Greater Manchester. I was proud of never having an accident on my watch and training dozens of young apprentices over the years. I had to retire at 60 when my arthritis got too bad to climb ladders and work on my knees anymore. That was hard - my work meant everything to me.
+
+I married my late wife Margaret in 1967 at St Mary's Church in Oldham. We met at a dance at the Tower Ballroom in Blackpool where she caught my eye across the room. We had 48 wonderful years together and two children - our daughter Sarah who is now 54 and teaches primary school in Leeds, and our son Michael who is 51 and works in IT in London. Margaret passed away five years ago from breast cancer after a brave 18-month battle. Losing her was the hardest thing I've ever experienced and I still miss her every single day. Her photo is beside my bed and I say goodnight to her.
+
+After Margaret died I struggled on my own for two years but my health declined and I had several falls. Sarah was worried sick and eventually I agreed to move closer to her. I now live in a ground floor flat in Otley which Sarah helped me find. I was reluctant at first but it's been the right decision. My two grandchildren - Emma who is 16 and Jack who is 12 - visit every Sunday without fail which is absolutely the highlight of my week. Emma is sitting her GCSEs this year and I help her with maths when I can. Jack loves football and supports Manchester United like me.
+
+What's most important to me is maintaining my independence for as long as possible. I hate asking for help and prefer to do things myself even if it takes longer. I take great pride in keeping my flat tidy and presentable - Margaret would have been horrified if visitors found it messy. I've always been a practical, problem-solving sort of person and hate feeling like a burden.
+
+My Catholic faith remains very important to me. I was brought up Catholic, attended St Mary's every Sunday as a boy, and was an altar server. I find great comfort in my prayers, especially in the morning when I wake and at night before sleep. Father Patrick from the local parish visits me once a month for communion which I really appreciate. I have a small statue of Our Lady on my bedside table.
+
+Having care workers come into my home was difficult to accept at first. I'm a proud man and value my privacy. But I've come to appreciate the help now that I understand it helps me stay in my own home rather than going into residential care. What I need from my carers is patience - I don't like being rushed - and respect for my dignity. Please don't talk to me like I'm a child or assume I can't understand things. My body may be failing but my mind is still sharp."
+
+🟢 EXEMPLARY "healthAndWellbeing" - CONDITION-BY-CONDITION (800+ words):
+"I have several health conditions that together significantly affect my daily life and require careful management.
+
+TYPE 2 DIABETES: I was diagnosed with Type 2 diabetes 12 years ago following routine blood tests. Diabetes is a condition where my body doesn't use insulin properly so my blood sugar levels can become too high if not managed. This affects me daily because I have to be very careful about what I eat, particularly sugary foods and large portions of carbohydrates. I test my blood sugar every morning before breakfast using my Accu-Chek monitor - my target is 4-7 mmol/L before food. If it goes above 10 I feel tired and thirsty. If it drops below 4 I feel shaky, sweaty and confused - care workers should give me sugary drink or glucose tablets if this happens and stay with me. I take Metformin 500mg twice daily with breakfast and dinner to help control my sugar. I see the diabetes nurse at Green Lane Surgery every three months and have annual eye checks at Bradford Royal for diabetic retinopathy. The diabetes also means I'm at high risk of foot problems and poor wound healing, so any cuts, blisters or skin changes must be reported immediately to the district nurse. My feet are checked weekly by District Nurse Sarah Collins.
+
+OSTEOARTHRITIS: I have osteoarthritis affecting both hips, both knees and my hands. Arthritis means the cartilage in my joints has worn away causing bone to rub on bone. This causes me significant daily pain and stiffness. My right hip is the worst - the pain is often 7/10 and I'm on the waiting list for hip replacement surgery at Leeds General (18 months wait so far). The pain and stiffness is always worst first thing in the morning - it takes me 15-20 minutes to 'get going' and I shouldn't be rushed during this time. Cold weather makes it worse. The arthritis means I cannot: bend down to pick things up, put on my own socks or shoes, walk more than about 50 meters without resting, climb stairs more than once daily, grip small objects firmly. I take Naproxen 500mg twice daily with food which helps significantly - it must be taken with food to protect my stomach. On bad days I also take Paracetamol 1g up to four times daily but I try to limit this. I use heat pads on my hips which give relief. If pain becomes severe or joints look red and swollen, contact GP as this could indicate a flare-up requiring additional treatment.
+
+HEART DISEASE: I had a myocardial infarction (heart attack) eight years ago which terrified me and Margaret. I've since been told the heart attack was caused by coronary artery disease - narrowing of the arteries supplying my heart. Since then I take: Aspirin 75mg daily (blood thinner to prevent clots), Atorvastatin 40mg at night (cholesterol medication), Ramipril 5mg in morning (blood pressure and heart protection), GTN spray to use under tongue if I get chest pain (kept on kitchen windowsill). I have six-monthly check-ups with the cardiac rehabilitation nurse at Bradford Royal. My heart function is now stable at 45% ejection fraction which is moderate heart failure. My blood pressure runs around 135/80 which they're satisfied with. Warning signs to watch for: chest pain or pressure, unusual breathlessness, swollen ankles, extreme fatigue. If I have chest pain, give me GTN spray, sit me down, and if not improved in 5 minutes call 999.
+
+BENIGN PROSTATIC HYPERPLASIA (ENLARGED PROSTATE): This is common in older men and causes me to need the toilet frequently, especially at night. I typically wake 3-4 times per night to urinate which disturbs my sleep significantly. I often feel unrested during the day as a result. I sometimes have urgency - needing to go quickly - and occasionally dribbling. This is embarrassing to talk about. I wear TENA pads at night for security. I take Tamsulosin 400mcg at night which helps somewhat with the flow. The GP monitors this annually. If I develop complete inability to pass urine (retention), this is an emergency requiring hospital.
+
+HEARING LOSS: I have bilateral sensorineural hearing loss from years of working with loud machinery without ear protection (different times then). I wear Oticon behind-the-ear hearing aids in both ears - they're beige coloured with size 312 batteries. I need new batteries approximately weekly (I keep spares in my bedside drawer). Without my hearing aids I really struggle - I can only hear loud noises and cannot follow conversation at all. Even with aids I struggle if there's background noise or multiple people talking. Care workers should always face me when speaking, speak clearly (not shouting), and be patient if I ask them to repeat. The TV remote has subtitles that should be turned on.
+
+CATARACTS: I have cataracts in both eyes causing blurred, cloudy vision. I wear varifocal glasses constantly and cannot read anything without them. Even with glasses I cannot read small print such as medication labels or instruction leaflets - these need reading aloud to me. I've been referred to Bradford Royal for cataract surgery assessment. My vision is worse in bright light - I'm easily dazzled.
+
+SLEEP DISTURBANCE: Due to the prostate issues and general discomfort I get poor quality sleep, averaging only 4-5 hours per night. I feel tired during the day and sometimes doze in my chair after lunch. I don't take sleeping tablets as they made me confused."
+
+🟢 EXEMPLARY "personalCareNeeds" - COMPLETE ROUTINE (600+ words):
+"I can manage some of my personal care independently but need regular support due to my arthritis and mobility limitations. Here is my complete daily routine:
+
+MORNING ROUTINE (7:30am-9:00am):
+I usually wake naturally around 7:30am. My joints are very stiff first thing and it takes me about 15 minutes before I feel able to move properly - please don't rush me during this time. I have a commode beside my bed (Invacare Aquatec) which I use first thing rather than walking to the bathroom immediately as I have urgency. I can use this independently but need it emptied and cleaned each visit.
+
+Once my joints have loosened I use my wheeled zimmer frame (Rollator) to walk to the bathroom - this is about 8 meters and takes me 2-3 minutes with the frame. I prefer to shave myself using my Braun electric razor - keeping well-groomed is important to my dignity. I keep the razor charging in the bathroom cabinet.
+
+I wash at the sink (strip wash) as I cannot get in or out of the bath safely and don't trust my balance in the shower even with the seat. Please fill the sink with warm water - I like it quite hot but please test with your elbow first. Lay out my flannel and my Imperial Leather soap (I've used this brand for 50 years). I can wash my own face, neck, upper chest and arms if you pass me the wrung-out flannel. I need help to wash: my back, underarms, lower body, legs and feet as I cannot bend or reach these areas due to hip arthritis.
+
+Please dry me very thoroughly, especially between my toes - this is essential because of my diabetes as any dampness can lead to fungal infections and ulcers. After drying, please apply Aveeno moisturising cream to my lower legs and feet as my skin is very dry (cream kept in bathroom cabinet).
+
+GETTING DRESSED:
+I can manage items for my upper body - I can put on a vest and shirt independently if buttons are already undone. However I cannot manage: putting on socks, trousers, or shoes due to being unable to bend at the hips.
+
+Please help me put on my compression stockings first - I wear Class 2 stockings for poor circulation in my legs. These must go on LEFT leg first (this leg is weaker and more swollen). Roll the stocking down first, place my foot in, then roll up slowly. Please check there are no wrinkles especially at the ankle and behind the knee - wrinkles cause pressure sores. The stockings should be removed at night.
+
+I prefer elasticated waist trousers (no buttons or zips to manage) and loose shirts. I have a long-handled shoe horn in my wardrobe which helps me get my slip-on shoes on. My clothes are laid out the night before.
+
+ORAL CARE:
+I have most of my own teeth but several are loose and my gums bleed easily. I brush twice daily using a soft Sensodyne toothbrush and Sensodyne toothpaste for sensitivity. I also wear a partial upper denture which I put in after brushing. At night the denture needs taking out, rinsed under the tap, and placed in a denture pot with water and a Steradent tablet. My dentures are marked with my initials.
+
+EVENING ROUTINE (9:00pm-10:00pm):
+I like to have a warm milky drink (Options hot chocolate) between 9 and 9:30pm. I then do my evening wash which is a simpler version of the morning - face, hands, underarms. I change into my pyjamas (need help with bottoms), use the toilet, put on a fresh TENA pad (stored in bathroom cupboard), take my evening medications, and am settled in bed by 10pm. I like to listen to Radio 4 for 20-30 minutes before sleeping. My bedside lamp should be left on its lowest setting initially.
+
+CONTINENCE:
+During the day my continence is generally good but I get urgency so respond quickly if I say I need the toilet. I wear TENA Level 2 pads at night only as I sometimes don't wake in time. I find this embarrassing to discuss but the pads give me peace of mind. Supplies delivered monthly by Continence Service."
 
 ════════════════════════════════════════════════════════════════════════════════
 🎯 SECTION COMPLETION REQUIREMENTS
@@ -12095,9 +12280,9 @@ For verificationQuestions:
 {
   "verificationQuestions": ["Question about missing or uncertain details"],
   "thisIsMe": {
-    "whoAmI": "Detailed first-person (minimum 150 words): Where I was born, grew up, occupation, what is important to me.",
-    "hobbiesInterests": "What hobbies and interests I have - be specific.",
-    "whatMakesGoodDay": "What makes a good day for me."
+    "whoAmI": "MUST start with 'My name is [Name]. I was born in [Place] in [Year]...' - full life story (MINIMUM 600 words)",
+    "hobbiesInterests": "Detailed hobbies and interests with specific examples (MINIMUM 300 words)",
+    "whatMakesGoodDay": "Very specific description of what makes a good day for me (MINIMUM 200 words)"
   },
   "goalSetting": {
     "goals": [{"goal": "Goal", "howToAchieve": "How", "potentialBarriers": "Barriers", "timeFrame": "6 months"}],
@@ -12112,15 +12297,15 @@ For verificationQuestions:
     "poaContact": "Contact details"
   },
   "myCarePlan": {
-    "capacityAndSafeguarding": "First-person explanation of mental capacity (min 100 words)",
-    "healthAndWellbeing": "Current health conditions and wellbeing (min 150 words)",
-    "triggerPoints": "Signs indicating health changes",
-    "medicationRequirements": "Medication needs and difficulties (min 100 words)",
-    "nutrition": "Dietary needs, preferences, allergies (min 100 words)",
-    "personalCareNeeds": "Personal care requirements in detail (min 150 words)",
-    "mobilityAndEquipment": "How I move and equipment needed (min 100 words)",
-    "houseworkAndSocial": "Housework and social support needed",
-    "financialArrangements": "Finance management"
+    "capacityAndSafeguarding": "Comprehensive mental capacity assessment in first person (MINIMUM 400 words)",
+    "healthAndWellbeing": "EVERY health condition with explanation of how it affects me (MINIMUM 800 words)",
+    "triggerPoints": "Signs indicating health changes - be specific",
+    "medicationRequirements": "Every medication with dose, time, purpose, difficulties (MINIMUM 500 words)",
+    "nutrition": "Complete dietary profile with preferences and requirements (MINIMUM 400 words)",
+    "personalCareNeeds": "Complete minute-by-minute daily routine (MINIMUM 600 words)",
+    "mobilityAndEquipment": "Detailed mobility assessment with all equipment (MINIMUM 400 words)",
+    "houseworkAndSocial": "Housework support and social needs in detail",
+    "financialArrangements": "Finance management details"
   },
   "riskSection1Health": {
     "speech": "Good/Impaired/Uses device",
@@ -12319,38 +12504,48 @@ For verificationQuestions:
         model: getRiskAssessmentGenerationModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Analyze ALL documents thoroughly and generate a comprehensive, detailed care plan with evidence-based content for every section.
+          { role: "user", content: `Analyze ALL documents with EXTREME thoroughness and generate an EXCEPTIONALLY DETAILED care plan.
 
 ═══════════════════════════════════════════════════════
-DOCUMENTS TO ANALYZE
+DOCUMENTS TO ANALYZE - EXTRACT EVERY DETAIL
 ═══════════════════════════════════════════════════════
 
 ${contentToEnhance}
 
 ═══════════════════════════════════════════════════════
-YOUR TASK
+YOUR CRITICAL REQUIREMENTS
 ═══════════════════════════════════════════════════════
 
-1. Read EVERY document section thoroughly
-2. Extract ALL relevant information about the service user
-3. Generate comprehensive, detailed content for EVERY field
-4. Meet ALL minimum word count requirements
-5. Write in first person with specific, actionable details
-6. Create verification questions for any uncertain information
+1. Read EVERY document section with extreme attention to detail
+2. Extract EVERY piece of information - names, dates, conditions, medications, preferences
+3. Generate COMPREHENSIVE content that substantially EXCEEDS minimum word counts
+4. For EVERY health condition: explain what it is AND how it affects this person specifically
+5. Write in FIRST PERSON throughout ("I", "my", "me")
+6. Use SPECIFIC details: exact times, equipment brand names, precise routines
+7. NEVER include placeholders like "needs user input" or "[to be confirmed]"
+8. If information is missing, write a complete sentence explaining what's needed
 
-REMEMBER:
-- thisIsMe.whoAmI: MIN 300 words
-- healthAndWellbeing: MIN 400 words  
-- personalCareNeeds: MIN 300 words
-- All narrative fields: 100-250 words minimum
-- Be specific: times, equipment names, exact routines
-- First person throughout
+MANDATORY WORD COUNT REQUIREMENTS - THESE ARE MINIMUMS, AIM HIGHER:
+- thisIsMe.whoAmI: MINIMUM 600 words (MUST start "My name is [Name]. I was born in...")
+- thisIsMe.hobbiesInterests: MINIMUM 300 words (specific examples)
+- thisIsMe.whatMakesGoodDay: MINIMUM 200 words (detailed preferences)
+- healthAndWellbeing: MINIMUM 800 words (EVERY condition explained with impact)
+- personalCareNeeds: MINIMUM 600 words (complete daily routine minute-by-minute)
+- medicationRequirements: MINIMUM 500 words (every medication in detail)
+- nutrition: MINIMUM 400 words (complete dietary profile)
+- mobilityAndEquipment: MINIMUM 400 words (comprehensive mobility assessment)
+- capacityAndSafeguarding: MINIMUM 400 words (thorough capacity assessment)
 
-Return ONLY valid JSON. Begin now.` }
+EVIDENCE-BASED ONLY:
+- Only include information that appears in the documents
+- Never invent medical details, diagnoses, or dates
+- If unsure, add to verificationQuestions
+
+Return ONLY valid JSON matching the exact schema. Begin now.` }
         ],
         temperature: 0,
         seed: 42,
-        max_completion_tokens: 16000,
+        max_completion_tokens: 32000,
         response_format: { type: "json_object" },
       }, "plan_enhancer", aiUserContext);
 
@@ -12371,17 +12566,17 @@ Return ONLY valid JSON. Begin now.` }
           passes: [] as string[],
         };
         
-        // Validate key narrative sections
+        // Validate key narrative sections - INCREASED THRESHOLDS for comprehensive plans
         const narrativeSections = [
-          { path: 'thisIsMe.whoAmI', minWords: 300, label: 'Who Am I' },
-          { path: 'thisIsMe.hobbiesInterests', minWords: 150, label: 'Hobbies & Interests' },
-          { path: 'thisIsMe.whatMakesGoodDay', minWords: 100, label: 'What Makes Good Day' },
-          { path: 'myCarePlan.capacityAndSafeguarding', minWords: 200, label: 'Capacity & Safeguarding' },
-          { path: 'myCarePlan.healthAndWellbeing', minWords: 400, label: 'Health & Wellbeing' },
-          { path: 'myCarePlan.personalCareNeeds', minWords: 300, label: 'Personal Care Needs' },
-          { path: 'myCarePlan.medicationRequirements', minWords: 250, label: 'Medication Requirements' },
-          { path: 'myCarePlan.nutrition', minWords: 200, label: 'Nutrition' },
-          { path: 'myCarePlan.mobilityAndEquipment', minWords: 200, label: 'Mobility & Equipment' },
+          { path: 'thisIsMe.whoAmI', minWords: 600, label: 'Who Am I (Life Story)' },
+          { path: 'thisIsMe.hobbiesInterests', minWords: 300, label: 'Hobbies & Interests' },
+          { path: 'thisIsMe.whatMakesGoodDay', minWords: 200, label: 'What Makes Good Day' },
+          { path: 'myCarePlan.capacityAndSafeguarding', minWords: 400, label: 'Capacity & Safeguarding' },
+          { path: 'myCarePlan.healthAndWellbeing', minWords: 800, label: 'Health & Wellbeing' },
+          { path: 'myCarePlan.personalCareNeeds', minWords: 600, label: 'Personal Care Needs' },
+          { path: 'myCarePlan.medicationRequirements', minWords: 500, label: 'Medication Requirements' },
+          { path: 'myCarePlan.nutrition', minWords: 400, label: 'Nutrition' },
+          { path: 'myCarePlan.mobilityAndEquipment', minWords: 400, label: 'Mobility & Equipment' },
         ];
         
         narrativeSections.forEach(({ path, minWords, label }) => {
@@ -12412,6 +12607,23 @@ Return ONLY valid JSON. Begin now.` }
             const foundVague = vagueTerms.filter(term => value.toLowerCase().includes(term));
             if (foundVague.length > 0) {
               qualityMetrics.warnings.push(`⚠️  ${label}: Contains vague terms: ${foundVague.join(', ')}`);
+            }
+            
+            // Check for forbidden placeholders
+            const forbiddenPhrases = ['needs user input', 'to be confirmed', 'insert', '[', ']', 'the service user', 'the client'];
+            const foundForbidden = forbiddenPhrases.filter(phrase => value.toLowerCase().includes(phrase.toLowerCase()));
+            if (foundForbidden.length > 0) {
+              qualityMetrics.warnings.push(`❌ ${label}: Contains forbidden phrases: ${foundForbidden.join(', ')}`);
+            }
+            
+            // Special check for whoAmI - must start with "My name is"
+            if (path === 'thisIsMe.whoAmI') {
+              const startsCorrectly = /^my\s+name\s+is/i.test(value.trim());
+              if (startsCorrectly) {
+                qualityMetrics.passes.push(`✅ Life Story: Correctly starts with "My name is..."`);
+              } else {
+                qualityMetrics.warnings.push(`⚠️  Life Story: Should start with "My name is [Name]. I was born in..."`);
+              }
             }
           } else {
             qualityMetrics.warnings.push(`❌ ${label}: Missing or empty`);

@@ -1,5 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import compression from "compression";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -26,6 +28,33 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Security headers via Helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // unsafe-eval needed for Vite HMR in dev
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+  xssFilter: true,
+}));
+app.disable('x-powered-by'); // Remove Express fingerprinting
+log('Security headers enabled (Helmet)');
 
 // CORS middleware
 const corsOriginEnv = process.env.CORS_ORIGIN;
@@ -78,6 +107,23 @@ const corsOptions: CorsOptions = {
 };
 app.use(cors(corsOptions));
 log(`CORS enabled for origin(s): ${allowedOrigins.join(", ")}`);
+
+// Global API rate limiting (100 requests per 15 minutes)
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests from this IP, please try again after 15 minutes',
+  skip: (req) => {
+    // Skip rate limiting in development for easier testing
+    return process.env.NODE_ENV !== 'production';
+  },
+});
+app.use('/api/', apiLimiter);
+if (process.env.NODE_ENV === 'production') {
+  log('API rate limiting enabled (100 req/15min)');
+}
 
 // Compression middleware - configured to allow flushing for SSE streams
 // The compression middleware adds res.flush() which is needed to push SSE events through proxies
@@ -189,11 +235,23 @@ const DEFAULT_ADMIN_USERNAME = "Lewis.barron";
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    res.status(status).json({ message });
+    // In production, sanitize error messages to prevent information disclosure
+    const safeMessage = process.env.NODE_ENV === "production" && status === 500
+      ? "Internal Server Error"
+      : message;
+
+    res.status(status).json({ message: safeMessage });
+    
+    // Log full error server-side only (never send to client)
     if (process.env.NODE_ENV !== "production") {
       console.error("[API Error]", err);
     } else {
-      console.error(`[API Error] ${message}`);
+      console.error(`[API Error] ${status} - ${message}`, {
+        path: _req.path,
+        method: _req.method,
+        error: err.message,
+        stack: err.stack?.split('\n').slice(0, 3).join('\n'), // First 3 lines only
+      });
     }
   });
 

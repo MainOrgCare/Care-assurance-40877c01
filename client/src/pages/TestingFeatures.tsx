@@ -354,6 +354,8 @@ interface RowAnalysis {
   templateWorker?: string | null;
   payrollRunDescription?: string | null;
   serviceTypeDescription?: string | null;
+  serviceRequirementServiceTypeDescription?: string | null;
+  serviceRequirementTypeDescription?: string | null;
   isAdminStaffRow?: boolean;
   isShiftBar?: boolean;
   serviceDutyClassType?: string | null;
@@ -971,8 +973,8 @@ export default function TestingFeatures() {
         ? normalizeKeyForMatch(payrollRunDescription).replace(/&/g, "and").replace(/\s+/g, " ").trim()
         : null;
       const isAdminStaffRow = payrollRunNormalized === "admin wages and overtime";
-      const serviceTypeDescription = sanitizeHumanReadable(serviceTypeDescriptionField?.value);
-      const serviceTypeNormalized = serviceTypeDescription ? normalizeKeyForMatch(serviceTypeDescription) : null;
+      const serviceTypeDescriptionRaw = sanitizeHumanReadable(serviceTypeDescriptionField?.value);
+      const serviceTypeNormalizedRaw = serviceTypeDescriptionRaw ? normalizeKeyForMatch(serviceTypeDescriptionRaw) : null;
       const serviceDutyClassRaw = sanitizeStringValue(serviceDutyClassField?.value);
       const serviceDutyClassType = serviceDutyClassRaw ? serviceDutyClassRaw.trim().toUpperCase() : null;
       const serviceDutyClassPrefix = serviceDutyClassType ? serviceDutyClassType[0] : null;
@@ -1098,11 +1100,21 @@ export default function TestingFeatures() {
           return exclude.size ? exclude : undefined;
         })()
       );
+      // Service requirement fields:
+      // - "Service Requirement Service Type Description" is the broad category (e.g., Personal Care / Time Critical).
+      // - "Service Requirement Type Description" is the roster call type (e.g., AM / Lunch / Tea / Bed).
+      const serviceRequirementServiceTypeDescription = sanitizeHumanReadable(serviceRequirementServiceTypeField?.value);
+      const serviceRequirementTypeDescription = sanitizeHumanReadable(serviceRequirementTypeField?.value);
+
       const callTypeLabel =
-        sanitizeHumanReadable(serviceRequirementServiceTypeField?.value) ??
-        sanitizeHumanReadable(serviceRequirementTypeField?.value) ??
-        sanitizeHumanReadable(serviceRequirementFallbackField?.value);
+        serviceRequirementTypeDescription ??
+        sanitizeHumanReadable(serviceRequirementFallbackField?.value) ??
+        serviceRequirementServiceTypeDescription;
       const callTypeNormalized = callTypeLabel ? normalizeKeyForMatch(callTypeLabel) : null;
+      const serviceTypeDescription =
+        serviceRequirementServiceTypeDescription ?? serviceTypeDescriptionRaw ?? null;
+      const serviceTypeNormalized =
+        serviceTypeDescription ? normalizeKeyForMatch(serviceTypeDescription) : serviceTypeNormalizedRaw;
       const isShiftBar =
         (serviceTypeNormalized ? serviceTypeNormalized.includes("shift") : false) ||
         (callTypeNormalized ? callTypeNormalized.includes("shift") : false);
@@ -1161,6 +1173,8 @@ export default function TestingFeatures() {
         templateWorker: templateWorkerName,
         payrollRunDescription,
         serviceTypeDescription,
+        serviceRequirementServiceTypeDescription: serviceRequirementServiceTypeDescription ?? null,
+        serviceRequirementTypeDescription: serviceRequirementTypeDescription ?? null,
         isAdminStaffRow,
         isShiftBar,
         serviceDutyClassType,

@@ -1904,6 +1904,47 @@ ${generatedProtocol.additionalComments}`;
         comments: "Identified in audit discrepancies.",
       }));
 
+    // Detect time-critical medications from warnings or discrepancies
+    const timeCriticalKeywords = [
+      'insulin', 'levodopa', 'sinemet', 'madopar', 'parkinson', 
+      'epilepsy', 'seizure', 'carbamazepine', 'phenytoin', 'valproate',
+      'warfarin', 'anticoagulant', 'heparin', 'digoxin',
+      'levothyroxine', 'prednisolone', 'steroid',
+      'time critical', 'time-critical', 'strict timing'
+    ];
+    const allMedNames = result.prnMedications?.medications?.map((m) => 
+      typeof m === 'string' ? m : m.name
+    ).filter(Boolean) || [];
+    const timeCriticalMeds = allMedNames.filter((med) => 
+      timeCriticalKeywords.some(keyword => med.toLowerCase().includes(keyword))
+    );
+    const hasTimeCritical = timeCriticalMeds.length > 0 || 
+      (result.warnings?.some(w => w.description?.toLowerCase().includes('time') && w.description?.toLowerCase().includes('gap')));
+
+    // Build themes from warnings and discrepancies
+    const themesList: string[] = [];
+    if (discrepancies.some(d => d.issue.toLowerCase().includes('time gap'))) {
+      themesList.push('Insufficient gap between medication doses');
+    }
+    if (discrepancies.some(d => d.issue.toLowerCase().includes('refused'))) {
+      themesList.push('Medication refusals documented');
+    }
+    if (discrepancies.some(d => d.issue.toLowerCase().includes('unavailable') || d.issue.toLowerCase().includes('mu'))) {
+      themesList.push('Medication unavailability issues');
+    }
+    if (discrepancies.some(d => d.issue.toLowerCase().includes('code') && d.issue.toLowerCase().includes('invalid'))) {
+      themesList.push('Incorrect EMAR codes used');
+    }
+    if (result.warnings?.some(w => w.type === 'code_conflict')) {
+      themesList.push('Mixed medication codes detected - review support level');
+    }
+    if (result.codeConflictDetected) {
+      themesList.push(`${result.codeConflictDetails || 'Medication code inconsistencies noted'}`);
+    }
+    const themesText = themesList.length > 0 
+      ? themesList.join('. ') + '.'
+      : result.themesAndTrends || 'No significant themes identified in this audit period.';
+
     return {
       formType: "emar",
       version: 1,
@@ -1917,13 +1958,15 @@ ${generatedProtocol.additionalComments}`;
       prnProtocolCompleted,
       actionsInLine,
       nonConformance,
-      timeCritical: "",
-      timeCriticalMedications: "",
-      timeCriticalAdministered: "",
-      timeCriticalActions: "",
-      themesAndTrends: result.themesAndTrends || "",
+      timeCritical: hasTimeCritical ? "Yes" : "No",
+      timeCriticalMedications: timeCriticalMeds.join(", "),
+      timeCriticalAdministered: hasTimeCritical && discrepancies.some(d => d.issue.toLowerCase().includes('time gap')) ? "No" : (hasTimeCritical ? "Yes" : ""),
+      timeCriticalActions: hasTimeCritical && discrepancies.some(d => d.issue.toLowerCase().includes('time gap')) 
+        ? "Time gap violations identified - discussed with care workers and recorded in performance notes."
+        : "",
+      themesAndTrends: themesText,
       staffIdentified,
-      furtherActions: result.gapsInKnowledge || "",
+      furtherActions: result.gapsInKnowledge || (discrepancies.length > 0 ? "Review outstanding discrepancies with care workers and update training as needed." : "No further actions required."),
       auditDate: formatDate(new Date()),
     };
   };
@@ -2928,18 +2971,16 @@ ${generatedProtocol.additionalComments}`;
                   <Download size={15} />
                   Export PDF Report
                 </Button>
-                {isAdmin && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={sendEmarToExtension}
-                    className="rounded-xl border-border/60 font-bold bg-background/50 gap-2 shadow-xs hover:shadow-sm transition-all"
-                    data-testid="button-send-emar-extension"
-                  >
-                    <Activity size={15} />
-                    Send to EMAR Extension
-                  </Button>
-                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={sendEmarToExtension}
+                  className="rounded-xl border-border/60 font-bold bg-background/50 gap-2 shadow-xs hover:shadow-sm transition-all"
+                  data-testid="button-send-emar-extension"
+                >
+                  <Activity size={15} />
+                  Send to EMAR Extension
+                </Button>
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-5">
                 <CopyableBox label="Service User" value={serviceUserDisplay} className="bg-muted/40 border border-border/40" />

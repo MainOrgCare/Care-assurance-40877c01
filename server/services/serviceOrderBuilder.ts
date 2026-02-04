@@ -230,26 +230,30 @@ export interface TemplateSlotState {
  * Determine call type key from label
  */
 export function getCallTypeKey(label: string): string {
-  const normalized = label.toLowerCase().trim();
-  if (normalized.includes('morning') || normalized.includes('am') || normalized.includes('wake')) {
+  const normalized = normalizeName(label);
+  const tokens = normalized.split(' ').filter(Boolean);
+  const has = (token: string) => tokens.includes(token);
+
+  if (has('am') || has('morning') || has('wake') || has('breakfast')) {
     return 'morning';
   }
-  if (normalized.includes('lunch') || normalized.includes('midday') || normalized.includes('noon')) {
+  if (has('lunch') || has('midday') || has('noon')) {
     return 'lunch';
   }
-  if (normalized.includes('tea') || normalized.includes('afternoon')) {
+  // Common rostering convention: "PM" is afternoon/tea, not bedtime.
+  if (has('tea') || has('afternoon') || has('pm')) {
     return 'tea';
   }
-  if (normalized.includes('bed') || normalized.includes('night') || normalized.includes('pm') || normalized.includes('eve')) {
+  if (has('bed') || has('night') || has('evening') || has('eve') || has('late')) {
     return 'bed';
   }
-  if (normalized.includes('domestic') || normalized.includes('clean')) {
+  if (has('domestic') || has('clean') || has('housework')) {
     return 'domestic';
   }
-  if (normalized.includes('shop')) {
+  if (tokens.some((t) => t.startsWith('shop'))) {
     return 'shopping';
   }
-  if (normalized.includes('med') || normalized.includes('medication')) {
+  if (has('med') || has('meds') || has('medication')) {
     return 'medication';
   }
   return 'other';

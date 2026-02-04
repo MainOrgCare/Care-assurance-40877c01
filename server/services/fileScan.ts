@@ -47,7 +47,12 @@ export async function scanFile(metadata: FileMetadata): Promise<ScanResult> {
   }
 
   if (!process.env.CLOUDMERSIVE_API_KEY) {
-    console.warn("CLOUDMERSIVE_API_KEY not set - skipping virus scan");
+    // In production, fail closed - reject uploads without virus scanning
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Virus scanning required but CLOUDMERSIVE_API_KEY not configured');
+    }
+    // In development, warn but allow (fail open)
+    console.warn("CLOUDMERSIVE_API_KEY not set - skipping virus scan (development only)");
     return {
       isClean: true,
       scanResult: "clean",

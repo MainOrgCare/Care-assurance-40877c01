@@ -1076,7 +1076,8 @@ export default function RosteringStudioUnified({
   // ===== RENDER =====
   return (
     <TooltipProvider>
-      <div className="flex h-screen flex-col bg-background overflow-hidden">
+      {/* IMPORTANT: Use `h-full` (not `h-screen`) because Layout already owns the viewport height. */}
+      <div className="flex h-full min-h-0 flex-col bg-background overflow-hidden">
         {/* TOP MENU BAR */}
         <div className="flex h-9 items-center justify-between border-b bg-gradient-to-r from-muted/50 via-muted/30 to-muted/50 px-3 shadow-sm flex-shrink-0">
           <div className="flex items-center gap-0.5">
@@ -1478,6 +1479,56 @@ export default function RosteringStudioUnified({
           </div>
         </div>
 
+        {/* PANEL DOCK - quick toggles so every tool is reachable without hunting menus */}
+        <div className="flex h-8 items-center gap-1 border-b bg-background/70 px-2 text-[11px] flex-shrink-0 overflow-x-auto">
+          {(
+            [
+              { key: "workers", label: "Workers", icon: Users },
+              { key: "timeline", label: "Timeline", icon: Timer },
+              { key: "details", label: "Details", icon: Eye },
+              { key: "map", label: "Map", icon: MapIcon },
+              { key: "callTimes", label: "Call Times", icon: Clock },
+              { key: "constraints", label: "Constraints", icon: UserCog },
+              { key: "workload", label: "Workload", icon: BarChart3 },
+              { key: "optimization", label: "Optimize", icon: Sliders },
+              { key: "database", label: "Database", icon: Database },
+              { key: "aiAnalysis", label: "AI", icon: Brain },
+              { key: "comparison", label: "Compare", icon: GitCompare },
+              { key: "costs", label: "Costs", icon: Calculator },
+              { key: "templates", label: "Templates", icon: BookTemplate },
+            ] as Array<{
+              key: keyof PanelVisibility;
+              label: string;
+              icon: any;
+            }>
+          ).map((item) => {
+            const Icon = item.icon;
+            const isOn = panelVisibility[item.key];
+            return (
+              <Button
+                key={item.key}
+                type="button"
+                size="sm"
+                variant={isOn ? "default" : "outline"}
+                className="h-6 px-2 text-[10px] shrink-0"
+                onClick={() => togglePanel(item.key)}
+                title={item.label}
+              >
+                <Icon className="h-3.5 w-3.5 mr-1" />
+                {item.label}
+              </Button>
+            );
+          })}
+          <div className="ml-auto flex items-center gap-1 shrink-0">
+            <Badge variant="secondary" className="text-[10px]">
+              Snap: {snapMinutes}m
+            </Badge>
+            <Badge variant="secondary" className="text-[10px]">
+              Buffer: {optimizationConstraints.minBufferMinutes ?? defaultConstraints.minBufferMinutes}m
+            </Badge>
+          </div>
+        </div>
+
         {/* MAIN WORKSPACE - Grid Layout */}
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <ResizablePanelGroup direction="horizontal" className="h-full">
@@ -1573,7 +1624,7 @@ export default function RosteringStudioUnified({
             )}
 
             {/* MAIN CONTENT - Resizable Layout */}
-                <ResizablePanel defaultSize={panelVisibility.workers ? 63 : 78} className="h-full">
+                <ResizablePanel defaultSize={panelVisibility.workers ? 63 : 78} className="min-h-0">
               <ResizablePanelGroup direction="vertical" className="h-full">
                 {/* Top Row: Timeline */}
                 {panelVisibility.timeline && (
@@ -1717,6 +1768,7 @@ export default function RosteringStudioUnified({
                         recommendedTimes={callTimesForEditor}
                         fitHeight
                         lockToContainer
+                        showHeader={false}
                       />
                     </div>
                   </div>

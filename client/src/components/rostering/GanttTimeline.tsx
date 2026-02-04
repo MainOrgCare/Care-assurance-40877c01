@@ -74,25 +74,55 @@ const formatTimeLabel = (minutes: number) => {
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
-// Call type to color mapping
+const normalizeLabelForMatch = (value: string | null | undefined) => {
+  return (value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+};
+
+// Call type to color mapping (light + dark theme friendly)
 const getCallTypeColor = (callTypeLabel: string | null | undefined): { bg: string; border: string } => {
-  const label = (callTypeLabel || "").toLowerCase();
-  if (label.includes("am") || label.includes("morning")) {
-    return { bg: "bg-blue-100", border: "border-blue-300" };
+  const label = normalizeLabelForMatch(callTypeLabel);
+  // NOTE: Treat "pm" as the Tea/Afternoon band (common dataset convention).
+  if (/(^| )am( |$)/.test(label) || label.includes("morning")) {
+    return { bg: "bg-sky-100/80 dark:bg-sky-950/35", border: "border-sky-300/80 dark:border-sky-700/60" };
   }
-  if (label.includes("lunch")) {
-    return { bg: "bg-amber-100", border: "border-amber-300" };
+  if (label.includes("lunch") || label.includes("midday") || label.includes("noon")) {
+    return { bg: "bg-amber-100/80 dark:bg-amber-950/30", border: "border-amber-300/80 dark:border-amber-700/60" };
   }
-  if (label.includes("tea")) {
-    return { bg: "bg-emerald-100", border: "border-emerald-300" };
+  if (label.includes("tea") || label.includes("afternoon") || /(^| )pm( |$)/.test(label)) {
+    return { bg: "bg-emerald-100/80 dark:bg-emerald-950/30", border: "border-emerald-300/80 dark:border-emerald-700/60" };
   }
-  if (label.includes("evening") || label.includes("pm")) {
-    return { bg: "bg-indigo-100", border: "border-indigo-300" };
+  if (label.includes("bed") || label.includes("evening") || label.includes("night") || label.includes("eve")) {
+    return { bg: "bg-indigo-100/80 dark:bg-indigo-950/30", border: "border-indigo-300/80 dark:border-indigo-700/60" };
   }
-  if (label.includes("night")) {
-    return { bg: "bg-slate-100", border: "border-slate-300" };
-  }
-  return { bg: "bg-slate-100", border: "border-slate-300" };
+  return { bg: "bg-slate-100/70 dark:bg-slate-900/40", border: "border-slate-300/70 dark:border-slate-700/60" };
+};
+
+const getTimeBandBackgrounds = (
+  startMinutes: number,
+  endMinutes: number
+): Array<{ leftPercent: number; widthPercent: number; className: string; key: string }> => {
+  const totalMinutes = Math.max(endMinutes - startMinutes, 1);
+  const bands = [
+    { key: "am", start: 6 * 60, end: 12 * 60, className: "bg-sky-500/5 dark:bg-sky-400/10" },
+    { key: "lunch", start: 12 * 60, end: 14 * 60, className: "bg-amber-500/5 dark:bg-amber-400/10" },
+    { key: "tea", start: 14 * 60, end: 17 * 60, className: "bg-emerald-500/5 dark:bg-emerald-400/10" },
+    { key: "bed", start: 17 * 60, end: 22 * 60, className: "bg-indigo-500/5 dark:bg-indigo-400/10" },
+  ];
+
+  return bands
+    .map((band) => {
+      const bandStart = Math.max(startMinutes, band.start);
+      const bandEnd = Math.min(endMinutes, band.end);
+      if (bandEnd <= bandStart) return null;
+      const leftPercent = ((bandStart - startMinutes) / totalMinutes) * 100;
+      const widthPercent = ((bandEnd - bandStart) / totalMinutes) * 100;
+      return { leftPercent, widthPercent, className: band.className, key: band.key };
+    })
+    .filter((v): v is NonNullable<typeof v> => v !== null);
 };
 
 // Check for overlaps in a lane
@@ -191,6 +221,10 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   const gapTop = entryTop + Math.max(0, Math.round((entryHeight - gapHeight) / 2));
   const totalMinutes = Math.max(endMinutes - startMinutes, 1);
   const hours = Math.ceil(totalMinutes / 60);
+  const timeBandBackgrounds = useMemo(
+    () => getTimeBandBackgrounds(startMinutes, endMinutes),
+    [startMinutes, endMinutes]
+  );
   
   // Horizontal zoom factor: 100 = 1x, 150 = 1.5x width, etc.
   const zoomFactor = clamp(horizontalZoom, 50, 200) / 100;
@@ -668,6 +702,14 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                           >
                             {/* Background grid */}
                             <div className="rounded bg-muted/15 relative overflow-hidden" style={{ height: entryHeight }}>
+                              {/* Time-of-day bands (AM → Lunch → Tea → Bed) */}
+                              {timeBandBackgrounds.map((band) => (
+                                <div
+                                  key={band.key}
+                                  className={`absolute inset-y-0 ${band.className}`}
+                                  style={{ left: `${band.leftPercent}%`, width: `${band.widthPercent}%` }}
+                                />
+                              ))}
                               {hourTicks.slice(0, -1).map((tick) => {
                                 const left = ((tick - startMinutes) / totalMinutes) * 100;
                                 return (
@@ -763,6 +805,14 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                       >
                         {/* Background grid */}
                         <div className="bg-muted/15 relative overflow-hidden" style={{ height: entryHeight }}>
+                          {/* Time-of-day bands (AM → Lunch → Tea → Bed) */}
+                          {timeBandBackgrounds.map((band) => (
+                            <div
+                              key={band.key}
+                              className={`absolute inset-y-0 ${band.className}`}
+                              style={{ left: `${band.leftPercent}%`, width: `${band.widthPercent}%` }}
+                            />
+                          ))}
                           {hourTicks.slice(0, -1).map((tick) => {
                             const left = ((tick - startMinutes) / totalMinutes) * 100;
                             return (
@@ -862,7 +912,7 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
   const width = ((end - start) / totalMinutes) * 100;
 
   const colors = entry.isTimeCritical 
-    ? { bg: "bg-rose-100", border: "border-rose-300" }
+    ? { bg: "bg-rose-100/80 dark:bg-rose-950/30", border: "border-rose-300/80 dark:border-rose-700/60" }
     : getCallTypeColor(entry.callTypeLabel);
 
   const style = {
@@ -905,11 +955,11 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
             ref={setNodeRef}
             type="button"
             onClick={handleClick}
-            className={`absolute px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-slate-800 shadow-sm touch-manipulation
-              focus:outline-none focus:ring-1 focus:ring-primary/60 
+            className={`absolute rounded-md px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-foreground shadow-sm touch-manipulation
+              transition-shadow focus:outline-none focus:ring-1 focus:ring-primary/60 
               ${colors.bg} border ${colors.border}
-              ${isDragging ? "opacity-60 shadow-md z-20" : ""}
-              ${isSelected ? "ring-1 ring-primary shadow-sm z-10" : ""}
+              ${isDragging ? "opacity-60 shadow-md z-20" : "hover:shadow-md"}
+              ${isSelected ? "ring-1 ring-primary shadow-md z-10" : ""}
               ${isFocused ? "ring-1 ring-primary z-10" : ""}
               ${hasConflict ? "ring-1 ring-red-400" : ""}`}
             style={style}
@@ -918,13 +968,13 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
           >
             {/* Selection indicator */}
             {isSelected && (
-              <div className="absolute -top-1.5 -left-1.5 h-4 w-4 rounded-full bg-white shadow-sm flex items-center justify-center">
+              <div className="absolute -top-1.5 -left-1.5 h-4 w-4 rounded-full bg-background shadow-sm flex items-center justify-center border border-border/60">
                 <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
               </div>
             )}
             {/* Double-up badge */}
             {entry.isDoubleUp && (
-              <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-blue-600 border border-white shadow-sm flex items-center justify-center">
+              <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-blue-600 border border-background shadow-sm flex items-center justify-center">
                 <span className="text-[9px] font-bold text-white">2</span>
               </div>
             )}

@@ -414,75 +414,77 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className={mainClass}>
-        {/* Header */}
-        <header className="h-12 px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 bg-background/95 border-b border-border/40">
-          <div className="flex items-center gap-4">
-            {/* Mobile Menu Trigger */}
-            <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden hover:bg-muted/80 rounded-xl transition-all">
-                  <Menu className="h-5 w-5 text-foreground" />
-                  <span className="sr-only">Toggle menu</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-[280px] border-r border-border/80 bg-sidebar">
-                <SidebarContent
-                  location={location}
-                  handleSecretClick={handleSecretClick}
-                  logout={() => {
-                    setIsMobileOpen(false);
-                    logout();
-                  }}
-                />
-              </SheetContent>
-            </Sheet>
+        {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
+        {!isFullBleed && (
+          <header className="h-12 px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 bg-background/95 border-b border-border/40">
+            <div className="flex items-center gap-4">
+              {/* Mobile Menu Trigger */}
+              <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="md:hidden hover:bg-muted/80 rounded-xl transition-all">
+                    <Menu className="h-5 w-5 text-foreground" />
+                    <span className="sr-only">Toggle menu</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="p-0 w-[280px] border-r border-border/80 bg-sidebar">
+                  <SidebarContent
+                    location={location}
+                    handleSecretClick={handleSecretClick}
+                    logout={() => {
+                      setIsMobileOpen(false);
+                      logout();
+                    }}
+                  />
+                </SheetContent>
+              </Sheet>
 
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden md:inline-flex hover:bg-muted/80 rounded-xl transition-all"
-              onClick={() => {
-                autoCollapseRef.current = false;
-                setIsSidebarCollapsed((prev) => !prev);
-              }}
-            >
-              {isSidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
-              <span className="sr-only">Toggle sidebar</span>
-            </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="hidden md:inline-flex hover:bg-muted/80 rounded-xl transition-all"
+                onClick={() => {
+                  autoCollapseRef.current = false;
+                  setIsSidebarCollapsed((prev) => !prev);
+                }}
+              >
+                {isSidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+                <span className="sr-only">Toggle sidebar</span>
+              </Button>
 
-            <div className="flex items-center gap-2 px-1">
-              <div className={cn(
-                "h-2 w-2 rounded-full",
-                isConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"
-              )} />
-              <span className={cn(
-                "text-xs font-bold tracking-widest uppercase",
-                isConnected ? "text-muted-foreground" : "text-red-500"
-              )}>
-                {isConnected ? "Network Operational" : "Disconnected"}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-5">
-            <div className="flex items-center gap-3 bg-muted/30 pl-4 pr-1.5 py-1.5 rounded-2xl border border-border/40 hover:border-border/80 transition-all cursor-pointer group">
-              <div className="text-right hidden sm:block">
-                <p className="text-xs font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
-                  {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username}
-                </p>
-                <p className="text-[9px] font-black uppercase tracking-tighter leading-tight text-muted-foreground/60">{user?.role}</p>
-              </div>
-              <div className="relative h-8 w-8 rounded-xl flex items-center justify-center font-black uppercase text-[10px] bg-primary text-primary-foreground shadow-sm shadow-primary/20 group-hover:scale-105 transition-transform">
-                {user?.firstName ? user.firstName.substring(0, 1) : user?.username?.substring(0, 1) || "?"}
-                {user?.lastName ? user.lastName.substring(0, 1) : ""}
+              <div className="flex items-center gap-2 px-1">
                 <div className={cn(
-                  "absolute -top-1 -right-1 h-3 w-3 rounded-full border-2 border-background shadow-xs",
-                  isConnected ? "bg-emerald-500" : "bg-red-500"
+                  "h-2 w-2 rounded-full",
+                  isConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"
                 )} />
+                <span className={cn(
+                  "text-xs font-bold tracking-widest uppercase",
+                  isConnected ? "text-muted-foreground" : "text-red-500"
+                )}>
+                  {isConnected ? "Network Operational" : "Disconnected"}
+                </span>
               </div>
             </div>
-          </div>
-        </header>
+
+            <div className="flex items-center gap-5">
+              <div className="flex items-center gap-3 bg-muted/30 pl-4 pr-1.5 py-1.5 rounded-2xl border border-border/40 hover:border-border/80 transition-all cursor-pointer group">
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
+                    {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username}
+                  </p>
+                  <p className="text-[9px] font-black uppercase tracking-tighter leading-tight text-muted-foreground/60">{user?.role}</p>
+                </div>
+                <div className="relative h-8 w-8 rounded-xl flex items-center justify-center font-black uppercase text-[10px] bg-primary text-primary-foreground shadow-sm shadow-primary/20 group-hover:scale-105 transition-transform">
+                  {user?.firstName ? user.firstName.substring(0, 1) : user?.username?.substring(0, 1) || "?"}
+                  {user?.lastName ? user.lastName.substring(0, 1) : ""}
+                  <div className={cn(
+                    "absolute -top-1 -right-1 h-3 w-3 rounded-full border-2 border-background shadow-xs",
+                    isConnected ? "bg-emerald-500" : "bg-red-500"
+                  )} />
+                </div>
+              </div>
+            </div>
+          </header>
+        )}
 
         {/* Page Content Area */}
         <div className={contentWrapperClass}>
