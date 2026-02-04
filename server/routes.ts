@@ -11649,7 +11649,7 @@ Return ONLY valid JSON with content field.` }
         
         // Comprehensive Quality Validation
         const wordCount = enhancedContent.split(/\s+/).length;
-        const sentenceCount = enhancedContent.split(/[.!?]+/).filter(s => s.trim().length > 10).length;
+        const sentenceCount = enhancedContent.split(/[.!?]+/).filter((s: string) => s.trim().length > 10).length;
         const avgWordsPerSentence = sentenceCount > 0 ? wordCount / sentenceCount : 0;
         
         console.log(`[CarePlan] Generated ${wordCount} words, ${sentenceCount} sentences for ${callTypeLabel} plan`);
@@ -11889,118 +11889,118 @@ ${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.versio
         ? "Privacy rules: Full names may be included only if present in the documents. Do not invent names. Never include dates of birth."
         : "Privacy rules: Replace any service user names with I. NEVER include dates of birth. Do NOT include any person names. Use role terms (my carer, my GP, my family member).";
 
-      const systemPrompt = `You are an expert care plan writer for a UK care facility following CQC 2024 Person-Centred Care standards and NHS England Care Planning Principles.
-
+      const systemPrompt = `You are an expert care plan writer for a UK care facility following CQC 2024 standards and NHS England Person-Centred Care Planning principles.
 ${policyContext}
 
-═══════════════════════════════════════════════════════════════════════════════
-CRITICAL: MAXIMUM DEPTH AND DETAIL REQUIRED
-═══════════════════════════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════════════════════════
+🎯 YOUR MISSION: Create a COMPREHENSIVE, DETAILED, EVIDENCE-BASED Care Plan
+════════════════════════════════════════════════════════════════════════════════
 
-This is a COMPREHENSIVE care plan requiring EXTENSIVE detail in every section.
-You will analyze ALL uploaded documents including:
-- Existing Care Plans (if provided)
-- Moving and Handling Plans
-- Support Plans
-- Risk Assessments  
-- Medical Records
-- Additional Documents
-- User Notes and Context
+Analyze ALL uploaded documents thoroughly:
+- Existing Care Plans
+- Moving and Handling assessments  
+- Medical records and reports
+- Risk assessments
+- Additional documents and context notes
+- Any support plans or professional assessments
 
-Use EVERY piece of information from ALL sources to create the most detailed possible care plan.
+Use EVERY piece of information to build a complete, rich, individualized assessment.
 
 ${privacyDirective}
 Keep place names and locations as written. Do not redact places.
 
-═══════════════════════════════════════════════════════════════════════════════
-DEPTH REQUIREMENTS - MINIMUM WORD COUNTS:
-═══════════════════════════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════════════════════════
+✍️ WRITING QUALITY STANDARDS - CRITICAL REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
 
-▶ "whoAmI": MINIMUM 250 words (aim for 300-400)
-▶ "healthAndWellbeing": MINIMUM 300 words (aim for 400-500)
-▶ "personalCareNeeds": MINIMUM 300 words (aim for 400-500)
-▶ "capacityAndSafeguarding": MINIMUM 200 words (aim for 250-300)
-▶ "medicationRequirements": MINIMUM 200 words (aim for 250-300)
-▶ "nutrition": MINIMUM 200 words (aim for 250-300)
-▶ "mobilityAndEquipment": MINIMUM 200 words (aim for 250-300)
-▶ Other narrative fields: MINIMUM 150 words each
+📋 FORMATTING RULES:
+- Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas
+- Never use Oxford commas: "apples, oranges and bananas" not "apples, oranges, and bananas"
+- ALL narrative content MUST be FIRST PERSON: "I", "my", "me" (never "the service user" or "client")
+- Write in clear, readable sentences (15-25 words average)
+- Use specific details: names of equipment, specific times, exact preferences
 
-═══════════════════════════════════════════════════════════════════════════════
-WRITING STYLE - WHAT "IN-DEPTH" MEANS:
-═══════════════════════════════════════════════════════════════════════════════
+📏 WORD COUNT REQUIREMENTS - MINIMUM STANDARDS:
+- **thisIsMe.whoAmI**: MINIMUM 300 words (comprehensive life story)
+- **thisIsMe.hobbiesInterests**: MINIMUM 150 words (detailed interests)
+- **thisIsMe.whatMakesGoodDay**: MINIMUM 100 words (specific preferences)
+- **myCarePlan.capacityAndSafeguarding**: MINIMUM 200 words (detailed capacity assessment)
+- **myCarePlan.healthAndWellbeing**: MINIMUM 400 words (comprehensive health overview)
+- **myCarePlan.personalCareNeeds**: MINIMUM 300 words (detailed care routines)
+- **myCarePlan.medicationRequirements**: MINIMUM 250 words (full medication profile)
+- **myCarePlan.nutrition**: MINIMUM 200 words (dietary needs and preferences)
+- **myCarePlan.mobilityAndEquipment**: MINIMUM 200 words (mobility assessment)
+- **Risk section narrative fields**: MINIMUM 100-150 words each
+- **All "Details" fields**: MINIMUM 50-100 words with specific information
 
-✓ STEP-BY-STEP PROCESSES: Break down every routine into detailed steps
-✓ SPECIFIC TIMES: Include exact times, durations, frequencies
-✓ NAMED EQUIPMENT: List all equipment with specific details
-✓ PREFERENCES EXPLAINED: Not just "I like tea" but "I prefer strong Yorkshire tea with semi-skimmed milk and one sugar, in my blue mug"
-✓ CONTEXT & REASONING: Explain WHY things are done certain ways
-✓ CONSEQUENCES: What happens if routines aren't followed
-✓ SCENARIOS: Cover different situations (good days vs difficult days)
-✓ SENSORY DETAILS: Temperatures, textures, positions, lighting
-✓ COMMUNICATION: How I express needs, what signs to watch for
-✓ EMOTIONAL NEEDS: How I feel, what reassures me, what distresses me
+✅ QUALITY REQUIREMENTS:
 
-═══════════════════════════════════════════════════════════════════════════════
-EXAMPLES OF DEPTH (Learn from these):
-═══════════════════════════════════════════════════════════════════════════════
+1. **EVIDENCE-BASED**: Every statement must be traceable to document sources
+   ✓ Good: "I was diagnosed with Type 2 diabetes in 2020 and currently take Metformin 500mg twice daily"
+   ✗ Bad: "I have various health conditions"
 
-❌ SHALLOW (DO NOT DO THIS):
-"I need help with washing and dressing. I use a walking frame and take medication."
+2. **SPECIFIC & DETAILED**: Use concrete details, not vague generalizations
+   ✓ Good: "I need my zimmer frame to walk to the bathroom. I can manage 10-15 steps but need to rest. My left hip hurts if I stand too long due to arthritis."
+   ✗ Bad: "I need help with mobility"
 
-✅ IN-DEPTH (DO THIS):
-"My morning routine starts around 7:30am when I wake naturally - I don't like being rushed so please allow at least 90 minutes for my full morning care. I need support to sit up in bed using the bed rail on my right side as my left shoulder is weak from my stroke in 2023. Once sitting, I take a moment to orient myself as I sometimes feel dizzy on first waking. My carers should wait for me to nod before helping me stand. I use my red wheeled walking frame to get to the bathroom - it has my name on a label and brakes on both handles which must be applied when I'm standing still. I can walk about 15 steps but tire quickly so please stay close on my left side as this is my weaker side. In the bathroom I prefer to wash at the sink rather than shower in the mornings as the shower can be overwhelming when I'm still waking up. I like the water warm but not hot - test it first. I can wash my face and front but need help with my back, underarms and lower body. Please use the Simple soap as other brands irritate my skin. After washing I need thorough drying especially between my toes as I have poor circulation due to diabetes and any moisture can lead to infections. I had a fungal infection last year that took months to clear so this is very important to me."
+3. **PERSON-CENTRED**: Focus on MY preferences, routines, and what matters to ME
+   ✓ Good: "I like to wake up naturally around 8am with my curtains open. I prefer a shower to a bath and like the water quite warm. My favorite breakfast is porridge with honey."
+   ✗ Bad: "Morning care is provided as needed"
 
-═══════════════════════════════════════════════════════════════════════════════
-CONTENT GENERATION RULES:
-═══════════════════════════════════════════════════════════════════════════════
+4. **ACTIONABLE**: Care workers must know EXACTLY what to do
+   ✓ Good: "Help me put on my compression stockings - left leg first as it's weaker. Roll them up carefully from the toes. Make sure there are no wrinkles as these can cause sores."
+   ✗ Bad: "Assist with compression stockings"
 
-1. FIRST PERSON ALWAYS: Write as "I", "my", "me" - NEVER "the service user", "the client"
+5. **COMPREHENSIVE**: Cover ALL aspects thoroughly
+   - For health: ALL conditions, symptoms, treatments, specialist involvement
+   - For medication: EVERY medication, dose, time, purpose, difficulties
+   - For personal care: FULL routine from waking to sleeping, step-by-step
+   - For mobility: Equipment used, transfer methods, limitations, safety needs
 
-2. NO GENERIC STATEMENTS: Replace vague phrases with specific details:
-   ❌ "I need assistance" → ✅ "I need full assistance from two carers using the hoist"
-   ❌ "I take medication" → ✅ "I take 3 tablets at 8am (metformin 500mg for diabetes, ramipril 5mg for blood pressure, and omeprazole 20mg for acid reflux) which are in my weekly dosette box"
+════════════════════════════════════════════════════════════════════════════════
+📚 SECTION-BY-SECTION QUALITY EXAMPLES
+════════════════════════════════════════════════════════════════════════════════
 
-3. COVER ALL ASPECTS: For each topic, address:
-   - Current situation
-   - How I do things / How carers help
-   - Equipment and aids used
-   - Preferences and dislikes
-   - Safety considerations
-   - What works well
-   - What makes things difficult
-   - Variations (good days vs bad days)
+🟢 EXCELLENT "whoAmI" EXAMPLE (300+ words):
+"I was born in Manchester in 1945 and grew up in a terraced house on Oldham Street with my parents and three siblings. My father worked in the cotton mills and my mother was a seamstress. I left school at 15 to become an apprentice electrician, which I absolutely loved. I worked in electrical contracting for 45 years before retiring at 60 due to my arthritis. I married my late wife Margaret in 1967 and we had two wonderful children - Sarah who's now a teacher in Leeds and Michael who works in IT in London. Margaret passed away five years ago from cancer which was the hardest time of my life. We had 48 happy years together. I moved to this area three years ago to be closer to Sarah and her family - my two grandchildren Emma and Jack who I adore. They visit every Sunday which is the highlight of my week. What's most important to me is maintaining my independence as much as possible and staying connected with my family. I take great pride in keeping my home tidy and presentable. I've always been a practical person who likes to fix things and solve problems. My faith is also very important - I've been Catholic all my life and find great comfort in my prayers. I value my dignity and privacy highly and prefer to do things myself when I can, even if it takes longer."
 
-4. FORMATTING:
-   - Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas
-   - Never use Oxford commas: "apples, oranges and bananas" NOT "apples, oranges, and bananas"
-   - Write in flowing paragraphs, not bullet points
-   - Use natural, conversational language
+🟢 EXCELLENT "healthAndWellbeing" EXAMPLE (400+ words):
+"I was diagnosed with Type 2 diabetes 12 years ago and it's generally well-controlled with Metformin 500mg which I take twice daily with food. I test my blood sugar every morning before breakfast - my target is between 4-7 mmol/L and I usually stay within range. I see the diabetes nurse every three months at the GP surgery and have annual eye checks at the hospital. I also have osteoarthritis which affects both my hips, knees and hands. The pain is worse in cold weather and first thing in the morning. I take Naproxen 500mg twice daily for the pain and it helps significantly. On bad days I also use Paracetamol but try not to take it every day. My left hip is particularly bad and I'm on the waiting list for a hip replacement - I've been waiting 18 months now. The arthritis means I struggle with stairs and can only manage them once or twice a day with the handrail. I had a mild heart attack eight years ago which was a huge shock. Since then I've been on Aspirin 75mg daily, Atorvastatin 40mg at night for cholesterol and Ramipril 5mg for blood pressure. I have six-monthly check-ups with the cardiac nurse and my heart function is stable now. My blood pressure usually runs around 135/80 which they're happy with. I also have hearing loss from years of working with loud machinery. I wear hearing aids in both ears - they're the small behind-the-ear type from Specsavers. I need new batteries about once a week. Without them I really struggle to follow conversations, especially if there's background noise. My eyesight is also declining - I have cataracts in both eyes and wear varifocal glasses for everything. I can't read small print even with glasses. I saw the optician last month and they've referred me to the hospital about the cataracts. My sleep isn't great - I often wake 3-4 times a night to use the toilet due to an enlarged prostate. The doctor says it's benign but it does disturb my sleep. I feel tired during the day as a result. Overall I'd say my health is fair for my age but the combination of conditions does limit what I can do compared to ten years ago. My main concern is the hip pain as it really affects my quality of life."
 
-5. MISSING INFORMATION:
-   - If detail is missing, acknowledge it: "My medication routine is not fully documented but..."
-   - Add verification question for anything uncertain
-   - Provide thoughtful general guidance without inventing specifics
+🟢 EXCELLENT "personalCareNeeds" EXAMPLE (300+ words):
+"I can manage most of my personal care independently but I do need support with some tasks. In the morning I wake naturally around 7:30am and like to use the commode beside my bed rather than walk to the bathroom straight away as my hips are stiff. I can manage this myself but the commode needs emptying. Once I'm up I use my walking frame to get to the bathroom. I prefer to shave myself using my electric razor - it's important to me to keep up my grooming. I wash at the sink as I can't get in the bath anymore and don't trust my balance in the shower. I can wash my face, arms and front independently but I need help washing my back and feet as I can't bend that far. I like to use Imperial Leather soap and have quite sensitive skin so I need to be dried thoroughly, especially between my toes because of my diabetes. Getting dressed is challenging - I can manage my upper body clothes but struggle with socks, trousers and shoes due to my hip arthritis. I need someone to help me put my compression stockings on - left leg first as that's weaker. They need to be smooth with no wrinkles or they cause sores. I prefer loose comfortable clothes - elasticated waist trousers and slip-on shoes. I have a long-handled shoe horn which helps. For oral care I have my own teeth but several are loose. I brush twice daily with a soft toothbrush and Sensodyne toothpaste. I wear dentures on my upper jaw which need taking out at night and cleaning with denture tablets. At bedtime I follow a similar routine in reverse. I like to listen to Radio 4 for about half an hour before sleeping. My continence is generally okay during the day but I do have occasional urgency, particularly if I've had too much tea. I wear pads at night for security as I sometimes don't make it to the commode in time. I'm embarrassed about this but it's better than having accidents. The district nurse visits weekly to check my feet and skin due to the diabetes risk."
 
-6. VERIFICATION:
-   - Return empty verificationQuestions array if everything is clear
-   - Add specific questions for any uncertainty: "What time do you prefer your evening meal?"
+════════════════════════════════════════════════════════════════════════════════
+🎯 SECTION COMPLETION REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
 
-═══════════════════════════════════════════════════════════════════════════════
-QUALITY CHECKLIST (Every response must pass all checks):
-═══════════════════════════════════════════════════════════════════════════════
+Generate content for EVERY SINGLE section and field. No exceptions.
 
-☐ Every narrative field has minimum word count
-☐ All fields populated (none empty)
-☐ First person throughout
-☐ Specific times, names, equipment mentioned
-☐ Step-by-step processes explained
-☐ Preferences with reasoning
-☐ Safety considerations included
-☐ Emotional and dignity needs addressed
-☐ Scenarios covered (variations in routine)
-☐ No generic statements ("as needed", "appropriate support")
+IF information is clearly stated in documents:
+→ Write comprehensive, detailed content using that information
+→ Expand with context and implications for care
+→ Include specific details (times, names, frequencies, amounts)
 
-OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
+IF information is partially available:
+→ Use what's available and build reasonable inferences
+→ Mark uncertainties with "This needs confirming" within the text
+→ Add a verificationQuestion for the user to confirm
+
+IF information is completely missing:
+→ Write: "This information is not specified in the documents provided. Please provide details about [specific question]." 
+→ Add a verificationQuestion requesting this information
+→ DO NOT leave blank
+→ DO NOT invent names, dates, or specific medical details
+
+For verificationQuestions:
+→ Ask specific, actionable questions
+→ Good: "What time do you prefer to wake up in the morning?"
+→ Bad: "Please provide more information"
+→ If everything is well-documented, return empty array: []
+
+════════════════════════════════════════════════════════════════════════════════
+📊 OUTPUT FORMAT - EXACT JSON STRUCTURE REQUIRED
+════════════════════════════════════════════════════════════════════════════════
 {
   "verificationQuestions": ["Question about missing or uncertain details"],
   "thisIsMe": {
@@ -12228,9 +12228,36 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
         model: getRiskAssessmentGenerationModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Analyze this document and generate a complete care plan template. Extract all relevant information and write detailed first-person content for each section:\n\n${contentToEnhance}` }
+          { role: "user", content: `Analyze ALL documents thoroughly and generate a comprehensive, detailed care plan with evidence-based content for every section.
+
+═══════════════════════════════════════════════════════
+DOCUMENTS TO ANALYZE
+═══════════════════════════════════════════════════════
+
+${contentToEnhance}
+
+═══════════════════════════════════════════════════════
+YOUR TASK
+═══════════════════════════════════════════════════════
+
+1. Read EVERY document section thoroughly
+2. Extract ALL relevant information about the service user
+3. Generate comprehensive, detailed content for EVERY field
+4. Meet ALL minimum word count requirements
+5. Write in first person with specific, actionable details
+6. Create verification questions for any uncertain information
+
+REMEMBER:
+- thisIsMe.whoAmI: MIN 300 words
+- healthAndWellbeing: MIN 400 words  
+- personalCareNeeds: MIN 300 words
+- All narrative fields: 100-250 words minimum
+- Be specific: times, equipment names, exact routines
+- First person throughout
+
+Return ONLY valid JSON. Begin now.` }
         ],
-        temperature: 0.1,
+        temperature: 0,
         seed: 42,
         max_completion_tokens: 16000,
         response_format: { type: "json_object" },
@@ -12242,6 +12269,86 @@ OUTPUT FORMAT - Return ONLY valid JSON matching this EXACT structure:
       const content = response.choices[0]?.message?.content || "";
       const result = parseJsonFromContent(content);
       if (result) {
+        // Quality validation and metrics
+        console.log('[PlanEnhancer] ═══════════════════════════════════════════════════');
+        console.log('[PlanEnhancer] QUALITY VALIDATION REPORT');
+        console.log('[PlanEnhancer] ═══════════════════════════════════════════════════');
+        
+        const qualityMetrics = {
+          wordCounts: {} as Record<string, number>,
+          warnings: [] as string[],
+          passes: [] as string[],
+        };
+        
+        // Validate key narrative sections
+        const narrativeSections = [
+          { path: 'thisIsMe.whoAmI', minWords: 300, label: 'Who Am I' },
+          { path: 'thisIsMe.hobbiesInterests', minWords: 150, label: 'Hobbies & Interests' },
+          { path: 'thisIsMe.whatMakesGoodDay', minWords: 100, label: 'What Makes Good Day' },
+          { path: 'myCarePlan.capacityAndSafeguarding', minWords: 200, label: 'Capacity & Safeguarding' },
+          { path: 'myCarePlan.healthAndWellbeing', minWords: 400, label: 'Health & Wellbeing' },
+          { path: 'myCarePlan.personalCareNeeds', minWords: 300, label: 'Personal Care Needs' },
+          { path: 'myCarePlan.medicationRequirements', minWords: 250, label: 'Medication Requirements' },
+          { path: 'myCarePlan.nutrition', minWords: 200, label: 'Nutrition' },
+          { path: 'myCarePlan.mobilityAndEquipment', minWords: 200, label: 'Mobility & Equipment' },
+        ];
+        
+        narrativeSections.forEach(({ path, minWords, label }) => {
+          const parts = path.split('.');
+          let value = result;
+          for (const part of parts) {
+            value = value?.[part];
+          }
+          
+          if (typeof value === 'string' && value.trim()) {
+            const wordCount = value.trim().split(/\s+/).length;
+            qualityMetrics.wordCounts[label] = wordCount;
+            
+            if (wordCount >= minWords) {
+              qualityMetrics.passes.push(`✅ ${label}: ${wordCount} words (min ${minWords})`);
+            } else {
+              qualityMetrics.warnings.push(`⚠️  ${label}: Only ${wordCount} words (min ${minWords} required)`);
+            }
+            
+            // Check for first-person language
+            const hasFirstPerson = /\b(I|my|me)\b/i.test(value);
+            if (!hasFirstPerson && wordCount > 20) {
+              qualityMetrics.warnings.push(`⚠️  ${label}: May not be in first person`);
+            }
+            
+            // Check for vague language
+            const vagueTerms = ['various', 'some', 'appropriate', 'as needed', 'support is provided'];
+            const foundVague = vagueTerms.filter(term => value.toLowerCase().includes(term));
+            if (foundVague.length > 0) {
+              qualityMetrics.warnings.push(`⚠️  ${label}: Contains vague terms: ${foundVague.join(', ')}`);
+            }
+          } else {
+            qualityMetrics.warnings.push(`❌ ${label}: Missing or empty`);
+          }
+        });
+        
+        // Log quality metrics
+        if (qualityMetrics.passes.length > 0) {
+          console.log('[PlanEnhancer] Quality Passes:');
+          qualityMetrics.passes.forEach(pass => console.log(`[PlanEnhancer]   ${pass}`));
+        }
+        
+        if (qualityMetrics.warnings.length > 0) {
+          console.log('[PlanEnhancer] Quality Warnings:');
+          qualityMetrics.warnings.forEach(warning => console.log(`[PlanEnhancer]   ${warning}`));
+        }
+        
+        // Calculate overall quality score
+        const totalSections = narrativeSections.length;
+        const passedSections = qualityMetrics.passes.length;
+        const qualityScore = Math.round((passedSections / totalSections) * 100);
+        
+        console.log('[PlanEnhancer] ───────────────────────────────────────────────────');
+        console.log(`[PlanEnhancer] Overall Quality Score: ${qualityScore}/100`);
+        console.log(`[PlanEnhancer] Sections Meeting Standards: ${passedSections}/${totalSections}`);
+        console.log(`[PlanEnhancer] Total Words Generated: ${Object.values(qualityMetrics.wordCounts).reduce((a, b) => a + b, 0)}`);
+        console.log('[PlanEnhancer] ═══════════════════════════════════════════════════');
+        
         const scrubbedResult = sanitizeNarrativePII(result);
         const payload = allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult;
         

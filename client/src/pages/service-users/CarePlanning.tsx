@@ -471,7 +471,7 @@ export default function CarePlanning() {
     const copySource = carePlanScrubbed || carePlan;
     if (!copySource) return;
 
-    const sectionsText = copySource.sections
+    const sectionsText = (copySource.sections || [])
       .filter((section): section is CarePlanSection => section != null)
       .map((section) => formatSectionForCopy(section))
       .join("\n\n---\n\n");
@@ -685,7 +685,7 @@ export default function CarePlanning() {
                       </div>
                       {details && (
                         <div className="text-[10px] text-muted-foreground font-medium text-left">
-                          {details.duration}min • {details.carersRequired} carer{details.carersRequired > 1 ? 's' : ''}
+                          {details.duration}min • {details.carersRequired ?? 1} carer{(details.carersRequired ?? 1) > 1 ? 's' : ''}
                           {details.timeBand && (
                             <div className="text-[9px] opacity-70">{details.timeBand}</div>
                           )}

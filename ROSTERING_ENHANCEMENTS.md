@@ -236,12 +236,12 @@ In the main content area (around line 4000), add conditionalrendering:
 )}
 
 {studioTab === "comparison" && savedComparisonData && (
-  <ScheduleComparison
+  `<ScheduleComparison`
     workbookId={workbook.id}
     beforeSchedule={savedComparisonData.before}
     afterSchedule={savedComparisonData.after}
     changes={savedComparisonData.changes}
-  />
+  `/>`
 )}
 
 {studioTab === "templates" && (
@@ -271,7 +271,8 @@ In the main content area (around line 4000), add conditionalrendering:
 
 To enable schedule comparison, save states before/after optimization:
 
-\`\`\`typescript
+ \`\`\typescript
+
 const [savedComparisonData, setSavedComparisonData] = useState<any>(null);
 
 // Before running optimization:
@@ -308,9 +309,9 @@ const handleOptimize = async () => {
   // Optionally switch to comparison tab
   setStudioTab("comparison");
 };
-\`\`\`
+```
 
----
+```text
 
 ## 📊 Usage Examples
 

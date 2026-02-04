@@ -103,6 +103,11 @@ import {
   ZoomOut,
   ArrowDownUp,
   AlertTriangle,
+  Brain,
+  Calculator,
+  FileSpreadsheet,
+  BookTemplate,
+  GitCompare,
 } from "lucide-react";
 
 // Rostering Components
@@ -113,7 +118,12 @@ import { WorkerAvatar } from "@/components/rostering/WorkerAvatar";
 import { CallTimeEditor, type RecommendedCallTime } from "@/components/rostering/CallTimeEditor";
 import { WorkloadHeatmap } from "@/components/rostering/WorkloadHeatmap";
 import { WorkerConstraintsEditor, type WorkerConstraint as WorkerConstraintUI } from "@/components/rostering/WorkerConstraintsEditor";
+import ScheduleAnalysisDashboard from "@/components/rostering/ScheduleAnalysisDashboard";
+import ScheduleComparison from "@/components/rostering/ScheduleComparison";
+import CostAnalysisDashboard from "@/components/rostering/CostAnalysisDashboard";
+import ScheduleTemplateLibrary from "@/components/rostering/ScheduleTemplateLibrary";
 import { buildAllWorkerLanes, buildWorkerSummaries, type TimelineEntry, type GanttLane } from "@/lib/rostering/rosterModel";
+import { exportRosterToExcel, exportWorkerScheduleToExcel } from "@/lib/rostering/excelExport";
 import { useRosteringKeyboardShortcuts, buildRosteringShortcuts, type KeyboardShortcut } from "@/hooks/useRosteringKeyboardShortcuts";
 import {
   rosterHistoryReducer,
@@ -356,6 +366,10 @@ interface PanelVisibility {
   workload: boolean;
   optimization: boolean;
   database: boolean;
+  aiAnalysis: boolean;
+  comparison: boolean;
+  costs: boolean;
+  templates: boolean;
 }
 
 const defaultPanelVisibility: PanelVisibility = {
@@ -368,6 +382,10 @@ const defaultPanelVisibility: PanelVisibility = {
   workload: false,
   optimization: false,
   database: false,
+  aiAnalysis: false,
+  comparison: false,
+  costs: false,
+  templates: false,
 };
 
 // ===== MAIN COMPONENT =====
@@ -419,6 +437,9 @@ export default function RosteringStudioUnified({
   const [saveScheduleName, setSaveScheduleName] = useState("");
   const [saveScheduleDescription, setSaveScheduleDescription] = useState("");
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+
+  // Comparison data for before/after analysis
+  const [savedComparisonData, setSavedComparisonData] = useState<any>(null);
 
   const timelineZoom = TIMELINE_ZOOM_LEVELS[timelineZoomIndex] ?? 100;
   const timelineRowHeight = useMemo(
@@ -962,6 +983,47 @@ export default function RosteringStudioUnified({
     toast({ title: "PDF exported" });
   }, [timelineLanes, selectedTemplateWeek, selectedTemplateDay, toast]);
 
+  const handleExportExcel = useCallback(() => {
+    const exportData = {
+      weekNumber: selectedTemplateWeek,
+      weekDay: selectedTemplateDay,
+      workers: timelineLanes.map(lane => ({
+        name: lane.label,
+        calls: lane.entries.map(e => ({
+          id: e.id,
+          serviceUserName: e.title,
+          startTime: formatTimeOfDay(e.startMinutes),
+          endTime: formatTimeOfDay(e.startMinutes + e.durationMinutes),
+          duration: e.durationMinutes,
+          isDoubleUp: e.isDoubleUp || false,
+          isTimeCritical: e.isTimeCritical || false,
+          callType: e.callTypeLabel || "Regular",
+          address: e.address || "",
+        })),
+        totalCalls: lane.entries.length,
+        totalMinutes: lane.entries.reduce((sum, e) => sum + e.durationMinutes, 0),
+        totalServiceUsers: new Set(lane.entries.map(e => e.title)).size,
+        startTime: lane.entries.length > 0 ? formatTimeOfDay(Math.min(...lane.entries.map(e => e.startMinutes))) : "",
+        endTime: lane.entries.length > 0 ? formatTimeOfDay(Math.max(...lane.entries.map(e => e.startMinutes + e.durationMinutes))) : "",
+      })),
+      metrics: {
+        totalCalls: timelineLanes.reduce((sum, lane) => sum + lane.entries.length, 0),
+        totalHours: timelineLanes.reduce((sum, lane) => sum + lane.entries.reduce((s, e) => s + e.durationMinutes, 0), 0) / 60,
+        totalWorkers: timelineLanes.length,
+        conflicts: 0, // Could calculate from overlaps
+        avgCallsPerWorker: timelineLanes.length > 0 ? timelineLanes.reduce((sum, lane) => sum + lane.entries.length, 0) / timelineLanes.length : 0,
+        avgHoursPerWorker: timelineLanes.length > 0 ? timelineLanes.reduce((sum, lane) => sum + lane.entries.reduce((s, e) => s + e.durationMinutes, 0), 0) / timelineLanes.length / 60 : 0,
+      },
+      optimizationScore: 0, // Calculate if available
+    };
+
+    exportRosterToExcel(
+      exportData,
+      `roster-${selectedTemplateWeek}-${selectedTemplateDay}.xlsx`
+    );
+    toast({ title: "Excel file exported" });
+  }, [timelineLanes, selectedTemplateWeek, selectedTemplateDay, toast]);
+
   const openWorkerTools = useCallback((workerKey: string) => {
     setSelectedCareWorkerKey(workerKey);
     setShowAllWorkers(false);
@@ -1016,7 +1078,7 @@ export default function RosteringStudioUnified({
     <TooltipProvider>
       <div className="flex h-full flex-col bg-background">
         {/* TOP MENU BAR */}
-        <div className="flex h-8 items-center justify-between border-b bg-muted/30 px-2">
+        <div className="flex h-9 items-center justify-between border-b bg-gradient-to-r from-muted/50 via-muted/30 to-muted/50 px-3 shadow-sm">
           <div className="flex items-center gap-0.5">
             {!embedded && (
               <Button variant="ghost" size="sm" asChild className="mr-1 h-7 w-7 p-0">
@@ -1029,7 +1091,7 @@ export default function RosteringStudioUnified({
             {/* File Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-sm font-medium">
+                <Button variant="ghost" size="sm" className="h-7 px-3 text-sm font-medium hover:bg-primary/10 transition-colors">
                   File
                 </Button>
               </DropdownMenuTrigger>
@@ -1088,13 +1150,17 @@ export default function RosteringStudioUnified({
                   <Download className="mr-2 h-4 w-4" />
                   Export PDF
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportExcel}>
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Export Excel
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
             {/* Edit Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-sm font-medium">
+                <Button variant="ghost" size="sm" className="h-7 px-3 text-sm font-medium hover:bg-primary/10 transition-colors">
                   Edit
                 </Button>
               </DropdownMenuTrigger>
@@ -1193,6 +1259,36 @@ export default function RosteringStudioUnified({
                 >
                   <Database className="mr-2 h-4 w-4" />
                   Database Admin
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Advanced Tools</DropdownMenuLabel>
+                <DropdownMenuCheckboxItem
+                  checked={panelVisibility.aiAnalysis}
+                  onCheckedChange={() => togglePanel("aiAnalysis")}
+                >
+                  <Brain className="mr-2 h-4 w-4" />
+                  AI Schedule Analysis
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={panelVisibility.comparison}
+                  onCheckedChange={() => togglePanel("comparison")}
+                >
+                  <GitCompare className="mr-2 h-4 w-4" />
+                  Schedule Comparison
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={panelVisibility.costs}
+                  onCheckedChange={() => togglePanel("costs")}
+                >
+                  <Calculator className="mr-2 h-4 w-4" />
+                  Cost Analysis
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={panelVisibility.templates}
+                  onCheckedChange={() => togglePanel("templates")}
+                >
+                  <BookTemplate className="mr-2 h-4 w-4" />
+                  Template Library
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Timeline</DropdownMenuLabel>
@@ -1296,21 +1392,21 @@ export default function RosteringStudioUnified({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-7 w-7 hover:bg-primary/20 transition-colors"
               onClick={() => setSelectedTemplateWeek((p) => (p === "week1" ? "week2" : "week1"))}
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
+              <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Badge variant="secondary" className="text-[11px] font-semibold px-2 py-0.5">
+            <Badge variant="secondary" className="text-[11px] font-bold px-3 py-1 shadow-sm bg-primary/90 text-primary-foreground">
               {getTemplateWeekLabel(selectedTemplateWeek)} • {selectedTemplateDay}
             </Badge>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-7 w-7 hover:bg-primary/20 transition-colors"
               onClick={() => setSelectedTemplateWeek((p) => (p === "week1" ? "week2" : "week1"))}
             >
-              <ChevronRight className="h-3.5 w-3.5" />
+              <ChevronRight className="h-4 w-4" />
             </Button>
             <Select
               value={selectedTemplateDay}
@@ -1331,27 +1427,27 @@ export default function RosteringStudioUnified({
         </div>
 
         {/* STATS BAR */}
-        <div className="flex h-6 items-center justify-between border-b bg-muted/20 px-2 text-[10px]">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1">
-              <Users className="h-3 w-3 text-muted-foreground" />
-              <span className="font-semibold">{totalWorkersCount}</span>
-              <span className="text-muted-foreground">Workers</span>
+        <div className="flex h-7 items-center justify-between border-b bg-gradient-to-r from-background via-muted/10 to-background px-3 text-[10px] shadow-sm">
+          <div className="flex items-center gap-5">
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20">
+              <Users className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+              <span className="font-bold text-blue-700 dark:text-blue-300">{totalWorkersCount}</span>
+              <span className="text-blue-600/70 dark:text-blue-400/70 text-[9px] font-medium">Workers</span>
             </div>
-            <div className="flex items-center gap-1">
-              <MapPin className="h-3 w-3 text-muted-foreground" />
-              <span className="font-semibold">{totalServiceUsersCount}</span>
-              <span className="text-muted-foreground">SUs</span>
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20">
+              <MapPin className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+              <span className="font-bold text-purple-700 dark:text-purple-300">{totalServiceUsersCount}</span>
+              <span className="text-purple-600/70 dark:text-purple-400/70 text-[9px] font-medium">SUs</span>
             </div>
-            <div className="flex items-center gap-1">
-              <ClipboardList className="h-3 w-3 text-muted-foreground" />
-              <span className="font-semibold">{totalCallsCount}</span>
-              <span className="text-muted-foreground">Calls</span>
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-green-500/10 border border-green-500/20">
+              <ClipboardList className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+              <span className="font-bold text-green-700 dark:text-green-300">{totalCallsCount}</span>
+              <span className="text-green-600/70 dark:text-green-400/70 text-[9px] font-medium">Calls</span>
             </div>
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3 text-muted-foreground" />
-              <span className="font-semibold">{totalHoursCount}</span>
-              <span className="text-muted-foreground">Hrs</span>
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20">
+              <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+              <span className="font-bold text-amber-700 dark:text-amber-300">{totalHoursCount}</span>
+              <span className="text-amber-600/70 dark:text-amber-400/70 text-[9px] font-medium">Hrs</span>
             </div>
             <div className="flex items-center gap-1">
               {conflictsCount > 0 ? (
@@ -1389,11 +1485,12 @@ export default function RosteringStudioUnified({
             {panelVisibility.workers && (
               <>
                 <ResizablePanel defaultSize={12} minSize={8} maxSize={18} className="min-h-0">
-                  <div className="flex h-full min-h-0 flex-col border-r bg-background/50">
-                    <div className="flex items-center justify-between border-b px-2 py-1">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[9px] font-semibold uppercase tracking-wide">Workers</span>
-                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-4">
+                  <div className="flex h-full min-h-0 flex-col border-r bg-gradient-to-b from-muted/20 to-background">
+                    <div className="flex items-center justify-between border-b bg-gradient-to-r from-primary/5 to-transparent px-3 py-1.5 shadow-sm">
+                      <div className="flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-primary" />
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-foreground">Workers</span>
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 h-5 font-bold bg-primary/10 text-primary border-primary/20">
                           {filteredWorkers.length}/{careWorkerRosters.length}
                         </Badge>
                       </div>
@@ -1406,12 +1503,12 @@ export default function RosteringStudioUnified({
                         {showAllWorkers ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                       </Button>
                     </div>
-                    <div className="px-1.5 py-1 space-y-1">
+                    <div className="px-2 py-1.5 space-y-1.5">
                       <Input
-                        placeholder="Search..."
+                        placeholder="🔍 Search workers..."
                         value={careWorkerSearch}
                         onChange={(e) => setCareWorkerSearch(e.target.value)}
-                        className="h-5 text-[10px]"
+                        className="h-7 text-[10px] border-primary/20 focus:border-primary/40 focus:ring-1 focus:ring-primary/20"
                       />
                       <div className="flex items-center gap-1">
                         {[
@@ -1446,8 +1543,10 @@ export default function RosteringStudioUnified({
                                 (e.target as HTMLElement).blur(); // Prevent aria-hidden focus issue
                                 openWorkerTools(worker.key);
                               }}
-                              className={`w-full h-9 px-1.5 py-1 text-left transition hover:bg-muted/50 ${
-                                isSelected ? "bg-primary/10" : ""
+                              className={`w-full h-10 px-2 py-1.5 text-left transition-all duration-200 rounded-md mx-1 ${
+                                isSelected 
+                                  ? "bg-gradient-to-r from-primary/20 to-primary/10 border border-primary/30 shadow-sm" 
+                                  : "hover:bg-muted/60 hover:shadow-sm"
                               }`}
                             >
                               <div className="flex items-center gap-1">
@@ -1479,11 +1578,11 @@ export default function RosteringStudioUnified({
                 {/* Top Row: Timeline (takes most space) */}
                 {panelVisibility.timeline && (
                   <div className="flex-[2] min-h-[260px] border-b flex flex-col overflow-hidden">
-                    <div className="flex items-center justify-between bg-muted/30 px-2 py-0.5 border-b shrink-0">
-                      <div className="flex items-center gap-1.5">
-                        <Timer className="h-3 w-3" />
-                        <span className="text-[11px] font-semibold">Timeline</span>
-                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-4">
+                    <div className="flex items-center justify-between bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-3 py-1 border-b shrink-0 shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <Timer className="h-4 w-4 text-primary" />
+                        <span className="text-[11px] font-bold uppercase tracking-wide">Timeline</span>
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-primary/10 text-primary border-primary/20">
                           {showAllWorkers ? `${timelineLanes.length}` : selectedCareWorkerKey ? "1" : "—"}
                         </Badge>
                         {conflictsCount > 0 && (
@@ -1627,10 +1726,10 @@ export default function RosteringStudioUnified({
                   {/* Map Panel */}
                   {panelVisibility.map && (
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
-                      <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
-                        <MapIcon className="h-3 w-3" />
-                        <span className="text-[11px] font-semibold">Map</span>
-                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-4">
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-blue-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                        <MapIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <span className="text-[11px] font-bold uppercase tracking-wide">Map</span>
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20">
                           {routeEntriesSorted.length}
                         </Badge>
                       </div>
@@ -1643,10 +1742,10 @@ export default function RosteringStudioUnified({
                   {/* Call Times Panel */}
                   {panelVisibility.callTimes && (
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
-                      <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
-                        <Clock className="h-3 w-3" />
-                        <span className="text-[11px] font-semibold">Call Times</span>
-                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-4">
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-purple-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                        <Clock className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                        <span className="text-[11px] font-bold uppercase tracking-wide">Call Times</span>
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20">
                           {callTimesForEditor.length}
                         </Badge>
                       </div>
@@ -1668,10 +1767,10 @@ export default function RosteringStudioUnified({
                   {/* Constraints Panel */}
                   {panelVisibility.constraints && (
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
-                      <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
-                        <UserCog className="h-3 w-3" />
-                        <span className="text-[11px] font-semibold">Constraints</span>
-                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-4">
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-amber-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                        <UserCog className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                        <span className="text-[11px] font-bold uppercase tracking-wide">Constraints</span>
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20">
                           {constraintsForEditor.length}
                         </Badge>
                       </div>
@@ -1697,9 +1796,9 @@ export default function RosteringStudioUnified({
                   {/* Workload Heatmap */}
                   {panelVisibility.workload && (
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
-                      <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
-                        <BarChart3 className="h-3 w-3" />
-                        <span className="text-[11px] font-semibold">Workload</span>
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-green-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                        <BarChart3 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        <span className="text-[11px] font-bold uppercase tracking-wide">Workload</span>
                       </div>
                       <div className="flex-1 min-h-0 p-0.5 overflow-auto">
                         <WorkloadHeatmap
@@ -1719,9 +1818,9 @@ export default function RosteringStudioUnified({
                   {/* Optimization Panel */}
                   {panelVisibility.optimization && (
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
-                      <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
-                        <Sliders className="h-3 w-3" />
-                        <span className="text-[11px] font-semibold">Optimization</span>
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-orange-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                        <Sliders className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                        <span className="text-[11px] font-bold uppercase tracking-wide">Optimization</span>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
                         <div className="p-0.5">
@@ -1741,9 +1840,9 @@ export default function RosteringStudioUnified({
                   {/* Database Panel */}
                   {panelVisibility.database && (
                     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-                      <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-0.5 border-b">
-                        <Database className="h-3 w-3" />
-                        <span className="text-[11px] font-semibold">Database</span>
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-slate-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                        <Database className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                        <span className="text-[11px] font-bold uppercase tracking-wide">Database</span>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
                         <div className="p-0.5">
@@ -1753,11 +1852,131 @@ export default function RosteringStudioUnified({
                     </div>
                   )}
 
+                  {/* AI Analysis Panel */}
+                  {panelVisibility.aiAnalysis && (
+                    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-transparent px-3 py-1 border-b shadow-sm">
+                        <Brain className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                        <span className="text-[11px] font-bold uppercase tracking-wide">AI Schedule Analysis</span>
+                      </div>
+                      <ScrollArea className="flex-1 min-h-0">
+                        <div className="p-0.5">
+                          {activeWorkbookId && (
+                            <ScheduleAnalysisDashboard
+                              workbookId={parseInt(activeWorkbookId)}
+                              workers={workerSummaries.map(ws => ({
+                                key: ws.key,
+                                name: ws.workerName,
+                                calls: ws.totalCalls,
+                                minutes: ws.totalDurationMinutes,
+                                serviceUsers: ws.uniqueServiceUsers,
+                              }))}
+                              conflicts={0}
+                              travelGaps={0}
+                              utilizationStats={{
+                                avgCalls: workerSummaries.length > 0 ? workerSummaries.reduce((sum, w) => sum + w.totalCalls, 0) / workerSummaries.length : 0,
+                                avgHours: workerSummaries.length > 0 ? workerSummaries.reduce((sum, w) => sum + w.totalDurationMinutes, 0) / workerSummaries.length / 60 : 0,
+                                workersOverLimit: workerFilterCounts.over,
+                                workersUnderUtilized: workerFilterCounts.under,
+                              }}
+                              constraintViolations={[]}
+                              weekDay={selectedTemplateDay}
+                              weekNumber={selectedTemplateWeek}
+                            />
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+
+                  {/* Schedule Comparison Panel */}
+                  {panelVisibility.comparison && savedComparisonData && (
+                    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-cyan-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                        <GitCompare className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                        <span className="text-[11px] font-bold uppercase tracking-wide">Schedule Comparison</span>
+                      </div>
+                      <ScrollArea className="flex-1 min-h-0">
+                        <div className="p-0.5">
+                          {activeWorkbookId && (
+                            <ScheduleComparison
+                              workbookId={parseInt(activeWorkbookId)}
+                              beforeSchedule={savedComparisonData.before}
+                              afterSchedule={savedComparisonData.after}
+                              changes={savedComparisonData.changes}
+                            />
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+
+                  {/* Cost Analysis Panel */}
+                  {panelVisibility.costs && (
+                    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-emerald-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                        <Calculator className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <span className="text-[11px] font-bold uppercase tracking-wide">Cost Analysis</span>
+                      </div>
+                      <ScrollArea className="flex-1 min-h-0">
+                        <div className="p-0.5">
+                          <CostAnalysisDashboard
+                            workers={workerSummaries.map(ws => ({
+                              name: ws.workerName,
+                              totalMinutes: ws.totalDurationMinutes,
+                              travelDistanceMeters: 0, // Calculate from route data if available
+                            }))}
+                          />
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+
+                  {/* Template Library Panel */}
+                  {panelVisibility.templates && (
+                    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-rose-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                        <BookTemplate className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                        <span className="text-[11px] font-bold uppercase tracking-wide">Template Library</span>
+                      </div>
+                      <ScrollArea className="flex-1 min-h-0">
+                        <div className="p-0.5">
+                          {activeWorkbookId && (
+                            <ScheduleTemplateLibrary
+                              workbookId={parseInt(activeWorkbookId)}
+                              currentWeekDay={selectedTemplateDay}
+                              currentWeekNumber={selectedTemplateWeek}
+                              currentScheduleState={{
+                                timeOverrides: rosterState.present.timeOverrides,
+                                laneOverrides: rosterState.present.laneOverrides,
+                              }}
+                              onLoadTemplate={(state) => {
+                                // Apply loaded state as optimization result
+                                if (state.timeOverrides || state.laneOverrides) {
+                                  dispatchRoster({
+                                    type: "APPLY_OPTIMIZATION",
+                                    timeOverrides: state.timeOverrides as Record<string, number> || {},
+                                    laneOverrides: state.laneOverrides as Record<string, string> || {},
+                                  });
+                                }
+                              }}
+                            />
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+
                   {/* Placeholder when no bottom panels visible */}
                   {!panelVisibility.map && !panelVisibility.callTimes && !panelVisibility.constraints && 
-                   !panelVisibility.workload && !panelVisibility.optimization && !panelVisibility.database && (
-                    <div className="flex-1 flex items-center justify-center text-muted-foreground text-xs">
-                      Use View menu to show panels
+                   !panelVisibility.workload && !panelVisibility.optimization && !panelVisibility.database &&
+                   !panelVisibility.aiAnalysis && !panelVisibility.comparison && !panelVisibility.costs && !panelVisibility.templates && (
+                    <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-xs gap-3">
+                      <Layers className="h-12 w-12 text-muted-foreground/30" />
+                      <div className="text-center space-y-1">
+                        <p className="font-medium text-sm">No panels visible</p>
+                        <p className="text-[10px]">Use <kbd className="px-1.5 py-0.5 bg-muted rounded text-[9px] font-mono">View</kbd> menu to show panels</p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1769,22 +1988,26 @@ export default function RosteringStudioUnified({
               <>
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize={25} minSize={15} maxSize={35} className="min-h-0">
-                  <div className="flex h-full min-h-0 flex-col border-l bg-background/50">
-                    <div className="border-b px-2 py-1">
-                      <span className="text-[9px] font-semibold uppercase tracking-wide">Details</span>
+                  <div className="flex h-full min-h-0 flex-col border-l bg-gradient-to-b from-muted/10 to-background">
+                    <div className="border-b bg-gradient-to-r from-primary/5 to-transparent px-3 py-1.5 shadow-sm">
+                      <div className="flex items-center gap-1.5">
+                        <Eye className="h-3.5 w-3.5  text-primary" />
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-foreground">Details</span>
+                      </div>
                     </div>
                     <ScrollArea className="flex-1 min-h-0">
-                      <div className="p-1.5 space-y-2">
+                      <div className="p-2 space-y-2.5">
                         {/* Selected Visit Details */}
-                        <div className="rounded-lg border p-1.5">
-                          <p className="text-[8px] uppercase tracking-wide text-muted-foreground mb-1">
+                        <div className="rounded-lg border bg-gradient-to-br from-primary/5 to-transparent p-2 shadow-sm">
+                          <p className="text-[9px] uppercase tracking-wide text-primary/70 font-bold mb-1.5 flex items-center gap-1">
+                            <Clock4 className="h-3 w-3" />
                             Selected Visit
                           </p>
                           {selectedTimelineEntry ? (
-                            <div className="space-y-1">
-                              <p className="text-[11px] font-semibold leading-tight">{selectedTimelineEntry.title}</p>
-                              <div className="flex items-center gap-1 text-[9px]">
-                                <Badge variant="outline" className="text-[8px] px-1 py-0 h-4">
+                            <div className="space-y-1.5">
+                              <p className="text-[12px] font-bold leading-tight">{selectedTimelineEntry.title}</p>
+                              <div className="flex items-center gap-1.5 text-[9px]">
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 h-5 font-semibold border-primary/30 bg-primary/5">
                                   {formatMinutesToTime(selectedTimelineEntry.startMinutes)}
                                 </Badge>
                                 <span className="text-muted-foreground">
@@ -1799,8 +2022,8 @@ export default function RosteringStudioUnified({
                                   {selectedTimelineEntry.address}
                                 </p>
                               )}
-                              <div className="pt-1.5 border-t">
-                                <p className="text-[9px] uppercase tracking-wide text-muted-foreground mb-1">
+                              <div className="pt-2 border-t">
+                                <p className="text-[9px] uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">
                                   Reassign to
                                 </p>
                                 <Select
@@ -1823,15 +2046,15 @@ export default function RosteringStudioUnified({
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="w-full h-6 text-[10px]"
+                                className="w-full h-7 text-[10px] mt-1 hover:bg-primary/10"
                                 onClick={() => setSelectedTimelineEntryId(null)}
                               >
                                 Clear selection
                               </Button>
                             </div>
                           ) : (
-                            <p className="text-xs text-muted-foreground">
-                              Click a visit on the timeline to view details
+                            <p className="text-[10px] text-muted-foreground py-2 text-center">
+                              👆 Click a visit on the timeline
                             </p>
                           )}
                         </div>
