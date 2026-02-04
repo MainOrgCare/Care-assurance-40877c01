@@ -476,7 +476,10 @@ function AICostSection() {
 
 function AIProviderSection() {
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
+  const [hasPATKey, setHasPATKey] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<"openai" | "github">("openai");
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -489,11 +492,49 @@ function AIProviderSection() {
       if (providerRes.ok) {
         const data = await providerRes.json();
         setHasOpenAIKey(Boolean(data.hasOpenAIKey));
+        setHasPATKey(Boolean(data.hasPATKey));
+        setSelectedProvider(data.provider || "openai");
       }
     } catch (error) {
       console.error("Failed to fetch AI settings:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleProviderToggle = async () => {
+    const newProvider = selectedProvider === "openai" ? "github" : "openai";
+    
+    // Check if the target provider's key is available
+    if (newProvider === "openai" && !hasOpenAIKey) {
+      alert("OpenAI API key is not configured.");
+      return;
+    }
+    if (newProvider === "github" && !hasPATKey) {
+      alert("GitHub AI key (PAT_AI_KEY) is not configured.");
+      return;
+    }
+    
+    setUpdating(true);
+    try {
+      const res = await fetch("/api/admin/ai-provider", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ provider: newProvider }),
+      });
+      
+      if (res.ok) {
+        setSelectedProvider(newProvider);
+      } else {
+        const data = await res.json();
+        alert(data.message || "Failed to update provider");
+      }
+    } catch (error) {
+      console.error("Failed to update provider:", error);
+      alert("Failed to update provider");
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -515,13 +556,33 @@ function AIProviderSection() {
           AI Configuration
         </CardTitle>
         <CardDescription className="text-muted-foreground text-sm">
-          Billing provider is fixed to OpenAI. Model selection uses an optimized tiered approach.
+          Toggle between OpenAI and GitHub AI providers. Model selection uses an optimized tiered approach.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-6 space-y-6">
         <div>
-          <h4 className="text-sm font-medium text-foreground mb-3">Billing Provider</h4>
-          <div className="p-4 rounded-lg border-2 border-white/10 bg-slate-50">
+          <h4 className="text-sm font-medium text-foreground mb-3">AI Provider</h4>
+          
+          {/* Provider Toggle */}
+          <div className="flex items-center justify-between p-4 rounded-lg border bg-slate-50 mb-4">
+            <div className="flex items-center gap-3">
+              <span className={`text-sm font-medium ${selectedProvider === "openai" ? "text-emerald-600" : "text-muted-foreground"}`}>
+                OpenAI
+              </span>
+              <Switch
+                checked={selectedProvider === "github"}
+                onCheckedChange={handleProviderToggle}
+                disabled={updating || (!hasOpenAIKey && selectedProvider === "github") || (!hasPATKey && selectedProvider === "openai")}
+              />
+              <span className={`text-sm font-medium ${selectedProvider === "github" ? "text-purple-600" : "text-muted-foreground"}`}>
+                GitHub AI
+              </span>
+            </div>
+            {updating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          </div>
+          
+          {/* OpenAI Card */}
+          <div className={`p-4 rounded-lg border-2 mb-3 ${selectedProvider === "openai" ? "border-emerald-500/30 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                 hasOpenAIKey ? "bg-emerald-500/20" : "bg-white/10"
@@ -537,10 +598,39 @@ function AIProviderSection() {
               <Badge
                 variant={hasOpenAIKey ? "secondary" : "outline"}
                 className={hasOpenAIKey
-                  ? "ml-auto bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                  ? selectedProvider === "openai" 
+                    ? "ml-auto bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                    : "ml-auto bg-slate-200 text-slate-500 border-slate-300"
                   : "ml-auto border-yellow-500/50 text-yellow-400"}
               >
-                {hasOpenAIKey ? "Active" : "Key Missing"}
+                {!hasOpenAIKey ? "Key Missing" : selectedProvider === "openai" ? "Active" : "Available"}
+              </Badge>
+            </div>
+          </div>
+          
+          {/* GitHub AI Card */}
+          <div className={`p-4 rounded-lg border-2 ${selectedProvider === "github" ? "border-purple-500/30 bg-purple-50" : "border-slate-200 bg-slate-50"}`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                hasPATKey ? "bg-purple-500/20" : "bg-white/10"
+              }`}>
+                <Cpu size={20} className={hasPATKey ? "text-purple-400" : "text-muted-foreground"} />
+              </div>
+              <div className="text-left">
+                <div className="font-medium text-foreground">GitHub AI</div>
+                <div className="text-xs text-muted-foreground">
+                  {hasPATKey ? "PAT_AI_KEY configured" : "PAT_AI_KEY not configured"}
+                </div>
+              </div>
+              <Badge
+                variant={hasPATKey ? "secondary" : "outline"}
+                className={hasPATKey
+                  ? selectedProvider === "github" 
+                    ? "ml-auto bg-purple-500/20 text-purple-300 border-purple-500/30"
+                    : "ml-auto bg-slate-200 text-slate-500 border-slate-300"
+                  : "ml-auto border-yellow-500/50 text-yellow-400"}
+              >
+                {!hasPATKey ? "Key Missing" : selectedProvider === "github" ? "Active" : "Available"}
               </Badge>
             </div>
           </div>
@@ -566,7 +656,7 @@ function AIProviderSection() {
         <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-muted-foreground">
           <strong className="text-foreground">Note:</strong> AI models are automatically selected based on task complexity. 
           Drug interaction checks are computed on each run to avoid reusing previous responses.
-          Provider is fixed to OpenAI for this deployment.
+          Toggle between OpenAI and GitHub AI using the switch above. Currently using: <strong className="text-foreground">{selectedProvider === "openai" ? "OpenAI" : "GitHub AI"}</strong>.
         </div>
       </CardContent>
     </Card>

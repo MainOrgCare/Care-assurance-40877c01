@@ -12924,7 +12924,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     try {
       const provider = getPreferredProvider();
       const hasOpenAIKey = !!(process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY);
-      return res.json({ provider, hasOpenAIKey });
+      const hasPATKey = !!process.env.PAT_AI_KEY;
+      return res.json({ provider, hasOpenAIKey, hasPATKey });
     } catch (error: any) {
       console.error("AI provider fetch error:", error);
       return res.status(500).json({ message: error.message || "Failed to fetch AI provider" });
@@ -12935,13 +12936,17 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   app.post("/api/admin/ai-provider", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       const { provider } = req.body;
-      if (provider !== "openai") {
-        return res.status(400).json({ message: "Invalid provider. Must be 'openai'." });
+      if (provider !== "openai" && provider !== "github") {
+        return res.status(400).json({ message: "Invalid provider. Must be 'openai' or 'github'." });
       }
       
-      // Check if OpenAI key is configured before allowing switch
-      if (!process.env.OPENAI_FALLBACK_API_KEY && !process.env.OPENAI_API_KEY) {
+      // Check if the selected provider's key is configured
+      if (provider === "openai" && !process.env.OPENAI_FALLBACK_API_KEY && !process.env.OPENAI_API_KEY) {
         return res.status(400).json({ message: "OpenAI API key not configured. Set OPENAI_API_KEY or OPENAI_FALLBACK_API_KEY." });
+      }
+      
+      if (provider === "github" && !process.env.PAT_AI_KEY) {
+        return res.status(400).json({ message: "GitHub AI key not configured. Set PAT_AI_KEY environment variable." });
       }
       
       setPreferredProvider(provider as AiProvider);

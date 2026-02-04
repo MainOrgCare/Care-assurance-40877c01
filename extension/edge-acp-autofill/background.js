@@ -207,5 +207,82 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === MESSAGE_TYPES.analyzeRisks || message?.type === "CA_EXTENSION_ANALYZE_RISKS") {
+    const { documentContent, authToken } = message;
+    
+    if (!documentContent || !authToken) {
+      sendResponse({ ok: false, error: "Missing document content or auth token" });
+      return false;
+    }
+
+    // Call Care Assurance API with SSE support
+    const careAssuranceUrl = "https://careassurance.uk";
+    
+    fetch(`${careAssuranceUrl}/api/ai/analyze-risks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": `session=${authToken}`
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        documentContent: documentContent,
+        allowSensitive: false
+      })
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status} ${response.statusText}`);
+        }
+
+        // Parse SSE stream
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let lastResult = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (line.startsWith("data:")) {
+              const dataStr = line.substring(5).trim();
+              if (!dataStr || dataStr.startsWith(":")) continue;
+
+              try {
+                const data = JSON.parse(dataStr);
+                
+                // Store the result if it contains service user data
+                if (data.serviceUser) {
+                  lastResult = data;
+                }
+              } catch (parseError) {
+                console.warn("Failed to parse SSE data:", dataStr);
+              }
+            }
+          }
+        }
+
+        if (lastResult) {
+          sendResponse({ ok: true, result: lastResult });
+        } else {
+          throw new Error("No result received from API");
+        }
+      })
+      .catch((error) => {
+        console.error("Risk analysis error:", error);
+        setLastError(error).then(() => {
+          sendResponse({ ok: false, error: error.message || "Analysis failed" });
+        });
+      });
+
+    return true; // Keep message channel open for async response
+  }
+
   return false;
 });

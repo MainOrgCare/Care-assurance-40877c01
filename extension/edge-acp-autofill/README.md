@@ -2,18 +2,54 @@
 
 ## Summary
 
-- Receives risk assessments from Care Assurance and autofills Access Care Planning risk assessment forms.
-- Supports EMAR audit autofill for the EMAR Quality Assurance form.
-- Supports custom documents by sending a payload with `formType: "custom"` and a `fields` array.
+- **NEW in v0.2.0**: Upload care documents directly in the extension for AI-powered risk assessment analysis
+- Receives risk assessments from Care Assurance and autofills Access Care Planning risk assessment forms
+- Supports EMAR audit autofill for the EMAR Quality Assurance form
+- Supports custom documents by sending a payload with `formType: "custom"` and a `fields` array
+
+## Features
+
+### 🎯 AI-Powered Document Analysis (New!)
+
+The extension now supports uploading care documents (PDF, Word, text files, images) directly into the extension popup for AI analysis:
+
+1. **Upload Documents**: Click "📄 Upload Documents for AI Analysis" section
+2. **Select Files**: Choose one or more care documents (PDF, Word, images, text files)
+3. **Analyze**: Click "Analyze with AI" to send documents to Care Assurance backend
+4. **Review Results**: See AI-generated risk assessment recommendations with evidence
+5. **Customize**: Select which assessments to include and add additional notes
+6. **Auto-fill**: Click "Use This Analysis & Continue" to convert results to payload and proceed with autofill
+
+**Workflow:**
+- User stays on Access Care Planning page
+- Extension popup remains open
+- Care Assurance backend analyzes documents and identifies risk assessments
+- Extension displays recommendations with evidence snippets
+- User can add custom notes and select specific assessments
+- Extension converts results to ACP payload format
+- Normal autofill process continues seamlessly
+
+**Requirements:**
+- Must be logged in to Care Assurance (careassurance.uk)
+- Documents should contain care-related information (medical records, assessments, care notes)
+- AI analysis follows NHS England 12 Principles and CQC 2024 standards
+
+### 📋 Traditional Payload Method
+
+Alternatively, use Care Assurance website's "Send to ACP Extension" button to send pre-analyzed assessments.
 
 ## Setup
 
-1. Load unpacked extension from extension/edge-acp-autofill in Edge.
-2. Open Care Assurance and use the admin-only "Send to ACP Extension" or "Send to EMAR Extension" button.
-3. For custom documents, send a payload with `formType: "custom"`, a `formId` (optional), and `fields`.
-4. Open the Access Care Planning new case form page and set Case ID + Service Data Group ID in the popup.
-5. Click Start Autofill.
-6. Use Stop Autofill to cancel and click the error banner to clear errors if needed.
+1. Load unpacked extension from extension/edge-acp-autofill in Edge
+2. **For AI Analysis**: 
+   - Log in to Care Assurance first
+   - Open extension, upload documents, and click "Analyze with AI"
+3. **For Traditional Method**: 
+   - Open Care Assurance and use the admin-only "Send to ACP Extension" or "Send to EMAR Extension" button
+4. For custom documents, send a payload with `formType: "custom"`, a `formId` (optional), and `fields`
+5. Open the Access Care Planning new case form page and set Case ID + Service Data Group ID in the popup
+6. Click Start Autofill
+7. Use Stop Autofill to cancel and click the error banner to clear errors if needed
 
 ## Notes
 

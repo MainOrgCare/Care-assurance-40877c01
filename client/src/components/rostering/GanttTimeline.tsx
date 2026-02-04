@@ -183,7 +183,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   showHeader = true,
   lockToContainer = false,
 }) => {
-  const rowHeight = clamp(rowHeightProp ?? 72, 52, 120);
+  const rowHeight = clamp(rowHeightProp ?? 60, 52, 120);
   const entryHeight = Math.max(26, Math.round(rowHeight * 0.68));
   const rowPadding = Math.max(2, Math.round((rowHeight - entryHeight) / 2));
   const entryTop = rowPadding;
@@ -490,10 +490,10 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
       )}
 
       <div
-        className={`rounded-lg border border-border/60 bg-background/80 overflow-hidden ${fitHeight ? "flex min-h-0 flex-1 flex-col" : ""}`}
+        className={`rounded-lg border border-border/60 bg-background/80 overflow-hidden relative ${fitHeight ? "flex min-h-0 flex-1 flex-col" : ""}`}
       >
         {/* Timeline Header - Professional time ruler */}
-        <div className="flex items-stretch border-b bg-gradient-to-b from-muted/50 to-muted/20 flex-shrink-0 sticky top-0 z-20 backdrop-blur-sm">
+        <div className="flex items-stretch border-b bg-gradient-to-b from-muted/50 to-muted/20 flex-shrink-0 sticky top-0 z-30 backdrop-blur-sm shadow-sm">
           {/* Worker column header */}
           <div className="w-[100px] sm:w-[180px] px-2 sm:px-3 py-2 flex items-center border-r bg-muted/40 shrink-0">
             <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted-foreground">Worker</span>

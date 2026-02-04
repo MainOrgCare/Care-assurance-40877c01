@@ -40,5 +40,7 @@
     },
     "markdown.validate.enabled": true,
     "python-envs.defaultEnvManager": "ms-python.python:system",
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [],
+    "copilot.vision.model": "Claude Opus 4.5",
+    "copilot.vision.provider": "Anthropic"
 }

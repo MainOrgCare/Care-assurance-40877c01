@@ -138,6 +138,26 @@ const MEDICATION_NAME_INSTRUCTION_WORDS = new Set([
   "per",
   "dose",
   "doses",
+  // Time-based instruction words (to prevent "tea time", "beds time" false positives)
+  "tea",
+  "time",
+  "beds",
+  "bed",
+  "supper",
+  "at",
+  "and",
+  "then",
+  // Incomplete medication parts (often appear on split rows)
+  "sulfate",
+  "sulphate",
+  "hydrochloride",
+  "maleate",
+  "succinate",
+  "phosphate",
+  "chloride",
+  "citrate",
+  "fumarate",
+  "tartrate",
 ]);
 
 const splitMedicationLabel = (label: string): { name: string; instructions: string } => {
@@ -146,6 +166,12 @@ const splitMedicationLabel = (label: string): { name: string; instructions: stri
     .replace(/\s+/g, " ")
     .trim();
   if (!cleaned) return { name: "", instructions: "" };
+
+  // EARLY CHECK: Pure dose pattern with trailing punctuation (e.g., "10mg -", "500mcg /", "20mg - ")
+  const pureDoselRegex = /^\d+(?:\.\d+)?\s*(?:mg|mcg|ml|g|iu|units?|%)\s*[-\/\\:;,\s]+$/i;
+  if (pureDoselRegex.test(cleaned)) {
+    return { name: "", instructions: cleaned };
+  }
 
   const tokens = cleaned.split(" ").filter(Boolean);
   const firstToken = tokens[0]?.toLowerCase() || "";
@@ -234,10 +260,24 @@ const splitMedicationLabel = (label: string): { name: string; instructions: stri
     if (quantityPattern.test(compact) || rangePattern.test(compact)) return true;
     if (/^\d+(?:\.\d+)?$/.test(compact)) return true;
     if (/^\d/.test(compact) && /(?:mg|mcg|g|ml|iu|units?|%)$/i.test(compact)) return true;
+    // NEW: Also check for incomplete dose patterns with trailing punctuation
+    if (/^\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|units?|%)\s*[-\/\\]?$/i.test(compact)) return true;
     return false;
   };
 
   if (!name) return { name: "", instructions: cleaned };
+  
+  // REJECT if name ends with invalid trailing characters (dash, slash, colon, etc.)
+  if (/[-\/\\:;,]$/.test(name)) {
+    return { name: "", instructions: cleaned };
+  }
+
+  // REJECT if name is just a dose with optional trailing punctuation (e.g., "10mg -", "500mcg/")
+  const isDoseOnlyWithTrailing = /^\d+(?:\.\d+)?\s*(?:mg|mcg|ml|g|iu|units?|%)\s*[-\/\\]?$/i.test(name);
+  if (isDoseOnlyWithTrailing) {
+    return { name: "", instructions: cleaned };
+  }
+
   const nameTokensNormalized = name.split(/\s+/).filter(Boolean);
   const nameLooksDoseOnly = nameTokensNormalized.length > 0 && nameTokensNormalized.every(isDoseToken);
   if (nameLooksDoseOnly) {
@@ -1658,7 +1698,12 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
         const split = splitMedicationLabel(trimmedCandidate);
         const candidateNameOnly = split.name.trim();
         const candidateMeaningful = Boolean(candidateNameOnly) && hasMeaningfulMedicationToken(candidateNameOnly);
-        if (!candidateMeaningful || isLowInformationMedicationName(candidateNameOnly)) {
+        
+        // STRENGTHENED CHECKS: Reject names with trailing invalid characters or dose-only patterns
+        const endsWithInvalidChar = candidateNameOnly && /[-\/\\:;,]$/.test(candidateNameOnly);
+        const isPureDoseFragment = candidateNameOnly && /^\d+(?:\.\d+)?\s*(?:mg|mcg|ml|g|iu|units?|%)\s*[-\/\\]?$/i.test(candidateNameOnly);
+        
+        if (!candidateMeaningful || isLowInformationMedicationName(candidateNameOnly) || endsWithInvalidChar || isPureDoseFragment) {
           continue;
         }
 

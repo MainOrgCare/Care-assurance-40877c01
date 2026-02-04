@@ -144,3 +144,97 @@ test("emarAgent.extract (gridBaseline) dedupes, infers PRN, normalizes PRN refus
   );
   assert.equal(naOrBlankEntries.length, 0);
 });
+
+test("emarAgent.extract (gridBaseline) filters out false positive medication names", async () => {
+  const gridBaseline: ParsedEMAR = {
+    serviceUserName: "Test User",
+    allergies: "None",
+    auditPeriodStart: "",
+    auditPeriodEnd: "",
+    pageCount: 1,
+    pageCharCounts: [0],
+    pageTexts: [""],
+    dates: ["Mon, 01 Dec"],
+    timeSlots: ["08:00-09:00"],
+    medications: [
+      // Valid medication - should be included
+      {
+        name: "Paracetamol 500mg",
+        row: 0,
+        instructions: "Take one tablet",
+        timeSlots: ["08:00-09:00"],
+      },
+      // False positives - should be filtered out
+      {
+        name: "10mg -",
+        row: 1,
+        instructions: "Route Oral",
+        timeSlots: ["08:00-09:00"],
+      },
+      {
+        name: "500mcg /",
+        row: 2,
+        instructions: "",
+        timeSlots: ["08:00-09:00"],
+      },
+      {
+        name: "20mg-",
+        row: 3,
+        instructions: "Take daily",
+        timeSlots: ["08:00-09:00"],
+      },
+      {
+        name: "100ml/",
+        row: 4,
+        instructions: "",
+        timeSlots: ["08:00-09:00"],
+      },
+      // Another valid medication
+      {
+        name: "Vitamin D3 800IU",
+        row: 5,
+        instructions: "Once daily",
+        timeSlots: ["08:00-09:00"],
+      },
+    ],
+    cells: [
+      {
+        medication: "Paracetamol 500mg",
+        medicationRow: 0,
+        date: "Mon, 01 Dec",
+        timeSlot: "08:00-09:00",
+        content: "08:15 AB",
+        code: "AD",
+        careWorker: "AB",
+        time: "08:15",
+      },
+    ],
+  };
+
+  const result = await emarAgent.extract(
+    "",
+    {},
+    "",
+    { userId: "user-1", sessionId: "session-1", correlationId: "corr-1" },
+    { gridBaseline }
+  );
+
+  // Debug: Check if result and medications exist
+  assert.ok(result, "Result should be defined");
+  assert.ok(result.metadata, "Result.metadata should be defined");
+  assert.ok(result.metadata.medications, "Result.metadata.medications should be defined");
+  
+  // Should only have 2 valid medications (Paracetamol and Vitamin D3)
+  assert.equal(result.metadata.medications.length, 2, `Should filter out false positive medications. Actual: ${JSON.stringify(result.metadata.medications?.map((m: any) => m.name))}`);
+  
+  // Verify the valid medications are present
+  const medNames = result.metadata.medications.map((m: any) => m.name);
+  assert.ok(medNames.includes("Paracetamol 500mg"), "Paracetamol should be included");
+  assert.ok(medNames.includes("Vitamin D3 800IU"), "Vitamin D3 should be included");
+  
+  // Verify false positives are excluded
+  assert.ok(!medNames.some((name: string) => /^\d+\s*(?:mg|mcg|ml|g|iu|units?|%)\s*[-\/]?$/i.test(name)), 
+    "Should not include dose-only patterns like '10mg -'");
+  assert.ok(!medNames.some((name: string) => /[-\/\\:;,]$/.test(name)), 
+    "Should not include names ending with trailing punctuation");
+});

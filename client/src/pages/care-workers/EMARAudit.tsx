@@ -43,6 +43,10 @@ interface DiscrepancyAction {
   performanceNote: boolean;
   meeting: "none" | "phone" | "in_person";
   referToManager: boolean;
+  // New action flags
+  notesRecorded?: boolean;      // Recorded in care workers notes
+  discussedWithStaff?: boolean; // Discussed with care worker
+  escalatedToManager?: boolean; // Escalated to manager
 }
 
 interface Discrepancy {
@@ -1529,16 +1533,35 @@ ${generatedProtocol.additionalComments}`;
                               code === 'P' ? 'Prompt' : code;
       const levelDisplayName = level.charAt(0).toUpperCase() + level.slice(1);
       
+      // Format date as (DD/MM)
+      const dateParts = date.match(/(\d{1,2})[^\d]+(\d{1,2}|\w+)/);
+      let formattedDate = date;
+      if (dateParts) {
+        const day = dateParts[1].padStart(2, '0');
+        const monthNames: { [key: string]: string } = {
+          jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+          jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+        };
+        const monthPart = dateParts[2];
+        const month = monthNames[monthPart.toLowerCase().slice(0, 3)] || monthPart.padStart(2, '0');
+        formattedDate = `(${day}/${month})`;
+      }
+      
+      const medDisplayName = getMedicationDisplayName(medication);
+      
       derivedDiscrepancies.push({
         careWorkerName,
         date,
         medication,
         medicationId,
-        issue: `${codeDisplayName} code (${code}) used but service user is ${levelDisplayName} level`,
+        issue: `${formattedDate} Used incorrect medication code on ${medDisplayName}, Code used was ${code} when medication level is ${levelDisplayName.toLowerCase()}`,
         actions: {
-          performanceNote: true,
+          performanceNote: false,
           meeting: "none",
           referToManager: false,
+          notesRecorded: false,
+          discussedWithStaff: false,
+          escalatedToManager: false,
         },
       });
     };
@@ -1990,7 +2013,17 @@ ${generatedProtocol.additionalComments}`;
         existing.reasonsWithDates.push({ date: d.date, issue: d.issue, medication: d.medication });
         existing.totalCount++;
         existing.discrepancies.push(d);
-        // Collect unique actions
+        // Collect unique actions (using new action names)
+        if (d.actions.notesRecorded && !existing.overallActions.includes("Recorded in Care Workers Notes")) {
+          existing.overallActions.push("Recorded in Care Workers Notes");
+        }
+        if (d.actions.discussedWithStaff && !existing.overallActions.includes("Discussed with Care Worker")) {
+          existing.overallActions.push("Discussed with Care Worker");
+        }
+        if (d.actions.escalatedToManager && !existing.overallActions.includes("Escalated to Manager")) {
+          existing.overallActions.push("Escalated to Manager");
+        }
+        // Legacy support for old action format
         if (d.actions.performanceNote && !existing.overallActions.includes("Performance Note")) {
           existing.overallActions.push("Performance Note");
         }
@@ -2005,6 +2038,11 @@ ${generatedProtocol.additionalComments}`;
         }
       } else {
         const actions: string[] = [];
+        // New action names
+        if (d.actions.notesRecorded) actions.push("Recorded in Care Workers Notes");
+        if (d.actions.discussedWithStaff) actions.push("Discussed with Care Worker");
+        if (d.actions.escalatedToManager) actions.push("Escalated to Manager");
+        // Legacy support
         if (d.actions.performanceNote) actions.push("Performance Note");
         if (d.actions.meeting === "phone") actions.push("Phone Meeting");
         if (d.actions.meeting === "in_person") actions.push("In-Person Meeting");
@@ -3006,218 +3044,177 @@ ${generatedProtocol.additionalComments}`;
                   <CopyButton text={getAllDiscrepanciesText()} label="all-discrepancies" />
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {getGroupedDiscrepancies.map((group, idx) => {
-                  const isExpanded = expandedCareWorkers.has(group.careWorkerName);
-                  const shortDates = group.dates.map(formatShortDate).join(", ");
-                  const reasonsSummary = group.reasonsWithDates
-                    .slice(0, 3)
-                    .map(r => `${formatShortDate(r.date)} (${r.issue.length > 30 ? r.issue.slice(0, 30) + "..." : r.issue})`)
-                    .join("; ");
-                  const hasMoreReasons = group.reasonsWithDates.length > 3;
-                  
-                  return (
-                    <div 
-                      key={idx} 
-                      className="border border-red-500/30 rounded-lg overflow-hidden bg-red-500/10"
-                      data-testid={`grouped-discrepancy-${idx}`}
-                    >
-                      {/* Summary Header - Always Visible */}
-                      <div 
-                        className="bg-destructive/5 p-4 cursor-pointer hover:bg-destructive/10 transition-colors"
-                        onClick={() => toggleCareWorkerExpand(group.careWorkerName)}
-                        data-testid={`toggle-careworker-${idx}`}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 mb-2">
-                              {isExpanded ? (
-                                <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                              ) : (
-                                <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                              )}
-                              <h4 className="text-lg font-semibold text-foreground">{group.careWorkerName}</h4>
-                              <span className="px-2 py-0.5 bg-red-500/20 text-red-400 rounded-full text-xs font-medium">
-                                {group.totalCount} discrepanc{group.totalCount === 1 ? "y" : "ies"}
+              <CardContent className="p-0">
+                {/* Non-Conformance Table - User Requested Format */}
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-destructive/5 border-b border-border/40">
+                        <TableHead className="w-48 font-bold text-foreground">Care Worker Name</TableHead>
+                        <TableHead className="w-32 font-bold text-foreground">Dates</TableHead>
+                        <TableHead className="font-bold text-foreground">Details of Non-Conformance</TableHead>
+                        <TableHead className="w-24 text-center font-bold text-foreground">No. of Occurrences</TableHead>
+                        <TableHead className="w-56 font-bold text-foreground">Actions Taken</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {getGroupedDiscrepancies.map((group, idx) => {
+                        // Get carer name with initials/full name format
+                        const carerMapping = carerMappings.find(m => m.initials === group.careWorkerName);
+                        let displayName = group.careWorkerName;
+                        if (carerMapping?.fullName) {
+                          displayName = `${carerMapping.initials} / ${carerMapping.fullName}`;
+                        } else if (group.careWorkerName.length <= 3 && group.careWorkerName === group.careWorkerName.toUpperCase()) {
+                          displayName = `${group.careWorkerName} (Initials)`;
+                        }
+                        
+                        // Format: "(DD/MM) Used incorrect medication code on X, Code used was Y when medication level is Z"
+                        const formattedIssues = group.reasonsWithDates.map(r => {
+                          // Most issues from deriveCodeDiscrepancies should already have the date prefix
+                          // For legacy issues without date prefix, add it
+                          if (r.issue.startsWith('(')) {
+                            return r.issue;
+                          }
+                          const shortDate = formatShortDate(r.date);
+                          const parts = shortDate.split('/');
+                          const day = parts[0]?.padStart(2, '0') || '00';
+                          const month = parts[1]?.padStart(2, '0') || '00';
+                          return `(${day}/${month}) ${r.issue}`;
+                        });
+                        
+                        const shortDates = group.dates.map(formatShortDate).join(", ");
+                        
+                        return (
+                          <TableRow 
+                            key={idx} 
+                            className="border-b border-border/20 hover:bg-destructive/5"
+                            data-testid={`discrepancy-row-${idx}`}
+                          >
+                            {/* Care Worker Name */}
+                            <TableCell className="align-top py-3">
+                              <div className="flex flex-col gap-1">
+                                <span className="font-semibold text-foreground">{displayName}</span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-5 px-1 text-xs gap-1 text-muted-foreground hover:text-foreground w-fit"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(displayName);
+                                    toast({ title: "Copied", description: "Name copied" });
+                                  }}
+                                >
+                                  <Copy size={10} /> Copy
+                                </Button>
+                              </div>
+                            </TableCell>
+                            
+                            {/* Dates of Non-Conformance */}
+                            <TableCell className="align-top py-3">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-sm text-foreground">{shortDates}</span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-5 px-1 text-xs gap-1 text-muted-foreground hover:text-foreground w-fit"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(shortDates);
+                                    toast({ title: "Copied", description: "Dates copied" });
+                                  }}
+                                >
+                                  <Copy size={10} /> Copy
+                                </Button>
+                              </div>
+                            </TableCell>
+                            
+                            {/* Details of Non-Conformance */}
+                            <TableCell className="align-top py-3">
+                              <div className="flex flex-col gap-1.5">
+                                {formattedIssues.map((issue, issueIdx) => (
+                                  <div key={issueIdx} className="text-sm text-destructive">
+                                    {issue}
+                                  </div>
+                                ))}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-5 px-1 text-xs gap-1 text-muted-foreground hover:text-foreground w-fit mt-1"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(formattedIssues.join('\n'));
+                                    toast({ title: "Copied", description: "Details copied" });
+                                  }}
+                                >
+                                  <Copy size={10} /> Copy Details
+                                </Button>
+                              </div>
+                            </TableCell>
+                            
+                            {/* Number of Occurrences */}
+                            <TableCell className="align-top py-3 text-center">
+                              <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-red-500/20 text-red-400 font-bold">
+                                {group.totalCount}
                               </span>
-                            </div>
+                            </TableCell>
                             
-                            <div className="ml-8 space-y-2 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">Dates: </span>
-                                <span className="text-foreground font-medium">{shortDates}</span>
+                            {/* Actions Taken (Multiple Choice) */}
+                            <TableCell className="align-top py-3">
+                              <div className="flex flex-col gap-2">
+                                <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                                  <Checkbox 
+                                    checked={group.discrepancies.some(d => d.actions.notesRecorded)}
+                                    onCheckedChange={(checked) => {
+                                      // Update all discrepancies in this group
+                                      setAddedDiscrepancies(prev => 
+                                        prev.map(d => 
+                                          d.careWorkerName === group.careWorkerName 
+                                            ? { ...d, actions: { ...d.actions, notesRecorded: !!checked } }
+                                            : d
+                                        )
+                                      );
+                                    }}
+                                    className="h-4 w-4"
+                                  />
+                                  <span className="text-muted-foreground hover:text-foreground">Recorded in Care Workers Notes</span>
+                                </label>
+                                <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                                  <Checkbox 
+                                    checked={group.discrepancies.some(d => d.actions.discussedWithStaff)}
+                                    onCheckedChange={(checked) => {
+                                      setAddedDiscrepancies(prev => 
+                                        prev.map(d => 
+                                          d.careWorkerName === group.careWorkerName 
+                                            ? { ...d, actions: { ...d.actions, discussedWithStaff: !!checked } }
+                                            : d
+                                        )
+                                      );
+                                    }}
+                                    className="h-4 w-4"
+                                  />
+                                  <span className="text-muted-foreground hover:text-foreground">Discussed with Care Worker</span>
+                                </label>
+                                <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                                  <Checkbox 
+                                    checked={group.discrepancies.some(d => d.actions.escalatedToManager)}
+                                    onCheckedChange={(checked) => {
+                                      setAddedDiscrepancies(prev => 
+                                        prev.map(d => 
+                                          d.careWorkerName === group.careWorkerName 
+                                            ? { ...d, actions: { ...d.actions, escalatedToManager: !!checked } }
+                                            : d
+                                        )
+                                      );
+                                    }}
+                                    className="h-4 w-4"
+                                  />
+                                  <span className="text-muted-foreground hover:text-foreground">Escalated to Manager</span>
+                                </label>
                               </div>
-                              <div>
-                                <span className="text-muted-foreground">Issues: </span>
-                                <span className="text-destructive">{reasonsSummary}{hasMoreReasons ? ` (+${group.reasonsWithDates.length - 3} more)` : ""}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Actions: </span>
-                                <span className="text-amber-400">{group.overallActions.join(", ") || "None"}</span>
-                              </div>
-                            </div>
-                            
-                            {/* Individual Copy Buttons */}
-                            <div className="ml-8 mt-3 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 px-2 text-xs gap-1 bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigator.clipboard.writeText(group.careWorkerName);
-                                  toast({ title: "Copied", description: "Name copied" });
-                                }}
-                                data-testid={`copy-name-${idx}`}
-                              >
-                                <Copy size={10} /> Name
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 px-2 text-xs gap-1 bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigator.clipboard.writeText(shortDates);
-                                  toast({ title: "Copied", description: "Dates copied" });
-                                }}
-                                data-testid={`copy-dates-${idx}`}
-                              >
-                                <Copy size={10} /> Dates
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 px-2 text-xs gap-1 bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigator.clipboard.writeText(group.totalCount.toString());
-                                  toast({ title: "Copied", description: "Count copied" });
-                                }}
-                                data-testid={`copy-count-${idx}`}
-                              >
-                                <Copy size={10} /> Count
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 px-2 text-xs gap-1 bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const allNotes = group.reasonsWithDates.map(r => `${formatShortDate(r.date)}: ${r.issue}`).join("\n");
-                                  navigator.clipboard.writeText(allNotes);
-                                  toast({ title: "Copied", description: "All notes copied" });
-                                }}
-                                data-testid={`copy-notes-${idx}`}
-                              >
-                                <Copy size={10} /> Notes
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Expanded Details */}
-                      {isExpanded && (
-                        <div className="border-t border-border bg-muted/30 p-4">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-24">Date</TableHead>
-                                <TableHead>Medication</TableHead>
-                                <TableHead>Issue</TableHead>
-                                <TableHead>Actions</TableHead>
-                                {editMode && <TableHead className="w-20">Edit</TableHead>}
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {group.discrepancies.map((disc, discIdx) => {
-                                const entryKey = generateEntryKey(disc.careWorkerName, disc.date, disc.medication, undefined, disc.medicationId);
-                                const isCorrected = isEntryCorrected(disc.careWorkerName, disc.date, disc.medication, undefined, disc.medicationId);
-                                const correctedData = isCorrected ? getCorrectedValue(entryKey) : null;
-                                
-                                return (
-                                  <TableRow 
-                                    key={discIdx} 
-                                    data-testid={`row-discrepancy-${idx}-${discIdx}`}
-                                    className={isCorrected ? 'bg-yellow-500/10 border-l-2 border-l-yellow-500' : ''}
-                                  >
-                                    <TableCell className="text-muted-foreground">
-                                      {correctedData?.date || disc.date}
-                                      {isCorrected && correctedData?.date !== disc.date && (
-                                        <span className="block text-xs text-yellow-400/70 line-through">{disc.date}</span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-foreground">
-                                      {getMedicationDisplayName(correctedData?.medication || disc.medication)}
-                                      {isCorrected && correctedData?.medication !== disc.medication && (
-                                        <span className="block text-xs text-yellow-400/70 line-through">{getMedicationDisplayName(disc.medication)}</span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-destructive">
-                                      {correctedData?.issue || disc.issue}
-                                      {isCorrected && correctedData?.issue !== disc.issue && (
-                                        <span className="block text-xs text-yellow-400/70 line-through">{disc.issue}</span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className="flex flex-wrap gap-1">
-                                        {disc.actions.performanceNote && (
-                                          <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs">Performance Note</span>
-                                        )}
-                                        {disc.actions.meeting === "phone" && (
-                                          <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs">Phone Meeting</span>
-                                        )}
-                                        {disc.actions.meeting === "in_person" && (
-                                          <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded text-xs">In-Person Meeting</span>
-                                        )}
-                                        {disc.actions.referToManager && (
-                                          <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs">Refer to Manager</span>
-                                        )}
-                                      </div>
-                                    </TableCell>
-                                    {editMode && (
-                                      <TableCell>
-                                        <div className="flex items-center gap-1">
-                                          <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-7 w-7"
-                                            onClick={() => startEditing({
-                                              careWorkerName: disc.careWorkerName,
-                                              date: disc.date,
-                                              medication: disc.medication,
-                                              medicationId: disc.medicationId,
-                                              issue: disc.issue,
-                                            })}
-                                            data-testid={`button-edit-discrepancy-${idx}-${discIdx}`}
-                                          >
-                                            <Pencil size={14} />
-                                          </Button>
-                                          {isCorrected && (
-                                            <Button
-                                              size="icon"
-                                              variant="ghost"
-                                              className="h-7 w-7 text-yellow-400"
-                                              onClick={() => undoCorrection(entryKey)}
-                                              data-testid={`button-undo-discrepancy-${idx}-${discIdx}`}
-                                            >
-                                              <Undo2 size={14} />
-                                            </Button>
-                                          )}
-                                        </div>
-                                      </TableCell>
-                                    )}
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           )}

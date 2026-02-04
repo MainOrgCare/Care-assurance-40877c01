@@ -706,6 +706,28 @@ export const emarAgent = {
           const name = rawName
             .replace(/\s+/g, " ")
             .trim();
+          
+          // VALIDATION: Filter out low-quality medication names
+          // Reject names ending with invalid trailing characters (dash, slash, etc.)
+          if (/[-\/\\:;,]$/.test(name)) {
+            return null;
+          }
+          
+          // Reject pure dose patterns with optional trailing punctuation (e.g., "10mg -", "500mcg/")
+          if (/^\d+(?:\.\d+)?\s*(?:mg|mcg|ml|g|iu|units?|%)\s*[-\/\\]?$/i.test(name)) {
+            return null;
+          }
+          
+          // Reject names with no meaningful alphabetic tokens (3+ chars)
+          const tokens = name.split(/\s+/).filter(Boolean);
+          const hasMeaningfulToken = tokens.some((token) => {
+            const normalized = token.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+            return normalized.length >= 3 && /[a-zA-Z]/.test(normalized);
+          });
+          if (!hasMeaningfulToken) {
+            return null;
+          }
+          
           const row = Number.isFinite(Number(med?.row)) ? Number(med.row) : index;
           const medicationId = row + 1;
           const key = normalizeMedicationKey(name);

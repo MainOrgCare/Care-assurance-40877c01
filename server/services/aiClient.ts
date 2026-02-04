@@ -8,10 +8,10 @@ export interface AiUserContext {
   username: string | null;
 }
 
-// Provider type for billing attribution (locked to OpenAI for this deployment)
-export type AiProvider = "openai";
+// Provider type for billing attribution
+export type AiProvider = "openai" | "github";
 
-// Admin-configurable preferred AI provider (OpenAI only).
+// Admin-configurable preferred AI provider
 let preferredProvider: AiProvider = "openai";
 
 // Admin-configurable preferred AI model (defaults to gpt-4.1-mini)
@@ -22,8 +22,8 @@ export function getPreferredProvider(): AiProvider {
 }
 
 export function setPreferredProvider(provider: AiProvider): void {
-  if (provider !== "openai") {
-    throw new Error("Invalid provider. This deployment is locked to OpenAI-only.");
+  if (provider !== "openai" && provider !== "github") {
+    throw new Error("Invalid provider. Must be 'openai' or 'github'.");
   }
   preferredProvider = provider;
   console.log(`[AI Config] Preferred provider set to: ${provider}`);
@@ -54,6 +54,7 @@ export interface AiCompletionResult {
 }
 
 let openaiClient: OpenAI | null = null;
+let githubClient: OpenAI | null = null;
 
 function getOpenAIClient(): OpenAI | null {
   if (openaiClient) return openaiClient;
@@ -71,21 +72,49 @@ function getOpenAIClient(): OpenAI | null {
   return openaiClient;
 }
 
-// Internal function that tracks which provider was used (OpenAI-only)
+function getGitHubClient(): OpenAI | null {
+  if (githubClient) return githubClient;
+  
+  const patKey = process.env.PAT_AI_KEY;
+  if (!patKey) {
+    return null;
+  }
+  
+  // GitHub AI uses Azure OpenAI compatible endpoint
+  githubClient = new OpenAI({
+    apiKey: patKey,
+    baseURL: "https://models.inference.ai.azure.com",
+  });
+  
+  return githubClient;
+}
+
+// Internal function that tracks which provider was used
 async function createChatCompletionWithProvider(
   params: OpenAI.ChatCompletionCreateParamsNonStreaming
 ): Promise<AiCompletionResult> {
-  const openai = getOpenAIClient();
-  if (!openai) {
-    throw new Error("OpenAI is not configured. Set OPENAI_API_KEY or OPENAI_FALLBACK_API_KEY.");
+  const provider = preferredProvider;
+  
+  // Get the appropriate client based on preferred provider
+  let client: OpenAI | null = null;
+  if (provider === "github") {
+    client = getGitHubClient();
+    if (!client) {
+      throw new Error("GitHub AI is not configured. Set PAT_AI_KEY environment variable.");
+    }
+  } else {
+    client = getOpenAIClient();
+    if (!client) {
+      throw new Error("OpenAI is not configured. Set OPENAI_API_KEY or OPENAI_FALLBACK_API_KEY.");
+    }
   }
 
   // Force model to preferred if not provided
   const model = (params.model as string) || preferredModel;
 
-  console.log("[AI] Using OpenAI provider with model:", model);
-  const completion = await openai.chat.completions.create({ ...params, model });
-  return { completion, provider: "openai" };
+  console.log(`[AI] Using ${provider} provider with model:`, model);
+  const completion = await client.chat.completions.create({ ...params, model });
+  return { completion, provider };
 }
 
 // Legacy function for backwards compatibility (returns just the completion)
