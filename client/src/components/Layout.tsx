@@ -25,6 +25,7 @@ import {
   Terminal,
   ArrowUpRight,
   FileSpreadsheet,
+  Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, Suspense, memo, useCallback, useRef } from "react";
@@ -146,6 +147,12 @@ const SidebarContent = memo(function SidebarContent({
             <LayoutDashboard size={18} />
             <span className={labelClass}>Dashboard</span>
             {!isCollapsed && location === "/dashboard" && <ArrowUpRight size={14} className="ml-auto opacity-60" />}
+        </Link>
+
+        {/* Messages */}
+        <Link href="/messages" className={navLinkClass(location === "/messages")} title={isCollapsed ? "Messages" : undefined}>
+          <Inbox size={18} />
+          <span className={labelClass}>Messages</span>
         </Link>
 
         {/* Email Assistant */}
@@ -345,7 +352,30 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [showComplieeIntro, setShowComplieeIntro] = useState(false);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const autoCollapseRef = useRef(false);
+
+  // Fetch unread message count
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchUnreadCount = async () => {
+      try {
+        const res = await fetch('/api/messages/unread-count', { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadMessageCount(data.count || 0);
+        }
+      } catch (error) {
+        console.error('Failed to fetch unread message count:', error);
+      }
+    };
+    
+    fetchUnreadCount();
+    // Poll every 60 seconds for new messages
+    const interval = setInterval(fetchUnreadCount, 60000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   // Show Compli-ee intro after user has accepted terms
   useEffect(() => {
@@ -479,6 +509,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="flex items-center gap-5">
+              {/* Messages Button */}
+              <Link href="/messages">
+                <button
+                  className="relative flex items-center justify-center h-9 w-9 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
+                  title="Messages"
+                >
+                  <Inbox className="h-4 w-4 text-muted-foreground" />
+                  {unreadMessageCount > 0 && (
+                    <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center">
+                      {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                    </span>
+                  )}
+                </button>
+              </Link>
+              
               {/* Compli-ee Help Button */}
               <ComplieeIdleButton onClick={() => setIsChatOpen(true)} />
               

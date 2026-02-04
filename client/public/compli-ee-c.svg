@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 80" width="64" height="80">
+  <!-- STYLE C: Simple geometric mascot - modern flat design -->
+  
+  <!-- Hair base -->
+  <rect x="10" y="8" width="44" height="20" rx="10" fill="#FBBF24"/>
+  
+  <!-- Face -->
+  <rect x="8" y="16" width="48" height="36" rx="12" fill="#FED7AA"/>
+  
+  <!-- Hair bangs -->
+  <rect x="12" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>
+  <rect x="24" y="4" width="16" height="16" rx="6" fill="#FBBF24"/>
+  <rect x="36" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>
+  
+  <!-- Big round friendly eyes -->
+  <circle cx="21" cy="34" r="10" fill="white"/>
+  <circle cx="43" cy="34" r="10" fill="white"/>
+  <circle cx="24" cy="35" r="6" fill="#1E40AF"/>
+  <circle cx="46" cy="35" r="6" fill="#1E40AF"/>
+  <circle cx="27" cy="32" r="3" fill="white"/>
+  <circle cx="49" cy="32" r="3" fill="white"/>
+  
+  <!-- Smile -->
+  <path d="M24 46 Q32 52 40 46" stroke="#78350F" stroke-width="2" fill="none" stroke-linecap="round"/>
+  
+  <!-- Blush squares -->
+  <rect x="6" y="36" width="6" height="4" rx="2" fill="#FECACA" opacity="0.6"/>
+  <rect x="52" y="36" width="6" height="4" rx="2" fill="#FECACA" opacity="0.6"/>
+  
+  <!-- Body -->
+  <rect x="14" y="50" width="36" height="26" rx="4" fill="#4F46E5"/>
+  
+  <!-- V detail -->
+  <path d="M22 50 L32 60 L42 50" fill="#3730A3"/>
+  <line x1="22" y1="50" x2="32" y2="60" stroke="white" stroke-width="2.5"/>
+  <line x1="42" y1="50" x2="32" y2="60" stroke="white" stroke-width="1.5"/>
+  
+  <!-- Hands -->
+  <rect x="4" y="56" width="10" height="10" rx="4" fill="#FED7AA"/>
+  <rect x="50" y="54" width="10" height="10" rx="4" fill="#FED7AA"/>
+  
+  <!-- Clipboard -->
+  <rect x="0" y="52" width="8" height="10" rx="1" fill="#A5B4FC"/>
+  <rect x="2" y="50" width="4" height="3" rx="1" fill="#F59E0B"/>
+  
+  <!-- Feet -->
+  <rect x="20" y="74" width="10" height="5" rx="2" fill="#374151"/>
+  <rect x="34" y="74" width="10" height="5" rx="2" fill="#374151"/>
+</svg>

@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 110" width="100" height="110">
+  <!-- VERSION 5: Precious baby style - roundest features, sweetest expression -->
+  <defs>
+    <linearGradient id="tunic5" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366F1"/>
+      <stop offset="100%" style="stop-color:#4F46E5"/>
+    </linearGradient>
+    <linearGradient id="hair5" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFBEB"/>
+      <stop offset="100%" style="stop-color:#FDE68A"/>
+    </linearGradient>
+    <linearGradient id="skin5" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFAF5"/>
+      <stop offset="100%" style="stop-color:#FFE8D8"/>
+    </linearGradient>
+    <linearGradient id="eye5" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#7DD3FC"/>
+      <stop offset="50%" style="stop-color:#38BDF8"/>
+      <stop offset="100%" style="stop-color:#0EA5E9"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Round fluffy hair back -->
+  <circle cx="50" cy="26" r="32" fill="url(#hair5)"/>
+  
+  <!-- Super round baby face -->
+  <circle cx="50" cy="40" r="32" fill="url(#skin5)"/>
+  
+  <!-- Round puffy bangs like clouds -->
+  <circle cx="26" cy="18" r="14" fill="url(#hair5)"/>
+  <circle cx="50" cy="12" r="16" fill="url(#hair5)"/>
+  <circle cx="74" cy="18" r="14" fill="url(#hair5)"/>
+  <circle cx="38" cy="18" r="11" fill="url(#hair5)"/>
+  <circle cx="62" cy="18" r="11" fill="url(#hair5)"/>
+  <!-- Soft highlights -->
+  <circle cx="35" cy="10" r="5" fill="white" opacity="0.6"/>
+  <circle cx="55" cy="6" r="6" fill="white" opacity="0.6"/>
+  <circle cx="70" cy="12" r="4" fill="white" opacity="0.5"/>
+  
+  <!-- Big round precious eyes -->
+  <!-- Left eye -->
+  <circle cx="36" cy="42" r="13" fill="white"/>
+  <circle cx="38" cy="44" r="10" fill="url(#eye5)"/>
+  <circle cx="39" cy="46" r="5" fill="#0369A1"/>
+  <!-- Big sparkles -->
+  <circle cx="44" cy="36" r="5" fill="white"/>
+  <circle cx="32" cy="50" r="2.5" fill="white"/>
+  <circle cx="44" cy="44" r="1.5" fill="white" opacity="0.8"/>
+  
+  <!-- Right eye -->
+  <circle cx="64" cy="42" r="13" fill="white"/>
+  <circle cx="66" cy="44" r="10" fill="url(#eye5)"/>
+  <circle cx="67" cy="46" r="5" fill="#0369A1"/>
+  <!-- Big sparkles -->
+  <circle cx="72" cy="36" r="5" fill="white"/>
+  <circle cx="60" cy="50" r="2.5" fill="white"/>
+  <circle cx="72" cy="44" r="1.5" fill="white" opacity="0.8"/>
+  
+  <!-- Round rosy cheeks -->
+  <circle cx="18" cy="50" r="7" fill="#FECDD3" opacity="0.6"/>
+  <circle cx="82" cy="50" r="7" fill="#FECDD3" opacity="0.6"/>
+  
+  <!-- Sweet "w" shaped smile -->
+  <path d="M42 58 Q46 62 50 58 Q54 62 58 58" stroke="#B45309" stroke-width="2" fill="none" stroke-linecap="round"/>
+  
+  <!-- Compact round body -->
+  <rect x="30" y="70" width="40" height="30" rx="10" fill="url(#tunic5)"/>
+  
+  <!-- V-neck -->
+  <path d="M40 70 L50 82 L60 70" fill="#4338CA"/>
+  <line x1="40" y1="70" x2="50" y2="82" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  <line x1="60" y1="70" x2="50" y2="82" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Collar line -->
+  <line x1="30" y1="70" x2="40" y2="70" stroke="white" stroke-width="2"/>
+  <line x1="60" y1="70" x2="70" y2="70" stroke="white" stroke-width="2"/>
+  
+  <!-- Pocket trim -->
+  <line x1="34" y1="90" x2="44" y2="90" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <line x1="56" y1="90" x2="66" y2="90" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Round little hands -->
+  <circle cx="26" cy="86" r="6" fill="url(#skin5)"/>
+  <circle cx="74" cy="84" r="6" fill="url(#skin5)"/>
+  <!-- Peace sign -->
+  <ellipse cx="78" cy="78" rx="2" ry="4" fill="url(#skin5)"/>
+  <ellipse cx="74" cy="76" rx="2" ry="4.5" fill="url(#skin5)"/>
+  
+  <!-- Clipboard -->
+  <g transform="translate(12, 80) rotate(-10)">
+    <rect width="12" height="15" rx="2" fill="#C7D2FE"/>
+    <rect x="3" y="-2" width="6" height="4" rx="1" fill="#FBBF24"/>
+    <rect x="2" y="4" width="8" height="9" rx="1" fill="white"/>
+    <path d="M4 7 L5 8 L7 5" stroke="#6366F1" stroke-width="1" fill="none"/>
+    <path d="M4 10 L5 11 L7 8" stroke="#6366F1" stroke-width="1" fill="none"/>
+  </g>
+  
+  <!-- Round feet -->
+  <ellipse cx="40" cy="104" rx="7" ry="4" fill="#1F2937"/>
+  <ellipse cx="60" cy="104" rx="7" ry="4" fill="#1F2937"/>
+  
+  <!-- Floating hearts -->
+  <path d="M8 30 C8 28 10 27 11 28.5 C12 27 14 28 14 30 C14 32 11 34 11 34 C11 34 8 32 8 30" fill="#FCA5A5" opacity="0.5"/>
+  <path d="M88 25 C88 23 90 22 91 23.5 C92 22 94 23 94 25 C94 27 91 29 91 29 C91 29 88 27 88 25" fill="#FCA5A5" opacity="0.5"/>
+</svg>

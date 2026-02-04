@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { X, Send, Loader2, Bot, User, Minimize2, HelpCircle } from "lucide-react";
+import { X, Send, Loader2, User, Minimize2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -14,43 +14,26 @@ interface Message {
 // Generate a unique ID for messages
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
-// Animated Compli-ee SVG character
-function AnimatedComplieeCharacter({ 
-  isWaving = false,
-  isBlinking = false,
-  className = ""
-}: { 
-  isWaving?: boolean;
-  isBlinking?: boolean;
-  className?: string;
-}) {
+// Animated Compli-ee SVG for the side character
+function ComplieeCharacter({ isBlinking = false }: { isBlinking?: boolean }) {
   return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      viewBox="0 0 64 80" 
-      className={className}
-    >
+    <svg viewBox="0 0 64 80" className="w-full h-full">
       {/* Hair base */}
       <rect x="10" y="8" width="44" height="20" rx="10" fill="#FBBF24"/>
-      
       {/* Face */}
       <rect x="8" y="16" width="48" height="36" rx="12" fill="#FED7AA"/>
-      
       {/* Hair bangs */}
       <rect x="12" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>
       <rect x="24" y="4" width="16" height="16" rx="6" fill="#FBBF24"/>
       <rect x="36" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>
-      
-      {/* Eyes - with blink state */}
+      {/* Eyes */}
       {isBlinking ? (
         <>
-          {/* Closed eyes (horizontal lines) */}
           <rect x="14" y="33" rx="2" width="14" height="3" fill="#1E40AF"/>
           <rect x="36" y="33" rx="2" width="14" height="3" fill="#1E40AF"/>
         </>
       ) : (
         <>
-          {/* Open eyes */}
           <circle cx="21" cy="34" r="10" fill="white"/>
           <circle cx="43" cy="34" r="10" fill="white"/>
           <circle cx="24" cy="35" r="6" fill="#1E40AF"/>
@@ -59,39 +42,23 @@ function AnimatedComplieeCharacter({
           <circle cx="49" cy="32" r="3" fill="white"/>
         </>
       )}
-      
       {/* Smile */}
       <path d="M24 46 Q32 52 40 46" stroke="#78350F" strokeWidth="2" fill="none" strokeLinecap="round"/>
-      
       {/* Blush */}
       <rect x="6" y="36" width="6" height="4" rx="2" fill="#FECACA" opacity="0.6"/>
       <rect x="52" y="36" width="6" height="4" rx="2" fill="#FECACA" opacity="0.6"/>
-      
       {/* Body */}
       <rect x="14" y="50" width="36" height="26" rx="4" fill="#4F46E5"/>
-      
       {/* V detail */}
       <path d="M22 50 L32 60 L42 50" fill="#3730A3"/>
       <line x1="22" y1="50" x2="32" y2="60" stroke="white" strokeWidth="2.5"/>
       <line x1="42" y1="50" x2="32" y2="60" stroke="white" strokeWidth="1.5"/>
-      
       {/* Left hand with clipboard */}
       <rect x="4" y="56" width="10" height="10" rx="4" fill="#FED7AA"/>
       <rect x="0" y="52" width="8" height="10" rx="1" fill="#A5B4FC"/>
       <rect x="2" y="50" width="4" height="3" rx="1" fill="#F59E0B"/>
-      
-      {/* Right hand - waving or normal */}
-      {isWaving ? (
-        <g style={{ transformOrigin: "55px 59px" }}>
-          <rect x="50" y="48" width="10" height="10" rx="4" fill="#FED7AA"/>
-          {/* Fingers up for wave */}
-          <rect x="52" y="42" width="3" height="8" rx="1.5" fill="#FED7AA"/>
-          <rect x="56" y="44" width="3" height="6" rx="1.5" fill="#FED7AA"/>
-        </g>
-      ) : (
-        <rect x="50" y="54" width="10" height="10" rx="4" fill="#FED7AA"/>
-      )}
-      
+      {/* Right hand */}
+      <rect x="50" y="54" width="10" height="10" rx="4" fill="#FED7AA"/>
       {/* Feet */}
       <rect x="20" y="74" width="10" height="5" rx="2" fill="#374151"/>
       <rect x="34" y="74" width="10" height="5" rx="2" fill="#374151"/>
@@ -137,28 +104,14 @@ export function ComplieeAvatar({ size = "md", animate = false }: { size?: "sm" |
 
 // Trigger button to place in header
 export function ChatTriggerButton({ onClick }: { onClick: () => void }) {
-  const [isHovered, setIsHovered] = useState(false);
-  
   return (
     <button
       onClick={onClick}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={cn(
-        "relative flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-all duration-300",
-        "bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/60",
-        "hover:from-emerald-100 hover:to-teal-100 hover:border-emerald-300 hover:shadow-md hover:shadow-emerald-100",
-        "group"
-      )}
-      aria-label="Ask Compli-ee for help"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors"
+      aria-label="Get help"
     >
-      <ComplieeAvatar size="sm" animate={isHovered} />
-      <div className="hidden sm:flex items-center gap-1.5">
-        <span className="text-xs font-semibold text-emerald-700">Help</span>
-        <HelpCircle className="h-3.5 w-3.5 text-emerald-500" />
-      </div>
-      {/* Pulse indicator */}
-      <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 border-2 border-white animate-pulse" />
+      <HelpCircle className="h-4 w-4" />
+      <span>Help</span>
     </button>
   );
 }
@@ -174,61 +127,33 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isBlinking, setIsBlinking] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  
-  // Compli-ee animation states
-  const [animationPhase, setAnimationPhase] = useState<"hidden" | "bounceIn" | "idle" | "bounceOut">("hidden");
-  const [isBlinking, setIsBlinking] = useState(false);
-  const [isWaving, setIsWaving] = useState(false);
-  const [bobDirection, setBobDirection] = useState<"left" | "right">("left");
 
-  // Handle open/close animations
+  // Blink animation - occasional blink every 3-5 seconds
   useEffect(() => {
-    if (isOpen && animationPhase === "hidden") {
-      // Bounce in sequence
-      setAnimationPhase("bounceIn");
-      setIsWaving(true);
-      setTimeout(() => setIsWaving(false), 1200);
-      setTimeout(() => setAnimationPhase("idle"), 600);
-    } else if (!isOpen && animationPhase === "idle") {
-      // Bounce out
-      setIsWaving(true);
-      setAnimationPhase("bounceOut");
-      setTimeout(() => {
-        setAnimationPhase("hidden");
-        setIsWaving(false);
-      }, 500);
-    }
-  }, [isOpen, animationPhase]);
-
-  // Blinking animation - random intervals when idle
-  useEffect(() => {
-    if (animationPhase !== "idle") return;
-
-    const blink = () => {
+    if (!isOpen) return;
+    
+    const doBlink = () => {
       setIsBlinking(true);
       setTimeout(() => setIsBlinking(false), 150);
     };
-
-    // Blink every 2-4 seconds randomly
-    const blinkInterval = setInterval(() => {
-      if (Math.random() > 0.3) blink();
-    }, 2500);
-
-    return () => clearInterval(blinkInterval);
-  }, [animationPhase]);
-
-  // Side-to-side bobbing animation when idle
-  useEffect(() => {
-    if (animationPhase !== "idle") return;
-
-    const bobInterval = setInterval(() => {
-      setBobDirection(prev => prev === "left" ? "right" : "left");
-    }, 1200);
-
-    return () => clearInterval(bobInterval);
-  }, [animationPhase]);
+    
+    // Initial blink after a random delay
+    const initialTimeout = setTimeout(doBlink, 1500 + Math.random() * 1500);
+    
+    // Recurring blinks
+    const interval = setInterval(() => {
+      doBlink();
+    }, 3000 + Math.random() * 2000);
+    
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [isOpen]);
 
   // Auto-scroll to bottom of messages
   const scrollToBottom = useCallback(() => {
@@ -323,14 +248,19 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
   };
 
   const handleClose = () => {
-    // Start bounce out animation
-    setIsWaving(true);
-    setAnimationPhase("bounceOut");
+    setIsExiting(true);
     setTimeout(() => {
+      setIsExiting(false);
       onClose();
-      setAnimationPhase("hidden");
-      setIsWaving(false);
-    }, 500);
+    }, 400);
+  };
+
+  // Auto-resize textarea
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputValue(e.target.value);
+    // Reset height to auto to get scrollHeight, then set to scrollHeight
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 96) + 'px';
   };
 
   // Don't render if not logged in
@@ -338,74 +268,49 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
 
   return (
     <>
-      {/* Animation styles */}
+      {/* CSS for animations */}
       <style>{`
-        @keyframes bounceInDown {
-          0% { transform: translateY(-100%) scale(0.8); opacity: 0; }
-          50% { transform: translateY(10%) scale(1.05); }
-          70% { transform: translateY(-5%) scale(0.98); }
-          100% { transform: translateY(0) scale(1); opacity: 1; }
+        @keyframes compliee-bob {
+          0%, 100% { transform: translateY(0) rotate(-2deg); }
+          50% { transform: translateY(-4px) rotate(2deg); }
         }
-        @keyframes bounceOutUp {
-          0% { transform: translateY(0) scale(1); opacity: 1; }
-          30% { transform: translateY(10%) scale(1.02); }
-          100% { transform: translateY(-100%) scale(0.8); opacity: 0; }
+        @keyframes compliee-exit {
+          0% { transform: translateX(0); opacity: 1; }
+          100% { transform: translateX(150%); opacity: 0; }
         }
-        @keyframes bob {
-          0%, 100% { transform: translateX(0) translateY(0); }
-          50% { transform: translateX(var(--bob-x, 3px)) translateY(-2px); }
+        @keyframes chat-exit {
+          0% { transform: translateX(0); opacity: 1; }
+          100% { transform: translateX(100%); opacity: 0; }
         }
-        @keyframes wave {
-          0%, 100% { transform: rotate(0deg); }
-          25% { transform: rotate(-15deg); }
-          75% { transform: rotate(15deg); }
+        .compliee-bobbing {
+          animation: compliee-bob 2s ease-in-out infinite;
         }
-        .compliee-bounce-in {
-          animation: bounceInDown 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+        .compliee-exiting {
+          animation: compliee-exit 0.4s ease-in forwards;
         }
-        .compliee-bounce-out {
-          animation: bounceOutUp 0.5s cubic-bezier(0.55, 0.055, 0.675, 0.19) forwards;
-        }
-        .compliee-bob-left {
-          --bob-x: -3px;
-          animation: bob 1.2s ease-in-out infinite;
-        }
-        .compliee-bob-right {
-          --bob-x: 3px;
-          animation: bob 1.2s ease-in-out infinite;
-        }
-        .compliee-wave {
-          animation: wave 0.4s ease-in-out 3;
+        .chat-exiting {
+          animation: chat-exit 0.4s ease-in forwards;
         }
       `}</style>
-
-      {/* Animated Compli-ee Character - peeking behind the chat window */}
-      {animationPhase !== "hidden" && (
-        <div
+      
+      {/* Animated Compli-ee character peeking from the right */}
+      {isOpen && !isMinimized && (
+        <div 
           className={cn(
-            "fixed z-40 transition-all pointer-events-none",
-            isMinimized ? "bottom-6 right-[280px]" : "bottom-[520px] sm:bottom-[580px] right-6",
-            animationPhase === "bounceIn" && "compliee-bounce-in",
-            animationPhase === "bounceOut" && "compliee-bounce-out",
-            animationPhase === "idle" && bobDirection === "left" && "compliee-bob-left",
-            animationPhase === "idle" && bobDirection === "right" && "compliee-bob-right"
+            "fixed bottom-[200px] -right-4 z-40 w-16 h-20 sm:w-20 sm:h-24 pointer-events-none",
+            isExiting ? "compliee-exiting" : "compliee-bobbing"
           )}
         >
-          <div className={cn(isWaving && "compliee-wave")} style={{ transformOrigin: "bottom center" }}>
-            <AnimatedComplieeCharacter
-              isBlinking={isBlinking}
-              isWaving={isWaving}
-              className="w-16 h-20 drop-shadow-xl"
-            />
-          </div>
+          <ComplieeCharacter isBlinking={isBlinking} />
         </div>
       )}
-
-      {/* Chat Window */}
+      
       <div
         className={cn(
           "fixed bottom-6 right-6 z-50 transition-all duration-300 bg-background border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col",
-          isOpen ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none",
+          isOpen && !isExiting ? "opacity-100 scale-100" : "",
+          !isOpen ? "opacity-0 scale-95 pointer-events-none" : "",
+          isExiting ? "chat-exiting" : "",
           isMinimized ? "w-72 h-14" : "w-[380px] h-[520px] sm:w-[420px] sm:h-[580px]"
         )}
       >
@@ -503,21 +408,16 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                 <textarea
                   ref={inputRef}
                   value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask Compli-ee anything..."
                   rows={1}
+                  dir="ltr"
                   className={cn(
-                    "flex-1 resize-none bg-muted/50 border border-border rounded-xl px-4 py-2.5 text-sm",
+                    "flex-1 resize-none bg-muted/50 border border-border rounded-xl px-4 py-2.5 text-sm text-left",
                     "focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50",
-                    "max-h-24 min-h-[42px] placeholder:text-muted-foreground"
+                    "min-h-[42px] placeholder:text-muted-foreground overflow-hidden"
                   )}
-                  style={{
-                    height: "auto",
-                    minHeight: "42px",
-                    maxHeight: "96px",
-                    overflow: inputValue.split("\n").length > 3 ? "auto" : "hidden",
-                  }}
                   disabled={isLoading}
                 />
                 <Button
@@ -539,7 +439,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
             </div>
           </>
         )}
-      </div>
+    </div>
     </>
   );
 }

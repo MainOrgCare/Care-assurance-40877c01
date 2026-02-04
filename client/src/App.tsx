@@ -32,6 +32,7 @@ const EMARAudit = React.lazy(() => import("@/pages/care-workers/EMARAudit"));
 const VisitAudit = React.lazy(() => import("@/pages/care-workers/VisitAudit"));
 const Performance = React.lazy(() => import("@/pages/care-workers/Performance"));
 const Settings = React.lazy(() => import("@/pages/Settings"));
+const Messages = React.lazy(() => import("@/pages/Messages"));
 const Compliance = React.lazy(() => import("@/pages/Compliance"));
 const ROICalculator = React.lazy(() => import("@/pages/ROICalculator"));
 const TestingFeatures = React.lazy(() => import("@/pages/TestingFeatures"));
@@ -111,6 +112,7 @@ function Router() {
         <Redirect to="/rostering-unified" />
       </Route>
       <ProtectedRoute path="/settings" component={Settings} />
+      <ProtectedRoute path="/messages" component={Messages} />
 
       {/* Homepage - shows landing page or redirects to dashboard */}
       <Route path="/" component={HomeRoute} />

@@ -42,6 +42,8 @@ import {
   type InsertAiUsageLog,
   type ContactMessage,
   type InsertContactMessage,
+  type UserMessage,
+  type InsertUserMessage,
   type RosteringRecommendedCallTime,
   type InsertRosteringRecommendedCallTime,
   type RosteringWorkerStartTime,
@@ -86,6 +88,7 @@ import {
   emarCorrections,
   aiUsageLogs,
   contactMessages,
+  userMessages,
   rosteringRecommendedCallTimes,
   rosteringWorkerStartTimes,
   rosteringWorkerTemplates,
@@ -256,6 +259,15 @@ export interface IStorage {
   archiveContactMessage(id: string): Promise<ContactMessage | undefined>;
   deleteContactMessage(id: string): Promise<void>;
   getUnreadContactMessageCount(): Promise<number>;
+
+  // User Message operations (internal messaging portal)
+  createUserMessage(message: InsertUserMessage): Promise<UserMessage>;
+  getUserMessages(recipientId: string, includeArchived?: boolean): Promise<UserMessage[]>;
+  getUserMessage(id: string): Promise<UserMessage | undefined>;
+  markUserMessageRead(id: string): Promise<UserMessage | undefined>;
+  archiveUserMessage(id: string): Promise<UserMessage | undefined>;
+  deleteUserMessage(id: string): Promise<void>;
+  getUnreadUserMessageCount(recipientId: string): Promise<number>;
 
   // Rostering Recommended Call Times
   upsertRosteringRecommendedCallTime(callTime: InsertRosteringRecommendedCallTime): Promise<RosteringRecommendedCallTime>;
@@ -1340,6 +1352,55 @@ export class DatabaseStorage implements IStorage {
     const result = await this.db.select({ count: sql<number>`count(*)` })
       .from(contactMessages)
       .where(and(eq(contactMessages.isRead, false), eq(contactMessages.isArchived, false)));
+    return Number(result[0]?.count || 0);
+  }
+
+  // User Message operations (internal messaging portal)
+  async createUserMessage(message: InsertUserMessage): Promise<UserMessage> {
+    const result = await this.db.insert(userMessages).values(message).returning();
+    return result[0];
+  }
+
+  async getUserMessages(recipientId: string, includeArchived = false): Promise<UserMessage[]> {
+    if (includeArchived) {
+      return await this.db.select().from(userMessages)
+        .where(eq(userMessages.recipientId, recipientId))
+        .orderBy(desc(userMessages.createdAt));
+    }
+    return await this.db.select().from(userMessages)
+      .where(and(eq(userMessages.recipientId, recipientId), eq(userMessages.isArchived, false)))
+      .orderBy(desc(userMessages.createdAt));
+  }
+
+  async getUserMessage(id: string): Promise<UserMessage | undefined> {
+    const result = await this.db.select().from(userMessages).where(eq(userMessages.id, id));
+    return result[0];
+  }
+
+  async markUserMessageRead(id: string): Promise<UserMessage | undefined> {
+    const result = await this.db.update(userMessages)
+      .set({ isRead: true, readAt: new Date() })
+      .where(eq(userMessages.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async archiveUserMessage(id: string): Promise<UserMessage | undefined> {
+    const result = await this.db.update(userMessages)
+      .set({ isArchived: true })
+      .where(eq(userMessages.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteUserMessage(id: string): Promise<void> {
+    await this.db.delete(userMessages).where(eq(userMessages.id, id));
+  }
+
+  async getUnreadUserMessageCount(recipientId: string): Promise<number> {
+    const result = await this.db.select({ count: sql<number>`count(*)` })
+      .from(userMessages)
+      .where(and(eq(userMessages.isRead, false), eq(userMessages.isArchived, false), eq(userMessages.recipientId, recipientId)));
     return Number(result[0]?.count || 0);
   }
 

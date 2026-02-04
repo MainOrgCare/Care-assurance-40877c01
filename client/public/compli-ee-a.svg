@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 100" width="80" height="100">
+  <!-- STYLE A: Clean minimalist mascot -->
+  <!-- Simple friendly face, no over-the-top kawaii -->
+  
+  <!-- Hair -->
+  <ellipse cx="40" cy="28" rx="28" ry="14" fill="#FCD34D"/>
+  
+  <!-- Simple round head -->
+  <circle cx="40" cy="40" r="26" fill="#FFE4C4"/>
+  
+  <!-- Clean side bangs -->
+  <path d="M14 36 Q18 20 32 18 Q40 16 48 18 Q62 20 66 36 Q56 28 40 26 Q24 28 14 36 Z" fill="#FCD34D"/>
+  
+  <!-- Simple friendly eyes -->
+  <ellipse cx="30" cy="42" rx="5" ry="6" fill="#1E3A8A"/>
+  <ellipse cx="50" cy="42" rx="5" ry="6" fill="#1E3A8A"/>
+  <circle cx="32" cy="40" r="2" fill="white"/>
+  <circle cx="52" cy="40" r="2" fill="white"/>
+  
+  <!-- Simple smile -->
+  <path d="M32 54 Q40 60 48 54" stroke="#8B4513" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  
+  <!-- Blush -->
+  <ellipse cx="20" cy="48" rx="4" ry="2.5" fill="#FFB6C1" opacity="0.5"/>
+  <ellipse cx="60" cy="48" rx="4" ry="2.5" fill="#FFB6C1" opacity="0.5"/>
+  
+  <!-- Body - care tunic -->
+  <rect x="20" y="64" width="40" height="30" rx="6" fill="#4F46E5"/>
+  
+  <!-- V-neck -->
+  <path d="M28 64 L40 76 L52 64" fill="#3730A3"/>
+  <line x1="28" y1="64" x2="40" y2="76" stroke="white" stroke-width="3"/>
+  <line x1="52" y1="64" x2="40" y2="76" stroke="white" stroke-width="1.5"/>
+  
+  <!-- Arms/hands -->
+  <circle cx="16" cy="78" r="5" fill="#FFE4C4"/>
+  <circle cx="64" cy="76" r="5" fill="#FFE4C4"/>
+  
+  <!-- Clipboard -->
+  <rect x="6" y="72" width="10" height="13" rx="1.5" fill="#A5B4FC"/>
+  <rect x="9" y="70" width="4" height="3" rx="1" fill="#F59E0B"/>
+  <rect x="7" y="75" width="8" height="8" rx="1" fill="white"/>
+  
+  <!-- Feet -->
+  <ellipse cx="32" cy="96" rx="6" ry="3" fill="#1F2937"/>
+  <ellipse cx="48" cy="96" rx="6" ry="3" fill="#1F2937"/>
+</svg>

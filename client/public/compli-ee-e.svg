@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 80" width="60" height="80">
+  <!-- STYLE E: Professional friendly - like a health app mascot -->
+  
+  <!-- Hair back -->
+  <ellipse cx="30" cy="18" rx="20" ry="10" fill="#D4A574"/>
+  
+  <!-- Head -->
+  <ellipse cx="30" cy="26" rx="18" ry="20" fill="#F5DEB3"/>
+  
+  <!-- Short neat hair -->
+  <path d="M12 26 Q14 12 24 10 Q30 8 36 10 Q46 12 48 26 Q42 18 30 16 Q18 18 12 26 Z" fill="#D4A574"/>
+  
+  <!-- Professional friendly eyes -->
+  <ellipse cx="22" cy="28" rx="4" ry="5" fill="#2563EB"/>
+  <ellipse cx="38" cy="28" rx="4" ry="5" fill="#2563EB"/>
+  <circle cx="24" cy="26" r="1.5" fill="white"/>
+  <circle cx="40" cy="26" r="1.5" fill="white"/>
+  
+  <!-- Confident smile -->
+  <path d="M24 38 Q30 44 36 38" stroke="#6B4423" stroke-width="2" fill="none" stroke-linecap="round"/>
+  
+  <!-- Body - scrubs style -->
+  <rect x="12" y="44" width="36" height="30" rx="4" fill="#4F46E5"/>
+  
+  <!-- V-neck scrubs -->
+  <path d="M18 44 L30 56 L42 44" fill="#3730A3"/>
+  <line x1="18" y1="44" x2="30" y2="56" stroke="white" stroke-width="3"/>
+  <line x1="42" y1="44" x2="30" y2="56" stroke="white" stroke-width="1.5"/>
+  
+  <!-- Collar trim -->
+  <line x1="12" y1="44" x2="18" y2="44" stroke="white" stroke-width="2"/>
+  <line x1="42" y1="44" x2="48" y2="44" stroke="white" stroke-width="2"/>
+  
+  <!-- Pocket -->
+  <rect x="16" y="62" width="12" height="2" rx="1" fill="white" opacity="0.8"/>
+  
+  <!-- Arms -->
+  <circle cx="8" cy="58" r="5" fill="#F5DEB3"/>
+  <circle cx="52" cy="56" r="5" fill="#F5DEB3"/>
+  
+  <!-- Clipboard -->
+  <rect x="0" y="52" width="8" height="12" rx="1" fill="#93C5FD"/>
+  <rect x="2" y="50" width="4" height="3" rx="1" fill="#F59E0B"/>
+  <rect x="1" y="54" width="6" height="8" rx="1" fill="white"/>
+  
+  <!-- Feet -->
+  <ellipse cx="22" cy="76" rx="5" ry="3" fill="#1F2937"/>
+  <ellipse cx="38" cy="76" rx="5" ry="3" fill="#1F2937"/>
+</svg>

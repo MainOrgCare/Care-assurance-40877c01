@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 80" width="60" height="80">
+  <!-- STYLE D: Tiny simple buddy - like a friendly emoji -->
+  
+  <!-- Just a simple happy person -->
+  
+  <!-- Hair -->
+  <circle cx="30" cy="20" r="18" fill="#F59E0B"/>
+  
+  <!-- Face -->
+  <circle cx="30" cy="28" r="20" fill="#FFDAB9"/>
+  
+  <!-- Simple bangs -->
+  <ellipse cx="20" cy="14" rx="8" ry="7" fill="#F59E0B"/>
+  <ellipse cx="30" cy="12" rx="10" ry="8" fill="#F59E0B"/>
+  <ellipse cx="40" cy="14" rx="8" ry="7" fill="#F59E0B"/>
+  
+  <!-- Happy closed eyes ^_^ -->
+  <path d="M20 28 Q24 24 28 28" stroke="#1E293B" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M32 28 Q36 24 40 28" stroke="#1E293B" stroke-width="2" fill="none" stroke-linecap="round"/>
+  
+  <!-- Big happy smile -->
+  <path d="M22 38 Q30 46 38 38" stroke="#7C2D12" stroke-width="2" fill="none" stroke-linecap="round"/>
+  
+  <!-- Blush -->
+  <circle cx="14" cy="34" r="4" fill="#FCA5A5" opacity="0.4"/>
+  <circle cx="46" cy="34" r="4" fill="#FCA5A5" opacity="0.4"/>
+  
+  <!-- Body -->
+  <rect x="14" y="46" width="32" height="26" rx="6" fill="#4F46E5"/>
+  
+  <!-- Simple white collar -->
+  <path d="M20 46 L30 56 L40 46" stroke="white" stroke-width="2" fill="none"/>
+  
+  <!-- Hands -->
+  <circle cx="10" cy="58" r="5" fill="#FFDAB9"/>
+  <circle cx="50" cy="56" r="5" fill="#FFDAB9"/>
+  
+  <!-- Tiny clipboard -->
+  <rect x="2" y="54" width="8" height="10" rx="1" fill="#C7D2FE"/>
+  <rect x="4" y="52" width="4" height="3" rx="1" fill="#FBBF24"/>
+  
+  <!-- Feet -->
+  <ellipse cx="24" cy="74" rx="5" ry="3" fill="#374151"/>
+  <ellipse cx="36" cy="74" rx="5" ry="3" fill="#374151"/>
+</svg>

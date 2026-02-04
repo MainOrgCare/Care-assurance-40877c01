@@ -467,6 +467,35 @@ export const insertContactMessageSchema = createInsertSchema(contactMessages).om
 export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;
 export type ContactMessage = typeof contactMessages.$inferSelect;
 
+// User Messages table - internal messaging system for Compli-ee and admin communications
+export const userMessages = pgTable("user_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  recipientId: varchar("recipient_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  senderId: varchar("sender_id").references(() => users.id, { onDelete: "set null" }), // null = system/Compli-ee
+  senderName: text("sender_name").notNull().default("Compli-ee"),
+  subject: text("subject").notNull(),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  isArchived: boolean("is_archived").notNull().default(false),
+  priority: text("priority").notNull().default("normal"), // normal, high, urgent
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  recipientIdx: index("user_messages_recipient_idx").on(table.recipientId),
+  unreadIdx: index("user_messages_unread_idx").on(table.isRead, table.recipientId),
+}));
+
+export const insertUserMessageSchema = createInsertSchema(userMessages).omit({
+  id: true,
+  isRead: true,
+  isArchived: true,
+  readAt: true,
+  createdAt: true,
+});
+
+export type InsertUserMessage = z.infer<typeof insertUserMessageSchema>;
+export type UserMessage = typeof userMessages.$inferSelect;
+
 // ============================================================================
 // ROSTERING DATA EXTRACTION - Analyzed Data from Workbooks
 // Data retained for 3 months, deduplicated across uploads

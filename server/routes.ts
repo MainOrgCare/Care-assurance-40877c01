@@ -11013,9 +11013,9 @@ Remember: Extract information ONLY from service user documents above. Templates 
         reason: typeof assessment?.reason === "string" ? toFirstPerson(assessment.reason) : assessment?.reason,
       }));
 
-      const evidenceFinder = buildDocumentEvidenceFinder(documentContentForAi || "");
-      const derivedRecommendations = buildAssessmentRecommendations(result, evidenceFinder);
-      result.recommendedAssessments = mergeAssessmentRecommendations(result.recommendedAssessments, derivedRecommendations);
+      // NOTE: Removed old keyword-based buildAssessmentRecommendations in favor of AI-only recommendations
+      // The AI now provides better evidence-backed, person-centred recommendations
+      
       // CRITICAL FILTERING: Remove assessments without STRONG evidence
       // NHS England Principle #1: Person-centred care - only recommend what's documented
       const includedAssessmentNames: string[] = [];
@@ -13759,6 +13759,137 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   });
 
   // =====================================================================
+  // USER MESSAGING PORTAL - Internal messages (from Compli-ee, admins, etc.)
+  // =====================================================================
+
+  // Get current user's messages
+  app.get("/api/messages", requireAuth, async (req: any, res) => {
+    try {
+      const includeArchived = req.query.includeArchived === "true";
+      const messages = await storage.getUserMessages(req.user.id, includeArchived);
+      return res.json(messages);
+    } catch (error: any) {
+      console.error("[Messages] Failed to fetch messages:", error);
+      return res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  // Get unread message count
+  app.get("/api/messages/unread-count", requireAuth, async (req: any, res) => {
+    try {
+      const count = await storage.getUnreadUserMessageCount(req.user.id);
+      return res.json({ count });
+    } catch (error: any) {
+      console.error("[Messages] Failed to get unread count:", error);
+      return res.status(500).json({ message: "Failed to get unread count" });
+    }
+  });
+
+  // Get single message
+  app.get("/api/messages/:id", requireAuth, async (req: any, res) => {
+    try {
+      const message = await storage.getUserMessage(req.params.id);
+      if (!message) {
+        return res.status(404).json({ message: "Message not found" });
+      }
+      // Verify recipient is current user
+      if (message.recipientId !== req.user.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      return res.json(message);
+    } catch (error: any) {
+      console.error("[Messages] Failed to fetch message:", error);
+      return res.status(500).json({ message: "Failed to fetch message" });
+    }
+  });
+
+  // Mark message as read
+  app.patch("/api/messages/:id/read", requireAuth, async (req: any, res) => {
+    try {
+      const message = await storage.getUserMessage(req.params.id);
+      if (!message) {
+        return res.status(404).json({ message: "Message not found" });
+      }
+      if (message.recipientId !== req.user.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const updated = await storage.markUserMessageRead(req.params.id);
+      return res.json(updated);
+    } catch (error: any) {
+      console.error("[Messages] Failed to mark message as read:", error);
+      return res.status(500).json({ message: "Failed to update message" });
+    }
+  });
+
+  // Archive message
+  app.patch("/api/messages/:id/archive", requireAuth, async (req: any, res) => {
+    try {
+      const message = await storage.getUserMessage(req.params.id);
+      if (!message) {
+        return res.status(404).json({ message: "Message not found" });
+      }
+      if (message.recipientId !== req.user.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const updated = await storage.archiveUserMessage(req.params.id);
+      return res.json(updated);
+    } catch (error: any) {
+      console.error("[Messages] Failed to archive message:", error);
+      return res.status(500).json({ message: "Failed to archive message" });
+    }
+  });
+
+  // Delete message
+  app.delete("/api/messages/:id", requireAuth, async (req: any, res) => {
+    try {
+      const message = await storage.getUserMessage(req.params.id);
+      if (!message) {
+        return res.status(404).json({ message: "Message not found" });
+      }
+      if (message.recipientId !== req.user.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      await storage.deleteUserMessage(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Messages] Failed to delete message:", error);
+      return res.status(500).json({ message: "Failed to delete message" });
+    }
+  });
+
+  // Send message (internal API - used by Compli-ee and system)
+  app.post("/api/messages/send", requireAuth, async (req: any, res) => {
+    try {
+      const { recipientId, subject, message, priority, senderName } = req.body;
+      
+      if (!recipientId || !subject || !message) {
+        return res.status(400).json({ message: "recipientId, subject, and message are required" });
+      }
+
+      // Verify recipient exists
+      const recipient = await storage.getUser(recipientId);
+      if (!recipient) {
+        return res.status(404).json({ message: "Recipient not found" });
+      }
+
+      const newMessage = await storage.createUserMessage({
+        recipientId,
+        senderId: req.user.id,
+        senderName: senderName || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.username,
+        subject: subject.slice(0, 200),
+        message: message.slice(0, 10000),
+        priority: priority || "normal",
+      });
+
+      console.log(`[Messages] Message sent from ${req.user.username} to user ${recipientId}: "${subject}"`);
+      return res.json(newMessage);
+    } catch (error: any) {
+      console.error("[Messages] Failed to send message:", error);
+      return res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  // =====================================================================
   // EXTRACTED DATA INGEST - Save analyzed data only (no raw workbooks)
   // =====================================================================
 
@@ -15163,7 +15294,42 @@ Compli-ee: "Ah, wouldn't that spoil all the fun! Let's just say there's some cle
 
 User: "Can I see system logs?"
 Good (for non-admin): "System Logs are an administrator feature - you'd need to speak with your admin if you need access to those. Is there something specific you were trying to find out? I might be able to help another way."
-Good (for admin): "Absolutely! You can find System Logs under the Admin menu. It shows audit trails and system activity. What were you hoping to find there?"`;
+Good (for admin): "Absolutely! You can find System Logs under the Admin menu. It shows audit trails and system activity. What were you hoping to find there?"
+
+## SPECIAL ABILITIES
+You can send messages to users' message inbox when asked. If a user asks you to "send me a message", "remind me later", "message me about this", or similar, you can use your send_message function to deliver a message to their inbox. The message will appear in their Messages section.
+
+Example phrases that should trigger message sending:
+- "Send me a message about X"
+- "Can you message me this?"
+- "Remind me about this in my inbox"
+- "Send this to my messages"
+- "Put this in my inbox"`;
+
+  // Function definition for sending messages
+  const SEND_MESSAGE_FUNCTION = {
+    name: "send_message",
+    description: "Send a message to the user's messaging inbox. Use this when the user asks you to send them a message, reminder, or asks you to put something in their inbox.",
+    parameters: {
+      type: "object",
+      properties: {
+        subject: {
+          type: "string",
+          description: "Brief subject line for the message (max 100 characters)",
+        },
+        message: {
+          type: "string",
+          description: "The full message content to send to the user",
+        },
+        priority: {
+          type: "string",
+          enum: ["normal", "high", "urgent"],
+          description: "Message priority level. Use 'normal' for most messages, 'high' for important reminders, 'urgent' only for critical matters.",
+        },
+      },
+      required: ["subject", "message"],
+    },
+  };
 
   app.post("/api/ai/chat", requireAuth, async (req: any, res) => {
     try {
@@ -15198,6 +15364,7 @@ Good (for admin): "Absolutely! You can find System Logs under the Admin menu. It
               content: m.content,
             })),
           ],
+          tools: [{ type: "function", function: SEND_MESSAGE_FUNCTION }],
           temperature: 0.7,
           max_completion_tokens: 800,
         },
@@ -15205,7 +15372,64 @@ Good (for admin): "Absolutely! You can find System Logs under the Admin menu. It
         aiUserContext
       );
 
-      const reply = completion.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
+      const assistantMessage = completion.choices[0]?.message;
+      
+      // Check if AI wants to call the send_message function
+      if (assistantMessage?.tool_calls?.length) {
+        const toolCall = assistantMessage.tool_calls[0] as any;
+        if (toolCall?.function?.name === "send_message") {
+          try {
+            const args = JSON.parse(toolCall.function.arguments || "{}");
+            
+            // Send the message to the user's inbox
+            await storage.createUserMessage({
+              recipientId: req.user.id,
+              senderId: null, // null = Compli-ee
+              senderName: "Compli-ee",
+              subject: (args.subject || "Message from Compli-ee").slice(0, 200),
+              message: (args.message || "").slice(0, 10000),
+              priority: args.priority || "normal",
+            });
+            
+            console.log(`[Chat Assistant] Compli-ee sent message to ${req.user.username}: "${args.subject}"`);
+            
+            // Get a follow-up response from AI confirming the message was sent
+            const followUp = await createChatCompletionWithLogging(
+              {
+                model: "gpt-4.1-mini",
+                messages: [
+                  { role: "system", content: CHAT_ASSISTANT_SYSTEM_PROMPT + roleContext },
+                  ...recentMessages.map((m: { role: string; content: string }) => ({
+                    role: m.role as "user" | "assistant",
+                    content: m.content,
+                  })),
+                  assistantMessage as any,
+                  { 
+                    role: "tool", 
+                    tool_call_id: toolCall.id, 
+                    content: JSON.stringify({ success: true, message: "Message sent successfully to user's inbox" }) 
+                  },
+                ],
+                temperature: 0.7,
+                max_completion_tokens: 300,
+              },
+              "chat-assistant",
+              aiUserContext
+            );
+            
+            const reply = followUp.choices[0]?.message?.content || "Done! I've sent that to your Messages inbox. 📬";
+            return res.json({ reply, messageSent: true });
+          } catch (parseError) {
+            console.error("[Chat Assistant] Failed to parse function call:", parseError);
+            return res.json({ 
+              reply: "I tried to send that to your inbox but something went wrong. Could you try asking me again?",
+              messageSent: false 
+            });
+          }
+        }
+      }
+
+      const reply = assistantMessage?.content || "I'm sorry, I couldn't generate a response.";
 
       console.log(`[Chat Assistant] Response generated for ${req.user?.username}`);
       return res.json({ reply });

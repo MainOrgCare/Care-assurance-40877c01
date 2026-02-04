@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 110" width="100" height="110">
+  <!-- VERSION 4: Maximum cuteness - huge glossy eyes, tiny everything else -->
+  <defs>
+    <linearGradient id="tunic4" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4F46E5"/>
+      <stop offset="100%" style="stop-color:#3730A3"/>
+    </linearGradient>
+    <linearGradient id="hair4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFF7ED"/>
+      <stop offset="50%" style="stop-color:#FEF08A"/>
+      <stop offset="100%" style="stop-color:#FCD34D"/>
+    </linearGradient>
+    <linearGradient id="skin4" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF"/>
+      <stop offset="50%" style="stop-color:#FFF5EB"/>
+      <stop offset="100%" style="stop-color:#FFE4CC"/>
+    </linearGradient>
+    <linearGradient id="eye4" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#BAE6FD"/>
+      <stop offset="30%" style="stop-color:#38BDF8"/>
+      <stop offset="60%" style="stop-color:#0EA5E9"/>
+      <stop offset="100%" style="stop-color:#0369A1"/>
+    </linearGradient>
+    <radialGradient id="eyeShine" cx="30%" cy="30%" r="50%">
+      <stop offset="0%" style="stop-color:white"/>
+      <stop offset="100%" style="stop-color:white;stop-opacity:0"/>
+    </radialGradient>
+  </defs>
+  
+  <!-- Hair cloud -->
+  <ellipse cx="50" cy="18" rx="40" ry="15" fill="url(#hair4)"/>
+  <ellipse cx="20" cy="28" rx="12" ry="14" fill="url(#hair4)"/>
+  <ellipse cx="80" cy="28" rx="12" ry="14" fill="url(#hair4)"/>
+  
+  <!-- HUGE round head -->
+  <circle cx="50" cy="38" r="35" fill="url(#skin4)"/>
+  
+  <!-- Super fluffy bangs -->
+  <ellipse cx="24" cy="12" rx="16" ry="14" fill="url(#hair4)"/>
+  <ellipse cx="50" cy="6" rx="20" ry="15" fill="url(#hair4)"/>
+  <ellipse cx="76" cy="12" rx="16" ry="14" fill="url(#hair4)"/>
+  <ellipse cx="36" cy="14" rx="12" ry="11" fill="url(#hair4)"/>
+  <ellipse cx="64" cy="14" rx="12" ry="11" fill="url(#hair4)"/>
+  <!-- Lots of shine -->
+  <ellipse cx="35" cy="6" rx="7" ry="4" fill="white" opacity="0.8"/>
+  <ellipse cx="55" cy="4" rx="8" ry="4" fill="white" opacity="0.8"/>
+  <ellipse cx="72" cy="8" rx="5" ry="3" fill="white" opacity="0.6"/>
+  
+  <!-- MASSIVE ADORABLE EYES -->
+  <!-- Left eye -->
+  <ellipse cx="34" cy="42" rx="14" ry="15" fill="white"/>
+  <ellipse cx="36" cy="44" rx="11" ry="12" fill="url(#eye4)"/>
+  <ellipse cx="37" cy="47" rx="5.5" ry="6" fill="#075985"/>
+  <!-- Glossy reflection -->
+  <ellipse cx="32" cy="40" rx="8" ry="6" fill="url(#eyeShine)" opacity="0.4"/>
+  <!-- Sparkles galore -->
+  <circle cx="44" cy="34" r="5.5" fill="white"/>
+  <circle cx="30" cy="50" r="3" fill="white"/>
+  <circle cx="45" cy="43" r="2" fill="white" opacity="0.9"/>
+  <circle cx="33" cy="36" r="1.5" fill="white" opacity="0.7"/>
+  <circle cx="40" cy="50" r="1" fill="white" opacity="0.6"/>
+  
+  <!-- Right eye -->
+  <ellipse cx="66" cy="42" rx="14" ry="15" fill="white"/>
+  <ellipse cx="68" cy="44" rx="11" ry="12" fill="url(#eye4)"/>
+  <ellipse cx="69" cy="47" rx="5.5" ry="6" fill="#075985"/>
+  <!-- Glossy reflection -->
+  <ellipse cx="64" cy="40" rx="8" ry="6" fill="url(#eyeShine)" opacity="0.4"/>
+  <!-- Sparkles galore -->
+  <circle cx="76" cy="34" r="5.5" fill="white"/>
+  <circle cx="62" cy="50" r="3" fill="white"/>
+  <circle cx="77" cy="43" r="2" fill="white" opacity="0.9"/>
+  <circle cx="65" cy="36" r="1.5" fill="white" opacity="0.7"/>
+  <circle cx="72" cy="50" r="1" fill="white" opacity="0.6"/>
+  
+  <!-- Rosy blush circles -->
+  <circle cx="14" cy="50" r="6" fill="#FECACA" opacity="0.7"/>
+  <circle cx="86" cy="50" r="6" fill="#FECACA" opacity="0.7"/>
+  
+  <!-- Precious little smile -->
+  <path d="M44 58 Q50 66 56 58" stroke="#B45309" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Tongue peeking out -->
+  <ellipse cx="50" cy="62" rx="3" ry="2" fill="#FCA5A5"/>
+  
+  <!-- Tiny tunic body -->
+  <rect x="30" y="71" width="40" height="28" rx="6" fill="url(#tunic4)"/>
+  
+  <!-- V-neck -->
+  <path d="M40 71 L50 82 L60 71" fill="#312E81"/>
+  <line x1="40" y1="71" x2="50" y2="82" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="60" y1="71" x2="50" y2="82" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+  
+  <!-- Collar -->
+  <line x1="30" y1="71" x2="40" y2="71" stroke="white" stroke-width="2"/>
+  <line x1="60" y1="71" x2="70" y2="71" stroke="white" stroke-width="2"/>
+  
+  <!-- Pocket trims -->
+  <line x1="34" y1="90" x2="44" y2="90" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <line x1="56" y1="90" x2="66" y2="90" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Tiny adorable hands -->
+  <circle cx="26" cy="86" r="5" fill="url(#skin4)"/>
+  <circle cx="74" cy="84" r="5" fill="url(#skin4)"/>
+  <!-- Little waving fingers -->
+  <ellipse cx="77" cy="78" rx="2" ry="3.5" fill="url(#skin4)"/>
+  <ellipse cx="74" cy="77" rx="2" ry="3.5" fill="url(#skin4)"/>
+  <ellipse cx="71" cy="79" rx="2" ry="3" fill="url(#skin4)"/>
+  
+  <!-- Mini clipboard -->
+  <g transform="translate(14, 80) rotate(-8)">
+    <rect width="11" height="14" rx="2" fill="#C7D2FE"/>
+    <rect x="3" y="-2" width="5" height="3" rx="1" fill="#FBBF24"/>
+    <rect x="2" y="3" width="7" height="9" rx="1" fill="white"/>
+    <path d="M3.5 6 L4.5 7 L6.5 4.5" stroke="#6366F1" stroke-width="0.8" fill="none"/>
+    <path d="M3.5 9 L4.5 10 L6.5 7.5" stroke="#6366F1" stroke-width="0.8" fill="none"/>
+  </g>
+  
+  <!-- Teeny feet -->
+  <ellipse cx="42" cy="103" rx="6" ry="3" fill="#1F2937"/>
+  <ellipse cx="58" cy="103" rx="6" ry="3" fill="#1F2937"/>
+</svg>
