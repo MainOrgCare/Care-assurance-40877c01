@@ -35,6 +35,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+import ChatAssistant from "@/components/ChatAssistant";
+import ComplieeIntro, { ComplieeIdleButton } from "@/components/ComplieeIntro";
 
 const SidebarContent = memo(function SidebarContent({
   location,
@@ -341,7 +343,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { isConnected } = useSession();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [showComplieeIntro, setShowComplieeIntro] = useState(false);
   const autoCollapseRef = useRef(false);
+
+  // Show Compli-ee intro after user has accepted terms
+  useEffect(() => {
+    if (user?.termsAcceptedAt && !localStorage.getItem('compliee_intro_seen')) {
+      // Small delay so the page loads first
+      const timer = setTimeout(() => setShowComplieeIntro(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [user?.termsAcceptedAt]);
 
   const contentWrapperClass = cn(
     "w-full flex-1 min-h-0",
@@ -466,6 +479,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="flex items-center gap-5">
+              {/* Compli-ee Help Button */}
+              <ComplieeIdleButton onClick={() => setIsChatOpen(true)} />
+              
               <div className="flex items-center gap-3 bg-muted/30 pl-4 pr-1.5 py-1.5 rounded-2xl border border-border/40 hover:border-border/80 transition-all cursor-pointer group">
                 <div className="text-right hidden sm:block">
                   <p className="text-xs font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
@@ -573,6 +589,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </footer>
         )}
       </main>
+
+      {/* Compli-ee Chat Assistant */}
+      <ChatAssistant isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+
+      {/* Compli-ee Intro Animation (first time after accepting terms) */}
+      {showComplieeIntro && (
+        <ComplieeIntro
+          onComplete={() => setShowComplieeIntro(false)}
+          onAskHelp={() => {
+            setShowComplieeIntro(false);
+            setIsChatOpen(true);
+          }}
+        />
+      )}
     </div>
   );
 }
