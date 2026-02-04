@@ -1076,9 +1076,9 @@ export default function RosteringStudioUnified({
   // ===== RENDER =====
   return (
     <TooltipProvider>
-      <div className="flex h-full flex-col bg-background">
+      <div className="flex h-screen flex-col bg-background overflow-hidden">
         {/* TOP MENU BAR */}
-        <div className="flex h-9 items-center justify-between border-b bg-gradient-to-r from-muted/50 via-muted/30 to-muted/50 px-3 shadow-sm">
+        <div className="flex h-9 items-center justify-between border-b bg-gradient-to-r from-muted/50 via-muted/30 to-muted/50 px-3 shadow-sm flex-shrink-0">
           <div className="flex items-center gap-0.5">
             {!embedded && (
               <Button variant="ghost" size="sm" asChild className="mr-1 h-7 w-7 p-0">
@@ -1427,27 +1427,27 @@ export default function RosteringStudioUnified({
         </div>
 
         {/* STATS BAR */}
-        <div className="flex h-7 items-center justify-between border-b bg-gradient-to-r from-background via-muted/10 to-background px-3 text-[10px] shadow-sm">
-          <div className="flex items-center gap-5">
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20">
-              <Users className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-              <span className="font-bold text-blue-700 dark:text-blue-300">{totalWorkersCount}</span>
-              <span className="text-blue-600/70 dark:text-blue-400/70 text-[9px] font-medium">Workers</span>
+        <div className="flex h-6 items-center justify-between border-b bg-muted/20 px-3 text-[11px] flex-shrink-0">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="font-semibold">{totalWorkersCount}</span>
+              <span className="text-muted-foreground">Workers</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20">
-              <MapPin className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
-              <span className="font-bold text-purple-700 dark:text-purple-300">{totalServiceUsersCount}</span>
-              <span className="text-purple-600/70 dark:text-purple-400/70 text-[9px] font-medium">SUs</span>
+            <div className="flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="font-semibold">{totalServiceUsersCount}</span>
+              <span className="text-muted-foreground">Service Users</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-green-500/10 border border-green-500/20">
-              <ClipboardList className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
-              <span className="font-bold text-green-700 dark:text-green-300">{totalCallsCount}</span>
-              <span className="text-green-600/70 dark:text-green-400/70 text-[9px] font-medium">Calls</span>
+            <div className="flex items-center gap-1.5">
+              <ClipboardList className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="font-semibold">{totalCallsCount}</span>
+              <span className="text-muted-foreground">Calls</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20">
-              <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-              <span className="font-bold text-amber-700 dark:text-amber-300">{totalHoursCount}</span>
-              <span className="text-amber-600/70 dark:text-amber-400/70 text-[9px] font-medium">Hrs</span>
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="font-semibold">{totalHoursCount}</span>
+              <span className="text-muted-foreground">Hours</span>
             </div>
             <div className="flex items-center gap-1">
               {conflictsCount > 0 ? (
@@ -1480,7 +1480,7 @@ export default function RosteringStudioUnified({
 
         {/* MAIN WORKSPACE - Grid Layout */}
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <ResizablePanelGroup direction="horizontal" className="min-h-0">
+          <ResizablePanelGroup direction="horizontal" className="h-full">
             {/* LEFT SIDEBAR - Workers */}
             {panelVisibility.workers && (
               <>
@@ -1529,8 +1529,8 @@ export default function RosteringStudioUnified({
                         ))}
                       </div>
                     </div>
-                    <div className="px-1.5 pb-2">
-                      <ScrollArea className="max-h-[288px]">
+                    <ScrollArea className="flex-1 overflow-auto">
+                      <div className="px-1.5 pb-2">
                         <div className="divide-y">
                         {filteredWorkers.map((worker: CareWorkerRoster) => {
                           const summary = workerSummaryByKey.get(worker.key);
@@ -1564,20 +1564,21 @@ export default function RosteringStudioUnified({
                           );
                         })}
                         </div>
-                      </ScrollArea>
-                    </div>
+                      </div>
+                    </ScrollArea>
                   </div>
                 </ResizablePanel>
                 <ResizableHandle withHandle />
               </>
             )}
 
-            {/* MAIN CONTENT - Fixed Grid Layout */}
-                <ResizablePanel defaultSize={panelVisibility.workers ? 63 : 78} className="min-h-0">
-              <div className="flex h-full min-h-0 flex-col">
-                {/* Top Row: Timeline (takes most space) */}
+            {/* MAIN CONTENT - Resizable Layout */}
+                <ResizablePanel defaultSize={panelVisibility.workers ? 63 : 78} className="h-full">
+              <ResizablePanelGroup direction="vertical" className="h-full">
+                {/* Top Row: Timeline */}
                 {panelVisibility.timeline && (
-                  <div className="flex-[2] min-h-[260px] border-b flex flex-col overflow-hidden">
+                  <ResizablePanel defaultSize={55} minSize={30} maxSize={80} className="overflow-hidden">
+                  <div className="h-full flex flex-col overflow-hidden">
                     <div className="flex items-center justify-between bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-3 py-1 border-b shrink-0 shadow-sm">
                       <div className="flex items-center gap-2">
                         <Timer className="h-4 w-4 text-primary" />
@@ -1719,13 +1720,21 @@ export default function RosteringStudioUnified({
                       />
                     </div>
                   </div>
+                  </ResizablePanel>
+                )}
+                
+                {panelVisibility.timeline && (panelVisibility.map || panelVisibility.callTimes || panelVisibility.constraints || panelVisibility.workload || panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                  <ResizableHandle withHandle />
                 )}
 
                 {/* Bottom Row: Horizontal panels */}
-                <div className="flex-1 min-h-[220px] flex border-t overflow-hidden">
+                {(panelVisibility.map || panelVisibility.callTimes || panelVisibility.constraints || panelVisibility.workload || panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                  <ResizablePanel defaultSize={45} minSize={20} maxSize={70} className="overflow-hidden">
+                <ResizablePanelGroup direction="horizontal" className="h-full">
                   {/* Map Panel */}
                   {panelVisibility.map && (
-                    <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
+                    <ResizablePanel defaultSize={80} minSize={40} className="min-h-0">
+                    <div className="h-full min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-blue-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <MapIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <span className="text-[11px] font-bold uppercase tracking-wide">Map</span>
@@ -1733,14 +1742,20 @@ export default function RosteringStudioUnified({
                           {routeEntriesSorted.length}
                         </Badge>
                       </div>
-                      <div className="flex-1 min-h-0 p-0.5 overflow-hidden">
+                      <div className="flex-1 min-h-0 overflow-hidden">
                         <RouteMapView entries={routeEntriesSorted} />
                       </div>
                     </div>
+                    </ResizablePanel>
+                  )}
+                  
+                  {panelVisibility.map && (panelVisibility.callTimes || panelVisibility.constraints || panelVisibility.workload || panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                    <ResizableHandle withHandle />
                   )}
 
                   {/* Call Times Panel */}
                   {panelVisibility.callTimes && (
+                    <ResizablePanel defaultSize={20} minSize={15} className="min-h-0">
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-purple-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <Clock className="h-4 w-4 text-purple-600 dark:text-purple-400" />
@@ -1762,10 +1777,16 @@ export default function RosteringStudioUnified({
                         </div>
                       </ScrollArea>
                     </div>
+                    </ResizablePanel>
+                  )}
+                  
+                  {panelVisibility.callTimes && (panelVisibility.constraints || panelVisibility.workload || panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                    <ResizableHandle withHandle />
                   )}
 
                   {/* Constraints Panel */}
                   {panelVisibility.constraints && (
+                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-amber-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <UserCog className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -1791,10 +1812,16 @@ export default function RosteringStudioUnified({
                         </div>
                       </ScrollArea>
                     </div>
+                    </ResizablePanel>
+                  )}
+                  
+                  {panelVisibility.constraints && (panelVisibility.workload || panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                    <ResizableHandle withHandle />
                   )}
 
                   {/* Workload Heatmap */}
                   {panelVisibility.workload && (
+                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-green-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <BarChart3 className="h-4 w-4 text-green-600 dark:text-green-400" />
@@ -1813,10 +1840,16 @@ export default function RosteringStudioUnified({
                         />
                       </div>
                     </div>
+                    </ResizablePanel>
+                  )}
+                  
+                  {panelVisibility.workload && (panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                    <ResizableHandle withHandle />
                   )}
 
                   {/* Optimization Panel */}
                   {panelVisibility.optimization && (
+                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-orange-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <Sliders className="h-4 w-4 text-orange-600 dark:text-orange-400" />
@@ -1835,10 +1868,16 @@ export default function RosteringStudioUnified({
                         </div>
                       </ScrollArea>
                     </div>
+                    </ResizablePanel>
+                  )}
+                  
+                  {panelVisibility.optimization && (panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                    <ResizableHandle withHandle />
                   )}
 
                   {/* Database Panel */}
                   {panelVisibility.database && (
+                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
                     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-slate-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <Database className="h-4 w-4 text-slate-600 dark:text-slate-400" />
@@ -1850,10 +1889,16 @@ export default function RosteringStudioUnified({
                         </div>
                       </ScrollArea>
                     </div>
+                    </ResizablePanel>
+                  )}
+                  
+                  {panelVisibility.database && (panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                    <ResizableHandle withHandle />
                   )}
 
                   {/* AI Analysis Panel */}
                   {panelVisibility.aiAnalysis && (
+                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
                     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-transparent px-3 py-1 border-b shadow-sm">
                         <Brain className="h-4 w-4 text-violet-600 dark:text-violet-400" />
@@ -1887,10 +1932,16 @@ export default function RosteringStudioUnified({
                         </div>
                       </ScrollArea>
                     </div>
+                    </ResizablePanel>
+                  )}
+                  
+                  {panelVisibility.aiAnalysis && (panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                    <ResizableHandle withHandle />
                   )}
 
                   {/* Schedule Comparison Panel */}
                   {panelVisibility.comparison && savedComparisonData && (
+                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
                     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-cyan-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <GitCompare className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
@@ -1909,10 +1960,16 @@ export default function RosteringStudioUnified({
                         </div>
                       </ScrollArea>
                     </div>
+                    </ResizablePanel>
+                  )}
+                  
+                  {panelVisibility.comparison && savedComparisonData && (panelVisibility.costs || panelVisibility.templates) && (
+                    <ResizableHandle withHandle />
                   )}
 
                   {/* Cost Analysis Panel */}
                   {panelVisibility.costs && (
+                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
                     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-emerald-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <Calculator className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -1930,10 +1987,16 @@ export default function RosteringStudioUnified({
                         </div>
                       </ScrollArea>
                     </div>
+                    </ResizablePanel>
+                  )}
+                  
+                  {panelVisibility.costs && panelVisibility.templates && (
+                    <ResizableHandle withHandle />
                   )}
 
                   {/* Template Library Panel */}
                   {panelVisibility.templates && (
+                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
                     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-rose-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <BookTemplate className="h-4 w-4 text-rose-600 dark:text-rose-400" />
@@ -1965,22 +2028,27 @@ export default function RosteringStudioUnified({
                         </div>
                       </ScrollArea>
                     </div>
+                    </ResizablePanel>
                   )}
 
                   {/* Placeholder when no bottom panels visible */}
                   {!panelVisibility.map && !panelVisibility.callTimes && !panelVisibility.constraints && 
                    !panelVisibility.workload && !panelVisibility.optimization && !panelVisibility.database &&
                    !panelVisibility.aiAnalysis && !panelVisibility.comparison && !panelVisibility.costs && !panelVisibility.templates && (
-                    <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-xs gap-3">
+                    <ResizablePanel defaultSize={100} className="min-h-0">
+                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs gap-3">
                       <Layers className="h-12 w-12 text-muted-foreground/30" />
                       <div className="text-center space-y-1">
                         <p className="font-medium text-sm">No panels visible</p>
                         <p className="text-[10px]">Use <kbd className="px-1.5 py-0.5 bg-muted rounded text-[9px] font-mono">View</kbd> menu to show panels</p>
                       </div>
                     </div>
+                    </ResizablePanel>
                   )}
-                </div>
-              </div>
+                </ResizablePanelGroup>
+                  </ResizablePanel>
+                )}
+              </ResizablePanelGroup>
             </ResizablePanel>
 
             {/* RIGHT SIDEBAR - Details */}

@@ -755,14 +755,14 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                       </div>
                     </div>
                     {/* Timeline track - scrollable with zoom */}
-                    <div className={lockToContainer ? "flex-1 overflow-x-hidden" : "flex-1 overflow-x-auto"}>
+                    <div className="flex-1 overflow-x-hidden">
                       <div 
                         ref={idx === 0 ? trackRef : undefined} 
                         className="relative h-full"
                         style={trackWidthStyle}
                       >
                         {/* Background grid */}
-                        <div className="rounded bg-muted/15 relative overflow-hidden" style={{ height: entryHeight }}>
+                        <div className="bg-muted/15 relative overflow-hidden" style={{ height: entryHeight }}>
                           {hourTicks.slice(0, -1).map((tick) => {
                             const left = ((tick - startMinutes) / totalMinutes) * 100;
                             return (
@@ -905,13 +905,13 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
             ref={setNodeRef}
             type="button"
             onClick={handleClick}
-            className={`absolute rounded-none px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-slate-800 shadow-xs touch-manipulation
-              focus:outline-none focus:ring-2 focus:ring-primary/60 
+            className={`absolute px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-slate-800 shadow-sm touch-manipulation
+              focus:outline-none focus:ring-1 focus:ring-primary/60 
               ${colors.bg} border ${colors.border}
               ${isDragging ? "opacity-60 shadow-md z-20" : ""}
-              ${isSelected ? "ring-2 ring-white shadow-md z-10" : ""}
-              ${isFocused ? "ring-2 ring-primary ring-offset-1 z-10" : ""}
-              ${hasConflict ? "ring-2 ring-red-400" : ""}`}
+              ${isSelected ? "ring-1 ring-primary shadow-sm z-10" : ""}
+              ${isFocused ? "ring-1 ring-primary z-10" : ""}
+              ${hasConflict ? "ring-1 ring-red-400" : ""}`}
             style={style}
             {...attributes}
             {...listeners}
