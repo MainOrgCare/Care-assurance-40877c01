@@ -20,6 +20,40 @@
         <div id="payload-status" class="status">Waiting for data...</div>
       </section>
 
+      <!-- FILE UPLOAD & AI ANALYSIS SECTION -->
+      <section class="section upload-section">
+        <h2>📄 Upload Documents for AI Analysis</h2>
+        <p class="upload-description">Upload care documents (PDF, Word, images) to analyze for risk assessments</p>
+        <label>
+          Select Files
+          <input id="document-files" type="file" accept=".pdf,.doc,.docx,.txt,image/*" multiple />
+        </label>
+        <button id="analyze-documents" class="primary">Analyze with AI</button>
+        <div id="analysis-status" class="status"></div>
+        <div id="analysis-progress" class="progress-bar" hidden>
+          <div id="analysis-progress-fill" class="progress-fill"></div>
+        </div>
+      </section>
+
+      <!-- ANALYSIS RESULTS SECTION (Hidden by default) -->
+      <section id="results-section" class="section results-section" hidden>
+        <h2>✅ Risk Analysis Results</h2>
+        <div id="results-summary" class="results-summary"></div>
+        
+        <div class="results-subsection">
+          <h3>Recommended Assessments</h3>
+          <div id="recommended-assessments" class="assessment-list"></div>
+        </div>
+
+        <div class="results-subsection">
+          <h3>📝 Additional Notes (Optional)</h3>
+          <textarea id="additional-notes" placeholder="Add any additional context, observations, or notes about this service user..." rows="4"></textarea>
+        </div>
+
+        <button id="proceed-with-results" class="primary">✓ Use This Analysis & Continue</button>
+        <button id="cancel-results" class="secondary">Cancel & Choose Different Files</button>
+      </section>
+
       <section class="section">
         <h2>Case Details</h2>
         <label>
