@@ -14,7 +14,7 @@ interface Message {
 // Generate a unique ID for messages
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
-// Animated Compli-ee SVG for the side character
+// Animated Compliee SVG for the side character
 function ComplieeCharacter({ isBlinking = false }: { isBlinking?: boolean }) {
   return (
     <svg viewBox="0 0 64 80" className="w-full h-full">
@@ -26,7 +26,7 @@ function ComplieeCharacter({ isBlinking = false }: { isBlinking?: boolean }) {
       <rect x="12" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>
       <rect x="24" y="4" width="16" height="16" rx="6" fill="#FBBF24"/>
       <rect x="36" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>
-      {/* Eyes */}
+      {/* Eyes  O_O */}
       {isBlinking ? (
         <>
           <rect x="14" y="33" rx="2" width="14" height="3" fill="#1E40AF"/>
@@ -47,13 +47,13 @@ function ComplieeCharacter({ isBlinking = false }: { isBlinking?: boolean }) {
       {/* Blush */}
       <rect x="6" y="36" width="6" height="4" rx="2" fill="#FECACA" opacity="0.6"/>
       <rect x="52" y="36" width="6" height="4" rx="2" fill="#FECACA" opacity="0.6"/>
-      {/* Body */}
+      {/* Body of compliee*/}
       <rect x="14" y="50" width="36" height="26" rx="4" fill="#4F46E5"/>
-      {/* V detail */}
+      {/* V detail of tunic*/}
       <path d="M22 50 L32 60 L42 50" fill="#3730A3"/>
       <line x1="22" y1="50" x2="32" y2="60" stroke="white" strokeWidth="2.5"/>
       <line x1="42" y1="50" x2="32" y2="60" stroke="white" strokeWidth="1.5"/>
-      {/* Left hand with clipboard */}
+      {/* Left hand with clipboard (Is a bit small, might increase size later) */}
       <rect x="4" y="56" width="10" height="10" rx="4" fill="#FED7AA"/>
       <rect x="0" y="52" width="8" height="10" rx="1" fill="#A5B4FC"/>
       <rect x="2" y="50" width="4" height="3" rx="1" fill="#F59E0B"/>

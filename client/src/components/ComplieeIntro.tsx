@@ -29,7 +29,7 @@ function AnimatedCompliee({
       {/* Face */}
       <rect x="8" y="16" width="48" height="36" rx="12" fill="#FED7AA"/>
       
-      {/* Hair bangs */}
+      {/* Hair bangs ;D */}
       <rect x="12" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>
       <rect x="24" y="4" width="16" height="16" rx="6" fill="#FBBF24"/>
       <rect x="36" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>

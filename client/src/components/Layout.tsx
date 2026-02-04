@@ -493,19 +493,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 {isSidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
                 <span className="sr-only">Toggle sidebar</span>
               </Button>
-
-              <div className="flex items-center gap-2 px-1">
-                <div className={cn(
-                  "h-2 w-2 rounded-full",
-                  isConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"
-                )} />
-                <span className={cn(
-                  "text-xs font-bold tracking-widest uppercase",
-                  isConnected ? "text-muted-foreground" : "text-red-500"
-                )}>
-                  {isConnected ? "Network Operational" : "Disconnected"}
-                </span>
-              </div>
             </div>
 
             <div className="flex items-center gap-5">
@@ -545,6 +532,45 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </header>
+        )}
+
+        {/* Floating sidebar toggle for full-bleed routes */}
+        {isFullBleed && (
+          <div className="absolute top-2 left-2 z-40 flex items-center gap-2">
+            {/* Mobile Menu Trigger */}
+            <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" className="md:hidden h-8 w-8 rounded-lg bg-background/95 shadow-sm">
+                  <Menu className="h-4 w-4 text-foreground" />
+                  <span className="sr-only">Toggle menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="p-0 w-[280px] border-r border-border/80 bg-sidebar">
+                <SidebarContent
+                  location={location}
+                  handleSecretClick={handleSecretClick}
+                  logout={() => {
+                    setIsMobileOpen(false);
+                    logout();
+                  }}
+                />
+              </SheetContent>
+            </Sheet>
+
+            {/* Desktop Sidebar Toggle */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="hidden md:inline-flex h-8 w-8 rounded-lg bg-background/95 shadow-sm"
+              onClick={() => {
+                autoCollapseRef.current = false;
+                setIsSidebarCollapsed((prev) => !prev);
+              }}
+            >
+              {isSidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+              <span className="sr-only">Toggle sidebar</span>
+            </Button>
+          </div>
         )}
 
         {/* Page Content Area */}
