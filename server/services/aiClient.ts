@@ -17,6 +17,9 @@ let preferredProvider: AiProvider = "openai";
 // Admin-configurable preferred AI model (defaults to gpt-4.1-mini)
 let preferredModel: AvailableModel = "gpt-4.1-mini";
 
+// Admin-configurable EMAR agent usage (defaults to true)
+let useEmarAgent: boolean = true;
+
 export function getPreferredProvider(): AiProvider {
   return preferredProvider;
 }
@@ -45,6 +48,15 @@ export function setPreferredModel(model: string): void {
 
 export function getAvailableModels() {
   return AVAILABLE_MODELS;
+}
+
+export function getUseEmarAgent(): boolean {
+  return useEmarAgent;
+}
+
+export function setUseEmarAgent(enabled: boolean): void {
+  useEmarAgent = enabled;
+  console.log(`[AI Config] EMAR Agent ${enabled ? 'enabled' : 'disabled'}`);
 }
 
 // Result type that includes provider information
@@ -89,6 +101,59 @@ function getGitHubClient(): OpenAI | null {
   return githubClient;
 }
 
+// Map OpenAI-specific model names to GitHub AI compatible models
+// GitHub AI (models.inference.ai.azure.com) supports: gpt-4o, gpt-4o-mini
+function mapModelForGitHub(model: string): string {
+  // GitHub AI doesn't support GPT-5.x, GPT-4.1.x series - map to equivalents
+  const modelMappings: Record<string, string> = {
+    // GPT-5 series -> gpt-4o (highest capability)
+    "gpt-5.2": "gpt-4o",
+    "gpt-5": "gpt-4o",
+    "gpt-5-chat-latest": "gpt-4o",
+    "gpt-5-codex": "gpt-4o",
+    
+    // GPT-5-mini/nano -> gpt-4o-mini (cost-efficient)
+    "gpt-5-mini": "gpt-4o-mini",
+    "gpt-5-nano": "gpt-4o-mini",
+    
+    // GPT-4.1 series -> gpt-4o equivalents
+    "gpt-4.1": "gpt-4o",
+    "gpt-4.1-2026-04-14": "gpt-4o",
+    "gpt-4.1-mini": "gpt-4o-mini",
+    "gpt-4.1-mini-2026-04-14": "gpt-4o-mini",
+    "gpt-4.1-nano": "gpt-4o-mini",
+    "gpt-4.1-nano-2026-04-14": "gpt-4o-mini",
+    
+    // GPT-4o models - pass through (already supported)
+    "gpt-4o": "gpt-4o",
+    "gpt-4o-2024-11-20": "gpt-4o",
+    "gpt-4o-2024-08-06": "gpt-4o",
+    "gpt-4o-mini": "gpt-4o-mini",
+    "gpt-4o-mini-2024-07-18": "gpt-4o-mini",
+    
+    // Legacy models -> gpt-4o equivalents
+    "gpt-4-turbo": "gpt-4o",
+    "gpt-4-turbo-2024-04-09": "gpt-4o",
+    "gpt-4-turbo-preview": "gpt-4o",
+    "gpt-3.5-turbo": "gpt-4o-mini",
+    "gpt-3.5-turbo-0125": "gpt-4o-mini",
+  };
+  
+  const mapped = modelMappings[model];
+  if (mapped && mapped !== model) {
+    console.log(`[AI:GitHub] Mapping model ${model} → ${mapped} (GitHub AI compatible)`);
+    return mapped;
+  }
+  
+  // Default to gpt-4o-mini if unknown model
+  if (!mapped) {
+    console.warn(`[AI:GitHub] Unknown model ${model}, defaulting to gpt-4o-mini`);
+    return "gpt-4o-mini";
+  }
+  
+  return model;
+}
+
 // Internal function that tracks which provider was used
 async function createChatCompletionWithProvider(
   params: OpenAI.ChatCompletionCreateParamsNonStreaming
@@ -110,7 +175,12 @@ async function createChatCompletionWithProvider(
   }
 
   // Force model to preferred if not provided
-  const model = (params.model as string) || preferredModel;
+  let model = (params.model as string) || preferredModel;
+  
+  // Map model for GitHub AI compatibility
+  if (provider === "github") {
+    model = mapModelForGitHub(model);
+  }
 
   console.log(`[AI] Using ${provider} provider with model:`, model);
   const completion = await client.chat.completions.create({ ...params, model });
@@ -132,7 +202,11 @@ export async function createChatCompletionWithLogging(
 ): Promise<OpenAI.ChatCompletion> {
   const startTime = Date.now();
   // Ensure we use the model passed in params, which should be from getPreferredModel()
-  const model = (params.model as string) || preferredModel;
+  let model = (params.model as string) || preferredModel;
+  
+  // Map model for GitHub AI if using that provider
+  const actualModel = preferredProvider === "github" ? mapModelForGitHub(model) : model;
+  
   const userId = userContext?.userId || null;
   const username = userContext?.username || null;
   
@@ -141,9 +215,9 @@ export async function createChatCompletionWithLogging(
     console.warn(`[AI:${featureName}] WARNING: No user context provided - cost attribution will be incomplete`);
   }
   
-  console.log(`[AI:${featureName}] Starting request with ${model}${username ? ` for ${username}` : ""}...`);
+  console.log(`[AI:${featureName}] Starting request with ${actualModel}${username ? ` for ${username}` : ""} via ${preferredProvider}...`);
   
-  let provider: AiProvider = "openai";
+  let provider: AiProvider = preferredProvider;
   
   try {
     const result = await createChatCompletionWithProvider(params);
@@ -152,7 +226,7 @@ export async function createChatCompletionWithLogging(
     const inputTokens = result.completion.usage?.prompt_tokens || 0;
     const outputTokens = result.completion.usage?.completion_tokens || 0;
     const totalTokens = result.completion.usage?.total_tokens || 0;
-    const costMicroDollars = calculateCostMicroDollars(model, inputTokens, outputTokens);
+    const costMicroDollars = calculateCostMicroDollars(actualModel, inputTokens, outputTokens);
     
     console.log(`[AI:${featureName}] Completed in ${duration}ms, ${totalTokens} tokens, $${(costMicroDollars / 1000000).toFixed(4)} via ${provider}`);
     
@@ -161,7 +235,7 @@ export async function createChatCompletionWithLogging(
       userId,
       username,
       featureName,
-      model,
+      model: actualModel,
       billingSource: provider,
       provider,
       inputTokens,
@@ -181,7 +255,7 @@ export async function createChatCompletionWithLogging(
       userId,
       username,
       featureName,
-      model,
+      model: actualModel,
       billingSource: provider,
       provider,
       inputTokens: 0,

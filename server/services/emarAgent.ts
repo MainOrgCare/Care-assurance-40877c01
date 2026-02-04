@@ -25,7 +25,7 @@ type TableStructureInfo = {
   detectedDatesOnSameLine?: number;
 };
 
-const AGENT_MODEL = "gpt-4.1-mini";
+const AGENT_MODEL = "gpt-5.2"; // Most thorough for detecting all EMAR discrepancies
 const MIN_TEXT_CHARS = 180000;
 const MAX_TEXT_CHARS_CAP = 360000;
 const MIN_EXPECTED_ENTRIES = 600;

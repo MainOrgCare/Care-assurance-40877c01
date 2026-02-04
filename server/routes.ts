@@ -15,7 +15,7 @@ import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema, insertSystemLogSchema } from "@shared/schema";
-import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
 import { careWorkerRotaPayloadSchema, computeRotaSourceHash, rotaWeekdayEnum } from "./services/careWorkerRota";
 import multer from "multer";
@@ -937,8 +937,8 @@ const parseJsonFromContent = (content: string): any | null => {
 const getLowCostModel = () => "gpt-4o-mini";
 const getAccurateModel = () => getPreferredModel();
 const getRiskAssessmentModel = () => getPreferredModel();
-const getRiskAssessmentRecommendationModel = () => "gpt-5-mini"; // Cost-effective ($0.25/$2 vs GPT-5.2 $1.75/$14)
-const getRiskAssessmentGenerationModel = () => "gpt-5-mini"; // 87% cheaper, still excellent quality
+const getRiskAssessmentRecommendationModel = () => "gpt-5.2"; // $1.75/$14 - most thorough for finding specific risks
+const getRiskAssessmentGenerationModel = () => "gpt-5.2"; // $1.75/$14 - most thorough for generating comprehensive care plans
 
 const inferGenericNameFromMedicationLabel = (name: string): string => {
   if (!name) return "";
@@ -3794,6 +3794,28 @@ export async function registerRoutes(
       sendEvent('progress', { percent, status, stage });
     };
     
+    // Helper: Resolve care worker initials to display name based on privacy settings
+    async function resolveCareWorkerName(
+      initials: string | undefined,
+      allowSensitiveView: boolean
+    ): Promise<string> {
+      if (!initials || initials.trim() === "") {
+        return "N.N."; // No initials = call documentation not completed
+      }
+      
+      if (!allowSensitiveView) {
+        return initials; // Privacy mode - show only initials
+      }
+      
+      // Allow sensitive view - try to get full name from database
+      try {
+        const worker = await storage.getCareWorkerByInitials(initials);
+        return worker?.name || initials; // Full name if mapped, otherwise initials
+      } catch {
+        return initials; // Fallback to initials on error
+      }
+    }
+    
     try {
 
       sendProgress(5, "Processing PDF...", "pdf_processing");
@@ -4184,21 +4206,16 @@ ${correctionExamples}
       sendProgress(10, "Analyzing EMAR document...", "metadata_extraction");
 
       // =====================================================================
-      // USE EMAR AGENT (enabled by default unless explicitly disabled)
-      // Toggle: USE_EMAR_AGENT=true/false (false disables)
+      // USE EMAR AGENT (enabled by default, configurable via admin portal)
       // =====================================================================
-      const useEmarAgent = (() => {
-        const raw = String(process.env.USE_EMAR_AGENT || "").trim().toLowerCase();
-        if (raw === "") return process.env.NODE_ENV !== "production";
-        return ["1", "true", "yes", "on"].includes(raw);
-      })();
+      const useEmarAgentEnabled = getUseEmarAgent();
       let agentExtractionSucceeded = false;
       let agentExtractedData: any = null;
       let agentDrugInteractions: any[] = [];
       
-      if (useEmarAgent) {
-        console.log("=== USING EMAR AGENT (GPT-4o-mini) ===");
-        sendProgress(15, "Using cost-efficient EMAR agent...", "emar_agent");
+      if (useEmarAgentEnabled) {
+        console.log("=== USING EMAR AGENT (GPT-5.2) ===");
+        sendProgress(15, "Using thorough EMAR agent...", "emar_agent");
         
         try {
           const agentText = documentText;
@@ -4915,7 +4932,7 @@ ${correctionExamples}
 
               if (scheduleDays.has(dayIndex) && !hasAnyEntry) {
                 agentDiscrepancies.push({
-                  careWorkerName: "Unknown",
+                  careWorkerName: "N.N.",
                   date: dateLabel,
                   timeSlot: "",
                   medication: med.name || "",
@@ -4929,7 +4946,7 @@ ${correctionExamples}
               if (!scheduleDays.has(dayIndex) && hasAnyEntry) {
                 const entry = entries[0];
                 agentDiscrepancies.push({
-                  careWorkerName: entry?.careWorkerInitials || "Unknown",
+                  careWorkerName: entry?.careWorkerInitials || "N.N.",
                   date: entry?.date || dateLabel,
                   timeSlot: entry?.timeSlot || "",
                   medication: med.name || "",
@@ -5196,6 +5213,33 @@ ${correctionExamples}
             refusals: mainRefusalDiscrepancies.length + prnRefusalDiscrepancies.length,
             drugInteractions: agentExtractedData.drugInteractions.length
           });
+          
+          // ========================================================================
+          // RESOLVE CARE WORKER NAMES BASED ON PRIVACY SETTINGS (AGENT PATH)
+          // - If allowSensitiveView=true (admin): show full names from database
+          // - Otherwise: show only initials
+          // - "N.N." only when no initials at all (call documentation not completed)
+          // ========================================================================
+          const resolveNamesInArray = async (items: any[]): Promise<any[]> => {
+            if (!items || items.length === 0) return items;
+            return await Promise.all(
+              items.map(async (item) => {
+                if (item.careWorkerName) {
+                  item.careWorkerName = await resolveCareWorkerName(item.careWorkerName, allowSensitiveView);
+                }
+                return item;
+              })
+            );
+          };
+
+          // Resolve names in all arrays
+          agentAnalysisResult.discrepancies = await resolveNamesInArray(agentAnalysisResult.discrepancies);
+          agentAnalysisResult.userVerificationItems = await resolveNamesInArray(agentAnalysisResult.userVerificationItems);
+          agentAnalysisResult.groupedRefusals = await resolveNamesInArray(agentAnalysisResult.groupedRefusals);
+          agentAnalysisResult.groupedMainRefusals = await resolveNamesInArray(agentAnalysisResult.groupedMainRefusals);
+          agentAnalysisResult.groupedPrnRefusals = await resolveNamesInArray(agentAnalysisResult.groupedPrnRefusals);
+          agentAnalysisResult.officeClosedEntries = await resolveNamesInArray(agentAnalysisResult.officeClosedEntries);
+          agentAnalysisResult.supportCodeEntries = await resolveNamesInArray(agentAnalysisResult.supportCodeEntries);
           
           // Send final result
           sendProgress(100, 'Analysis complete!', 'complete');
@@ -8307,7 +8351,7 @@ If no equivalences found, return: {"equivalences": []}`
           );
 
           if (!medMatch) {
-            const careWorkerName = cell.careWorker || "Unknown";
+            const careWorkerName = cell.careWorker || "N.N.";
             const medicationName = cell.medication || "Unknown medication";
             pushBaselineVerification(code, {
               careWorkerName,
@@ -8327,7 +8371,7 @@ If no equivalences found, return: {"equivalences": []}`
           const discKey = sKey + `|${code}`;
           if (existingDiscKeys.has(discKey)) continue;
 
-          const careWorkerName = cell.careWorker || "Unknown";
+          const careWorkerName = cell.careWorker || "N.N.";
           const medicationName = medMatch.name || cell.medication;
 
           const isRefusal = code === "R" || code === "PRN-R";
@@ -8400,7 +8444,7 @@ If no equivalences found, return: {"equivalences": []}`
         if (keyMismatchSeen.has(mismatchKey)) continue;
         keyMismatchSeen.add(mismatchKey);
         verificationItems.push({
-          careWorkerName: cell.careWorker || "Unknown",
+          careWorkerName: cell.careWorker || "N.N.",
           date,
           medication: medName,
           medicationId: cell.medicationId || undefined,
@@ -8457,7 +8501,7 @@ If no equivalences found, return: {"equivalences": []}`
         // Note: White/normal blank boxes are NOT extracted
         if (code === "MISSED") {
           verificationItems.push({
-            careWorkerName: careWorker || "Unknown",
+            careWorkerName: careWorker || "N.N.",
             date: date,
             medication: medication,
             medicationId: entryMedId || undefined,
@@ -9109,7 +9153,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
 
           if (isRedCode || isRedIssue) {
             const verificationItem: VerificationItem = {
-              careWorkerName: discrepancy.careWorkerName || "Unknown",
+              careWorkerName: discrepancy.careWorkerName || "N.N.",
               date: discrepancy.date || "",
               medication: discrepancy.medication || "",
               medicationId: discrepancy.medicationId || undefined,
@@ -9150,7 +9194,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         const normalizedCode = normalizeRefusalCode(entry.code);
         if (!REFUSAL_CODES.has(normalizedCode)) return;
         refusalEntries.push({
-          careWorkerName: entry.careWorker || "Unknown",
+          careWorkerName: entry.careWorker || "N.N.",
           medication: entry.medication,
           medicationId: Number(entry.medicationId) || undefined,
           code: normalizedCode,
@@ -9388,6 +9432,33 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         extractedCount,
         countValidationMatch
       });
+
+      // ========================================================================
+      // RESOLVE CARE WORKER NAMES BASED ON PRIVACY SETTINGS
+      // - If allowSensitiveView=true (admin): show full names from database
+      // - Otherwise: show only initials  
+      // - "N.N." only when no initials at all (call documentation not completed)
+      // ========================================================================
+      const resolveNamesInArray = async (items: any[]): Promise<any[]> => {
+        if (!items || items.length === 0) return items;
+        return await Promise.all(
+          items.map(async (item) => {
+            if (item.careWorkerName) {
+              item.careWorkerName = await resolveCareWorkerName(item.careWorkerName, allowSensitiveView);
+            }
+            return item;
+          })
+        );
+      };
+
+      // Resolve names in all arrays that contain care worker names
+      result.discrepancies = await resolveNamesInArray(result.discrepancies);
+      result.userVerificationItems = await resolveNamesInArray(result.userVerificationItems);
+      result.groupedRefusals = await resolveNamesInArray(result.groupedRefusals);
+      result.groupedMainRefusals = await resolveNamesInArray(result.groupedMainRefusals);
+      result.groupedPrnRefusals = await resolveNamesInArray(result.groupedPrnRefusals);
+      result.officeClosedEntries = await resolveNamesInArray(result.officeClosedEntries);
+      result.supportCodeEntries = await resolveNamesInArray(result.supportCodeEntries);
 
       // Send final result and 100% progress
       sendProgress(100, "Analysis complete!", "complete");
@@ -9830,8 +9901,8 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
     ];
 
     for (const row of rows) {
-      const serviceUser = row.SU || "Unknown";
-      const careWorker = row.CWa || "Unknown";
+      const serviceUser = row.SU || "N.N.";
+      const careWorker = row.CWa || "N.N.";
       const date = row.Date || "NA";
       const expectedMinutes = parseDurationMinutes(row.ExpDur || "");
       const actualMinutes = parseDurationMinutes(row.ActDur || "");
@@ -10744,9 +10815,12 @@ REMINDER: NHS ENGLAND PRINCIPLE #1 - PERSON-CENTRED CARE
 
 "Actively focus on the experience of people using services"
 
+→ BE THOROUGH: Find ALL risks SPECIFIC to THIS individual person documented in their files
+→ BE SPECIFIC: Each risk must be tied to CONCRETE EVIDENCE about THIS person (not generic)
 → Recommend ONLY assessments supported by STRONG DOCUMENTED EVIDENCE about THIS service user
 → DO NOT recommend generic/blanket assessments "just in case"
 → Quality over quantity - better to omit than recommend without solid evidence
+→ DOCUMENT-DRIVEN: Every recommendation must cite specific facts from the documents
 
 ═══════════════════════════════════════════════════════════════════════════════
 DOCUMENT SOURCE RULES
@@ -10773,16 +10847,33 @@ END SERVICE USER DOCUMENTS
 
 FINAL REMINDERS BEFORE YOU RESPOND:
 
-1. COMPREHENSIVE APPROACH: Recommend ALL assessments with STRONG evidence (minimum 3-5, but can be more)
-2. PERSON-CENTRED: Tailor to THIS individual's documented needs (CQC 2024)
+⚠️ BE THOROUGH IN FINDING ALL SPECIFIC RISKS TO THIS PERSON ⚠️
+
+Read through ALL documents carefully to identify EVERY potential risk that affects THIS specific individual.
+Look for conditions, medications, incidents, behaviors, equipment, environment factors that create risks.
+Don't default to blanket assessments - find the SPECIFIC documented risks for THIS person.
+
+1. COMPREHENSIVE & THOROUGH: Recommend ALL assessments with STRONG evidence where you've found SPECIFIC documented risks to THIS person
+   - Scan all documents carefully - don't miss documented risks
+   - Include ALL assessments backed by concrete evidence (minimum 3-5, but can be 10+ if documented)
+   
+2. PERSON-CENTRED & SPECIFIC: Every risk must be tied to CONCRETE EVIDENCE about THIS individual (CQC 2024)
+   - "Has diabetes requiring blood sugar monitoring twice daily" ✓ (specific to this person)
+   - "May have health needs" ✗ (generic, vague)
+   
 3. FIRST PERSON: Write all "reason" fields using "I" and "my"
+
 4. NO MANDATORY FLAGS: Set "isMandatory": false for ALL assessments
-5. EVIDENCE REQUIRED: Each assessment needs 2-6 direct quotes from documents above
+
+5. EVIDENCE REQUIRED: Each assessment needs 2-6 SPECIFIC direct quotes from documents above
+   - Each quote must contain specific details (conditions, medications, incidents, equipment, dates)
+   
 6. NO SPECULATION: Do not assume or infer conditions not explicitly documented
+   - Only recommend based on what's written in the documents
 
 Remember: Extract information ONLY from service user documents above. Templates contain placeholder text to ignore.` }
         ],
-        max_completion_tokens: 4000,
+        max_completion_tokens: 8000,
         temperature: 0,
         seed: 42,
         response_format: { type: "json_object" },
@@ -10871,7 +10962,7 @@ Remember: Extract information ONLY from service user documents above. Templates 
         
         // Score evidence quality (0-100)
         const qualityScore = scoreEvidenceQuality(assessment.evidence, snippets);
-        const MINIMUM_QUALITY_SCORE = 40; // Require at least 40/100 quality score
+        const MINIMUM_QUALITY_SCORE = 60; // Require at least 60/100 quality score (stricter quality gate)
         
         if (qualityScore < MINIMUM_QUALITY_SCORE) {
           console.log(`[Risks] ❌ ${assessmentName}: Quality score ${qualityScore}/100 (minimum ${MINIMUM_QUALITY_SCORE})`);
@@ -12957,6 +13048,36 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     } catch (error: any) {
       console.error("AI provider update error:", error);
       return res.status(500).json({ message: error.message || "Failed to update AI provider" });
+    }
+  });
+
+  // Get EMAR agent preference (admin-only)
+  app.get("/api/admin/emar-agent", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const useAgent = getUseEmarAgent();
+      return res.json({ useEmarAgent: useAgent });
+    } catch (error: any) {
+      console.error("EMAR agent preference fetch error:", error);
+      return res.status(500).json({ message: error.message || "Failed to fetch EMAR agent preference" });
+    }
+  });
+
+  // Set EMAR agent preference (admin-only)
+  app.post("/api/admin/emar-agent", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { useEmarAgent } = req.body;
+      if (typeof useEmarAgent !== "boolean") {
+        return res.status(400).json({ message: "useEmarAgent must be a boolean value" });
+      }
+      
+      setUseEmarAgent(useEmarAgent);
+      
+      console.log(`[Admin] EMAR agent ${useEmarAgent ? 'enabled' : 'disabled'} by ${req.user?.username || 'unknown'}`);
+      
+      return res.json({ success: true, useEmarAgent });
+    } catch (error: any) {
+      console.error("EMAR agent update error:", error);
+      return res.status(500).json({ message: error.message || "Failed to update EMAR agent preference" });
     }
   });
 

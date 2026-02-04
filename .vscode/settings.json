@@ -42,5 +42,10 @@
     "python-envs.defaultEnvManager": "ms-python.python:system",
     "python-envs.pythonProjects": [],
     "copilot.vision.model": "Claude Opus 4.5",
-    "copilot.vision.provider": "Anthropic"
+    "copilot.vision.provider": "Anthropic",
+    "appmod.enableMcpServer": true,
+    "appModernization.javaUpgrade.enableQuickPick": true,
+    "github.copilot.chat.agentCustomizationSkill.enabled": true,
+    "github.copilot.chat.anthropic.contextEditing.config": null,
+    "github.copilot.chat.anthropic.toolSearchTool.enabled": true
 }

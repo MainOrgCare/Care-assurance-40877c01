@@ -478,8 +478,10 @@ function AIProviderSection() {
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [hasPATKey, setHasPATKey] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<"openai" | "github">("openai");
+  const [useEmarAgent, setUseEmarAgent] = useState(true);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [updatingEmar, setUpdatingEmar] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -488,12 +490,18 @@ function AIProviderSection() {
   const fetchSettings = async () => {
     try {
       const providerRes = await fetch("/api/admin/ai-provider", { credentials: "include" });
+      const emarRes = await fetch("/api/admin/emar-agent", { credentials: "include" });
       
       if (providerRes.ok) {
         const data = await providerRes.json();
         setHasOpenAIKey(Boolean(data.hasOpenAIKey));
         setHasPATKey(Boolean(data.hasPATKey));
         setSelectedProvider(data.provider || "openai");
+      }
+      
+      if (emarRes.ok) {
+        const data = await emarRes.json();
+        setUseEmarAgent(Boolean(data.useEmarAgent));
       }
     } catch (error) {
       console.error("Failed to fetch AI settings:", error);
@@ -538,6 +546,32 @@ function AIProviderSection() {
     }
   };
 
+  const handleEmarAgentToggle = async () => {
+    const newValue = !useEmarAgent;
+    
+    setUpdatingEmar(true);
+    try {
+      const res = await fetch("/api/admin/emar-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ useEmarAgent: newValue }),
+      });
+      
+      if (res.ok) {
+        setUseEmarAgent(newValue);
+      } else {
+        const data = await res.json();
+        alert(data.message || "Failed to update EMAR agent preference");
+      }
+    } catch (error) {
+      console.error("Failed to update EMAR agent:", error);
+      alert("Failed to update EMAR agent preference");
+    } finally {
+      setUpdatingEmar(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card className="border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}>
@@ -556,7 +590,7 @@ function AIProviderSection() {
           AI Configuration
         </CardTitle>
         <CardDescription className="text-muted-foreground text-sm">
-          Toggle between OpenAI and GitHub AI providers. Model selection uses an optimized tiered approach.
+          Configure AI provider, EMAR analysis method, and model strategy. All settings take effect immediately.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-6 space-y-6">
@@ -637,6 +671,53 @@ function AIProviderSection() {
         </div>
 
         <div className="border-t border-slate-200 pt-6">
+          <h4 className="text-sm font-medium text-foreground mb-3">EMAR Analysis Method</h4>
+          
+          {/* EMAR Agent Toggle */}
+          <div className="flex items-center justify-between p-4 rounded-lg border bg-slate-50 mb-3">
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-foreground">Use EMAR Agent</span>
+                <span className="text-xs text-muted-foreground">
+                  Advanced GPT-5.2 extraction for thorough discrepancy detection
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {updatingEmar && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              <Switch
+                checked={useEmarAgent}
+                onCheckedChange={handleEmarAgentToggle}
+                disabled={updatingEmar}
+              />
+            </div>
+          </div>
+          
+          <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+            <div className="text-xs text-muted-foreground space-y-1">
+              <div className="flex items-start gap-2">
+                <Badge variant="secondary" className="bg-blue-500/20 text-blue-300 border-blue-500/30 shrink-0">
+                  {useEmarAgent ? "GPT-5.2" : "Standard"}
+                </Badge>
+                <span className="font-medium text-foreground">
+                  {useEmarAgent 
+                    ? "Using advanced EMAR agent for maximum accuracy and completeness"
+                    : "Using standard extraction (faster, less thorough)"}
+                </span>
+              </div>
+              {useEmarAgent && (
+                <div className="ml-[66px] text-xs">
+                  • 3-pass consensus extraction<br/>
+                  • Drug interaction checks<br/>
+                  • Enhanced metadata detection<br/>
+                  • Comprehensive discrepancy analysis
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-slate-200 pt-6">
           <h4 className="text-sm font-medium text-foreground mb-3">AI Model Strategy</h4>
           <div className="p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
             <div className="font-medium text-foreground mb-2">Optimized Tiered Approach</div>
@@ -656,7 +737,8 @@ function AIProviderSection() {
         <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-muted-foreground">
           <strong className="text-foreground">Note:</strong> AI models are automatically selected based on task complexity. 
           Drug interaction checks are computed on each run to avoid reusing previous responses.
-          Toggle between OpenAI and GitHub AI using the switch above. Currently using: <strong className="text-foreground">{selectedProvider === "openai" ? "OpenAI" : "GitHub AI"}</strong>.
+          Currently using: <strong className="text-foreground">{selectedProvider === "openai" ? "OpenAI" : "GitHub AI"}</strong> provider
+          {useEmarAgent ? " with advanced EMAR agent enabled" : " with standard EMAR extraction"}.
         </div>
       </CardContent>
     </Card>

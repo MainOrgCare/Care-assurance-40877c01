@@ -118,6 +118,7 @@ export interface IStorage {
 
   // Care Worker operations
   getCareWorker(id: string): Promise<CareWorker | undefined>;
+  getCareWorkerByInitials(initials: string): Promise<CareWorker | undefined>;
   getAllCareWorkers(): Promise<CareWorker[]>;
   createCareWorker(worker: InsertCareWorker): Promise<CareWorker>;
   updateCareWorker(id: string, worker: Partial<InsertCareWorker>): Promise<CareWorker | undefined>;
@@ -468,6 +469,19 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(careWorkers)
       .where(eq(careWorkers.id, id));
+    return result[0];
+  }
+
+  async getCareWorkerByInitials(initials: string): Promise<CareWorker | undefined> {
+    if (!initials || initials.length < 2) return undefined;
+    
+    // Match format like "L.Barron" where initials "LB" = first char + first char of last name
+    const pattern = `${initials[0]}.${initials.slice(1)}%`;
+    const result = await this.db
+      .select()
+      .from(careWorkers)
+      .where(ilike(careWorkers.name, pattern))
+      .limit(1);
     return result[0];
   }
 
