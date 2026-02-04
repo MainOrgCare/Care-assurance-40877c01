@@ -576,24 +576,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       <p className="text-lg font-heading font-black tracking-tight text-foreground">Module Pipeline</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={cn(
-                      "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium border",
-                      isConnected 
-                        ? "border-emerald-200 text-emerald-700 bg-emerald-50" 
-                        : "border-red-200 text-red-700 bg-red-50"
-                    )}>
-                      <span className={cn(
-                        "h-2 w-2 rounded-full",
-                        isConnected ? "bg-emerald-500" : "bg-red-500"
-                      )} />
-                      {isConnected ? "Live" : "Offline"}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium border border-emerald-200 text-emerald-700 bg-emerald-50">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                      Secure
-                    </span>
-                  </div>
+
                 </div>
                 <div className="h-px mb-4 sm:mb-5 bg-border/80" />
                 <Suspense fallback={

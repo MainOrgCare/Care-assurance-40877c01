@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ComplieeIntroProps {
@@ -286,44 +287,18 @@ export function ComplieeIdleButton({
   onClick: () => void;
   className?: string;
 }) {
-  const [isBlinking, setIsBlinking] = useState(false);
-
-  // Random blinking
-  useEffect(() => {
-    const blink = () => {
-      setIsBlinking(true);
-      setTimeout(() => setIsBlinking(false), 150);
-    };
-    
-    const blinkInterval = setInterval(() => {
-      if (Math.random() > 0.4) blink();
-    }, 3000);
-
-    return () => clearInterval(blinkInterval);
-  }, []);
-
   return (
     <button
       onClick={onClick}
       className={cn(
-        "relative group flex items-center gap-2 px-2 py-1 rounded-xl transition-all duration-300",
-        "bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200/60",
-        "hover:from-indigo-100 hover:to-blue-100 hover:border-indigo-300 hover:shadow-md",
+        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors",
+        "bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium",
         className
       )}
-      aria-label="Ask Compli-ee for help"
+      aria-label="Get help"
     >
-      <div className="w-8 h-10 animate-bob">
-        <AnimatedCompliee 
-          isBlinking={isBlinking}
-          className="w-full h-full"
-        />
-      </div>
-      <div className="hidden sm:flex items-center gap-1.5">
-        <span className="text-xs font-semibold text-indigo-700">Help</span>
-      </div>
-      {/* Pulse indicator */}
-      <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-indigo-500 border-2 border-white animate-pulse" />
+      <HelpCircle className="h-4 w-4" />
+      <span>Help</span>
     </button>
   );
 }
