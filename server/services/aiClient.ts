@@ -11,8 +11,8 @@ export interface AiUserContext {
 // Provider type for billing attribution
 export type AiProvider = "openai" | "github" | "local";
 
-// Admin-configurable preferred AI provider
-let preferredProvider: AiProvider = "openai";
+// Admin-configurable preferred AI provider (github uses PAT_AI_KEY)
+let preferredProvider: AiProvider = "github";
 let settingsLoaded = false;
 
 // Admin-configurable preferred AI model (defaults to gpt-4.1-mini)

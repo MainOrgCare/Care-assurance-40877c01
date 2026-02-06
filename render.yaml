@@ -44,9 +44,9 @@ services:
       # If you use Postgres, set DATABASE_URL in the dashboard.
       - key: DATABASE_URL
         sync: false
-      # Local LLM URL - Ollama service running on Render
-      - key: LOCAL_LLM_URL
-        value: "https://local-llm-mr51.onrender.com"
+      # Local LLM disabled - using GitHub AI / OpenAI instead
+      # - key: LOCAL_LLM_URL
+      #   value: "https://local-llm-mr51.onrender.com"
 
   - type: worker
     name: care-assurance-worker
@@ -63,25 +63,27 @@ services:
       - key: DATABASE_URL
         sync: false
 
-  # Local LLM Service - Qwen 2.5 7B via Ollama (128K context)
-  # Keep data completely local - no external API calls
-  - type: web
-    name: local-llm
-    runtime: docker
-    dockerfilePath: ./Dockerfile.localllm
-    plan: pro max
-    healthCheckPath: /api/tags
-    autoDeploy: true
-    disk:
-      name: ollama-models
-      mountPath: /ollama-data
-      sizeGB: 10
-    envVars:
-      - key: OLLAMA_HOST
-        value: "0.0.0.0:11434"
-      - key: OLLAMA_KEEP_ALIVE
-        value: "24h"
-      - key: OLLAMA_MODELS
-        value: "/ollama-data/models"
-      - key: OLLAMA_NUM_CTX
-        value: "65536"
+  # Local LLM Service - DISABLED (CPU too slow, would need GPU hosting)
+  # Keeping code for future reference if GPU becomes affordable
+  # To re-enable: uncomment section below and deploy
+  #
+  # - type: web
+  #   name: local-llm
+  #   runtime: docker
+  #   dockerfilePath: ./Dockerfile.localllm
+  #   plan: pro max
+  #   healthCheckPath: /api/tags
+  #   autoDeploy: true
+  #   disk:
+  #     name: ollama-models
+  #     mountPath: /ollama-data
+  #     sizeGB: 10
+  #   envVars:
+  #     - key: OLLAMA_HOST
+  #       value: "0.0.0.0:11434"
+  #     - key: OLLAMA_KEEP_ALIVE
+  #       value: "24h"
+  #     - key: OLLAMA_MODELS
+  #       value: "/ollama-data/models"
+  #     - key: OLLAMA_NUM_CTX
+  #       value: "65536"
