@@ -69,7 +69,7 @@ services:
     name: local-llm
     runtime: docker
     dockerfilePath: ./Dockerfile.localllm
-    plan: standard
+    plan: pro-plus
     healthCheckPath: /api/tags
     autoDeploy: true
     envVars:

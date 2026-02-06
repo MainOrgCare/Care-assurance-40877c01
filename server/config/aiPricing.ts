@@ -55,6 +55,7 @@ export const AI_PRICING: Record<string, { input: number; output: number }> = {
   "gpt-3.5-turbo-0125": { input: 500, output: 1500 },
   
   // Local LLM models (no API cost - self-hosted)
+  "tinyllama": { input: 0, output: 0 },
   "phi3:mini": { input: 0, output: 0 },
   "phi3:mini-4k-instruct-q4_K_M": { input: 0, output: 0 },
   "local": { input: 0, output: 0 },

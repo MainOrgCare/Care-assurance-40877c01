@@ -1,5 +1,5 @@
 # Local LLM Service using Ollama with Phi-3 Mini
-# Optimized for minimal resource usage while maintaining care assessment quality
+# Good balance of quality and performance for care assessments
 
 FROM ollama/ollama:latest
 
@@ -32,7 +32,7 @@ done\n\
 \n\
 # Check if model exists, if not pull it\n\
 if ! ollama list | grep -q "phi3:mini"; then\n\
-  echo "Pulling phi3:mini model (this may take a few minutes on first deploy)..."\n\
+  echo "Pulling phi3:mini model (3.8B params, ~2.3GB download)..."\n\
   ollama pull phi3:mini\n\
   echo "Model pulled successfully!"\n\
 fi\n\
@@ -42,7 +42,7 @@ wait $OLLAMA_PID\n\
 ' > /start.sh && chmod +x /start.sh
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
   CMD curl -f http://localhost:11434/api/tags || exit 1
 
 # Override entrypoint to use our startup script

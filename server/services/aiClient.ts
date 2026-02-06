@@ -237,9 +237,9 @@ async function createChatCompletionWithProvider(
     if (!client) {
       throw new Error("Local LLM client could not be initialized.");
     }
-    // Always use the local model (phi3:mini)
+    // Always use the local model (phi3:mini) - NO FALLBACK to other providers
     model = LOCAL_LLM_MODEL;
-    console.log(`[AI:Local] Using local LLM at ${LOCAL_LLM_URL} with model ${model}`);
+    console.log(`[AI:Local] ✓ Using LOCAL Phi-3 at ${LOCAL_LLM_URL} (model: ${model}) - NOT using OpenAI/GitHub`);
   } else if (provider === "github") {
     client = getGitHubClient();
     if (!client) {
@@ -335,7 +335,8 @@ export async function createChatCompletionWithLogging(
     const totalTokens = result.completion.usage?.total_tokens || 0;
     const costMicroDollars = calculateCostMicroDollars(actualModel, inputTokens, outputTokens);
     
-    console.log(`[AI:${featureName}] Completed in ${duration}ms, ${totalTokens} tokens, $${(costMicroDollars / 1000000).toFixed(4)} via ${provider}`);
+    const providerLabel = provider === "local" ? "LOCAL (Phi-3)" : provider === "github" ? "GitHub AI" : "OpenAI";
+    console.log(`[AI:${featureName}] ✓ Completed in ${duration}ms, ${totalTokens} tokens, $${(costMicroDollars / 1000000).toFixed(4)} via ${providerLabel}`);
     
     // Log to database asynchronously (don't block the response)
     storage.createAiUsageLog({
