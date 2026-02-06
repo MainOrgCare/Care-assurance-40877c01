@@ -74,20 +74,36 @@ export interface AiCompletionResult {
 let openaiClient: OpenAI | null = null;
 let githubClient: OpenAI | null = null;
 
+// Track if OpenAI client is using PAT fallback (needs model mapping)
+let openaiUsingPATFallback = false;
+
 function getOpenAIClient(): OpenAI | null {
   if (openaiClient) return openaiClient;
   
-  const fallbackKey = process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY;
-  if (!fallbackKey) {
-    return null;
+  // Try OpenAI keys first
+  const openaiKey = process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY;
+  if (openaiKey) {
+    openaiUsingPATFallback = false;
+    openaiClient = new OpenAI({
+      apiKey: openaiKey,
+      baseURL: process.env.OPENAI_FALLBACK_BASE_URL || "https://api.openai.com/v1",
+    });
+    return openaiClient;
   }
   
-  openaiClient = new OpenAI({
-    apiKey: fallbackKey,
-    baseURL: process.env.OPENAI_FALLBACK_BASE_URL || "https://api.openai.com/v1",
-  });
+  // Fall back to PAT_AI_KEY via GitHub endpoint if no OpenAI key
+  const patKey = process.env.PAT_AI_KEY;
+  if (patKey) {
+    console.log("[AI] No OpenAI key found, using PAT_AI_KEY via GitHub endpoint as OpenAI fallback");
+    openaiUsingPATFallback = true;
+    openaiClient = new OpenAI({
+      apiKey: patKey,
+      baseURL: "https://models.inference.ai.azure.com",
+    });
+    return openaiClient;
+  }
   
-  return openaiClient;
+  return null;
 }
 
 function getGitHubClient(): OpenAI | null {
@@ -234,7 +250,12 @@ async function createChatCompletionWithProvider(
   } else {
     client = getOpenAIClient();
     if (!client) {
-      throw new Error("OpenAI is not configured. Set OPENAI_API_KEY or OPENAI_FALLBACK_API_KEY.");
+      throw new Error("No AI configured. Set OPENAI_API_KEY, OPENAI_FALLBACK_API_KEY, or PAT_AI_KEY.");
+    }
+    // If using PAT fallback, we're actually hitting GitHub endpoint - needs model mapping
+    if (openaiUsingPATFallback) {
+      model = mapModelForGitHub(model);
+      console.log(`[AI:OpenAI] Using PAT_AI_KEY fallback via GitHub endpoint`);
     }
   }
 
@@ -289,8 +310,9 @@ export async function createChatCompletionWithLogging(
   // Ensure we use the model passed in params, which should be from getPreferredModel()
   let model = (params.model as string) || preferredModel;
   
-  // Map model for GitHub AI if using that provider
-  const actualModel = preferredProvider === "github" ? mapModelForGitHub(model) : model;
+  // Map model for GitHub AI or OpenAI with PAT fallback
+  const needsMapping = preferredProvider === "github" || (preferredProvider === "openai" && openaiUsingPATFallback);
+  const actualModel = needsMapping ? mapModelForGitHub(model) : model;
   
   const userId = userContext?.userId || null;
   const username = userContext?.username || null;

@@ -14290,7 +14290,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   app.get("/api/admin/ai-provider", requireAuth, requireAdmin, async (req, res) => {
     try {
       const provider = getPreferredProvider();
-      const hasOpenAIKey = !!(process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY);
+      // OpenAI can use its own key OR fall back to PAT_AI_KEY
+      const hasOpenAIKey = !!(process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY || process.env.PAT_AI_KEY);
       const hasPATKey = !!process.env.PAT_AI_KEY;
       const localLLMUrl = getLocalLLMUrl();
       const hasLocalLLM = await isLocalLLMAvailable();
@@ -14310,8 +14311,9 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       }
       
       // Check if the selected provider's key is configured
-      if (provider === "openai" && !process.env.OPENAI_FALLBACK_API_KEY && !process.env.OPENAI_API_KEY) {
-        return res.status(400).json({ message: "OpenAI API key not configured. Set OPENAI_API_KEY or OPENAI_FALLBACK_API_KEY." });
+      // OpenAI can use its own key OR fall back to PAT_AI_KEY via GitHub endpoint
+      if (provider === "openai" && !process.env.OPENAI_FALLBACK_API_KEY && !process.env.OPENAI_API_KEY && !process.env.PAT_AI_KEY) {
+        return res.status(400).json({ message: "No API key configured. Set OPENAI_API_KEY, OPENAI_FALLBACK_API_KEY, or PAT_AI_KEY." });
       }
       
       if (provider === "github" && !process.env.PAT_AI_KEY) {
