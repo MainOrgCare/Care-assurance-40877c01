@@ -37,6 +37,9 @@ const startAutofill = async (caseId, serviceDataGroupId) => {
   if (formType === "acp" && !Array.isArray(caAcpPayload.assessments)) {
     throw new Error("No assessments payload stored yet.");
   }
+  if (formType === "initialAssessment" && !caAcpPayload.initialAssessmentData && !caAcpPayload.data) {
+    throw new Error("No initial assessment data stored yet.");
+  }
 
   await setStored({
     [STORAGE_KEYS.caseInfo]: { caseId, serviceDataGroupId },
@@ -59,6 +62,8 @@ const openNextForm = async () => {
 
   if (!caAcpPayload || !caAcpCaseInfo || !caAcpQueueState) return;
   const formType = caAcpQueueState.formType || caAcpPayload.formType || "acp";
+  
+  // For non-acp form types (emar, initialAssessment), clear after single form
   if (formType !== "acp") {
     await setStored({
       [STORAGE_KEYS.queueState]: null,

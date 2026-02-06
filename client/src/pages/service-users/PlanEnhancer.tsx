@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText, Download, Edit3 } from "lucide-react";
+import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText, Download, Edit3, Send } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
@@ -832,6 +832,91 @@ export default function PlanEnhancer() {
     doc.save(fileName);
   };
 
+  // Send the enhanced plan data to the browser extension for autofill
+  const sendToInitialAssessment = async () => {
+    if (!displayResult) {
+      toast({
+        title: "No Data",
+        description: "Please generate an enhanced plan first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Build the payload for the extension
+      const payload = {
+        formType: "initialAssessment",
+        initialAssessmentData: {
+          // This is Me section
+          thisIsMe: displayResult.thisIsMe,
+          // Goal Setting
+          goals: displayResult.goalSetting?.goals || [],
+          internetSupport: displayResult.goalSetting?.internetSupport,
+          assistiveTechnology: displayResult.goalSetting?.assistiveTechnology,
+          // Advance Decisions
+          advanceDecisionInSitu: displayResult.advanceDecisions?.advanceDecisionInPlace,
+          dnrLocation: displayResult.advanceDecisions?.dnrDetails,
+          lpaInPlace: displayResult.advanceDecisions?.lastingPOA,
+          lpaContactInfo: displayResult.advanceDecisions?.poaContact,
+          // My Care Plan
+          capacityDecisionMaking: displayResult.myCarePlan?.capacityAndSafeguarding,
+          healthAndWellbeing: displayResult.myCarePlan?.healthAndWellbeing,
+          triggerPoints: displayResult.myCarePlan?.triggerPoints,
+          medicationRequirements: displayResult.myCarePlan?.medicationRequirements,
+          nutrition: displayResult.myCarePlan?.nutrition,
+          personalCareNeeds: displayResult.myCarePlan?.personalCareNeeds,
+          mobilityAndEquipment: displayResult.myCarePlan?.mobilityAndEquipment,
+          houseworkShopping: displayResult.myCarePlan?.houseworkAndSocial,
+          financialArrangements: displayResult.myCarePlan?.financialArrangements,
+          // Risk Section 1 - Mental and Physical Health
+          memory: displayResult.riskSection1Health?.memory,
+          moods: displayResult.riskSection1Health?.moods,
+          orientation: displayResult.riskSection1Health?.orientation,
+          sleepPattern: displayResult.riskSection1Health?.sleepPattern,
+          behaviours: displayResult.riskSection1Health?.behaviours,
+          understandsInfo: displayResult.riskSection1Health?.understandsInfo,
+          retainsInfo: displayResult.riskSection1Health?.retainsInfo,
+          contemplatesProsAndCons: displayResult.riskSection1Health?.weighsDecision,
+          communicatesDecision: displayResult.riskSection1Health?.communicatesDecision,
+          // Risk Section 10 - Security
+          gasShutOffLocation: displayResult.riskSection10Security?.gasShutOff,
+          stopTapLocation: displayResult.riskSection10Security?.stopTap,
+          fuseBoxLocation: displayResult.riskSection10Security?.fuseBox,
+          // Section 11 - Service User Bands
+          personalCare: displayResult.section11Bands?.personalCare,
+          mentalHealth: displayResult.section11Bands?.mentalHealth,
+          physicalDisability: displayResult.section11Bands?.physicalDisability,
+          dementia: displayResult.section11Bands?.dementia,
+          eatingDisorder: displayResult.section11Bands?.eatingDisorder,
+          sensoryImpairment: displayResult.section11Bands?.sensoryImpairment,
+          detainedMHA: displayResult.section11Bands?.detainedMHA,
+          drugAlcoholMisuse: displayResult.section11Bands?.drugAlcoholMisuse,
+          learningDifficulties: displayResult.section11Bands?.learningDifficulties,
+        },
+        assessor: user?.name || "",
+        date: new Date().toISOString().split("T")[0],
+      };
+
+      // Try to send to extension via postMessage (for cross-origin communication)
+      window.postMessage({
+        type: "CA_EXTENSION_STORE_PAYLOAD",
+        payload,
+      }, "*");
+
+      toast({
+        title: "Sent to Extension",
+        description: "Plan data is ready. Open the extension on the Initial Assessment form to autofill.",
+      });
+    } catch (error) {
+      toast({
+        title: "Export Failed",
+        description: error instanceof Error ? error.message : "Failed to send to extension",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (!hasData) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6 animate-in fade-in zoom-in duration-500">
@@ -1101,6 +1186,17 @@ export default function PlanEnhancer() {
               >
                 <Download size={14} />
                 Export PDF
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="gap-2"
+                onClick={sendToInitialAssessment}
+                disabled={!displayResult}
+                data-testid="button-send-to-initial-assessment"
+              >
+                <Send size={14} />
+                Send to IA Form
               </Button>
               <Tabs value={viewMode} onValueChange={(v: string) => setViewMode(v as "enhanced" | "comparison")} className="bg-muted/20 p-1 rounded-xl border border-border/40">
                 <TabsList className="bg-transparent border-0 h-9 p-0">

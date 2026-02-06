@@ -21,6 +21,10 @@
       url: "https://clece.mobizio.com/new_case_form",
       formId: "1048191",
     },
+    initialAssessment: {
+      url: "https://clece.mobizio.com/new_case_form",
+      formId: "1040788",
+    },
     emar: {
       url: "https://clece.mobizio.com/new_case_form",
       formId: "1044009",

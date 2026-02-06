@@ -9,7 +9,7 @@ export interface AiUserContext {
 }
 
 // Provider type for billing attribution
-export type AiProvider = "openai" | "github";
+export type AiProvider = "openai" | "github" | "local";
 
 // Admin-configurable preferred AI provider
 let preferredProvider: AiProvider = "openai";
@@ -20,13 +20,17 @@ let preferredModel: AvailableModel = "gpt-4.1-mini";
 // Admin-configurable EMAR agent usage (defaults to true)
 let useEmarAgent: boolean = true;
 
+// Local LLM configuration
+const LOCAL_LLM_URL = process.env.LOCAL_LLM_URL || "http://local-llm:11434";
+const LOCAL_LLM_MODEL = process.env.LOCAL_LLM_MODEL || "phi3:mini";
+
 export function getPreferredProvider(): AiProvider {
   return preferredProvider;
 }
 
 export function setPreferredProvider(provider: AiProvider): void {
-  if (provider !== "openai" && provider !== "github") {
-    throw new Error("Invalid provider. Must be 'openai' or 'github'.");
+  if (provider !== "openai" && provider !== "github" && provider !== "local") {
+    throw new Error("Invalid provider. Must be 'openai', 'github', or 'local'.");
   }
   preferredProvider = provider;
   console.log(`[AI Config] Preferred provider set to: ${provider}`);
@@ -99,6 +103,34 @@ function getGitHubClient(): OpenAI | null {
   });
   
   return githubClient;
+}
+
+// Local LLM client using Ollama's OpenAI-compatible API
+let localClient: OpenAI | null = null;
+
+function getLocalClient(): OpenAI | null {
+  if (localClient) return localClient;
+  
+  // Local LLM doesn't need an API key
+  localClient = new OpenAI({
+    apiKey: "ollama", // Ollama accepts any key
+    baseURL: `${LOCAL_LLM_URL}/v1`,
+  });
+  
+  return localClient;
+}
+
+// Check if local LLM is available
+async function isLocalLLMAvailable(): Promise<boolean> {
+  try {
+    const response = await fetch(`${LOCAL_LLM_URL}/api/tags`, {
+      method: "GET",
+      signal: AbortSignal.timeout(5000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 // Map OpenAI-specific model names to GitHub AI compatible models
@@ -180,24 +212,28 @@ async function createChatCompletionWithProvider(
   
   // Get the appropriate client based on preferred provider
   let client: OpenAI | null = null;
-  if (provider === "github") {
+  let model = (params.model as string) || preferredModel;
+  
+  if (provider === "local") {
+    client = getLocalClient();
+    if (!client) {
+      throw new Error("Local LLM client could not be initialized.");
+    }
+    // Always use the local model (phi3:mini)
+    model = LOCAL_LLM_MODEL;
+    console.log(`[AI:Local] Using local LLM at ${LOCAL_LLM_URL} with model ${model}`);
+  } else if (provider === "github") {
     client = getGitHubClient();
     if (!client) {
       throw new Error("GitHub AI is not configured. Set PAT_AI_KEY environment variable.");
     }
+    // Map model for GitHub AI compatibility
+    model = mapModelForGitHub(model);
   } else {
     client = getOpenAIClient();
     if (!client) {
       throw new Error("OpenAI is not configured. Set OPENAI_API_KEY or OPENAI_FALLBACK_API_KEY.");
     }
-  }
-
-  // Force model to preferred if not provided
-  let model = (params.model as string) || preferredModel;
-  
-  // Map model for GitHub AI compatibility
-  if (provider === "github") {
-    model = mapModelForGitHub(model);
   }
 
   // Retry loop with exponential backoff for rate limit errors
@@ -314,6 +350,14 @@ export async function createChatCompletionWithLogging(
     
     throw error;
   }
+}
+
+// Export function to check if local LLM is available
+export { isLocalLLMAvailable };
+
+// Get local LLM URL for admin display
+export function getLocalLLMUrl(): string {
+  return LOCAL_LLM_URL;
 }
 
 // Export the configured OpenAI client for legacy imports

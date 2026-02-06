@@ -23,7 +23,8 @@ window.addEventListener("message", (event) => {
   if (!event.data) return;
   const isAcpMessage = event.data.type === EXTENSION_MESSAGE_TYPE;
   const isEmarMessage = event.data.type === EMAR_MESSAGE_TYPE;
-  if (!isAcpMessage && !isEmarMessage) return;
+  const isStorePayloadMessage = event.data.type === STORE_PAYLOAD_TYPE;
+  if (!isAcpMessage && !isEmarMessage && !isStorePayloadMessage) return;
 
   console.log("[CA Extension] Received message:", event.data.type);
 
@@ -39,19 +40,19 @@ window.addEventListener("message", (event) => {
   if (isAcpMessage && !normalizedPayload.formType) {
     normalizedPayload.formType = "acp";
   }
-  if (normalizedPayload.formType === "acp" && !Array.isArray(normalizedPayload.assessments)) {
+  // Handle initialAssessment from Store Payload message (from Plan Enhancer)
+  if (isStorePayloadMessage && normalizedPayload.formType === "initialAssessment") {
+    // This is valid, proceed
+  } else if (normalizedPayload.formType === "acp" && !Array.isArray(normalizedPayload.assessments)) {
     sendAck(requestId, false, "Invalid ACP payload.");
     return;
-  }
-  if (normalizedPayload.formType === "emar" && typeof normalizedPayload !== "object") {
+  } else if (normalizedPayload.formType === "emar" && typeof normalizedPayload !== "object") {
     sendAck(requestId, false, "Invalid EMAR payload.");
     return;
-  }
-  if (isEmarMessage && normalizedPayload.formType !== "emar") {
+  } else if (isEmarMessage && normalizedPayload.formType !== "emar") {
     sendAck(requestId, false, "EMAR payload missing formType.");
     return;
-  }
-  if (normalizedPayload.formType && !["acp", "emar", "custom"].includes(normalizedPayload.formType)) {
+  } else if (normalizedPayload.formType && !["acp", "emar", "custom", "initialAssessment"].includes(normalizedPayload.formType)) {
     sendAck(requestId, false, `Unsupported formType: ${normalizedPayload.formType}`);
     return;
   }

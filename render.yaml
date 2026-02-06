@@ -59,3 +59,19 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+
+  # Local LLM Service - Phi-3 Mini via Ollama
+  # Keep data completely local - no external API calls
+  - type: web
+    name: local-llm
+    runtime: docker
+    dockerfilePath: ./Dockerfile.localllm
+    plan: standard
+    region: oregon
+    healthCheckPath: /api/tags
+    autoDeploy: true
+    envVars:
+      - key: OLLAMA_HOST
+        value: "0.0.0.0:11434"
+      - key: OLLAMA_KEEP_ALIVE
+        value: "24h"

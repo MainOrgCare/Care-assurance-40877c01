@@ -15,7 +15,7 @@ import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema, insertSystemLogSchema } from "@shared/schema";
-import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, isLocalLLMAvailable, getLocalLLMUrl, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
 import { careWorkerRotaPayloadSchema, computeRotaSourceHash, rotaWeekdayEnum } from "./services/careWorkerRota";
 import multer from "multer";
@@ -14292,7 +14292,9 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       const provider = getPreferredProvider();
       const hasOpenAIKey = !!(process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY);
       const hasPATKey = !!process.env.PAT_AI_KEY;
-      return res.json({ provider, hasOpenAIKey, hasPATKey });
+      const localLLMUrl = getLocalLLMUrl();
+      const hasLocalLLM = await isLocalLLMAvailable();
+      return res.json({ provider, hasOpenAIKey, hasPATKey, hasLocalLLM, localLLMUrl });
     } catch (error: any) {
       console.error("AI provider fetch error:", error);
       return res.status(500).json({ message: error.message || "Failed to fetch AI provider" });
@@ -14303,8 +14305,8 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   app.post("/api/admin/ai-provider", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       const { provider } = req.body;
-      if (provider !== "openai" && provider !== "github") {
-        return res.status(400).json({ message: "Invalid provider. Must be 'openai' or 'github'." });
+      if (provider !== "openai" && provider !== "github" && provider !== "local") {
+        return res.status(400).json({ message: "Invalid provider. Must be 'openai', 'github', or 'local'." });
       }
       
       // Check if the selected provider's key is configured
@@ -14314,6 +14316,13 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       
       if (provider === "github" && !process.env.PAT_AI_KEY) {
         return res.status(400).json({ message: "GitHub AI key not configured. Set PAT_AI_KEY environment variable." });
+      }
+      
+      if (provider === "local") {
+        const isAvailable = await isLocalLLMAvailable();
+        if (!isAvailable) {
+          return res.status(400).json({ message: `Local LLM not available at ${getLocalLLMUrl()}. Ensure the local-llm service is running.` });
+        }
       }
       
       setPreferredProvider(provider as AiProvider);

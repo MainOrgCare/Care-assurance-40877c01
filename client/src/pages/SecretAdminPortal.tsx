@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Eye, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, UserMinus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database } from "lucide-react";
+import { Shield, Eye, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, UserMinus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server } from "lucide-react";
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
@@ -477,7 +477,9 @@ function AICostSection() {
 function AIProviderSection() {
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [hasPATKey, setHasPATKey] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<"openai" | "github">("openai");
+  const [hasLocalLLM, setHasLocalLLM] = useState(false);
+  const [localLLMUrl, setLocalLLMUrl] = useState("");
+  const [selectedProvider, setSelectedProvider] = useState<"openai" | "github" | "local">("openai");
   const [useEmarAgent, setUseEmarAgent] = useState(true);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -496,6 +498,8 @@ function AIProviderSection() {
         const data = await providerRes.json();
         setHasOpenAIKey(Boolean(data.hasOpenAIKey));
         setHasPATKey(Boolean(data.hasPATKey));
+        setHasLocalLLM(Boolean(data.hasLocalLLM));
+        setLocalLLMUrl(data.localLLMUrl || "");
         setSelectedProvider(data.provider || "openai");
       }
       
@@ -510,16 +514,20 @@ function AIProviderSection() {
     }
   };
 
-  const handleProviderToggle = async () => {
-    const newProvider = selectedProvider === "openai" ? "github" : "openai";
+  const handleProviderChange = async (newProvider: "openai" | "github" | "local") => {
+    if (newProvider === selectedProvider) return;
     
-    // Check if the target provider's key is available
+    // Check if the target provider is available
     if (newProvider === "openai" && !hasOpenAIKey) {
       alert("OpenAI API key is not configured.");
       return;
     }
     if (newProvider === "github" && !hasPATKey) {
       alert("GitHub AI key (PAT_AI_KEY) is not configured.");
+      return;
+    }
+    if (newProvider === "local" && !hasLocalLLM) {
+      alert(`Local LLM not available at ${localLLMUrl}. Ensure the local-llm service is running.`);
       return;
     }
     
@@ -597,77 +605,140 @@ function AIProviderSection() {
         <div>
           <h4 className="text-sm font-medium text-foreground mb-3">AI Provider</h4>
           
-          {/* Provider Toggle */}
-          <div className="flex items-center justify-between p-4 rounded-lg border bg-slate-50 mb-4">
-            <div className="flex items-center gap-3">
-              <span className={`text-sm font-medium ${selectedProvider === "openai" ? "text-emerald-600" : "text-muted-foreground"}`}>
-                OpenAI
-              </span>
-              <Switch
-                checked={selectedProvider === "github"}
-                onCheckedChange={handleProviderToggle}
-                disabled={updating || (!hasOpenAIKey && selectedProvider === "github") || (!hasPATKey && selectedProvider === "openai")}
-              />
-              <span className={`text-sm font-medium ${selectedProvider === "github" ? "text-purple-600" : "text-muted-foreground"}`}>
-                GitHub AI
-              </span>
-            </div>
-            {updating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-          </div>
-          
-          {/* OpenAI Card */}
-          <div className={`p-4 rounded-lg border-2 mb-3 ${selectedProvider === "openai" ? "border-emerald-500/30 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                hasOpenAIKey ? "bg-emerald-500/20" : "bg-white/10"
-              }`}>
-                <Cpu size={20} className={hasOpenAIKey ? "text-emerald-400" : "text-muted-foreground"} />
-              </div>
-              <div className="text-left">
-                <div className="font-medium text-foreground">OpenAI</div>
-                <div className="text-xs text-muted-foreground">
-                  {hasOpenAIKey ? "OpenAI API key configured" : "OpenAI API key not configured"}
+          {/* Provider Selection */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* OpenAI Card */}
+            <button
+              onClick={() => handleProviderChange("openai")}
+              disabled={updating || !hasOpenAIKey}
+              className={`p-4 rounded-lg border-2 text-left transition-all ${
+                selectedProvider === "openai" 
+                  ? "border-emerald-500/50 bg-emerald-50" 
+                  : hasOpenAIKey 
+                    ? "border-slate-200 bg-slate-50 hover:border-emerald-300" 
+                    : "border-slate-200 bg-slate-100 opacity-60 cursor-not-allowed"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  hasOpenAIKey ? "bg-emerald-500/20" : "bg-slate-200"
+                }`}>
+                  <Cpu size={20} className={hasOpenAIKey ? "text-emerald-400" : "text-slate-400"} />
+                </div>
+                <div>
+                  <div className="font-medium text-foreground">OpenAI</div>
+                  <div className="text-xs text-muted-foreground">
+                    {hasOpenAIKey ? "API configured" : "Key not set"}
+                  </div>
                 </div>
               </div>
               <Badge
-                variant={hasOpenAIKey ? "secondary" : "outline"}
-                className={hasOpenAIKey
-                  ? selectedProvider === "openai" 
-                    ? "ml-auto bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-                    : "ml-auto bg-slate-200 text-slate-500 border-slate-300"
-                  : "ml-auto border-yellow-500/50 text-yellow-400"}
+                variant="secondary"
+                className={`mt-2 ${
+                  selectedProvider === "openai"
+                    ? "bg-emerald-500/20 text-emerald-600"
+                    : hasOpenAIKey
+                      ? "bg-slate-200 text-slate-500"
+                      : "bg-yellow-100 text-yellow-600"
+                }`}
               >
                 {!hasOpenAIKey ? "Key Missing" : selectedProvider === "openai" ? "Active" : "Available"}
               </Badge>
-            </div>
-          </div>
-          
-          {/* GitHub AI Card */}
-          <div className={`p-4 rounded-lg border-2 ${selectedProvider === "github" ? "border-purple-500/30 bg-purple-50" : "border-slate-200 bg-slate-50"}`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                hasPATKey ? "bg-purple-500/20" : "bg-white/10"
-              }`}>
-                <Cpu size={20} className={hasPATKey ? "text-purple-400" : "text-muted-foreground"} />
-              </div>
-              <div className="text-left">
-                <div className="font-medium text-foreground">GitHub AI</div>
-                <div className="text-xs text-muted-foreground">
-                  {hasPATKey ? "PAT_AI_KEY configured" : "PAT_AI_KEY not configured"}
+            </button>
+            
+            {/* GitHub AI Card */}
+            <button
+              onClick={() => handleProviderChange("github")}
+              disabled={updating || !hasPATKey}
+              className={`p-4 rounded-lg border-2 text-left transition-all ${
+                selectedProvider === "github" 
+                  ? "border-purple-500/50 bg-purple-50" 
+                  : hasPATKey 
+                    ? "border-slate-200 bg-slate-50 hover:border-purple-300" 
+                    : "border-slate-200 bg-slate-100 opacity-60 cursor-not-allowed"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  hasPATKey ? "bg-purple-500/20" : "bg-slate-200"
+                }`}>
+                  <Cpu size={20} className={hasPATKey ? "text-purple-400" : "text-slate-400"} />
+                </div>
+                <div>
+                  <div className="font-medium text-foreground">GitHub AI</div>
+                  <div className="text-xs text-muted-foreground">
+                    {hasPATKey ? "PAT configured" : "PAT not set"}
+                  </div>
                 </div>
               </div>
               <Badge
-                variant={hasPATKey ? "secondary" : "outline"}
-                className={hasPATKey
-                  ? selectedProvider === "github" 
-                    ? "ml-auto bg-purple-500/20 text-purple-300 border-purple-500/30"
-                    : "ml-auto bg-slate-200 text-slate-500 border-slate-300"
-                  : "ml-auto border-yellow-500/50 text-yellow-400"}
+                variant="secondary"
+                className={`mt-2 ${
+                  selectedProvider === "github"
+                    ? "bg-purple-500/20 text-purple-600"
+                    : hasPATKey
+                      ? "bg-slate-200 text-slate-500"
+                      : "bg-yellow-100 text-yellow-600"
+                }`}
               >
                 {!hasPATKey ? "Key Missing" : selectedProvider === "github" ? "Active" : "Available"}
               </Badge>
-            </div>
+            </button>
+            
+            {/* Local LLM Card */}
+            <button
+              onClick={() => handleProviderChange("local")}
+              disabled={updating || !hasLocalLLM}
+              className={`p-4 rounded-lg border-2 text-left transition-all ${
+                selectedProvider === "local" 
+                  ? "border-sky-500/50 bg-sky-50" 
+                  : hasLocalLLM 
+                    ? "border-slate-200 bg-slate-50 hover:border-sky-300" 
+                    : "border-slate-200 bg-slate-100 opacity-60 cursor-not-allowed"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  hasLocalLLM ? "bg-sky-500/20" : "bg-slate-200"
+                }`}>
+                  <Server size={20} className={hasLocalLLM ? "text-sky-400" : "text-slate-400"} />
+                </div>
+                <div>
+                  <div className="font-medium text-foreground">Local (Phi-3)</div>
+                  <div className="text-xs text-muted-foreground">
+                    {hasLocalLLM ? "LLM running" : "Not available"}
+                  </div>
+                </div>
+              </div>
+              <Badge
+                variant="secondary"
+                className={`mt-2 ${
+                  selectedProvider === "local"
+                    ? "bg-sky-500/20 text-sky-600"
+                    : hasLocalLLM
+                      ? "bg-slate-200 text-slate-500"
+                      : "bg-yellow-100 text-yellow-600"
+                }`}
+              >
+                {!hasLocalLLM ? "Offline" : selectedProvider === "local" ? "Active" : "Available"}
+              </Badge>
+            </button>
           </div>
+          
+          {updating && (
+            <div className="flex items-center justify-center mt-3">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mr-2" />
+              <span className="text-xs text-muted-foreground">Switching provider...</span>
+            </div>
+          )}
+          
+          {selectedProvider === "local" && (
+            <div className="mt-3 p-3 bg-sky-500/10 rounded-lg border border-sky-500/20">
+              <div className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Local LLM (Phi-3 Mini)</span> - All data stays on your servers. No external API calls. $0 cost.
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="border-t border-slate-200 pt-6">

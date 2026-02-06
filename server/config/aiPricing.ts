@@ -54,6 +54,11 @@ export const AI_PRICING: Record<string, { input: number; output: number }> = {
   "gpt-3.5-turbo": { input: 500, output: 1500 },
   "gpt-3.5-turbo-0125": { input: 500, output: 1500 },
   
+  // Local LLM models (no API cost - self-hosted)
+  "phi3:mini": { input: 0, output: 0 },
+  "phi3:mini-4k-instruct-q4_K_M": { input: 0, output: 0 },
+  "local": { input: 0, output: 0 },
+  
   // Default fallback (uses gpt-4o rates)
   "default": { input: 2500, output: 10000 },
 };

@@ -1,0 +1,48 @@
+# Local LLM Service using Ollama with Phi-3 Mini
+# Optimized for minimal resource usage while maintaining care assessment quality
+
+FROM ollama/ollama:latest
+
+# Set the host to listen on all interfaces
+ENV OLLAMA_HOST=0.0.0.0:11434
+ENV OLLAMA_KEEP_ALIVE=24h
+ENV OLLAMA_NUM_PARALLEL=2
+ENV OLLAMA_MAX_LOADED_MODELS=1
+
+# Expose the default Ollama port
+EXPOSE 11434
+
+# Create a startup script that pulls the model and serves
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+# Start Ollama in the background\n\
+ollama serve &\n\
+OLLAMA_PID=$!\n\
+\n\
+# Wait for Ollama to be ready\n\
+echo "Waiting for Ollama to start..."\n\
+for i in {1..30}; do\n\
+  if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then\n\
+    echo "Ollama is ready!"\n\
+    break\n\
+  fi\n\
+  sleep 1\n\
+done\n\
+\n\
+# Check if model exists, if not pull it\n\
+if ! ollama list | grep -q "phi3:mini"; then\n\
+  echo "Pulling phi3:mini model (this may take a few minutes on first deploy)..."\n\
+  ollama pull phi3:mini\n\
+  echo "Model pulled successfully!"\n\
+fi\n\
+\n\
+# Keep the server running\n\
+wait $OLLAMA_PID\n\
+' > /start.sh && chmod +x /start.sh
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+  CMD curl -f http://localhost:11434/api/tags || exit 1
+
+CMD ["/start.sh"]

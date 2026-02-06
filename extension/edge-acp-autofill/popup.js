@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.2.4
+// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.2.5
 // Professional UI matching Care Assurance website design
 // Tab-based layout: Upload Documents | Send to ACP
 // ═══════════════════════════════════════════════════════════════════════════
@@ -649,6 +649,8 @@ const refreshPayloadStatus = async () => {
         statusSpan.textContent = `Ready: ${caAcpPayload.assessments.length} assessment(s)`;
       } else if (caAcpPayload && caAcpPayload.formType === "emar") {
         statusSpan.textContent = "Ready: EMAR audit";
+      } else if (caAcpPayload && caAcpPayload.formType === "initialAssessment") {
+        statusSpan.textContent = "Ready: Initial Assessment";
       } else if (caAcpPayload && caAcpPayload.formType === "custom") {
         statusSpan.textContent = "Ready: Custom document";
       } else {
