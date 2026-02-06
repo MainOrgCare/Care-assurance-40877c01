@@ -13,7 +13,6 @@ services:
     name: care-assurance-api
     runtime: node
     plan: standard
-    region: oregon
     buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:server
     startCommand: npm run start:api
     autoDeploy: true
@@ -72,7 +71,6 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile.localllm
     plan: standard
-    region: oregon
     healthCheckPath: /api/tags
     autoDeploy: true
     envVars:
