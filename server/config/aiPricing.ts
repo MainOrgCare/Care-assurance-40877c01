@@ -60,6 +60,7 @@ export const AI_PRICING: Record<string, { input: number; output: number }> = {
   "phi3:mini-4k-instruct-q4_K_M": { input: 0, output: 0 },
   "qwen2.5:7b": { input: 0, output: 0 },
   "qwen2.5:3b": { input: 0, output: 0 },
+  "qwen2.5-64k": { input: 0, output: 0 },
   "mistral:7b": { input: 0, output: 0 },
   "llama3.1:8b": { input: 0, output: 0 },
   "local": { input: 0, output: 0 },

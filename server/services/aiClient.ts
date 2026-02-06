@@ -25,7 +25,7 @@ let useEmarAgent: boolean = true;
 // Render's fromService returns hostname:port, so we need to add http:// if missing
 const rawLocalLLMUrl = process.env.LOCAL_LLM_URL || "http://local-llm:11434";
 const LOCAL_LLM_URL = rawLocalLLMUrl.startsWith("http") ? rawLocalLLMUrl : `http://${rawLocalLLMUrl}`;
-const LOCAL_LLM_MODEL = process.env.LOCAL_LLM_MODEL || "qwen2.5:7b";
+const LOCAL_LLM_MODEL = process.env.LOCAL_LLM_MODEL || "qwen2.5-64k";
 
 // Load settings from database (called once on first AI request)
 async function ensureSettingsLoaded(): Promise<void> {
@@ -325,9 +325,16 @@ async function createChatCompletionWithProvider(
       }
       
       console.log(`[AI] Using ${provider} provider with model:`, model);
-      // For local LLM, force temperature 0 for consistent, deterministic responses
+      // For local LLM (qwen2.5-64k custom model), temperature 0 and 64K context are baked in
+      // Also pass options as fallback for API-level override
       const finalParams = provider === "local" 
-        ? { ...params, model, temperature: 0 }
+        ? { 
+            ...params, 
+            model, 
+            temperature: 0,
+            // Ollama-specific: ensure context window size via options
+            options: { num_ctx: 65536 }
+          }
         : { ...params, model };
       const completion = await client.chat.completions.create(finalParams);
       return { completion, provider };

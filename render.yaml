@@ -84,4 +84,4 @@ services:
       - key: OLLAMA_MODELS
         value: "/ollama-data/models"
       - key: OLLAMA_NUM_CTX
-        value: "32768"
+        value: "65536"
