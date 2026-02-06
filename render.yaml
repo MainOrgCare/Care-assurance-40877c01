@@ -44,10 +44,9 @@ services:
       # If you use Postgres, set DATABASE_URL in the dashboard.
       - key: DATABASE_URL
         sync: false
-      # Local LLM URL - internal service connection to Ollama
-      # Uses Render's internal networking (services in same project can reach each other by name)
+      # Local LLM URL - Ollama service running on Render
       - key: LOCAL_LLM_URL
-        value: "http://local-llm:11434"
+        value: "https://local-llm-m1xp.onrender.com"
 
   - type: worker
     name: care-assurance-worker
