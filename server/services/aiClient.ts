@@ -154,6 +154,24 @@ function mapModelForGitHub(model: string): string {
   return model;
 }
 
+// Retry configuration for rate limit handling
+const MAX_RETRIES = 5;
+const INITIAL_RETRY_DELAY_MS = 5000; // Start with 5 seconds
+
+// Sleep utility for retry delays
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Check if error is a rate limit error (429)
+function isRateLimitError(error: any): boolean {
+  return error?.status === 429 || 
+         error?.code === 'rate_limit_exceeded' ||
+         error?.message?.includes('429') ||
+         error?.message?.toLowerCase().includes('rate limit') ||
+         error?.error?.code === 'rate_limit_exceeded';
+}
+
 // Internal function that tracks which provider was used
 async function createChatCompletionWithProvider(
   params: OpenAI.ChatCompletionCreateParamsNonStreaming
@@ -182,9 +200,38 @@ async function createChatCompletionWithProvider(
     model = mapModelForGitHub(model);
   }
 
-  console.log(`[AI] Using ${provider} provider with model:`, model);
-  const completion = await client.chat.completions.create({ ...params, model });
-  return { completion, provider };
+  // Retry loop with exponential backoff for rate limit errors
+  let lastError: any = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      if (attempt > 0) {
+        const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+        console.log(`[AI] Retry attempt ${attempt}/${MAX_RETRIES} after ${delay}ms delay...`);
+        await sleep(delay);
+      }
+      
+      console.log(`[AI] Using ${provider} provider with model:`, model);
+      const completion = await client.chat.completions.create({ ...params, model });
+      return { completion, provider };
+    } catch (error: any) {
+      lastError = error;
+      
+      if (isRateLimitError(error) && attempt < MAX_RETRIES) {
+        // Extract retry-after header if available
+        const retryAfter = error?.headers?.get?.('retry-after') || 
+                          error?.response?.headers?.['retry-after'];
+        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
+        console.warn(`[AI] Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${MAX_RETRIES}...`);
+        continue;
+      }
+      
+      // Non-retryable error or max retries exceeded
+      throw error;
+    }
+  }
+  
+  // Should not reach here, but throw last error just in case
+  throw lastError;
 }
 
 // Legacy function for backwards compatibility (returns just the completion)

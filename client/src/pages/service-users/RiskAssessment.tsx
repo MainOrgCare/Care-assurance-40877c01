@@ -970,7 +970,8 @@ export default function RiskAssessment() {
     };
 
     const queue = [...assessmentsArray];
-    const maxConcurrency = Math.min(3, queue.length);
+    // Reduced concurrency to 1 to prevent API rate limits (429 errors)
+    const maxConcurrency = 1;
     const workers = Array.from({ length: maxConcurrency }, () =>
       (async () => {
         while (queue.length > 0) {

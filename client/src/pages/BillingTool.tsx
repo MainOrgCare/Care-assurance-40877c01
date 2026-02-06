@@ -902,7 +902,7 @@ export default function BillingTool() {
               </div>
 
               {supportPlanError && (
-                <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-100">
+                <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-200">
                   {supportPlanError}
                 </div>
               )}
@@ -922,8 +922,8 @@ export default function BillingTool() {
                   </div>
 
                   {supportPlanResult.extractionWarnings?.length ? (
-                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-                      <p className="text-xs uppercase tracking-[0.15em] text-amber-200/80 mb-1">Extraction warnings</p>
+                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+                      <p className="text-xs uppercase tracking-[0.15em] text-amber-600 dark:text-amber-400 mb-1">Extraction warnings</p>
                       <ul className="list-disc list-inside space-y-1">
                         {supportPlanResult.extractionWarnings.map((warning) => (
                           <li key={warning}>{warning}</li>
@@ -973,13 +973,13 @@ export default function BillingTool() {
                   <div className="space-y-2">
                     <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">Discrepancies</p>
                     {supportPlanResult.comparison.discrepancies.length === 0 ? (
-                      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-50">
+                      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">
                         No discrepancies detected.
                       </div>
                     ) : (
                       <ul className="space-y-2 text-sm">
                         {supportPlanResult.comparison.discrepancies.map((item) => (
-                          <li key={item} className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-100">
+                          <li key={item} className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-800 dark:text-amber-200">
                             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                             <span>{item}</span>
                           </li>

@@ -360,6 +360,7 @@ export default function PlanEnhancer() {
   );
 
   const enhanceMutation = useMutation({
+    retry: false, // Disable React Query retry - server handles retries for rate limits
     mutationFn: async () => {
       const supportingContent = getAllDocumentContent({ includeCarePlan: false });
       const updateContent = updateNotes.trim();
@@ -402,8 +403,13 @@ export default function PlanEnhancer() {
         const errorText = await response.text();
         try {
           const error = JSON.parse(errorText);
+          // Check for rate limit error
+          if (response.status === 429 || error.message?.includes('rate limit') || error.message?.includes('429')) {
+            throw new Error("AI service is busy. Please wait 30-60 seconds and try again.");
+          }
           throw new Error(error.message || "Failed to generate care plan");
-        } catch {
+        } catch (e: any) {
+          if (e.message?.includes('AI service is busy')) throw e;
           throw new Error("Failed to generate care plan");
         }
       }
@@ -1114,10 +1120,10 @@ export default function PlanEnhancer() {
           {displayResult.verificationQuestions && displayResult.verificationQuestions.length > 0 && (
             <Card className="glass-card border-amber-500/30 bg-amber-500/10">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Verification Needed</CardTitle>
+                <CardTitle className="text-sm text-amber-700 dark:text-amber-300">Verification Needed</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm text-amber-50">
-                <p className="text-xs text-amber-100/80">
+              <CardContent className="space-y-2 text-sm text-amber-800 dark:text-amber-200">
+                <p className="text-xs text-amber-600 dark:text-amber-400">
                   Please confirm the items below in the update box above, then regenerate.
                 </p>
                 <ul className="list-disc list-inside space-y-1">
