@@ -21,7 +21,9 @@ let preferredModel: AvailableModel = "gpt-4.1-mini";
 let useEmarAgent: boolean = true;
 
 // Local LLM configuration
-const LOCAL_LLM_URL = process.env.LOCAL_LLM_URL || "http://local-llm:11434";
+// Render's fromService returns hostname:port, so we need to add http:// if missing
+const rawLocalLLMUrl = process.env.LOCAL_LLM_URL || "http://local-llm:11434";
+const LOCAL_LLM_URL = rawLocalLLMUrl.startsWith("http") ? rawLocalLLMUrl : `http://${rawLocalLLMUrl}`;
 const LOCAL_LLM_MODEL = process.env.LOCAL_LLM_MODEL || "phi3:mini";
 
 export function getPreferredProvider(): AiProvider {
