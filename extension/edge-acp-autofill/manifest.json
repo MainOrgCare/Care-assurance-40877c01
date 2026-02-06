@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Care Assurance ACP Autofill",
-  "version": "0.2.5",
-  "description": "Autofill Access Care Planning risk assessments and initial assessments from Care Assurance with AI analysis.",
+  "version": "0.3.0",
+  "description": "Streamlined autofill for Access Care Planning. Direct integration with Care Assurance for risk assessments, care plans, and initial assessments.",
   "action": {
     "default_title": "ACP Autofill",
     "default_popup": "popup.html",

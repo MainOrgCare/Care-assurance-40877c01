@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import jsPDF from "jspdf";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useAuth } from "@/context/AuthContext";
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText, Download, Edit3, Send } from "lucide-react";
+import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText, Download, Edit3, Send, Zap, Info } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TemplateFiller } from "@/components/TemplateFiller";
 import { Badge } from "@/components/ui/badge";
 import { processVaultResponse } from "@/lib/pii-vault";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * Highlight template placeholders like [Name], [NHS Number] etc.
@@ -211,6 +212,71 @@ export default function PlanEnhancer() {
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [allowSensitive, setAllowSensitive] = useState(false);
   const [updateNotes, setUpdateNotes] = useState("");
+  
+  // Pre-analysis state (rule-based, no AI cost)
+  const [preAnalysis, setPreAnalysis] = useState<{
+    riskLevel: string;
+    riskConfidence: number;
+    extractedFields: Record<string, string>;
+    qualityScore: number;
+    qualityFeedback: string[];
+    recommendedAssessments?: string[];
+    aiNeeded: boolean;
+    aiReason: string;
+  } | null>(null);
+  const [isPreAnalyzing, setIsPreAnalyzing] = useState(false);
+
+  // Run quick pre-analysis when documents are ready (rule-based, no AI cost)
+  const runPreAnalysis = useCallback(async () => {
+    const docs = getAllDocumentContent();
+    if (!docs || Object.values(docs).every((s) => !s || s.trim().length < 50)) {
+      setPreAnalysis(null);
+      return;
+    }
+    
+    setIsPreAnalyzing(true);
+    try {
+      const content = Object.values(docs).filter(Boolean).join("\n\n");
+      
+      // Use extract-care-data for comprehensive extraction
+      const response = await fetch("/api/extract-care-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ documentContent: content }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setPreAnalysis({
+          riskLevel: data.overallRiskLevel || "Medium",
+          riskConfidence: data.overallRiskConfidence || 0.5,
+          extractedFields: data.sections ? Object.fromEntries(
+            Object.entries(data.sections).map(([k, v]: [string, any]) => [k, v.content?.[0] || ""])
+          ) : {},
+          qualityScore: Math.round((data.extractionConfidence || 0.5) * 100),
+          qualityFeedback: data.suggestAIEnhancement ? [data.aiEnhancementReason || "AI enhancement recommended"] : [],
+          recommendedAssessments: data.recommendedAssessments || [],
+          aiNeeded: data.suggestAIEnhancement || false,
+          aiReason: data.aiEnhancementReason || "Sufficient data extracted"
+        });
+      }
+    } catch (err) {
+      console.error("Pre-analysis failed:", err);
+    } finally {
+      setIsPreAnalyzing(false);
+    }
+  }, [getAllDocumentContent]);
+
+  // Auto-run pre-analysis when documents change
+  useEffect(() => {
+    const docs = getAllDocumentContent();
+    const hasContent = docs && Object.values(docs).some((s) => s && s.trim().length > 50);
+    if (hasContent && !isAnyParsing) {
+      const timer = setTimeout(runPreAnalysis, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [getAllDocumentContent, isAnyParsing, runPreAnalysis]);
 
   // Throttle progress updates to reduce re-renders during SSE streaming
   const lastProgressUpdateRef = useRef<number>(0);
@@ -844,7 +910,7 @@ export default function PlanEnhancer() {
     }
 
     try {
-      // Build the payload for the extension
+      // Build the comprehensive payload for the extension - includes ALL risk assessment fields
       const payload = {
         formType: "initialAssessment",
         initialAssessmentData: {
@@ -859,6 +925,7 @@ export default function PlanEnhancer() {
           dnrLocation: displayResult.advanceDecisions?.dnrDetails,
           lpaInPlace: displayResult.advanceDecisions?.lastingPOA,
           lpaContactInfo: displayResult.advanceDecisions?.poaContact,
+          poaType: displayResult.advanceDecisions?.poaType,
           // My Care Plan
           capacityDecisionMaking: displayResult.myCarePlan?.capacityAndSafeguarding,
           healthAndWellbeing: displayResult.myCarePlan?.healthAndWellbeing,
@@ -869,7 +936,19 @@ export default function PlanEnhancer() {
           mobilityAndEquipment: displayResult.myCarePlan?.mobilityAndEquipment,
           houseworkShopping: displayResult.myCarePlan?.houseworkAndSocial,
           financialArrangements: displayResult.myCarePlan?.financialArrangements,
-          // Risk Section 1 - Mental and Physical Health
+          // Risk Section 1 - Mental and Physical Health (all fields)
+          speech: displayResult.riskSection1Health?.speech,
+          speechDetails: displayResult.riskSection1Health?.speechDetails,
+          hearing: displayResult.riskSection1Health?.hearing,
+          hearingDetails: displayResult.riskSection1Health?.hearingDetails,
+          eyesight: displayResult.riskSection1Health?.eyesight,
+          eyesightDetails: displayResult.riskSection1Health?.eyesightDetails,
+          breathlessness: displayResult.riskSection1Health?.breathlessness,
+          breathlessnessDetails: displayResult.riskSection1Health?.breathlessnessDetails,
+          urinaryIncontinence: displayResult.riskSection1Health?.urinaryIncontinence,
+          urinaryDetails: displayResult.riskSection1Health?.urinaryDetails,
+          faecalIncontinence: displayResult.riskSection1Health?.faecalIncontinence,
+          faecalDetails: displayResult.riskSection1Health?.faecalDetails,
           memory: displayResult.riskSection1Health?.memory,
           moods: displayResult.riskSection1Health?.moods,
           orientation: displayResult.riskSection1Health?.orientation,
@@ -879,10 +958,133 @@ export default function PlanEnhancer() {
           retainsInfo: displayResult.riskSection1Health?.retainsInfo,
           contemplatesProsAndCons: displayResult.riskSection1Health?.weighsDecision,
           communicatesDecision: displayResult.riskSection1Health?.communicatesDecision,
-          // Risk Section 10 - Security
+          capacityDetails: displayResult.riskSection1Health?.capacityDetails,
+          riskSection1Level: displayResult.riskSection1Health?.riskLevel,
+          riskSection1Prevention: displayResult.riskSection1Health?.riskPrevention,
+          // Risk Section 2 - Medication (all fields)
+          prescriptionOrdering: displayResult.riskSection2Medication?.prescriptionOrdering,
+          dosageSystem: displayResult.riskSection2Medication?.dosageSystem,
+          systemMaintainer: displayResult.riskSection2Medication?.systemMaintainer,
+          medicationStorage: displayResult.riskSection2Medication?.medicationStorage,
+          currentInvestigations: displayResult.riskSection2Medication?.currentInvestigations,
+          surplusMedication: displayResult.riskSection2Medication?.surplusMedication,
+          medicationConcerns: displayResult.riskSection2Medication?.medicationConcerns,
+          homeopathicMeds: displayResult.riskSection2Medication?.homeopathicMeds,
+          prnMedication: displayResult.riskSection2Medication?.prnMedication,
+          covertMedication: displayResult.riskSection2Medication?.covertMedication,
+          pickingUpTablets: displayResult.riskSection2Medication?.pickingUpTablets,
+          openingBoxes: displayResult.riskSection2Medication?.openingBoxes,
+          pouringLiquids: displayResult.riskSection2Medication?.pouringLiquids,
+          usingDosageSystem: displayResult.riskSection2Medication?.usingDosageSystem,
+          applyingCreams: displayResult.riskSection2Medication?.applyingCreams,
+          swallowingTablets: displayResult.riskSection2Medication?.swallowingTablets,
+          understandingInstructions: displayResult.riskSection2Medication?.understandingInstructions,
+          managingInhalers: displayResult.riskSection2Medication?.managingInhalers,
+          instillingDrops: displayResult.riskSection2Medication?.instillingDrops,
+          controlledDrugs: displayResult.riskSection2Medication?.controlledDrugs,
+          warfarin: displayResult.riskSection2Medication?.warfarin,
+          skinIntegrityRisk: displayResult.riskSection2Medication?.skinIntegrity,
+          skinIntegrityDetails: displayResult.riskSection2Medication?.skinDetails,
+          riskSection2Level: displayResult.riskSection2Medication?.riskLevel,
+          riskSection2Prevention: displayResult.riskSection2Medication?.riskPrevention,
+          // Risk Section 3 - Nutrition (all fields)
+          mealAssistance: displayResult.riskSection3Nutrition?.mealAssistance,
+          normalDiet: displayResult.riskSection3Nutrition?.normalDiet,
+          specialDietary: displayResult.riskSection3Nutrition?.specialDietary,
+          foodAllergies: displayResult.riskSection3Nutrition?.foodAllergies,
+          softDiet: displayResult.riskSection3Nutrition?.softDiet,
+          foodIntolerances: displayResult.riskSection3Nutrition?.foodIntolerances,
+          tubeFeed: displayResult.riskSection3Nutrition?.tubeFeed,
+          supplementaryFoods: displayResult.riskSection3Nutrition?.supplementaryFoods,
+          foodLikes: displayResult.riskSection3Nutrition?.foodLikes,
+          foodDislikes: displayResult.riskSection3Nutrition?.foodDislikes,
+          portionSize: displayResult.riskSection3Nutrition?.portionSize,
+          mainMealTime: displayResult.riskSection3Nutrition?.mainMealTime,
+          fluidIntake: displayResult.riskSection3Nutrition?.fluidIntake,
+          riskSection3Level: displayResult.riskSection3Nutrition?.riskLevel,
+          riskSection3Prevention: displayResult.riskSection3Nutrition?.riskPrevention,
+          // Risk Section 4 - Equipment
+          equipment: displayResult.riskSection4Equipment?.equipment || [],
+          equipmentRemedialAction: displayResult.riskSection4Equipment?.remedialAction,
+          riskSection4Level: displayResult.riskSection4Equipment?.riskLevel,
+          riskSection4Prevention: displayResult.riskSection4Equipment?.riskPrevention,
+          // Risk Section 5 - Mobility (all fields)
+          weightBearing: displayResult.riskSection5Mobility?.weightBearing,
+          weightBearingDetails: displayResult.riskSection5Mobility?.weightBearingDetails,
+          walking: displayResult.riskSection5Mobility?.walking,
+          walkingDetails: displayResult.riskSection5Mobility?.walkingDetails,
+          stairs: displayResult.riskSection5Mobility?.stairs,
+          stairsDetails: displayResult.riskSection5Mobility?.stairsDetails,
+          sitToStand: displayResult.riskSection5Mobility?.sitToStand,
+          sitToStandDetails: displayResult.riskSection5Mobility?.sitToStandDetails,
+          washing: displayResult.riskSection5Mobility?.washing,
+          washingDetails: displayResult.riskSection5Mobility?.washingDetails,
+          dressing: displayResult.riskSection5Mobility?.dressing,
+          dressingDetails: displayResult.riskSection5Mobility?.dressingDetails,
+          oralCare: displayResult.riskSection5Mobility?.oralCare,
+          oralCareDetails: displayResult.riskSection5Mobility?.oralCareDetails,
+          bathShower: displayResult.riskSection5Mobility?.bathShower,
+          toiletCommode: displayResult.riskSection5Mobility?.toiletCommode,
+          wheelchair: displayResult.riskSection5Mobility?.wheelchair,
+          transfers: displayResult.riskSection5Mobility?.transfers,
+          moveInBed: displayResult.riskSection5Mobility?.moveInBed,
+          inOutOfBed: displayResult.riskSection5Mobility?.inOutOfBed,
+          canBeLeftAlone: displayResult.riskSection5Mobility?.canBeLeftAlone,
+          proneToFalls: displayResult.riskSection5Mobility?.proneToFalls,
+          riskSection5Level: displayResult.riskSection5Mobility?.riskLevel,
+          riskSection5Prevention: displayResult.riskSection5Mobility?.riskPrevention,
+          // Risk Section 6 - Appliances (all fields)
+          cooker: displayResult.riskSection6Appliances?.cooker,
+          microwave: displayResult.riskSection6Appliances?.microwave,
+          iron: displayResult.riskSection6Appliances?.iron,
+          kettle: displayResult.riskSection6Appliances?.kettle,
+          toaster: displayResult.riskSection6Appliances?.toaster,
+          tumbleDryer: displayResult.riskSection6Appliances?.tumbleDryer,
+          floorCoverings: displayResult.riskSection6Appliances?.floorCoverings,
+          handGrabRails: displayResult.riskSection6Appliances?.handRails,
+          electricBlanket: displayResult.riskSection6Appliances?.electricBlanket,
+          bed: displayResult.riskSection6Appliances?.bed,
+          washingMachine: displayResult.riskSection6Appliances?.washingMachine,
+          centralHeating: displayResult.riskSection6Appliances?.centralHeating,
+          appliancesActions: displayResult.riskSection6Appliances?.actionsRequired,
+          // Risk Section 7 - Fire Safety (all fields)
+          atRiskOfFire: displayResult.riskSection7Fire?.atRisk,
+          fireRiskReason: displayResult.riskSection7Fire?.riskReason,
+          ragRating: displayResult.riskSection7Fire?.ragRating,
+          plugSockets: displayResult.riskSection7Fire?.plugSockets,
+          electricCables: displayResult.riskSection7Fire?.electricCables,
+          smokingPolicy: displayResult.riskSection7Fire?.smokingPolicy,
+          smokeAlarmLocation: displayResult.riskSection7Fire?.smokeAlarmLocation,
+          smokeAlarmWorking: displayResult.riskSection7Fire?.smokeAlarmWorking,
+          coDetectorLocation: displayResult.riskSection7Fire?.coDetectorLocation,
+          coDetectorWorking: displayResult.riskSection7Fire?.coDetectorWorking,
+          canEvacuate: displayResult.riskSection7Fire?.canEvacuate,
+          fireActionsDetails: displayResult.riskSection7Fire?.actionsAndSafety,
+          // Risk Section 8 - COSHH
+          cleaningMaterialsStorage: displayResult.riskSection8COSHH?.cleaningStorage,
+          riddorExplained: displayResult.riskSection8COSHH?.riddorExplained,
+          // Risk Section 9 - External Access (all fields)
+          access: displayResult.riskSection9External?.access,
+          clearPathways: displayResult.riskSection9External?.clearPathways,
+          handrails: displayResult.riskSection9External?.handrails,
+          entranceSteps: displayResult.riskSection9External?.entranceSteps,
+          lighting: displayResult.riskSection9External?.lighting,
+          ramps: displayResult.riskSection9External?.ramps,
+          personalSecurity: displayResult.riskSection9External?.personalSecurity,
+          parking: displayResult.riskSection9External?.parking,
+          externalActionsRequired: displayResult.riskSection9External?.actionsRequired,
+          riskSection9Level: displayResult.riskSection9External?.riskLevel,
+          riskSection9Prevention: displayResult.riskSection9External?.riskPrevention,
+          // Risk Section 10 - Security (all fields)
+          meansOfAccess: displayResult.riskSection10Security?.meansOfAccess,
+          propertyType: displayResult.riskSection10Security?.propertyType,
+          enterUsing: displayResult.riskSection10Security?.enterUsing,
+          keysafeConsent: displayResult.riskSection10Security?.keysafeConsent,
           gasShutOffLocation: displayResult.riskSection10Security?.gasShutOff,
           stopTapLocation: displayResult.riskSection10Security?.stopTap,
           fuseBoxLocation: displayResult.riskSection10Security?.fuseBox,
+          riskSection10Level: displayResult.riskSection10Security?.riskLevel,
+          riskSection10Prevention: displayResult.riskSection10Security?.riskPrevention,
           // Section 11 - Service User Bands
           personalCare: displayResult.section11Bands?.personalCare,
           mentalHealth: displayResult.section11Bands?.mentalHealth,
@@ -894,7 +1096,9 @@ export default function PlanEnhancer() {
           drugAlcoholMisuse: displayResult.section11Bands?.drugAlcoholMisuse,
           learningDifficulties: displayResult.section11Bands?.learningDifficulties,
         },
-        assessor: user?.name || "",
+        assessor: user?.firstName && user?.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user?.username || "",
         date: new Date().toISOString().split("T")[0],
       };
 
@@ -1105,6 +1309,100 @@ export default function PlanEnhancer() {
               </div>
             )}
           </div>
+          
+          {/* Pre-Analysis Panel (Rule-based, no AI cost) */}
+          {(preAnalysis || isPreAnalyzing) && (
+            <div className="p-5 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                  <Zap size={12} />
+                  Quick Analysis
+                  <Badge variant="outline" className="text-[8px] bg-emerald-100 dark:bg-emerald-900 border-emerald-300">NO AI COST</Badge>
+                </h4>
+                {isPreAnalyzing && <Loader2 size={14} className="animate-spin text-emerald-600" />}
+              </div>
+              
+              {preAnalysis && (
+                <div className="space-y-3">
+                  {/* Risk Level */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted-foreground">Overall Risk:</span>
+                    <div className="flex items-center gap-2">
+                      <Badge 
+                        variant={preAnalysis.riskLevel === "High" ? "destructive" : preAnalysis.riskLevel === "Medium" ? "default" : "secondary"}
+                        className="text-[10px]"
+                      >
+                        {preAnalysis.riskLevel}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground">
+                        ({Math.round(preAnalysis.riskConfidence * 100)}% confidence)
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Extraction Quality */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted-foreground">Data Quality:</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full transition-all ${preAnalysis.qualityScore >= 70 ? "bg-emerald-500" : preAnalysis.qualityScore >= 50 ? "bg-amber-500" : "bg-red-500"}`}
+                          style={{ width: `${preAnalysis.qualityScore}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-bold">{preAnalysis.qualityScore}%</span>
+                    </div>
+                  </div>
+                  
+                  {/* Recommended Assessments */}
+                  {preAnalysis.recommendedAssessments && preAnalysis.recommendedAssessments.length > 0 && (
+                    <div>
+                      <span className="text-xs font-semibold text-muted-foreground block mb-1">Recommended Assessments:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {preAnalysis.recommendedAssessments.slice(0, 4).map((assessment, i) => (
+                          <Badge key={i} variant="outline" className="text-[9px] py-0">
+                            {assessment.replace(" Risk Assessment", "")}
+                          </Badge>
+                        ))}
+                        {preAnalysis.recommendedAssessments.length > 4 && (
+                          <Badge variant="outline" className="text-[9px] py-0">
+                            +{preAnalysis.recommendedAssessments.length - 4} more
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* AI Recommendation */}
+                  <div className="pt-2 border-t border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {preAnalysis.aiNeeded ? (
+                        <>
+                          <Sparkles size={12} className="text-primary" />
+                          <span className="text-[10px] text-muted-foreground">AI enhancement recommended</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check size={12} className="text-emerald-600" />
+                          <span className="text-[10px] text-emerald-600 font-semibold">Good extraction quality</span>
+                        </>
+                      )}
+                    </div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Info size={12} className="text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs max-w-[200px]">{preAnalysis.aiReason}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           
           <div className="p-5 bg-primary/5 border border-primary/10 rounded-2xl">
             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-3">Intelligence Scope</h4>

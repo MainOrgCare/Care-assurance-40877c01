@@ -526,13 +526,14 @@ const fillTableRows = async (tableId, rows) => {
 
 /**
  * Map Plan Enhancer output to Initial Assessment form fields
+ * Handles the comprehensive payload from sendToInitialAssessment
  */
 const mapPlanEnhancerToFormData = (planData) => {
   if (!planData) return {};
   
   const formData = {};
   
-  // Basic Info Section
+  // === This Is Me Section ===
   if (planData.thisIsMe) {
     formData.whoAmI = planData.thisIsMe.whoAmI || "";
     formData.hobbiesInterests = planData.thisIsMe.hobbiesInterests || "";
@@ -540,37 +541,7 @@ const mapPlanEnhancerToFormData = (planData) => {
     formData.culturalNeeds = planData.thisIsMe.communicationNeeds || "";
   }
   
-  // Health and Wellbeing
-  if (planData.healthAndWellbeing) {
-    formData.healthAndWellbeing = planData.healthAndWellbeing;
-  }
-  
-  // Personal Care
-  if (planData.personalCareNeeds) {
-    formData.personalCareNeeds = planData.personalCareNeeds;
-  }
-  
-  // Medication
-  if (planData.medicationRequirements) {
-    formData.medicationRequirements = planData.medicationRequirements;
-  }
-  
-  // Nutrition
-  if (planData.nutrition) {
-    formData.nutrition = planData.nutrition;
-  }
-  
-  // Mobility
-  if (planData.mobilityAndEquipment) {
-    formData.mobilityAndEquipment = planData.mobilityAndEquipment;
-  }
-  
-  // Capacity and Safeguarding
-  if (planData.capacityAndSafeguarding) {
-    formData.capacityDecisionMaking = planData.capacityAndSafeguarding;
-  }
-  
-  // Goals
+  // === Goal Setting ===
   if (planData.goals && Array.isArray(planData.goals)) {
     formData.goals = planData.goals.map((g) => ({
       goal: g.goal || "",
@@ -579,44 +550,216 @@ const mapPlanEnhancerToFormData = (planData) => {
       timeFrame: g.timeFrame || "",
     }));
   }
-  
-  // Trigger points from riskTriggers
-  if (planData.riskTriggers && Array.isArray(planData.riskTriggers)) {
-    formData.triggerPoints = planData.riskTriggers.map((t) => 
-      `${t.trigger}: ${t.action}`
-    ).join("\n\n");
+  if (planData.internetSupport) {
+    formData.internetSupport = planData.internetSupport.toLowerCase().includes("yes") ? "Yes" : "No";
+  }
+  if (planData.assistiveTechnology) {
+    formData.assistiveTechExamples = planData.assistiveTechnology;
   }
   
-  // Risk Sections
-  if (planData.riskSection1Health) {
-    const r = planData.riskSection1Health;
-    formData.memory = r.memoryLevel?.replace(" ", "") || "";
-    formData.moods = r.moods?.replace(" ", "") || "";
-    formData.orientation = r.orientation?.replace(" ", "") || "";
-    formData.sleepPattern = r.sleepPattern?.replace(" ", "") || "";
-    formData.behaviours = r.behaviours?.replace(" ", "") || "";
+  // === Advance Decisions ===
+  if (planData.advanceDecisionInSitu) {
+    formData.advanceDecisionInSitu = planData.advanceDecisionInSitu.toLowerCase().includes("yes") ? "Yes" : "No";
   }
-  
-  // Risk Section 10 - Security
-  if (planData.riskSection10Security) {
-    const s = planData.riskSection10Security;
-    formData.gasShutOffLocation = s.gasShutOff || "";
-    formData.stopTapLocation = s.stopTap || "";
-    formData.fuseBoxLocation = s.fuseBox || "";
+  if (planData.dnrLocation) formData.dnrLocation = planData.dnrLocation;
+  if (planData.lpaInPlace) {
+    formData.lpaInPlace = planData.lpaInPlace.toLowerCase().includes("yes") ? "Yes" : "No";
   }
+  if (planData.lpaContactInfo) formData.lpaContactInfo = planData.lpaContactInfo;
   
-  // Service User Bands from Section 11
-  if (planData.section11Bands) {
-    const b = planData.section11Bands;
-    formData.personalCare = b.personalCare === "Yes" ? "Yes" : "No";
-    formData.mentalHealth = b.mentalHealth === "Yes" ? "Yes" : "No";
-    formData.physicalDisability = b.physicalDisability === "Yes" ? "Yes" : "No";
-    formData.dementia = b.dementia === "Yes" ? "Yes" : "No";
-    formData.eatingDisorder = b.eatingDisorder === "Yes" ? "Yes" : "No";
-    formData.sensoryImpairment = b.sensoryImpairment === "Yes" ? "Yes" : "No";
-    formData.detainedMHA = b.detainedMHA === "Yes" ? "Yes" : "No";
-    formData.drugAlcoholMisuse = b.drugAlcoholMisuse === "Yes" ? "Yes" : "No";
-    formData.learningDifficulties = b.learningDifficulties === "Yes" ? "Yes" : "No";
+  // === My Care Plan Section ===
+  if (planData.capacityDecisionMaking) formData.capacityDecisionMaking = planData.capacityDecisionMaking;
+  if (planData.healthAndWellbeing) formData.healthAndWellbeing = planData.healthAndWellbeing;
+  if (planData.triggerPoints) formData.triggerPoints = planData.triggerPoints;
+  if (planData.medicationRequirements) formData.medicationRequirements = planData.medicationRequirements;
+  if (planData.nutrition) formData.nutrition = planData.nutrition;
+  if (planData.personalCareNeeds) formData.personalCareNeeds = planData.personalCareNeeds;
+  if (planData.mobilityAndEquipment) formData.mobilityAndEquipment = planData.mobilityAndEquipment;
+  if (planData.houseworkShopping) formData.houseworkShopping = planData.houseworkShopping;
+  if (planData.financialArrangements) formData.financialArrangements = planData.financialArrangements;
+  
+  // === Risk Section 1: Mental and Physical Health ===
+  // Communication fields
+  if (planData.speech) formData.speech = planData.speech;
+  if (planData.speechDetails) formData.speechDetails = planData.speechDetails;
+  if (planData.hearing) formData.hearing = planData.hearing;
+  if (planData.hearingDetails) formData.hearingDetails = planData.hearingDetails;
+  if (planData.eyesight) formData.eyesight = planData.eyesight;
+  if (planData.eyesightDetails) formData.eyesightDetails = planData.eyesightDetails;
+  // General health
+  if (planData.breathlessness) formData.breathlessness = planData.breathlessness;
+  if (planData.breathlessnessDetails) formData.breathlessnessDetails = planData.breathlessnessDetails;
+  if (planData.urinaryIncontinence) formData.urinaryIncontinence = planData.urinaryIncontinence;
+  if (planData.urinaryDetails) formData.urinaryDetails = planData.urinaryDetails;
+  if (planData.faecalIncontinence) formData.faecalIncontinence = planData.faecalIncontinence;
+  if (planData.faecalDetails) formData.faecalDetails = planData.faecalDetails;
+  // Mental health assessment
+  if (planData.memory) formData.memory = planData.memory.replace(/\s+/g, "");
+  if (planData.moods) formData.moods = planData.moods.replace(/\s+/g, "");
+  if (planData.orientation) formData.orientation = planData.orientation.replace(/\s+/g, "");
+  if (planData.sleepPattern) formData.sleepPattern = planData.sleepPattern.replace(/\s+/g, "");
+  if (planData.behaviours) formData.behaviours = planData.behaviours.replace(/\s+/g, "");
+  // Mental capacity assessment
+  if (planData.understandsInfo) formData.understandsInfo = planData.understandsInfo;
+  if (planData.retainsInfo) formData.retainsInfo = planData.retainsInfo;
+  if (planData.contemplatesProsAndCons) formData.contemplatesProsAndCons = planData.contemplatesProsAndCons;
+  if (planData.communicatesDecision) formData.communicatesDecision = planData.communicatesDecision;
+  if (planData.capacityDetails) formData.actionsComments = planData.capacityDetails;
+  
+  // === Risk Section 2: Medication ===
+  if (planData.prescriptionOrdering) formData.orderCollectPrescriptions = planData.prescriptionOrdering;
+  if (planData.dosageSystem) formData.dosageSystem = planData.dosageSystem;
+  if (planData.systemMaintainer) formData.systemMaintainer = planData.systemMaintainer;
+  if (planData.medicationStorage) formData.medicationStorage = planData.medicationStorage;
+  if (planData.currentInvestigations) formData.currentInvestigations = planData.currentInvestigations;
+  if (planData.surplusMedication) formData.surplusOutOfDate = planData.surplusMedication;
+  if (planData.medicationConcerns) formData.medicationConcerns = planData.medicationConcerns;
+  if (planData.homeopathicMeds) formData.herbalMedicines = planData.homeopathicMeds;
+  if (planData.prnMedication) formData.takingPRN = planData.prnMedication;
+  if (planData.covertMedication) formData.covertMedication = planData.covertMedication;
+  // Medication difficulties
+  if (planData.pickingUpTablets) formData.pickingUpTablets = planData.pickingUpTablets;
+  if (planData.openingBoxes) formData.openingBoxes = planData.openingBoxes;
+  if (planData.pouringLiquids) formData.openingLiquids = planData.pouringLiquids;
+  if (planData.usingDosageSystem) formData.usingDosageSystem = planData.usingDosageSystem;
+  if (planData.applyingCreams) formData.applyingCreams = planData.applyingCreams;
+  if (planData.swallowingTablets) formData.swallowingTablets = planData.swallowingTablets;
+  if (planData.understandingInstructions) formData.understandingInstructions = planData.understandingInstructions;
+  if (planData.managingInhalers) formData.managingInhalers = planData.managingInhalers;
+  if (planData.instillingDrops) formData.instillingDrops = planData.instillingDrops;
+  // Skin integrity
+  if (planData.skinIntegrityRisk) {
+    formData.skinIntegrityRisk = planData.skinIntegrityRisk.toLowerCase().includes("yes") ? "Yes" : "No";
+  }
+  if (planData.skinIntegrityDetails) formData.skinIntegrityDetails = planData.skinIntegrityDetails;
+  
+  // === Risk Section 3: Nutrition ===
+  if (planData.mealAssistance) {
+    formData.mealAssistance = planData.mealAssistance.toLowerCase().includes("yes") ? "Yes" : "No";
+  }
+  if (planData.normalDiet) formData.normalDiet = planData.normalDiet;
+  if (planData.specialDietary) formData.specialDietary = planData.specialDietary;
+  if (planData.foodAllergies) formData.foodAllergies = planData.foodAllergies;
+  if (planData.softDiet) formData.softDiet = planData.softDiet;
+  if (planData.foodIntolerances) formData.foodIntolerances = planData.foodIntolerances;
+  if (planData.tubeFeed) formData.tubeFeed = planData.tubeFeed;
+  if (planData.supplementaryFoods) formData.supplementaryFoods = planData.supplementaryFoods;
+  // Combine food likes/dislikes
+  const foodPrefs = [];
+  if (planData.foodLikes) foodPrefs.push(`Foods I like: ${planData.foodLikes}`);
+  if (planData.foodDislikes) foodPrefs.push(`Foods I dislike: ${planData.foodDislikes}`);
+  if (foodPrefs.length > 0) formData.foodLikesDislikes = foodPrefs.join("\n\n");
+  if (planData.portionSize) formData.portionSizes = planData.portionSize;
+  if (planData.mainMealTime) formData.mainMealTime = planData.mainMealTime;
+  if (planData.fluidIntake) formData.fluidIntake = planData.fluidIntake;
+  
+  // === Risk Section 4: Equipment ===
+  if (planData.equipment && Array.isArray(planData.equipment)) {
+    formData.equipment = planData.equipment.map((eq) => ({
+      name: eq.name || "",
+      fitForPurpose: eq.fitForPurpose || "",
+      supplier: eq.supplier || "",
+      nextService: eq.nextService || "",
+    }));
+  }
+  if (planData.equipmentRemedialAction) formData.remedialAction = planData.equipmentRemedialAction;
+  
+  // === Risk Section 5: Mobility ===
+  if (planData.weightBearing) formData.weightBearing = planData.weightBearing;
+  if (planData.weightBearingDetails) formData.weightBearingDetails = planData.weightBearingDetails;
+  if (planData.walking) formData.walking = planData.walking;
+  if (planData.walkingDetails) formData.walkingDetails = planData.walkingDetails;
+  if (planData.stairs) formData.stairs = planData.stairs;
+  if (planData.stairsDetails) formData.stairsDetails = planData.stairsDetails;
+  if (planData.sitToStand) formData.sitToStand = planData.sitToStand;
+  if (planData.sitToStandDetails) formData.sitToStandDetails = planData.sitToStandDetails;
+  if (planData.washing) formData.washing = planData.washing;
+  if (planData.washingDetails) formData.washingDetails = planData.washingDetails;
+  if (planData.dressing) formData.dressing = planData.dressing;
+  if (planData.dressingDetails) formData.dressingDetails = planData.dressingDetails;
+  if (planData.oralCare) formData.oralCare = planData.oralCare;
+  if (planData.oralCareDetails) formData.oralCareDetails = planData.oralCareDetails;
+  if (planData.bathShower) formData.bathShower = planData.bathShower;
+  if (planData.toiletCommode) formData.toiletCommode = planData.toiletCommode;
+  if (planData.wheelchair) formData.wheelchair = planData.wheelchair;
+  if (planData.transfers) formData.transfers = planData.transfers;
+  if (planData.moveInBed) formData.moveInBed = planData.moveInBed;
+  if (planData.inOutOfBed) formData.inOutOfBed = planData.inOutOfBed;
+  if (planData.canBeLeftAlone) formData.canBeLeftAlone = planData.canBeLeftAlone;
+  if (planData.proneToFalls) formData.proneToFalls = planData.proneToFalls;
+  
+  // === Risk Section 6: Appliances ===
+  if (planData.cooker) formData.cooker = planData.cooker;
+  if (planData.microwave) formData.microwave = planData.microwave;
+  if (planData.iron) formData.iron = planData.iron;
+  if (planData.kettle) formData.kettle = planData.kettle;
+  if (planData.toaster) formData.toaster = planData.toaster;
+  if (planData.tumbleDryer) formData.tumbleDryer = planData.tumbleDryer;
+  if (planData.floorCoverings) formData.floorCoverings = planData.floorCoverings;
+  if (planData.handGrabRails) formData.handGrabRails = planData.handGrabRails;
+  if (planData.electricBlanket) formData.electricBlanket = planData.electricBlanket;
+  if (planData.bed) formData.bed = planData.bed;
+  if (planData.washingMachine) formData.washingMachine = planData.washingMachine;
+  if (planData.centralHeating) formData.centralHeating = planData.centralHeating;
+  if (planData.appliancesActions) formData.appliancesActions = planData.appliancesActions;
+  
+  // === Risk Section 7: Fire Safety ===
+  if (planData.atRiskOfFire) {
+    formData.atRiskOfFire = planData.atRiskOfFire.toLowerCase().includes("yes") ? "Yes" : "No";
+  }
+  if (planData.fireRiskReason) formData.fireRiskReason = planData.fireRiskReason;
+  if (planData.ragRating) formData.ragRating = planData.ragRating;
+  if (planData.plugSockets) formData.plugSockets = planData.plugSockets;
+  if (planData.electricCables) formData.electricCables = planData.electricCables;
+  if (planData.smokingPolicy) {
+    formData.smokingPolicy = planData.smokingPolicy.toLowerCase().includes("yes") ? "Yes" : "No";
+  }
+  if (planData.smokeAlarmLocation) formData.smokeAlarmLocation = planData.smokeAlarmLocation;
+  if (planData.smokeAlarmWorking) {
+    formData.smokeAlarmWorking = planData.smokeAlarmWorking.toLowerCase().includes("yes") ? "Yes" : "No";
+  }
+  if (planData.coDetectorLocation) formData.coDetectorLocation = planData.coDetectorLocation;
+  if (planData.coDetectorWorking) {
+    formData.coDetectorWorking = planData.coDetectorWorking.toLowerCase().includes("yes") ? "Yes" : "No";
+  }
+  if (planData.canEvacuate) formData.canEvacuate = planData.canEvacuate;
+  if (planData.fireActionsDetails) formData.fireActionsDetails = planData.fireActionsDetails;
+  
+  // === Risk Section 8: COSHH ===
+  if (planData.cleaningMaterialsStorage) formData.cleaningMaterialsStorage = planData.cleaningMaterialsStorage;
+  
+  // === Risk Section 9: External Access ===
+  if (planData.access) formData.access = planData.access;
+  if (planData.clearPathways) formData.clearPathways = planData.clearPathways;
+  if (planData.handrails) formData.handrails = planData.handrails;
+  if (planData.entranceSteps) formData.entranceSteps = planData.entranceSteps;
+  if (planData.lighting) formData.lighting = planData.lighting;
+  if (planData.ramps) formData.ramps = planData.ramps;
+  if (planData.personalSecurity) formData.personalSecurity = planData.personalSecurity;
+  if (planData.parking) formData.parking = planData.parking;
+  if (planData.externalActionsRequired) formData.externalActions = planData.externalActionsRequired;
+  
+  // === Risk Section 10: Security ===
+  if (planData.meansOfAccess) formData.meansOfAccess = planData.meansOfAccess;
+  if (planData.propertyType) formData.propertyType = planData.propertyType;
+  if (planData.enterUsing) formData.enterUsing = planData.enterUsing;
+  if (planData.keysafeConsent) {
+    formData.keysafeConsent = planData.keysafeConsent.toLowerCase().includes("yes") ? "Yes" : "No";
+  }
+  if (planData.gasShutOffLocation) formData.gasShutOffLocation = planData.gasShutOffLocation;
+  if (planData.stopTapLocation) formData.stopTapLocation = planData.stopTapLocation;
+  if (planData.fuseBoxLocation) formData.fuseBoxLocation = planData.fuseBoxLocation;
+  
+  // === Section 11: Service User Bands ===
+  const bandFields = [
+    "personalCare", "mentalHealth", "physicalDisability", "dementia",
+    "eatingDisorder", "sensoryImpairment", "detainedMHA", "drugAlcoholMisuse",
+    "learningDifficulties"
+  ];
+  for (const field of bandFields) {
+    if (planData[field]) {
+      formData[field] = planData[field].toLowerCase().includes("yes") ? "Yes" : "No";
+    }
   }
   
   return formData;

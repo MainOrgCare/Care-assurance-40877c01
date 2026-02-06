@@ -14,8 +14,10 @@ import connectPgSimple from "connect-pg-simple";
 import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
-import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema, insertSystemLogSchema } from "@shared/schema";
-import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser } from "@shared/schema";
+import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { getCacheStats, clearCache } from "./services/aiCache";
+import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseAI } from "./services/ruleBasedEngine";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
 import { careWorkerRotaPayloadSchema, computeRotaSourceHash, rotaWeekdayEnum } from "./services/careWorkerRota";
 import multer from "multer";
@@ -14370,6 +14372,458 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     } catch (error: any) {
       console.error("EMAR agent update error:", error);
       return res.status(500).json({ message: error.message || "Failed to update EMAR agent preference" });
+    }
+  });
+
+  // =====================================================================
+  // AI OPTIMIZATION SETTINGS (reduces API calls and costs)
+  // =====================================================================
+
+  // Get AI optimization settings (admin-only)
+  app.get("/api/admin/ai-optimization", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const cacheStats = getCacheStats();
+      return res.json({
+        useCache: getUseAICache(),
+        useRulesFirst: getUseRulesFirst(),
+        liteMode: getAILiteMode(),
+        cacheStats
+      });
+    } catch (error: any) {
+      console.error("AI optimization fetch error:", error);
+      return res.status(500).json({ message: error.message || "Failed to fetch AI optimization settings" });
+    }
+  });
+
+  // Set AI optimization settings (admin-only)
+  app.post("/api/admin/ai-optimization", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { useCache, useRulesFirst, liteMode, clearCacheNow } = req.body;
+      
+      if (typeof useCache === "boolean") {
+        setUseAICache(useCache, true);
+        console.log(`[Admin] AI Cache ${useCache ? 'enabled' : 'disabled'} by ${req.user?.username || 'unknown'}`);
+      }
+      
+      if (typeof useRulesFirst === "boolean") {
+        setUseRulesFirst(useRulesFirst, true);
+        console.log(`[Admin] Rules-First ${useRulesFirst ? 'enabled' : 'disabled'} by ${req.user?.username || 'unknown'}`);
+      }
+      
+      if (typeof liteMode === "boolean") {
+        setAILiteMode(liteMode, true);
+        console.log(`[Admin] Lite Mode ${liteMode ? 'enabled' : 'disabled'} by ${req.user?.username || 'unknown'}`);
+      }
+      
+      if (clearCacheNow === true) {
+        clearCache();
+        console.log(`[Admin] AI Cache cleared by ${req.user?.username || 'unknown'}`);
+      }
+      
+      const cacheStats = getCacheStats();
+      return res.json({
+        success: true,
+        useCache: getUseAICache(),
+        useRulesFirst: getUseRulesFirst(),
+        liteMode: getAILiteMode(),
+        cacheStats
+      });
+    } catch (error: any) {
+      console.error("AI optimization update error:", error);
+      return res.status(500).json({ message: error.message || "Failed to update AI optimization settings" });
+    }
+  });
+
+  // Get AI cache statistics (admin-only)
+  app.get("/api/admin/ai-cache-stats", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const stats = getCacheStats();
+      return res.json(stats);
+    } catch (error: any) {
+      console.error("AI cache stats fetch error:", error);
+      return res.status(500).json({ message: error.message || "Failed to fetch AI cache stats" });
+    }
+  });
+
+  // =====================================================================
+  // RULE-BASED QUICK ANALYSIS (No AI - Instant Response)
+  // =====================================================================
+
+  // Quick risk analysis using rule-based engine (no AI cost)
+  app.post("/api/quick-analyze", requireAuth, async (req: any, res) => {
+    try {
+      const { content, analysisType } = req.body;
+      
+      if (!content || typeof content !== "string") {
+        return res.status(400).json({ message: "Content string required" });
+      }
+      
+      const type = analysisType || "auto";
+      
+      // Perform rule-based analysis
+      const riskAnalysis = analyzeRiskLevel(content);
+      const extractedFields = extractCommonFields(content);
+      const qualityCheck = calculatePlanQuality(content);
+      const aiDecision = shouldUseAI(
+        type === "care_plan" ? "care_plan" : type === "risk" ? "risk_assessment" : "simple_extraction",
+        content
+      );
+      
+      console.log(`[QuickAnalyze] Rule-based analysis for ${req.user?.username}: ` +
+        `Risk=${riskAnalysis.level} (${(riskAnalysis.confidence * 100).toFixed(0)}%), ` +
+        `Fields=${Object.keys(extractedFields).length}, ` +
+        `Quality=${qualityCheck.score}%, ` +
+        `NeedsAI=${aiDecision.useAI}`);
+      
+      return res.json({
+        rulesBased: true,
+        aiNeeded: aiDecision.useAI,
+        aiReason: aiDecision.reason,
+        riskLevel: riskAnalysis.level,
+        riskConfidence: riskAnalysis.confidence,
+        riskKeywords: riskAnalysis.matchedKeywords,
+        extractedFields,
+        qualityScore: qualityCheck.score,
+        qualityFeedback: qualityCheck.feedback,
+        wordCount: content.trim().split(/\s+/).length
+      });
+    } catch (error: any) {
+      console.error("Quick analyze error:", error);
+      return res.status(500).json({ message: error.message || "Quick analysis failed" });
+    }
+  });
+
+  // Comprehensive care plan extraction (rule-based, minimal AI)
+  app.post("/api/extract-care-data", requireAuth, async (req: any, res) => {
+    try {
+      const { documentContent } = req.body;
+      
+      if (!documentContent || typeof documentContent !== "string") {
+        return res.status(400).json({ message: "Document content required" });
+      }
+      
+      // Import new extraction functions
+      const { 
+        extractCarePlanSections, 
+        extractMedicationInfo, 
+        extractPersonalCareNeeds,
+        extractContinenceInfo,
+        extractNutritionInfo,
+        extractEnvironmentInfo,
+        getRecommendedAssessments,
+        generateBasicSummary
+      } = await import("./services/ruleBasedEngine");
+      
+      // Run all rule-based extractions
+      const sections = extractCarePlanSections(documentContent);
+      const medications = extractMedicationInfo(documentContent);
+      const personalCare = extractPersonalCareNeeds(documentContent);
+      const continence = extractContinenceInfo(documentContent);
+      const nutrition = extractNutritionInfo(documentContent);
+      const environment = extractEnvironmentInfo(documentContent);
+      
+      // Get overall risk analysis
+      const overallRisk = analyzeRiskLevel(documentContent);
+      
+      // Get recommended assessments based on extracted data
+      const recommendations = getRecommendedAssessments({
+        sections,
+        medications,
+        personalCare,
+        continence,
+        nutrition,
+        environment
+      });
+      
+      // Generate basic summaries for each section (lite mode)
+      const summaries: Record<string, string> = {};
+      for (const [section, data] of Object.entries({ personalCare, continence, nutrition })) {
+        summaries[section] = generateBasicSummary(section, data);
+      }
+      
+      // Determine if AI enhancement is recommended
+      const extractionConfidence = Object.values(sections)
+        .map(s => s.confidence)
+        .reduce((sum, c) => sum + c, 0) / Math.max(Object.keys(sections).length, 1);
+      
+      const needsAI = extractionConfidence < 0.6 || overallRisk.requiresAI;
+      
+      console.log(`[ExtractCareData] Extracted ${Object.keys(sections).length} sections, ` +
+        `${medications.length} meds, confidence=${(extractionConfidence * 100).toFixed(0)}%, ` +
+        `${recommendations.length} recommended assessments`);
+      
+      return res.json({
+        success: true,
+        rulesBased: true,
+        sections,
+        medications,
+        personalCare,
+        continence,
+        nutrition,
+        environment,
+        overallRiskLevel: overallRisk.level,
+        overallRiskConfidence: overallRisk.confidence,
+        riskKeywords: overallRisk.matchedKeywords,
+        recommendedAssessments: recommendations,
+        basicSummaries: summaries,
+        extractionConfidence,
+        suggestAIEnhancement: needsAI,
+        aiEnhancementReason: needsAI 
+          ? (extractionConfidence < 0.6 ? "Low extraction confidence" : "Complex risk factors detected")
+          : null
+      });
+    } catch (error: any) {
+      console.error("Care data extraction error:", error);
+      return res.status(500).json({ message: error.message || "Extraction failed" });
+    }
+  });
+
+  // Plan quality check (rule-based, no AI)
+  app.post("/api/check-plan-quality", requireAuth, async (req: any, res) => {
+    try {
+      const { planContent } = req.body;
+      
+      if (!planContent || typeof planContent !== "string") {
+        return res.status(400).json({ message: "Plan content required" });
+      }
+      
+      const quality = calculatePlanQuality(planContent);
+      const extractedFields = extractCommonFields(planContent);
+      const riskAnalysis = analyzeRiskLevel(planContent);
+      
+      // Determine if AI enhancement would help
+      const needsAI = quality.score < 70 || quality.feedback.length > 2;
+      
+      console.log(`[QualityCheck] Plan quality for ${req.user?.username}: ${quality.score}% (${quality.feedback.length} issues)`);
+      
+      return res.json({
+        score: quality.score,
+        grade: quality.score >= 80 ? "Good" : quality.score >= 60 ? "Fair" : "Needs Work",
+        feedback: quality.feedback,
+        suggestAIEnhancement: needsAI,
+        detectedRisk: riskAnalysis.level,
+        detectedFields: extractedFields
+      });
+    } catch (error: any) {
+      console.error("Plan quality check error:", error);
+      return res.status(500).json({ message: error.message || "Quality check failed" });
+    }
+  });
+
+  // =====================================================================
+  // EXTENSION API - Direct Integration with Care Assurance Extension
+  // =====================================================================
+
+  // Get extension status and connection info
+  app.get("/api/extension/status", requireAuth, async (req: any, res) => {
+    try {
+      return res.json({
+        connected: true,
+        version: "0.2.6",
+        user: {
+          id: req.user?.id,
+          username: req.user?.username,
+          role: req.user?.role
+        },
+        features: {
+          riskAssessment: true,
+          carePlan: true,
+          initialAssessment: true,
+          emarAudit: true
+        }
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message || "Failed to get extension status" });
+    }
+  });
+
+  // Get service users list for extension dropdown
+  app.get("/api/extension/service-users", requireAuth, async (req: any, res) => {
+    try {
+      const serviceUsers = await storage.getAllAnalyzedServiceUsers();
+      
+      // Return simplified list for extension
+      const users = serviceUsers.map((su: AnalyzedServiceUser) => {
+        const metadata = (su.metadata || {}) as Record<string, any>;
+        const name = su.serviceUserName || "Unknown";
+        const initials = name.split(" ").map((w: string) => w[0]).join(".") || "??";
+        
+        return {
+          id: su.id,
+          name,
+          initials,
+          lastUpdated: su.updatedAt,
+          hasCarePlan: !!metadata.enhancedPlan,
+          hasRiskAssessment: !!metadata.riskAssessmentId,
+          riskAssessmentId: metadata.riskAssessmentId
+        };
+      });
+      
+      return res.json({ users });
+    } catch (error: any) {
+      console.error("Extension service users error:", error);
+      return res.status(500).json({ message: error.message || "Failed to get service users" });
+    }
+  });
+
+  // Get specific service user data for extension
+  app.get("/api/extension/service-user/:id", requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const serviceUser = await storage.getAnalyzedServiceUser(id);
+      
+      if (!serviceUser) {
+        return res.status(404).json({ message: "Service user not found" });
+      }
+      
+      const metadata = (serviceUser.metadata || {}) as Record<string, any>;
+      const name = serviceUser.serviceUserName || "Unknown";
+      const initials = name.split(" ").map((w: string) => w[0]).join(".") || "??";
+      
+      // Return full data for extension
+      return res.json({
+        id: serviceUser.id,
+        name,
+        initials,
+        enhancedPlan: metadata.enhancedPlan,
+        riskAssessmentId: metadata.riskAssessmentId,
+        sourceDocuments: metadata.sourceDocuments,
+        lastUpdated: serviceUser.updatedAt
+      });
+    } catch (error: any) {
+      console.error("Extension service user error:", error);
+      return res.status(500).json({ message: error.message || "Failed to get service user" });
+    }
+  });
+
+  // Get risk assessment data formatted for extension autofill
+  app.get("/api/extension/risk-assessment/:id", requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const allLogs = await storage.getAllRiskAssessmentLogs();
+      const riskAssessment = allLogs.find((log: RiskAssessmentLog) => log.id === id);
+      
+      if (!riskAssessment) {
+        return res.status(404).json({ message: "Risk assessment not found" });
+      }
+      
+      // The selected assessments contain which assessments were performed
+      const selectedAssessments = (riskAssessment.selectedAssessments || []) as string[];
+      
+      // Format for ACP autofill
+      const payload = {
+        formType: "acp",
+        serviceUser: {
+          name: riskAssessment.serviceUserInitials, // We only store initials for privacy
+          initials: riskAssessment.serviceUserInitials
+        },
+        assessments: selectedAssessments.map((name: string) => ({ name, riskLevel: "Medium", findings: "" })),
+        metadata: {
+          generatedAt: riskAssessment.createdAt,
+          generatedBy: riskAssessment.performedBy
+        }
+      };
+      
+      return res.json(payload);
+    } catch (error: any) {
+      console.error("Extension risk assessment error:", error);
+      return res.status(500).json({ message: error.message || "Failed to get risk assessment" });
+    }
+  });
+
+  // Get care plan data formatted for Initial Assessment autofill
+  app.get("/api/extension/care-plan/:serviceUserId", requireAuth, async (req: any, res) => {
+    try {
+      const { serviceUserId } = req.params;
+      const serviceUser = await storage.getAnalyzedServiceUser(serviceUserId);
+      
+      if (!serviceUser) {
+        return res.status(404).json({ message: "Service user not found" });
+      }
+      
+      const metadata = (serviceUser.metadata || {}) as Record<string, any>;
+      
+      if (!metadata.enhancedPlan) {
+        return res.status(404).json({ message: "No care plan found for this service user" });
+      }
+      
+      const plan = typeof metadata.enhancedPlan === "string" 
+        ? JSON.parse(metadata.enhancedPlan) 
+        : metadata.enhancedPlan;
+      
+      const name = serviceUser.serviceUserName || "Unknown";
+      const initials = name.split(" ").map((w: string) => w[0]).join(".") || "??";
+      
+      // Format for Initial Assessment autofill
+      const payload = {
+        formType: "initialAssessment",
+        formId: 1040788,
+        serviceUser: { name, initials },
+        thisIsMe: plan.thisIsMe || {},
+        myCarePlan: plan.myCarePlan || {},
+        goalSetting: plan.goalSetting || {},
+        advanceDecisions: plan.advanceDecisions || {},
+        riskSection1Health: plan.riskSection1Health || {},
+        riskSection2Medication: plan.riskSection2Medication || {},
+        riskSection3Nutrition: plan.riskSection3Nutrition || {},
+        riskSection4PersonalCare: plan.riskSection4PersonalCare || {},
+        riskSection5Mobility: plan.riskSection5Mobility || {},
+        riskSection6Skin: plan.riskSection6Skin || {},
+        riskSection7Continence: plan.riskSection7Continence || {},
+        riskSection8Environment: plan.riskSection8Environment || {},
+        riskSection9Social: plan.riskSection9Social || {},
+        riskSection10Communication: plan.riskSection10Communication || {},
+        section11Bands: plan.section11Bands || {},
+        metadata: {
+          generatedAt: serviceUser.updatedAt,
+          sourceDocuments: metadata.sourceDocuments
+        }
+      };
+      
+      return res.json(payload);
+    } catch (error: any) {
+      console.error("Extension care plan error:", error);
+      return res.status(500).json({ message: error.message || "Failed to get care plan" });
+    }
+  });
+
+  // Get recent assessments for extension quick access
+  app.get("/api/extension/recent", requireAuth, async (req: any, res) => {
+    try {
+      const [recentRiskLogs, recentServiceUsers] = await Promise.all([
+        storage.getAllRiskAssessmentLogs(),
+        storage.getAllAnalyzedServiceUsers()
+      ]);
+      
+      // Get only recently updated service users with care plans
+      const recentPlans = recentServiceUsers
+        .filter((su: AnalyzedServiceUser) => {
+          const metadata = (su.metadata || {}) as Record<string, any>;
+          return !!metadata.enhancedPlan;
+        })
+        .sort((a: AnalyzedServiceUser, b: AnalyzedServiceUser) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())
+        .slice(0, 5)
+        .map((su: AnalyzedServiceUser) => ({
+          id: su.id,
+          name: su.serviceUserName,
+          type: "carePlan" as const,
+          updatedAt: su.updatedAt
+        }));
+      
+      const recentRisks = recentRiskLogs.slice(0, 5).map((log: RiskAssessmentLog) => ({
+        id: log.id,
+        name: log.serviceUserInitials, // We only store initials for privacy
+        type: "riskAssessment" as const,
+        updatedAt: log.createdAt
+      }));
+      
+      return res.json({
+        carePlans: recentPlans,
+        riskAssessments: recentRisks
+      });
+    } catch (error: any) {
+      console.error("Extension recent error:", error);
+      return res.status(500).json({ message: error.message || "Failed to get recent items" });
     }
   });
 

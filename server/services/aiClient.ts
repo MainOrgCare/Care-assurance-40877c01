@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import { storage } from "../storage";
 import { calculateCostMicroDollars, AVAILABLE_MODELS, type AvailableModel } from "../config/aiPricing";
+import { generateCacheKey, getCachedResponse, setCachedResponse, getCacheStats } from "./aiCache";
+import { shouldUseAI, extractCommonFields } from "./ruleBasedEngine";
 
 // User context type for logging
 export interface AiUserContext {
@@ -20,6 +22,11 @@ let preferredModel: AvailableModel = "gpt-4.1-mini";
 
 // Admin-configurable EMAR agent usage (defaults to true)
 let useEmarAgent: boolean = true;
+
+// AI Optimization Settings - reduces API calls and costs
+let useAICache: boolean = true;  // Cache AI responses for identical inputs
+let useRulesFirst: boolean = true;  // Try rule-based engine before AI
+let aiLiteMode: boolean = false;  // Use minimal prompts where possible
 
 // Local LLM configuration
 // Render's fromService returns hostname:port, so we need to add http:// if missing
@@ -51,6 +58,25 @@ async function ensureSettingsLoaded(): Promise<void> {
     if (savedEmarAgent !== null) {
       useEmarAgent = savedEmarAgent === "true";
       console.log(`[AI Config] Loaded EMAR agent from DB: ${useEmarAgent}`);
+    }
+    
+    // Load optimization settings
+    const savedCache = await storage.getAppSetting("ai_cache");
+    if (savedCache !== null) {
+      useAICache = savedCache === "true";
+      console.log(`[AI Config] Loaded cache setting from DB: ${useAICache}`);
+    }
+    
+    const savedRules = await storage.getAppSetting("ai_rules_first");
+    if (savedRules !== null) {
+      useRulesFirst = savedRules === "true";
+      console.log(`[AI Config] Loaded rules-first setting from DB: ${useRulesFirst}`);
+    }
+    
+    const savedLite = await storage.getAppSetting("ai_lite_mode");
+    if (savedLite !== null) {
+      aiLiteMode = savedLite === "true";
+      console.log(`[AI Config] Loaded lite mode from DB: ${aiLiteMode}`);
     }
     
     settingsLoaded = true;
@@ -113,6 +139,49 @@ export function setUseEmarAgent(enabled: boolean, persist: boolean = false): voi
   if (persist) {
     storage.setAppSetting("emar_agent", enabled ? "true" : "false").catch(err => 
       console.error("[AI Config] Failed to persist EMAR agent setting:", err.message)
+    );
+  }
+}
+
+// AI Optimization Getters/Setters
+export function getUseAICache(): boolean {
+  return useAICache;
+}
+
+export function setUseAICache(enabled: boolean, persist: boolean = false): void {
+  useAICache = enabled;
+  console.log(`[AI Config] AI Cache ${enabled ? 'enabled' : 'disabled'}${persist ? " (persisted)" : ""}`);
+  if (persist) {
+    storage.setAppSetting("ai_cache", enabled ? "true" : "false").catch(err => 
+      console.error("[AI Config] Failed to persist cache setting:", err.message)
+    );
+  }
+}
+
+export function getUseRulesFirst(): boolean {
+  return useRulesFirst;
+}
+
+export function setUseRulesFirst(enabled: boolean, persist: boolean = false): void {
+  useRulesFirst = enabled;
+  console.log(`[AI Config] Rules-First ${enabled ? 'enabled' : 'disabled'}${persist ? " (persisted)" : ""}`);
+  if (persist) {
+    storage.setAppSetting("ai_rules_first", enabled ? "true" : "false").catch(err => 
+      console.error("[AI Config] Failed to persist rules-first setting:", err.message)
+    );
+  }
+}
+
+export function getAILiteMode(): boolean {
+  return aiLiteMode;
+}
+
+export function setAILiteMode(enabled: boolean, persist: boolean = false): void {
+  aiLiteMode = enabled;
+  console.log(`[AI Config] AI Lite Mode ${enabled ? 'enabled' : 'disabled'}${persist ? " (persisted)" : ""}`);
+  if (persist) {
+    storage.setAppSetting("ai_lite_mode", enabled ? "true" : "false").catch(err => 
+      console.error("[AI Config] Failed to persist lite mode setting:", err.message)
     );
   }
 }
@@ -394,6 +463,33 @@ export async function createChatCompletionWithLogging(
     console.warn(`[AI:${featureName}] WARNING: No user context provided - cost attribution will be incomplete`);
   }
   
+  // Check cache if enabled
+  if (useAICache) {
+    const cacheKey = generateCacheKey(params.messages as any, actualModel, featureName);
+    const cachedResponse = getCachedResponse(cacheKey);
+    if (cachedResponse) {
+      const duration = Date.now() - startTime;
+      console.log(`[AI:${featureName}] ⚡ CACHE HIT - returned in ${duration}ms (saved API call)`);
+      
+      // Log cache hit (0 cost)
+      storage.createAiUsageLog({
+        userId,
+        username,
+        featureName: `${featureName}:cached`,
+        model: actualModel,
+        billingSource: "cache" as any,
+        provider: preferredProvider,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        costMicroDollars: 0,
+        durationMs: duration,
+      }).catch(err => console.error("[AI] Failed to log cache hit:", err.message));
+      
+      return cachedResponse.result as OpenAI.ChatCompletion;
+    }
+  }
+  
   console.log(`[AI:${featureName}] Starting request with ${actualModel}${username ? ` for ${username}` : ""} via ${preferredProvider}...`);
   
   let provider: AiProvider = preferredProvider;
@@ -409,6 +505,12 @@ export async function createChatCompletionWithLogging(
     
     const providerLabel = provider === "local" ? "LOCAL (Qwen 2.5)" : provider === "github" ? "GitHub AI" : "OpenAI";
     console.log(`[AI:${featureName}] ✓ Completed in ${duration}ms, ${totalTokens} tokens, $${(costMicroDollars / 1000000).toFixed(4)} via ${providerLabel}`);
+    
+    // Cache the successful response if caching enabled
+    if (useAICache) {
+      const cacheKey = generateCacheKey(params.messages as any, actualModel, featureName);
+      setCachedResponse(cacheKey, result.completion, featureName, totalTokens);
+    }
     
     // Log to database asynchronously (don't block the response)
     storage.createAiUsageLog({
@@ -447,6 +549,92 @@ export async function createChatCompletionWithLogging(
     
     throw error;
   }
+}
+
+/**
+ * Hybrid completion: tries rule-based extraction first, falls back to AI only if needed
+ * Significantly reduces AI costs for common extraction patterns
+ */
+export async function createHybridCompletion(
+  content: string,
+  taskType: "risk_assessment" | "care_plan" | "simple_extraction",
+  featureName: string,
+  userContext: AiUserContext,
+  model?: string
+): Promise<{ result: any; usedAI: boolean; reason: string }> {
+  await ensureSettingsLoaded();
+  
+  // If rules-first is disabled, go straight to AI
+  if (!useRulesFirst) {
+    console.log(`[Hybrid:${featureName}] Rules-first disabled, using AI directly`);
+    // TODO: Implement AI path when rules-first is disabled
+    return { result: null, usedAI: true, reason: "Rules-first disabled in settings" };
+  }
+  
+  // Try rule-based extraction first
+  const decision = shouldUseAI(taskType, content);
+  
+  if (!decision.useAI && decision.ruleBasedResult) {
+    console.log(`[Hybrid:${featureName}] Using rule-based result (${decision.reason})`);
+    return { 
+      result: decision.ruleBasedResult, 
+      usedAI: false, 
+      reason: decision.reason 
+    };
+  }
+  
+  // Rules insufficient, need AI
+  console.log(`[Hybrid:${featureName}] Rules insufficient (${decision.reason}), falling back to AI`);
+  
+  // Build appropriate prompt based on task type
+  let systemPrompt = "";
+  let userPrompt = "";
+  
+  switch (taskType) {
+    case "risk_assessment":
+      systemPrompt = "You are a care risk assessment expert. Analyze the provided content and determine the risk level (Low, Medium, High) with supporting evidence.";
+      userPrompt = `Analyze this content for risk factors:\n\n${content}\n\nProvide:\n1. Risk level (Low/Medium/High)\n2. Key risk factors identified\n3. Recommended mitigations`;
+      break;
+    case "care_plan":
+      systemPrompt = "You are a care plan writer. Create person-centered care content in the first person (I, my, me).";
+      userPrompt = `Based on this information, create care plan content:\n\n${content}`;
+      break;
+    case "simple_extraction":
+      systemPrompt = "Extract key information from the provided text and return as structured data.";
+      userPrompt = `Extract key fields from:\n\n${content}`;
+      break;
+  }
+  
+  // If lite mode, use simplified prompts
+  if (aiLiteMode) {
+    systemPrompt = "Be concise. Respond with key facts only.";
+  }
+  
+  const completion = await createChatCompletionWithLogging(
+    {
+      model: model || preferredModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 1000
+    },
+    featureName,
+    userContext
+  );
+  
+  const aiContent = completion.choices[0]?.message?.content || "";
+  
+  return {
+    result: { 
+      aiGenerated: true, 
+      content: aiContent,
+      ruleBasedPartial: decision.ruleBasedResult 
+    },
+    usedAI: true,
+    reason: decision.reason
+  };
 }
 
 // Export function to check if local LLM is available

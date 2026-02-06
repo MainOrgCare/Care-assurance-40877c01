@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Eye, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, UserMinus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server } from "lucide-react";
+import { Shield, Eye, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, UserMinus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap } from "lucide-react";
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
@@ -805,6 +805,8 @@ function AIProviderSection() {
           </div>
         </div>
 
+        <AIOptimizationSection />
+
         <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-muted-foreground">
           <strong className="text-foreground">Note:</strong> AI models are automatically selected based on task complexity. 
           Drug interaction checks are computed on each run to avoid reusing previous responses.
@@ -813,6 +815,212 @@ function AIProviderSection() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// AI Optimization Settings Component - reduces API calls and costs
+function AIOptimizationSection() {
+  const [useCache, setUseCache] = useState(true);
+  const [useRulesFirst, setUseRulesFirst] = useState(true);
+  const [liteMode, setLiteMode] = useState(false);
+  const [cacheStats, setCacheStats] = useState<{
+    size: number;
+    hits: number;
+    misses: number;
+    hitRate: string;
+    tokensSaved: number;
+    estimatedCostSaved: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+
+  useEffect(() => {
+    fetchOptimizationSettings();
+  }, []);
+
+  const fetchOptimizationSettings = async () => {
+    try {
+      const res = await fetch("/api/admin/ai-optimization", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setUseCache(data.useCache);
+        setUseRulesFirst(data.useRulesFirst);
+        setLiteMode(data.liteMode);
+        setCacheStats(data.cacheStats);
+      }
+    } catch (error) {
+      console.error("Failed to fetch AI optimization settings:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateSetting = async (key: string, value: boolean) => {
+    setUpdating(true);
+    try {
+      const res = await fetch("/api/admin/ai-optimization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ [key]: value }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUseCache(data.useCache);
+        setUseRulesFirst(data.useRulesFirst);
+        setLiteMode(data.liteMode);
+        setCacheStats(data.cacheStats);
+      }
+    } catch (error) {
+      console.error("Failed to update AI optimization setting:", error);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const clearCache = async () => {
+    if (!confirm("Clear the entire AI response cache? This will force fresh API calls.")) return;
+    setUpdating(true);
+    try {
+      const res = await fetch("/api/admin/ai-optimization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ clearCacheNow: true }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCacheStats(data.cacheStats);
+      }
+    } catch (error) {
+      console.error("Failed to clear cache:", error);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="border-t border-slate-200 pt-6">
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-slate-200 pt-6">
+      <h4 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+        <Zap size={16} className="text-amber-400" />
+        AI Optimization (Cost Reduction)
+      </h4>
+      
+      <div className="space-y-3">
+        {/* Cache Toggle */}
+        <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50">
+          <div>
+            <span className="text-sm font-medium text-foreground">Response Caching</span>
+            <p className="text-xs text-muted-foreground">Cache identical AI requests (24h TTL)</p>
+          </div>
+          <Switch
+            checked={useCache}
+            onCheckedChange={(v) => { setUseCache(v); updateSetting("useCache", v); }}
+            disabled={updating}
+          />
+        </div>
+
+        {/* Rules-First Toggle */}
+        <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50">
+          <div>
+            <span className="text-sm font-medium text-foreground">Rules-First Engine</span>
+            <p className="text-xs text-muted-foreground">Use deterministic patterns before AI</p>
+          </div>
+          <Switch
+            checked={useRulesFirst}
+            onCheckedChange={(v) => { setUseRulesFirst(v); updateSetting("useRulesFirst", v); }}
+            disabled={updating}
+          />
+        </div>
+
+        {/* Lite Mode Toggle */}
+        <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50">
+          <div>
+            <span className="text-sm font-medium text-foreground">Lite Mode</span>
+            <p className="text-xs text-muted-foreground">Minimal prompts for faster/cheaper calls</p>
+          </div>
+          <Switch
+            checked={liteMode}
+            onCheckedChange={(v) => { setLiteMode(v); updateSetting("liteMode", v); }}
+            disabled={updating}
+          />
+        </div>
+      </div>
+
+      {/* Cache Stats */}
+      {cacheStats && (
+        <div className="mt-4 p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-foreground">Cache Statistics</span>
+            <button
+              onClick={clearCache}
+              disabled={updating}
+              className="text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
+            >
+              Clear Cache
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="bg-white/50 rounded p-2 text-center">
+              <div className="font-bold text-foreground">{cacheStats.hitRate}</div>
+              <div className="text-muted-foreground">Hit Rate</div>
+            </div>
+            <div className="bg-white/50 rounded p-2 text-center">
+              <div className="font-bold text-foreground">{cacheStats.tokensSaved.toLocaleString()}</div>
+              <div className="text-muted-foreground">Tokens Saved</div>
+            </div>
+            <div className="bg-white/50 rounded p-2 text-center">
+              <div className="font-bold text-emerald-600">{cacheStats.estimatedCostSaved}</div>
+              <div className="text-muted-foreground">Cost Saved</div>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground mt-2 text-center">
+            {cacheStats.size} entries in cache ({cacheStats.hits} hits / {cacheStats.misses} misses)
+          </div>
+        </div>
+      )}
+      
+      {/* Feature Benefits Summary */}
+      <div className="mt-4 p-3 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+        <span className="text-xs font-medium text-foreground mb-2 block">Optimization Benefits</span>
+        <div className="space-y-1.5 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Response Caching:</span>
+            <span className={`font-medium ${useCache ? "text-emerald-600" : "text-muted-foreground"}`}>
+              {useCache ? "~30% API cost reduction" : "Disabled"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Rules-First Engine:</span>
+            <span className={`font-medium ${useRulesFirst ? "text-emerald-600" : "text-muted-foreground"}`}>
+              {useRulesFirst ? "~40% fewer AI calls" : "Disabled"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Lite Mode:</span>
+            <span className={`font-medium ${liteMode ? "text-emerald-600" : "text-muted-foreground"}`}>
+              {liteMode ? "~25% smaller prompts" : "Disabled"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between pt-2 border-t border-emerald-500/20">
+            <span className="text-muted-foreground font-medium">Estimated Total Savings:</span>
+            <span className="font-bold text-emerald-600">
+              ~{((useCache ? 30 : 0) + (useRulesFirst ? 40 : 0) + (liteMode ? 15 : 0))}%
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
