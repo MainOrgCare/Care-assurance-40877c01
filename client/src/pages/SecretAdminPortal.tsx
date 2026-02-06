@@ -704,7 +704,7 @@ function AIProviderSection() {
                   <Server size={20} className={hasLocalLLM ? "text-sky-400" : "text-slate-400"} />
                 </div>
                 <div>
-                  <div className="font-medium text-foreground">Local (Phi-3)</div>
+                  <div className="font-medium text-foreground">Local (Qwen 2.5)</div>
                   <div className="text-xs text-muted-foreground">
                     {hasLocalLLM ? "LLM running" : "Not available"}
                   </div>
@@ -735,7 +735,7 @@ function AIProviderSection() {
           {selectedProvider === "local" && (
             <div className="mt-3 p-3 bg-sky-500/10 rounded-lg border border-sky-500/20">
               <div className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">Local LLM (Phi-3 Mini)</span> - All data stays on your servers. No external API calls. $0 cost.
+                <span className="font-medium text-foreground">Local LLM (Qwen 2.5 7B)</span> - All data stays on your servers. No external API calls. $0 cost. 128K context.
               </div>
             </div>
           )}
@@ -808,7 +808,7 @@ function AIProviderSection() {
         <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-muted-foreground">
           <strong className="text-foreground">Note:</strong> AI models are automatically selected based on task complexity. 
           Drug interaction checks are computed on each run to avoid reusing previous responses.
-          Currently using: <strong className="text-foreground">{selectedProvider === "openai" ? "OpenAI" : "GitHub AI"}</strong> provider
+          Currently using: <strong className="text-foreground">{selectedProvider === "openai" ? "OpenAI" : selectedProvider === "github" ? "GitHub AI" : "Local (Qwen 2.5)"}</strong> provider
           {useEmarAgent ? " with advanced EMAR agent enabled" : " with standard EMAR extraction"}.
         </div>
       </CardContent>

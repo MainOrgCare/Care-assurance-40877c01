@@ -15,7 +15,7 @@ import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema, insertSystemLogSchema } from "@shared/schema";
-import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, isLocalLLMAvailable, getLocalLLMUrl, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
 import { careWorkerRotaPayloadSchema, computeRotaSourceHash, rotaWeekdayEnum } from "./services/careWorkerRota";
 import multer from "multer";
@@ -2985,6 +2985,11 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
+  
+  // Load AI settings from database on startup
+  if (hasDatabaseUrl) {
+    await ensureSettingsLoaded();
+  }
   
   // WebSocket server for real-time notifications (logout warnings)
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
@@ -14327,7 +14332,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         }
       }
       
-      setPreferredProvider(provider as AiProvider);
+      setPreferredProvider(provider as AiProvider, true);
       
       console.log(`[Admin] AI provider changed to ${provider} by ${req.user?.username || 'unknown'}`);
       
@@ -14357,7 +14362,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         return res.status(400).json({ message: "useEmarAgent must be a boolean value" });
       }
       
-      setUseEmarAgent(useEmarAgent);
+      setUseEmarAgent(useEmarAgent, true);
       
       console.log(`[Admin] EMAR agent ${useEmarAgent ? 'enabled' : 'disabled'} by ${req.user?.username || 'unknown'}`);
       

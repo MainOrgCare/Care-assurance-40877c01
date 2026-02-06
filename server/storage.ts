@@ -115,6 +115,9 @@ import {
   type InsertGdprDataRequest,
   type GdprRetentionPolicy,
   type InsertGdprRetentionPolicy,
+  // App settings
+  appSettings,
+  type AppSetting,
 } from "@shared/schema";
 
 const SALT_ROUNDS = 10;
@@ -400,6 +403,11 @@ export interface IStorage {
     callRecommendations: number;
     workbookUploads: number;
   }>;
+
+  // App Settings operations
+  getAppSetting(key: string): Promise<string | null>;
+  setAppSetting(key: string, value: string, updatedBy?: string): Promise<void>;
+  getAllAppSettings(): Promise<AppSetting[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2585,6 +2593,27 @@ export class DatabaseStorage implements IStorage {
     }
 
     return deleted;
+  }
+
+  // --- App Settings ---
+
+  async getAppSetting(key: string): Promise<string | null> {
+    const result = await this.db.select().from(appSettings).where(eq(appSettings.key, key));
+    return result[0]?.value ?? null;
+  }
+
+  async setAppSetting(key: string, value: string, updatedBy?: string): Promise<void> {
+    await this.db
+      .insert(appSettings)
+      .values({ key, value, updatedBy: updatedBy ?? null, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: appSettings.key,
+        set: { value, updatedBy: updatedBy ?? null, updatedAt: new Date() },
+      });
+  }
+
+  async getAllAppSettings(): Promise<AppSetting[]> {
+    return await this.db.select().from(appSettings);
   }
 }
 

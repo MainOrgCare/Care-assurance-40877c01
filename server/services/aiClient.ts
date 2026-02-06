@@ -13,6 +13,7 @@ export type AiProvider = "openai" | "github" | "local";
 
 // Admin-configurable preferred AI provider
 let preferredProvider: AiProvider = "openai";
+let settingsLoaded = false;
 
 // Admin-configurable preferred AI model (defaults to gpt-4.1-mini)
 let preferredModel: AvailableModel = "gpt-4.1-mini";
@@ -24,18 +25,57 @@ let useEmarAgent: boolean = true;
 // Render's fromService returns hostname:port, so we need to add http:// if missing
 const rawLocalLLMUrl = process.env.LOCAL_LLM_URL || "http://local-llm:11434";
 const LOCAL_LLM_URL = rawLocalLLMUrl.startsWith("http") ? rawLocalLLMUrl : `http://${rawLocalLLMUrl}`;
-const LOCAL_LLM_MODEL = process.env.LOCAL_LLM_MODEL || "phi3:mini";
+const LOCAL_LLM_MODEL = process.env.LOCAL_LLM_MODEL || "qwen2.5:7b";
+
+// Load settings from database (called once on first AI request)
+async function ensureSettingsLoaded(): Promise<void> {
+  if (settingsLoaded) return;
+  
+  try {
+    const savedProvider = await storage.getAppSetting("ai_provider");
+    if (savedProvider && (savedProvider === "openai" || savedProvider === "github" || savedProvider === "local")) {
+      preferredProvider = savedProvider as AiProvider;
+      console.log(`[AI Config] Loaded provider from DB: ${preferredProvider}`);
+    }
+    
+    const savedModel = await storage.getAppSetting("ai_model");
+    if (savedModel) {
+      const validModels = AVAILABLE_MODELS.map(m => m.id);
+      if (validModels.includes(savedModel as AvailableModel)) {
+        preferredModel = savedModel as AvailableModel;
+        console.log(`[AI Config] Loaded model from DB: ${preferredModel}`);
+      }
+    }
+    
+    const savedEmarAgent = await storage.getAppSetting("emar_agent");
+    if (savedEmarAgent !== null) {
+      useEmarAgent = savedEmarAgent === "true";
+      console.log(`[AI Config] Loaded EMAR agent from DB: ${useEmarAgent}`);
+    }
+    
+    settingsLoaded = true;
+  } catch (error) {
+    console.warn("[AI Config] Could not load settings from DB, using defaults:", error);
+    settingsLoaded = true; // Don't retry on error
+  }
+}
 
 export function getPreferredProvider(): AiProvider {
   return preferredProvider;
 }
 
-export function setPreferredProvider(provider: AiProvider): void {
+export function setPreferredProvider(provider: AiProvider, persist: boolean = false): void {
   if (provider !== "openai" && provider !== "github" && provider !== "local") {
     throw new Error("Invalid provider. Must be 'openai', 'github', or 'local'.");
   }
   preferredProvider = provider;
-  console.log(`[AI Config] Preferred provider set to: ${provider}`);
+  console.log(`[AI Config] Preferred provider set to: ${provider}${persist ? " (persisted)" : ""}`);
+  
+  if (persist) {
+    storage.setAppSetting("ai_provider", provider).catch(err => 
+      console.error("[AI Config] Failed to persist provider:", err.message)
+    );
+  }
 }
 
 export function getPreferredModel(): AvailableModel {
@@ -43,13 +83,19 @@ export function getPreferredModel(): AvailableModel {
   return preferredModel;
 }
 
-export function setPreferredModel(model: string): void {
+export function setPreferredModel(model: string, persist: boolean = false): void {
   const validModels = AVAILABLE_MODELS.map(m => m.id);
   if (!validModels.includes(model as AvailableModel)) {
     throw new Error(`Invalid model. Must be one of: ${validModels.join(", ")}`);
   }
   preferredModel = model as AvailableModel;
-  console.log(`[AI Config] Preferred model set to: ${model}`);
+  console.log(`[AI Config] Preferred model set to: ${model}${persist ? " (persisted)" : ""}`);
+  
+  if (persist) {
+    storage.setAppSetting("ai_model", model).catch(err => 
+      console.error("[AI Config] Failed to persist model:", err.message)
+    );
+  }
 }
 
 export function getAvailableModels() {
@@ -60,10 +106,19 @@ export function getUseEmarAgent(): boolean {
   return useEmarAgent;
 }
 
-export function setUseEmarAgent(enabled: boolean): void {
+export function setUseEmarAgent(enabled: boolean, persist: boolean = false): void {
   useEmarAgent = enabled;
-  console.log(`[AI Config] EMAR Agent ${enabled ? 'enabled' : 'disabled'}`);
+  console.log(`[AI Config] EMAR Agent ${enabled ? 'enabled' : 'disabled'}${persist ? " (persisted)" : ""}`);
+  
+  if (persist) {
+    storage.setAppSetting("emar_agent", enabled ? "true" : "false").catch(err => 
+      console.error("[AI Config] Failed to persist EMAR agent setting:", err.message)
+    );
+  }
 }
+
+// Export ensureSettingsLoaded for routes initialization
+export { ensureSettingsLoaded };
 
 // Result type that includes provider information
 export interface AiCompletionResult {
@@ -237,9 +292,9 @@ async function createChatCompletionWithProvider(
     if (!client) {
       throw new Error("Local LLM client could not be initialized.");
     }
-    // Always use the local model (phi3:mini) - NO FALLBACK to other providers
+    // Always use the local model - NO FALLBACK to other providers
     model = LOCAL_LLM_MODEL;
-    console.log(`[AI:Local] ✓ Using LOCAL Phi-3 at ${LOCAL_LLM_URL} (model: ${model}, temp: 0) - NOT using OpenAI/GitHub`);
+    console.log(`[AI:Local] ✓ Using LOCAL Qwen 2.5 at ${LOCAL_LLM_URL} (model: ${model}, temp: 0) - NOT using OpenAI/GitHub`);
   } else if (provider === "github") {
     client = getGitHubClient();
     if (!client) {
@@ -270,7 +325,7 @@ async function createChatCompletionWithProvider(
       }
       
       console.log(`[AI] Using ${provider} provider with model:`, model);
-      // For local LLM (Phi-3), force temperature 0 for consistent, deterministic responses
+      // For local LLM, force temperature 0 for consistent, deterministic responses
       const finalParams = provider === "local" 
         ? { ...params, model, temperature: 0 }
         : { ...params, model };
@@ -314,9 +369,15 @@ export async function createChatCompletionWithLogging(
   // Ensure we use the model passed in params, which should be from getPreferredModel()
   let model = (params.model as string) || preferredModel;
   
-  // Map model for GitHub AI or OpenAI with PAT fallback
-  const needsMapping = preferredProvider === "github" || (preferredProvider === "openai" && openaiUsingPATFallback);
-  const actualModel = needsMapping ? mapModelForGitHub(model) : model;
+  // For local provider, always use the local model name
+  // For GitHub AI or OpenAI with PAT fallback, map to compatible model
+  let actualModel: string;
+  if (preferredProvider === "local") {
+    actualModel = LOCAL_LLM_MODEL; // phi3:mini
+  } else {
+    const needsMapping = preferredProvider === "github" || (preferredProvider === "openai" && openaiUsingPATFallback);
+    actualModel = needsMapping ? mapModelForGitHub(model) : model;
+  }
   
   const userId = userContext?.userId || null;
   const username = userContext?.username || null;
@@ -339,7 +400,7 @@ export async function createChatCompletionWithLogging(
     const totalTokens = result.completion.usage?.total_tokens || 0;
     const costMicroDollars = calculateCostMicroDollars(actualModel, inputTokens, outputTokens);
     
-    const providerLabel = provider === "local" ? "LOCAL (Phi-3)" : provider === "github" ? "GitHub AI" : "OpenAI";
+    const providerLabel = provider === "local" ? "LOCAL (Qwen 2.5)" : provider === "github" ? "GitHub AI" : "OpenAI";
     console.log(`[AI:${featureName}] ✓ Completed in ${duration}ms, ${totalTokens} tokens, $${(costMicroDollars / 1000000).toFixed(4)} via ${providerLabel}`);
     
     // Log to database asynchronously (don't block the response)

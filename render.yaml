@@ -63,13 +63,13 @@ services:
       - key: DATABASE_URL
         sync: false
 
-  # Local LLM Service - Phi-3 Mini via Ollama
+  # Local LLM Service - Qwen 2.5 7B via Ollama (128K context)
   # Keep data completely local - no external API calls
   - type: web
     name: local-llm
     runtime: docker
     dockerfilePath: ./Dockerfile.localllm
-    plan: pro plus
+    plan: pro max
     healthCheckPath: /api/tags
     autoDeploy: true
     disk:
@@ -83,3 +83,5 @@ services:
         value: "24h"
       - key: OLLAMA_MODELS
         value: "/ollama-data/models"
+      - key: OLLAMA_NUM_CTX
+        value: "32768"

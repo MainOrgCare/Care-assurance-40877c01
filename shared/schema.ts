@@ -1105,3 +1105,22 @@ export const insertGdprRetentionPolicySchema = createInsertSchema(gdprRetentionP
 
 export type InsertGdprRetentionPolicy = z.infer<typeof insertGdprRetentionPolicySchema>;
 export type GdprRetentionPolicy = typeof gdprRetentionPolicies.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// APPLICATION SETTINGS TABLE
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Key-value store for persistent application settings
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(), // Setting name: 'ai_provider', 'ai_model', 'emar_agent', etc.
+  value: text("value").notNull(), // Setting value as string
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+});
+
+export const insertAppSettingSchema = createInsertSchema(appSettings).omit({
+  updatedAt: true,
+});
+
+export type InsertAppSetting = z.infer<typeof insertAppSettingSchema>;
+export type AppSetting = typeof appSettings.$inferSelect;

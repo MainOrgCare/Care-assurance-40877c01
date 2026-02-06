@@ -1,5 +1,5 @@
-# Local LLM Service using Ollama with Phi-3 Mini
-# Good balance of quality and performance for care assessments
+# Local LLM Service using Ollama with Qwen 2.5 7B
+# 128K context window for large risk assessments
 
 FROM ollama/ollama:latest
 
@@ -36,12 +36,12 @@ for i in {1..30}; do\n\
 done\n\
 \n\
 # Check if model exists, if not pull it\n\
-if ! ollama list | grep -q "phi3:mini"; then\n\
-  echo "Pulling phi3:mini model (3.8B params, ~2.3GB download)..."\n\
-  ollama pull phi3:mini\n\
+if ! ollama list | grep -q "qwen2.5:7b"; then\n\
+  echo "Pulling qwen2.5:7b model (7B params, 128K context, ~4.7GB download)..."\n\
+  ollama pull qwen2.5:7b\n\
   echo "Model pulled successfully!"\n\
 else\n\
-  echo "Model phi3:mini already cached on persistent disk!"\n\
+  echo "Model qwen2.5:7b already cached on persistent disk!"\n\
 fi\n\
 \n\
 # Keep the server running\n\
