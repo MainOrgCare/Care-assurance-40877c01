@@ -46,7 +46,7 @@ services:
         sync: false
       # Local LLM URL - Ollama service running on Render
       - key: LOCAL_LLM_URL
-        value: "https://local-llm-m1xp.onrender.com"
+        value: "https://local-llm-mr51.onrender.com"
 
   - type: worker
     name: care-assurance-worker
