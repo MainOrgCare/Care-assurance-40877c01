@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.2.0
+// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.2.4
 // Professional UI matching Care Assurance website design
+// Tab-based layout: Upload Documents | Send to ACP
 // ═══════════════════════════════════════════════════════════════════════════
 
 const FALLBACK_STORAGE_KEYS = {
@@ -14,6 +15,7 @@ const FALLBACK_STORAGE_KEYS = {
   signatureData: "caAcpSignatureData",
   signatureBatchId: "caAcpSignatureBatchId",
   lastError: "caAcpLastError",
+  uploadedDocuments: "caAcpUploadedDocuments",
 };
 
 const FALLBACK_MESSAGE_TYPES = {
@@ -21,6 +23,7 @@ const FALLBACK_MESSAGE_TYPES = {
   stopAutofill: "CA_EXTENSION_STOP_AUTOFILL",
   clearError: "CA_EXTENSION_CLEAR_ERROR",
   analyzeRisks: "CA_EXTENSION_ANALYZE_RISKS",
+  sendToApp: "CA_EXTENSION_SEND_TO_APP",
 };
 
 const { STORAGE_KEYS, MESSAGE_TYPES } = window.CA_EXTENSION_CONSTANTS || {
@@ -38,12 +41,13 @@ const setStorage = (items) =>
 // DOM ELEMENTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Sections
-const uploadSection = document.getElementById("upload-section");
-const selectionSection = document.getElementById("selection-section");
-const readySection = document.getElementById("ready-section");
+// Tab navigation
+const tabUploadBtn = document.getElementById("tab-upload");
+const tabSendBtn = document.getElementById("tab-send");
+const tabContentUpload = document.getElementById("tab-content-upload");
+const tabContentSend = document.getElementById("tab-content-send");
 
-// Upload section
+// Upload tab elements
 const documentFilesInput = document.getElementById("document-files");
 const fileListContainer = document.getElementById("file-list");
 const analyzeButton = document.getElementById("analyze-documents");
@@ -51,8 +55,13 @@ const analysisStatus = document.getElementById("analysis-status");
 const analysisProgress = document.getElementById("analysis-progress");
 const analysisProgressFill = document.getElementById("analysis-progress-fill");
 const progressDetails = document.getElementById("progress-details");
+const uploadNotesInput = document.getElementById("upload-notes");
+const uploadedDocsSection = document.getElementById("uploaded-docs-summary");
+const uploadedDocsList = document.getElementById("uploaded-docs-list");
+const clearUploadsBtn = document.getElementById("clear-uploads");
 
-// Selection section
+// Send tab - Selection section
+const selectionSection = document.getElementById("selection-section");
 const serviceUserSummary = document.getElementById("service-user-summary");
 const assessmentList = document.getElementById("assessment-list");
 const selectionCount = document.getElementById("selection-count");
@@ -60,9 +69,9 @@ const selectAllBtn = document.getElementById("select-all-btn");
 const clearSelectionBtn = document.getElementById("clear-selection-btn");
 const additionalNotes = document.getElementById("additional-notes");
 const proceedWithSelection = document.getElementById("proceed-with-selection");
-const cancelSelection = document.getElementById("cancel-selection");
 
-// Ready section
+// Send tab - Ready section
+const readySection = document.getElementById("ready-section");
 const payloadStatus = document.getElementById("payload-status");
 const caseIdInput = document.getElementById("case-id");
 const serviceDataGroupInput = document.getElementById("service-data-group-id");
@@ -73,7 +82,6 @@ const progressStatus = document.getElementById("progress-status");
 const startButton = document.getElementById("start-autofill");
 const stopButton = document.getElementById("stop-autofill");
 const clearButton = document.getElementById("clear-data");
-const backToUploadBtn = document.getElementById("back-to-upload");
 
 // Other elements
 const errorBanner = document.getElementById("error-banner");
@@ -91,28 +99,58 @@ const clearLogsButton = document.getElementById("clear-logs");
 let currentAnalysisResults = null;
 let selectedFilesList = [];
 let lastAutoFilledCaseInfo = { caseId: "", serviceDataGroupId: "" };
+let uploadedDocuments = []; // { type, name, size, timestamp, content }
+
+// Document type labels
+const DOCUMENT_TYPE_LABELS = {
+  socialWork: "Social Work Document",
+  initialAssessment: "Initial Assessment",
+  carePlan: "Care Plan",
+  movingHandling: "Moving & Handling",
+  otherDocuments: "Other Documents",
+};
+
+const DOCUMENT_TYPE_COLORS = {
+  socialWork: "blue",
+  initialAssessment: "violet",
+  carePlan: "amber",
+  movingHandling: "sky",
+  otherDocuments: "indigo",
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SECTION NAVIGATION
-// ═══════════════════════════════════════════════════════════════========================
-function showSection(section) {
-  uploadSection.hidden = section !== "upload";
-  selectionSection.hidden = section !== "selection";
-  readySection.hidden = section !== "ready";
+// TAB NAVIGATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+function switchTab(tabName) {
+  // Update tab buttons
+  if (tabUploadBtn) tabUploadBtn.classList.toggle("active", tabName === "upload");
+  if (tabSendBtn) tabSendBtn.classList.toggle("active", tabName === "send");
+  
+  // Update tab content
+  if (tabContentUpload) tabContentUpload.classList.toggle("active", tabName === "upload");
+  if (tabContentSend) tabContentSend.classList.toggle("active", tabName === "send");
 }
+
+if (tabUploadBtn) tabUploadBtn.addEventListener("click", () => switchTab("upload"));
+if (tabSendBtn) tabSendBtn.addEventListener("click", () => switchTab("send"));
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FILE UPLOAD HANDLING
 // ═══════════════════════════════════════════════════════════════════════════
 
-documentFilesInput.addEventListener("change", (e) => {
-  const files = Array.from(e.target.files || []);
-  selectedFilesList = files;
-  displayFileList();
-  analyzeButton.disabled = files.length === 0;
-});
+if (documentFilesInput) {
+  documentFilesInput.addEventListener("change", (e) => {
+    const files = Array.from(e.target.files || []);
+    selectedFilesList = files;
+    displayFileList();
+    if (analyzeButton) analyzeButton.disabled = files.length === 0;
+  });
+}
 
 function displayFileList() {
+  if (!fileListContainer) return;
+  
   if (selectedFilesList.length === 0) {
     fileListContainer.innerHTML = "";
     return;
@@ -139,9 +177,76 @@ function displayFileList() {
       documentFilesInput.files = dt.files;
       
       displayFileList();
-      analyzeButton.disabled = selectedFilesList.length === 0;
+      if (analyzeButton) analyzeButton.disabled = selectedFilesList.length === 0;
     });
   });
+}
+
+// Get selected document type
+function getSelectedDocumentType() {
+  const selected = document.querySelector('input[name="document-type"]:checked');
+  return selected ? selected.value : "otherDocuments";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UPLOADED DOCUMENTS DISPLAY
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function loadUploadedDocuments() {
+  const data = await loadStorage([STORAGE_KEYS.uploadedDocuments || "caAcpUploadedDocuments"]);
+  uploadedDocuments = data.caAcpUploadedDocuments || [];
+  displayUploadedDocuments();
+}
+
+function displayUploadedDocuments() {
+  if (!uploadedDocsSection || !uploadedDocsList) return;
+  
+  if (uploadedDocuments.length === 0) {
+    uploadedDocsSection.hidden = true;
+    return;
+  }
+  
+  uploadedDocsSection.hidden = false;
+  uploadedDocsList.innerHTML = uploadedDocuments.map((doc, index) => `
+    <div class="uploaded-doc-item">
+      <div class="uploaded-doc-icon doc-icon ${DOCUMENT_TYPE_COLORS[doc.type] || 'indigo'}">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+      </div>
+      <div class="uploaded-doc-info">
+        <div class="uploaded-doc-name">${doc.name}</div>
+        <div class="uploaded-doc-type">${DOCUMENT_TYPE_LABELS[doc.type] || doc.type}</div>
+      </div>
+      <button class="uploaded-doc-remove" data-index="${index}" title="Remove">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+  `).join("");
+  
+  // Add remove handlers
+  document.querySelectorAll(".uploaded-doc-remove").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const index = parseInt(e.currentTarget.getAttribute("data-index"), 10);
+      uploadedDocuments.splice(index, 1);
+      await setStorage({ [STORAGE_KEYS.uploadedDocuments || "caAcpUploadedDocuments"]: uploadedDocuments });
+      displayUploadedDocuments();
+      updateAnalyzeButtonState();
+    });
+  });
+}
+
+if (clearUploadsBtn) {
+  clearUploadsBtn.addEventListener("click", async () => {
+    uploadedDocuments = [];
+    await setStorage({ [STORAGE_KEYS.uploadedDocuments || "caAcpUploadedDocuments"]: [] });
+    displayUploadedDocuments();
+    updateAnalyzeButtonState();
+  });
+}
+
+function updateAnalyzeButtonState() {
+  if (analyzeButton) {
+    analyzeButton.disabled = selectedFilesList.length === 0 && uploadedDocuments.length === 0;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -182,43 +287,61 @@ const getAuthToken = async () => {
 };
 
 const analyzeDocuments = async (files) => {
-  if (!files || files.length === 0) {
+  if ((!files || files.length === 0) && uploadedDocuments.length === 0) {
     throw new Error("Please select at least one file to analyze");
   }
 
-  analysisStatus.textContent = "Reading files...";
-  analysisProgress.hidden = false;
-  analysisProgressFill.style.width = "5%";
+  if (analysisStatus) analysisStatus.textContent = "Reading files...";
+  if (analysisProgress) analysisProgress.hidden = false;
+  if (analysisProgressFill) analysisProgressFill.style.width = "5%";
 
-  // Read all files and combine content
-  let combinedContent = "";
+  // Get the selected document type
+  const docType = getSelectedDocumentType();
+  
+  // Read new files and add to uploaded documents
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    analysisStatus.textContent = `Reading ${file.name}...`;
+    if (analysisStatus) analysisStatus.textContent = `Reading ${file.name}...`;
     
     try {
+      let content = "";
       if (file.type === "text/plain" || file.name.endsWith(".txt")) {
-        const text = await readFileAsText(file);
-        combinedContent += `\n\n=== File: ${file.name} ===\n${text}`;
+        content = await readFileAsText(file);
       } else if (file.type.startsWith("image/")) {
         const dataUrl = await readFileAsDataURL(file);
-        combinedContent += `\n\n=== Image File: ${file.name} ===\n[Image uploaded - OCR processing needed on server side]\nData URL: ${dataUrl.substring(0, 100)}...`;
+        content = `[Image: ${file.name}]\nData URL: ${dataUrl.substring(0, 100)}...`;
       } else {
-        // For PDF, Word, etc. - indicate file was uploaded
-        combinedContent += `\n\n=== File: ${file.name} (${file.type}) ===\n[Binary file uploaded - text extraction needed on server side]`;
+        content = `[Binary file: ${file.name} (${file.type})]`;
       }
+      
+      uploadedDocuments.push({
+        type: docType,
+        name: file.name,
+        size: file.size,
+        timestamp: Date.now(),
+        content: content,
+      });
     } catch (error) {
       console.warn(`Failed to read ${file.name}:`, error);
-      combinedContent += `\n\n=== File: ${file.name} ===\n[Could not read file content]`;
     }
+  }
+  
+  // Save uploaded documents
+  await setStorage({ [STORAGE_KEYS.uploadedDocuments || "caAcpUploadedDocuments"]: uploadedDocuments });
+  displayUploadedDocuments();
+
+  // Combine all document content
+  let combinedContent = "";
+  for (const doc of uploadedDocuments) {
+    combinedContent += `\n\n=== ${DOCUMENT_TYPE_LABELS[doc.type] || doc.type}: ${doc.name} ===\n${doc.content}`;
   }
 
   if (!combinedContent.trim()) {
     throw new Error("No readable content found in uploaded files");
   }
 
-  analysisStatus.textContent = "Connecting to Care Assurance AI...";
-  analysisProgressFill.style.width = "10%";
+  if (analysisStatus) analysisStatus.textContent = "Connecting to Care Assurance AI...";
+  if (analysisProgressFill) analysisProgressFill.style.width = "10%";
 
   // Get auth token
   const authToken = await getAuthToken();
@@ -232,7 +355,7 @@ const analyzeDocuments = async (files) => {
     progressTimer = setInterval(() => {
       if (currentProgress < 90) {
         currentProgress += 10;
-        analysisProgressFill.style.width = `${currentProgress}%`;
+        if (analysisProgressFill) analysisProgressFill.style.width = `${currentProgress}%`;
         const messages = [
           "Analyzing documents...",
           "Extracting service user profile...",
@@ -243,7 +366,7 @@ const analyzeDocuments = async (files) => {
           "Finalizing recommendations..."
         ];
         const msgIndex = Math.floor(currentProgress / 15) % messages.length;
-        progressDetails.textContent = messages[msgIndex];
+        if (progressDetails) progressDetails.textContent = messages[msgIndex];
       }
     }, 1500);
 
@@ -265,49 +388,56 @@ const analyzeDocuments = async (files) => {
           return;
         }
         
-        analysisProgressFill.style.width = "100%";
-        progressDetails.textContent = "Analysis complete!";
+        if (analysisProgressFill) analysisProgressFill.style.width = "100%";
+        if (progressDetails) progressDetails.textContent = "Analysis complete!";
         resolve(response.result);
       }
     );
   });
 };
 
-analyzeButton.addEventListener("click", async () => {
-  if (selectedFilesList.length === 0) {
-    analysisStatus.textContent = "Please select at least one file to analyze.";
-    return;
-  }
+if (analyzeButton) {
+  analyzeButton.addEventListener("click", async () => {
+    if (selectedFilesList.length === 0 && uploadedDocuments.length === 0) {
+      if (analysisStatus) analysisStatus.textContent = "Please select at least one file to analyze.";
+      return;
+    }
 
-  try {
-    analyzeButton.disabled = true;
-    analysisStatus.textContent = "Starting analysis...";
-    
-    const results = await analyzeDocuments(selectedFilesList);
-    currentAnalysisResults = results;
-    
-    displayAnalysisResults(results);
-    showSection("selection");
-    
-    // Clear file selection
-    selectedFilesList = [];
-    documentFilesInput.value = "";
-    fileListContainer.innerHTML = "";
-  } catch (error) {
-    console.error("Analysis error:", error);
-    analysisStatus.textContent = `Error: ${error.message}`;
-    analysisProgress.hidden = true;
-    showError(error.message);
-  } finally {
-    analyzeButton.disabled = false;
-  }
-});
+    try {
+      analyzeButton.disabled = true;
+      if (analysisStatus) analysisStatus.textContent = "Starting analysis...";
+      
+      const results = await analyzeDocuments(selectedFilesList);
+      currentAnalysisResults = results;
+      
+      // Clear file selection
+      selectedFilesList = [];
+      if (documentFilesInput) documentFilesInput.value = "";
+      if (fileListContainer) fileListContainer.innerHTML = "";
+      
+      displayAnalysisResults(results);
+      
+      // Switch to Send tab and show results
+      switchTab("send");
+      
+    } catch (error) {
+      console.error("Analysis error:", error);
+      if (analysisStatus) analysisStatus.textContent = `Error: ${error.message}`;
+      if (analysisProgress) analysisProgress.hidden = true;
+      showError(error.message);
+    } finally {
+      analyzeButton.disabled = false;
+    }
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DISPLAY ANALYSIS RESULTS
 // ═══════════════════════════════════════════════════════════════════════════
 
 function displayAnalysisResults(results) {
+  if (!serviceUserSummary || !assessmentList) return;
+  
   // Display service user summary
   const serviceUser = results.serviceUser || {};
   const summaryParts = [
@@ -333,7 +463,7 @@ function displayAnalysisResults(results) {
   
   if (assessments.length === 0) {
     assessmentList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--color-muted-foreground);">No assessments recommended</div>';
-    selectionCount.textContent = "0 selected";
+    if (selectionCount) selectionCount.textContent = "0 selected";
   } else {
     assessmentList.innerHTML = assessments.map((assessment, index) => `
       <div class="assessment-item" data-index="${index}">
@@ -372,82 +502,83 @@ function displayAnalysisResults(results) {
 
 function updateSelectionCount() {
   const checkedCount = document.querySelectorAll(".assessment-checkbox:checked").length;
-  selectionCount.textContent = `${checkedCount} selected`;
+  if (selectionCount) selectionCount.textContent = `${checkedCount} selected`;
 }
 
 // Selection toolbar buttons
-selectAllBtn.addEventListener("click", () => {
-  document.querySelectorAll(".assessment-checkbox").forEach(checkbox => {
-    checkbox.checked = true;
-    checkbox.closest(".assessment-item").classList.add("selected");
+if (selectAllBtn) {
+  selectAllBtn.addEventListener("click", () => {
+    document.querySelectorAll(".assessment-checkbox").forEach(checkbox => {
+      checkbox.checked = true;
+      checkbox.closest(".assessment-item").classList.add("selected");
+    });
+    updateSelectionCount();
   });
-  updateSelectionCount();
-});
+}
 
-clearSelectionBtn.addEventListener("click", () => {
-  document.querySelectorAll(".assessment-checkbox").forEach(checkbox => {
-    checkbox.checked = false;
-    checkbox.closest(".assessment-item").classList.remove("selected");
+if (clearSelectionBtn) {
+  clearSelectionBtn.addEventListener("click", () => {
+    document.querySelectorAll(".assessment-checkbox").forEach(checkbox => {
+      checkbox.checked = false;
+      checkbox.closest(".assessment-item").classList.remove("selected");
+    });
+    updateSelectionCount();
   });
-  updateSelectionCount();
-});
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GENERATE ASSESSMENTS (PREPARE PAYLOAD)
 // ═══════════════════════════════════════════════════════════════════════════
 
-proceedWithSelection.addEventListener("click", async () => {
-  if (!currentAnalysisResults) {
-    showError("No analysis results available.");
-    return;
-  }
+if (proceedWithSelection) {
+  proceedWithSelection.addEventListener("click", async () => {
+    if (!currentAnalysisResults) {
+      showError("No analysis results available. Please analyze documents first.");
+      return;
+    }
 
-  // Get selected assessments
-  const checkboxes = document.querySelectorAll(".assessment-checkbox:checked");
-  const selectedAssessments = Array.from(checkboxes).map(checkbox => {
-    const index = parseInt(checkbox.getAttribute("data-index"), 10);
-    return currentAnalysisResults.recommendedAssessments[index];
-  }).filter(Boolean);
+    // Get selected assessments
+    const checkboxes = document.querySelectorAll(".assessment-checkbox:checked");
+    const selectedAssessments = Array.from(checkboxes).map(checkbox => {
+      const index = parseInt(checkbox.getAttribute("data-index"), 10);
+      return currentAnalysisResults.recommendedAssessments[index];
+    }).filter(Boolean);
 
-  if (selectedAssessments.length === 0) {
-    showError("Please select at least one assessment to proceed.");
-    return;
-  }
+    if (selectedAssessments.length === 0) {
+      showError("Please select at least one assessment to proceed.");
+      return;
+    }
 
-  // Get additional notes
-  const notes = additionalNotes?.value || "";
+    // Get additional notes
+    const notes = additionalNotes?.value || "";
 
-  // Convert analysis results to ACP payload format
-  const payload = {
-    formType: "acp",
-    assessments: selectedAssessments.map(assessment => ({
-      assessmentType: assessment.name,
-      riskLevel: "To be determined",
-      findings: assessment.evidence || assessment.reason || "",
-      recommendations: assessment.reason || "",
-      evidence: (assessment.evidenceSnippets || []).join(" | "),
-      additionalNotes: notes
-    }))
-  };
+    // Convert analysis results to ACP payload format
+    const payload = {
+      formType: "acp",
+      assessments: selectedAssessments.map(assessment => ({
+        assessmentType: assessment.name,
+        riskLevel: "To be determined",
+        findings: assessment.evidence || assessment.reason || "",
+        recommendations: assessment.reason || "",
+        evidence: (assessment.evidenceSnippets || []).join(" | "),
+        additionalNotes: notes
+      }))
+    };
 
-  // Store payload
-  await setStorage({ [STORAGE_KEYS.payload]: payload });
+    // Store payload
+    await setStorage({ [STORAGE_KEYS.payload]: payload });
 
-  // Clear selection state
-  currentAnalysisResults = null;
-  additionalNotes.value = "";
+    // Clear selection state
+    currentAnalysisResults = null;
+    if (additionalNotes) additionalNotes.value = "";
 
-  // Show ready section
-  await refreshPayloadStatus();
-  showSection("ready");
-});
-
-cancelSelection.addEventListener("click", () => {
-  currentAnalysisResults = null;
-  additionalNotes.value = "";
-  showSection("upload");
-  analyzeButton.disabled = selectedFilesList.length === 0;
-});
+    // Refresh and scroll to ready section
+    await refreshPayloadStatus();
+    
+    // Show success message
+    if (progressStatus) progressStatus.textContent = `Ready: ${payload.assessments.length} assessment(s) prepared.`;
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // READY SECTION - AUTOFILL
@@ -511,19 +642,24 @@ const refreshPayloadStatus = async () => {
     STORAGE_KEYS.lastError,
   ]);
 
-  if (caAcpPayload && Array.isArray(caAcpPayload.assessments)) {
-    payloadStatus.querySelector("span").textContent = `Ready: ${caAcpPayload.assessments.length} assessment(s)`;
-  } else if (caAcpPayload && caAcpPayload.formType === "emar") {
-    payloadStatus.querySelector("span").textContent = "Ready: EMAR audit";
-  } else if (caAcpPayload && caAcpPayload.formType === "custom") {
-    payloadStatus.querySelector("span").textContent = "Ready: Custom document";
-  } else {
-    payloadStatus.querySelector("span").textContent = "Waiting for data...";
+  if (payloadStatus) {
+    const statusSpan = payloadStatus.querySelector("span");
+    if (statusSpan) {
+      if (caAcpPayload && Array.isArray(caAcpPayload.assessments)) {
+        statusSpan.textContent = `Ready: ${caAcpPayload.assessments.length} assessment(s)`;
+      } else if (caAcpPayload && caAcpPayload.formType === "emar") {
+        statusSpan.textContent = "Ready: EMAR audit";
+      } else if (caAcpPayload && caAcpPayload.formType === "custom") {
+        statusSpan.textContent = "Ready: Custom document";
+      } else {
+        statusSpan.textContent = "Waiting for data...";
+      }
+    }
   }
 
   if (caAcpCaseInfo) {
-    caseIdInput.value = caAcpCaseInfo.caseId || "";
-    serviceDataGroupInput.value = caAcpCaseInfo.serviceDataGroupId || "";
+    if (caseIdInput) caseIdInput.value = caAcpCaseInfo.caseId || "";
+    if (serviceDataGroupInput) serviceDataGroupInput.value = caAcpCaseInfo.serviceDataGroupId || "";
   }
 
   if (autoSubmitToggle) {
@@ -547,8 +683,6 @@ const refreshPayloadStatus = async () => {
   if (progressStatus) {
     if (caAcpQueueState && typeof caAcpQueueState.currentIndex === "number") {
       progressStatus.textContent = `Progress: ${caAcpQueueState.currentIndex + 1} of ${caAcpQueueState.total}`;
-    } else {
-      progressStatus.textContent = "Not started.";
     }
   }
 
@@ -559,43 +693,47 @@ const refreshPayloadStatus = async () => {
   await maybeAutofillCaseInfoFromActiveTab();
 };
 
-startButton.addEventListener("click", async () => {
-  const caseId = caseIdInput.value.trim();
-  const serviceDataGroupId = serviceDataGroupInput.value.trim();
-  const autoSubmit = autoSubmitToggle ? autoSubmitToggle.checked : true;
-  const dryRun = dryRunToggle ? dryRunToggle.checked : false;
-  const interactionMode = interactionModeSelect ? interactionModeSelect.value : "auto";
+if (startButton) {
+  startButton.addEventListener("click", async () => {
+    const caseId = caseIdInput ? caseIdInput.value.trim() : "";
+    const serviceDataGroupId = serviceDataGroupInput ? serviceDataGroupInput.value.trim() : "";
+    const autoSubmit = autoSubmitToggle ? autoSubmitToggle.checked : true;
+    const dryRun = dryRunToggle ? dryRunToggle.checked : false;
+    const interactionMode = interactionModeSelect ? interactionModeSelect.value : "auto";
 
-  if (!caseId || !serviceDataGroupId) {
-    progressStatus.textContent = "Enter both Case ID and Service Data Group ID.";
-    return;
-  }
-
-  await setStorage({
-    [STORAGE_KEYS.caseInfo]: { caseId, serviceDataGroupId },
-    [STORAGE_KEYS.autoSubmit]: autoSubmit,
-    [STORAGE_KEYS.dryRun]: dryRun,
-    [STORAGE_KEYS.interactionMode]: interactionMode,
-  });
-
-  chrome.runtime.sendMessage(
-    { type: MESSAGE_TYPES.startAutofill, caseId, serviceDataGroupId },
-    (response) => {
-      if (chrome.runtime.lastError) {
-        progressStatus.textContent = chrome.runtime.lastError.message;
-        return;
-      }
-      progressStatus.textContent = response?.ok
-        ? "Autofill started."
-        : response?.error || "Failed to start.";
+    if (!caseId || !serviceDataGroupId) {
+      if (progressStatus) progressStatus.textContent = "Enter both Case ID and Service Data Group ID.";
+      return;
     }
-  );
-});
+
+    await setStorage({
+      [STORAGE_KEYS.caseInfo]: { caseId, serviceDataGroupId },
+      [STORAGE_KEYS.autoSubmit]: autoSubmit,
+      [STORAGE_KEYS.dryRun]: dryRun,
+      [STORAGE_KEYS.interactionMode]: interactionMode,
+    });
+
+    chrome.runtime.sendMessage(
+      { type: MESSAGE_TYPES.startAutofill, caseId, serviceDataGroupId },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          if (progressStatus) progressStatus.textContent = chrome.runtime.lastError.message;
+          return;
+        }
+        if (progressStatus) {
+          progressStatus.textContent = response?.ok
+            ? "Autofill started."
+            : response?.error || "Failed to start.";
+        }
+      }
+    );
+  });
+}
 
 if (stopButton) {
   stopButton.addEventListener("click", async () => {
     chrome.runtime.sendMessage({ type: MESSAGE_TYPES.stopAutofill }, () => {
-      progressStatus.textContent = "Autofill stopped.";
+      if (progressStatus) progressStatus.textContent = "Autofill stopped.";
     });
   });
 }
@@ -628,14 +766,8 @@ if (clearButton) {
       [STORAGE_KEYS.signatureData]: null,
       [STORAGE_KEYS.signatureBatchId]: null,
     });
-    progressStatus.textContent = "Cleared stored data.";
+    if (progressStatus) progressStatus.textContent = "Cleared stored data.";
     await refreshPayloadStatus();
-  });
-}
-
-if (backToUploadBtn) {
-  backToUploadBtn.addEventListener("click", () => {
-    showSection("upload");
   });
 }
 
@@ -645,6 +777,7 @@ if (clearLogsButton) {
     await refreshPayloadStatus();
   });
 }
+
 // ═══════════════════════════════════════════════════════════════════════════
 // SIGNATURE UPLOAD
 // ═══════════════════════════════════════════════════════════════════════════
@@ -703,15 +836,29 @@ const sendSignatureToActiveTab = async (file) => {
 if (uploadSignatureButton) {
   uploadSignatureButton.addEventListener("click", async () => {
     if (!signatureInput || !signatureInput.files || signatureInput.files.length === 0) {
-      signatureStatus.textContent = "Choose a signature file first.";
+      if (signatureStatus) signatureStatus.textContent = "Choose a signature file first.";
       return;
     }
     const file = signatureInput.files[0];
     try {
       await sendSignatureToActiveTab(file);
-      signatureStatus.textContent = "Signature uploaded to form.";
+      if (signatureStatus) signatureStatus.textContent = "Signature uploaded to form.";
     } catch (error) {
-      signatureStatus.textContent = error.message || "Signature upload failed.";
+      if (signatureStatus) signatureStatus.textContent = error.message || "Signature upload failed.";
+    }
+  });
+}
+
+// Show selected filename for signature upload
+if (signatureInput) {
+  const signatureFilenameEl = document.getElementById("signature-filename");
+  signatureInput.addEventListener("change", () => {
+    if (signatureFilenameEl) {
+      if (signatureInput.files && signatureInput.files.length > 0) {
+        signatureFilenameEl.textContent = "Selected: " + signatureInput.files[0].name;
+      } else {
+        signatureFilenameEl.textContent = "";
+      }
     }
   });
 }
@@ -721,6 +868,7 @@ if (uploadSignatureButton) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function showError(message) {
+  if (!errorBanner) return;
   errorBanner.textContent = message;
   errorBanner.hidden = false;
   setTimeout(() => {
@@ -741,14 +889,18 @@ if (errorBanner) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 (async function init() {
+  // Load uploaded documents
+  await loadUploadedDocuments();
+  
+  // Refresh payload status
   await refreshPayloadStatus();
   
-  // Check if we have a payload - if so, show ready section, otherwise show upload
+  // Check if we have a payload - if so, start on Send tab
   const { caAcpPayload } = await loadStorage([STORAGE_KEYS.payload]);
   if (caAcpPayload && (caAcpPayload.assessments || caAcpPayload.formType)) {
-    showSection("ready");
+    switchTab("send");
   } else {
-    showSection("upload");
+    switchTab("upload");
   }
   
   // Refresh status periodically

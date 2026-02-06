@@ -102,6 +102,19 @@ import {
   analyzedCalls,
   callRecommendations,
   workbookUploads,
+  // GDPR compliance tables
+  gdprConsentRecords,
+  gdprAuditLogs,
+  gdprDataRequests,
+  gdprRetentionPolicies,
+  type GdprConsentRecord,
+  type InsertGdprConsentRecord,
+  type GdprAuditLog,
+  type InsertGdprAuditLog,
+  type GdprDataRequest,
+  type InsertGdprDataRequest,
+  type GdprRetentionPolicy,
+  type InsertGdprRetentionPolicy,
 } from "@shared/schema";
 
 const SALT_ROUNDS = 10;
@@ -2277,6 +2290,301 @@ export class DatabaseStorage implements IStorage {
       callRecommendations: callRecommendationsDeleted,
       workbookUploads: workbookUploadsDeleted,
     };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UK GDPR COMPLIANCE METHODS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // --- Consent Management ---
+  
+  async createConsentRecord(consent: InsertGdprConsentRecord): Promise<GdprConsentRecord> {
+    const [record] = await this.db.insert(gdprConsentRecords).values(consent).returning();
+    return record;
+  }
+
+  async getConsentRecords(userId: string): Promise<GdprConsentRecord[]> {
+    return this.db
+      .select()
+      .from(gdprConsentRecords)
+      .where(eq(gdprConsentRecords.userId, userId))
+      .orderBy(desc(gdprConsentRecords.createdAt));
+  }
+
+  async getCurrentConsent(userId: string, consentType: string): Promise<GdprConsentRecord | undefined> {
+    const [record] = await this.db
+      .select()
+      .from(gdprConsentRecords)
+      .where(and(
+        eq(gdprConsentRecords.userId, userId),
+        eq(gdprConsentRecords.consentType, consentType),
+        sql`${gdprConsentRecords.withdrawnAt} IS NULL`
+      ))
+      .orderBy(desc(gdprConsentRecords.createdAt))
+      .limit(1);
+    return record;
+  }
+
+  async withdrawConsent(userId: string, consentType: string): Promise<GdprConsentRecord | undefined> {
+    const [record] = await this.db
+      .update(gdprConsentRecords)
+      .set({ withdrawnAt: new Date() })
+      .where(and(
+        eq(gdprConsentRecords.userId, userId),
+        eq(gdprConsentRecords.consentType, consentType),
+        sql`${gdprConsentRecords.withdrawnAt} IS NULL`
+      ))
+      .returning();
+    return record;
+  }
+
+  // --- GDPR Audit Logging ---
+
+  async createGdprAuditLog(log: InsertGdprAuditLog): Promise<GdprAuditLog> {
+    const [record] = await this.db.insert(gdprAuditLogs).values(log).returning();
+    return record;
+  }
+
+  async getGdprAuditLogs(filters?: {
+    eventType?: string;
+    userId?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+  }): Promise<GdprAuditLog[]> {
+    let query = this.db.select().from(gdprAuditLogs);
+    
+    const conditions: any[] = [];
+    if (filters?.eventType) {
+      conditions.push(eq(gdprAuditLogs.eventType, filters.eventType));
+    }
+    if (filters?.userId) {
+      conditions.push(eq(gdprAuditLogs.userId, filters.userId));
+    }
+    if (filters?.startDate) {
+      conditions.push(sql`${gdprAuditLogs.createdAt} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${gdprAuditLogs.createdAt} <= ${filters.endDate}`);
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    return query
+      .orderBy(desc(gdprAuditLogs.createdAt))
+      .limit(filters?.limit || 1000);
+  }
+
+  // --- Data Subject Requests ---
+
+  async createDataRequest(request: InsertGdprDataRequest): Promise<GdprDataRequest> {
+    const [record] = await this.db.insert(gdprDataRequests).values(request).returning();
+    return record;
+  }
+
+  async getDataRequest(id: string): Promise<GdprDataRequest | undefined> {
+    const [request] = await this.db
+      .select()
+      .from(gdprDataRequests)
+      .where(eq(gdprDataRequests.id, id));
+    return request;
+  }
+
+  async getPendingDataRequests(): Promise<GdprDataRequest[]> {
+    return this.db
+      .select()
+      .from(gdprDataRequests)
+      .where(or(
+        eq(gdprDataRequests.status, 'pending'),
+        eq(gdprDataRequests.status, 'in_progress')
+      ))
+      .orderBy(gdprDataRequests.dueDate);
+  }
+
+  async getAllDataRequests(): Promise<GdprDataRequest[]> {
+    return this.db
+      .select()
+      .from(gdprDataRequests)
+      .orderBy(desc(gdprDataRequests.createdAt));
+  }
+
+  async updateDataRequestStatus(
+    id: string,
+    status: string,
+    processedBy?: string,
+    processedByUsername?: string,
+    dataSummary?: any,
+    statusReason?: string
+  ): Promise<GdprDataRequest | undefined> {
+    const updates: any = { status };
+    if (processedBy) updates.processedBy = processedBy;
+    if (processedByUsername) updates.processedByUsername = processedByUsername;
+    if (dataSummary) updates.dataSummary = dataSummary;
+    if (statusReason) updates.statusReason = statusReason;
+    if (status === 'completed' || status === 'rejected') {
+      updates.completedAt = new Date();
+    }
+
+    const [record] = await this.db
+      .update(gdprDataRequests)
+      .set(updates)
+      .where(eq(gdprDataRequests.id, id))
+      .returning();
+    return record;
+  }
+
+  // --- Retention Policies ---
+
+  async getRetentionPolicies(): Promise<GdprRetentionPolicy[]> {
+    return this.db.select().from(gdprRetentionPolicies).orderBy(gdprRetentionPolicies.dataCategory);
+  }
+
+  async getRetentionPolicy(dataCategory: string): Promise<GdprRetentionPolicy | undefined> {
+    const [policy] = await this.db
+      .select()
+      .from(gdprRetentionPolicies)
+      .where(eq(gdprRetentionPolicies.dataCategory, dataCategory));
+    return policy;
+  }
+
+  async upsertRetentionPolicy(policy: InsertGdprRetentionPolicy): Promise<GdprRetentionPolicy> {
+    const [record] = await this.db
+      .insert(gdprRetentionPolicies)
+      .values(policy)
+      .onConflictDoUpdate({
+        target: gdprRetentionPolicies.dataCategory,
+        set: {
+          retentionDays: policy.retentionDays,
+          legalBasis: policy.legalBasis,
+          description: policy.description,
+          updatedAt: new Date(),
+        }
+      })
+      .returning();
+    return record;
+  }
+
+  async updateRetentionPolicyPurgeTime(dataCategory: string): Promise<GdprRetentionPolicy | undefined> {
+    const [record] = await this.db
+      .update(gdprRetentionPolicies)
+      .set({ lastPurgeAt: new Date() })
+      .where(eq(gdprRetentionPolicies.dataCategory, dataCategory))
+      .returning();
+    return record;
+  }
+
+  // --- Data Export (Right of Access) ---
+
+  async exportUserData(userId: string): Promise<{
+    user: User | undefined;
+    sessions: SessionHistory[];
+    consents: GdprConsentRecord[];
+    auditLogs: GdprAuditLog[];
+    systemLogs: SystemLog[];
+    aiUsageLogs: AiUsageLog[];
+    suspensions: SuspensionLog[];
+    messages: UserMessage[];
+  }> {
+    const [user, sessions, consents, auditLogs, userSystemLogs, aiLogs, suspensions, messages] = await Promise.all([
+      this.getUser(userId),
+      this.db.select().from(sessionHistory).where(eq(sessionHistory.userId, userId)),
+      this.getConsentRecords(userId),
+      this.db.select().from(gdprAuditLogs).where(eq(gdprAuditLogs.userId, userId)),
+      this.db.select().from(systemLogs).where(eq(systemLogs.userId, userId)),
+      this.db.select().from(aiUsageLogs).where(eq(aiUsageLogs.userId, userId)),
+      this.db.select().from(suspensionLogs).where(eq(suspensionLogs.userId, userId)),
+      this.db.select().from(userMessages).where(eq(userMessages.senderId, userId)),
+    ]);
+
+    return {
+      user,
+      sessions,
+      consents,
+      auditLogs,
+      systemLogs: userSystemLogs,
+      aiUsageLogs: aiLogs,
+      suspensions,
+      messages,
+    };
+  }
+
+  // --- Data Deletion (Right to Erasure) ---
+
+  async deleteUserData(userId: string): Promise<{
+    sessionsDeleted: number;
+    consentsDeleted: number;
+    messagesDeleted: number;
+    logsDeleted: number;
+    userDeleted: boolean;
+  }> {
+    // Delete related data first (foreign keys)
+    const [sessions, consents, messages, syslogs] = await Promise.all([
+      this.db.delete(sessionHistory).where(eq(sessionHistory.userId, userId)).returning({ id: sessionHistory.id }),
+      this.db.delete(gdprConsentRecords).where(eq(gdprConsentRecords.userId, userId)).returning({ id: gdprConsentRecords.id }),
+      this.db.delete(userMessages).where(eq(userMessages.senderId, userId)).returning({ id: userMessages.id }),
+      this.db.delete(systemLogs).where(eq(systemLogs.userId, userId)).returning({ id: systemLogs.id }),
+    ]);
+
+    // Delete the user
+    const [deletedUser] = await this.db.delete(users).where(eq(users.id, userId)).returning({ id: users.id });
+
+    return {
+      sessionsDeleted: sessions.length,
+      consentsDeleted: consents.length,
+      messagesDeleted: messages.length,
+      logsDeleted: syslogs.length,
+      userDeleted: !!deletedUser,
+    };
+  }
+
+  // --- Data Retention Purge ---
+
+  async purgeExpiredData(dataCategory: string): Promise<number> {
+    const policy = await this.getRetentionPolicy(dataCategory);
+    if (!policy) return 0;
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - policy.retentionDays);
+
+    let deleted = 0;
+
+    switch (dataCategory) {
+      case 'session_history':
+        const sess = await this.db.delete(sessionHistory)
+          .where(lte(sessionHistory.loggedInAt, cutoffDate))
+          .returning({ id: sessionHistory.id });
+        deleted = sess.length;
+        break;
+
+      case 'gdpr_audit_logs':
+        const audit = await this.db.delete(gdprAuditLogs)
+          .where(lte(gdprAuditLogs.createdAt, cutoffDate))
+          .returning({ id: gdprAuditLogs.id });
+        deleted = audit.length;
+        break;
+
+      case 'system_logs':
+        const sys = await this.db.delete(systemLogs)
+          .where(lte(systemLogs.createdAt, cutoffDate))
+          .returning({ id: systemLogs.id });
+        deleted = sys.length;
+        break;
+
+      case 'ai_usage_logs':
+        const ai = await this.db.delete(aiUsageLogs)
+          .where(lte(aiUsageLogs.createdAt, cutoffDate))
+          .returning({ id: aiUsageLogs.id });
+        deleted = ai.length;
+        break;
+    }
+
+    if (deleted > 0) {
+      await this.updateRetentionPolicyPurgeTime(dataCategory);
+    }
+
+    return deleted;
   }
 }
 

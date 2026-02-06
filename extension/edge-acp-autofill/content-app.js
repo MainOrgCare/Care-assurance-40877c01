@@ -1,11 +1,12 @@
 const EXTENSION_MESSAGE_TYPE = "CA_SEND_TO_ACP_EXTENSION";
 const EMAR_MESSAGE_TYPE = "CA_SEND_TO_EMAR_EXTENSION";
 const EXTENSION_ACK_TYPE = "CA_EXTENSION_ACK";
+const STORE_PAYLOAD_TYPE = "CA_EXTENSION_STORE_PAYLOAD";
 
-// Use MESSAGE_TYPES from constants.js (already loaded) or fallback
-const APP_MESSAGE_TYPES = window.CA_EXTENSION_CONSTANTS?.MESSAGE_TYPES || {};
+console.log("[CA Extension] content-app.js loaded");
 
 const sendAck = (requestId, ok, error) => {
+  console.log("[CA Extension] Sending ACK:", { requestId, ok, error });
   window.postMessage(
     {
       type: EXTENSION_ACK_TYPE,
@@ -23,6 +24,8 @@ window.addEventListener("message", (event) => {
   const isAcpMessage = event.data.type === EXTENSION_MESSAGE_TYPE;
   const isEmarMessage = event.data.type === EMAR_MESSAGE_TYPE;
   if (!isAcpMessage && !isEmarMessage) return;
+
+  console.log("[CA Extension] Received message:", event.data.type);
 
   const { requestId, payload } = event.data;
   if (!payload || typeof payload !== "object") {
@@ -54,7 +57,7 @@ window.addEventListener("message", (event) => {
   }
 
   chrome.runtime.sendMessage(
-    { type: APP_MESSAGE_TYPES?.storePayload || "CA_EXTENSION_STORE_PAYLOAD", payload: normalizedPayload },
+    { type: STORE_PAYLOAD_TYPE, payload: normalizedPayload },
     (response) => {
       if (chrome.runtime.lastError) {
         sendAck(requestId, false, chrome.runtime.lastError.message);

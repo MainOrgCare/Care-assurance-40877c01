@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,10 +11,51 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { ShieldAlert, ArrowRight, Loader2, AlertTriangle, CheckCircle, FileText, Info, Search, Copy, Check, X, Send } from "lucide-react";
+import { ShieldAlert, ArrowRight, Loader2, AlertTriangle, CheckCircle, FileText, Info, Search, Copy, Check, X, Send, Edit3 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
+import { TemplateFiller } from "@/components/TemplateFiller";
+import { ClientPIIVault, VaultExport, restoreWithVault } from "@/lib/pii-vault";
+
+/**
+ * Count placeholders in text
+ */
+function countPlaceholders(text: string): number {
+  const matches = text.match(/\[([^\]]+)\]/g);
+  return matches ? matches.length : 0;
+}
+
+/**
+ * Highlight template placeholders like [Name], [NHS Number] etc.
+ */
+function highlightPlaceholders(text: string): React.ReactNode {
+  const placeholderPattern = /\[([^\]]+)\]/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = placeholderPattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    parts.push(
+      <span
+        key={key++}
+        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded font-semibold text-xs border border-amber-300 dark:border-amber-700"
+        title={`Fill in: ${match[1]}`}
+      >
+        {match[0]}
+      </span>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+  return parts.length > 0 ? parts : text;
+}
 
 interface RecommendedAssessment {
   name: string;
@@ -66,12 +107,13 @@ export default function RiskAssessment() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisRaw, setAnalysisRaw] = useState<RiskAnalysis | null>(null);
   const [analysisScrubbed, setAnalysisScrubbed] = useState<RiskAnalysis | null>(null);
+  const [analysisVaultExport, setAnalysisVaultExport] = useState<VaultExport | null>(null);
   const [selectedAssessments, setSelectedAssessments] = useState<Set<string>>(new Set());
   const [showWarnings, setShowWarnings] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedAssessmentsRaw, setGeneratedAssessmentsRaw] = useState<GeneratedAssessment[]>([]);
   const [generatedAssessmentsScrubbed, setGeneratedAssessmentsScrubbed] = useState<GeneratedAssessment[]>([]);
-  const [step, setStep] = useState<"upload" | "analyze" | "select" | "generate" | "view">("upload");
+  const [generatedVaultExport, setGeneratedVaultExport] = useState<VaultExport | null>(null);  const [step, setStep] = useState<"upload" | "analyze" | "select" | "generate" | "view">("upload");
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -83,6 +125,18 @@ export default function RiskAssessment() {
   const [customAssessments, setCustomAssessments] = useState<RecommendedAssessment[]>([]);
   const [isRefreshingIdentity, setIsRefreshingIdentity] = useState(false);
   const [selectedForAcp, setSelectedForAcp] = useState<Set<number>>(new Set());
+
+  // Throttle progress updates to reduce re-renders during SSE streaming
+  const lastProgressUpdateRef = useRef<number>(0);
+  const throttledSetProgress = useCallback((percent: number, status: string) => {
+    const now = Date.now();
+    // Always update at 0%, 100%, or if 100ms has passed
+    if (percent === 0 || percent >= 100 || now - lastProgressUpdateRef.current >= 100) {
+      lastProgressUpdateRef.current = now;
+      setProgress(percent);
+      setProgressStatus(status);
+    }
+  }, []);
 
   const isAdmin = user?.role === "admin";
   const showSensitive = isAdmin && allowSensitive;
@@ -298,12 +352,45 @@ export default function RiskAssessment() {
   const customAssessmentKeys = useMemo(() => {
     return new Set(customAssessments.map((assessment) => normalizeAssessmentKey(assessment.name)));
   }, [customAssessments]);
+  
+  // Memoize relevance matches to avoid recomputing on every render
+  const relevanceMatchMap = useMemo(() => {
+    const map = new Map<string, string | null>();
+    combinedAssessments.forEach((assessment) => {
+      const key = canonicalizeAssessmentName(assessment.name);
+      const keywords = assessmentRelevanceKeywords[key];
+      if (!keywords || keywords.length === 0) {
+        map.set(assessment.name, null);
+        return;
+      }
+      const haystack = [
+        assessment.name,
+        assessment.reason,
+        assessment.evidence,
+        analysis?.documentSummary,
+        ...(analysis?.concerns || []),
+        ...(analysis?.medicalConditions || []),
+        ...(analysis?.careActivities || []),
+        ...(analysis?.equipment || []),
+        ...(analysis?.communicationNeeds || []),
+        ...(analysis?.environmentalFactors || []),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const match = keywords.find((term) => haystack.includes(term));
+      map.set(assessment.name, match || null);
+    });
+    return map;
+  }, [combinedAssessments, analysis]);
+  
   const assessmentOptions = useMemo(() => {
     return combinedAssessments.map((assessment, index) => ({
       assessment,
       index,
+      relevanceMatch: relevanceMatchMap.get(assessment.name) || null,
     }));
-  }, [combinedAssessments]);
+  }, [combinedAssessments, relevanceMatchMap]);
   const filteredAssessments = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     let filtered = assessmentOptions.filter(({ assessment }) => {
@@ -414,6 +501,24 @@ export default function RiskAssessment() {
           }
         }
 
+        // Process any remaining buffer after stream ends
+        if (buffer.trim()) {
+          const lines = buffer.split("\n");
+          let eventType = "";
+          let dataStr = "";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) eventType = line.substring(7).trim();
+            else if (line.startsWith("data: ")) dataStr = line.substring(6);
+          }
+          if (eventType === "result" && dataStr) {
+            try {
+              const data = JSON.parse(dataStr);
+              resultRaw = data;
+              resultScrubbed = data?.scrubbedResult || data;
+            } catch { /* ignore parse errors */ }
+          }
+        }
+
         if (resultRaw) {
           setAnalysisRaw(resultRaw);
           setAnalysisScrubbed(resultScrubbed || resultRaw);
@@ -460,6 +565,7 @@ export default function RiskAssessment() {
       let buffer = "";
       let resultRaw: RiskAnalysis | null = null;
       let resultScrubbed: RiskAnalysis | null = null;
+      let resultVaultExport: VaultExport | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -481,15 +587,58 @@ export default function RiskAssessment() {
           if (eventType && dataStr) {
             const data = JSON.parse(dataStr);
             if (eventType === "progress") {
-              setProgress(data.percent);
-              setProgressStatus(data.status);
+              throttledSetProgress(data.percent, data.status);
             } else if (eventType === "result") {
-              resultRaw = data;
-              resultScrubbed = data?.scrubbedResult || data;
+              // Check if server included vault export for admin sensitive view
+              const vaultExport = data?.vaultExport as VaultExport | undefined;
+              const rawWithTokens = data?.rawWithTokens;
+              
+              if (vaultExport && rawWithTokens) {
+                // Server included vault for local PII restoration
+                // Create client-side vault and restore PII locally
+                const vault = new ClientPIIVault(vaultExport);
+                resultRaw = vault.restore(rawWithTokens);
+                resultVaultExport = vaultExport;
+                console.log(`[Analyze] PII Vault restored ${vault.getStats().total} tokens locally`);
+              } else {
+                resultRaw = data;
+              }
+              
+              // The base result (without vault fields) is the scrubbed version with placeholders
+              const { vaultExport: _ve, rawWithTokens: _rwt, ...scrubbedData } = data;
+              resultScrubbed = scrubbedData;
             } else if (eventType === "error") {
               throw new Error(data.message);
             }
           }
+        }
+      }
+
+      // Process any remaining buffer after stream ends
+      if (buffer.trim()) {
+        const lines = buffer.split("\n");
+        let eventType = "";
+        let dataStr = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) eventType = line.substring(7).trim();
+          else if (line.startsWith("data: ")) dataStr = line.substring(6);
+        }
+        if (eventType === "result" && dataStr) {
+          try {
+            const data = JSON.parse(dataStr);
+            const vaultExport = data?.vaultExport as VaultExport | undefined;
+            const rawWithTokens = data?.rawWithTokens;
+            
+            if (vaultExport && rawWithTokens) {
+              const vault = new ClientPIIVault(vaultExport);
+              resultRaw = vault.restore(rawWithTokens);
+              resultVaultExport = vaultExport;
+            } else {
+              resultRaw = data;
+            }
+            const { vaultExport: _ve, rawWithTokens: _rwt, ...scrubbedData } = data;
+            resultScrubbed = scrubbedData;
+          } catch { /* ignore parse errors */ }
         }
       }
 
@@ -506,6 +655,7 @@ export default function RiskAssessment() {
       setCustomAssessmentName("");
       setAnalysisRaw(resultRaw);
       setAnalysisScrubbed(resultScrubbed || resultRaw);
+      setAnalysisVaultExport(resultVaultExport);
       setStep("select");
       
       // Auto-select mandatory assessments
@@ -753,12 +903,53 @@ export default function RiskAssessment() {
                 inFlightProgress.set(assessmentName, Math.min(100, Math.max(0, data.percent)));
                 updateOverallProgress();
               } else if (eventType === "result") {
-                resultRaw = data;
-                resultScrubbed = data?.scrubbedResult || data;
+                // Check if server included vault export for admin sensitive view
+                const vaultExport = data?.vaultExport as VaultExport | undefined;
+                const rawWithTokens = data?.rawWithTokens;
+                
+                if (vaultExport && rawWithTokens) {
+                  // Server included vault for local PII restoration
+                  const vault = new ClientPIIVault(vaultExport);
+                  resultRaw = vault.restore(rawWithTokens);
+                  console.log(`[Generate ${assessmentName}] PII Vault restored ${vault.getStats().total} tokens locally`);
+                } else {
+                  resultRaw = data;
+                }
+                
+                // The base result (without vault fields) is the scrubbed version
+                const { vaultExport: _ve, rawWithTokens: _rwt, ...scrubbedData } = data;
+                resultScrubbed = scrubbedData;
               } else if (eventType === "error") {
                 throw new Error(data?.message || `Failed to generate ${assessmentName}`);
               }
             }
+          }
+        }
+
+        // Process any remaining buffer after stream ends
+        if (buffer.trim()) {
+          const lines = buffer.split("\n");
+          let eventType = "";
+          let dataStr = "";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) eventType = line.substring(7).trim();
+            else if (line.startsWith("data: ")) dataStr = line.substring(6);
+          }
+          if (eventType === "result" && dataStr) {
+            try {
+              const data = JSON.parse(dataStr);
+              const vaultExport = data?.vaultExport as VaultExport | undefined;
+              const rawWithTokens = data?.rawWithTokens;
+              
+              if (vaultExport && rawWithTokens) {
+                const vault = new ClientPIIVault(vaultExport);
+                resultRaw = vault.restore(rawWithTokens);
+              } else {
+                resultRaw = data;
+              }
+              const { vaultExport: _ve, rawWithTokens: _rwt, ...scrubbedData } = data;
+              resultScrubbed = scrubbedData;
+            } catch { /* ignore parse errors */ }
           }
         }
 
@@ -1508,9 +1699,7 @@ export default function RiskAssessment() {
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredAssessments.map(({ assessment, index }) => {
-                  const match = getAssessmentRelevanceMatch(assessment);
-                  return (
+                {filteredAssessments.map(({ assessment, index, relevanceMatch }) => (
                     <div
                       key={assessment.name}
                       className={`flex items-start space-x-3 p-3 rounded-lg border transition-colors ${
@@ -1537,9 +1726,9 @@ export default function RiskAssessment() {
                           {!assessment.isMandatory && customAssessmentKeys.has(normalizeAssessmentKey(assessment.name)) && (
                             <Badge variant="outline" className="text-xs">Custom</Badge>
                           )}
-                          {match && (
+                          {relevanceMatch && (
                             <Badge variant="success" className="text-xs">
-                              Match: {match}
+                              Match: {relevanceMatch}
                             </Badge>
                           )}
                         </Label>
@@ -1551,8 +1740,7 @@ export default function RiskAssessment() {
                         )}
                       </div>
                     </div>
-                  );
-                })}
+                ))}
               </div>
             )}
 
@@ -1622,6 +1810,21 @@ export default function RiskAssessment() {
 
   // Step 6: View generated assessments
   if (step === "view" && generatedAssessments.length > 0) {
+    // Count total placeholders across all assessments
+    const totalPlaceholders = generatedAssessments.reduce((sum, assessment) => {
+      let count = 0;
+      assessment.risks.forEach(risk => {
+        count += countPlaceholders(risk.riskDefinition);
+        count += countPlaceholders(risk.howItsARisk);
+        count += countPlaceholders(risk.whoWillBeHarmed);
+        count += countPlaceholders(risk.controlMeasures);
+      });
+      if (assessment.additionalNotes) {
+        count += countPlaceholders(assessment.additionalNotes);
+      }
+      return sum + count;
+    }, 0);
+
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1632,6 +1835,12 @@ export default function RiskAssessment() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {totalPlaceholders > 0 && (
+              <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-bold">
+                <Edit3 size={12} className="mr-1" />
+                {totalPlaceholders} placeholder{totalPlaceholders !== 1 ? 's' : ''} to fill
+              </Badge>
+            )}
             {isAdmin && (
               <div className="flex flex-col items-start gap-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                 <div className="flex items-center gap-2">
@@ -1683,6 +1892,19 @@ export default function RiskAssessment() {
           </div>
         </div>
 
+        {totalPlaceholders > 0 && (
+          <Alert className="bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
+            <Edit3 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertTitle className="text-amber-700 dark:text-amber-300">Template Output</AlertTitle>
+            <AlertDescription className="text-amber-600 dark:text-amber-400">
+              These assessments contain {totalPlaceholders} placeholder{totalPlaceholders !== 1 ? 's' : ''} shown as{' '}
+              <span className="inline-flex items-center px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 rounded text-xs font-medium border border-amber-300 dark:border-amber-700">[Name]</span>,{' '}
+              <span className="inline-flex items-center px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 rounded text-xs font-medium border border-amber-300 dark:border-amber-700">[NHS Number]</span>, etc.
+              Copy the assessment and replace each placeholder with actual data before adding to the care record.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {generatedAssessments.map((assessment, idx) => (
           <Card key={idx} className={`bg-card border-border print:bg-white print:text-black ${isAdmin && selectedForAcp.has(idx) ? 'ring-2 ring-primary/50' : ''}`}>
             <CardHeader className="border-b border-border">
@@ -1716,6 +1938,25 @@ export default function RiskAssessment() {
                     {copiedAssessment === idx ? <Check size={14} /> : <Copy size={14} />}
                     Copy
                   </Button>
+                  {countPlaceholders(formatAssessmentForCopy(assessment)) > 0 && (
+                    <TemplateFiller
+                      templateText={formatAssessmentForCopy(assessment)}
+                      onComplete={(filledText) => {
+                        navigator.clipboard.writeText(filledText);
+                        toast({
+                          title: "Copied",
+                          description: `Filled ${assessment.category} copied to clipboard`,
+                        });
+                      }}
+                      title={`Fill ${assessment.category} Template`}
+                      trigger={
+                        <Button variant="ghost" size="sm" data-testid={`button-fill-template-${idx}`}>
+                          <Edit3 size={14} />
+                          Fill
+                        </Button>
+                      }
+                    />
+                  )}
                   {isAdmin && (
                     <Button
                       variant="ghost"
@@ -1744,7 +1985,7 @@ export default function RiskAssessment() {
                 {assessment.risks.map((risk, riskIdx) => (
                   <div key={riskIdx} className="border border-border rounded-lg overflow-hidden">
                     <div className="bg-muted px-4 py-2 border-b border-border">
-                      <p className="font-medium text-foreground">Risk {riskIdx + 1}: {risk.riskDefinition}</p>
+                      <p className="font-medium text-foreground">Risk {riskIdx + 1}: {highlightPlaceholders(risk.riskDefinition)}</p>
                     </div>
                     <div className="p-4 grid gap-4">
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -1756,18 +1997,18 @@ export default function RiskAssessment() {
                         </div>
                         <div className="md:col-span-2">
                           <Label className="text-muted-foreground text-xs">Who Will Be Harmed</Label>
-                          <p className="text-foreground">{risk.whoWillBeHarmed}</p>
+                          <p className="text-foreground">{highlightPlaceholders(risk.whoWillBeHarmed)}</p>
                         </div>
                       </div>
                       
                       <div>
                         <Label className="text-muted-foreground text-xs">How It's a Risk</Label>
-                        <p className="text-muted-foreground text-sm">{risk.howItsARisk}</p>
+                        <p className="text-muted-foreground text-sm">{highlightPlaceholders(risk.howItsARisk)}</p>
                       </div>
                       
                       <div>
                         <Label className="text-muted-foreground text-xs">Control Measures</Label>
-                        <p className="text-muted-foreground text-sm">{risk.controlMeasures}</p>
+                        <p className="text-muted-foreground text-sm">{highlightPlaceholders(risk.controlMeasures)}</p>
                       </div>
                       
                       <div>
@@ -1785,7 +2026,7 @@ export default function RiskAssessment() {
               {assessment.additionalNotes && assessment.additionalNotes !== "I'm not aware of additional information based on the documents provided" && (
                 <div className="mt-4 p-4 bg-muted/50 rounded-lg">
                   <Label className="text-muted-foreground text-xs">Additional Notes</Label>
-                  <p className="text-muted-foreground text-sm mt-1">{assessment.additionalNotes}</p>
+                  <p className="text-muted-foreground text-sm mt-1">{highlightPlaceholders(assessment.additionalNotes)}</p>
                 </div>
               )}
 

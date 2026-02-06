@@ -13,6 +13,7 @@
     signatureData: "caAcpSignatureData",
     signatureBatchId: "caAcpSignatureBatchId",
     lastError: "caAcpLastError",
+    uploadedDocuments: "caAcpUploadedDocuments",
   };
 
   const FORM_CONFIGS = {
@@ -39,6 +40,7 @@
     clearError: "CA_EXTENSION_CLEAR_ERROR",
     toggleOverlay: "CA_EXTENSION_TOGGLE_OVERLAY",
     analyzeRisks: "CA_EXTENSION_ANALYZE_RISKS",
+    sendToApp: "CA_EXTENSION_SEND_TO_APP",
   };
 
   globalScope.CA_EXTENSION_CONSTANTS = { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES };

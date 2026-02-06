@@ -1000,3 +1000,108 @@ export const insertRosteringSavedStateSchema = createInsertSchema(rosteringSaved
 
 export type InsertRosteringSavedState = z.infer<typeof insertRosteringSavedStateSchema>;
 export type RosteringSavedState = typeof rosteringSavedStates.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UK GDPR COMPLIANCE TABLES
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GDPR Consent Records - tracks user consent for AI processing
+export const gdprConsentRecords = pgTable("gdpr_consent_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  username: text("username").notNull(),
+  consentType: text("consent_type").notNull(), // 'ai_processing', 'data_analytics', 'third_party_sharing'
+  granted: boolean("granted").notNull(),
+  version: text("version").notNull(), // Consent policy version
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  withdrawnAt: timestamp("withdrawn_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  userConsentIdx: index("gdpr_consent_user_type_idx").on(table.userId, table.consentType),
+}));
+
+export const insertGdprConsentRecordSchema = createInsertSchema(gdprConsentRecords).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertGdprConsentRecord = z.infer<typeof insertGdprConsentRecordSchema>;
+export type GdprConsentRecord = typeof gdprConsentRecords.$inferSelect;
+
+// GDPR Audit Log - persistent security audit trail for compliance
+export const gdprAuditLogs = pgTable("gdpr_audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventType: text("event_type").notNull(), // 'PII_SCRUB', 'PII_RESTORE', 'AI_REQUEST', 'DATA_EXPORT', 'DATA_DELETE', 'CONSENT_CHANGE'
+  endpoint: text("endpoint").notNull(),
+  userId: varchar("user_id"),
+  username: text("username"),
+  ipAddress: text("ip_address"),
+  piiCategories: jsonb("pii_categories"), // { NHS_NUM: 2, NAME: 5, etc. }
+  piiItemCount: integer("pii_item_count"),
+  details: jsonb("details"), // Additional event-specific details
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  eventTypeIdx: index("gdpr_audit_event_type_idx").on(table.eventType),
+  userIdx: index("gdpr_audit_user_idx").on(table.userId),
+  createdAtIdx: index("gdpr_audit_created_at_idx").on(table.createdAt),
+}));
+
+export const insertGdprAuditLogSchema = createInsertSchema(gdprAuditLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertGdprAuditLog = z.infer<typeof insertGdprAuditLogSchema>;
+export type GdprAuditLog = typeof gdprAuditLogs.$inferSelect;
+
+// GDPR Data Subject Requests - tracks SAR, deletion, portability requests
+export const gdprDataRequests = pgTable("gdpr_data_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  requestType: text("request_type").notNull(), // 'access', 'erasure', 'portability', 'rectification', 'restriction'
+  requesterId: varchar("requester_id").references(() => users.id), // User making request (if logged in)
+  requesterEmail: text("requester_email"), // For external requests
+  requesterName: text("requester_name"),
+  subjectId: varchar("subject_id").references(() => users.id), // User whose data is requested
+  subjectIdentifier: text("subject_identifier"), // Email/username if user not in system
+  status: text("status").notNull().default("pending"), // 'pending', 'in_progress', 'completed', 'rejected'
+  statusReason: text("status_reason"), // Reason for rejection if applicable
+  processedBy: varchar("processed_by").references(() => users.id),
+  processedByUsername: text("processed_by_username"),
+  dataSummary: jsonb("data_summary"), // Summary of data found/exported/deleted
+  completedAt: timestamp("completed_at"),
+  dueDate: timestamp("due_date").notNull(), // Legal deadline (30 days from request)
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  statusIdx: index("gdpr_requests_status_idx").on(table.status),
+  dueDateIdx: index("gdpr_requests_due_date_idx").on(table.dueDate),
+}));
+
+export const insertGdprDataRequestSchema = createInsertSchema(gdprDataRequests).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertGdprDataRequest = z.infer<typeof insertGdprDataRequestSchema>;
+export type GdprDataRequest = typeof gdprDataRequests.$inferSelect;
+
+// GDPR Data Retention Policy - defines retention periods for different data types
+export const gdprRetentionPolicies = pgTable("gdpr_retention_policies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dataCategory: text("data_category").notNull().unique(), // 'audit_logs', 'session_history', 'ai_logs', etc.
+  retentionDays: integer("retention_days").notNull(), // Days to retain
+  legalBasis: text("legal_basis").notNull(), // 'legitimate_interests', 'legal_obligation', 'consent'
+  description: text("description"),
+  lastPurgeAt: timestamp("last_purge_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertGdprRetentionPolicySchema = createInsertSchema(gdprRetentionPolicies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertGdprRetentionPolicy = z.infer<typeof insertGdprRetentionPolicySchema>;
+export type GdprRetentionPolicy = typeof gdprRetentionPolicies.$inferSelect;

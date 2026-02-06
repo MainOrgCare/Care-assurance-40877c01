@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -7,12 +7,58 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from "@/components/ui/switch";
-import { FileText, ArrowRight, AlertTriangle, Loader2, CheckCircle2, Sparkles, ChevronDown, ChevronUp, Copy, Check, Search, Clock, Activity, Shield, Zap } from "lucide-react";
+import { FileText, ArrowRight, AlertTriangle, Loader2, CheckCircle2, Sparkles, ChevronDown, ChevronUp, Copy, Check, Search, Clock, Activity, Shield, Zap, Edit3 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { TemplateFiller } from "@/components/TemplateFiller";
+import { processVaultResponse } from "@/lib/pii-vault";
+
+/**
+ * Highlight template placeholders like [Name], [NHS Number] etc.
+ * Returns JSX with placeholders styled distinctly
+ */
+function highlightPlaceholders(text: string): React.ReactNode {
+  const placeholderPattern = /\[([^\]]+)\]/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = placeholderPattern.exec(text)) !== null) {
+    // Add text before placeholder
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    // Add highlighted placeholder
+    parts.push(
+      <span
+        key={key++}
+        className="inline-flex items-center gap-1 px-2 py-0.5 mx-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-md font-semibold text-xs border border-amber-300 dark:border-amber-700 cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800/40 transition-colors"
+        title={`Click to fill in: ${match[1]}`}
+      >
+        <Edit3 size={10} />
+        {match[0]}
+      </span>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+  return parts.length > 0 ? parts : text;
+}
+
+/**
+ * Count placeholders in text
+ */
+function countPlaceholders(text: string): number {
+  const matches = text.match(/\[([^\]]+)\]/g);
+  return matches ? matches.length : 0;
+}
 
 interface CarePlanSection {
   title: string;
@@ -74,6 +120,17 @@ export default function CarePlanning() {
   const [priorityFilter, setPriorityFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [sortMode, setSortMode] = useState<"default" | "priority">("default");
   const [allowSensitive, setAllowSensitive] = useState(false);
+
+  // Throttle progress updates to reduce re-renders during SSE streaming
+  const lastProgressUpdateRef = useRef<number>(0);
+  const throttledSetProgress = useCallback((percent: number, status: string) => {
+    const now = Date.now();
+    if (percent === 0 || percent >= 100 || now - lastProgressUpdateRef.current >= 100) {
+      lastProgressUpdateRef.current = now;
+      setProgress(percent);
+      setProgressStatus(status);
+    }
+  }, []);
 
   const isAdmin = user?.role === "admin";
   const showSensitive = isAdmin && allowSensitive;
@@ -296,8 +353,7 @@ export default function CarePlanning() {
               const data = JSON.parse(dataStr);
               if (eventType === "progress") {
                 console.log("[CarePlan] Progress update:", data.percent, data.status);
-                setProgress(data.percent);
-                setProgressStatus(data.status);
+                throttledSetProgress(data.percent, data.status);
               } else if (eventType === "section") {
                 // Legacy format - handle sections (still supported for backward compatibility)
                 console.log("[CarePlan] Section received:", data.index, data.section?.title);
@@ -332,14 +388,53 @@ export default function CarePlanning() {
                 }
               } else if (eventType === "result") {
                 console.log("[CarePlan] Final result received, format:", data.content ? "simplified" : "legacy");
-                resultRaw = data;
-                resultScrubbed = data?.scrubbedResult || data;
+                
+                // Process vault response for PII restoration
+                const { scrubbed, raw } = processVaultResponse<CarePlanResult>(
+                  data, 
+                  isAdmin && allowSensitive
+                );
+                
+                resultScrubbed = scrubbed;
+                resultRaw = raw || scrubbed;
+                
+                if (raw) {
+                  console.log("[CarePlan] PII restored locally from vault");
+                }
               } else if (eventType === "error") {
                 throw new Error(data.message);
               }
             } catch (parseErr) {
               console.error("SSE parse error:", parseErr, "data:", dataStr.substring(0, 100));
             }
+          }
+        }
+      }
+
+      // Process any remaining buffer after stream ends
+      if (buffer.trim()) {
+        const lines = buffer.split("\n");
+        let eventType = "";
+        let dataStr = "";
+        for (const line of lines) {
+          if (line.startsWith("event:")) {
+            eventType = line.substring(6).trim();
+          } else if (line.startsWith("data:")) {
+            dataStr = line.substring(5).trim();
+          }
+        }
+        if (eventType === "result" && dataStr) {
+          try {
+            const data = JSON.parse(dataStr);
+            const { scrubbed, raw } = processVaultResponse<CarePlanResult>(
+              data, 
+              isAdmin && allowSensitive
+            );
+            resultScrubbed = scrubbed;
+            resultRaw = raw || scrubbed;
+            console.log("[CarePlan] Final result from remaining buffer");
+          } catch (parseErr) {
+            console.error("SSE buffer parse error:", parseErr);
           }
         }
       }
@@ -796,28 +891,60 @@ export default function CarePlanning() {
                       Person-Centred Care Plan
                     </CardTitle>
                     <CardDescription className="text-xs font-medium mt-1">
-                      CQC 2024 compliant • First-person narrative • Evidence-based
+                      CQC 2024 compliant • First-person narrative • Template output
                     </CardDescription>
                   </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(carePlan.content || "");
-                      toast({
-                        title: "Copied to Clipboard",
-                        description: `${carePlan.callType} care plan copied`,
-                      });
-                    }}
-                    className="gap-2.5 rounded-xl border-border/60 font-bold tracking-tight shadow-sm"
-                  >
-                    <Copy size={16} /> Copy Care Plan
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {carePlan.content && countPlaceholders(carePlan.content) > 0 && (
+                      <>
+                        <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-bold">
+                          <Edit3 size={12} className="mr-1" />
+                          {countPlaceholders(carePlan.content)} fields to complete
+                        </Badge>
+                        <TemplateFiller
+                          templateText={carePlan.content}
+                          onComplete={(filledText) => {
+                            navigator.clipboard.writeText(filledText);
+                            toast({
+                              title: "Template Completed",
+                              description: "Filled care plan copied to clipboard",
+                            });
+                          }}
+                          title={`Complete ${carePlan.callType || "Care"} Plan`}
+                        />
+                      </>
+                    )}
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(carePlan.content || "");
+                        toast({
+                          title: "Copied to Clipboard",
+                          description: `${carePlan.callType} care plan template copied`,
+                        });
+                      }}
+                      className="gap-2.5 rounded-xl border-border/60 font-bold tracking-tight shadow-sm"
+                    >
+                      <Copy size={16} /> Copy Raw
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-6">
+                {carePlan.content && countPlaceholders(carePlan.content) > 0 && (
+                  <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                    <p className="text-xs text-amber-700 dark:text-amber-300 font-medium flex items-center gap-2">
+                      <Edit3 size={14} />
+                      <span>
+                        <strong>Template Output:</strong> This plan contains {countPlaceholders(carePlan.content)} placeholder fields highlighted in yellow.
+                        Copy the template and replace each [placeholder] with actual data before saving to the care record.
+                      </span>
+                    </p>
+                  </div>
+                )}
                 <div className="prose prose-sm max-w-none">
                   <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground bg-muted/20 p-6 rounded-xl border border-border/40">
-                    {carePlan.content}
+                    {carePlan.content ? highlightPlaceholders(carePlan.content) : carePlan.content}
                   </div>
                 </div>
               </CardContent>

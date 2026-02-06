@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, useRef, memo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, Copy, ClipboardList, Check, X, AlertTriangle, Loader2, TableIcon } from "lucide-react";
@@ -152,6 +152,17 @@ export default function VisitAudit() {
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
 
+  // Throttle progress updates to reduce re-renders during SSE streaming
+  const lastProgressUpdateRef = useRef<number>(0);
+  const throttledSetProgress = useCallback((percent: number, status: string) => {
+    const now = Date.now();
+    if (percent === 0 || percent >= 100 || now - lastProgressUpdateRef.current >= 100) {
+      lastProgressUpdateRef.current = now;
+      setProgress(percent);
+      setProgressStatus(status);
+    }
+  }, []);
+
   useEffect(() => {
     if (documentContent && !prevContentRef.current) {
       resetTimer();
@@ -271,8 +282,7 @@ export default function VisitAudit() {
             try {
               const data = JSON.parse(dataStr);
               if (eventType === "progress") {
-                setProgress(data.percent);
-                setProgressStatus(data.status);
+                throttledSetProgress(data.percent, data.status);
               } else if (eventType === "result") {
                 setProgress(100);
                 setProgressStatus("Complete!");
@@ -286,6 +296,28 @@ export default function VisitAudit() {
               }
             }
           }
+        }
+      }
+
+      // Process any remaining buffer after stream ends
+      if (buffer.trim()) {
+        const lines = buffer.split("\n");
+        let eventType = "";
+        let dataStr = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            eventType = line.substring(7).trim();
+          } else if (line.startsWith("data: ")) {
+            dataStr = line.substring(6);
+          }
+        }
+        if (eventType === "result" && dataStr) {
+          try {
+            const data = JSON.parse(dataStr);
+            setProgress(100);
+            setProgressStatus("Complete!");
+            analysisResult = data;
+          } catch { /* ignore parse errors */ }
         }
       }
 

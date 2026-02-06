@@ -21,176 +21,284 @@
         </div>
       </header>
 
-      <!-- Error Banner -->
-      <div id="error-banner" class="alert alert-error" hidden></div>
+      <!-- Tab Navigation -->
+      <div class="tab-navigation">
+        <button id="tab-upload" class="tab-btn active" data-tab="upload">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          Upload Documents
+        </button>
+        <button id="tab-send" class="tab-btn" data-tab="send">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          Send to ACP
+        </button>
+      </div>
 
       <!-- Main Content Area -->
       <div class="popup-content">
         
-        <!-- STEP 1: File Upload Section -->
-        <section id="upload-section" class="card">
-          <div class="card-header">
-            <h2 class="card-title">📄 Upload Documents</h2>
-            <p class="card-description">Upload care documents for AI analysis (PDF, Word, images, text files)</p>
-          </div>
-          <div class="card-content">
-            <div class="file-upload-area">
-              <input id="document-files" type="file" accept=".pdf,.doc,.docx,.txt,image/*" multiple class="file-input" />
-              <label for="document-files" class="file-upload-label">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                <span class="file-upload-text">Click to select files or drag & drop</span>
-                <span class="file-upload-hint">Supports PDF, Word, images, and text files</span>
-              </label>
-              <div id="file-list" class="file-list"></div>
+        <!-- Error Banner (inside scrollable content) -->
+        <div id="error-banner" class="alert alert-error" hidden></div>
+
+        <!-- ========== TAB 1: UPLOAD DOCUMENTS ========== -->
+        <div id="tab-content-upload" class="tab-content active">
+          
+          <!-- Document Type Selection -->
+          <section class="card">
+            <div class="card-header">
+              <h2 class="card-title">📄 Select Document Type</h2>
+              <p class="card-description">Choose the type of document you're uploading</p>
             </div>
-            <button id="analyze-documents" class="btn btn-primary" disabled>
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <div class="card-content">
+              <div class="document-type-grid">
+                <label class="document-type-option">
+                  <input type="radio" name="document-type" value="socialWork" />
+                  <div class="document-type-card">
+                    <div class="doc-icon blue">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    </div>
+                    <span class="doc-label">Social Work Document</span>
+                    <span class="doc-hint">C2, C3, or Email correspondence</span>
+                  </div>
+                </label>
+                <label class="document-type-option">
+                  <input type="radio" name="document-type" value="initialAssessment" />
+                  <div class="document-type-card">
+                    <div class="doc-icon violet">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    </div>
+                    <span class="doc-label">Initial Assessment</span>
+                    <span class="doc-hint">Risk and needs assessment</span>
+                  </div>
+                </label>
+                <label class="document-type-option">
+                  <input type="radio" name="document-type" value="carePlan" />
+                  <div class="document-type-card">
+                    <div class="doc-icon amber">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    </div>
+                    <span class="doc-label">Care Plan</span>
+                    <span class="doc-hint">Existing care plan for enhancement</span>
+                  </div>
+                </label>
+                <label class="document-type-option">
+                  <input type="radio" name="document-type" value="movingHandling" />
+                  <div class="document-type-card">
+                    <div class="doc-icon sky">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
+                    </div>
+                    <span class="doc-label">Moving & Handling</span>
+                    <span class="doc-hint">Mobility guidance and plans</span>
+                  </div>
+                </label>
+                <label class="document-type-option">
+                  <input type="radio" name="document-type" value="otherDocuments" checked />
+                  <div class="document-type-card">
+                    <div class="doc-icon indigo">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    </div>
+                    <span class="doc-label">Other Documents</span>
+                    <span class="doc-hint">Any additional care documents</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <!-- File Upload Area -->
+          <section class="card">
+            <div class="card-header">
+              <h2 class="card-title">📤 Upload File</h2>
+              <p class="card-description">PDF, Word, images, or text files accepted</p>
+            </div>
+            <div class="card-content">
+              <div class="file-upload-area">
+                <input id="document-files" type="file" accept=".pdf,.doc,.docx,.txt,image/*" multiple class="file-input" />
+                <label for="document-files" class="file-upload-label">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                  <span class="file-upload-text">Click to select files or drag & drop</span>
+                  <span class="file-upload-hint">Supports PDF, Word, images, and text files</span>
+                </label>
+                <div id="file-list" class="file-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Additional Notes -->
+          <section class="card">
+            <div class="card-header">
+              <h2 class="card-title">📝 Additional Notes</h2>
+              <p class="card-description">Optional context about this service user</p>
+            </div>
+            <div class="card-content">
+              <textarea id="upload-notes" class="form-textarea" placeholder="E.g. prefers morning visits, needs quiet environment, specific communication cues, known triggers..." rows="3"></textarea>
+            </div>
+          </section>
+
+          <!-- Analyze Button -->
+          <div class="action-row">
+            <button id="analyze-documents" class="btn btn-primary btn-lg btn-block" disabled>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
               Analyze with AI
             </button>
-            <div id="analysis-status" class="status-text"></div>
-            <div id="analysis-progress" class="progress-container" hidden>
-              <div class="progress-bar">
-                <div id="analysis-progress-fill" class="progress-fill"></div>
-              </div>
-              <div id="progress-details" class="progress-text"></div>
+          </div>
+          <div id="analysis-status" class="status-text"></div>
+          <div id="analysis-progress" class="progress-container" hidden>
+            <div class="progress-bar">
+              <div id="analysis-progress-fill" class="progress-fill"></div>
             </div>
+            <div id="progress-details" class="progress-text"></div>
           </div>
-        </section>
 
-        <!-- STEP 2: Assessment Selection Section -->
-        <section id="selection-section" class="card" hidden>
-          <div class="card-header">
-            <h2 class="card-title">✓ Select Risk Assessments</h2>
-            <p class="card-description">Choose which assessments to generate based on AI analysis</p>
-          </div>
-          <div class="card-content">
-            <!-- Service User Summary -->
-            <div id="service-user-summary" class="summary-box"></div>
+          <!-- Uploaded Documents Summary -->
+          <section id="uploaded-docs-summary" class="card" hidden>
+            <div class="card-header">
+              <h2 class="card-title">✓ Uploaded Documents</h2>
+            </div>
+            <div class="card-content">
+              <div id="uploaded-docs-list" class="uploaded-docs-list"></div>
+              <button id="clear-uploads" class="btn btn-ghost btn-sm btn-block">Clear All Uploads</button>
+            </div>
+          </section>
 
-            <!-- Assessment List -->
-            <div class="assessment-selector">
-              <div class="assessment-toolbar">
-                <span id="selection-count" class="selection-badge">0 selected</span>
-                <div class="toolbar-actions">
-                  <button id="select-all-btn" class="btn-ghost btn-sm">Select All</button>
-                  <button id="clear-selection-btn" class="btn-ghost btn-sm">Clear</button>
+        </div>
+
+        <!-- ========== TAB 2: SEND TO ACP ========== -->
+        <div id="tab-content-send" class="tab-content">
+
+          <!-- Assessment Selection Section -->
+          <section id="selection-section" class="card">
+            <div class="card-header">
+              <h2 class="card-title">✓ Select Risk Assessments</h2>
+              <p class="card-description">Choose which assessments to generate based on AI analysis</p>
+            </div>
+            <div class="card-content">
+              <!-- Service User Summary -->
+              <div id="service-user-summary" class="summary-box"></div>
+
+              <!-- Assessment List -->
+              <div class="assessment-selector">
+                <div class="assessment-toolbar">
+                  <span id="selection-count" class="selection-badge">0 selected</span>
+                  <div class="toolbar-actions">
+                    <button id="select-all-btn" class="btn-ghost btn-sm">Select All</button>
+                    <button id="clear-selection-btn" class="btn-ghost btn-sm">Clear</button>
+                  </div>
                 </div>
+                <div id="assessment-list" class="assessment-list"></div>
               </div>
-              <div id="assessment-list" class="assessment-list"></div>
-            </div>
 
-            <!-- Additional Notes -->
-            <div class="form-group">
-              <label class="form-label">📝 Additional Notes (Optional)</label>
-              <textarea id="additional-notes" class="form-textarea" placeholder="Add any additional context, observations, or notes about this service user..." rows="3"></textarea>
-            </div>
+              <!-- Additional Notes -->
+              <div class="form-group">
+                <label class="form-label">📝 Additional Notes (Optional)</label>
+                <textarea id="additional-notes" class="form-textarea" placeholder="Add any additional context, observations, or notes about this service user..." rows="3"></textarea>
+              </div>
 
-            <div class="action-row">
-              <button id="cancel-selection" class="btn btn-secondary">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                Cancel
-              </button>
-              <button id="proceed-with-selection" class="btn btn-primary">
+              <button id="proceed-with-selection" class="btn btn-primary btn-block">
                 Generate Assessments
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
               </button>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <!-- STEP 3: Ready for Autofill Section -->
-        <section id="ready-section" class="card" hidden>
-          <div class="card-header">
-            <h2 class="card-title">🚀 Ready for Autofill</h2>
-            <p class="card-description">Your assessments are ready to be sent to Access Care Planning</p>
-          </div>
-          <div class="card-content">
-            <div id="payload-status" class="status-box success">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-              <span>Waiting for data...</span>
+          <!-- Ready for Autofill Section -->
+          <section id="ready-section" class="card">
+            <div class="card-header">
+              <h2 class="card-title">🚀 Ready for Autofill</h2>
+              <p class="card-description">Your assessments are ready to be sent to Access Care Planning</p>
             </div>
+            <div class="card-content">
+              <div id="payload-status" class="status-box success">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                <span>Waiting for data...</span>
+              </div>
 
-            <!-- Case Details Form -->
-            <div class="form-group">
-              <label class="form-label">Case ID</label>
-              <input id="case-id" type="text" class="form-input" placeholder="e.g. 61758" />
+              <!-- Case Details Form -->
+              <div class="form-group">
+                <label class="form-label">Case ID</label>
+                <input id="case-id" type="text" class="form-input" placeholder="e.g. 61758" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Service Data Group ID</label>
+                <input id="service-data-group-id" type="text" class="form-input" placeholder="e.g. 1017650" />
+              </div>
+
+              <!-- Options -->
+              <div class="options-group">
+                <label class="checkbox-label">
+                  <input id="auto-submit" type="checkbox" class="checkbox" />
+                  <span>Auto-submit forms</span>
+                </label>
+                <label class="checkbox-label">
+                  <input id="dry-run" type="checkbox" class="checkbox" />
+                  <span>Dry run (highlight only)</span>
+                </label>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">⚙️ Interaction mode</label>
+                <select id="interaction-mode" class="form-select">
+                  <option value="auto">Normal (Auto Fill - Instant)</option>
+                  <option value="slow">Slow Manual Typing (Extension Types For You)</option>
+                  <option value="manual">Assistance Mode (Highlights Fields Only)</option>
+                </select>
+                <p class="form-hint">Choose how the extension fills forms: Normal = instant, Slow = types realistically, Assistance = highlights for manual entry</p>
+              </div>
+
+              <div id="progress-status" class="status-text"></div>
+
+              <div class="action-row">
+                <button id="start-autofill" class="btn btn-primary btn-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                  Start Autofill
+                </button>
+                <button id="stop-autofill" class="btn btn-secondary">Stop</button>
+              </div>
+
+              <button id="clear-data" class="btn btn-ghost btn-block">Clear All Data</button>
             </div>
-            <div class="form-group">
-              <label class="form-label">Service Data Group ID</label>
-              <input id="service-data-group-id" type="text" class="form-input" placeholder="e.g. 1017650" />
+          </section>
+
+          <!-- Signature Upload -->
+          <details class="card collapsible">
+            <summary class="collapsible-header">
+              <span>📝 Signature Upload</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </summary>
+            <div class="card-content">
+              <div class="form-group">
+                <label for="signature-file" class="signature-upload-label">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <span>Click to select signature image</span>
+                  <span class="file-hint">PNG, JPEG, GIF, BMP</span>
+                </label>
+                <input id="signature-file" type="file" accept="image/png, image/gif, image/jpeg, image/jpg, image/bmp" class="file-input" />
+                <div id="signature-filename" class="selected-filename"></div>
+              </div>
+              <button id="upload-signature" class="btn btn-secondary btn-sm btn-block">Upload Signature to Form</button>
+              <div id="signature-status" class="status-text"></div>
             </div>
+          </details>
 
-            <!-- Options -->
-            <div class="options-group">
-              <label class="checkbox-label">
-                <input id="auto-submit" type="checkbox" class="checkbox" />
-                <span>Auto-submit forms</span>
-              </label>
-              <label class="checkbox-label">
-                <input id="dry-run" type="checkbox" class="checkbox" />
-                <span>Dry run (highlight only)</span>
-              </label>
+          <!-- Action Log -->
+          <details class="card collapsible">
+            <summary class="collapsible-header">
+              <span>📋 Action Log</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </summary>
+            <div class="card-content">
+              <div id="log-status" class="status-text">No actions yet.</div>
+              <div id="log-list" class="log-container"></div>
+              <button id="clear-logs" class="btn btn-ghost btn-sm btn-block">Clear Log</button>
             </div>
+          </details>
 
-            <div class="form-group">
-              <label class="form-label">⚙️ Interaction mode</label>
-              <select id="interaction-mode" class="form-select">
-                <option value="auto">Normal (Auto Fill - Instant)</option>
-                <option value="slow">Slow Manual Typing (Extension Types For You)</option>
-                <option value="manual">Assistance Mode (Highlights Fields Only)</option>
-              </select>
-              <p class="form-hint">Choose how the extension fills forms: Normal = instant, Slow = types realistically, Assistance = highlights for manual entry</p>
-            </div>
-
-            <div id="progress-status" class="status-text"></div>
-
-            <div class="action-row">
-              <button id="start-autofill" class="btn btn-primary btn-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                Start Autofill
-              </button>
-              <button id="stop-autofill" class="btn btn-secondary">Stop</button>
-            </div>
-
-            <button id="clear-data" class="btn btn-ghost btn-block">Clear All Data</button>
-            <button id="back-to-upload" class="btn btn-ghost btn-block">← Upload New Documents</button>
-          </div>
-        </section>
-
-        <!-- Advanced: Signature Upload (Collapsible) -->
-        <details class="card collapsible">
-          <summary class="collapsible-header">
-            <span>📝 Signature Upload</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </summary>
-          <div class="card-content">
-            <div class="form-group">
-              <label class="form-label">Signature File</label>
-              <input id="signature-file" type="file" accept="image/png, image/gif, image/jpeg, image/jpg, image/bmp" class="file-input" />
-            </div>
-            <button id="upload-signature" class="btn btn-secondary btn-sm">Upload Signature to Form</button>
-            <div id="signature-status" class="status-text"></div>
-          </div>
-        </details>
-
-        <!-- Advanced: Action Log (Collapsible) -->
-        <details class="card collapsible">
-          <summary class="collapsible-header">
-            <span>📋 Action Log</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </summary>
-          <div class="card-content">
-            <div id="log-status" class="status-text">No actions yet.</div>
-            <div id="log-list" class="log-container"></div>
-            <button id="clear-logs" class="btn btn-ghost btn-sm btn-block">Clear Log</button>
-          </div>
-        </details>
+        </div>
 
       </div>
 
       <!-- Footer -->
       <footer class="popup-footer">
-        <p class="footer-text">Care Assurance Extension v0.2.0</p>
+        <p class="footer-text">Care Assurance Extension v0.2.4</p>
       </footer>
     </main>
     <script src="constants.js"></script>

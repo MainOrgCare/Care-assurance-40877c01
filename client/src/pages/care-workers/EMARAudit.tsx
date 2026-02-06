@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, memo } from "react";
+import { useState, useEffect, useRef, useMemo, memo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, Copy, FileText, Check, X, AlertTriangle, Loader2, TableIcon, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, UserPlus, Users, Sparkles, RefreshCw, Pencil, Undo2, Save, Download, Brain, Activity, Clock, Pill } from "lucide-react";
@@ -500,6 +500,18 @@ export default function EMARAudit() {
   const [mappingsConfirmed, setMappingsConfirmed] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
+  
+  // Throttle progress updates to reduce re-renders during SSE streaming
+  const lastProgressUpdateRef = useRef<number>(0);
+  const throttledSetProgress = useCallback((percent: number, status: string) => {
+    const now = Date.now();
+    if (percent === 0 || percent >= 100 || now - lastProgressUpdateRef.current >= 100) {
+      lastProgressUpdateRef.current = now;
+      setProgress(percent);
+      setProgressStatus(status);
+    }
+  }, []);
+  
   const [refusalReviews, setRefusalReviews] = useState<RefusalReviewState>({});
   const [expandedRefusals, setExpandedRefusals] = useState<Set<string>>(new Set());
   const [selectedForEscalation, setSelectedForEscalation] = useState<Set<string>>(new Set());
@@ -1214,8 +1226,7 @@ export default function EMARAudit() {
             const data = JSON.parse(eventData);
             
             if (eventType === 'progress') {
-              setProgress(data.percent);
-              setProgressStatus(data.status);
+              throttledSetProgress(data.percent, data.status);
             } else if (eventType === 'result') {
               setResult(data);
               setAnalyzed(true);

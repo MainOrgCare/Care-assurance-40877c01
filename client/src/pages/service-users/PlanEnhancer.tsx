@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import jsPDF from "jspdf";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useAuth } from "@/context/AuthContext";
@@ -6,13 +6,52 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText, Download } from "lucide-react";
+import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText, Download, Edit3 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TemplateFiller } from "@/components/TemplateFiller";
+import { Badge } from "@/components/ui/badge";
+import { processVaultResponse } from "@/lib/pii-vault";
+
+/**
+ * Highlight template placeholders like [Name], [NHS Number] etc.
+ */
+function highlightPlaceholders(text: string): React.ReactNode {
+  const placeholderPattern = /\[([^\]]+)\]/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = placeholderPattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    parts.push(
+      <span
+        key={key++}
+        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded font-semibold text-xs border border-amber-300 dark:border-amber-700"
+        title={`Fill in: ${match[1]}`}
+      >
+        {match[0]}
+      </span>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+  return parts.length > 0 ? parts : text;
+}
+
+function countPlaceholders(text: string): number {
+  const matches = text.match(/\[([^\]]+)\]/g);
+  return matches ? matches.length : 0;
+}
 
 interface CarePlanTemplate {
   verificationQuestions?: string[];
@@ -97,13 +136,40 @@ function FieldRow({ label, value, copyValue }: { label: string; value: string; c
 function TextBlock({ label, value, copyValue }: { label: string; value: string; copyValue?: string }) {
   if (!value) return null;
   const valueToCopy = copyValue ?? value;
+  const placeholderCount = countPlaceholders(value);
+  
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium text-foreground">{label}</h4>
-        <CopyButton text={valueToCopy} label={label} />
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-medium text-foreground">{label}</h4>
+          {placeholderCount > 0 && (
+            <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs">
+              <Edit3 size={10} className="mr-1" />
+              {placeholderCount} fields
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {placeholderCount > 0 && (
+            <TemplateFiller
+              templateText={value}
+              onComplete={() => {}}
+              title={label}
+              trigger={
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                  <Edit3 size={12} className="mr-1" />
+                  Fill
+                </Button>
+              }
+            />
+          )}
+          <CopyButton text={valueToCopy} label={label} />
+        </div>
       </div>
-      <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted rounded-lg p-3">{value}</p>
+      <div className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted rounded-lg p-3">
+        {highlightPlaceholders(value)}
+      </div>
     </div>
   );
 }
@@ -145,6 +211,17 @@ export default function PlanEnhancer() {
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [allowSensitive, setAllowSensitive] = useState(false);
   const [updateNotes, setUpdateNotes] = useState("");
+
+  // Throttle progress updates to reduce re-renders during SSE streaming
+  const lastProgressUpdateRef = useRef<number>(0);
+  const throttledSetProgress = useCallback((percent: number, status: string) => {
+    const now = Date.now();
+    if (percent === 0 || percent >= 100 || now - lastProgressUpdateRef.current >= 100) {
+      lastProgressUpdateRef.current = now;
+      setProgress(percent);
+      setProgressStatus(status);
+    }
+  }, []);
 
   const isAdmin = user?.role === "admin";
   const showSensitive = isAdmin && allowSensitive;
@@ -361,14 +438,51 @@ export default function PlanEnhancer() {
           if (eventType && dataStr) {
             const data = JSON.parse(dataStr);
             if (eventType === "progress") {
-              setProgress(data.percent);
-              setProgressStatus(data.status);
+              throttledSetProgress(data.percent, data.status);
             } else if (eventType === "result") {
-              resultRaw = data;
-              resultScrubbed = data?.scrubbedResult || data;
+              // Process vault response for PII restoration
+              console.log("[PlanEnhancer] Received result event, data keys:", Object.keys(data));
+              const { scrubbed, raw } = processVaultResponse<CarePlanTemplate>(
+                data,
+                isAdmin && allowSensitive
+              );
+              
+              console.log("[PlanEnhancer] processVaultResponse returned - scrubbed keys:", scrubbed ? Object.keys(scrubbed) : 'null', "raw:", raw ? "present" : "null");
+              resultScrubbed = scrubbed;
+              resultRaw = raw || scrubbed;
+              
+              if (raw) {
+                console.log("[PlanEnhancer] PII restored locally from vault");
+              }
             } else if (eventType === "error") {
               throw new Error(data.message);
             }
+          }
+        }
+      }
+
+      // Process any remaining data in buffer after stream ends
+      if (buffer.trim()) {
+        console.log("[PlanEnhancer] Processing remaining buffer after stream end");
+        const lines = buffer.split("\n");
+        let eventType = "";
+        let dataStr = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) eventType = line.substring(7).trim();
+          else if (line.startsWith("data: ")) dataStr = line.substring(6);
+        }
+        if (eventType && dataStr) {
+          const data = JSON.parse(dataStr);
+          if (eventType === "result") {
+            console.log("[PlanEnhancer] Found result in remaining buffer, data keys:", Object.keys(data));
+            const { scrubbed, raw } = processVaultResponse<CarePlanTemplate>(
+              data,
+              isAdmin && allowSensitive
+            );
+            resultScrubbed = scrubbed;
+            resultRaw = raw || scrubbed;
+          } else if (eventType === "error") {
+            throw new Error(data.message);
           }
         }
       }

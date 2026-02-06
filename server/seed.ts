@@ -44,6 +44,43 @@ async function seed() {
     }
   }
 
+  // Seed default GDPR retention policies
+  const retentionPolicies = [
+    { 
+      dataCategory: 'session_history', 
+      retentionDays: 730, // 2 years
+      legalBasis: 'legitimate_interests',
+      description: 'User login/logout history for security monitoring'
+    },
+    { 
+      dataCategory: 'gdpr_audit_logs', 
+      retentionDays: 2555, // 7 years
+      legalBasis: 'legal_obligation',
+      description: 'GDPR compliance audit trail - required for accountability'
+    },
+    { 
+      dataCategory: 'system_logs', 
+      retentionDays: 365, // 1 year
+      legalBasis: 'legitimate_interests',
+      description: 'System events and error logs for troubleshooting'
+    },
+    { 
+      dataCategory: 'ai_usage_logs', 
+      retentionDays: 2555, // 7 years
+      legalBasis: 'legal_obligation',
+      description: 'AI processing logs for compliance and billing'
+    },
+  ];
+
+  for (const policy of retentionPolicies) {
+    try {
+      await storage.upsertRetentionPolicy(policy);
+      console.log(`✓ Set retention policy: ${policy.dataCategory} (${policy.retentionDays} days)`);
+    } catch (error) {
+      console.error(`Error setting policy ${policy.dataCategory}:`, error);
+    }
+  }
+
   console.log("Seeding complete!");
   process.exit(0);
 }

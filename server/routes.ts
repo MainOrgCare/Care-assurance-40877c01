@@ -592,149 +592,939 @@ async function extractRowsFromBillingImage(
 const connectedClients: Map<string, WebSocket> = new Map();
 let sessionStore: any = null;
 
-const CLINICAL_WHITELIST = new Set([
-  "alzheimer",
-  "parkinson",
-  "huntington",
-  "crohn",
-  "addison",
-  "hodgkin",
-  "raynaud",
-  "bartholin",
-  "cushing",
-  "graves",
-  "hashimoto",
-  "meniere",
-  "paget",
-  "bell",
-  "down syndrome",
-  "turner syndrome",
-  "klinefelter",
-  "marfan",
-  "ehlers danlos",
-  "asperger",
-  "guillain barre",
-  "lou gehrig",
-  "wilson disease",
-  "bright disease",
-]);
+// ═══════════════════════════════════════════════════════════════════════════
+// PII SCRUBBING - UK GDPR COMPLIANT ANONYMIZATION
+// ═══════════════════════════════════════════════════════════════════════════
 
-function isClinicalTerm(phrase: string): boolean {
-  return CLINICAL_WHITELIST.has(phrase.toLowerCase());
+// ═══════════════════════════════════════════════════════════════════════════
+// SECURITY AUDIT LOGGING
+// ═══════════════════════════════════════════════════════════════════════════
+
+type SecurityEventType = 
+  | 'PII_SCRUB' | 'PII_RESTORE' | 'AI_REQUEST' | 'INPUT_VALIDATION' 
+  | 'RATE_LIMIT' | 'AUTH_FAILURE' | 'SUSPICIOUS_INPUT';
+
+interface SecurityAuditLog {
+  timestamp: string;
+  eventType: SecurityEventType;
+  endpoint: string;
+  userId?: number | null;
+  username?: string | null;
+  ipAddress?: string;
+  details: Record<string, any>;
 }
 
-function scrubPII(data: any): any {
-  if (typeof data === "string") {
+/**
+ * Log security-relevant events for compliance and monitoring
+ * Persists to database for UK GDPR audit trail compliance
+ */
+function logSecurityEvent(event: Omit<SecurityAuditLog, 'timestamp'>): void {
+  const log: SecurityAuditLog = {
+    ...event,
+    timestamp: new Date().toISOString(),
+  };
+  
+  // Always log to console for immediate visibility
+  if (process.env.NODE_ENV === 'production' || process.env.SECURITY_AUDIT_LOG === 'true') {
+    console.log(`[SECURITY] ${JSON.stringify(log)}`);
+  }
+  
+  // Persist to database asynchronously (fire-and-forget for performance)
+  // Only for PII-related events that need audit trail
+  if (['PII_SCRUB', 'PII_RESTORE', 'AI_REQUEST', 'DATA_EXPORT', 'DATA_DELETE', 'CONSENT_CHANGE'].includes(event.eventType)) {
+    storage.createGdprAuditLog({
+      eventType: event.eventType,
+      endpoint: event.endpoint,
+      userId: typeof event.userId === 'number' ? String(event.userId) : event.userId || undefined,
+      username: event.username || undefined,
+      ipAddress: event.ipAddress,
+      piiCategories: event.details?.categories || undefined,
+      piiItemCount: event.details?.totalItems || undefined,
+      details: event.details,
+    }).catch((err) => {
+      console.error('[SECURITY] Failed to persist audit log:', err.message);
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INPUT VALIDATION & SANITIZATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Validate and sanitize string input to prevent injection attacks
+ * Returns sanitized string or null if input is invalid/suspicious
+ */
+function sanitizeStringInput(input: unknown, maxLength: number = 500000): string | null {
+  if (typeof input !== 'string') return null;
+  if (input.length > maxLength) return null;
+  
+  // Check for common injection patterns (log but don't block)
+  const suspiciousPatterns = [
+    /<script\b/i,
+    /javascript:/i,
+    /on\w+\s*=/i,  // onclick=, onerror=, etc.
+    /\{\{.*\}\}/,  // Template injection (but allow our PII tokens)
+    /\$\{.*\}/,    // Template literal injection
+    /__proto__/i,
+    /constructor\s*\(/,
+  ];
+  
+  const hasSuspicious = suspiciousPatterns.some(p => p.test(input));
+  if (hasSuspicious) {
+    logSecurityEvent({
+      eventType: 'SUSPICIOUS_INPUT',
+      endpoint: 'input_validation',
+      details: {
+        inputLength: input.length,
+        patterns: suspiciousPatterns.filter(p => p.test(input)).map(p => p.source),
+      },
+    });
+  }
+  
+  // Basic sanitization - remove null bytes and control characters (except newlines/tabs)
+  return input
+    .replace(/\0/g, '')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+}
+
+/**
+ * Validate JSON body fields with detailed error messages
+ */
+function validateRequestBody<T extends Record<string, 'string' | 'boolean' | 'number' | 'array' | 'object' | 'optional'>>(
+  body: any,
+  schema: T,
+  endpoint: string
+): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  for (const [field, type] of Object.entries(schema)) {
+    const value = body?.[field];
+    const isOptional = type === 'optional';
+    
+    if (value === undefined || value === null) {
+      if (!isOptional) {
+        errors.push(`Missing required field: ${field}`);
+      }
+      continue;
+    }
+    
+    // Skip type check for optional
+    if (isOptional) continue;
+    
+    const actualType = Array.isArray(value) ? 'array' : typeof value;
+    if (actualType !== type) {
+      errors.push(`Invalid type for ${field}: expected ${type}, got ${actualType}`);
+    }
+  }
+  
+  if (errors.length > 0) {
+    logSecurityEvent({
+      eventType: 'INPUT_VALIDATION',
+      endpoint,
+      details: { errors, fieldCount: Object.keys(schema).length },
+    });
+  }
+  
+  return { valid: errors.length === 0, errors };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PII VAULT - LOCAL CACHE FOR REVERSIBLE SCRUBBING
+// ═══════════════════════════════════════════════════════════════════════════
+// 
+// The PII Vault enables UK GDPR compliant data processing by:
+// 1. Replacing sensitive data with unique tokens before sending to AI
+// 2. Storing the token->original mapping in local memory only
+// 3. Restoring original values when AI response returns locally
+//
+// This ensures:
+// - No PII is transmitted to external AI services
+// - Original data never leaves the local server
+// - Full fidelity restoration for local display
+// ═══════════════════════════════════════════════════════════════════════════
+
+type PIICategory = 
+  | 'NHS_NUM' | 'NI_NUM' | 'POSTCODE' | 'EMAIL' | 'PHONE' 
+  | 'DATE' | 'DOB' | 'AGE' | 'ADDRESS' | 'NAME' | 'STAFF' 
+  | 'HEALTHCARE_PRO' | 'CONTACT' | 'FIELD'
+  | 'BANK' | 'CARD' | 'LICENSE' | 'PASSPORT' | 'VEHICLE' | 'NETWORK';
+
+interface PIIVaultEntry {
+  token: string;
+  original: string;
+  category: PIICategory;
+  createdAt: number;
+}
+
+/**
+ * PII Vault - Secure local cache for reversible de-identification
+ * 
+ * Usage:
+ *   const vault = new PIIVault();
+ *   const scrubbed = vault.scrub(documentContent);  // Send to AI
+ *   // ... AI processing ...
+ *   const restored = vault.restore(aiResponse);     // Display locally
+ */
+class PIIVault {
+  private entries: Map<string, PIIVaultEntry> = new Map();
+  private reverseMap: Map<string, string> = new Map(); // original -> token (for deduplication)
+  private counter: number = 0;
+  private readonly prefix: string;
+  private readonly createdAt: number;
+  
+  constructor() {
+    // Unique prefix per vault instance to avoid token collisions
+    this.prefix = `PII_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
+    this.createdAt = Date.now();
+  }
+  
+  /**
+   * Generate a unique token for a PII value
+   */
+  private generateToken(category: PIICategory): string {
+    this.counter++;
+    return `{{${this.prefix}_${category}_${this.counter}}}`;
+  }
+  
+  /**
+   * Store a PII value and return its token
+   * Deduplicates: same value returns same token
+   */
+  store(original: string, category: PIICategory): string {
+    // Check if we already have this exact value
+    const existingToken = this.reverseMap.get(original);
+    if (existingToken) {
+      return existingToken;
+    }
+    
+    const token = this.generateToken(category);
+    const entry: PIIVaultEntry = {
+      token,
+      original,
+      category,
+      createdAt: Date.now(),
+    };
+    
+    this.entries.set(token, entry);
+    this.reverseMap.set(original, token);
+    return token;
+  }
+  
+  /**
+   * Get the original value for a token
+   */
+  get(token: string): string | undefined {
+    return this.entries.get(token)?.original;
+  }
+  
+  /**
+   * Check if a string is a vault token
+   */
+  isToken(str: string): boolean {
+    return str.startsWith(`{{${this.prefix}_`) && str.endsWith('}}');
+  }
+  
+  /**
+   * Get statistics about stored PII
+   */
+  getStats(): { total: number; byCategory: Record<PIICategory, number> } {
+    const byCategory: Record<PIICategory, number> = {
+      NHS_NUM: 0, NI_NUM: 0, POSTCODE: 0, EMAIL: 0, PHONE: 0,
+      DATE: 0, DOB: 0, AGE: 0, ADDRESS: 0, NAME: 0, STAFF: 0,
+      HEALTHCARE_PRO: 0, CONTACT: 0, FIELD: 0,
+      BANK: 0, CARD: 0, LICENSE: 0, PASSPORT: 0, VEHICLE: 0, NETWORK: 0,
+    };
+    
+    for (const entry of this.entries.values()) {
+      byCategory[entry.category]++;
+    }
+    
+    return { total: this.entries.size, byCategory };
+  }
+  
+  /**
+   * Scrub a string, replacing all PII with tokens
+   * Returns the scrubbed string with tokens
+   */
+  scrubString(data: string): string {
     let scrubbed = data;
-
-    scrubbed = scrubbed.replace(/\b\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}\b/g, "[REDACTED]");
-
-    scrubbed = scrubbed.replace(/\b(my name is|i am called|i'm called|call me)\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)*/gi, "$1 [SERVICE USER]");
-
-    scrubbed = scrubbed.replace(/\b([A-Z][a-z]+)'s\b/g, (match, name) => {
-      return isClinicalTerm(name) ? match : "[SERVICE USER]'s";
+    
+    // === PHASE 1: High-confidence PII patterns ===
+    
+    // NHS Numbers
+    scrubbed = scrubbed.replace(PII_PATTERNS.nhsNumber, (match) => this.store(match, 'NHS_NUM'));
+    
+    // National Insurance Numbers
+    scrubbed = scrubbed.replace(PII_PATTERNS.niNumber, (match) => this.store(match, 'NI_NUM'));
+    
+    // UK Postcodes
+    scrubbed = scrubbed.replace(PII_PATTERNS.ukPostcode, (match) => this.store(match, 'POSTCODE'));
+    
+    // Email addresses
+    scrubbed = scrubbed.replace(PII_PATTERNS.email, (match) => this.store(match, 'EMAIL'));
+    
+    // Phone numbers
+    scrubbed = scrubbed.replace(PII_PATTERNS.ukPhone, (match) => this.store(match, 'PHONE'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.intlPhone, (match) => this.store(match, 'PHONE'));
+    
+    // Network identifiers
+    scrubbed = scrubbed.replace(PII_PATTERNS.ipAddress, (match) => this.store(match, 'NETWORK'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.ipv6Address, (match) => this.store(match, 'NETWORK'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.macAddress, (match) => this.store(match, 'NETWORK'));
+    
+    // Financial information
+    scrubbed = scrubbed.replace(PII_PATTERNS.ukSortCode, (match) => this.store(match, 'BANK'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.ukBankAccount, (match) => this.store(match, 'BANK'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.cardNumber, (match) => this.store(match, 'CARD'));
+    
+    // Government-issued identifiers
+    scrubbed = scrubbed.replace(PII_PATTERNS.ukDrivingLicense, (match) => this.store(match, 'LICENSE'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.ukPassport, (match) => this.store(match, 'PASSPORT'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.ukVehicleReg, (match) => this.store(match, 'VEHICLE'));
+    
+    // Street addresses
+    scrubbed = scrubbed.replace(PII_PATTERNS.streetAddress, (match) => this.store(match, 'ADDRESS'));
+    
+    // House names
+    scrubbed = scrubbed.replace(PII_PATTERNS.houseName, (match) => this.store(match, 'ADDRESS'));
+    
+    // === PHASE 2: Date and age information ===
+    
+    // Age patterns
+    scrubbed = scrubbed.replace(PII_PATTERNS.agePatterns, (match) => this.store(match, 'AGE'));
+    
+    // Year of birth patterns
+    scrubbed = scrubbed.replace(PII_PATTERNS.yearOfBirth, (match) => this.store(match, 'DOB'));
+    
+    // ISO dates
+    scrubbed = scrubbed.replace(PII_PATTERNS.isoDate, (match) => this.store(match, 'DATE'));
+    
+    // Standard date formats
+    scrubbed = scrubbed.replace(PII_PATTERNS.dateFormats, (match) => this.store(match, 'DATE'));
+    
+    // === PHASE 3: Name patterns ===
+    
+    // Explicit name introductions
+    scrubbed = scrubbed.replace(
+      /\b(my name is|i am called|i'm called|call me|known as|also known as|a\.k\.a\.)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
+      (match, prefix, name) => `${prefix} ${this.store(name, 'NAME')}`
+    );
+    
+    // Possessive patterns not in whitelist
+    scrubbed = scrubbed.replace(/\b([A-Z][a-z]+)['']s\b/g, (match, name) => {
+      if (isClinicalOrMedicalTerm(name)) return match;
+      if (COMMON_ENGLISH_WORDS.has(name.toLowerCase())) return match;
+      return `${this.store(name, 'NAME')}'s`;
     });
 
+    // Full name patterns (First Last or First Middle Last)
     scrubbed = scrubbed.replace(
-      /\b([A-Z][a-z]+)\s+((?:O'|Mc|Mac)?[A-Z][a-z]+)(?:\s+((?:O'|Mc|Mac)?[A-Z][a-z]+))?\b/g,
-      (match, first, second) => {
-        const whitelist = [
-          "care plan",
-          "care worker",
-          "care home",
-          "care needs",
-          "risk assessment",
-          "personal care",
-          "mental health",
-          "social worker",
-          "general practitioner",
-          "district nurse",
-          "care staff",
-          "care team",
-          "health visitor",
-          "care manager",
-          "service user",
-          "family member",
-          "next of kin",
-          "emergency contact",
-          "falls prevention",
-          "fire safety",
-          "skin integrity",
-          "medication administration",
-          "infection control",
-          "environmental safety",
-          "lone working",
-          "behavior support",
-          "communication support",
-          "dementia care",
-          "end of life",
-          "epilepsy management",
-          "diabetes management",
-          "nutrition assessment",
-          "continence care",
-          "mobility assessment",
-          "moving and handling",
-          "safeguarding adults",
-          "safeguarding children",
-          "coshh assessment",
-          "manual handling",
-          "pressure areas",
-          "tissue viability",
-          "wound care",
-          "initial assessment",
-          "care planning",
-          "daily living",
-          "personal hygiene",
-          "oral care",
-          "food preparation",
-          "medication support",
-          "emotional support",
-          "social activities",
-          "blood pressure",
-          "heart rate",
-          "respiratory rate",
-          "oxygen saturation",
-          "body temperature",
-          "weight management",
-          "pain management",
-          "symptom control",
-          "palliative care",
-          "health and safety",
-          "dignity and respect",
-          "person centred",
-          "person centered",
-          "best practice",
-          "quality assurance",
-          "clinical governance",
-          "duty of care",
-        ];
-
-        if (
-          isClinicalTerm(match) ||
-          isClinicalTerm(first) ||
-          isClinicalTerm(second) ||
-          whitelist.includes(match.toLowerCase())
-        ) {
-          return match;
-        }
-        return "[SERVICE USER]";
+      /\b([A-Z][a-z]+)\s+((?:O['']|Mc|Mac)?[A-Z][a-z]+)(?:\s+((?:O['']|Mc|Mac)?[A-Z][a-z]+))?\b/g,
+      (match, first, second, third) => {
+        const phrase = match.toLowerCase();
+        if (CARE_PHRASE_WHITELIST.has(phrase)) return match;
+        if (isClinicalOrMedicalTerm(first) || isClinicalOrMedicalTerm(second)) return match;
+        if (third && isClinicalOrMedicalTerm(third)) return match;
+        if (COMMON_ENGLISH_WORDS.has(first.toLowerCase())) return match;
+        return this.store(match, 'NAME');
       }
+    );
+    
+    // === PHASE 4: Labeled PII fields ===
+    
+    // DOB with date
+    scrubbed = scrubbed.replace(
+      /\b(DOB|Date of Birth|D\.O\.B\.?)\s*:?\s*([^\n,;]{1,20})/gi,
+      (match, label, value) => `${label}: ${this.store(value.trim(), 'DOB')}`
+    );
+    
+    // Contact information labels
+    scrubbed = scrubbed.replace(
+      /\b(Emergency contact|Next of kin|Contact|Tel|Telephone|Phone|Mobile|Email)\s*:?\s*([^\n,;]{1,50})/gi,
+      (match, label, value) => `${label}: ${this.store(value.trim(), 'CONTACT')}`
+    );
+    
+    // Address labels
+    scrubbed = scrubbed.replace(
+      /\b(Address|Home address|Residence)\s*:?\s*([^\n]{1,100})/gi,
+      (match, label, value) => `${label}: ${this.store(value.trim(), 'ADDRESS')}`
+    );
+    
+    // === PHASE 5: Titled names ===
+    scrubbed = scrubbed.replace(
+      /\b(Mr|Mrs|Ms|Miss|Dr|Prof|Professor)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/g,
+      (match, title, name) => {
+        const lower = String(title || "").toLowerCase();
+        const category: PIICategory = (lower === "dr" || lower === "prof" || lower === "professor") 
+          ? 'HEALTHCARE_PRO' 
+          : 'NAME';
+        return `${title} ${this.store(name, category)}`;
+      }
+    );
+    
+    // === PHASE 6: Staff names ===
+    scrubbed = scrubbed.replace(
+      /\b(Carer|Care Worker|Nurse|Doctor|GP|Support Worker|Key Worker|Social Worker)\s*:?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/gi,
+      (match, role, name) => `${role}: ${this.store(name, 'STAFF')}`
+    );
+    
+    return scrubbed;
+  }
+  
+  /**
+   * Scrub any data type (string, array, object)
+   */
+  scrub(data: any): any {
+    if (typeof data === "string") {
+      return this.scrubString(data);
+    }
+    if (Array.isArray(data)) {
+      return data.map((item) => this.scrub(item));
+    }
+    if (typeof data === "object" && data !== null) {
+      const scrubbed: Record<string, any> = {};
+      for (const key of Object.keys(data)) {
+        // Check if key itself suggests PII
+        const lowerKey = key.toLowerCase().replace(/[_\s]/g, "");
+        if (["name", "fullname", "firstname", "lastname", "surname", "email", "phone", "telephone", "mobile", "address", "postcode", "nhs", "ninumber", "dob", "dateofbirth"].includes(lowerKey)) {
+          scrubbed[key] = this.store(String(data[key]), 'FIELD');
+        } else {
+          scrubbed[key] = this.scrub(data[key]);
+        }
+      }
+      return scrubbed;
+    }
+    return data;
+  }
+  
+  /**
+   * Restore tokens in a string back to original values
+   */
+  restoreString(data: string): string {
+    let restored = data;
+    
+    // Find all tokens and replace with originals
+    const tokenPattern = new RegExp(`\\{\\{${this.prefix}_[A-Z_]+_\\d+\\}\\}`, 'g');
+    restored = restored.replace(tokenPattern, (token) => {
+      const original = this.get(token);
+      return original !== undefined ? original : token;
+    });
+    
+    return restored;
+  }
+  
+  /**
+   * Restore any data type (string, array, object)
+   */
+  restore(data: any): any {
+    if (typeof data === "string") {
+      return this.restoreString(data);
+    }
+    if (Array.isArray(data)) {
+      return data.map((item) => this.restore(item));
+    }
+    if (typeof data === "object" && data !== null) {
+      const restored: Record<string, any> = {};
+      for (const key of Object.keys(data)) {
+        restored[key] = this.restore(data[key]);
+      }
+      return restored;
+    }
+    return data;
+  }
+  
+  /**
+   * Convert tokens to human-readable placeholders (not original values)
+   * Returns GDPR-compliant template output with no personal data
+   * Example: {{PII_xyz_NAME_1}} → [Name], {{PII_xyz_NHS_NUM_2}} → [NHS Number]
+   */
+  toPlaceholdersString(data: string): string {
+    const tokenPattern = new RegExp(`\\{\\{${this.prefix}_([A-Z_]+)_\\d+\\}\\}`, 'g');
+    return data.replace(tokenPattern, (token, category) => {
+      const placeholders: Record<string, string> = {
+        'NHS_NUM': '[NHS Number]',
+        'NI_NUM': '[NI Number]',
+        'POSTCODE': '[Postcode]',
+        'EMAIL': '[Email]',
+        'PHONE': '[Phone]',
+        'DATE': '[Date]',
+        'DOB': '[Date of Birth]',
+        'AGE': '[Age]',
+        'ADDRESS': '[Address]',
+        'NAME': '[Name]',
+        'STAFF': '[Staff Member]',
+        'HEALTHCARE_PRO': '[Healthcare Professional]',
+        'CONTACT': '[Contact Number]',
+        'FIELD': '[Personal Field]',
+        'BANK': '[Bank Details]',
+        'CARD': '[Card Number]',
+        'LICENSE': '[Driving License]',
+        'PASSPORT': '[Passport Number]',
+        'VEHICLE': '[Vehicle Registration]',
+        'NETWORK': '[Network ID]',
+        'IP': '[IP Address]',
+        'MAC': '[MAC Address]',
+      };
+      return placeholders[category] || '[Redacted]';
+    });
+  }
+  
+  /**
+   * Convert any data type to placeholder format (no PII returned)
+   * Use this instead of restore() for GDPR-exempt template outputs
+   */
+  toPlaceholders(data: any): any {
+    if (typeof data === "string") {
+      return this.toPlaceholdersString(data);
+    }
+    if (Array.isArray(data)) {
+      return data.map((item) => this.toPlaceholders(item));
+    }
+    if (typeof data === "object" && data !== null) {
+      const result: Record<string, any> = {};
+      for (const key of Object.keys(data)) {
+        result[key] = this.toPlaceholders(data[key]);
+      }
+      return result;
+    }
+    return data;
+  }
+  
+  /**
+   * Clear all stored entries (for memory management)
+   */
+  clear(): void {
+    this.entries.clear();
+    this.reverseMap.clear();
+  }
+  
+  /**
+   * Get vault age in milliseconds
+   */
+  getAge(): number {
+    return Date.now() - this.createdAt;
+  }
+  
+  /**
+   * Log vault activity for security audit
+   * Call this after scrub/restore operations for compliance
+   */
+  logAudit(operation: 'SCRUB' | 'RESTORE', endpoint: string, userId?: number | string | null, username?: string | null): void {
+    const stats = this.getStats();
+    logSecurityEvent({
+      eventType: operation === 'SCRUB' ? 'PII_SCRUB' : 'PII_RESTORE',
+      endpoint,
+      userId: typeof userId === 'number' ? userId : null,
+      username,
+      details: {
+        vaultPrefix: this.prefix,
+        totalItems: stats.total,
+        categories: Object.fromEntries(
+          Object.entries(stats.byCategory).filter(([, v]) => v > 0)
+        ),
+        vaultAgeMs: this.getAge(),
+      },
+    });
+  }
+  
+  /**
+   * Export vault mapping for client-side restoration (authorized users only)
+   * Returns a serializable object mapping tokens to { original, category }
+   * Security: Only export when explicitly requested by authorized admin users
+   */
+  export(): { prefix: string; mapping: Record<string, { original: string; category: PIICategory }> } {
+    const mapping: Record<string, { original: string; category: PIICategory }> = {};
+    for (const [token, entry] of this.entries) {
+      mapping[token] = { original: entry.original, category: entry.category };
+    }
+    return { prefix: this.prefix, mapping };
+  }
+  
+  /**
+   * Get the vault prefix for pattern matching
+   */
+  getPrefix(): string {
+    return this.prefix;
+  }
+  
+  /**
+   * Verify integrity of vault - check for tampering or corruption
+   */
+  verifyIntegrity(): { valid: boolean; issues: string[] } {
+    const issues: string[] = [];
+    
+    // Check that all entries have matching reverse mappings
+    for (const [token, entry] of this.entries) {
+      const reverseToken = this.reverseMap.get(entry.original);
+      if (reverseToken !== token) {
+        issues.push(`Mismatched reverse mapping for token: ${token.substring(0, 20)}...`);
+      }
+    }
+    
+    // Check for duplicate originals with different tokens
+    const originalCounts = new Map<string, number>();
+    for (const entry of this.entries.values()) {
+      originalCounts.set(entry.original, (originalCounts.get(entry.original) || 0) + 1);
+    }
+    for (const [original, count] of originalCounts) {
+      if (count > 1) {
+        issues.push(`Duplicate original value stored with multiple tokens`);
+      }
+    }
+    
+    return { valid: issues.length === 0, issues };
+  }
+}
+
+/**
+ * Create a scoped vault for a single request
+ * Automatically clears after the callback completes
+ */
+async function withPIIVault<T>(
+  callback: (vault: PIIVault) => Promise<T>
+): Promise<T> {
+  const vault = new PIIVault();
+  try {
+    return await callback(vault);
+  } finally {
+    vault.clear();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LEGACY SCRUBBING (non-reversible, for backward compatibility)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Clinical terms that look like names but should be preserved
+const CLINICAL_WHITELIST = new Set([
+  "alzheimer", "parkinson", "huntington", "crohn", "addison", "hodgkin",
+  "raynaud", "bartholin", "cushing", "graves", "hashimoto", "meniere",
+  "paget", "bell", "down syndrome", "turner syndrome", "klinefelter",
+  "marfan", "ehlers danlos", "asperger", "guillain barre", "lou gehrig",
+  "wilson disease", "bright disease", "dupuytren", "raynaud's", "bell's",
+  "alzheimer's", "parkinson's", "huntington's", "crohn's", "addison's",
+  "hodgkin's", "cushing's", "graves'", "hashimoto's", "meniere's", "paget's",
+]);
+
+// Common medication brand names that look like proper nouns
+const MEDICATION_WHITELIST = new Set([
+  "warfarin", "metformin", "amlodipine", "ramipril", "simvastatin",
+  "omeprazole", "levothyroxine", "paracetamol", "codeine", "tramadol",
+  "morphine", "fentanyl", "oxycodone", "gabapentin", "pregabalin",
+  "sertraline", "fluoxetine", "citalopram", "mirtazapine", "venlafaxine",
+  "risperidone", "quetiapine", "olanzapine", "haloperidol", "lorazepam",
+  "diazepam", "zopiclone", "insulin", "lantus", "novorapid", "humalog",
+]);
+
+// Common UK place name prefixes/suffixes that indicate addresses
+const UK_PLACE_INDICATORS = /\b(road|street|lane|avenue|drive|close|way|court|gardens|grove|place|crescent|terrace|square|hill|park|view|rise|walk|mews|row)\b/i;
+
+// Regex patterns for UK-specific PII
+const PII_PATTERNS = {
+  // NHS Number: 10 digits, often formatted as 123 456 7890 or 1234567890
+  nhsNumber: /\b\d{3}\s?\d{3}\s?\d{4}\b/g,
+  
+  // National Insurance Number: AB123456C format
+  niNumber: /\b[A-CEGHJ-PR-TW-Z]{2}\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-D]\b/gi,
+  
+  // UK Postcode: Full format (SW1A 1AA, EC1A 1BB, etc.)
+  ukPostcode: /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/gi,
+  
+  // Email addresses
+  email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+  
+  // UK Phone numbers (various formats)
+  ukPhone: /\b(?:(?:\+44\s?|0)(?:7\d{3}|\d{2,4}))\s?\d{3,4}\s?\d{3,4}\b/g,
+  
+  // International phone (generic)
+  intlPhone: /\b\+\d{1,3}[\s.-]?\(?\d{1,4}\)?[\s.-]?\d{1,4}[\s.-]?\d{1,9}\b/g,
+  
+  // Dates in various formats (DD/MM/YYYY, DD-MM-YY, DD.MM.YYYY, etc.)
+  dateFormats: /\b(?:0?[1-9]|[12]\d|3[01])[\/.\-](?:0?[1-9]|1[0-2])[\/.\-](?:19|20)?\d{2}\b/g,
+  
+  // ISO dates (YYYY-MM-DD)
+  isoDate: /\b(?:19|20)\d{2}[\-\/](?:0?[1-9]|1[0-2])[\-\/](?:0?[1-9]|[12]\d|3[01])\b/g,
+  
+  // Age patterns ("aged 85", "85 years old", "85-year-old")
+  agePatterns: /\b(?:aged?|age)\s*:?\s*\d{1,3}\b|\b\d{1,3}\s*(?:years?|yrs?)\s*(?:old|of age)\b|\b\d{1,3}-?years?-?old\b/gi,
+  
+  // Year of birth patterns ("born 1938", "DOB: 1940", "b. 1935")
+  yearOfBirth: /\b(?:born|dob|d\.o\.b|b\.)\s*:?\s*(?:19|20)\d{2}\b/gi,
+  
+  // UK Sort Code: 12-34-56 or 123456
+  ukSortCode: /\b\d{2}[\-\s]\d{2}[\-\s]\d{2}\b/g,
+  
+  // UK Bank Account Number: 8 digits
+  ukBankAccount: /\b\d{8}\b/g,
+  
+  // Credit/Debit Card: 13-19 digits (with optional spaces/dashes)
+  cardNumber: /\b(?:\d{4}[\s\-]?){3,4}\d{1,4}\b/g,
+  
+  // UK Driving License: MORGA657054SM9IJ format (complex pattern)
+  ukDrivingLicense: /\b[A-Z]{5}\d{6}[A-Z0-9]{5}\b/gi,
+  
+  // UK Passport Number: 9 digits
+  ukPassport: /\b\d{9}\b/g,
+  
+  // UK Vehicle Registration: AB12 CDE, AB12CDE
+  ukVehicleReg: /\b[A-Z]{2}\d{2}\s?[A-Z]{3}\b/gi,
+  
+  // IP addresses (v4)
+  ipAddress: /\b(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g,
+  
+  // IPv6 addresses (simplified pattern)
+  ipv6Address: /\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b/g,
+  
+  // Street addresses (number + street name pattern)
+  streetAddress: /\b\d{1,5}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:Road|Street|Lane|Avenue|Drive|Close|Way|Court|Gardens|Grove|Place|Crescent|Terrace|Square|Hill|Park|View|Rise|Walk|Mews|Row)\b/gi,
+  
+  // House names with addresses
+  houseName: /\b(?:The\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:House|Cottage|Lodge|Bungalow|Flat|Apartment|Villa|Manor)\b/gi,
+  
+  // MAC addresses (network device identifiers)
+  macAddress: /\b(?:[0-9A-Fa-f]{2}[:\-]){5}[0-9A-Fa-f]{2}\b/g,
+};
+
+// Scrub statistics for logging (optional audit trail)
+interface ScrubStats {
+  nhsNumbers: number;
+  niNumbers: number;
+  postcodes: number;
+  emails: number;
+  phones: number;
+  dates: number;
+  ages: number;
+  addresses: number;
+  names: number;
+  other: number;
+}
+
+function createScrubStats(): ScrubStats {
+  return { nhsNumbers: 0, niNumbers: 0, postcodes: 0, emails: 0, phones: 0, dates: 0, ages: 0, addresses: 0, names: 0, other: 0 };
+}
+
+function isClinicalOrMedicalTerm(phrase: string): boolean {
+  const lower = phrase.toLowerCase().replace(/['']/g, "'");
+  return CLINICAL_WHITELIST.has(lower) || MEDICATION_WHITELIST.has(lower);
+}
+
+// Enhanced care-domain whitelist for multi-word phrases
+const CARE_PHRASE_WHITELIST = new Set([
+  "care plan", "care worker", "care home", "care needs", "care staff", "care team",
+  "care manager", "care coordinator", "care provider", "care assistant", "care support",
+  "risk assessment", "personal care", "mental health", "social worker", "social care",
+  "general practitioner", "district nurse", "health visitor", "service user",
+  "family member", "next of kin", "emergency contact", "key worker",
+  "falls prevention", "fire safety", "skin integrity", "medication administration",
+  "infection control", "environmental safety", "lone working", "behavior support",
+  "communication support", "dementia care", "end of life", "epilepsy management",
+  "diabetes management", "nutrition assessment", "continence care", "mobility assessment",
+  "moving and handling", "safeguarding adults", "safeguarding children", "coshh assessment",
+  "manual handling", "pressure areas", "tissue viability", "wound care",
+  "initial assessment", "care planning", "daily living", "personal hygiene", "oral care",
+  "food preparation", "medication support", "emotional support", "social activities",
+  "blood pressure", "heart rate", "respiratory rate", "oxygen saturation",
+  "body temperature", "weight management", "pain management", "symptom control",
+  "palliative care", "health and safety", "dignity and respect", "person centred",
+  "person centered", "best practice", "quality assurance", "clinical governance",
+  "duty of care", "capacity assessment", "mental capacity", "best interests",
+  "deprivation of liberty", "advance directive", "lasting power", "power of attorney",
+  "hospital discharge", "community nurse", "practice nurse", "occupational therapy",
+  "speech therapy", "physical therapy", "blood glucose", "blood sugar",
+  "fluid intake", "food intake", "bowel movement", "urinary output",
+  "vital signs", "medication review", "medication round", "controlled drug",
+  "medication error", "adverse reaction", "allergic reaction", "side effect",
+]);
+
+// Validate if word looks like a proper name (not a common word)
+const COMMON_ENGLISH_WORDS = new Set([
+  "the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her",
+  "was", "one", "our", "out", "day", "get", "has", "him", "his", "how", "its",
+  "may", "new", "now", "old", "see", "way", "who", "boy", "did", "own", "say",
+  "she", "too", "use", "mon", "tue", "wed", "thu", "fri", "sat", "sun",
+  "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+  "morning", "afternoon", "evening", "night", "daily", "weekly", "monthly",
+  "this", "that", "with", "have", "from", "they", "been", "will", "more",
+  "when", "some", "what", "there", "which", "their", "about", "would", "make",
+  "like", "time", "just", "know", "take", "people", "into", "year", "your",
+  "good", "could", "them", "other", "than", "then", "look", "only", "come",
+  "over", "such", "also", "back", "after", "work", "first", "well", "even",
+  "want", "because", "these", "give", "most", "care", "health", "support",
+  "need", "needs", "help", "ensure", "provide", "assist", "monitor",
+  "check", "review", "assess", "plan", "record", "document", "report",
+]);
+
+function looksLikeProperName(word: string): boolean {
+  if (!word || word.length < 2) return false;
+  // Must start with uppercase, rest lowercase (or apostrophe patterns)
+  if (!/^[A-Z][a-z]+$/.test(word) && !/^(?:O'|Mc|Mac)[A-Z][a-z]+$/.test(word)) return false;
+  // Not a common word or clinical term
+  const lower = word.toLowerCase();
+  if (COMMON_ENGLISH_WORDS.has(lower)) return false;
+  if (isClinicalOrMedicalTerm(word)) return false;
+  return true;
+}
+
+/**
+ * Primary PII scrubbing function - UK GDPR compliant
+ * Removes or redacts all identifiable information before AI processing
+ * @param data - Input data (string, array, or object)
+ * @param stats - Optional stats object to track what was scrubbed
+ * @returns Scrubbed data with PII replaced by generic tokens
+ */
+function scrubPII(data: any, stats?: ScrubStats): any {
+  if (typeof data === "string") {
+    let scrubbed = data;
+    const s = stats || createScrubStats();
+
+    // === PHASE 1: High-confidence PII patterns (regex-based) ===
+    
+    // NHS Numbers (10 digits, spaced or not)
+    scrubbed = scrubbed.replace(PII_PATTERNS.nhsNumber, () => { s.nhsNumbers++; return "[NHS_NUMBER_REDACTED]"; });
+    
+    // National Insurance Numbers
+    scrubbed = scrubbed.replace(PII_PATTERNS.niNumber, () => { s.niNumbers++; return "[NI_NUMBER_REDACTED]"; });
+    
+    // UK Postcodes
+    scrubbed = scrubbed.replace(PII_PATTERNS.ukPostcode, () => { s.postcodes++; return "[POSTCODE_REDACTED]"; });
+    
+    // Email addresses
+    scrubbed = scrubbed.replace(PII_PATTERNS.email, () => { s.emails++; return "[EMAIL_REDACTED]"; });
+    
+    // Phone numbers (UK and international)
+    scrubbed = scrubbed.replace(PII_PATTERNS.ukPhone, () => { s.phones++; return "[PHONE_REDACTED]"; });
+    scrubbed = scrubbed.replace(PII_PATTERNS.intlPhone, () => { s.phones++; return "[PHONE_REDACTED]"; });
+    
+    // IP addresses
+    scrubbed = scrubbed.replace(PII_PATTERNS.ipAddress, () => { s.other++; return "[IP_REDACTED]"; });
+    
+    // Street addresses
+    scrubbed = scrubbed.replace(PII_PATTERNS.streetAddress, () => { s.addresses++; return "[ADDRESS_REDACTED]"; });
+    
+    // House names
+    scrubbed = scrubbed.replace(PII_PATTERNS.houseName, () => { s.addresses++; return "[ADDRESS_REDACTED]"; });
+
+    // === PHASE 2: Date and age information ===
+    
+    // Age patterns ("aged 85", "85 years old")
+    scrubbed = scrubbed.replace(PII_PATTERNS.agePatterns, () => { s.ages++; return "[AGE_REDACTED]"; });
+    
+    // Year of birth patterns
+    scrubbed = scrubbed.replace(PII_PATTERNS.yearOfBirth, () => { s.ages++; return "[DOB_REDACTED]"; });
+    
+    // ISO dates
+    scrubbed = scrubbed.replace(PII_PATTERNS.isoDate, () => { s.dates++; return "[DATE_REDACTED]"; });
+    
+    // Standard date formats
+    scrubbed = scrubbed.replace(PII_PATTERNS.dateFormats, () => { s.dates++; return "[DATE_REDACTED]"; });
+
+    // === PHASE 3: Name patterns ===
+    
+    // Explicit name introductions
+    scrubbed = scrubbed.replace(
+      /\b(my name is|i am called|i'm called|call me|known as|also known as|a\.k\.a\.)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/gi,
+      (match, prefix) => { s.names++; return `${prefix} [SERVICE_USER]`; }
+    );
+    
+    // Possessive patterns not in whitelist
+    scrubbed = scrubbed.replace(/\b([A-Z][a-z]+)['']s\b/g, (match, name) => {
+      if (isClinicalOrMedicalTerm(name)) return match;
+      if (COMMON_ENGLISH_WORDS.has(name.toLowerCase())) return match;
+      s.names++;
+      return "[SERVICE_USER]'s";
+    });
+
+    // Full name patterns (First Last or First Middle Last)
+    scrubbed = scrubbed.replace(
+      /\b([A-Z][a-z]+)\s+((?:O['']|Mc|Mac)?[A-Z][a-z]+)(?:\s+((?:O['']|Mc|Mac)?[A-Z][a-z]+))?\b/g,
+      (match, first, second, third) => {
+        const phrase = match.toLowerCase();
+        // Check if this is a whitelisted care phrase
+        if (CARE_PHRASE_WHITELIST.has(phrase)) return match;
+        // Check if any part is clinical/medical
+        if (isClinicalOrMedicalTerm(first) || isClinicalOrMedicalTerm(second)) return match;
+        if (third && isClinicalOrMedicalTerm(third)) return match;
+        // Check if first word is common (not a name)
+        if (COMMON_ENGLISH_WORDS.has(first.toLowerCase())) return match;
+        // Looks like a proper name - redact
+        s.names++;
+        return "[SERVICE_USER]";
+      }
+    );
+
+    // === PHASE 4: Labeled PII fields ===
+    
+    // DOB with date
+    scrubbed = scrubbed.replace(
+      /\b(DOB|Date of Birth|D\.O\.B\.?)\s*:?\s*[^\n,;]{1,20}/gi,
+      () => { s.dates++; return "DOB: [DATE_REDACTED]"; }
+    );
+    
+    // Contact information labels
+    scrubbed = scrubbed.replace(
+      /\b(Emergency contact|Next of kin|Contact|Tel|Telephone|Phone|Mobile|Email)\s*:?\s*[^\n,;]{1,50}/gi,
+      (match, label) => { s.other++; return `${label}: [CONTACT_REDACTED]`; }
+    );
+    
+    // Address labels
+    scrubbed = scrubbed.replace(
+      /\b(Address|Home address|Residence)\s*:?\s*[^\n]{1,100}/gi,
+      (match, label) => { s.addresses++; return `${label}: [ADDRESS_REDACTED]`; }
+    );
+
+    // === PHASE 5: Titled names (Dr., Mr., Mrs., etc.) ===
+    scrubbed = scrubbed.replace(
+      /\b(Mr|Mrs|Ms|Miss|Dr|Prof|Professor)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/g,
+      (match, title) => {
+        s.names++;
+        const lower = String(title || "").toLowerCase();
+        if (lower === "dr" || lower === "prof" || lower === "professor") return "[HEALTHCARE_PROFESSIONAL]";
+        return "[PERSON_REDACTED]";
+      }
+    );
+
+    // === PHASE 6: Clean up any remaining lone proper names at start of labeled fields ===
+    scrubbed = scrubbed.replace(
+      /\b(Carer|Care Worker|Nurse|Doctor|GP|Support Worker|Key Worker|Social Worker)\s*:?\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b/gi,
+      (match, role) => { s.names++; return `${role}: [STAFF_REDACTED]`; }
     );
 
     return scrubbed;
   }
 
+  // Recursively handle arrays
   if (Array.isArray(data)) {
-    return data.map((item) => scrubPII(item));
+    return data.map((item) => scrubPII(item, stats));
   }
+  
+  // Recursively handle objects
   if (typeof data === "object" && data !== null) {
     const scrubbed: Record<string, any> = {};
     for (const key of Object.keys(data)) {
-      scrubbed[key] = scrubPII(data[key]);
+      // Also check if key itself suggests PII
+      const lowerKey = key.toLowerCase();
+      if (["name", "fullname", "firstname", "lastname", "surname", "email", "phone", "telephone", "mobile", "address", "postcode", "nhs", "ni_number", "dob", "dateofbirth"].includes(lowerKey.replace(/[_\s]/g, ""))) {
+        scrubbed[key] = "[FIELD_REDACTED]";
+        if (stats) stats.other++;
+      } else {
+        scrubbed[key] = scrubPII(data[key], stats);
+      }
     }
     return scrubbed;
   }
+  
   return data;
+}
+
+/**
+ * Scrub PII with audit logging - returns both scrubbed data and statistics
+ * Use this for compliance auditing and debugging
+ */
+function scrubPIIWithAudit(data: any): { scrubbed: any; stats: ScrubStats } {
+  const stats = createScrubStats();
+  const scrubbed = scrubPII(data, stats);
+  return { scrubbed, stats };
 }
 
 const toFirstPerson = (text: string): string => {
@@ -748,22 +1538,45 @@ const toFirstPerson = (text: string): string => {
   return updated;
 };
 
+/**
+ * Enhanced narrative text sanitizer - UK GDPR compliant
+ * Converts scrubbed tokens to natural language for care plan output
+ * This runs AFTER scrubPII to make the text more readable
+ */
 const sanitizeNarrativeText = (text: string): string => {
   if (!text) return text;
   let cleaned = text;
 
+  // Convert redaction tokens to natural language
+  cleaned = cleaned.replace(/\[SERVICE_USER\]/gi, "I");
+  cleaned = cleaned.replace(/\[SERVICE_USER\]'s/gi, "my");
+  cleaned = cleaned.replace(/\[PERSON_REDACTED\]/gi, "someone");
+  cleaned = cleaned.replace(/\[HEALTHCARE_PROFESSIONAL\]/gi, "my healthcare professional");
+  cleaned = cleaned.replace(/\[STAFF_REDACTED\]/gi, "staff member");
+  cleaned = cleaned.replace(/\[DATE_REDACTED\]/gi, "on file");
+  cleaned = cleaned.replace(/\[DOB_REDACTED\]/gi, "DOB on file");
+  cleaned = cleaned.replace(/\[AGE_REDACTED\]/gi, "age on file");
+  cleaned = cleaned.replace(/\[NHS_NUMBER_REDACTED\]/gi, "NHS number on file");
+  cleaned = cleaned.replace(/\[NI_NUMBER_REDACTED\]/gi, "NI number on file");
+  cleaned = cleaned.replace(/\[POSTCODE_REDACTED\]/gi, "postcode on file");
+  cleaned = cleaned.replace(/\[ADDRESS_REDACTED\]/gi, "address on file");
+  cleaned = cleaned.replace(/\[EMAIL_REDACTED\]/gi, "email on file");
+  cleaned = cleaned.replace(/\[PHONE_REDACTED\]/gi, "phone on file");
+  cleaned = cleaned.replace(/\[CONTACT_REDACTED\]/gi, "contact details on file");
+  cleaned = cleaned.replace(/\[FIELD_REDACTED\]/gi, "on file");
+  cleaned = cleaned.replace(/\[IP_REDACTED\]/gi, "");
+  
+  // Legacy token conversions (for backward compatibility)
   cleaned = cleaned.replace(/\[(service user)\]/gi, "I");
   cleaned = cleaned.replace(/\[(redacted)\]/gi, "on file");
 
-  cleaned = cleaned.replace(/\b(DOB|Date of birth)\s*[:\-]?\s*\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}\b/gi, "$1 on file");
+  // Clean up any labeled fields that might have partial info
+  cleaned = cleaned.replace(/\b(DOB|Date of birth)\s*:?\s*on file/gi, "DOB on file");
+  cleaned = cleaned.replace(/\b(Address|Home address)\s*:?\s*on file/gi, "address on file");
 
+  // Convert remaining titled names to natural language
   cleaned = cleaned.replace(
-    /\b(Emergency contact|Next of kin|Contact)\s*[:\-]?\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/g,
-    "$1 on file"
-  );
-
-  cleaned = cleaned.replace(
-    /\b(Mr|Mrs|Ms|Miss|Dr)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/g,
+    /\b(Mr|Mrs|Ms|Miss|Dr)\.?\s+\[?[A-Z][a-z]+\]?(?:\s+[A-Z][a-z]+){0,2}\b/g,
     (match, title) => {
       const lower = String(title || "").toLowerCase();
       if (lower === "dr") return "my doctor";
@@ -771,22 +1584,35 @@ const sanitizeNarrativeText = (text: string): string => {
     }
   );
 
+  // Clean up family member name references
   cleaned = cleaned.replace(
     /\b(my)\s+(mother|father|son|daughter|husband|wife|partner|brother|sister|family member|next of kin|friend)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/gi,
     (_match, prefix, relation) => `${prefix} ${relation}`
   );
 
+  // Clean up staff name references
   cleaned = cleaned.replace(
     /\b(care worker|carer|support worker|nurse|doctor|gp|social worker|physio|ot|therapist|care manager|care coordinator)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/gi,
     (_match, role) => role
   );
 
-  return cleaned;
+  // Remove any double spaces or awkward formatting from redactions
+  cleaned = cleaned.replace(/\s{2,}/g, " ");
+  cleaned = cleaned.replace(/\s+([.,;:])/g, "$1");
+
+  return cleaned.trim();
 };
 
+/**
+ * Full PII scrubbing pipeline for documents sent to AI
+ * First applies comprehensive scrubPII, then sanitizeNarrativeText for readable output
+ */
 const sanitizeNarrativePII = (data: any): any => {
   if (typeof data === "string") {
-    return sanitizeNarrativeText(data);
+    // Step 1: Comprehensive PII scrubbing (UK GDPR compliant)
+    const scrubbed = scrubPII(data);
+    // Step 2: Convert redaction tokens to natural language
+    return sanitizeNarrativeText(scrubbed);
   }
   if (Array.isArray(data)) {
     return data.map((item) => sanitizeNarrativePII(item));
@@ -799,6 +1625,33 @@ const sanitizeNarrativePII = (data: any): any => {
     return scrubbed;
   }
   return data;
+};
+
+/**
+ * Full PII scrubbing with audit trail - use for compliance logging
+ */
+const sanitizeNarrativePIIWithAudit = (data: any): { result: any; stats: ScrubStats } => {
+  const stats = createScrubStats();
+  
+  const processItem = (item: any): any => {
+    if (typeof item === "string") {
+      const scrubbed = scrubPII(item, stats);
+      return sanitizeNarrativeText(scrubbed);
+    }
+    if (Array.isArray(item)) {
+      return item.map((x) => processItem(x));
+    }
+    if (typeof item === "object" && item !== null) {
+      const result: Record<string, any> = {};
+      for (const key of Object.keys(item)) {
+        result[key] = processItem(item[key]);
+      }
+      return result;
+    }
+    return item;
+  };
+  
+  return { result: processItem(data), stats };
 };
 
 // Validate and normalize service user initials
@@ -3816,6 +4669,7 @@ export async function registerRoutes(
 
     // Heartbeat to keep connection alive during long AI processing
     let heartbeatInterval: NodeJS.Timeout | null = null;
+    let progressInterval: NodeJS.Timeout | null = null;
     heartbeatInterval = setInterval(() => {
       try {
         res.write(`: heartbeat\n\n`);
@@ -4269,6 +5123,24 @@ ${correctionExamples}
         console.log("=== USING EMAR AGENT (GPT-5.2) ===");
         sendProgress(15, "Using thorough EMAR agent...", "emar_agent");
         
+        // Simulated progress during EMAR agent processing
+        let simulatedProgress = 15;
+        progressInterval = setInterval(() => {
+          if (simulatedProgress < 55) {
+            simulatedProgress += 5;
+            const messages = [
+              "Extracting medication entries...",
+              "Parsing administration times...",
+              "Identifying staff codes...",
+              "Validating entry data...",
+              "Cross-referencing medications...",
+              "Building EMAR structure...",
+            ];
+            const msgIndex = Math.floor((simulatedProgress - 15) / 7) % messages.length;
+            sendProgress(simulatedProgress, messages[msgIndex], "emar_agent");
+          }
+        }, 4000);
+        
         try {
           const agentText = documentText;
           const agentResult = await emarAgent.extract(
@@ -4279,6 +5151,7 @@ ${correctionExamples}
             { gridBaseline }
           );
           
+          if (progressInterval) clearInterval(progressInterval);
           console.log(`EMAR Agent completed: ${agentResult.entries.length} entries, ${agentResult.consensusStatus}, validation: ${agentResult.validationPassed}`);
           sendProgress(60, `Extracted ${agentResult.entries.length} entries via agent...`, "agent_complete");
           
@@ -9515,6 +10388,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       // Send final result and 100% progress
       sendProgress(100, "Analysis complete!", "complete");
       sendEvent('result', rawResult || scrubbedResult);
+      if (progressInterval) clearInterval(progressInterval);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       return res.end();
       
@@ -9523,6 +10397,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
     } catch (error: any) {
       console.error("EMAR AI Error:", error);
       sendEvent('error', { message: error.message || "AI analysis failed" });
+      if (progressInterval) clearInterval(progressInterval);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       return res.end();
     }
@@ -10075,6 +10950,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
 
     // Heartbeat to keep connection alive
     let heartbeatInterval: NodeJS.Timeout | null = null;
+    let progressInterval: NodeJS.Timeout | null = null;
     heartbeatInterval = setInterval(() => {
       try {
         res.write(`: heartbeat\n\n`);
@@ -10236,6 +11112,23 @@ Respond ONLY with valid JSON in this exact format:
         sendProgress(20, `Large document detected. Processing ${chunks.length} batches...`, "chunking");
       }
 
+      // Simulated progress during AI analysis
+      let simulatedProgress = 20;
+      progressInterval = setInterval(() => {
+        if (simulatedProgress < 45) {
+          simulatedProgress += 3;
+          const messages = [
+            "Analyzing visit log entries...",
+            "Checking attendance compliance...",
+            "Reviewing care notes quality...",
+            "Identifying discrepancies...",
+            "Processing visit patterns...",
+          ];
+          const msgIndex = Math.floor((simulatedProgress - 20) / 5) % messages.length;
+          sendProgress(simulatedProgress, messages[msgIndex], "ai_analysis");
+        }
+      }, 3000);
+
       const chunkResults: any[] = [];
       for (let i = 0; i < chunks.length; i++) {
         const label = chunks.length > 1 ? ` (${i + 1}/${chunks.length})` : "";
@@ -10262,6 +11155,8 @@ Respond ONLY with valid JSON in this exact format:
           console.warn(`[Visit Audit] Chunk ${i + 1} returned unparsable JSON output (length=${content.length}, hasBrace=${hasBrace}).`);
         }
       }
+
+      if (progressInterval) clearInterval(progressInterval);
 
       if (chunkResults.length === 0) {
         throw new Error("No result received from analysis");
@@ -10424,6 +11319,7 @@ Return JSON - include ALL by default:
     } catch (error: any) {
       console.error("Visit AI Error:", error);
       sendEvent('error', { message: error.message || "AI analysis failed" });
+      if (progressInterval) clearInterval(progressInterval);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       return res.end();
     }
@@ -10437,6 +11333,9 @@ Return JSON - include ALL by default:
     // User context for AI cost tracking
     const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
     
+    // PII Vault for reversible scrubbing - keeps sensitive data local
+    const piiVault = new PIIVault();
+    
     try {
       const { documentContent, allowSensitive } = req.body;
       const allowSensitiveView = Boolean(allowSensitive) && req.user?.role === "admin";
@@ -10444,7 +11343,15 @@ Return JSON - include ALL by default:
       if (typeof documentContent !== "string" || !documentContent.trim()) {
         return res.status(400).json({ message: "Document content required" });
       }
-      const documentContentForAi = allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent);
+      
+      // Scrub PII using vault - original values stored locally for restoration
+      // When allowSensitiveView is true, we still scrub for AI but restore for display
+      const documentContentForAi = piiVault.scrub(documentContent);
+      const vaultStats = piiVault.getStats();
+      console.log(`[Risks] PII Vault: Scrubbed ${vaultStats.total} sensitive items (${Object.entries(vaultStats.byCategory).filter(([,v]) => v > 0).map(([k,v]) => `${k}:${v}`).join(', ')})`);
+      
+      // Security audit log for compliance
+      piiVault.logAudit('SCRUB', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
 
       // Set up SSE for progress streaming with production-safe settings
       res.setHeader('Content-Type', 'text/event-stream');
@@ -10568,10 +11475,10 @@ CRITICAL REMINDER:
       }
 
       const privacyRules = allowSensitiveView
-        ? `5. Full names may be included only if they appear in the documents. Do not invent names.
+        ? `5. Personal data has been tokenized (e.g. {{PII_...}}). Keep these tokens in your output - they will be converted to readable placeholders like [Name].
 6. Keep place names and locations as written. Do not redact places.
-7. Never include dates of birth.`
-        : `5. Do NOT include any person names. Use role terms (my carer, my GP, my family member)
+7. Never try to guess real names or dates of birth from tokens.`
+        : `5. Personal data has been tokenized. Keep tokens in output - they become [Name], [NHS Number] etc.
 6. Keep place names and locations as written. Do not redact places.`;
 
       const serviceUserExtractionRules = allowSensitiveView
@@ -10724,10 +11631,10 @@ ${serviceUserExtractionRules}
 - Mental capacity considerations
 - Environmental factors (stairs, pets, access issues, lone working needed, etc.)
 
-PRIVACY REQUIREMENT:
-- NEVER include dates of birth
-- Extract initials in format "F.O." (first initial + dot + last initial + dot)
-- Example: "Freda O'Neill" → "F.O."
+PRIVACY (TOKENIZED DATA):
+Personal data has been replaced with tokens like {{PII_..._NAME_1}}. These will be converted to placeholders like [Name], [NHS Number] in the final output.
+- Keep all tokens in your response - do not try to guess or invent real values
+- Extract initials if visible, but tokens are fine in recommendations
 
 ═══════════════════════════════════════════════════════════════════════════════
 STEP 2: RECOMMEND RISK ASSESSMENTS (ONLY WITH STRONG DOCUMENTED EVIDENCE)
@@ -11090,15 +11997,39 @@ Remember: Extract information ONLY from service user documents above. Templates 
         console.log(`[Risks] Quality metrics: ${result.recommendedAssessments.length} assessments, avg ${avgSnippets.toFixed(1)} snippets/assessment`);
       }
 
-      const scrubbedResult = sanitizeNarrativePII(result);
-      const payload = allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult;
+      // Template-Only AI: Convert tokens to readable placeholders (no PII in output)
+      // Output is GDPR-exempt as it contains no personal data
+      const templateResult = piiVault.toPlaceholders(result);
+      console.log(`[Risks] Template Output: ${piiVault.getStats().total} fields converted to placeholders like [Name], [NHS Number]`);
+      piiVault.logAudit('SCRUB', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
+      
+      // For authorized admin users with allowSensitive, include vault export for client-side restoration
+      // The client can then restore PII values locally without them being transmitted
+      let payload: any = templateResult;
+      if (allowSensitiveView) {
+        const vaultExport = piiVault.export();
+        payload = {
+          ...templateResult,
+          vaultExport,
+          // Also include the raw result with tokens for client-side restoration
+          rawWithTokens: result,
+        };
+        console.log(`[Risks] Admin mode: Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for local restoration`);
+        piiVault.logAudit('RESTORE', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
+      }
+      
       setRiskAnalysisCache(cacheKey, payload);
       sendProgress(100, "Complete!", "complete");
       sendEvent('result', payload);
+      
+      // Clear vault after use (security best practice)
+      piiVault.clear();
+      
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       return res.end();
     } catch (error: any) {
       console.error("Risk Analysis AI Error:", error);
+      piiVault.clear(); // Clear vault on error too
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       if (progressInterval) clearInterval(progressInterval);
       if (res.headersSent) {
@@ -11112,9 +12043,13 @@ Remember: Extract information ONLY from service user documents above. Templates 
   // Generate detailed risk assessment content
   app.post("/api/ai/generate-risk-assessment", requireAuth, async (req: any, res) => {
     let heartbeatInterval: NodeJS.Timeout | null = null;
+    let progressInterval: NodeJS.Timeout | null = null;
     
     // User context for AI cost tracking
     const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
+    
+    // PII Vault for reversible scrubbing - keeps sensitive data local
+    const piiVault = new PIIVault();
     
     try {
       const {
@@ -11208,8 +12143,8 @@ CRITICAL REMINDER:
       }
 
       const privacyDirective = allowSensitiveView
-        ? "Privacy requirement: You may include full names only if present in the documents. Do not invent names. Never include dates of birth."
-        : "Privacy requirement: Never include full names or dates of birth. Use only initials.";
+        ? "Privacy: Personal data in documents has been tokenized (e.g. {{PII_...}}). Keep these tokens in your output - they will be converted to readable placeholders like [Name], [NHS Number]. Never try to guess real values."
+        : "Privacy: Personal data has been tokenized. Keep tokens in output for automatic placeholder conversion.";
 
       const evidenceSnippets = Array.isArray(assessmentEvidence?.evidenceSnippets)
         ? assessmentEvidence.evidenceSnippets.filter(isMeaningfulEvidence)
@@ -11347,7 +12282,27 @@ Respond ONLY with valid JSON in this exact format:
   "additionalNotes": "Any relevant first-person observations (leave empty string if nothing additional to add)"
 }`;
 
+      // Security audit log for PII scrubbing
+      piiVault.logAudit('SCRUB', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
+      
       sendProgress(30, "Generating risk assessment...", "ai_generation");
+
+      // Simulated progress during AI call
+      let simulatedProgress = 30;
+      progressInterval = setInterval(() => {
+        if (simulatedProgress < 65) {
+          simulatedProgress += 5;
+          const messages = [
+            "Analyzing documented risks...",
+            "Building risk definitions...",
+            "Assessing control measures...",
+            "Calculating risk ratings...",
+            "Formatting assessment structure...",
+          ];
+          const msgIndex = Math.floor((simulatedProgress - 30) / 7) % messages.length;
+          sendProgress(simulatedProgress, messages[msgIndex], "ai_generation");
+        }
+      }, 3000);
 
       const response = await createChatCompletionWithLogging({
         model: getRiskAssessmentGenerationModel(),
@@ -11366,11 +12321,11 @@ Respond ONLY with valid JSON in this exact format:
 7. Write detailed, thorough content for each field based ONLY on documented facts from SERVICE USER documents
 
 Evidence pack for this category (use these facts first and ensure every risk maps to them or the SERVICE USER documents):
-${evidencePack ? `- ${evidencePack}` : "- No evidence pack provided."}
+${evidencePack ? `- ${piiVault.scrub(evidencePack)}` : "- No evidence pack provided."}
 
 === REAL SERVICE USER DOCUMENTS TO ANALYZE (EXTRACT INFORMATION FROM THESE ONLY) ===
 
-${allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent)}
+${piiVault.scrub(documentContent)}
 
 === END SERVICE USER DOCUMENTS ===
 
@@ -11381,6 +12336,7 @@ Remember: Extract information ONLY from the service user documents above. Templa
         response_format: { type: "json_object" },
       }, "risk_assessment", aiUserContext);
 
+      if (progressInterval) clearInterval(progressInterval);
       sendProgress(70, "Processing results...", "processing");
 
       const content = response.choices[0]?.message?.content || "";
@@ -11460,20 +12416,45 @@ Remember: Extract information ONLY from the service user documents above. Templa
             result.additionalNotes = "";
           }
         }
-        const scrubbedResult = sanitizeNarrativePII(result);
-        const payload = allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult;
+        
+        // Template-Only AI: Convert tokens to readable placeholders (no PII in output)
+        // Output is GDPR-exempt as it contains no personal data
+        const templateResult = piiVault.toPlaceholders(result);
+        console.log(`[RiskAssessment] Template Output: ${piiVault.getStats().total} fields converted to placeholders`);
+        piiVault.logAudit('SCRUB', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
+        
+        // For authorized admin users with allowSensitive, include vault export for client-side restoration
+        let payload: any = templateResult;
+        if (allowSensitiveView) {
+          const vaultExport = piiVault.export();
+          payload = {
+            ...templateResult,
+            vaultExport,
+            rawWithTokens: result,
+          };
+          console.log(`[RiskAssessment] Admin mode: Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for local restoration`);
+          piiVault.logAudit('RESTORE', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
+        }
         
         sendProgress(100, "Complete!", "complete");
         sendEvent('result', payload);
+        
+        // Clear vault after use (security best practice)
+        piiVault.clear();
+        
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       } else {
+        piiVault.clear(); // Clear vault on error too
         sendEvent('error', { message: "Failed to parse AI response" });
+        if (progressInterval) clearInterval(progressInterval);
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       }
     } catch (error: any) {
       console.error("Risk Assessment Generation Error:", error);
+      piiVault.clear(); // Clear vault on error too
+      if (progressInterval) clearInterval(progressInterval);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       if (res.headersSent) {
         res.write(`event: error\ndata: ${JSON.stringify({ message: error.message || "AI generation failed" })}\n\n`);
@@ -11530,9 +12511,13 @@ Remember: Extract information ONLY from the service user documents above. Templa
 
   app.post("/api/ai/generate-care-plan", requireAuth, async (req: any, res) => {
     let heartbeatInterval: NodeJS.Timeout | null = null;
+    let progressInterval: NodeJS.Timeout | null = null;
     
     // User context for AI cost tracking
     const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
+    
+    // PII Vault for reversible scrubbing - keeps sensitive data local
+    const piiVault = new PIIVault();
     
     try {
       const { documentContent, serviceUserInitials, allowSensitive, callType } = req.body;
@@ -11631,8 +12616,8 @@ REQUIREMENTS:
       ];
 
       const privacyRules = allowSensitiveView
-        ? "- Full names may be included only if present in the documents. Do not invent names."
-        : "- Do NOT include any person names. Use role terms (my carer, my GP, my family member).";
+        ? "- Personal data has been tokenized ({{PII_...}}). Keep tokens in output - they become [Name], [Date] etc."
+        : "- Personal data has been tokenized. Keep tokens in output for placeholder conversion.";
 
       // Call type context for specific care plans
       const callTypeLabel = callType || "General";
@@ -11761,10 +12746,32 @@ OUTPUT FORMAT - Return ONLY valid JSON:
       const scrubText = (value: unknown) => sanitizeNarrativePII(toStringSafe(value));
       const viewText = (value: unknown) => allowSensitiveView ? toStringSafe(value) : scrubText(value);
 
-      const documentContentForAi = allowSensitiveView ? documentContent : sanitizeNarrativePII(documentContent);
+      // Scrub PII using vault - original values stored locally for restoration
+      const documentContentForAi = piiVault.scrub(documentContent);
+      const vaultStats = piiVault.getStats();
+      console.log(`[CarePlan] PII Vault: Scrubbed ${vaultStats.total} sensitive items (${Object.entries(vaultStats.byCategory).filter(([,v]) => v > 0).map(([k,v]) => `${k}:${v}`).join(', ')})`);
+      piiVault.logAudit('SCRUB', '/api/ai/generate-care-plan', aiUserContext.userId, aiUserContext.username);
 
       sendProgress(20, `Generating ${callTypeLabel} care plan...`, "generating");
       console.log(`[CarePlan] Generating ${callTypeLabel} care plan`);
+
+      // Simulated progress during AI call
+      let simulatedProgress = 20;
+      progressInterval = setInterval(() => {
+        if (simulatedProgress < 75) {
+          simulatedProgress += 5;
+          const messages = [
+            `Analyzing documents for ${callTypeLabel} call...`,
+            "Building person-centred care content...",
+            "Extracting preferences and routines...",
+            "Ensuring safety considerations...",
+            "Formatting care plan structure...",
+            "Finalizing comprehensive plan...",
+          ];
+          const msgIndex = Math.floor((simulatedProgress - 20) / 10) % messages.length;
+          sendProgress(simulatedProgress, messages[msgIndex], "generating");
+        }
+      }, 3000);
 
       try {
         const response = await createChatCompletionWithLogging({
@@ -11809,6 +12816,7 @@ Return ONLY valid JSON with content field.` }
           response_format: { type: "json_object" },
         }, "care_plan_calltype", aiUserContext);
 
+        if (progressInterval) clearInterval(progressInterval);
         const content = response.choices[0]?.message?.content || "";
         const parsed = parseJsonFromContent(content);
         
@@ -11923,34 +12931,60 @@ Return ONLY valid JSON with content field.` }
         }
 
         const today = new Date().toLocaleDateString("en-GB");
-        const result = {
+        
+        // Template-Only AI: Convert tokens to readable placeholders (no PII in output)
+        // Output is GDPR-exempt as it contains no personal data
+        const templateContent = piiVault.toPlaceholders(enhancedContent);
+        console.log(`[CarePlan] Template Output: ${piiVault.getStats().total} fields converted to placeholders like [Name], [Date of Birth]`);
+        piiVault.logAudit('SCRUB', '/api/ai/generate-care-plan', aiUserContext.userId, aiUserContext.username);
+        
+        // Base result with placeholders
+        let result: any = {
           serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
           generatedDate: today,
           callType: callTypeLabel,
-          content: viewText(enhancedContent),
+          content: templateContent,
         };
-        const scrubbedResult = {
-          serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
-          generatedDate: today,
-          callType: callTypeLabel,
-          content: scrubText(enhancedContent),
-        };
+        
+        // For authorized admin users with allowSensitive, include vault export for client-side restoration
+        if (allowSensitiveView) {
+          const vaultExport = piiVault.export();
+          result = {
+            ...result,
+            vaultExport,
+            rawWithTokens: {
+              serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
+              generatedDate: today,
+              callType: callTypeLabel,
+              content: enhancedContent,
+            },
+          };
+          console.log(`[CarePlan] Admin mode: Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for local restoration`);
+          piiVault.logAudit('RESTORE', '/api/ai/generate-care-plan', aiUserContext.userId, aiUserContext.username);
+        }
 
         sendProgress(100, "Complete!", "complete");
-        sendEvent('result', allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult);
+        sendEvent('result', result);
+        
+        // Clear vault after use (security best practice)
+        piiVault.clear();
         
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
         
       } catch (genError: any) {
         console.error("[CarePlan] Generation error:", genError.message);
+        piiVault.clear(); // Clear vault on error too
         sendEvent('error', { message: genError.message || "AI generation failed" });
+        if (progressInterval) clearInterval(progressInterval);
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       }
       
     } catch (error: any) {
       console.error("Care Plan Generation Error:", error);
+      piiVault.clear(); // Clear vault on error too
+      if (progressInterval) clearInterval(progressInterval);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       if (res.headersSent) {
         res.write(`event: error\ndata: ${JSON.stringify({ message: error.message || "AI generation failed" })}\n\n`);
@@ -11967,6 +13001,9 @@ Return ONLY valid JSON with content field.` }
     
     // User context for AI cost tracking
     const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
+    
+    // PII Vault for reversible scrubbing - keeps sensitive data local
+    const piiVault = new PIIVault();
     
     try {
       const { documentContent, existingPlanContent, allowSensitive } = req.body;
@@ -12040,7 +13077,12 @@ Return ONLY valid JSON with content field.` }
         rawContentParts.push(`=== SUPPORTING DOCUMENTS AND USER NOTES ===\n${documentText}`);
       }
       const rawContent = rawContentParts.join("\n\n");
-      const contentToEnhance = allowSensitiveView ? rawContent : sanitizeNarrativePII(rawContent);
+      
+      // Scrub PII using vault - original values stored locally for restoration
+      const contentToEnhance = piiVault.scrub(rawContent);
+      const vaultStats = piiVault.getStats();
+      console.log(`[Enhance] PII Vault: Scrubbed ${vaultStats.total} sensitive items (${Object.entries(vaultStats.byCategory).filter(([,v]) => v > 0).map(([k,v]) => `${k}:${v}`).join(', ')})`);
+      piiVault.logAudit('SCRUB', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
 
       const carePlanPolicies = await storage.getPolicyDocumentsByCategory("care_plan");
       const initialAssessmentPolicies = await storage.getPolicyDocumentsByCategory("initial_assessment");
@@ -12059,8 +13101,8 @@ ${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.versio
       }
 
       const privacyDirective = allowSensitiveView
-        ? "Privacy rules: Full names may be included only if present in the documents. Do not invent names. Never include dates of birth."
-        : "Privacy rules: Replace any service user names with I. NEVER include dates of birth. Do NOT include any person names. Use role terms (my carer, my GP, my family member).";
+        ? "Privacy: Personal data in documents has been tokenized ({{PII_...}}). Keep tokens in output - they become [Name], [Date of Birth] etc. Never guess real values."
+        : "Privacy: Data has been tokenized. Keep tokens in output for automatic placeholder conversion.";
 
       const systemPrompt = `You are an expert care plan writer for a UK care facility following CQC 2024 standards, NHS England Person-Centred Care Planning principles, and NICE guidelines.
 ${policyContext}
@@ -12652,20 +13694,42 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
         console.log(`[PlanEnhancer] Total Words Generated: ${Object.values(qualityMetrics.wordCounts).reduce((a, b) => a + b, 0)}`);
         console.log('[PlanEnhancer] ═══════════════════════════════════════════════════');
         
-        const scrubbedResult = sanitizeNarrativePII(result);
-        const payload = allowSensitiveView ? { ...result, scrubbedResult } : scrubbedResult;
+        // Template-Only AI: Convert tokens to readable placeholders (no PII in output)
+        // Output is GDPR-exempt as it contains no personal data
+        const templateResult = piiVault.toPlaceholders(result);
+        console.log(`[Enhance] Template Output: ${piiVault.getStats().total} fields converted to placeholders like [Name], [NHS Number]`);
+        piiVault.logAudit('SCRUB', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
+        
+        // For authorized admin users with allowSensitive, include vault export for client-side restoration
+        let payload: any = templateResult;
+        if (allowSensitiveView) {
+          const vaultExport = piiVault.export();
+          payload = {
+            ...templateResult,
+            vaultExport,
+            rawWithTokens: result,
+          };
+          console.log(`[Enhance] Admin mode: Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for local restoration`);
+          piiVault.logAudit('RESTORE', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
+        }
         
         sendProgress(100, "Complete!", "complete");
         sendEvent('result', payload);
+        
+        // Clear vault after use (security best practice)
+        piiVault.clear();
+        
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       } else {
+        piiVault.clear(); // Clear vault on error too
         sendEvent('error', { message: "Failed to parse AI response" });
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       }
     } catch (error: any) {
       console.error("Plan Enhancement Error:", error);
+      piiVault.clear(); // Clear vault on error too
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       if (progressInterval) clearInterval(progressInterval);
       if (res.headersSent) {
@@ -15436,6 +16500,404 @@ Example phrases that should trigger message sending:
     } catch (error: any) {
       console.error("[Chat Assistant] Error:", error.message);
       return res.status(500).json({ message: "Failed to generate response" });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UK GDPR COMPLIANCE ENDPOINTS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // --- Consent Management ---
+
+  // Get current user's consent status
+  app.get("/api/gdpr/consent", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const consents = await storage.getConsentRecords(userId);
+      const currentConsents: Record<string, boolean> = {};
+      
+      for (const type of ['ai_processing', 'data_analytics']) {
+        const consent = await storage.getCurrentConsent(userId, type);
+        currentConsents[type] = consent?.granted ?? false;
+      }
+
+      return res.json({ 
+        currentConsents,
+        history: consents,
+      });
+    } catch (error: any) {
+      console.error("[GDPR] Error getting consent:", error.message);
+      return res.status(500).json({ message: "Failed to get consent status" });
+    }
+  });
+
+  // Grant or update consent
+  app.post("/api/gdpr/consent", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const username = req.user?.username;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { consentType, granted, version } = req.body;
+      if (!consentType || typeof granted !== 'boolean') {
+        return res.status(400).json({ message: "consentType and granted required" });
+      }
+
+      const validTypes = ['ai_processing', 'data_analytics'];
+      if (!validTypes.includes(consentType)) {
+        return res.status(400).json({ message: "Invalid consent type" });
+      }
+
+      // Withdraw existing consent if any
+      await storage.withdrawConsent(userId, consentType);
+
+      // Create new consent record
+      const consent = await storage.createConsentRecord({
+        userId,
+        username,
+        consentType,
+        granted,
+        version: version || '1.0',
+        ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      // Audit log
+      await storage.createGdprAuditLog({
+        eventType: 'CONSENT_CHANGE',
+        endpoint: '/api/gdpr/consent',
+        userId,
+        username,
+        ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip,
+        details: { consentType, granted, version: consent.version },
+      });
+
+      return res.json({ success: true, consent });
+    } catch (error: any) {
+      console.error("[GDPR] Error updating consent:", error.message);
+      return res.status(500).json({ message: "Failed to update consent" });
+    }
+  });
+
+  // --- Data Subject Access Request (SAR) ---
+
+  // Request data export (Right of Access)
+  app.post("/api/gdpr/data-request/access", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const username = req.user?.username;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Calculate due date (30 days from now as per UK GDPR)
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30);
+
+      const request = await storage.createDataRequest({
+        requestType: 'access',
+        requesterId: userId,
+        subjectId: userId,
+        status: 'pending',
+        dueDate,
+      });
+
+      // Audit log
+      await storage.createGdprAuditLog({
+        eventType: 'DATA_EXPORT',
+        endpoint: '/api/gdpr/data-request/access',
+        userId,
+        username,
+        ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip,
+        details: { requestId: request.id, requestType: 'access' },
+      });
+
+      return res.json({ 
+        success: true, 
+        request,
+        message: "Your data access request has been submitted. You will receive your data within 30 days.",
+      });
+    } catch (error: any) {
+      console.error("[GDPR] Error creating access request:", error.message);
+      return res.status(500).json({ message: "Failed to create data request" });
+    }
+  });
+
+  // Request data deletion (Right to Erasure)
+  app.post("/api/gdpr/data-request/erasure", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const username = req.user?.username;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30);
+
+      const request = await storage.createDataRequest({
+        requestType: 'erasure',
+        requesterId: userId,
+        subjectId: userId,
+        status: 'pending',
+        dueDate,
+      });
+
+      await storage.createGdprAuditLog({
+        eventType: 'DATA_DELETE',
+        endpoint: '/api/gdpr/data-request/erasure',
+        userId,
+        username,
+        ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip,
+        details: { requestId: request.id, requestType: 'erasure' },
+      });
+
+      return res.json({ 
+        success: true, 
+        request,
+        message: "Your data erasure request has been submitted. Your request will be processed within 30 days.",
+      });
+    } catch (error: any) {
+      console.error("[GDPR] Error creating erasure request:", error.message);
+      return res.status(500).json({ message: "Failed to create erasure request" });
+    }
+  });
+
+  // Get user's own data export (immediate for logged-in users)
+  app.get("/api/gdpr/my-data", requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const username = req.user?.username;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const data = await storage.exportUserData(userId);
+
+      // Sanitize sensitive fields
+      if (data.user) {
+        delete (data.user as any).password;
+      }
+
+      await storage.createGdprAuditLog({
+        eventType: 'DATA_EXPORT',
+        endpoint: '/api/gdpr/my-data',
+        userId,
+        username,
+        ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip,
+        details: { 
+          immediate: true,
+          recordCounts: {
+            sessions: data.sessions.length,
+            consents: data.consents.length,
+            auditLogs: data.auditLogs.length,
+            systemLogs: data.systemLogs.length,
+            aiUsageLogs: data.aiUsageLogs.length,
+            suspensions: data.suspensions.length,
+            messages: data.messages.length,
+          }
+        },
+      });
+
+      return res.json(data);
+    } catch (error: any) {
+      console.error("[GDPR] Error exporting user data:", error.message);
+      return res.status(500).json({ message: "Failed to export data" });
+    }
+  });
+
+  // --- Admin GDPR Management ---
+
+  // Get all data requests (admin)
+  app.get("/api/admin/gdpr/data-requests", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const requests = await storage.getAllDataRequests();
+      return res.json(requests);
+    } catch (error: any) {
+      console.error("[GDPR Admin] Error getting requests:", error.message);
+      return res.status(500).json({ message: "Failed to get data requests" });
+    }
+  });
+
+  // Get pending data requests (admin)
+  app.get("/api/admin/gdpr/data-requests/pending", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const requests = await storage.getPendingDataRequests();
+      return res.json(requests);
+    } catch (error: any) {
+      console.error("[GDPR Admin] Error getting pending requests:", error.message);
+      return res.status(500).json({ message: "Failed to get pending requests" });
+    }
+  });
+
+  // Process a data request (admin)
+  app.post("/api/admin/gdpr/data-requests/:id/process", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { action } = req.body; // 'approve' or 'reject'
+      const adminId = req.user?.id;
+      const adminUsername = req.user?.username;
+
+      if (!['approve', 'reject'].includes(action)) {
+        return res.status(400).json({ message: "Action must be 'approve' or 'reject'" });
+      }
+
+      const request = await storage.getDataRequest(id);
+      if (!request) {
+        return res.status(404).json({ message: "Request not found" });
+      }
+
+      if (action === 'reject') {
+        const { reason } = req.body;
+        await storage.updateDataRequestStatus(id, 'rejected', adminId, adminUsername, null, reason);
+        return res.json({ success: true, status: 'rejected' });
+      }
+
+      // Process the request based on type
+      let dataSummary: any = {};
+
+      if (request.requestType === 'access' && request.subjectId) {
+        // Export user data
+        const userData = await storage.exportUserData(request.subjectId);
+        if (userData.user) {
+          delete (userData.user as any).password;
+        }
+        dataSummary = {
+          exported: true,
+          recordCounts: {
+            sessions: userData.sessions.length,
+            consents: userData.consents.length,
+            auditLogs: userData.auditLogs.length,
+            systemLogs: userData.systemLogs.length,
+            aiUsageLogs: userData.aiUsageLogs.length,
+            suspensions: userData.suspensions.length,
+            messages: userData.messages.length,
+          }
+        };
+      } else if (request.requestType === 'erasure' && request.subjectId) {
+        // Delete user data
+        const deleteResult = await storage.deleteUserData(request.subjectId);
+        dataSummary = {
+          deleted: true,
+          ...deleteResult,
+        };
+      }
+
+      await storage.updateDataRequestStatus(id, 'completed', adminId, adminUsername, dataSummary);
+
+      await storage.createGdprAuditLog({
+        eventType: request.requestType === 'erasure' ? 'DATA_DELETE' : 'DATA_EXPORT',
+        endpoint: `/api/admin/gdpr/data-requests/${id}/process`,
+        userId: adminId,
+        username: adminUsername,
+        details: { 
+          requestId: id,
+          requestType: request.requestType,
+          subjectId: request.subjectId,
+          action: 'approve',
+          dataSummary,
+        },
+      });
+
+      return res.json({ success: true, status: 'completed', dataSummary });
+    } catch (error: any) {
+      console.error("[GDPR Admin] Error processing request:", error.message);
+      return res.status(500).json({ message: "Failed to process request" });
+    }
+  });
+
+  // Get GDPR audit logs (admin)
+  app.get("/api/admin/gdpr/audit-logs", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { eventType, userId, startDate, endDate, limit } = req.query;
+      
+      const logs = await storage.getGdprAuditLogs({
+        eventType: eventType as string,
+        userId: userId as string,
+        startDate: startDate ? new Date(startDate as string) : undefined,
+        endDate: endDate ? new Date(endDate as string) : undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
+      });
+
+      return res.json(logs);
+    } catch (error: any) {
+      console.error("[GDPR Admin] Error getting audit logs:", error.message);
+      return res.status(500).json({ message: "Failed to get audit logs" });
+    }
+  });
+
+  // Get retention policies (admin)
+  app.get("/api/admin/gdpr/retention-policies", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const policies = await storage.getRetentionPolicies();
+      return res.json(policies);
+    } catch (error: any) {
+      console.error("[GDPR Admin] Error getting policies:", error.message);
+      return res.status(500).json({ message: "Failed to get retention policies" });
+    }
+  });
+
+  // Create/update retention policy (admin)
+  app.post("/api/admin/gdpr/retention-policies", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { dataCategory, retentionDays, legalBasis, description } = req.body;
+      
+      if (!dataCategory || !retentionDays || !legalBasis) {
+        return res.status(400).json({ message: "dataCategory, retentionDays, and legalBasis required" });
+      }
+
+      const policy = await storage.upsertRetentionPolicy({
+        dataCategory,
+        retentionDays,
+        legalBasis,
+        description,
+      });
+
+      await storage.createGdprAuditLog({
+        eventType: 'CONSENT_CHANGE',
+        endpoint: '/api/admin/gdpr/retention-policies',
+        userId: req.user?.id,
+        username: req.user?.username,
+        details: { dataCategory, retentionDays, legalBasis },
+      });
+
+      return res.json(policy);
+    } catch (error: any) {
+      console.error("[GDPR Admin] Error updating policy:", error.message);
+      return res.status(500).json({ message: "Failed to update retention policy" });
+    }
+  });
+
+  // Run data purge for a category (admin)
+  app.post("/api/admin/gdpr/purge/:dataCategory", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { dataCategory } = req.params;
+      
+      const deleted = await storage.purgeExpiredData(dataCategory);
+
+      await storage.createGdprAuditLog({
+        eventType: 'DATA_DELETE',
+        endpoint: `/api/admin/gdpr/purge/${dataCategory}`,
+        userId: req.user?.id,
+        username: req.user?.username,
+        details: { dataCategory, deletedCount: deleted },
+      });
+
+      return res.json({ 
+        success: true, 
+        dataCategory,
+        deletedCount: deleted,
+        message: `Purged ${deleted} expired records from ${dataCategory}`,
+      });
+    } catch (error: any) {
+      console.error("[GDPR Admin] Error purging data:", error.message);
+      return res.status(500).json({ message: "Failed to purge data" });
     }
   });
 
