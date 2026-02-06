@@ -72,8 +72,14 @@ services:
     plan: pro-plus
     healthCheckPath: /api/tags
     autoDeploy: true
+    disk:
+      name: ollama-models
+      mountPath: /ollama-data
+      sizeGB: 10
     envVars:
       - key: OLLAMA_HOST
         value: "0.0.0.0:11434"
       - key: OLLAMA_KEEP_ALIVE
         value: "24h"
+      - key: OLLAMA_MODELS
+        value: "/ollama-data/models"

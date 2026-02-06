@@ -8,6 +8,8 @@ ENV OLLAMA_HOST=0.0.0.0:11434
 ENV OLLAMA_KEEP_ALIVE=24h
 ENV OLLAMA_NUM_PARALLEL=2
 ENV OLLAMA_MAX_LOADED_MODELS=1
+# Use persistent storage for models (mounted at /ollama-data on Render)
+ENV OLLAMA_MODELS=/ollama-data/models
 
 # Expose the default Ollama port
 EXPOSE 11434
@@ -15,6 +17,9 @@ EXPOSE 11434
 # Create a startup script that pulls the model and serves
 RUN echo '#!/bin/bash\n\
 set -e\n\
+\n\
+# Ensure persistent models directory exists\n\
+mkdir -p /ollama-data/models\n\
 \n\
 # Start Ollama in the background\n\
 ollama serve &\n\
@@ -35,6 +40,8 @@ if ! ollama list | grep -q "phi3:mini"; then\n\
   echo "Pulling phi3:mini model (3.8B params, ~2.3GB download)..."\n\
   ollama pull phi3:mini\n\
   echo "Model pulled successfully!"\n\
+else\n\
+  echo "Model phi3:mini already cached on persistent disk!"\n\
 fi\n\
 \n\
 # Keep the server running\n\

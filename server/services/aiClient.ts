@@ -239,7 +239,7 @@ async function createChatCompletionWithProvider(
     }
     // Always use the local model (phi3:mini) - NO FALLBACK to other providers
     model = LOCAL_LLM_MODEL;
-    console.log(`[AI:Local] ✓ Using LOCAL Phi-3 at ${LOCAL_LLM_URL} (model: ${model}) - NOT using OpenAI/GitHub`);
+    console.log(`[AI:Local] ✓ Using LOCAL Phi-3 at ${LOCAL_LLM_URL} (model: ${model}, temp: 0) - NOT using OpenAI/GitHub`);
   } else if (provider === "github") {
     client = getGitHubClient();
     if (!client) {
@@ -270,7 +270,11 @@ async function createChatCompletionWithProvider(
       }
       
       console.log(`[AI] Using ${provider} provider with model:`, model);
-      const completion = await client.chat.completions.create({ ...params, model });
+      // For local LLM (Phi-3), force temperature 0 for consistent, deterministic responses
+      const finalParams = provider === "local" 
+        ? { ...params, model, temperature: 0 }
+        : { ...params, model };
+      const completion = await client.chat.completions.create(finalParams);
       return { completion, provider };
     } catch (error: any) {
       lastError = error;
