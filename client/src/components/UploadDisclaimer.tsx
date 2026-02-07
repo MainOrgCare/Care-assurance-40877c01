@@ -1,8 +1,8 @@
 import { Clock, Shield } from "lucide-react";
-import { useTemporaryData } from "@/context/TemporaryDataContext";
+import { useTemporaryDataTimer } from "@/context/TemporaryDataContext";
 
 export default function UploadDisclaimer() {
-  const { timeLeft } = useTemporaryData();
+  const { timeLeft } = useTemporaryDataTimer();
   
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -17,7 +17,7 @@ export default function UploadDisclaimer() {
           <div className="flex items-center gap-2 shrink-0">
             <Clock className="text-amber-600 dark:text-amber-300" size={18} />
             {timeLeft !== null && (
-              <span className="px-2 py-1 bg-amber-500/15 text-amber-700 dark:text-amber-200 rounded font-mono text-sm font-bold animate-pulse">
+              <span className="px-2 py-1 bg-amber-500/15 text-amber-700 dark:text-amber-200 rounded font-mono tabular-nums text-sm font-bold">
                 {formatTime(timeLeft)}
               </span>
             )}

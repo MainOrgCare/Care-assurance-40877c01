@@ -5,37 +5,37 @@ import { Link } from "wouter";
 
 export default function TermsConditions() {
   return (
-    <div className="min-h-screen p-4 md:p-8" style={{ backgroundColor: '#f8fafc' }}>
+    <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-4 mb-8">
           <Link href="/login">
-            <Button variant="ghost" size="icon" data-testid="button-back" style={{ color: '#334155' }}>
+            <Button variant="ghost" size="icon" data-testid="button-back" className="text-foreground/80">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold" style={{ color: '#0f172a' }}>CareAssurance</h1>
+          <h1 className="text-2xl font-bold text-foreground">CareAssurance</h1>
         </div>
 
-        <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+        <Card className="bg-card/95 border-border/75">
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="flex items-center gap-2" style={{ color: '#0f172a' }}>
-                <FileText className="h-5 w-5" style={{ color: '#3b82f6' }} />
+              <CardTitle className="flex items-center gap-2 text-foreground">
+                <FileText className="h-5 w-5 text-primary" />
                 Terms and Conditions
               </CardTitle>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono px-2 py-1 rounded" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>Version 1.1</span>
+                <span className="rounded bg-primary/10 px-2 py-1 font-mono text-xs text-primary">Version 1.1</span>
               </div>
             </div>
-            <p className="text-sm" style={{ color: '#64748b' }}>Last updated: 29 January 2026</p>
+            <p className="text-sm text-muted-foreground">Last updated: 29 January 2026</p>
           </CardHeader>
-          <CardContent className="prose prose-sm max-w-none space-y-6" style={{ color: '#334155' }}>
-            <div className="rounded-lg p-4 mb-6" style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+          <CardContent className="prose prose-sm max-w-none space-y-6 text-foreground/90">
+            <div className="mb-6 rounded-lg border border-primary/20 bg-primary/10 p-4">
               <div className="flex items-start gap-3">
-                <Shield className="h-6 w-6 flex-shrink-0 mt-0.5" style={{ color: '#2563eb' }} />
+                <Shield className="h-6 w-6 flex-shrink-0 mt-0.5 text-primary" />
                 <div>
-                  <p className="font-bold text-base mb-2" style={{ color: '#1d4ed8' }}>ABOUT THESE TERMS</p>
-                  <p className="text-sm" style={{ color: '#334155' }}>
+                  <p className="mb-2 text-base font-bold text-primary">ABOUT THESE TERMS</p>
+                  <p className="text-sm text-foreground/85">
                     These Terms govern access to and use of CareAssurance (the “Service”), proprietary software owned and operated by <strong>Lewis Barron</strong> (the “Owner/Operator”).
                     The Service is intended for organisational use in care/compliance workflows and does not replace professional judgement.
                   </p>

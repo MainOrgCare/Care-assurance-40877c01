@@ -5,44 +5,44 @@ import { Link } from "wouter";
 
 export default function PrivacyPolicy() {
   return (
-    <div className="min-h-screen p-4 md:p-8" style={{ backgroundColor: '#f8fafc' }}>
+    <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-4 mb-8">
           <Link href="/login">
-            <Button variant="ghost" size="icon" data-testid="button-back" style={{ color: '#334155' }}>
+            <Button variant="ghost" size="icon" data-testid="button-back" className="text-foreground/80">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold" style={{ color: '#0f172a' }}>CareAssurance</h1>
+          <h1 className="text-2xl font-bold text-foreground">CareAssurance</h1>
         </div>
 
-        <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+        <Card className="bg-card/95 border-border/75">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2" style={{ color: '#0f172a' }}>
-              <Shield className="h-5 w-5" style={{ color: '#3b82f6' }} />
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <Shield className="h-5 w-5 text-primary" />
               Privacy Policy
             </CardTitle>
-            <p className="text-sm" style={{ color: '#64748b' }}>Last updated: 29 January 2026</p>
+            <p className="text-sm text-muted-foreground">Last updated: 29 January 2026</p>
           </CardHeader>
-          <CardContent className="prose prose-sm max-w-none space-y-6" style={{ color: '#334155' }}>
-            <div className="rounded-lg p-4 mb-6" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+          <CardContent className="prose prose-sm max-w-none space-y-6 text-foreground/90">
+            <div className="mb-6 rounded-lg border border-primary/20 bg-primary/10 p-4">
               <div className="flex items-start gap-3">
-                <Shield className="h-6 w-6 flex-shrink-0 mt-0.5" style={{ color: '#3b82f6' }} />
+                <Shield className="h-6 w-6 flex-shrink-0 mt-0.5 text-primary" />
                 <div>
-                  <p className="font-bold text-base mb-2" style={{ color: '#3b82f6' }}>SUMMARY</p>
-                  <p className="text-sm" style={{ color: '#334155' }}>
+                  <p className="mb-2 text-base font-bold text-primary">SUMMARY</p>
+                  <p className="text-sm text-foreground/85">
                     This Privacy Policy explains how CareAssurance handles personal data when you use the platform. It is written for UK users and aligns with the UK GDPR and the Data Protection Act 2018.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-lg p-4 mb-6" style={{ backgroundColor: 'rgba(20, 184, 166, 0.1)', border: '1px solid rgba(20, 184, 166, 0.2)' }}>
+            <div className="mb-6 rounded-lg border border-secondary/20 bg-secondary/10 p-4">
               <div className="flex items-start gap-3">
-                <Lock className="h-6 w-6 flex-shrink-0 mt-0.5" style={{ color: '#14b8a6' }} />
+                <Lock className="h-6 w-6 flex-shrink-0 mt-0.5 text-secondary" />
                 <div>
-                  <p className="font-bold text-base mb-2" style={{ color: '#14b8a6' }}>IMPORTANT NOTE</p>
-                  <p className="text-sm" style={{ color: '#334155' }}>
+                  <p className="mb-2 text-base font-bold text-secondary">IMPORTANT NOTE</p>
+                  <p className="text-sm text-foreground/85">
                     If you use CareAssurance on behalf of a care provider or organisation, that organisation is usually the <strong>Data Controller</strong> for the personal data inside uploaded documents, and CareAssurance operates as a <strong>Data Processor</strong>.
                   </p>
                 </div>

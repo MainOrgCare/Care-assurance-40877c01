@@ -29,7 +29,6 @@ interface TemporaryDataContextType {
   uploadFile: (section: UploadSection, file: File) => Promise<void>;
   removeAdditionalDocument: (id: string) => void;
   clearServiceUserData: () => void;
-  timeLeft: number | null; // Time left in seconds
   startTimer: () => void;
   resetTimer: () => void;
   getAllDocumentContent: (options?: { includeCarePlan?: boolean }) => string; // Combined content from all uploaded documents
@@ -38,12 +37,20 @@ interface TemporaryDataContextType {
   setAdditionalNotes: (notes: string) => void;
 }
 
+interface TemporaryDataTimerContextType {
+  timeLeft: number | null;
+  startTimer: () => void;
+  resetTimer: () => void;
+}
+
 const TemporaryDataContext = createContext<TemporaryDataContextType | undefined>(undefined);
+const TemporaryDataTimerContext = createContext<TemporaryDataTimerContextType | undefined>(undefined);
 
 export function TemporaryDataProvider({ children }: { children: ReactNode }) {
   const [serviceUserData, setServiceUserData] = useState<ServiceUserDataState>({});
   
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const isTimerActive = timeLeft !== null;
   const [location] = useLocation();
   const demoDataLoadedRef = useRef(false);
   const uploadTokensRef = useRef<Record<UploadSection, symbol>>({
@@ -61,39 +68,15 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     additionalDocuments: null,
   });
 
-  // Handle timer countdown
-  // Demo mode: timer does not clear data - session persists for demo duration
-  useEffect(() => {
-    if (timeLeft === null) return;
+  const startTimer = useCallback(() => {
+    setTimeLeft(30 * 60); // 30 minutes in seconds
+  }, []);
 
-    if (timeLeft <= 0) {
-      if (demoDataLoadedRef.current) {
-        setTimeLeft(null);
-        return;
-      }
-      clearServiceUserData();
-      return;
-    }
+  const resetTimer = useCallback(() => {
+    setTimeLeft(30 * 60);
+  }, []);
 
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => (prev !== null ? prev - 1 : null));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [timeLeft]);
-
-  // Handle auto-wipe on navigation away from Service Users section
-  // Exception: Demo mode keeps data across navigation
-  useEffect(() => {
-    if (demoDataLoadedRef.current) {
-      return;
-    }
-    if (!location.startsWith('/service-users') && Object.keys(serviceUserData).length > 0) {
-        clearServiceUserData();
-    }
-  }, [location]);
-
-  const resetUploadTracking = () => {
+  const resetUploadTracking = useCallback(() => {
     Object.values(uploadAbortControllersRef.current).forEach((controller) => controller?.abort());
     uploadAbortControllersRef.current = {
       socialWork: null,
@@ -109,9 +92,17 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
       movingHandling: Symbol("movingHandling"),
       additionalDocuments: Symbol("additionalDocuments"),
     };
-  };
+  }, []);
 
-  const readServerErrorMessage = async (response: Response): Promise<string | null> => {
+  const clearServiceUserData = useCallback(() => {
+    resetUploadTracking();
+    setServiceUserData({});
+    setTimeLeft(null);
+    demoDataLoadedRef.current = false;
+    console.log("Secure Wipe: Service User Data Cleared from Memory.");
+  }, [resetUploadTracking]);
+
+  const readServerErrorMessage = useCallback(async (response: Response): Promise<string | null> => {
     try {
       const contentType = (response.headers.get("content-type") || "").toLowerCase();
 
@@ -148,9 +139,46 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     } catch {
       return null;
     }
-  };
+  }, []);
 
-  const uploadFile = async (section: UploadSection, file: File) => {
+  // Run a single ticking interval only while the session timer is active.
+  useEffect(() => {
+    if (!isTimerActive) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev === null) return null;
+        return prev > 0 ? prev - 1 : 0;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isTimerActive]);
+
+  // Demo mode: timer expiration does not wipe data.
+  useEffect(() => {
+    if (timeLeft !== 0) return;
+
+    if (demoDataLoadedRef.current) {
+      setTimeLeft(null);
+      return;
+    }
+
+    clearServiceUserData();
+  }, [timeLeft, clearServiceUserData]);
+
+  // Handle auto-wipe on navigation away from Service Users section
+  // Exception: Demo mode keeps data across navigation
+  useEffect(() => {
+    if (demoDataLoadedRef.current) {
+      return;
+    }
+    if (!location.startsWith("/service-users") && Object.keys(serviceUserData).length > 0) {
+      clearServiceUserData();
+    }
+  }, [location, serviceUserData, clearServiceUserData]);
+
+  const uploadFile = useCallback(async (section: UploadSection, file: File) => {
     if (section === "additionalDocuments") {
       const entryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const newFile: FileData = {
@@ -271,29 +299,13 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
         },
       }));
     }
-  };
-
-  const clearServiceUserData = () => {
-    resetUploadTracking();
-    setServiceUserData({});
-    setTimeLeft(null);
-    demoDataLoadedRef.current = false;
-    console.log("Secure Wipe: Service User Data Cleared from Memory.");
-  };
+  }, [readServerErrorMessage, resetTimer]);
 
   const removeAdditionalDocument = useCallback((id: string) => {
     setServiceUserData(prev => ({
       ...prev,
       additionalDocuments: (prev.additionalDocuments || []).filter(doc => doc.id !== id),
     }));
-  }, []);
-
-  const startTimer = useCallback(() => {
-    setTimeLeft(30 * 60); // 30 minutes in seconds
-  }, []);
-
-  const resetTimer = useCallback(() => {
-    setTimeLeft(30 * 60);
   }, []);
 
   const getAllDocumentContent = useCallback((options?: { includeCarePlan?: boolean }): string => {
@@ -366,7 +378,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     });
     startTimer();
     console.log("Demo Mode: Sample data loaded.");
-  }, [startTimer]);
+  }, [startTimer, resetUploadTracking]);
 
   const setAdditionalNotes = useCallback((notes: string) => {
     setServiceUserData(prev => ({
@@ -381,19 +393,26 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     uploadFile,
     removeAdditionalDocument,
     clearServiceUserData,
-    timeLeft,
     startTimer,
     resetTimer,
     getAllDocumentContent,
     isAnyParsing,
     loadDemoData,
     setAdditionalNotes,
-  }), [serviceUserData, uploadFile, removeAdditionalDocument, clearServiceUserData, timeLeft, startTimer, resetTimer, getAllDocumentContent, isAnyParsing, loadDemoData, setAdditionalNotes]);
+  }), [serviceUserData, uploadFile, removeAdditionalDocument, clearServiceUserData, startTimer, resetTimer, getAllDocumentContent, isAnyParsing, loadDemoData, setAdditionalNotes]);
+
+  const timerContextValue = useMemo(() => ({
+    timeLeft,
+    startTimer,
+    resetTimer,
+  }), [timeLeft, startTimer, resetTimer]);
 
   return (
-    <TemporaryDataContext.Provider value={contextValue}>
-      {children}
-    </TemporaryDataContext.Provider>
+    <TemporaryDataTimerContext.Provider value={timerContextValue}>
+      <TemporaryDataContext.Provider value={contextValue}>
+        {children}
+      </TemporaryDataContext.Provider>
+    </TemporaryDataTimerContext.Provider>
   );
 }
 
@@ -401,6 +420,14 @@ export function useTemporaryData() {
   const context = useContext(TemporaryDataContext);
   if (context === undefined) {
     throw new Error("useTemporaryData must be used within a TemporaryDataProvider");
+  }
+  return context;
+}
+
+export function useTemporaryDataTimer() {
+  const context = useContext(TemporaryDataTimerContext);
+  if (context === undefined) {
+    throw new Error("useTemporaryDataTimer must be used within a TemporaryDataProvider");
   }
   return context;
 }

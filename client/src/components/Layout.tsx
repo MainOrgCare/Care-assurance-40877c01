@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect, Suspense, memo, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useSession } from "@/context/SessionContext";
-import { useTemporaryData } from "@/context/TemporaryDataContext";
+import { useTemporaryDataTimer } from "@/context/TemporaryDataContext";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -151,7 +151,7 @@ const SidebarContent = memo(function SidebarContent({
   collapsed?: boolean;
 }) {
   const { user } = useAuth();
-  const { timeLeft } = useTemporaryData();
+  const { timeLeft } = useTemporaryDataTimer();
   const isAdminUser = user?.role === "admin";
   const isCollapsed = Boolean(collapsed);
   
@@ -293,7 +293,7 @@ const SidebarContent = memo(function SidebarContent({
             {!isCollapsed && (
               <div className="flex items-center gap-2">
                {timeLeft !== null && (
-                 <Badge variant="destructive" className="h-5 px-1.5 text-[9px] animate-pulse">
+                 <Badge variant="destructive" className="h-5 px-1.5 text-[9px] font-mono tabular-nums">
                    {formatTime(timeLeft)}
                  </Badge>
                )}
@@ -545,7 +545,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(
-    "rounded-2xl border border-border/75 bg-card/95 p-4 sm:p-6 lg:p-7 flex flex-col shadow-[0_18px_36px_-24px_rgba(15,23,42,0.4),0_1px_0_rgba(255,255,255,0.75)_inset] w-full flex-1 min-h-0",
+    "rounded-2xl border border-border/75 bg-card/95 p-4 sm:p-6 lg:p-7 flex flex-col shadow-[0_18px_36px_-24px_rgba(15,23,42,0.4),0_1px_0_rgba(255,255,255,0.75)_inset] w-full flex-1 min-h-0 motion-safe:animate-[fade-in_220ms_ease-out]",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
