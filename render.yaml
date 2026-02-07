@@ -4,6 +4,10 @@ services:
     name: care-assurance-web
     buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:client
     staticPublishPath: dist/public
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     autoDeploy: true
     envVars:
       - key: VITE_API_BASE_URL
@@ -15,6 +19,7 @@ services:
     plan: standard
     buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:server
     startCommand: npm run start:api
+    healthCheckPath: /api/contact/status
     autoDeploy: true
     envVars:
       - key: NODE_ENV
@@ -24,6 +29,8 @@ services:
       - key: SERVE_STATIC
         value: "false"
       - key: CORS_ORIGIN
+        sync: false
+      - key: SESSION_SECRET
         sync: false
       - key: AI_ENABLED
         value: "true"
@@ -42,6 +49,8 @@ services:
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASS
+        sync: false
+      - key: CLOUDMERSIVE_API_KEY
         sync: false
       # If you use Postgres, set DATABASE_URL in the dashboard.
       - key: DATABASE_URL
