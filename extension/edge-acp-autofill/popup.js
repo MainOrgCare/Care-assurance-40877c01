@@ -1,11 +1,15 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.3.1
+// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.3.3
 // Streamlined with direct Care Assurance integration via content script proxy
 // ═══════════════════════════════════════════════════════════════════════════
+
+console.log('[CA Extension Popup] Initializing...');
 
 // Try multiple possible URLs in order of preference
 const CARE_ASSURANCE_URLS = [
   "careassurance.uk",
+  "www.careassurance.uk",
+  "care-assurance.onrender.com",
   "care-assurance-api.onrender.com",
   "care-assurance-web.onrender.com",
   "localhost:5000",
@@ -17,6 +21,7 @@ let CARE_ASSURANCE_URL = CARE_ASSURANCE_URLS[0];
 
 // API proxy function - routes requests through content script for authentication
 async function apiProxy(endpoint, method = 'GET', body = null) {
+  console.log(`[CA Extension Popup] apiProxy: ${method} ${endpoint} via ${CARE_ASSURANCE_URL}`);
   return new Promise((resolve) => {
     chrome.runtime.sendMessage({
       type: 'CA_API_PROXY_REQUEST',
@@ -26,9 +31,11 @@ async function apiProxy(endpoint, method = 'GET', body = null) {
       targetOrigin: CARE_ASSURANCE_URL
     }, (response) => {
       if (chrome.runtime.lastError) {
+        console.error('[CA Extension Popup] apiProxy error:', chrome.runtime.lastError.message);
         resolve({ ok: false, error: chrome.runtime.lastError.message });
         return;
       }
+      console.log(`[CA Extension Popup] apiProxy response:`, response);
       resolve(response || { ok: false, error: 'No response from background' });
     });
   });

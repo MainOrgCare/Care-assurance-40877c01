@@ -92,11 +92,21 @@ const uploadImages = multer({
 
 const MAX_NON_ADMIN_SESSIONS = 2;
 const FORCE_LOGOUT_WARNING_SECONDS = 30;
-const MIN_PASSWORD_LENGTH = 8;
-const PASSWORD_COMPLEXITY_REGEX = /^(?=.*[A-Za-z])(?=.*\d).+$/;
+const MIN_PASSWORD_LENGTH = 12; // NIST recommends 12+ characters
+const MAX_PASSWORD_LENGTH = 128; // Prevent DoS via very long passwords
+// Strong password: at least one lowercase, one uppercase, one digit, one special character
+const PASSWORD_COMPLEXITY_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).+$/;
 const LOGIN_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_BLOCK_DURATION_MS = 15 * 60 * 1000;
 const MAX_LOGIN_ATTEMPTS = 5;
+
+// Common weak passwords to reject (top 20 most common)
+const COMMON_PASSWORDS = new Set([
+  'password123', 'password1', '12345678', 'qwerty123', 'admin123',
+  'letmein123', 'welcome123', 'monkey123', 'dragon123', 'master123',
+  'sunshine1', 'princess1', 'football1', 'iloveyou1', 'shadow123',
+  'baseball1', 'trustno1!', 'michael1', 'jennifer1', 'password!'
+]);
 
 type LoginAttempt = {
   count: number;
@@ -107,15 +117,36 @@ type LoginAttempt = {
 
 const loginAttempts = new Map<string, LoginAttempt>();
 
-const validatePassword = (password: string): string | null => {
+const validatePassword = (password: string, username?: string): string | null => {
   if (!password || typeof password !== "string") {
     return "Password is required.";
   }
   if (password.length < MIN_PASSWORD_LENGTH) {
     return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
   }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return `Password must be no more than ${MAX_PASSWORD_LENGTH} characters.`;
+  }
   if (!PASSWORD_COMPLEXITY_REGEX.test(password)) {
-    return "Password must include at least one letter and one number.";
+    return "Password must include at least one lowercase letter, one uppercase letter, one number, and one special character (!@#$%^&*...).";
+  }
+  // Check for common passwords
+  if (COMMON_PASSWORDS.has(password.toLowerCase())) {
+    return "Password is too common. Please choose a stronger password.";
+  }
+  // Check if password contains username
+  if (username && password.toLowerCase().includes(username.toLowerCase())) {
+    return "Password cannot contain your username.";
+  }
+  // Check for sequential characters (e.g., 12345, abcde)
+  const sequential = /(?:012|123|234|345|456|567|678|789|abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)/i;
+  if (sequential.test(password)) {
+    return "Password cannot contain sequential characters (e.g., 123, abc).";
+  }
+  // Check for repeated characters (e.g., aaa, 111)
+  const repeated = /(.)\1{2,}/;
+  if (repeated.test(password)) {
+    return "Password cannot contain three or more repeated characters.";
   }
   return null;
 };
@@ -604,13 +635,15 @@ let sessionStore: any = null;
 
 type SecurityEventType = 
   | 'PII_SCRUB' | 'PII_RESTORE' | 'AI_REQUEST' | 'INPUT_VALIDATION' 
-  | 'RATE_LIMIT' | 'AUTH_FAILURE' | 'SUSPICIOUS_INPUT';
+  | 'RATE_LIMIT' | 'AUTH_FAILURE' | 'SUSPICIOUS_INPUT'
+  | 'LOGIN_FAILED' | 'LOGIN_BLOCKED' | 'IP_BLOCKED' | 'PASSWORD_CHANGED'
+  | 'PASSWORD_RESET' | 'ACCOUNT_SUSPENDED' | 'CSRF_BLOCKED' | 'SESSION_CREATED';
 
 interface SecurityAuditLog {
   timestamp: string;
   eventType: SecurityEventType;
   endpoint: string;
-  userId?: number | null;
+  userId?: string | number | null;
   username?: string | null;
   ipAddress?: string;
   details: Record<string, any>;
@@ -632,8 +665,11 @@ function logSecurityEvent(event: Omit<SecurityAuditLog, 'timestamp'>): void {
   }
   
   // Persist to database asynchronously (fire-and-forget for performance)
-  // Only for PII-related events that need audit trail
-  if (['PII_SCRUB', 'PII_RESTORE', 'AI_REQUEST', 'DATA_EXPORT', 'DATA_DELETE', 'CONSENT_CHANGE'].includes(event.eventType)) {
+  // For PII-related events and auth events that need audit trail
+  const gdprEvents = ['PII_SCRUB', 'PII_RESTORE', 'AI_REQUEST', 'DATA_EXPORT', 'DATA_DELETE', 'CONSENT_CHANGE'];
+  const authEvents = ['LOGIN_FAILED', 'LOGIN_BLOCKED', 'IP_BLOCKED', 'PASSWORD_CHANGED', 'PASSWORD_RESET', 'CSRF_BLOCKED'];
+  
+  if (gdprEvents.includes(event.eventType)) {
     storage.createGdprAuditLog({
       eventType: event.eventType,
       endpoint: event.endpoint,
@@ -644,7 +680,25 @@ function logSecurityEvent(event: Omit<SecurityAuditLog, 'timestamp'>): void {
       piiItemCount: event.details?.totalItems || undefined,
       details: event.details,
     }).catch((err) => {
-      console.error('[SECURITY] Failed to persist audit log:', err.message);
+      console.error('[SECURITY] Failed to persist GDPR audit log:', err.message);
+    });
+  }
+  
+  // Log auth-related security events to system log
+  if (authEvents.includes(event.eventType)) {
+    storage.createSystemLog({
+      eventType: `security_${event.eventType.toLowerCase()}`,
+      userId: event.userId ? String(event.userId) : null,
+      username: event.username || null,
+      serviceUserInitials: null,
+      details: {
+        ...event.details,
+        endpoint: event.endpoint,
+        ipAddress: event.ipAddress,
+        timestamp: log.timestamp,
+      },
+    }).catch((err) => {
+      console.error('[SECURITY] Failed to persist system log:', err.message);
     });
   }
 }
@@ -3090,6 +3144,69 @@ export async function registerRoutes(
     return sessionMiddleware(req, res, next);
   });
 
+  // CSRF Protection: Verify Origin/Referer header for state-changing requests
+  // This protects against cross-site request forgery by validating the request source
+  const csrfProtection = (req: any, res: any, next: any) => {
+    // Skip for safe methods (GET, HEAD, OPTIONS)
+    const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+    if (safeMethods.includes(req.method)) {
+      return next();
+    }
+    
+    // Skip CSRF check in development for easier testing
+    if (process.env.NODE_ENV !== 'production') {
+      return next();
+    }
+    
+    // Skip for API extension endpoints accessed from browser extension
+    // (these are authenticated via content script proxy)
+    if (req.path.startsWith('/api/extension')) {
+      return next();
+    }
+    
+    const origin = req.get('Origin');
+    const referer = req.get('Referer');
+    const host = req.get('Host');
+    
+    // Must have either Origin or Referer header
+    if (!origin && !referer) {
+      console.warn(`[CSRF] Request blocked - no Origin/Referer: ${req.method} ${req.path}`);
+      return res.status(403).json({ message: 'CSRF validation failed: missing origin' });
+    }
+    
+    // Validate origin matches host
+    const allowedOrigins = [
+      `https://${process.env.CANONICAL_DOMAIN || 'careassurance.uk'}`,
+      `https://www.${process.env.CANONICAL_DOMAIN || 'careassurance.uk'}`,
+    ];
+    
+    // Allow browser extension origins
+    const isExtensionOrigin = origin?.startsWith('chrome-extension://') || 
+                               origin?.startsWith('moz-extension://');
+    
+    const originToCheck = origin || (referer ? new URL(referer).origin : null);
+    
+    if (!isExtensionOrigin && originToCheck && !allowedOrigins.includes(originToCheck)) {
+      console.warn(`[CSRF] Request blocked - invalid origin: ${originToCheck} for ${req.method} ${req.path}`);
+      logSecurityEvent({
+        eventType: 'CSRF_BLOCKED',
+        endpoint: req.path,
+        ipAddress: req.ip,
+        details: {
+          reason: 'CSRF validation failed - invalid origin',
+          origin: originToCheck,
+          method: req.method,
+        }
+      });
+      return res.status(403).json({ message: 'CSRF validation failed: invalid origin' });
+    }
+    
+    next();
+  };
+  
+  // Apply CSRF protection to API routes
+  app.use('/api', csrfProtection);
+
   // Auth middleware
   const requireAuth = async (req: any, res: any, next: any) => {
     if (!req.session.userId) {
@@ -3193,6 +3310,16 @@ export async function registerRoutes(
       pruneLoginAttempts();
       const blockedSeconds = getBlockedSeconds(attemptKey);
       if (blockedSeconds > 0) {
+        logSecurityEvent({ 
+          eventType: 'LOGIN_BLOCKED',
+          endpoint: '/api/auth/login',
+          ipAddress: clientIp, 
+          username: usernameValue,
+          details: {
+            reason: 'Too many failed attempts',
+            blockedSeconds 
+          }
+        });
         return res.status(429).json({
           message: `Too many login attempts. Try again in ${blockedSeconds} seconds.`,
         });
@@ -3202,6 +3329,15 @@ export async function registerRoutes(
       if (clientIp && clientIp !== 'unknown') {
         const isBlocked = await storage.isIpBlocked(clientIp);
         if (isBlocked) {
+          logSecurityEvent({ 
+            eventType: 'IP_BLOCKED',
+            endpoint: '/api/auth/login',
+            ipAddress: clientIp, 
+            username: usernameValue,
+            details: {
+              reason: 'IP address in block list' 
+            }
+          });
           return res.status(403).json({ message: "Access denied. Your IP address has been blocked." });
         }
       }
@@ -3215,17 +3351,47 @@ export async function registerRoutes(
       
       if (!user) {
         recordLoginFailure(attemptKey);
+        logSecurityEvent({ 
+          eventType: 'LOGIN_FAILED',
+          endpoint: '/api/auth/login',
+          ipAddress: clientIp, 
+          username: usernameValue,
+          details: {
+            reason: 'User not found' 
+          }
+        });
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
       const isValidPassword = await storage.verifyPassword(password, user.password);
       if (!isValidPassword) {
         recordLoginFailure(attemptKey);
+        logSecurityEvent({ 
+          eventType: 'LOGIN_FAILED',
+          endpoint: '/api/auth/login',
+          ipAddress: clientIp, 
+          username: usernameValue,
+          userId: user.id,
+          details: {
+            reason: 'Invalid password' 
+          }
+        });
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
       if (user.status !== "active") {
         recordLoginFailure(attemptKey);
+        logSecurityEvent({ 
+          eventType: 'LOGIN_FAILED',
+          endpoint: '/api/auth/login',
+          ipAddress: clientIp, 
+          username: usernameValue,
+          userId: user.id,
+          details: {
+            reason: 'Account not active',
+            status: user.status 
+          }
+        });
         return res.status(403).json({ message: "Account pending approval" });
       }
 
@@ -3233,6 +3399,17 @@ export async function registerRoutes(
       if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) {
         const minutesLeft = Math.ceil((new Date(user.suspendedUntil).getTime() - Date.now()) / 60000);
         recordLoginFailure(attemptKey);
+        logSecurityEvent({ 
+          eventType: 'ACCOUNT_SUSPENDED',
+          endpoint: '/api/auth/login',
+          ipAddress: clientIp, 
+          username: usernameValue,
+          userId: user.id,
+          details: {
+            reason: 'Account suspended',
+            suspendedUntil: user.suspendedUntil 
+          }
+        });
         return res.status(403).json({ 
           message: `Account suspended. Please try again in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''}.`
         });
@@ -3397,7 +3574,7 @@ export async function registerRoutes(
       }
 
       const validatedData = insertUserSchema.parse(req.body);
-      const passwordError = validatePassword(validatedData.password);
+      const passwordError = validatePassword(validatedData.password, validatedData.username);
       if (passwordError) {
         return res.status(400).json({ message: passwordError });
       }
@@ -3570,7 +3747,7 @@ export async function registerRoutes(
   app.post("/api/users", requireAuth, requireAdmin, async (req, res) => {
     try {
       const validatedData = insertUserSchema.parse(req.body);
-      const passwordError = validatePassword(validatedData.password);
+      const passwordError = validatePassword(validatedData.password, validatedData.username);
       if (passwordError) {
         return res.status(400).json({ message: passwordError });
       }
@@ -3808,24 +3985,43 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Current and new password required" });
       }
       
-      const passwordError = validatePassword(newPassword);
-      if (passwordError) {
-        return res.status(400).json({ message: passwordError });
-      }
-      
       const user = await storage.getUser(req.user.id);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
       
+      const passwordError = validatePassword(newPassword, user.username);
+      if (passwordError) {
+        return res.status(400).json({ message: passwordError });
+      }
+      
       const isValidPassword = await storage.verifyPassword(currentPassword, user.password);
       if (!isValidPassword) {
+        logSecurityEvent({
+          eventType: 'LOGIN_FAILED',
+          endpoint: '/api/auth/password',
+          userId: req.user.id,
+          username: req.user.username,
+          details: {
+            reason: 'Failed password change - incorrect current password'
+          }
+        });
         return res.status(401).json({ message: "Current password is incorrect" });
       }
       
       const bcrypt = await import("bcrypt");
       const hashedPassword = await bcrypt.default.hash(newPassword, 10);
       await storage.updateUserPassword(req.user.id, hashedPassword);
+      
+      logSecurityEvent({
+        eventType: 'PASSWORD_CHANGED',
+        endpoint: '/api/auth/password',
+        userId: req.user.id,
+        username: req.user.username,
+        details: {
+          changedBy: 'self'
+        }
+      });
       
       return res.json({ message: "Password changed successfully" });
     } catch (error: any) {
@@ -3840,19 +4036,32 @@ export async function registerRoutes(
       if (!newPassword || typeof newPassword !== "string") {
         return res.status(400).json({ message: "New password required" });
       }
-      const passwordError = validatePassword(newPassword);
-      if (passwordError) {
-        return res.status(400).json({ message: passwordError });
-      }
 
       const user = await storage.getUser(req.params.id);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
       
+      const passwordError = validatePassword(newPassword, user.username);
+      if (passwordError) {
+        return res.status(400).json({ message: passwordError });
+      }
+      
       const bcrypt = await import("bcrypt");
       const hashedPassword = await bcrypt.default.hash(newPassword, 10);
       await storage.updateUserPassword(req.params.id, hashedPassword);
+      
+      logSecurityEvent({
+        eventType: 'PASSWORD_RESET',
+        endpoint: `/api/admin/users/${req.params.id}/reset-password`,
+        userId: (req as any).user.id,
+        username: (req as any).user.username,
+        details: {
+          targetUserId: req.params.id,
+          targetUsername: user.username,
+          changedBy: 'admin'
+        }
+      });
       
       return res.json({ message: `Password reset for user ${user.username}` });
     } catch (error: any) {

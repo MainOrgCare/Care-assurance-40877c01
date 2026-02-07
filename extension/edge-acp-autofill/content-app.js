@@ -4,10 +4,11 @@ const EXTENSION_ACK_TYPE = "CA_EXTENSION_ACK";
 const STORE_PAYLOAD_TYPE = "CA_EXTENSION_STORE_PAYLOAD";
 const API_PROXY_TYPE = "CA_API_PROXY_REQUEST";
 
-console.log("[CA Extension] content-app.js loaded on:", window.location.origin);
+console.log("[CA Extension Content] content-app.js loaded on:", window.location.origin);
+console.log("[CA Extension Content] Document ready state:", document.readyState);
 
 const sendAck = (requestId, ok, error) => {
-  console.log("[CA Extension] Sending ACK:", { requestId, ok, error });
+  console.log("[CA Extension Content] Sending ACK:", { requestId, ok, error });
   window.postMessage(
     {
       type: EXTENSION_ACK_TYPE,
@@ -24,10 +25,12 @@ const sendAck = (requestId, ok, error) => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log("[CA Extension Content] Received message:", message?.type);
+  
   if (message.type !== API_PROXY_TYPE) return false;
   
   const { endpoint, method = 'GET', body } = message;
-  console.log(`[CA Extension] API proxy request: ${method} ${endpoint}`);
+  console.log(`[CA Extension Content] API proxy request: ${method} ${endpoint}`);
   
   // Make the fetch request (will include session cookie since we're on same origin)
   const fetchOptions = {
@@ -40,10 +43,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     fetchOptions.body = JSON.stringify(body);
   }
   
-  fetch(`${window.location.origin}${endpoint}`, fetchOptions)
+  const fullUrl = `${window.location.origin}${endpoint}`;
+  console.log(`[CA Extension Content] Fetching: ${fullUrl}`);
+  
+  fetch(fullUrl, fetchOptions)
     .then(async (res) => {
+      console.log(`[CA Extension Content] Fetch response: ${res.status} ${res.statusText}`);
       if (!res.ok) {
         const errorText = await res.text().catch(() => 'Unknown error');
+        console.error(`[CA Extension Content] Request failed:`, errorText);
         sendResponse({ 
           ok: false, 
           status: res.status, 
@@ -52,10 +60,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
       const data = await res.json();
+      console.log(`[CA Extension Content] Request successful, data keys:`, Object.keys(data));
       sendResponse({ ok: true, data, status: res.status });
     })
     .catch((error) => {
-      console.error('[CA Extension] API proxy error:', error);
+      console.error('[CA Extension Content] Fetch error:', error);
       sendResponse({ ok: false, error: error.message });
     });
   
@@ -66,7 +75,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 chrome.runtime.sendMessage({ 
   type: 'CA_CONTENT_SCRIPT_READY', 
   origin: window.location.origin 
-}).catch(() => {});
+}).then(() => {
+  console.log("[CA Extension Content] Ready notification sent successfully");
+}).catch((err) => {
+  console.log("[CA Extension Content] Ready notification (no receiver):", err?.message);
+});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WEBPAGE MESSAGE HANDLING

@@ -30,19 +30,32 @@ app.use((req, res, next) => {
 });
 
 // Security headers via Helmet
+const isProduction = process.env.NODE_ENV === "production";
+
+// CSP is stricter in production, relaxed in dev for HMR/debugging
+const cspDirectives: Record<string, string[] | boolean> = {
+  defaultSrc: ["'self'"],
+  scriptSrc: isProduction 
+    ? ["'self'"] // No unsafe-inline/eval in production
+    : ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Needed for Vite HMR
+  styleSrc: ["'self'", "'unsafe-inline'"], // CSS-in-JS libraries often need this
+  imgSrc: ["'self'", "data:", "https:"],
+  connectSrc: isProduction 
+    ? ["'self'", `https://${CANONICAL_DOMAIN}`, `https://www.${CANONICAL_DOMAIN}`]
+    : ["'self'", "ws:", "wss:", "http://localhost:*", "http://127.0.0.1:*"],
+  fontSrc: ["'self'", "data:"],
+  objectSrc: ["'none'"],
+  mediaSrc: ["'self'"],
+  frameSrc: ["'none'"],
+  baseUri: ["'self'"],
+  formAction: ["'self'"],
+  frameAncestors: ["'none'"],
+  ...(isProduction && { upgradeInsecureRequests: true }),
+};
+
 app.use(helmet({
   contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // unsafe-eval needed for Vite HMR in dev
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'", "data:"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
-    },
+    directives: cspDirectives as any,
   },
   hsts: {
     maxAge: 31536000, // 1 year
@@ -52,9 +65,14 @@ app.use(helmet({
   frameguard: { action: 'deny' },
   noSniff: true,
   xssFilter: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  permittedCrossDomainPolicies: { permittedPolicies: 'none' },
+  dnsPrefetchControl: { allow: false },
+  ieNoOpen: true,
+  originAgentCluster: true,
 }));
 app.disable('x-powered-by'); // Remove Express fingerprinting
-log('Security headers enabled (Helmet)');
+log(`Security headers enabled (Helmet) - CSP mode: ${isProduction ? 'strict' : 'development'}`);
 
 // CORS middleware
 const corsOriginEnv = process.env.CORS_ORIGIN;
@@ -137,6 +155,48 @@ const apiLimiter = rateLimit({
 app.use('/api/', apiLimiter);
 if (process.env.NODE_ENV === 'production') {
   log('API rate limiting enabled (100 req/15min)');
+}
+
+// Stricter rate limiting for authentication endpoints (5 requests per 15 minutes)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Very strict: 5 attempts per 15 minutes per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many authentication attempts. Please try again in 15 minutes.' },
+  skip: (req) => process.env.NODE_ENV !== 'production',
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For if behind proxy, otherwise use IP
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+      return (typeof forwarded === 'string' ? forwarded : forwarded[0]).split(',')[0].trim();
+    }
+    return req.ip || req.socket?.remoteAddress || 'unknown';
+  },
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
+if (process.env.NODE_ENV === 'production') {
+  log('Auth rate limiting enabled (5 req/15min for auth endpoints)');
+}
+
+// Sensitive action rate limiting (10 requests per hour for admin actions)
+const adminActionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many administrative actions. Please try again later.' },
+  skip: (req) => process.env.NODE_ENV !== 'production',
+});
+// Apply to user management endpoints
+app.use('/api/admin/users', adminActionLimiter);
+app.use('/api/users/status', adminActionLimiter);
+app.use('/api/users/role', adminActionLimiter);
+if (process.env.NODE_ENV === 'production') {
+  log('Admin action rate limiting enabled (10 req/hour)');
 }
 
 // Compression middleware - configured to allow flushing for SSE streams
