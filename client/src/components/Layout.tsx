@@ -26,6 +26,8 @@ import {
   ArrowUpRight,
   FileSpreadsheet,
   Inbox,
+  AlertTriangle,
+  Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, Suspense, memo, useCallback, useRef, useMemo, lazy } from "react";
@@ -133,9 +135,37 @@ const DEFAULT_PAGE_META: PageMeta = {
   subtitle: "Operational tooling for high-trust, compliant care delivery.",
 };
 
+type PlatformBannerControls = {
+  maintenanceMode: boolean;
+  readOnlyMode: boolean;
+  maintenanceActive?: boolean;
+  readOnlyActive?: boolean;
+  maintenanceMessage: string;
+  maintenanceWindowStart: string | null;
+  maintenanceWindowEnd: string | null;
+  maintenanceWindowActive?: boolean;
+  maintenanceWindowUpcoming?: boolean;
+  announcementEnabled: boolean;
+  announcementText: string;
+  announcementSeverity: "info" | "warning" | "critical";
+  updatedAt: string;
+};
+
 const resolvePageMeta = (path: string): PageMeta => {
   const matched = PAGE_META_RULES.find((rule) => rule.match(path));
   return matched?.meta || DEFAULT_PAGE_META;
+};
+
+const formatBannerDate = (value: string | null | undefined): string => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 };
 
 const ChatAssistant = lazy(() => import("@/components/ChatAssistant"));
@@ -447,6 +477,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const isFullBleed = location === "/rostering-unified";
   const isSingleScreenRoute =
     location === "/rostering-unified" || location === "/care-worker-rotas";
+  const shouldPollUnread = !isFullBleed && location !== "/messages";
   const [clickCount, setClickCount] = useState(0);
   const { user, logout } = useAuth();
   const { isConnected } = useSession();
@@ -456,6 +487,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [hasOpenedChat, setHasOpenedChat] = useState(false);
   const [showComplieeIntro, setShowComplieeIntro] = useState(false);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [platformControls, setPlatformControls] = useState<PlatformBannerControls | null>(null);
   const autoCollapseRef = useRef(false);
 
   const openChatAssistant = useCallback(() => {
@@ -465,7 +497,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // Fetch unread message count (visibility-aware to reduce background work)
   useEffect(() => {
-    if (!user) return;
+    if (!user || !shouldPollUnread) return;
 
     let isDisposed = false;
     let controller: AbortController | null = null;
@@ -499,7 +531,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
 
     fetchUnreadCount();
-    const interval = window.setInterval(fetchUnreadCount, 90000);
+    const interval = window.setInterval(fetchUnreadCount, 120000);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
@@ -508,7 +540,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [user?.id]);
+  }, [user?.id, shouldPollUnread]);
 
   useEffect(() => {
     if (!user) return;
@@ -540,6 +572,49 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    let disposed = false;
+    let controller: AbortController | null = null;
+
+    const fetchPlatformControls = async () => {
+      if (document.visibilityState === "hidden") return;
+      controller?.abort();
+      controller = new AbortController();
+      try {
+        const res = await fetch("/api/platform-controls", {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!disposed) {
+          setPlatformControls(data);
+        }
+      } catch (error) {
+        if ((error as any)?.name === "AbortError") return;
+        // Keep UI resilient if controls endpoint is unavailable.
+      }
+    };
+
+    void fetchPlatformControls();
+    const interval = window.setInterval(fetchPlatformControls, 60000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchPlatformControls();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      disposed = true;
+      controller?.abort();
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [user?.id]);
+
   // Show Compli-ee intro after user has accepted terms
   useEffect(() => {
     if (user?.termsAcceptedAt && !localStorage.getItem('compliee_intro_seen')) {
@@ -555,7 +630,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(
-    "workspace-card rounded-2xl border border-border/75 bg-card/95 p-4 sm:p-6 lg:p-7 flex flex-col shadow-[0_18px_36px_-24px_rgba(15,23,42,0.4),0_1px_0_rgba(255,255,255,0.75)_inset] w-full flex-1 min-h-0 motion-safe:animate-[fade-in_220ms_ease-out]",
+    "workspace-card rounded-2xl border border-border/70 bg-card/98 p-4 sm:p-6 lg:p-7 flex flex-col shadow-[0_14px_30px_-24px_rgba(15,23,42,0.28),0_1px_0_rgba(255,255,255,0.75)_inset] w-full flex-1 min-h-0 motion-safe:animate-[fade-in_180ms_ease-out]",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
@@ -603,15 +678,76 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setTimeout(() => setClickCount(0), 1000);
   };
 
+  const globalBanners: Array<{
+    id: string;
+    text: string;
+    tone: "info" | "warning" | "critical";
+    icon: typeof Megaphone;
+  }> = [];
+
+  const maintenanceIsActive =
+    Boolean(platformControls?.maintenanceActive) || Boolean(platformControls?.maintenanceMode);
+
+  if (maintenanceIsActive) {
+    const maintenanceWindowEnd = formatBannerDate(platformControls?.maintenanceWindowEnd);
+    globalBanners.push({
+      id: "maintenance",
+      text:
+        `${platformControls?.maintenanceMessage ||
+          "Platform maintenance is in progress. Some actions may be restricted."}${
+          maintenanceWindowEnd ? ` Scheduled end: ${maintenanceWindowEnd}.` : ""
+        }`,
+      tone: "warning",
+      icon: AlertTriangle,
+    });
+  } else if (platformControls?.maintenanceWindowUpcoming) {
+    const scheduledStart = formatBannerDate(platformControls.maintenanceWindowStart);
+    if (scheduledStart) {
+      globalBanners.push({
+        id: "maintenance-upcoming",
+        text: `Scheduled maintenance starts ${scheduledStart}.`,
+        tone: "info",
+        icon: AlertTriangle,
+      });
+    }
+  }
+
+  if (platformControls?.announcementEnabled && platformControls.announcementText?.trim()) {
+    globalBanners.push({
+      id: "announcement",
+      text: platformControls.announcementText.trim(),
+      tone: platformControls.announcementSeverity || "info",
+      icon: Megaphone,
+    });
+  }
+
+  const bannerStyles: Record<
+    "info" | "warning" | "critical",
+    { className: string; iconClassName: string }
+  > = {
+    info: {
+      className: "border-blue-200 bg-blue-50 text-blue-900",
+      iconClassName: "text-blue-600",
+    },
+    warning: {
+      className: "border-amber-200 bg-amber-50 text-amber-900",
+      iconClassName: "text-amber-600",
+    },
+    critical: {
+      className: "border-red-200 bg-red-50 text-red-900",
+      iconClassName: "text-red-600",
+    },
+  };
+
   return (
     <div className="workspace-root relative flex h-[100dvh] min-h-screen w-full overflow-hidden bg-background">
       <div className="pointer-events-none absolute inset-0 -z-[1] overflow-hidden">
-        <div className="absolute -top-44 -left-28 h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.18),rgba(59,130,246,0)_70%)] blur-xl" />
-        <div className="absolute -top-28 -right-20 h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,rgba(6,182,212,0.14),rgba(6,182,212,0)_72%)] blur-xl" />
+        <div className="absolute -top-44 -left-28 h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgba(30,64,175,0.12),rgba(30,64,175,0)_72%)] blur-lg" />
+        <div className="absolute -top-28 -right-20 h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,rgba(15,23,42,0.1),rgba(15,23,42,0)_72%)] blur-lg" />
       </div>
       {/* Desktop Sidebar */}
       <aside className={cn(
-        "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-border/70 bg-sidebar/90 backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.35)_inset] transition-all duration-300",
+        "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-border/65 bg-sidebar/96 shadow-[0_0_0_1px_rgba(255,255,255,0.28)_inset] transition-all duration-300",
         isSidebarCollapsed ? "w-[84px]" : "w-[288px]"
       )}>
         <SidebarContent
@@ -628,7 +764,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="workspace-header sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/86 px-4 backdrop-blur-xl md:px-6 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.48)]">
+          <header className="workspace-header sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/65 bg-background/94 px-4 backdrop-blur-sm md:px-6 shadow-[0_10px_24px_-22px_rgba(15,23,42,0.32)]">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -669,7 +805,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card/88 px-2.5 py-2 shadow-[0_14px_28px_-20px_rgba(15,23,42,0.45)]">
+            <div className="flex items-center gap-3 rounded-2xl border border-border/65 bg-card/94 px-2.5 py-2 shadow-[0_10px_20px_-18px_rgba(15,23,42,0.28)]">
               {/* Messages Button */}
               <Link href="/messages">
                 <button
@@ -699,7 +835,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
               
-              <div className="group flex cursor-pointer items-center gap-3 rounded-2xl border border-border/55 bg-muted/38 py-1.5 pl-4 pr-1.5 transition-all hover:border-primary/30">
+              <div className="group flex cursor-pointer items-center gap-3 rounded-2xl border border-border/55 bg-muted/45 py-1.5 pl-4 pr-1.5 transition-all hover:border-primary/28">
                 <div className="text-right hidden sm:block">
                   <p className="text-xs font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
                     {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username}
@@ -776,6 +912,27 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
+        {globalBanners.length > 0 && (
+          <div className="px-3 sm:px-4 lg:px-6 pt-3 space-y-2">
+            {globalBanners.map((banner) => {
+              const Icon = banner.icon;
+              const style = bannerStyles[banner.tone];
+              return (
+                <div
+                  key={banner.id}
+                  className={cn(
+                    "rounded-xl border px-3 py-2 text-sm font-medium flex items-center gap-2",
+                    style.className
+                  )}
+                >
+                  <Icon className={cn("h-4 w-4 shrink-0", style.iconClassName)} />
+                  <span>{banner.text}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Page Content Area */}
         <div className={contentWrapperClass}>
           <div className={cardClass}>
@@ -821,7 +978,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         {!isSingleScreenRoute && (
-          <footer className="workspace-footer flex-shrink-0 border-t border-border/75 bg-background/86 px-4 py-3 backdrop-blur-xl shadow-[0_-14px_28px_-24px_rgba(15,23,42,0.45)]">
+          <footer className="workspace-footer flex-shrink-0 border-t border-border/65 bg-background/94 px-4 py-3 backdrop-blur-sm shadow-[0_-10px_20px_-20px_rgba(15,23,42,0.25)]">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-muted-foreground">
               <div className="flex items-center gap-1.5 font-medium">
                 <span>{new Date().getFullYear()} CareAssurance</span>

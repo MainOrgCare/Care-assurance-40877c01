@@ -95,11 +95,39 @@ function SortableWidgetItemBase({ widget, isActive, onToggle }: { widget: Widget
 
 const SortableWidgetItem = memo(SortableWidgetItemBase);
 
-const QUICK_ACTIONS: { icon: LucideIcon; label: string; description: string; href: string; color: string; glow: string }[] = [
-  { icon: Upload, label: "EMAR Audit", description: "Upload and analyze medication records", href: "/care-workers/emar-audit", color: "from-blue-500 to-cyan-500", glow: "shadow-blue-500/25" },
-  { icon: FileText, label: "Care Plan", description: "Generate AI-powered care plans", href: "/service-users/upload", color: "from-indigo-500 to-blue-600", glow: "shadow-indigo-500/25" },
-  { icon: Shield, label: "Risk Assessment", description: "Create comprehensive risk assessments", href: "/service-users/risk-assessment", color: "from-amber-500 to-orange-500", glow: "shadow-amber-500/25" },
-  { icon: Brain, label: "Plan Enhancer", description: "Enhance existing care plans with AI", href: "/service-users/plan-enhancer", color: "from-emerald-500 to-teal-500", glow: "shadow-emerald-500/25" },
+const QUICK_ACTIONS: { icon: LucideIcon; label: string; description: string; href: string; panelTone: string; iconTone: string }[] = [
+  {
+    icon: Upload,
+    label: "EMAR Audit",
+    description: "Upload and analyze medication records",
+    href: "/care-workers/emar-audit",
+    panelTone: "bg-primary/[0.03] border-primary/20",
+    iconTone: "bg-primary/12 text-primary",
+  },
+  {
+    icon: FileText,
+    label: "Care Plan",
+    description: "Generate AI-powered care plans",
+    href: "/service-users/upload",
+    panelTone: "bg-sky-500/[0.03] border-sky-500/20",
+    iconTone: "bg-sky-500/12 text-sky-700 dark:text-sky-300",
+  },
+  {
+    icon: Shield,
+    label: "Risk Assessment",
+    description: "Create comprehensive risk assessments",
+    href: "/service-users/risk-assessment",
+    panelTone: "bg-slate-500/[0.03] border-slate-500/20",
+    iconTone: "bg-slate-600/12 text-slate-700 dark:text-slate-200",
+  },
+  {
+    icon: Brain,
+    label: "Plan Enhancer",
+    description: "Enhance existing care plans with AI",
+    href: "/service-users/plan-enhancer",
+    panelTone: "bg-emerald-500/[0.03] border-emerald-500/20",
+    iconTone: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
+  },
 ];
 
 export default function Dashboard() {
@@ -129,7 +157,8 @@ export default function Dashboard() {
       if (!res.ok) throw new Error("Failed to fetch dashboard stats");
       return res.json();
     },
-    refetchInterval: 60000,
+    refetchInterval: 120000,
+    refetchIntervalInBackground: false,
     staleTime: 30000,
   });
 
@@ -231,7 +260,7 @@ export default function Dashboard() {
                 {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ? "100%" : "-"}
               </div>
               <p className="text-[10px] font-medium text-muted-foreground mt-2 flex items-center gap-1.5">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-success" />
                 {stats?.auditsCompleted ? "Based on completed audits" : "No data yet"}
               </p>
             </CardContent>
@@ -265,7 +294,7 @@ export default function Dashboard() {
                 "h-10 w-10 rounded-xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform",
                 stats?.activeAlerts ? "bg-destructive/20" : "bg-muted"
               )}>
-                <AlertCircle className={cn("h-5 w-5", stats?.activeAlerts ? "text-destructive animate-pulse" : "text-muted-foreground")} />
+                <AlertCircle className={cn("h-5 w-5", stats?.activeAlerts ? "text-destructive" : "text-muted-foreground")} />
               </div>
             </CardHeader>
             <CardContent className="relative pt-2">
@@ -522,18 +551,15 @@ export default function Dashboard() {
           {QUICK_ACTIONS.map((action, index) => (
             <Link key={index} href={action.href}>
               <Card className="glass-card-interactive group h-full overflow-hidden" data-testid={`card-quick-action-${index}`}>
-                <CardContent className="p-6 relative">
-                  <div className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 group-hover:opacity-[0.05] transition-opacity duration-500`} />
-                  
-                  <div className={`relative h-12 w-12 rounded-2xl bg-gradient-to-br ${action.color} flex items-center justify-center mb-5 shadow-lg ${action.glow} group-hover:scale-110 group-hover:-rotate-3 transition-all duration-500`}>
-                    <action.icon className="h-6 w-6 text-white" />
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-black/20 to-white/20" />
+                <CardContent className={`p-6 relative border ${action.panelTone} rounded-2xl transition-colors duration-200`}>
+                  <div className={`relative h-12 w-12 rounded-2xl ${action.iconTone} flex items-center justify-center mb-5 transition-transform duration-200 group-hover:scale-105`}>
+                    <action.icon className="h-6 w-6" />
                   </div>
                   
                   <h4 className="font-bold text-base mb-2 group-hover:text-primary transition-colors text-foreground">{action.label}</h4>
                   <p className="text-xs leading-relaxed text-muted-foreground font-medium">{action.description}</p>
                   
-                  <div className="flex items-center gap-2 mt-4 text-xs font-bold text-primary opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-2 group-hover:translate-y-0">
+                  <div className="flex items-center gap-2 mt-4 text-xs font-bold text-primary opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-1 group-hover:translate-y-0">
                     <span>OPEN WORKFLOW</span>
                     <ArrowRight className="h-3.5 w-3.5" />
                   </div>

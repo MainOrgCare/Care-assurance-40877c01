@@ -1,18 +1,18 @@
 .homepage-theme {
-  --color-background: #f8fafc;
-  --color-foreground: #0f172a;
-  --color-muted: #e2e8f0;
-  --color-muted-foreground: #475569;
+  --color-background: #f5f7fb;
+  --color-foreground: #0f1b2d;
+  --color-muted: #e3e9f1;
+  --color-muted-foreground: #4b5e74;
   --color-card: #ffffff;
   --color-card-foreground: #0f172a;
   --color-popover: #ffffff;
   --color-popover-foreground: #0f172a;
   --color-border: #cbd5e1;
   --color-input: #cbd5e1;
-  --color-ring: #3b82f6;
-  --color-primary: #3b82f6;
+  --color-ring: #1d4f91;
+  --color-primary: #1d4f91;
   --color-primary-foreground: #ffffff;
-  --color-secondary: #1e293b;
+  --color-secondary: #21324b;
   --color-secondary-foreground: #ffffff;
   --color-accent: rgba(59, 130, 246, 0.1);
   --color-accent-foreground: #2563eb;
@@ -22,9 +22,9 @@
   font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   background-color: #f8fafc;
   background-image:
-    radial-gradient(980px 640px at 8% -12%, rgba(14, 116, 144, 0.09), transparent 60%),
-    radial-gradient(760px 520px at 100% -5%, rgba(37, 99, 235, 0.08), transparent 58%),
-    linear-gradient(180deg, #f8fafc, #f3f7fc);
+    radial-gradient(980px 640px at 8% -12%, rgba(29, 79, 145, 0.08), transparent 60%),
+    radial-gradient(760px 520px at 100% -5%, rgba(15, 30, 56, 0.06), transparent 58%),
+    linear-gradient(180deg, #f8fafc, #f2f5fa);
 }
 
 .homepage-theme .home-pattern {
@@ -43,12 +43,12 @@
 .homepage-theme .home-header.is-scrolled {
   background: rgba(248, 250, 252, 0.86);
   border-bottom: 1px solid rgba(203, 213, 225, 0.7);
-  box-shadow: 0 10px 30px -20px rgba(15, 23, 42, 0.42);
-  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 22px -18px rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(6px);
 }
 
 .homepage-theme .home-brand-mark {
-  background-image: linear-gradient(140deg, #0ea5e9 0%, #2563eb 100%);
+  background-image: linear-gradient(140deg, #1d4f91 0%, #2f5f9f 100%);
   color: #ffffff;
 }
 
@@ -78,9 +78,9 @@
 }
 
 .homepage-theme .home-nav-link.is-active {
-  color: #1d4ed8;
-  border-color: rgba(59, 130, 246, 0.25);
-  background: rgba(59, 130, 246, 0.09);
+  color: #1d4f91;
+  border-color: rgba(29, 79, 145, 0.25);
+  background: rgba(29, 79, 145, 0.09);
 }
 
 .homepage-theme .home-nav-toggle {
@@ -112,9 +112,9 @@
 
 .homepage-theme .home-mobile-link:hover,
 .homepage-theme .home-mobile-link.is-active {
-  border-color: rgba(59, 130, 246, 0.22);
-  background: rgba(59, 130, 246, 0.1);
-  color: #1d4ed8;
+  border-color: rgba(29, 79, 145, 0.22);
+  background: rgba(29, 79, 145, 0.1);
+  color: #1d4f91;
 }
 
 .homepage-theme .home-card {
@@ -146,14 +146,14 @@
   align-items: center;
   gap: 0.4rem;
   border-radius: 999px;
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(29, 79, 145, 0.2);
   padding: 0.35rem 0.75rem;
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #2563eb;
-  background-color: rgba(59, 130, 246, 0.08);
+  color: #1d4f91;
+  background-color: rgba(29, 79, 145, 0.08);
 }
 
 .homepage-theme .home-text-heading {
@@ -169,9 +169,9 @@
 }
 
 .homepage-theme .home-icon-chip {
-  background-color: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  color: #3b82f6;
+  background-color: rgba(29, 79, 145, 0.1);
+  border: 1px solid rgba(29, 79, 145, 0.2);
+  color: #1d4f91;
 }
 
 .homepage-theme .home-eyebrow {
@@ -180,27 +180,27 @@
   letter-spacing: 0.14em;
   font-size: 0.7rem;
   font-weight: 700;
-  color: #2563eb;
+  color: #1d4f91;
 }
 
 .homepage-theme .home-cta {
   border-radius: 12px;
-  background-color: #2563eb;
-  background-image: linear-gradient(135deg, #0ea5e9, #2563eb);
+  background-color: #1d4f91;
+  background-image: linear-gradient(135deg, #244f87, #1d4f91);
   color: #ffffff;
   border: none;
   font-weight: 700;
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.05),
-    0 6px 18px rgba(37, 99, 235, 0.25);
+    0 6px 18px rgba(29, 79, 145, 0.24);
   transition: all 0.2s ease;
 }
 
 .homepage-theme .home-cta:hover {
-  background-image: linear-gradient(135deg, #38bdf8, #3b82f6);
+  background-image: linear-gradient(135deg, #2b5e9f, #2c63a7);
   box-shadow:
     0 3px 6px rgba(0, 0, 0, 0.06),
-    0 10px 22px rgba(37, 99, 235, 0.32);
+    0 10px 22px rgba(29, 79, 145, 0.3);
   transform: translateY(-1px);
 }
 

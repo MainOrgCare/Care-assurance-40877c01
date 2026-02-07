@@ -54,20 +54,28 @@ function RouteFallback() {
 
 // Preload common routes when browser is idle
 const preloadRoutes = () => {
+  const connection = (navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string };
+  }).connection;
+  const shouldLimitPreload =
+    connection?.saveData ||
+    connection?.effectiveType === "slow-2g" ||
+    connection?.effectiveType === "2g";
+
+  if (shouldLimitPreload) return;
+
   const preload = (importFn: () => Promise<unknown>) => {
     if ('requestIdleCallback' in window) {
-      requestIdleCallback(() => importFn(), { timeout: 3000 });
+      requestIdleCallback(() => importFn(), { timeout: 4500 });
     } else {
-      setTimeout(() => importFn(), 2000);
+      setTimeout(() => importFn(), 2500);
     }
   };
   
-  // Preload most commonly visited pages after login
+  // Preload highest-frequency pages only to avoid over-downloading.
   preload(() => import("@/components/Layout"));
   preload(() => import("@/pages/Dashboard"));
   preload(() => import("@/pages/EmailAssistant"));
-  preload(() => import("@/pages/Compliance"));
-  preload(() => import("@/pages/service-users/Upload"));
   preload(() => import("@/pages/Settings"));
 };
 

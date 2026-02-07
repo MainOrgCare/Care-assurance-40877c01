@@ -669,6 +669,194 @@ async function extractRowsFromBillingImage(
 
 const connectedClients: Map<string, WebSocket> = new Map();
 let sessionStore: any = null;
+const PLATFORM_CONTROLS_KEY = "platform_controls";
+const PLATFORM_CONTROLS_CACHE_TTL_MS = 10_000;
+const DEFAULT_MAINTENANCE_MESSAGE =
+  "Platform maintenance in progress. Some write actions are temporarily unavailable.";
+
+type PlatformAnnouncementSeverity = "info" | "warning" | "critical";
+
+type PlatformControls = {
+  maintenanceMode: boolean;
+  readOnlyMode: boolean;
+  maintenanceMessage: string;
+  maintenanceWindowStart: string | null;
+  maintenanceWindowEnd: string | null;
+  announcementEnabled: boolean;
+  announcementText: string;
+  announcementSeverity: PlatformAnnouncementSeverity;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+const PLATFORM_CONTROLS_FALLBACK: Omit<PlatformControls, "updatedAt" | "updatedBy"> = {
+  maintenanceMode: false,
+  readOnlyMode: false,
+  maintenanceMessage: DEFAULT_MAINTENANCE_MESSAGE,
+  maintenanceWindowStart: null,
+  maintenanceWindowEnd: null,
+  announcementEnabled: false,
+  announcementText: "",
+  announcementSeverity: "info",
+};
+
+const platformControlsStoredSchema = z.object({
+  maintenanceMode: z.boolean().optional(),
+  readOnlyMode: z.boolean().optional(),
+  maintenanceMessage: z.string().max(280).optional(),
+  maintenanceWindowStart: z.string().max(64).nullable().optional(),
+  maintenanceWindowEnd: z.string().max(64).nullable().optional(),
+  announcementEnabled: z.boolean().optional(),
+  announcementText: z.string().max(280).optional(),
+  announcementSeverity: z.enum(["info", "warning", "critical"]).optional(),
+  updatedAt: z.string().optional(),
+  updatedBy: z.string().nullable().optional(),
+});
+
+const platformControlsPatchSchema = z
+  .object({
+    maintenanceMode: z.boolean().optional(),
+    readOnlyMode: z.boolean().optional(),
+    maintenanceMessage: z.string().max(280).optional(),
+    maintenanceWindowStart: z.string().max(64).nullable().optional(),
+    maintenanceWindowEnd: z.string().max(64).nullable().optional(),
+    announcementEnabled: z.boolean().optional(),
+    announcementText: z.string().max(280).optional(),
+    announcementSeverity: z.enum(["info", "warning", "critical"]).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "At least one setting must be provided",
+  });
+
+let platformControlsCache: PlatformControls | null = null;
+let platformControlsCachedAt = 0;
+
+const sanitizePlatformText = (value: unknown): string => {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, 280);
+};
+
+const normalizeIsoDateTime = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+};
+
+const getPlatformControlsRuntime = (controls: PlatformControls) => {
+  const now = Date.now();
+  const windowStartMs = controls.maintenanceWindowStart
+    ? Date.parse(controls.maintenanceWindowStart)
+    : Number.NaN;
+  const windowEndMs = controls.maintenanceWindowEnd
+    ? Date.parse(controls.maintenanceWindowEnd)
+    : Number.NaN;
+  const hasScheduledWindow =
+    Number.isFinite(windowStartMs) &&
+    Number.isFinite(windowEndMs) &&
+    windowEndMs > windowStartMs;
+  const maintenanceWindowActive = hasScheduledWindow
+    ? now >= windowStartMs && now <= windowEndMs
+    : false;
+  const maintenanceWindowUpcoming = hasScheduledWindow ? now < windowStartMs : false;
+
+  return {
+    hasScheduledWindow,
+    maintenanceWindowActive,
+    maintenanceWindowUpcoming,
+    maintenanceActive: controls.maintenanceMode || maintenanceWindowActive,
+    readOnlyActive: controls.readOnlyMode || maintenanceWindowActive,
+  };
+};
+
+const normalizePlatformControls = (value: unknown): PlatformControls => {
+  const nowIso = new Date().toISOString();
+  const parsed = platformControlsStoredSchema.safeParse(value);
+  if (!parsed.success) {
+    return {
+      ...PLATFORM_CONTROLS_FALLBACK,
+      updatedAt: nowIso,
+      updatedBy: null,
+    };
+  }
+
+  const data = parsed.data;
+  const maintenanceMessage =
+    sanitizePlatformText(data.maintenanceMessage) || DEFAULT_MAINTENANCE_MESSAGE;
+  const maintenanceWindowStart = normalizeIsoDateTime(data.maintenanceWindowStart ?? null);
+  const maintenanceWindowEnd = normalizeIsoDateTime(data.maintenanceWindowEnd ?? null);
+  const hasCompleteWindow = Boolean(maintenanceWindowStart && maintenanceWindowEnd);
+  const hasValidWindow =
+    hasCompleteWindow &&
+    new Date(maintenanceWindowEnd as string).getTime() >
+      new Date(maintenanceWindowStart as string).getTime();
+  const announcementText = sanitizePlatformText(data.announcementText);
+  const updatedAt =
+    data.updatedAt && !Number.isNaN(Date.parse(data.updatedAt)) ? data.updatedAt : nowIso;
+  const updatedBy =
+    typeof data.updatedBy === "string" && data.updatedBy.trim().length > 0
+      ? data.updatedBy
+      : null;
+
+  return {
+    maintenanceMode: Boolean(data.maintenanceMode),
+    readOnlyMode: Boolean(data.readOnlyMode),
+    maintenanceMessage,
+    maintenanceWindowStart: hasValidWindow ? maintenanceWindowStart : null,
+    maintenanceWindowEnd: hasValidWindow ? maintenanceWindowEnd : null,
+    announcementEnabled: Boolean(data.announcementEnabled),
+    announcementText,
+    announcementSeverity: data.announcementSeverity ?? "info",
+    updatedAt,
+    updatedBy,
+  };
+};
+
+const getPlatformControls = async (forceRefresh = false): Promise<PlatformControls> => {
+  const isFresh = Date.now() - platformControlsCachedAt < PLATFORM_CONTROLS_CACHE_TTL_MS;
+  if (!forceRefresh && platformControlsCache && isFresh) {
+    return platformControlsCache;
+  }
+
+  const rawValue = await storage.getAppSetting(PLATFORM_CONTROLS_KEY);
+  if (!rawValue) {
+    platformControlsCache = {
+      ...PLATFORM_CONTROLS_FALLBACK,
+      updatedAt: new Date().toISOString(),
+      updatedBy: null,
+    };
+    platformControlsCachedAt = Date.now();
+    return platformControlsCache;
+  }
+
+  try {
+    platformControlsCache = normalizePlatformControls(JSON.parse(rawValue));
+  } catch {
+    platformControlsCache = normalizePlatformControls(null);
+  }
+  platformControlsCachedAt = Date.now();
+  return platformControlsCache;
+};
+
+const updatePlatformControls = async (
+  patch: Partial<PlatformControls>,
+  updatedBy?: string | null
+): Promise<PlatformControls> => {
+  const current = await getPlatformControls();
+  const next = normalizePlatformControls({
+    ...current,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+    updatedBy: updatedBy ?? null,
+  });
+
+  await storage.setAppSetting(PLATFORM_CONTROLS_KEY, JSON.stringify(next), updatedBy ?? undefined);
+  platformControlsCache = next;
+  platformControlsCachedAt = Date.now();
+  return next;
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PII SCRUBBING - UK GDPR COMPLIANT ANONYMIZATION
@@ -3721,6 +3909,22 @@ export async function registerRoutes(
       return res.status(401).json({ message: "Unauthorized" });
     }
     req.user = user;
+
+    if (req.user?.role !== "admin" && ["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+      try {
+        const platformControls = await getPlatformControls();
+        const runtime = getPlatformControlsRuntime(platformControls);
+        if (runtime.readOnlyActive) {
+          return res.status(503).json({
+            message: platformControls.maintenanceMessage || DEFAULT_MAINTENANCE_MESSAGE,
+            code: "READ_ONLY_MODE",
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load platform controls in auth middleware:", error);
+      }
+    }
+
     const shouldLog = false;
     if (shouldLog) {
       storage.createSystemLog({
@@ -4882,6 +5086,222 @@ export async function registerRoutes(
 
   // ===== ADMIN ALERT ROUTES =====
 
+  // Platform controls (authenticated users receive safe subset for global messaging)
+  app.get("/api/platform-controls", requireAuth, async (_req, res) => {
+    try {
+      const controls = await getPlatformControls();
+      const runtime = getPlatformControlsRuntime(controls);
+      return res.json({
+        maintenanceMode: controls.maintenanceMode,
+        readOnlyMode: controls.readOnlyMode,
+        maintenanceActive: runtime.maintenanceActive,
+        readOnlyActive: runtime.readOnlyActive,
+        maintenanceMessage: controls.maintenanceMessage,
+        maintenanceWindowStart: controls.maintenanceWindowStart,
+        maintenanceWindowEnd: controls.maintenanceWindowEnd,
+        maintenanceWindowActive: runtime.maintenanceWindowActive,
+        maintenanceWindowUpcoming: runtime.maintenanceWindowUpcoming,
+        announcementEnabled: controls.announcementEnabled,
+        announcementText: controls.announcementText,
+        announcementSeverity: controls.announcementSeverity,
+        updatedAt: controls.updatedAt,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Platform controls (admin full view)
+  app.get("/api/admin/platform-controls", requireAuth, requireAdmin, async (_req, res) => {
+    try {
+      const controls = await getPlatformControls();
+      const runtime = getPlatformControlsRuntime(controls);
+      return res.json({
+        ...controls,
+        maintenanceActive: runtime.maintenanceActive,
+        readOnlyActive: runtime.readOnlyActive,
+        maintenanceWindowActive: runtime.maintenanceWindowActive,
+        maintenanceWindowUpcoming: runtime.maintenanceWindowUpcoming,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/admin/platform-controls", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const parsed = platformControlsPatchSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: parsed.error.issues[0]?.message || "Invalid platform controls payload",
+        });
+      }
+
+      const existing = await getPlatformControls();
+      const updatePayload: Partial<PlatformControls> = {};
+
+      if (parsed.data.maintenanceMode !== undefined) {
+        updatePayload.maintenanceMode = parsed.data.maintenanceMode;
+      }
+      if (parsed.data.readOnlyMode !== undefined) {
+        updatePayload.readOnlyMode = parsed.data.readOnlyMode;
+      }
+      if (parsed.data.maintenanceMessage !== undefined) {
+        updatePayload.maintenanceMessage =
+          sanitizePlatformText(parsed.data.maintenanceMessage) || DEFAULT_MAINTENANCE_MESSAGE;
+      }
+      if (parsed.data.maintenanceWindowStart !== undefined) {
+        updatePayload.maintenanceWindowStart = normalizeIsoDateTime(parsed.data.maintenanceWindowStart);
+      }
+      if (parsed.data.maintenanceWindowEnd !== undefined) {
+        updatePayload.maintenanceWindowEnd = normalizeIsoDateTime(parsed.data.maintenanceWindowEnd);
+      }
+      if (parsed.data.announcementEnabled !== undefined) {
+        updatePayload.announcementEnabled = parsed.data.announcementEnabled;
+      }
+      if (parsed.data.announcementText !== undefined) {
+        updatePayload.announcementText = sanitizePlatformText(parsed.data.announcementText);
+      }
+      if (parsed.data.announcementSeverity !== undefined) {
+        updatePayload.announcementSeverity = parsed.data.announcementSeverity;
+      }
+
+      const nextAnnouncementText = (
+        updatePayload.announcementText ?? existing.announcementText
+      ).trim();
+      const nextAnnouncementEnabled =
+        updatePayload.announcementEnabled ?? existing.announcementEnabled;
+      if (nextAnnouncementEnabled && !nextAnnouncementText) {
+        return res.status(400).json({
+          message: "Announcement text is required when announcement is enabled",
+        });
+      }
+
+      const nextWindowStart =
+        updatePayload.maintenanceWindowStart !== undefined
+          ? updatePayload.maintenanceWindowStart
+          : existing.maintenanceWindowStart;
+      const nextWindowEnd =
+        updatePayload.maintenanceWindowEnd !== undefined
+          ? updatePayload.maintenanceWindowEnd
+          : existing.maintenanceWindowEnd;
+      const hasWindowStart = Boolean(nextWindowStart);
+      const hasWindowEnd = Boolean(nextWindowEnd);
+      if (hasWindowStart !== hasWindowEnd) {
+        return res.status(400).json({
+          message: "Provide both maintenance window start and end, or clear both values.",
+        });
+      }
+      if (hasWindowStart && hasWindowEnd) {
+        const startMs = Date.parse(nextWindowStart as string);
+        const endMs = Date.parse(nextWindowEnd as string);
+        if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+          return res.status(400).json({
+            message: "Maintenance window end must be after the start time.",
+          });
+        }
+      }
+
+      const controls = await updatePlatformControls(updatePayload, req.user?.id);
+
+      storage
+        .createSystemLog({
+          eventType: "platform_controls_updated",
+          userId: req.user?.id,
+          username: req.user?.username,
+          serviceUserInitials: null,
+          details: {
+            action: "Updated platform controls",
+            target: "platform_controls",
+            status: "Success",
+            updates: updatePayload,
+          },
+        })
+        .catch(() => {});
+
+      return res.json({ message: "Platform controls updated", controls });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/admin/ops-incidents", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const requestedLimit = parseInt(String(req.query.limit || "12"), 10);
+      const limit = Math.min(50, Math.max(5, Number.isFinite(requestedLimit) ? requestedLimit : 12));
+      const logsResult = await storage.getSystemLogsPaginated({
+        page: 1,
+        limit: 80,
+        status: "all",
+        search: "",
+      });
+
+      const interestingEventTypes = new Set([
+        "platform_controls_updated",
+        "admin_alerts_cleared",
+        "sessions_force_disconnected",
+        "security_login_failed",
+        "security_login_blocked",
+        "security_ip_blocked",
+        "security_account_suspended",
+        "security_csrf_blocked",
+      ]);
+
+      const incidents = logsResult.logs
+        .filter((log: any) => {
+          const eventType = String(log.eventType || "").toLowerCase();
+          if (eventType.startsWith("security_")) return true;
+          if (interestingEventTypes.has(eventType)) return true;
+          const status = typeof log.details === "object" && log.details
+            ? String((log.details as any).status || "").toLowerCase()
+            : "";
+          return status === "blocked" || status === "flagged" || status === "warning";
+        })
+        .slice(0, limit)
+        .map((log: any) => {
+          const eventType = String(log.eventType || "").toLowerCase();
+          const status = typeof log.details === "object" && log.details
+            ? String((log.details as any).status || "").toLowerCase()
+            : "";
+          let severity: "info" | "warning" | "critical" = "info";
+          if (
+            eventType.includes("blocked") ||
+            eventType.includes("suspended") ||
+            eventType.includes("force_disconnected") ||
+            status === "blocked"
+          ) {
+            severity = "critical";
+          } else if (status === "flagged" || status === "warning" || eventType.includes("security_")) {
+            severity = "warning";
+          }
+
+          return {
+            id: log.id,
+            eventType: log.eventType,
+            username: log.username || "system",
+            createdAt: log.createdAt,
+            severity,
+            action:
+              typeof log.details === "object" && log.details
+                ? String((log.details as any).action || log.eventType)
+                : String(log.eventType),
+            status:
+              typeof log.details === "object" && log.details
+                ? String((log.details as any).status || "")
+                : "",
+          };
+        });
+
+      return res.json({
+        generatedAt: new Date().toISOString(),
+        total: incidents.length,
+        incidents,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get unread alerts (admin only)
   app.get("/api/admin-alerts", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -4897,6 +5317,178 @@ export async function registerRoutes(
     try {
       await storage.markAlertAsRead(req.params.id);
       return res.json({ message: "Alert marked as read" });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Mark all admin alerts as read
+  app.post("/api/admin-alerts/mark-all-read", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const alerts = await storage.getUnreadAdminAlerts();
+      if (alerts.length === 0) {
+        return res.json({ message: "No unread alerts", cleared: 0 });
+      }
+
+      await Promise.all(alerts.map((alert) => storage.markAlertAsRead(alert.id)));
+
+      storage
+        .createSystemLog({
+          eventType: "admin_alerts_cleared",
+          userId: req.user?.id,
+          username: req.user?.username,
+          serviceUserInitials: null,
+          details: {
+            action: "Cleared all unread admin alerts",
+            target: "admin_alerts",
+            status: "Success",
+            count: alerts.length,
+          },
+        })
+        .catch(() => {});
+
+      return res.json({ message: "All alerts marked as read", cleared: alerts.length });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Operations health telemetry
+  app.get("/api/admin/ops-health", requireAuth, requireAdmin, async (_req, res) => {
+    try {
+      const [
+        totalSessions,
+        nonAdminSessions,
+        allUsers,
+        unreadAlerts,
+        blockedIpEntries,
+        unreadContactMessages,
+        controls,
+      ] = await Promise.all([
+        storage.getActiveSessionCount(),
+        storage.getNonAdminSessionCount(),
+        storage.getAllUsers(),
+        storage.getUnreadAdminAlerts(),
+        storage.getAllBlockedIps(),
+        storage.getUnreadContactMessageCount(),
+        getPlatformControls(),
+      ]);
+
+      const now = new Date();
+      const platformRuntime = getPlatformControlsRuntime(controls);
+      const adminUsers = allUsers.filter((user) => user.role === "admin").length;
+      const staffUsers = allUsers.filter((user) => user.role !== "admin").length;
+      const pendingUsers = allUsers.filter((user) => user.status === "pending").length;
+      const activeUsers = allUsers.filter((user) => user.status === "active").length;
+      const suspendedUsers = allUsers.filter((user) => {
+        if (!user.suspendedUntil) return false;
+        return new Date(user.suspendedUntil) > now;
+      }).length;
+
+      const memory = process.memoryUsage();
+      const toMb = (bytes: number) => Math.round((bytes / 1024 / 1024) * 10) / 10;
+
+      return res.json({
+        generatedAt: now.toISOString(),
+        runtime: {
+          uptimeSeconds: Math.round(process.uptime()),
+          nodeVersion: process.version,
+          platform: process.platform,
+          loadAverage: os.loadavg(),
+        },
+        memory: {
+          rssMb: toMb(memory.rss),
+          heapUsedMb: toMb(memory.heapUsed),
+          heapTotalMb: toMb(memory.heapTotal),
+          externalMb: toMb(memory.external),
+          arrayBuffersMb: toMb(memory.arrayBuffers),
+        },
+        sessions: {
+          total: totalSessions,
+          nonAdmin: nonAdminSessions,
+          webSocketClients: connectedClients.size,
+        },
+        users: {
+          total: allUsers.length,
+          admins: adminUsers,
+          staff: staffUsers,
+          active: activeUsers,
+          pending: pendingUsers,
+          suspended: suspendedUsers,
+        },
+        alerts: {
+          unreadAdminAlerts: unreadAlerts.length,
+          unreadContactMessages,
+        },
+        security: {
+          blockedIps: blockedIpEntries.length,
+        },
+        platform: {
+          maintenanceMode: controls.maintenanceMode,
+          readOnlyMode: controls.readOnlyMode,
+          maintenanceActive: platformRuntime.maintenanceActive,
+          readOnlyActive: platformRuntime.readOnlyActive,
+          maintenanceWindowStart: controls.maintenanceWindowStart,
+          maintenanceWindowEnd: controls.maintenanceWindowEnd,
+          maintenanceWindowActive: platformRuntime.maintenanceWindowActive,
+          maintenanceWindowUpcoming: platformRuntime.maintenanceWindowUpcoming,
+        },
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Emergency control: disconnect all non-admin sessions
+  app.post("/api/admin/sessions/disconnect-non-admin", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const sessions = await storage.getNonAdminActiveSessions();
+      if (sessions.length === 0) {
+        return res.json({ message: "No active non-admin sessions", disconnected: 0 });
+      }
+
+      await Promise.all(
+        sessions.map(async (activeSession) => {
+          sendToUser(String(activeSession.userId), {
+            type: "FORCE_LOGOUT",
+            message: "Your session has been terminated by an administrator.",
+          });
+
+          await storage.updateSessionLogout(activeSession.sessionId, true);
+          await storage.deleteActiveSession(activeSession.sessionId);
+
+          if (sessionStore) {
+            await new Promise<void>((resolve) => {
+              sessionStore.destroy(activeSession.sessionId, (err: any) => {
+                if (err) {
+                  console.error("Failed to destroy session:", err);
+                }
+                resolve();
+              });
+            });
+          }
+        })
+      );
+
+      storage
+        .createSystemLog({
+          eventType: "sessions_force_disconnected",
+          userId: req.user?.id,
+          username: req.user?.username,
+          serviceUserInitials: null,
+          details: {
+            action: "Disconnected all non-admin sessions",
+            target: "active_sessions",
+            status: "Success",
+            disconnected: sessions.length,
+          },
+        })
+        .catch(() => {});
+
+      return res.json({
+        message: "All non-admin sessions disconnected",
+        disconnected: sessions.length,
+      });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
     }

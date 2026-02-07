@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Eye, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, UserMinus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap } from "lucide-react";
+import { Shield, Eye, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, UserMinus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download } from "lucide-react";
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
@@ -72,6 +72,72 @@ interface ContactMessage {
   readBy: string | null;
   readAt: string | null;
   createdAt: string;
+}
+
+type AnnouncementSeverity = "info" | "warning" | "critical";
+
+interface PlatformControlsState {
+  maintenanceMode: boolean;
+  readOnlyMode: boolean;
+  maintenanceActive?: boolean;
+  readOnlyActive?: boolean;
+  maintenanceMessage: string;
+  maintenanceWindowStart: string | null;
+  maintenanceWindowEnd: string | null;
+  maintenanceWindowActive?: boolean;
+  maintenanceWindowUpcoming?: boolean;
+  announcementEnabled: boolean;
+  announcementText: string;
+  announcementSeverity: AnnouncementSeverity;
+  updatedAt: string;
+  updatedBy: string | null;
+}
+
+interface OpsHealthSnapshot {
+  generatedAt: string;
+  runtime: {
+    uptimeSeconds: number;
+    nodeVersion: string;
+    platform: string;
+    loadAverage: number[];
+  };
+  memory: {
+    rssMb: number;
+    heapUsedMb: number;
+    heapTotalMb: number;
+    externalMb: number;
+    arrayBuffersMb: number;
+  };
+  sessions: {
+    total: number;
+    nonAdmin: number;
+    webSocketClients: number;
+  };
+  users: {
+    total: number;
+    admins: number;
+    staff: number;
+    active: number;
+    pending: number;
+    suspended: number;
+  };
+  alerts: {
+    unreadAdminAlerts: number;
+    unreadContactMessages: number;
+  };
+  security: {
+    blockedIps: number;
+  };
+}
+
+interface OpsIncident {
+  id: string;
+  eventType: string;
+  username: string;
+  createdAt: string;
+  severity: "info" | "warning" | "critical";
+  action: string;
+  status: string;
 }
 
 function formatCost(microDollars: number): string {
@@ -2775,6 +2841,753 @@ function ContactMessagesSection() {
   );
 }
 
+function formatUptime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "0m";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function toLocalDateTimeInputValue(isoValue: string | null | undefined): string {
+  if (!isoValue) return "";
+  const date = new Date(isoValue);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const hours = `${date.getHours()}`.padStart(2, "0");
+  const minutes = `${date.getMinutes()}`.padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function formatOpsEventName(value: string): string {
+  return value
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function OperationsCommandCenter({
+  currentAlertCount,
+  onRefreshAlerts,
+}: {
+  currentAlertCount: number;
+  onRefreshAlerts: () => Promise<void> | void;
+}) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [controls, setControls] = useState<PlatformControlsState | null>(null);
+  const [health, setHealth] = useState<OpsHealthSnapshot | null>(null);
+  const [incidents, setIncidents] = useState<OpsIncident[]>([]);
+  const [maintenanceMessageDraft, setMaintenanceMessageDraft] = useState("");
+  const [scheduleStartDraft, setScheduleStartDraft] = useState("");
+  const [scheduleEndDraft, setScheduleEndDraft] = useState("");
+  const [announcementEnabledDraft, setAnnouncementEnabledDraft] = useState(false);
+  const [announcementTextDraft, setAnnouncementTextDraft] = useState("");
+  const [announcementSeverityDraft, setAnnouncementSeverityDraft] = useState<AnnouncementSeverity>("info");
+
+  const syncDrafts = (next: PlatformControlsState) => {
+    setMaintenanceMessageDraft(next.maintenanceMessage || "");
+    setScheduleStartDraft(toLocalDateTimeInputValue(next.maintenanceWindowStart));
+    setScheduleEndDraft(toLocalDateTimeInputValue(next.maintenanceWindowEnd));
+    setAnnouncementEnabledDraft(Boolean(next.announcementEnabled));
+    setAnnouncementTextDraft(next.announcementText || "");
+    setAnnouncementSeverityDraft(next.announcementSeverity || "info");
+  };
+
+  const fetchControls = async () => {
+    const response = await fetch("/api/admin/platform-controls", { credentials: "include" });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(errorBody.message || "Failed to load platform controls");
+    }
+    const data: PlatformControlsState = await response.json();
+    setControls(data);
+    syncDrafts(data);
+    return data;
+  };
+
+  const fetchHealth = async () => {
+    const response = await fetch("/api/admin/ops-health", { credentials: "include" });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(errorBody.message || "Failed to load operations health");
+    }
+    const data: OpsHealthSnapshot = await response.json();
+    setHealth(data);
+    return data;
+  };
+
+  const fetchIncidents = async () => {
+    const response = await fetch("/api/admin/ops-incidents?limit=12", { credentials: "include" });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(errorBody.message || "Failed to load recent incidents");
+    }
+    const data = await response.json();
+    const incidentData: OpsIncident[] = Array.isArray(data.incidents) ? data.incidents : [];
+    setIncidents(incidentData);
+    return incidentData;
+  };
+
+  const refreshHealth = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([fetchHealth(), fetchIncidents()]);
+    } catch (error) {
+      toast({
+        title: "Refresh failed",
+        description: error instanceof Error ? error.message : "Unable to refresh health metrics",
+        variant: "destructive",
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const updateControls = async (
+    payload: Partial<PlatformControlsState>,
+    successTitle: string
+  ): Promise<PlatformControlsState | null> => {
+    setSaving(true);
+    try {
+      const response = await fetch("/api/admin/platform-controls", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to update platform controls");
+      }
+
+      const next = data.controls as PlatformControlsState;
+      if (next) {
+        setControls(next);
+        syncDrafts(next);
+      }
+      toast({
+        title: successTitle,
+        description: "Administrative platform controls were updated.",
+      });
+      return next || null;
+    } catch (error) {
+      toast({
+        title: "Update failed",
+        description: error instanceof Error ? error.message : "Failed to update platform controls",
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveMessaging = async () => {
+    if (announcementEnabledDraft && !announcementTextDraft.trim()) {
+      toast({
+        title: "Announcement text required",
+        description: "Add announcement text before enabling global announcement.",
+        variant: "destructive",
+      });
+      return;
+    }
+    await updateControls(
+      {
+        maintenanceMessage: maintenanceMessageDraft.trim(),
+        announcementEnabled: announcementEnabledDraft,
+        announcementText: announcementTextDraft.trim(),
+        announcementSeverity: announcementSeverityDraft,
+      },
+      "Messaging controls saved"
+    );
+  };
+
+  const handleSaveMaintenanceWindow = async () => {
+    if (!scheduleStartDraft || !scheduleEndDraft) {
+      toast({
+        title: "Schedule requires both times",
+        description: "Set both start and end time, or clear both values.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const startDate = new Date(scheduleStartDraft);
+    const endDate = new Date(scheduleEndDraft);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      toast({
+        title: "Invalid maintenance window",
+        description: "Please enter valid date/time values.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (endDate <= startDate) {
+      toast({
+        title: "Invalid maintenance window",
+        description: "End time must be later than start time.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    await updateControls(
+      {
+        maintenanceWindowStart: scheduleStartDraft,
+        maintenanceWindowEnd: scheduleEndDraft,
+      },
+      "Maintenance window scheduled"
+    );
+  };
+
+  const handleClearMaintenanceWindow = async () => {
+    const next = await updateControls(
+      {
+        maintenanceWindowStart: null,
+        maintenanceWindowEnd: null,
+      },
+      "Maintenance window cleared"
+    );
+    if (next) {
+      setScheduleStartDraft("");
+      setScheduleEndDraft("");
+    }
+  };
+
+  const handleExportSnapshot = () => {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      controls,
+      health,
+      incidents,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = downloadUrl;
+    anchor.download = `careassurance-ops-snapshot-${new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(downloadUrl);
+  };
+
+  const handleMarkAllAlertsRead = async () => {
+    try {
+      const response = await fetch("/api/admin-alerts/mark-all-read", {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to mark alerts as read");
+      }
+      toast({
+        title: "Alerts cleared",
+        description:
+          data.cleared > 0
+            ? `${data.cleared} alert${data.cleared === 1 ? "" : "s"} marked as read.`
+            : "There were no unread alerts to clear.",
+      });
+      await onRefreshAlerts();
+      await fetchHealth();
+    } catch (error) {
+      toast({
+        title: "Action failed",
+        description: error instanceof Error ? error.message : "Failed to clear alerts",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDisconnectNonAdminSessions = async () => {
+    const confirmed = window.confirm(
+      "Disconnect all active non-admin sessions now? This logs out all staff immediately."
+    );
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch("/api/admin/sessions/disconnect-non-admin", {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to disconnect sessions");
+      }
+      toast({
+        title: "Sessions disconnected",
+        description: `${data.disconnected || 0} non-admin session${data.disconnected === 1 ? "" : "s"} ended.`,
+      });
+      await fetchHealth();
+    } catch (error) {
+      toast({
+        title: "Emergency action failed",
+        description: error instanceof Error ? error.message : "Could not disconnect sessions",
+        variant: "destructive",
+      });
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+    const refreshRuntimeData = async () => {
+      try {
+        await Promise.all([fetchHealth(), fetchIncidents()]);
+      } catch {
+        // Keep polling resilient; initial load handles surfaced errors.
+      }
+    };
+    const loadInitial = async () => {
+      try {
+        await Promise.all([fetchControls(), fetchHealth(), fetchIncidents()]);
+      } catch (error) {
+        if (!active) return;
+        toast({
+          title: "Unable to load command center",
+          description: error instanceof Error ? error.message : "Failed to load admin data",
+          variant: "destructive",
+        });
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void loadInitial();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      void refreshRuntimeData();
+    }, 30000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshRuntimeData();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <Card className="border shadow-sm" style={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }}>
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const severityCopy: Record<AnnouncementSeverity, string> = {
+    info: "Informational",
+    warning: "Warning",
+    critical: "Critical",
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="border shadow-sm" style={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2" style={{ color: "#64748b" }}>
+              <Activity size={14} style={{ color: "#3b82f6" }} /> Active Sessions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" style={{ color: "#0f172a" }}>{health?.sessions.total ?? 0}</div>
+            <p className="text-xs" style={{ color: "#64748b" }}>{health?.sessions.nonAdmin ?? 0} non-admin active</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border shadow-sm" style={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2" style={{ color: "#64748b" }}>
+              <AlertTriangle size={14} style={{ color: "#f59e0b" }} /> Incident Queue
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" style={{ color: "#0f172a" }}>
+              {(health?.alerts.unreadAdminAlerts ?? 0) + (health?.alerts.unreadContactMessages ?? 0)}
+            </div>
+            <p className="text-xs" style={{ color: "#64748b" }}>
+              {health?.alerts.unreadAdminAlerts ?? 0} admin alerts · {health?.alerts.unreadContactMessages ?? 0} contacts
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border shadow-sm" style={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2" style={{ color: "#64748b" }}>
+              <Server size={14} style={{ color: "#0ea5e9" }} /> Runtime Uptime
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" style={{ color: "#0f172a" }}>
+              {health ? formatUptime(health.runtime.uptimeSeconds) : "0m"}
+            </div>
+            <p className="text-xs" style={{ color: "#64748b" }}>
+              Node {health?.runtime.nodeVersion || "-"}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border shadow-sm" style={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2" style={{ color: "#64748b" }}>
+              <Cpu size={14} style={{ color: "#9333ea" }} /> Memory (RSS)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" style={{ color: "#0f172a" }}>{health?.memory.rssMb ?? 0} MB</div>
+            <p className="text-xs" style={{ color: "#64748b" }}>
+              Heap {health?.memory.heapUsedMb ?? 0}/{health?.memory.heapTotalMb ?? 0} MB
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border shadow-sm" style={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }}>
+        <CardHeader className="border-b" style={{ borderColor: "#e2e8f0", backgroundColor: "#f8fafc" }}>
+          <CardTitle className="flex items-center gap-2 text-base" style={{ color: "#0f172a" }}>
+            <Power size={18} style={{ color: "#dc2626" }} />
+            Platform Modes
+          </CardTitle>
+          <CardDescription className="text-muted-foreground text-sm">
+            Manage maintenance/read-only behavior and global user messaging.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5 p-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg border p-4 space-y-3" style={{ borderColor: "#e2e8f0", backgroundColor: "#f8fafc" }}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Maintenance Mode</p>
+                  <p className="text-xs text-muted-foreground">Shows maintenance status platform-wide.</p>
+                </div>
+                <Switch
+                  checked={Boolean(controls?.maintenanceMode)}
+                  disabled={saving}
+                  onCheckedChange={(checked) => {
+                    void updateControls(
+                      {
+                        maintenanceMode: checked,
+                        maintenanceMessage: maintenanceMessageDraft.trim(),
+                      },
+                      checked ? "Maintenance mode enabled" : "Maintenance mode disabled"
+                    );
+                  }}
+                />
+              </div>
+              <Badge variant="outline" className={controls?.maintenanceMode ? "border-amber-500/40 text-amber-300" : "border-border text-muted-foreground"}>
+                {controls?.maintenanceMode ? "Enabled" : "Disabled"}
+              </Badge>
+            </div>
+
+            <div className="rounded-lg border p-4 space-y-3" style={{ borderColor: "#e2e8f0", backgroundColor: "#f8fafc" }}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Read-Only Mode</p>
+                  <p className="text-xs text-muted-foreground">Blocks non-admin write API requests.</p>
+                </div>
+                <Switch
+                  checked={Boolean(controls?.readOnlyMode)}
+                  disabled={saving}
+                  onCheckedChange={(checked) => {
+                    void updateControls(
+                      { readOnlyMode: checked },
+                      checked ? "Read-only mode enabled" : "Read-only mode disabled"
+                    );
+                  }}
+                />
+              </div>
+              <Badge variant="outline" className={controls?.readOnlyMode ? "border-red-500/40 text-red-300" : "border-border text-muted-foreground"}>
+                {controls?.readOnlyMode ? "Non-admin writes blocked" : "Writes allowed"}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-4 space-y-4" style={{ borderColor: "#e2e8f0", backgroundColor: "#f8fafc" }}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <CalendarClock size={16} style={{ color: "#0ea5e9" }} />
+                <p className="text-sm font-semibold text-foreground">Scheduled Maintenance Window</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={
+                    controls?.maintenanceWindowActive
+                      ? "border-amber-500/40 text-amber-300"
+                      : controls?.maintenanceWindowUpcoming
+                        ? "border-blue-500/40 text-blue-300"
+                        : "border-border text-muted-foreground"
+                  }
+                >
+                  {controls?.maintenanceWindowActive
+                    ? "Window Active"
+                    : controls?.maintenanceWindowUpcoming
+                      ? "Window Scheduled"
+                      : "No Window"}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className={controls?.maintenanceActive ? "border-amber-500/40 text-amber-300" : "border-border text-muted-foreground"}
+                >
+                  Effective Maintenance: {controls?.maintenanceActive ? "On" : "Off"}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className={controls?.readOnlyActive ? "border-red-500/40 text-red-300" : "border-border text-muted-foreground"}
+                >
+                  Effective Read-Only: {controls?.readOnlyActive ? "On" : "Off"}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Window Start</Label>
+                <Input
+                  type="datetime-local"
+                  value={scheduleStartDraft}
+                  onChange={(e) => setScheduleStartDraft(e.target.value)}
+                  className="bg-card border-border text-foreground"
+                  data-testid="input-maintenance-window-start"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Window End</Label>
+                <Input
+                  type="datetime-local"
+                  value={scheduleEndDraft}
+                  onChange={(e) => setScheduleEndDraft(e.target.value)}
+                  className="bg-card border-border text-foreground"
+                  data-testid="input-maintenance-window-end"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={handleClearMaintenanceWindow}
+                disabled={saving}
+                data-testid="button-clear-maintenance-window"
+              >
+                Clear Window
+              </Button>
+              <Button
+                onClick={handleSaveMaintenanceWindow}
+                disabled={saving}
+                className="bg-sky-600 hover:bg-sky-500 text-white"
+                data-testid="button-save-maintenance-window"
+              >
+                {saving ? <Loader2 size={14} className="mr-2 animate-spin" /> : <CalendarClock size={14} className="mr-2" />}
+                Save Window
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Maintenance Message</Label>
+              <Input
+                value={maintenanceMessageDraft}
+                onChange={(e) => setMaintenanceMessageDraft(e.target.value)}
+                placeholder="Maintenance message shown to all users"
+                className="bg-card border-border text-foreground"
+                maxLength={280}
+                data-testid="input-maintenance-message"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Announcement Severity</Label>
+              <Select
+                value={announcementSeverityDraft}
+                onValueChange={(value: AnnouncementSeverity) => setAnnouncementSeverityDraft(value)}
+              >
+                <SelectTrigger className="bg-card border-border text-foreground" data-testid="select-announcement-severity">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="info">Info</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-4 space-y-3" style={{ borderColor: "#e2e8f0", backgroundColor: "#f8fafc" }}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Megaphone size={16} style={{ color: "#3b82f6" }} />
+                <p className="text-sm font-semibold text-foreground">Global Announcement</p>
+              </div>
+              <Switch
+                checked={announcementEnabledDraft}
+                disabled={saving}
+                onCheckedChange={setAnnouncementEnabledDraft}
+              />
+            </div>
+            <Input
+              value={announcementTextDraft}
+              onChange={(e) => setAnnouncementTextDraft(e.target.value)}
+              placeholder="Broadcast message visible in app header"
+              className="bg-card border-border text-foreground"
+              maxLength={280}
+              data-testid="input-global-announcement"
+            />
+            <div className="flex items-center justify-between gap-3">
+              <Badge variant="outline" className="border-border text-muted-foreground">
+                {severityCopy[announcementSeverityDraft]}
+              </Badge>
+              <Button
+                onClick={handleSaveMessaging}
+                disabled={saving}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white"
+                data-testid="button-save-platform-messaging"
+              >
+                {saving ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Save size={14} className="mr-2" />}
+                Save Messaging Controls
+              </Button>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Last updated: {controls?.updatedAt ? new Date(controls.updatedAt).toLocaleString() : "Unknown"}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="border shadow-sm" style={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }}>
+        <CardHeader className="border-b" style={{ borderColor: "#e2e8f0", backgroundColor: "#f8fafc" }}>
+          <CardTitle className="flex items-center gap-2 text-base" style={{ color: "#0f172a" }}>
+            <AlertTriangle size={18} style={{ color: "#f59e0b" }} />
+            Incident & Session Controls
+          </CardTitle>
+          <CardDescription className="text-muted-foreground text-sm">
+            Execute high-impact operational actions with immediate effect.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-6 space-y-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <Button
+              variant="outline"
+              className="justify-start border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+              onClick={handleMarkAllAlertsRead}
+              data-testid="button-clear-all-alerts"
+            >
+              <Check size={15} className="mr-2" />
+              Mark All Alerts Read ({currentAlertCount})
+            </Button>
+            <Button
+              variant="outline"
+              className="justify-start border-red-500/40 text-red-400 hover:bg-red-500/10"
+              onClick={handleDisconnectNonAdminSessions}
+              data-testid="button-disconnect-non-admin-sessions"
+            >
+              <UserX size={15} className="mr-2" />
+              Disconnect Non-Admin Sessions
+            </Button>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-lg border p-3" style={{ borderColor: "#e2e8f0", backgroundColor: "#f8fafc" }}>
+              <p className="text-xs text-muted-foreground mb-1">Pending Users</p>
+              <p className="text-xl font-semibold text-foreground">{health?.users.pending ?? 0}</p>
+            </div>
+            <div className="rounded-lg border p-3" style={{ borderColor: "#e2e8f0", backgroundColor: "#f8fafc" }}>
+              <p className="text-xs text-muted-foreground mb-1">Blocked IPs</p>
+              <p className="text-xl font-semibold text-foreground">{health?.security.blockedIps ?? 0}</p>
+            </div>
+            <div className="rounded-lg border p-3" style={{ borderColor: "#e2e8f0", backgroundColor: "#f8fafc" }}>
+              <p className="text-xs text-muted-foreground mb-1">WebSocket Clients</p>
+              <p className="text-xl font-semibold text-foreground">{health?.sessions.webSocketClients ?? 0}</p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-4 space-y-3" style={{ borderColor: "#e2e8f0", backgroundColor: "#f8fafc" }}>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-foreground">Recent Operations Timeline</p>
+              <Badge variant="outline" className="border-border text-muted-foreground">
+                {incidents.length} event{incidents.length === 1 ? "" : "s"}
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              {incidents.length === 0 && (
+                <p className="text-xs text-muted-foreground">No recent operational incidents.</p>
+              )}
+              {incidents.map((incident) => (
+                <div
+                  key={incident.id}
+                  className="rounded border px-3 py-2 flex items-start justify-between gap-3"
+                  style={{ borderColor: "#dbe4f0", backgroundColor: "#ffffff" }}
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-foreground truncate">{incident.action}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {formatOpsEventName(incident.eventType)} · {incident.username}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <Badge
+                      variant="outline"
+                      className={
+                        incident.severity === "critical"
+                          ? "border-red-500/40 text-red-300"
+                          : incident.severity === "warning"
+                            ? "border-amber-500/40 text-amber-300"
+                            : "border-blue-500/40 text-blue-300"
+                      }
+                    >
+                      {incident.severity}
+                    </Badge>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {new Date(incident.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <p className="text-xs text-muted-foreground">
+              Live metrics auto-refresh every 30s.
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleExportSnapshot} data-testid="button-export-ops-snapshot">
+                <Download size={14} className="mr-2" />
+                Export Snapshot
+              </Button>
+              <Button variant="outline" onClick={refreshHealth} disabled={refreshing} data-testid="button-refresh-ops-health">
+                {refreshing ? <Loader2 size={14} className="mr-2 animate-spin" /> : <RefreshCcw size={14} className="mr-2" />}
+                Refresh Health
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 interface EditingUser {
   id: string;
   username: string;
@@ -3250,6 +4063,10 @@ export default function SecretAdminPortal() {
           <Tabs defaultValue="overview" className="w-full">
             <TabsList className="border p-1 rounded-xl mb-6 flex-wrap" style={{ backgroundColor: '#f1f5f9', borderColor: '#e2e8f0' }}>
               <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm" style={{ color: '#475569' }}>Overview</TabsTrigger>
+              <TabsTrigger value="command" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm" style={{ color: '#475569' }}>
+                <Power size={14} className="mr-1.5 inline-block" />
+                Command Center
+              </TabsTrigger>
               <TabsTrigger value="users" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm relative" style={{ color: '#475569' }}>
                 User Management
                 {pendingUsers.length > 0 && <span className="absolute -top-1 -right-1 h-2 w-2 bg-amber-500 rounded-full animate-pulse" />}
@@ -3371,6 +4188,13 @@ export default function SecretAdminPortal() {
                   </Table>
                 </div>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="command" className="space-y-6">
+              <OperationsCommandCenter
+                currentAlertCount={adminAlerts.length}
+                onRefreshAlerts={fetchAdminAlerts}
+              />
             </TabsContent>
 
             <TabsContent value="users" className="space-y-6">
