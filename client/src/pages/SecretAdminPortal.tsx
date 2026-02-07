@@ -3414,6 +3414,7 @@ export default function SecretAdminPortal() {
                           placeholder="Enter username" 
                           value={newUserUsername}
                           onChange={(e) => setNewUserUsername(e.target.value)}
+                          autoComplete="username"
                           className="bg-card border-border text-foreground" 
                           data-testid="input-new-username"
                         />
@@ -3893,6 +3894,17 @@ export default function SecretAdminPortal() {
               void handleResetPassword();
             }}
           >
+            {/* Keeps password reset form compliant for browser autofill heuristics */}
+            <input
+              type="text"
+              name="username"
+              autoComplete="username"
+              value={resetPasswordUser?.username ?? ""}
+              readOnly
+              tabIndex={-1}
+              aria-hidden="true"
+              className="sr-only"
+            />
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label className="text-muted-foreground">New Password</Label>

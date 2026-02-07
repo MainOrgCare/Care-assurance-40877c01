@@ -1,53 +1,16 @@
 {
     "chatgpt.openOnStartup": false,
-    "github.copilot.chat.agent.autoFix": true,
     "github.codespaces.defaultExtensions": [
         "GitHub.codespaces",
         "GitHub.vscode-pull-request-github",
-        "Github.copilot"
+        "GitHub.copilot",
+        "GitHub.copilot-chat"
     ],
-    "chat.agent.maxRequests": 250,
     "git.ignoreLimitWarning": true,
-    "github.copilot.chat.anthropic.tools.websearch.enabled": true,
     "css.lint.unknownAtRules": "ignore",
-    "github.copilot.chat.codeGeneration.useInstructionFiles": true,
-    "chat.mcp.serverSampling": {
-        "Care-assurance-40877c01/.vscode/mcp.json: github": {
-            "allowedModels": [
-                "copilot/claude-sonnet-4.5",
-                "copilot/auto",
-                "copilot/claude-haiku-4.5",
-                "copilot/claude-opus-41",
-                "copilot/claude-opus-4.5",
-                "copilot/gpt-4.1",
-                "copilot/gpt-4o",
-                "copilot/gpt-5",
-                "copilot/gpt-5-codex",
-                "copilot/gpt-5.1",
-                "copilot/gpt-5.1-codex",
-                "copilot/gpt-5.1-codex-max",
-                "copilot/gpt-5.1-codex-mini",
-                "copilot/gpt-5.2",
-                "copilot/gpt-5.2-codex",
-                "copilot/grok-code-fast-1"
-            ]
-        },
-        "Care-assurance-40877c01/.vscode/mcp.json: Tavily Expert": {
-            "allowedModels": [
-                "copilot/claude-sonnet-4.5"
-            ]
-        }
-    },
     "markdown.validate.enabled": true,
     "python-envs.defaultEnvManager": "ms-python.python:venv",
     "python.terminal.activateEnvironment": false,
     "python-envs.pythonProjects": [],
-    "copilot.vision.model": "Claude Opus 4.5",
-    "copilot.vision.provider": "Anthropic",
-    "appmod.enableMcpServer": true,
-    "appModernization.javaUpgrade.enableQuickPick": true,
-    "github.copilot.chat.agentCustomizationSkill.enabled": true,
-    "github.copilot.chat.anthropic.contextEditing.config": null,
-    "github.copilot.chat.anthropic.toolSearchTool.enabled": true,
     "websearch.preferredEngine": "bing"
 }

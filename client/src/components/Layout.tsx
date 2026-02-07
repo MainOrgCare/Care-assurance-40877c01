@@ -550,12 +550,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, [user?.termsAcceptedAt]);
 
   const contentWrapperClass = cn(
-    "w-full flex-1 min-h-0",
+    "workspace-content-shell w-full flex-1 min-h-0",
     isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-6 pt-4 sm:pt-5 lg:pt-6 pb-5 sm:pb-6 lg:pb-7",
     isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(
-    "rounded-2xl border border-border/75 bg-card/95 p-4 sm:p-6 lg:p-7 flex flex-col shadow-[0_18px_36px_-24px_rgba(15,23,42,0.4),0_1px_0_rgba(255,255,255,0.75)_inset] w-full flex-1 min-h-0 motion-safe:animate-[fade-in_220ms_ease-out]",
+    "workspace-card rounded-2xl border border-border/75 bg-card/95 p-4 sm:p-6 lg:p-7 flex flex-col shadow-[0_18px_36px_-24px_rgba(15,23,42,0.4),0_1px_0_rgba(255,255,255,0.75)_inset] w-full flex-1 min-h-0 motion-safe:animate-[fade-in_220ms_ease-out]",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
@@ -604,14 +604,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="relative flex h-[100dvh] min-h-screen w-full overflow-hidden bg-background">
+    <div className="workspace-root relative flex h-[100dvh] min-h-screen w-full overflow-hidden bg-background">
       <div className="pointer-events-none absolute inset-0 -z-[1] overflow-hidden">
         <div className="absolute -top-44 -left-28 h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.18),rgba(59,130,246,0)_70%)] blur-xl" />
         <div className="absolute -top-28 -right-20 h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,rgba(6,182,212,0.14),rgba(6,182,212,0)_72%)] blur-xl" />
       </div>
       {/* Desktop Sidebar */}
       <aside className={cn(
-        "hidden md:flex flex-shrink-0 flex-col z-20 border-r border-border/70 bg-sidebar/90 backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.35)_inset] transition-all duration-300",
+        "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-border/70 bg-sidebar/90 backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.35)_inset] transition-all duration-300",
         isSidebarCollapsed ? "w-[84px]" : "w-[288px]"
       )}>
         <SidebarContent
@@ -628,7 +628,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/86 px-4 backdrop-blur-xl md:px-6 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.48)]">
+          <header className="workspace-header sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/86 px-4 backdrop-blur-xl md:px-6 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.48)]">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -763,6 +763,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {isSidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
               <span className="sr-only">Toggle sidebar</span>
             </Button>
+
+            {/* Compli-ee access for full-bleed studio routes */}
+            <ComplieeIdleButton
+              onClick={openChatAssistant}
+              className="h-8 rounded-lg px-3 py-0 text-xs shadow-md shadow-emerald-500/30"
+            />
+            <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/90 px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-sm">
+              <span>Open</span>
+              <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] leading-none text-foreground">Ctrl + /</kbd>
+            </div>
           </div>
         )}
 
@@ -811,7 +821,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         {!isSingleScreenRoute && (
-          <footer className="flex-shrink-0 border-t border-border/75 bg-background/86 px-4 py-3 backdrop-blur-xl shadow-[0_-14px_28px_-24px_rgba(15,23,42,0.45)]">
+          <footer className="workspace-footer flex-shrink-0 border-t border-border/75 bg-background/86 px-4 py-3 backdrop-blur-xl shadow-[0_-14px_28px_-24px_rgba(15,23,42,0.45)]">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-muted-foreground">
               <div className="flex items-center gap-1.5 font-medium">
                 <span>{new Date().getFullYear()} CareAssurance</span>

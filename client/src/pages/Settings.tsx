@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSettings, FontSize, AppTheme } from "@/context/SettingsContext";
+import { useAuth } from "@/context/AuthContext";
 import { Type, Layout as LayoutIcon, Bell, ArrowLeft, KeyRound, Loader2, SwatchBook } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -75,6 +76,7 @@ const isValidPassword = (value: string): boolean => {
 export default function Settings() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const {
     theme,
     setTheme,
@@ -226,6 +228,17 @@ export default function Settings() {
                 void handleChangePassword();
               }}
             >
+              {/* Helps password managers associate password change with the account */}
+              <input
+                type="text"
+                name="username"
+                autoComplete="username"
+                value={user?.username ?? ""}
+                readOnly
+                tabIndex={-1}
+                aria-hidden="true"
+                className="sr-only"
+              />
               <Input
                 type="password"
                 placeholder="Current password"

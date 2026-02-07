@@ -68,6 +68,39 @@ const WORKSPACE_SHORTCUTS = [
   { label: "Messages", path: "/messages" },
 ] as const;
 
+const LOCAL_FALLBACK_GUIDANCE = [
+  "EMAR audits: Care Workers -> EMAR Audit -> upload file -> run analysis.",
+  "Risk assessments: Service Users -> Risk Assessment.",
+  "Care planning: Service Users -> Care Planning.",
+  "Reminders and notes: Messages.",
+] as const;
+
+const buildLocalFallbackReply = (prompt: string, isAdmin: boolean): string => {
+  const normalized = prompt.toLowerCase();
+
+  if (normalized.includes("emar")) {
+    return "I could not reach the AI service just now, but you can still run an EMAR audit:\n1. Open Care Workers -> EMAR Audit.\n2. Upload the MAR file.\n3. Run analysis and review the discrepancy sections.";
+  }
+
+  if (normalized.includes("risk")) {
+    return "AI is temporarily unavailable, but you can continue via Service Users -> Risk Assessment and complete the guided workflow.";
+  }
+
+  if (normalized.includes("care plan") || normalized.includes("care planning")) {
+    return "AI is temporarily unavailable. Open Service Users -> Care Planning to draft or update plans using the structured workflow.";
+  }
+
+  if (normalized.includes("message") || normalized.includes("remind")) {
+    return "I cannot send a reminder right now because the AI service is unavailable. You can still create it directly in Messages.";
+  }
+
+  const adminLine = isAdmin
+    ? "\nAdmin tools are available in the Admin section if you need diagnostics."
+    : "";
+
+  return `I am in limited offline guidance mode right now. You can still proceed with these workflows:\n- ${LOCAL_FALLBACK_GUIDANCE.join("\n- ")}${adminLine}`;
+};
+
 const createWelcomeMessage = (firstName?: string): Message => ({
   id: generateId(),
   role: "assistant",
@@ -370,6 +403,14 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
         }
         setAssistantAvailable(false);
         setStatusMessage(message);
+
+        const fallbackMessage: Message = {
+          id: generateId(),
+          role: "assistant",
+          content: buildLocalFallbackReply(prompt, user?.role === "admin"),
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((current) => [...current, fallbackMessage]);
       } finally {
         setIsLoading(false);
       }
@@ -488,15 +529,15 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
   return (
     <div
       className={cn(
-        "fixed z-50 transition-all duration-250 bg-background border border-border/80 shadow-2xl overflow-hidden flex flex-col",
-        "rounded-2xl",
+        "fixed z-50 transition-all duration-250 bg-background/96 border border-border/80 shadow-[0_34px_78px_-42px_rgba(15,23,42,0.75)] backdrop-blur-xl overflow-hidden flex flex-col rounded-2xl",
         isOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-3 pointer-events-none",
         isMinimized
           ? "bottom-4 right-4 w-[300px] h-14"
           : "bottom-4 left-3 right-3 sm:left-auto sm:right-4 sm:w-[430px] h-[min(78vh,620px)]"
       )}
     >
-      <div className="flex items-center justify-between px-3.5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
+      <div className="relative flex items-center justify-between px-3.5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/70" />
         <div className="flex items-center gap-2.5 min-w-0">
           <ComplieeAvatar size="md" animate={isLoading} />
           <div className="min-w-0">
@@ -512,7 +553,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1">
           {!isMinimized && (
             <Button
               variant="ghost"
@@ -560,7 +601,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
 
       {!isMinimized && (
         <>
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-muted/35 to-muted/10">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-muted/45 via-muted/20 to-background/35">
             {statusMessage && (
               <div
                 className={cn(
@@ -645,8 +686,8 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                   className={cn(
                     "max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm",
                     message.role === "user"
-                      ? "bg-emerald-500 text-white rounded-br-md"
-                      : "bg-background border border-border/70 rounded-bl-md"
+                      ? "bg-emerald-500 text-white rounded-br-md border border-emerald-400/60 shadow-emerald-700/25"
+                      : "bg-background/95 border border-border/70 rounded-bl-md shadow-[0_8px_20px_-14px_rgba(15,23,42,0.35)]"
                   )}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -729,7 +770,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="p-3 border-t border-border bg-background">
+          <div className="p-3 border-t border-border/80 bg-background/95">
             <div className="flex items-end gap-2">
               <textarea
                 ref={inputRef}
@@ -746,7 +787,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                 rows={1}
                 dir="ltr"
                 className={cn(
-                  "flex-1 resize-none bg-muted/50 border border-border rounded-xl px-3.5 py-2.5 text-sm text-left",
+                  "flex-1 resize-none bg-muted/55 border border-border/80 rounded-xl px-3.5 py-2.5 text-sm text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
                   "focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50",
                   "min-h-[42px] max-h-[140px] placeholder:text-muted-foreground overflow-y-auto"
                 )}
@@ -762,7 +803,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                   !canSendMessages
                 }
                 size="icon"
-                className="h-[42px] w-[42px] rounded-xl flex-shrink-0 bg-emerald-500 hover:bg-emerald-600"
+                className="h-[42px] w-[42px] rounded-xl flex-shrink-0 bg-emerald-500 hover:bg-emerald-600 shadow-[0_12px_24px_-14px_rgba(5,150,105,0.75)]"
               >
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

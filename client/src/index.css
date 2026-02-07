@@ -4,7 +4,7 @@
 /* Dark variant works with .dark class OR any dark theme */
 @custom-variant dark (&:is(.dark *, .theme-dark *, .theme-midnight *, .theme-ocean *));
 
-@theme inline {
+@theme {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -92,6 +92,11 @@
   --surface-highlight: hsl(213 84% 43% / 0.08);
   --surface-glow: hsl(194 85% 36% / 0.08);
   --glass-reflection: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%);
+  --surface-card-highlight: linear-gradient(165deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.1) 48%, rgba(37, 99, 235, 0.03) 100%);
+  --surface-card-glow: radial-gradient(120% 120% at 105% -8%, hsl(213 84% 43% / 0.12), transparent 62%);
+  --surface-shell-border: hsl(214 28% 82% / 0.7);
+  --surface-shell-shadow: 0 24px 54px -36px rgba(15, 23, 42, 0.48);
+  --surface-noise-opacity: 0.045;
   --app-bg-layer-1: radial-gradient(95rem 52rem at -12% -16%, hsl(211 90% 88% / 0.55), transparent 55%);
   --app-bg-layer-2: radial-gradient(70rem 45rem at 108% -14%, hsl(194 95% 84% / 0.42), transparent 58%);
   --app-bg-layer-3: linear-gradient(180deg, hsl(210 34% 98%), hsl(210 32% 96%));
@@ -121,6 +126,37 @@
     min-height: 100vh;
     overflow-x: hidden;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    position: relative;
+    isolation: isolate;
+  }
+  #root {
+    min-height: 100vh;
+    position: relative;
+    z-index: 1;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: var(--surface-noise-opacity);
+    background-image:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0)),
+      repeating-linear-gradient(90deg, rgba(15, 23, 42, 0.06) 0, rgba(15, 23, 42, 0.06) 1px, transparent 1px, transparent 18px),
+      repeating-linear-gradient(0deg, rgba(15, 23, 42, 0.045) 0, rgba(15, 23, 42, 0.045) 1px, transparent 1px, transparent 18px);
+  }
+  body::after {
+    content: "";
+    position: fixed;
+    inset: -24% -12%;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.34;
+    background-image:
+      radial-gradient(36rem 34rem at 16% 12%, hsl(204 93% 62% / 0.2), transparent 62%),
+      radial-gradient(34rem 34rem at 84% 18%, hsl(174 82% 50% / 0.18), transparent 62%);
+    animation: ambient-drift 22s ease-in-out infinite alternate;
   }
   img, svg, video, canvas {
     display: block;
@@ -155,51 +191,95 @@
 }
 
 @layer components {
-  /* App surface - simplified for performance */
+  /* App surface */
   .app-surface {
     position: relative;
+    isolation: isolate;
     width: 100%;
     overflow: hidden;
     border-radius: 1rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--surface-shell-border);
     background-color: var(--color-card);
-    box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.15);
+    background-image: var(--surface-card-glow);
+    box-shadow: var(--surface-shell-shadow);
+    transition: border-color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard);
     contain: layout style;
   }
-
-  /* Glass card - optimized for performance */
-  .glass-card {
+  .app-surface::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: var(--surface-card-highlight);
+    opacity: 0.8;
+  }
+  .app-surface > * {
     position: relative;
-    overflow: hidden;
-    border-radius: 1rem;
-    border: 1px solid var(--color-border);
-    background-color: var(--color-card);
-    box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.12);
-    transition: transform var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard);
-    contain: layout style;
+    z-index: 1;
   }
-  .glass-card:hover {
-    border-color: var(--color-primary);
-    box-shadow: 0 14px 30px -14px rgba(15, 23, 42, 0.22);
-    transform: translateY(-1px);
+  .app-surface:hover {
+    border-color: color-mix(in oklab, var(--color-primary) 25%, var(--surface-shell-border));
+    box-shadow: 0 28px 54px -40px rgba(15, 23, 42, 0.62);
   }
 
-  /* Interactive card variant - performance optimized */
+  /* Shared card shell */
+  .glass-card,
   .glass-card-interactive {
     position: relative;
+    isolation: isolate;
     overflow: hidden;
     border-radius: 1rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--glass-border);
     background-color: var(--color-card);
-    cursor: pointer;
-    box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.12);
-    transition: transform var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard);
+    background-image: var(--surface-card-glow);
+    box-shadow: 0 12px 30px -22px rgba(15, 23, 42, 0.48);
+    transition: transform var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard), background-color var(--motion-standard) var(--ease-standard);
     contain: layout style;
   }
+  .glass-card::before,
+  .glass-card-interactive::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: var(--surface-card-highlight);
+    opacity: 0.78;
+  }
+  .glass-card::after,
+  .glass-card-interactive::after {
+    content: "";
+    position: absolute;
+    top: -4.5rem;
+    right: -4.5rem;
+    height: 11rem;
+    width: 11rem;
+    border-radius: 9999px;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.42;
+    transition: opacity var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
+    background: radial-gradient(circle, color-mix(in oklab, var(--color-primary) 34%, transparent) 0%, transparent 72%);
+  }
+  .glass-card > *,
+  .glass-card-interactive > * {
+    position: relative;
+    z-index: 1;
+  }
+  .glass-card:hover,
   .glass-card-interactive:hover {
-    border-color: var(--color-primary);
-    transform: translateY(-1px);
-    box-shadow: 0 16px 34px -16px rgba(15, 23, 42, 0.24);
+    border-color: color-mix(in oklab, var(--color-primary) 32%, var(--glass-border));
+    box-shadow: 0 22px 42px -26px rgba(15, 23, 42, 0.62);
+    transform: translateY(-2px);
+  }
+  .glass-card:hover::after,
+  .glass-card-interactive:hover::after {
+    opacity: 0.78;
+    transform: translate3d(-6px, 7px, 0);
+  }
+  .glass-card-interactive {
+    cursor: pointer;
   }
   .glass-card-interactive:active {
     transform: translateY(0);
@@ -319,21 +399,37 @@
     color: var(--color-muted-foreground);
   }
 
-  /* Enhanced stat card - simplified */
+  /* Enhanced stat card */
   .stat-card {
     position: relative;
+    isolation: isolate;
     overflow: hidden;
     border-radius: 1rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--glass-border);
     background-color: var(--color-card);
+    background-image: var(--surface-card-glow);
     padding: 1.25rem;
-    box-shadow: var(--shadow-xs);
+    box-shadow: 0 14px 34px -24px rgba(15, 23, 42, 0.48);
     transition: transform var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard);
     contain: layout style;
   }
+  .stat-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: var(--surface-card-highlight);
+    opacity: 0.68;
+  }
+  .stat-card > * {
+    position: relative;
+    z-index: 1;
+  }
   .stat-card:hover {
-    box-shadow: var(--shadow-sm);
-    transform: translateY(-1px);
+    border-color: color-mix(in oklab, var(--color-primary) 28%, var(--glass-border));
+    box-shadow: 0 24px 42px -28px rgba(15, 23, 42, 0.58);
+    transform: translateY(-2px);
   }
   .stat-card-value {
     font-size: 1.875rem;
@@ -383,6 +479,61 @@
   .ent-status-primary {
     @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-black text-[10px] uppercase tracking-widest border transition-all bg-primary/15 text-primary border-primary/20 shadow-lg shadow-primary/5;
   }
+
+  /* Workspace shell styling */
+  .workspace-root {
+    position: relative;
+    isolation: isolate;
+  }
+  .workspace-root::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.32;
+    background:
+      radial-gradient(36rem 34rem at 8% -6%, hsl(213 84% 43% / 0.24), transparent 60%),
+      radial-gradient(32rem 28rem at 104% -2%, hsl(194 85% 36% / 0.2), transparent 62%);
+  }
+  .workspace-content-shell {
+    position: relative;
+    z-index: 1;
+  }
+  .workspace-sidebar {
+    border-color: color-mix(in oklab, var(--color-sidebar-border) 85%, transparent);
+    background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-sidebar) 90%, white 10%), var(--color-sidebar));
+    box-shadow: 1px 0 0 color-mix(in oklab, var(--glass-border) 75%, transparent), 28px 0 44px -40px rgba(15, 23, 42, 0.78);
+  }
+  .workspace-header {
+    border-color: color-mix(in oklab, var(--color-border) 88%, transparent);
+    background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-background) 92%, white 8%), color-mix(in oklab, var(--color-background) 90%, transparent));
+  }
+  .workspace-card {
+    position: relative;
+    isolation: isolate;
+    border-color: var(--surface-shell-border);
+    background-color: var(--color-card);
+    background-image: var(--surface-card-glow);
+    box-shadow: var(--surface-shell-shadow), inset 0 1px 0 var(--glass-highlight-strong);
+  }
+  .workspace-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: var(--surface-card-highlight);
+    opacity: 0.62;
+  }
+  .workspace-card > * {
+    position: relative;
+    z-index: 1;
+  }
+  .workspace-footer {
+    border-color: color-mix(in oklab, var(--color-border) 88%, transparent);
+    background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-background) 88%, transparent), color-mix(in oklab, var(--color-background) 94%, white 6%));
+  }
 }
 
 /* Animations - simplified for performance */
@@ -409,6 +560,15 @@
 @keyframes slide-in-right {
   from { transform: translateX(16px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes ambient-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(-2%, 1.4%, 0) scale(1.04);
+  }
 }
 
 /* Removed heavy glow animations for performance */
@@ -753,6 +913,11 @@ html.theme-light .theme-preview {
   --glass-highlight: rgba(255, 255, 255, 0.05);
   --glass-highlight-strong: rgba(255, 255, 255, 0.12);
   --surface-glow: rgba(59, 180, 200, 0.03);
+  --surface-card-highlight: linear-gradient(165deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.02) 48%, rgba(56, 189, 248, 0.08) 100%);
+  --surface-card-glow: radial-gradient(120% 120% at 105% -8%, hsl(199 89% 48% / 0.17), transparent 65%);
+  --surface-shell-border: rgba(148, 163, 184, 0.22);
+  --surface-shell-shadow: 0 28px 56px -38px rgba(2, 6, 23, 0.82);
+  --surface-noise-opacity: 0.055;
 }
 
 html.theme-light {
@@ -762,6 +927,11 @@ html.theme-light {
   --glass-highlight: rgba(255, 255, 255, 0.8);
   --glass-highlight-strong: rgba(255, 255, 255, 0.95);
   --surface-glow: rgba(59, 130, 246, 0.04);
+  --surface-card-highlight: linear-gradient(165deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.1) 48%, rgba(37, 99, 235, 0.03) 100%);
+  --surface-card-glow: radial-gradient(120% 120% at 105% -8%, hsl(213 84% 43% / 0.12), transparent 62%);
+  --surface-shell-border: rgba(148, 163, 184, 0.42);
+  --surface-shell-shadow: 0 24px 52px -36px rgba(15, 23, 42, 0.4);
+  --surface-noise-opacity: 0.045;
 }
 
 html.theme-midnight {
@@ -769,6 +939,11 @@ html.theme-midnight {
   --glass-border-subtle: rgba(130, 160, 255, 0.06);
   --glass-shadow: 0 12px 40px rgba(10, 16, 30, 0.45);
   --surface-glow: rgba(130, 160, 255, 0.03);
+  --surface-card-highlight: linear-gradient(165deg, rgba(199, 210, 254, 0.15), rgba(130, 160, 255, 0.03) 48%, rgba(56, 189, 248, 0.09) 100%);
+  --surface-card-glow: radial-gradient(130% 120% at 108% -10%, hsl(236 74% 63% / 0.18), transparent 66%);
+  --surface-shell-border: rgba(148, 163, 255, 0.25);
+  --surface-shell-shadow: 0 30px 62px -40px rgba(5, 8, 25, 0.86);
+  --surface-noise-opacity: 0.065;
 }
 
 html.theme-ocean {
@@ -776,6 +951,11 @@ html.theme-ocean {
   --glass-border-subtle: rgba(80, 200, 180, 0.06);
   --glass-shadow: 0 10px 36px rgba(16, 60, 80, 0.35);
   --surface-glow: rgba(80, 200, 180, 0.03);
+  --surface-card-highlight: linear-gradient(165deg, rgba(167, 243, 208, 0.18), rgba(80, 200, 180, 0.04) 48%, rgba(14, 165, 233, 0.08) 100%);
+  --surface-card-glow: radial-gradient(130% 120% at 108% -10%, hsl(168 76% 42% / 0.2), transparent 67%);
+  --surface-shell-border: rgba(94, 234, 212, 0.26);
+  --surface-shell-shadow: 0 28px 58px -38px rgba(8, 47, 73, 0.78);
+  --surface-noise-opacity: 0.06;
 }
 
 /* Default Dark Theme Overrides */
@@ -799,6 +979,11 @@ html.theme-ocean {
   --color-border: hsl(217.2 32.6% 17.5%);
   --color-input: hsl(217.2 32.6% 17.5%);
   --color-ring: hsl(224.3 76.3% 48%);
+  --surface-shell-border: rgba(148, 163, 184, 0.24);
+  --surface-card-highlight: linear-gradient(165deg, rgba(255, 255, 255, 0.16), rgba(148, 163, 184, 0.03) 48%, rgba(56, 189, 248, 0.09) 100%);
+  --surface-card-glow: radial-gradient(120% 120% at 105% -8%, hsl(199 89% 48% / 0.18), transparent 65%);
+  --surface-shell-shadow: 0 28px 58px -38px rgba(2, 6, 23, 0.84);
+  --surface-noise-opacity: 0.06;
   --app-bg-layer-1: radial-gradient(80rem 48rem at -14% -20%, hsl(216 55% 18% / 0.42), transparent 55%);
   --app-bg-layer-2: radial-gradient(72rem 44rem at 112% -18%, hsl(193 72% 22% / 0.28), transparent 58%);
   --app-bg-layer-3: linear-gradient(180deg, hsl(223 42% 10%), hsl(223 34% 7%));
@@ -836,6 +1021,11 @@ html.theme-midnight {
   --color-sidebar-accent-foreground: hsl(210 20% 98%);
   --color-sidebar-border: hsl(220 25% 12% / 0.6);
   --color-sidebar-ring: hsl(200 70% 50%);
+  --surface-shell-border: rgba(148, 163, 255, 0.26);
+  --surface-card-highlight: linear-gradient(165deg, rgba(199, 210, 254, 0.17), rgba(130, 160, 255, 0.03) 48%, rgba(56, 189, 248, 0.1) 100%);
+  --surface-card-glow: radial-gradient(130% 120% at 108% -10%, hsl(236 74% 63% / 0.2), transparent 66%);
+  --surface-shell-shadow: 0 30px 64px -42px rgba(5, 8, 25, 0.88);
+  --surface-noise-opacity: 0.065;
   --app-bg-layer-1: radial-gradient(84rem 50rem at -12% -18%, hsl(236 52% 24% / 0.34), transparent 56%);
   --app-bg-layer-2: radial-gradient(78rem 48rem at 110% -20%, hsl(199 86% 30% / 0.2), transparent 58%);
   --app-bg-layer-3: linear-gradient(180deg, hsl(225 34% 11%), hsl(228 39% 8%));
@@ -873,6 +1063,11 @@ html.theme-ocean {
   --color-sidebar-accent-foreground: hsl(200 20% 98%);
   --color-sidebar-border: hsl(200 35% 18% / 0.5);
   --color-sidebar-ring: hsl(168 76% 42%);
+  --surface-shell-border: rgba(94, 234, 212, 0.27);
+  --surface-card-highlight: linear-gradient(165deg, rgba(167, 243, 208, 0.2), rgba(80, 200, 180, 0.04) 48%, rgba(14, 165, 233, 0.09) 100%);
+  --surface-card-glow: radial-gradient(130% 120% at 108% -10%, hsl(168 76% 42% / 0.22), transparent 67%);
+  --surface-shell-shadow: 0 30px 62px -40px rgba(8, 47, 73, 0.8);
+  --surface-noise-opacity: 0.06;
   --app-bg-layer-1: radial-gradient(86rem 52rem at -10% -20%, hsl(175 74% 20% / 0.32), transparent 56%);
   --app-bg-layer-2: radial-gradient(72rem 44rem at 110% -18%, hsl(199 84% 30% / 0.22), transparent 58%);
   --app-bg-layer-3: linear-gradient(180deg, hsl(197 45% 13%), hsl(202 42% 10%));
@@ -928,6 +1123,11 @@ html.theme-light {
   --shadow-glow: 0 0 20px rgba(37, 99, 235, 0.1);
   --surface-highlight: hsl(213 84% 43% / 0.08);
   --surface-glow: hsl(194 85% 36% / 0.08);
+  --surface-shell-border: rgba(148, 163, 184, 0.44);
+  --surface-card-highlight: linear-gradient(165deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.1) 48%, rgba(37, 99, 235, 0.03) 100%);
+  --surface-card-glow: radial-gradient(120% 120% at 105% -8%, hsl(213 84% 43% / 0.12), transparent 62%);
+  --surface-shell-shadow: 0 24px 52px -36px rgba(15, 23, 42, 0.4);
+  --surface-noise-opacity: 0.045;
   --app-bg-layer-1: radial-gradient(95rem 52rem at -12% -16%, hsl(211 90% 88% / 0.55), transparent 55%);
   --app-bg-layer-2: radial-gradient(70rem 45rem at 108% -14%, hsl(194 95% 84% / 0.42), transparent 58%);
   --app-bg-layer-3: linear-gradient(180deg, hsl(210 34% 98%), hsl(210 32% 96%));
@@ -1155,42 +1355,44 @@ html.theme-light .bg-violet-500\/10 {
   background-color: hsl(280 60% 55% / 0.05) !important;
 }
 
-/* Light theme glass card - simplified */
+/* Light theme glass card */
 html.theme-light .glass-card {
-  background-color: rgba(255, 255, 255, 0.98);
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background-color: hsl(0 0% 100% / 0.96);
+  background-image: var(--surface-card-glow);
+  border-color: rgba(148, 163, 184, 0.38);
+  box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.26);
 }
 
 html.theme-light .glass-card:hover {
-  border-color: rgba(59, 130, 246, 0.2);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border-color: rgba(37, 99, 235, 0.36);
+  box-shadow: 0 24px 40px -28px rgba(15, 23, 42, 0.34);
 }
 
-/* Light theme app surface - simplified */
+/* Light theme app surface */
 html.theme-light .app-surface {
-  background-color: rgba(255, 255, 255, 0.98);
-  border-color: rgba(0, 0, 0, 0.06);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  background-color: hsl(0 0% 100% / 0.97);
+  background-image: var(--surface-card-glow);
+  border-color: rgba(148, 163, 184, 0.4);
+  box-shadow: 0 24px 52px -36px rgba(15, 23, 42, 0.34);
 }
 
 /* Light theme sidebar styling */
-html.theme-light aside {
+html.theme-light .workspace-sidebar {
   background-color: #ffffff !important;
-  border-color: #e2e8f0 !important;
-  box-shadow: 1px 0 3px rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(148, 163, 184, 0.34) !important;
+  box-shadow: 1px 0 0 rgba(148, 163, 184, 0.2), 24px 0 44px -40px rgba(15, 23, 42, 0.35) !important;
 }
 
 /* Light theme header */
-html.theme-light header {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-  border-color: #e2e8f0 !important;
+html.theme-light .workspace-header {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  border-color: rgba(148, 163, 184, 0.34) !important;
 }
 
 /* Light theme footer */
-html.theme-light footer {
-  background-color: rgba(255, 255, 255, 0.8) !important;
-  border-color: #e2e8f0 !important;
+html.theme-light .workspace-footer {
+  background-color: rgba(255, 255, 255, 0.86) !important;
+  border-color: rgba(148, 163, 184, 0.34) !important;
 }
 
 /* Light theme pill badges */
@@ -1220,8 +1422,9 @@ html.theme-light .pill-muted {
 
 /* Light theme stat card */
 html.theme-light .stat-card {
-  background-color: rgba(255, 255, 255, 0.98);
-  border-color: rgba(0, 0, 0, 0.06);
+  background-color: rgba(255, 255, 255, 0.97);
+  border-color: rgba(148, 163, 184, 0.36);
+  box-shadow: 0 16px 32px -24px rgba(15, 23, 42, 0.28);
 }
 
 html.theme-light .stat-card-value {

@@ -18043,7 +18043,7 @@ I have also sent that reminder to your Messages inbox.`
     };
   };
 
-  app.post("/api/ai/chat", requireAuth, async (req: any, res) => {
+  const handleAssistantChat = async (req: any, res: any) => {
     try {
       const { messages } = req.body;
       
@@ -18207,7 +18207,10 @@ I have also sent that reminder to your Messages inbox.`
         return res.status(500).json({ message: "Failed to generate response" });
       }
     }
-  });
+  };
+
+  app.post("/api/ai/chat", requireAuth, handleAssistantChat);
+  app.post("/api/chat", requireAuth, handleAssistantChat);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // UK GDPR COMPLIANCE ENDPOINTS
