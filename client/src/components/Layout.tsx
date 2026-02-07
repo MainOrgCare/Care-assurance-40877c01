@@ -551,7 +551,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const contentWrapperClass = cn(
     "w-full flex-1 min-h-0",
-    isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-6 pt-4 sm:pt-5 lg:pt-6 pb-24 sm:pb-24 lg:pb-28",
+    isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-6 pt-4 sm:pt-5 lg:pt-6 pb-5 sm:pb-6 lg:pb-7",
     isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(
@@ -622,8 +622,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         />
       </aside>
 
-      {/* Main Content */}
-      <main className={mainClass}>
+      {/* Main + Footer Column */}
+      <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col">
+        {/* Main Content */}
+        <main className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
           <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/86 px-4 backdrop-blur-xl md:px-6 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.48)]">
@@ -805,9 +807,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
+        </main>
+
         {/* Footer */}
         {!isSingleScreenRoute && (
-          <footer className="sticky bottom-0 z-20 flex-shrink-0 border-t border-border/75 bg-background/86 px-4 py-3 backdrop-blur-xl shadow-[0_-14px_28px_-24px_rgba(15,23,42,0.45)]">
+          <footer className="flex-shrink-0 border-t border-border/75 bg-background/86 px-4 py-3 backdrop-blur-xl shadow-[0_-14px_28px_-24px_rgba(15,23,42,0.45)]">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-muted-foreground">
               <div className="flex items-center gap-1.5 font-medium">
                 <span>{new Date().getFullYear()} CareAssurance</span>
@@ -825,7 +829,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </footer>
         )}
-      </main>
+      </div>
 
       {/* Compli-ee Chat Assistant */}
       {hasOpenedChat && (

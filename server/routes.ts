@@ -3491,8 +3491,29 @@ export async function registerRoutes(
     await ensureSettingsLoaded();
   }
   
-  // WebSocket server for real-time notifications (logout warnings)
-  const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+  // WebSocket server for real-time notifications (logout warnings).
+  // Use manual upgrade routing so Vite HMR upgrades on `/vite-hmr` are not intercepted.
+  const wss = new WebSocketServer({ noServer: true });
+
+  httpServer.on("upgrade", (request, socket, head) => {
+    const host = request.headers.host || "localhost";
+
+    let pathname = "";
+    try {
+      pathname = new URL(request.url || "", `http://${host}`).pathname;
+    } catch {
+      socket.destroy();
+      return;
+    }
+
+    if (pathname !== "/ws") {
+      return;
+    }
+
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit("connection", ws, request);
+    });
+  });
   
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url || "", `http://${req.headers.host}`);

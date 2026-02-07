@@ -38,12 +38,13 @@ const cspDirectives: Record<string, string[]> = {
   scriptSrc: isProduction 
     ? ["'self'"] // No unsafe-inline/eval in production
     : ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Needed for Vite HMR
-  styleSrc: ["'self'", "'unsafe-inline'"], // CSS-in-JS libraries often need this
+  // Google Fonts stylesheets + CSS-in-JS inline styles
+  styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
   imgSrc: ["'self'", "data:", "https:"],
   connectSrc: isProduction 
-    ? ["'self'", `https://${CANONICAL_DOMAIN}`, `https://www.${CANONICAL_DOMAIN}`]
-    : ["'self'", "ws:", "wss:", "http://localhost:*", "http://127.0.0.1:*"],
-  fontSrc: ["'self'", "data:"],
+    ? ["'self'", `https://${CANONICAL_DOMAIN}`, `https://www.${CANONICAL_DOMAIN}`, "https://fonts.googleapis.com", "https://fonts.gstatic.com"]
+    : ["'self'", "ws:", "wss:", "http://localhost:*", "http://127.0.0.1:*", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
+  fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
   objectSrc: ["'none'"],
   mediaSrc: ["'self'"],
   frameSrc: ["'none'"],

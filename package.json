@@ -6,6 +6,7 @@
   "scripts": {
     "dev:client": "vite dev --port 5173",
     "dev": "NODE_ENV=development AI_ENABLED=${AI_ENABLED:-true} tsx server/index.ts",
+    "dev:full": "set -a; [ -f .env ] && . ./.env; set +a; npm run dev",
     "build:client": "npx vite build",
     "build:server": "npx esbuild server/index.ts --bundle --platform=node --packages=external --format=cjs --outfile=dist/index.cjs --external:./vite.config --external:./vite",
     "build:worker": "npx esbuild server/worker.ts --bundle --platform=node --packages=external --format=cjs --outfile=dist/worker.cjs",

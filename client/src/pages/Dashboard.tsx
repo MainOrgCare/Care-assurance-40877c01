@@ -231,7 +231,7 @@ export default function Dashboard() {
                 {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ? "100%" : "-"}
               </div>
               <p className="text-[10px] font-medium text-muted-foreground mt-2 flex items-center gap-1.5">
-                <div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
                 {stats?.auditsCompleted ? "Based on completed audits" : "No data yet"}
               </p>
             </CardContent>
