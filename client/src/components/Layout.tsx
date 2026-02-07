@@ -194,19 +194,19 @@ const SidebarContent = memo(function SidebarContent({
 
   const navLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-3 rounded-xl text-sm font-semibold transition-[background-color,border-color,color,box-shadow] duration-200 group cursor-pointer relative overflow-hidden border",
+      "flex items-center gap-3 rounded-xl text-sm font-semibold transition-[background-color,border-color,color,box-shadow,transform] duration-200 group cursor-pointer relative overflow-hidden border",
       isCollapsed ? "px-2 py-2.5 justify-center gap-0" : "px-3.5 py-2.5",
       isActive
-        ? "bg-primary/12 text-primary border-primary/35 shadow-[0_10px_18px_-16px_rgba(37,99,235,0.75)]"
-        : "text-muted-foreground hover:text-foreground hover:bg-background/72 hover:border-border/70 border-transparent"
+        ? "bg-[linear-gradient(120deg,hsl(213_84%_43%/_0.14),hsl(194_85%_36%/_0.1))] text-primary border-primary/35 shadow-[0_12px_24px_-18px_rgba(37,99,235,0.72)]"
+        : "text-muted-foreground hover:text-foreground hover:bg-background/80 hover:border-border/70 border-transparent hover:translate-x-[1px]"
     ), [isCollapsed]);
 
   const subNavLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold transition-[background-color,color,border-color] duration-200 border",
+      "flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold transition-[background-color,color,border-color,transform] duration-200 border",
       isActive
         ? "bg-primary/10 text-primary border-primary/35"
-        : "text-muted-foreground border-transparent hover:text-foreground hover:bg-background/70 hover:border-border/65"
+        : "text-muted-foreground border-transparent hover:text-foreground hover:bg-background/70 hover:border-border/65 hover:translate-x-[1px]"
     ), []);
 
   const labelClass = cn(
@@ -241,7 +241,7 @@ const SidebarContent = memo(function SidebarContent({
       {/* Divider */}
       <div className={cn("mx-6 h-px bg-border/65", isCollapsed && "mx-3")} />
 
-      <nav className={cn("flex-1 space-y-1 py-3 overflow-y-auto overscroll-contain", isCollapsed ? "px-2" : "px-3")}>
+      <nav className={cn("flex-1 space-y-1.5 py-3 overflow-y-auto overscroll-contain", isCollapsed ? "px-2" : "px-3")}>
         
         {/* Dashboard */}
         <Link href="/dashboard" className={navLinkClass(location === "/dashboard")} title={isCollapsed ? "Dashboard" : undefined}>
@@ -551,7 +551,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const contentWrapperClass = cn(
     "w-full flex-1 min-h-0",
-    isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-6 py-4 sm:py-5 lg:py-6",
+    isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-6 pt-4 sm:pt-5 lg:pt-6 pb-24 sm:pb-24 lg:pb-28",
     isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(
@@ -560,7 +560,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   );
   const mainClass = cn(
     "flex-1 min-h-0 flex flex-col w-full relative z-10 scroll-smooth",
-    isSingleScreenRoute ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden overscroll-y-contain"
+    isSingleScreenRoute ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden overscroll-y-contain scrollbar-gutter-stable"
   );
 
   useEffect(() => {
@@ -612,7 +612,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Desktop Sidebar */}
       <aside className={cn(
         "hidden md:flex flex-shrink-0 flex-col z-20 border-r border-border/70 bg-sidebar/90 backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.35)_inset] transition-all duration-300",
-        isSidebarCollapsed ? "w-[84px]" : "w-[280px]"
+        isSidebarCollapsed ? "w-[84px]" : "w-[288px]"
       )}>
         <SidebarContent
           location={location}
@@ -626,7 +626,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <main className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/70 bg-background/82 px-4 backdrop-blur-xl md:px-6 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.48)]">
+          <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/86 px-4 backdrop-blur-xl md:px-6 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.48)]">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -667,7 +667,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 rounded-2xl border border-border/70 bg-card/82 px-2 py-1.5 shadow-[0_14px_28px_-20px_rgba(15,23,42,0.45)]">
+            <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card/88 px-2.5 py-2 shadow-[0_14px_28px_-20px_rgba(15,23,42,0.45)]">
               {/* Messages Button */}
               <Link href="/messages">
                 <button
@@ -702,7 +702,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <p className="text-xs font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
                     {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username}
                   </p>
-                  <p className="text-[9px] font-black uppercase tracking-tighter leading-tight text-muted-foreground/60">{user?.role}</p>
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      isConnected ? "bg-emerald-500" : "bg-red-500"
+                    )} />
+                    <p className="text-[9px] font-black uppercase tracking-tighter leading-tight text-muted-foreground/60">
+                      {user?.role} · {isConnected ? "online" : "offline"}
+                    </p>
+                  </div>
                 </div>
                 <div className="relative h-8 w-8 rounded-xl flex items-center justify-center font-black uppercase text-[10px] bg-primary text-primary-foreground shadow-sm shadow-primary/20 group-hover:scale-105 transition-transform">
                   {user?.firstName ? user.firstName.substring(0, 1) : user?.username?.substring(0, 1) || "?"}
@@ -799,7 +807,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         {!isSingleScreenRoute && (
-          <footer className="flex-shrink-0 border-t border-border/75 bg-background/82 px-4 py-3 backdrop-blur">
+          <footer className="sticky bottom-0 z-20 flex-shrink-0 border-t border-border/75 bg-background/86 px-4 py-3 backdrop-blur-xl shadow-[0_-14px_28px_-24px_rgba(15,23,42,0.45)]">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-muted-foreground">
               <div className="flex items-center gap-1.5 font-medium">
                 <span>{new Date().getFullYear()} CareAssurance</span>

@@ -28,7 +28,7 @@ export default function Compliance() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" style={{ color: '#64748b' }} />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -36,9 +36,9 @@ export default function Compliance() {
   if (error) {
     return (
       <div className="p-8">
-        <Card style={{ backgroundColor: '#ffffff', border: '1px solid #ef4444' }}>
+        <Card className="border-red-400/55 bg-card">
           <CardContent className="pt-6">
-            <p style={{ color: '#ef4444' }}>Failed to load compliance data. Please try again.</p>
+            <p className="text-red-600">Failed to load compliance data. Please try again.</p>
           </CardContent>
         </Card>
       </div>
@@ -70,60 +70,60 @@ export default function Compliance() {
   return (
     <div className="page-shell max-w-7xl mx-auto" data-testid="compliance-page">
       <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-heading font-bold" style={{ color: '#0f172a' }}>Compliance Overview</h2>
-        <p style={{ color: '#64748b' }}>View audit history, discrepancies, and compliance metrics across all service users.</p>
+        <h2 className="text-3xl font-heading font-bold text-foreground">Compliance Overview</h2>
+        <p className="text-muted-foreground">View audit history, discrepancies, and compliance metrics across all service users.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card data-testid="stat-total-audits" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+        <Card data-testid="stat-total-audits" className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium" style={{ color: '#64748b' }}>Total Audits</CardTitle>
-            <FileText className="h-4 w-4" style={{ color: '#64748b' }} />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Audits</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" style={{ color: '#0f172a' }}>{auditList.length}</div>
-            <p className="text-xs" style={{ color: '#94a3b8' }}>
+            <div className="text-2xl font-bold text-foreground">{auditList.length}</div>
+            <p className="text-xs text-muted-foreground">
               {emarAudits.length} EMAR, {visitAudits.length} Visit
             </p>
           </CardContent>
         </Card>
 
-        <Card data-testid="stat-discrepancies" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+        <Card data-testid="stat-discrepancies" className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium" style={{ color: '#64748b' }}>Discrepancies Found</CardTitle>
-            <AlertTriangle className="h-4 w-4" style={{ color: '#f59e0b' }} />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Discrepancies Found</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" style={{ color: '#0f172a' }}>{totalDiscrepancies}</div>
-            <p className="text-xs" style={{ color: '#94a3b8' }}>
+            <div className="text-2xl font-bold text-foreground">{totalDiscrepancies}</div>
+            <p className="text-xs text-muted-foreground">
               Across all audits
             </p>
           </CardContent>
         </Card>
 
-        <Card data-testid="stat-warnings" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+        <Card data-testid="stat-warnings" className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium" style={{ color: '#64748b' }}>Warnings</CardTitle>
-            <AlertTriangle className="h-4 w-4" style={{ color: '#eab308' }} />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Warnings</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" style={{ color: '#0f172a' }}>{totalWarnings}</div>
-            <p className="text-xs" style={{ color: '#94a3b8' }}>
+            <div className="text-2xl font-bold text-foreground">{totalWarnings}</div>
+            <p className="text-xs text-muted-foreground">
               Items requiring attention
             </p>
           </CardContent>
         </Card>
 
-        <Card data-testid="stat-compliance-rate" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+        <Card data-testid="stat-compliance-rate" className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium" style={{ color: '#64748b' }}>Compliance Rate</CardTitle>
-            <CheckCircle className="h-4 w-4" style={{ color: '#22c55e' }} />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Compliance Rate</CardTitle>
+            <CheckCircle className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" style={{ color: '#0f172a' }}>
+            <div className="text-2xl font-bold text-foreground">
               {auditList.length > 0 ? Math.round(100 - (totalDiscrepancies / Math.max(auditList.length, 1) * 10)) : 100}%
             </div>
-            <p className="text-xs" style={{ color: '#94a3b8' }}>
+            <p className="text-xs text-muted-foreground">
               Based on audit results
             </p>
           </CardContent>
@@ -131,13 +131,13 @@ export default function Compliance() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+        <Card className="glass-card">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2" style={{ color: '#0f172a' }}>
-              <BarChart3 className="h-5 w-5" style={{ color: '#3b82f6' }} />
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <BarChart3 className="h-5 w-5 text-primary" />
               Audits by Month
             </CardTitle>
-            <CardDescription style={{ color: '#64748b' }}>Monthly audit activity over time</CardDescription>
+            <CardDescription>Monthly audit activity over time</CardDescription>
           </CardHeader>
           <CardContent>
             {monthlyData.length > 0 ? (
@@ -157,18 +157,14 @@ export default function Compliance() {
                   <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[250px]" style={{ color: '#64748b' }}>
-                No audit data available
-              </div>
-            )}
+            ) : <div className="flex items-center justify-center h-[250px] text-muted-foreground">No audit data available</div>}
           </CardContent>
         </Card>
 
-        <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+        <Card className="glass-card">
           <CardHeader>
-            <CardTitle style={{ color: '#0f172a' }}>Audit Type Distribution</CardTitle>
-            <CardDescription style={{ color: '#64748b' }}>Breakdown of EMAR vs Visit audits</CardDescription>
+            <CardTitle className="text-foreground">Audit Type Distribution</CardTitle>
+            <CardDescription>Breakdown of EMAR vs Visit audits</CardDescription>
           </CardHeader>
           <CardContent>
             {auditList.length > 0 ? (
@@ -191,22 +187,18 @@ export default function Compliance() {
                   <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px' }} />
                 </PieChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[250px]" style={{ color: '#64748b' }}>
-                No audit data available
-              </div>
-            )}
+            ) : <div className="flex items-center justify-center h-[250px] text-muted-foreground">No audit data available</div>}
           </CardContent>
         </Card>
       </div>
 
-      <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+      <Card className="glass-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2" style={{ color: '#0f172a' }}>
-            <Clock className="h-5 w-5" style={{ color: '#3b82f6' }} />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <Clock className="h-5 w-5 text-primary" />
             Recent Audits
           </CardTitle>
-          <CardDescription style={{ color: '#64748b' }}>Latest audit reports across all service users</CardDescription>
+          <CardDescription>Latest audit reports across all service users</CardDescription>
         </CardHeader>
         <CardContent>
           {auditList.length > 0 ? (
@@ -219,17 +211,16 @@ export default function Compliance() {
                 return (
                   <div 
                     key={audit.id} 
-                    className="flex items-center justify-between p-4 rounded-lg transition-colors"
-                    style={{ backgroundColor: '#f8fafc' }}
+                    className="flex items-center justify-between p-4 rounded-lg transition-colors bg-muted/35 hover:bg-muted/55"
                     data-testid={`audit-row-${audit.id}`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}>
-                        <FileText className="h-5 w-5" style={{ color: '#3b82f6' }} />
+                      <div className="h-10 w-10 rounded-full flex items-center justify-center bg-primary/10">
+                        <FileText className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <p className="font-medium" style={{ color: '#0f172a' }}>{audit.serviceUserName}</p>
-                        <p className="text-sm" style={{ color: '#64748b' }}>
+                        <p className="font-medium text-foreground">{audit.serviceUserName}</p>
+                        <p className="text-sm text-muted-foreground">
                           {audit.periodStart} - {audit.periodEnd} • Auditor: {audit.auditor}
                         </p>
                       </div>
@@ -261,7 +252,7 @@ export default function Compliance() {
               })}
             </div>
           ) : (
-            <div className="text-center py-8" style={{ color: '#64748b' }}>
+            <div className="text-center py-8 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No audits found</p>
               <p className="text-sm">Complete an EMAR or Visit audit to see results here</p>

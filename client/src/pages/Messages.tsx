@@ -149,59 +149,49 @@ export default function Messages() {
   const unreadCount = messages.filter(m => !m.isRead).length;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => setLocation("/dashboard")}>
-            <ArrowLeft className="h-5 w-5" />
+    <div className="page-shell">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex items-start gap-4">
+          <Button variant="outline" size="icon-sm" onClick={() => setLocation("/dashboard")} className="mt-0.5">
+            <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Inbox className="h-6 w-6 text-emerald-500" />
-              Messages
+            <div className="flex items-center gap-2">
+              <h2 className="page-title flex items-center gap-2 text-2xl sm:text-3xl">
+                <Inbox className="h-6 w-6 text-primary" />
+                Messages
+              </h2>
               {unreadCount > 0 && (
-                <Badge variant="default" className="bg-emerald-500 ml-2">
+                <Badge variant="success" className="text-[10px]">
                   {unreadCount} unread
                 </Badge>
               )}
-            </h1>
-            <p className="text-muted-foreground">Messages from Compli-ee and system notifications</p>
+            </div>
+            <p className="page-subtitle mt-1">System notifications and Compli-ee communications.</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchMessages}
-            disabled={loading}
-          >
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={fetchMessages} disabled={loading}>
             <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
             Refresh
           </Button>
-          <Button
-            variant={showArchived ? "default" : "outline"}
-            size="sm"
-            onClick={() => setShowArchived(!showArchived)}
-          >
+          <Button variant={showArchived ? "default" : "outline"} size="sm" onClick={() => setShowArchived(!showArchived)}>
             <Archive className="h-4 w-4 mr-2" />
             {showArchived ? "Hide Archived" : "Show Archived"}
           </Button>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Message List */}
-        <Card className="lg:col-span-1">
+      <div className="grid gap-5 xl:grid-cols-[360px_1fr] min-h-0">
+        <Card className="glass-card overflow-hidden" data-testid="messages-list">
           <CardHeader className="py-4">
             <CardTitle className="text-lg">Inbox</CardTitle>
             <CardDescription>
-              {messages.length} message{messages.length !== 1 ? 's' : ''}
+              {messages.length} message{messages.length !== 1 ? "s" : ""}
             </CardDescription>
           </CardHeader>
           <Separator />
-          <ScrollArea className="h-[500px]">
+          <ScrollArea className="h-[clamp(380px,62vh,760px)]">
             {loading ? (
               <div className="p-8 text-center text-muted-foreground">
                 <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
@@ -211,53 +201,48 @@ export default function Messages() {
               <div className="p-8 text-center text-muted-foreground">
                 <Mail className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
                 <p>No messages yet</p>
-                <p className="text-sm mt-1">
-                  Ask Compli-ee to send you a message!
-                </p>
+                <p className="text-sm mt-1">Ask Compli-ee to send you a message.</p>
               </div>
             ) : (
-              <div className="divide-y">
+              <div className="divide-y divide-border/55">
                 {messages.map((message) => (
                   <button
                     key={message.id}
                     onClick={() => handleSelectMessage(message)}
                     className={cn(
-                      "w-full text-left p-4 hover:bg-muted/50 transition-colors",
-                      selectedMessage?.id === message.id && "bg-muted",
-                      !message.isRead && "bg-emerald-50 dark:bg-emerald-950/20"
+                      "w-full text-left p-4 transition-all hover:bg-muted/45",
+                      selectedMessage?.id === message.id && "bg-primary/8",
+                      !message.isRead && "bg-emerald-500/8"
                     )}
+                    data-testid={`message-item-${message.id}`}
                   >
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0 mt-1">
                         {message.isRead ? (
                           <MailOpen className="h-4 w-4 text-muted-foreground" />
                         ) : (
-                          <Mail className="h-4 w-4 text-emerald-500" />
+                          <Mail className="h-4 w-4 text-emerald-600" />
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={cn(
-                            "font-medium text-sm truncate",
-                            !message.isRead && "font-semibold"
-                          )}>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className={cn("truncate text-sm font-medium", !message.isRead && "font-semibold")}>
                             {message.senderName}
                           </span>
                           {getPriorityIcon(message.priority)}
                         </div>
-                        <p className={cn(
-                          "text-sm truncate",
-                          !message.isRead ? "text-foreground" : "text-muted-foreground"
-                        )}>
+                        <p className={cn("truncate text-sm", !message.isRead ? "text-foreground" : "text-muted-foreground")}>
                           {message.subject}
                         </p>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="mt-1 flex items-center gap-2">
                           <Clock className="h-3 w-3 text-muted-foreground" />
                           <span className="text-xs text-muted-foreground">
                             {format(new Date(message.createdAt), "MMM d, h:mm a")}
                           </span>
                           {message.isArchived && (
-                            <Badge variant="outline" className="text-xs py-0">Archived</Badge>
+                            <Badge variant="outline" className="text-[10px] py-0">
+                              Archived
+                            </Badge>
                           )}
                         </div>
                       </div>
@@ -269,18 +254,17 @@ export default function Messages() {
           </ScrollArea>
         </Card>
 
-        {/* Message Detail */}
-        <Card className="lg:col-span-2">
+        <Card className="glass-card overflow-hidden" data-testid="messages-detail">
           {selectedMessage ? (
             <>
               <CardHeader className="py-4">
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-lg">{selectedMessage.subject}</CardTitle>
                       {getPriorityBadge(selectedMessage.priority)}
                     </div>
-                    <CardDescription className="flex items-center gap-2">
+                    <CardDescription className="flex flex-wrap items-center gap-2">
                       <span>From: {selectedMessage.senderName}</span>
                       <span>•</span>
                       <span>{format(new Date(selectedMessage.createdAt), "MMMM d, yyyy 'at' h:mm a")}</span>
@@ -288,11 +272,7 @@ export default function Messages() {
                   </div>
                   <div className="flex items-center gap-2">
                     {!selectedMessage.isArchived && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleArchive(selectedMessage.id)}
-                      >
+                      <Button variant="outline" size="sm" onClick={() => handleArchive(selectedMessage.id)}>
                         <Archive className="h-4 w-4 mr-2" />
                         Archive
                       </Button>
@@ -311,11 +291,11 @@ export default function Messages() {
               </CardHeader>
               <Separator />
               <CardContent className="py-6">
-                <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+                <div className="max-w-none whitespace-pre-wrap text-sm leading-relaxed text-foreground">
                   {selectedMessage.message}
                 </div>
                 {selectedMessage.isRead && selectedMessage.readAt && (
-                  <div className="mt-6 pt-4 border-t flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="mt-6 border-t border-border/60 pt-4 flex items-center gap-2 text-sm text-muted-foreground">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     Read on {format(new Date(selectedMessage.readAt), "MMMM d, yyyy 'at' h:mm a")}
                   </div>
@@ -323,7 +303,7 @@ export default function Messages() {
               </CardContent>
             </>
           ) : (
-            <div className="flex items-center justify-center h-[500px] text-muted-foreground">
+            <div className="flex h-[clamp(380px,62vh,760px)] items-center justify-center text-muted-foreground">
               <div className="text-center">
                 <Mail className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
                 <p>Select a message to read</p>

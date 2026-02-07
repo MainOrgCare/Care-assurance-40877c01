@@ -195,10 +195,14 @@ export default function Homepage() {
   const [contactEnabled, setContactEnabled] = useState(false);
 
   useEffect(() => {
-    fetch("/api/contact/status")
+    const controller = new AbortController();
+
+    fetch("/api/contact/status", { signal: controller.signal })
       .then((res) => res.json())
-      .then((data) => setContactEnabled(data.enabled))
+      .then((data) => setContactEnabled(Boolean(data.enabled)))
       .catch(() => setContactEnabled(false));
+
+    return () => controller.abort();
   }, []);
 
   const handleContactSubmit = useCallback(
@@ -293,15 +297,20 @@ export default function Homepage() {
             initial: { opacity: 0, y: 12 },
             whileInView: { opacity: 1, y: 0 },
             viewport: { once: true, margin: "-50px" },
-            transition: { duration: 0.3, delay: Math.min(delay, 0.1) },
+            transition: {
+              duration: 0.44,
+              delay: Math.max(0, Math.min(delay, 0.34)),
+            },
           },
     [prefersReducedMotion]
   );
 
   useEffect(() => {
-    const updateScrollState = () => {
-      setHeaderScrolled(window.scrollY > 12);
+    let rafId = 0;
+    let ticking = false;
 
+    const updateScrollState = () => {
+      const nextScrolled = window.scrollY > 12;
       const viewportAnchor = window.scrollY + window.innerHeight * 0.35;
       let currentSection: (typeof NAV_SECTIONS)[number]["id"] = NAV_SECTIONS[0].id;
 
@@ -313,7 +322,15 @@ export default function Homepage() {
         }
       });
 
-      setActiveSection(currentSection);
+      setHeaderScrolled((prev) => (prev === nextScrolled ? prev : nextScrolled));
+      setActiveSection((prev) => (prev === currentSection ? prev : currentSection));
+      ticking = false;
+    };
+
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      rafId = window.requestAnimationFrame(updateScrollState);
     };
 
     const closeMenuOnDesktop = () => {
@@ -323,11 +340,14 @@ export default function Homepage() {
     };
 
     updateScrollState();
-    window.addEventListener("scroll", updateScrollState, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", closeMenuOnDesktop);
 
     return () => {
-      window.removeEventListener("scroll", updateScrollState);
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", closeMenuOnDesktop);
     };
   }, []);
@@ -373,21 +393,21 @@ export default function Homepage() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-0" align="end" style={{ backgroundColor: '#ffffff' }}>
-                <div className="p-4" style={{ borderBottom: '1px solid #e2e8f0' }}>
+              <PopoverContent className="w-80 overflow-hidden border border-border/70 bg-card p-0 shadow-lg" align="end">
+                <div className="p-4 border-b border-border/70">
                   <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
+                    <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center bg-primary">
                       <ShieldCheck className="h-4 w-4" />
                     </div>
                     <div>
-                      <h3 className="font-semibold" style={{ color: '#0f172a', fontFamily: 'Sora, sans-serif' }}>Welcome Back</h3>
-                      <p className="text-xs" style={{ color: '#64748b' }}>Sign in to your account</p>
+                      <h3 className="font-semibold font-heading text-foreground">Welcome Back</h3>
+                      <p className="text-xs text-muted-foreground">Sign in to your account</p>
                     </div>
                   </div>
                 </div>
                 <form onSubmit={handleLogin} className="p-4 space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-username" className="text-sm" style={{ color: '#475569' }}>Username</Label>
+                    <Label htmlFor="login-username" className="text-sm text-muted-foreground">Username</Label>
                     <Input
                       id="login-username"
                       placeholder="Enter username"
@@ -395,12 +415,11 @@ export default function Homepage() {
                       onChange={(e) => setUsername(e.target.value)}
                       required
                       autoComplete="username"
-                      style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}
                       data-testid="input-dropdown-username"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="login-password" className="text-sm" style={{ color: '#475569' }}>Password</Label>
+                    <Label htmlFor="login-password" className="text-sm text-muted-foreground">Password</Label>
                     <Input
                       id="login-password"
                       type="password"
@@ -409,7 +428,6 @@ export default function Homepage() {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       autoComplete="current-password"
-                      style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}
                       data-testid="input-dropdown-password"
                     />
                   </div>
@@ -424,7 +442,7 @@ export default function Homepage() {
                   </Button>
                 </form>
                 <div className="px-4 pb-4 text-center">
-                  <p className="text-xs" style={{ color: '#64748b' }}>Need access? Contact your administrator</p>
+                  <p className="text-xs text-muted-foreground">Need access? Contact your administrator</p>
                 </div>
               </PopoverContent>
             </Popover>
@@ -465,10 +483,10 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
             <motion.div {...reveal()} className="text-center lg:text-left">
               <span className="home-eyebrow">Operational Assurance for UK Care</span>
-              <h1 className="mt-5 text-3xl sm:text-4xl lg:text-[3.25rem] font-heading font-bold leading-[1.1]" style={{ color: 'hsl(220, 25%, 10%)' }}>
+              <h1 className="home-text-heading mt-5 text-3xl sm:text-4xl lg:text-[3.25rem] font-heading font-bold leading-[1.1]">
                 Compliance reporting that feels calm, clear, and prepared.
               </h1>
-              <p className="mt-6 text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed" style={{ color: 'hsl(220, 10%, 35%)' }}>
+              <p className="home-text-body mt-6 text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed">
                 CareAssurance streamlines EMAR audits, care plans, and visit reviews into one
                 structured workspace. Detect risks earlier, document decisions faster, and walk
                 into inspections with confidence.
@@ -490,12 +508,12 @@ export default function Homepage() {
               <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {HERO_STATS.map((stat) => (
                   <div key={stat.label} className="home-card-soft p-4 text-left">
-                    <div className="flex items-center gap-2 text-xs font-medium" style={{ color: 'hsl(220, 10%, 50%)' }}>
-                      <stat.icon className="h-4 w-4" style={{ color: 'hsl(220, 25%, 30%)' }} />
+                    <div className="home-text-soft flex items-center gap-2 text-xs font-medium">
+                      <stat.icon className="h-4 w-4 text-slate-700" />
                       {stat.label}
                     </div>
-                    <div className="mt-2 text-xl font-bold" style={{ color: 'hsl(220, 25%, 10%)' }}>{stat.value}</div>
-                    <div className="text-xs font-medium mt-0.5" style={{ color: 'hsl(220, 10%, 50%)' }}>{stat.detail}</div>
+                    <div className="home-text-heading mt-2 text-xl font-bold">{stat.value}</div>
+                    <div className="home-text-soft text-xs font-medium mt-0.5">{stat.detail}</div>
                   </div>
                 ))}
               </div>
@@ -535,20 +553,20 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[0.95fr_1.05fr] items-center">
             <motion.div {...reveal()}>
               <span className="home-eyebrow">Platform overview</span>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: 'hsl(220, 25%, 10%)' }}>
+              <h2 className="home-text-heading mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight">
                 One workspace for audits, plans, and care delivery checks.
               </h2>
-              <p className="mt-4 text-base leading-relaxed" style={{ color: 'hsl(220, 10%, 35%)' }}>
+              <p className="home-text-body mt-4 text-base leading-relaxed">
                 Replace scattered spreadsheets with a structured flow for every document.
                 CareAssurance unifies analysis, notes, and follow-up actions so teams can move fast.
               </p>
               <div className="mt-6 space-y-3">
                 {OVERVIEW_BULLETS.map((bullet) => (
                   <div key={bullet} className="flex items-start gap-3 text-sm">
-                    <span className="mt-0.5 h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                      <CheckCircle2 className="h-3 w-3" style={{ color: '#3b82f6' }} />
+                    <span className="home-icon-chip mt-0.5 h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0">
+                      <CheckCircle2 className="h-3 w-3" />
                     </span>
-                    <span style={{ color: '#334155' }}>{bullet}</span>
+                    <span className="home-text-body">{bullet}</span>
                   </div>
                 ))}
               </div>
@@ -559,26 +577,26 @@ export default function Homepage() {
                 <p className="home-eyebrow">Audit snapshot</p>
                 <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p style={{ color: '#64748b' }}>Service users</p>
-                    <p className="text-2xl font-semibold" style={{ color: '#0f172a' }}>52</p>
+                    <p className="home-text-soft">Service users</p>
+                    <p className="home-text-heading text-2xl font-semibold">52</p>
                   </div>
                   <div>
-                    <p style={{ color: '#64748b' }}>Flagged calls</p>
-                    <p className="text-2xl font-semibold" style={{ color: '#0f172a' }}>13</p>
+                    <p className="home-text-soft">Flagged calls</p>
+                    <p className="home-text-heading text-2xl font-semibold">13</p>
                   </div>
                   <div>
-                    <p style={{ color: '#64748b' }}>Avg start drift</p>
-                    <p className="text-2xl font-semibold" style={{ color: '#0f172a' }}>+1h 3m</p>
+                    <p className="home-text-soft">Avg start drift</p>
+                    <p className="home-text-heading text-2xl font-semibold">+1h 3m</p>
                   </div>
                   <div>
-                    <p style={{ color: '#64748b' }}>Avg duration</p>
-                    <p className="text-2xl font-semibold" style={{ color: '#0f172a' }}>122%</p>
+                    <p className="home-text-soft">Avg duration</p>
+                    <p className="home-text-heading text-2xl font-semibold">122%</p>
                   </div>
                 </div>
               </div>
               <div className="home-card-soft p-5">
-                <p className="text-xs uppercase tracking-[0.2em]" style={{ color: '#64748b' }}>Included modules</p>
-                <div className="mt-3 grid grid-cols-2 gap-3 text-sm" style={{ color: '#0f172a' }}>
+                <p className="home-text-soft text-xs uppercase tracking-[0.2em]">Included modules</p>
+                <div className="home-text-heading mt-3 grid grid-cols-2 gap-3 text-sm">
                   <span>EMAR audits</span>
                   <span>Care plan drafts</span>
                   <span>Visit audits</span>

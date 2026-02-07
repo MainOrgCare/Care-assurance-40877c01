@@ -1,8 +1,53 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from "react";
 
 export type FontSize = "small" | "medium" | "large";
+export type AppTheme = "light" | "dark" | "midnight" | "ocean";
+
+const THEME_CLASSES = ["theme-light", "theme-dark", "theme-midnight", "theme-ocean"];
+const THEME_TRANSITION_CLASS = "theme-transitioning";
+
+function isAppTheme(value: string | null): value is AppTheme {
+  return value === "light" || value === "dark" || value === "midnight" || value === "ocean";
+}
+
+function applyThemeToDom(theme: AppTheme): void {
+  if (typeof document === "undefined") return;
+
+  const themeClass = `theme-${theme}`;
+  const isDarkTheme = theme !== "light";
+  const root = document.documentElement;
+  const body = document.body;
+
+  root.classList.remove(...THEME_CLASSES, "dark");
+  root.classList.add(themeClass);
+  root.setAttribute("data-theme", theme);
+  root.style.colorScheme = isDarkTheme ? "dark" : "light";
+
+  if (body) {
+    body.classList.remove(...THEME_CLASSES, "dark");
+    body.classList.add(themeClass);
+    body.setAttribute("data-theme", theme);
+    body.style.colorScheme = isDarkTheme ? "dark" : "light";
+  }
+}
+
+function animateThemeSwap(): void {
+  if (typeof document === "undefined") return;
+
+  const root = document.documentElement;
+  const body = document.body;
+  root.classList.add(THEME_TRANSITION_CLASS);
+  body?.classList.add(THEME_TRANSITION_CLASS);
+
+  window.setTimeout(() => {
+    root.classList.remove(THEME_TRANSITION_CLASS);
+    body?.classList.remove(THEME_TRANSITION_CLASS);
+  }, 220);
+}
 
 interface SettingsContextType {
+  theme: AppTheme;
+  setTheme: (theme: AppTheme) => void;
   fontSize: FontSize;
   setFontSize: (size: FontSize) => void;
   compactMode: boolean;
@@ -38,6 +83,12 @@ function setStorageItem(key: string, value: string): void {
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
+  const [theme, setThemeState] = useState<AppTheme>(() => {
+    const saved = getStorageItem("lewis-theme");
+    if (isAppTheme(saved)) return saved;
+    return "light";
+  });
+
   const [fontSize, setFontSizeState] = useState<FontSize>(() => {
     const saved = getStorageItem("lewis-font-size");
     return (saved as FontSize) || "medium";
@@ -63,6 +114,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setStorageItem("lewis-auto-expand", String(expand));
   }, []);
 
+  const setTheme = useCallback((nextTheme: AppTheme) => {
+    if (nextTheme === theme) return;
+    animateThemeSwap();
+    applyThemeToDom(nextTheme);
+    setThemeState(nextTheme);
+    setStorageItem("lewis-theme", nextTheme);
+  }, [theme]);
+
   const setFontSize = useCallback((size: FontSize) => {
     setFontSizeState(size);
     setStorageItem("lewis-font-size", size);
@@ -79,6 +138,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    applyThemeToDom(theme);
+  }, [theme]);
+
+  useEffect(() => {
     document.documentElement.classList.remove("font-small", "font-medium", "font-large");
     document.documentElement.classList.add(`font-${fontSize}`);
   }, [fontSize]);
@@ -92,6 +155,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [compactMode]);
 
   const contextValue = useMemo(() => ({
+    theme,
+    setTheme,
     fontSize,
     setFontSize,
     compactMode,
@@ -100,7 +165,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setShowCopyConfirmation,
     autoExpandSections,
     setAutoExpandSections,
-  }), [fontSize, setFontSize, compactMode, setCompactMode, showCopyConfirmation, setShowCopyConfirmation, autoExpandSections, setAutoExpandSections]);
+  }), [theme, setTheme, fontSize, setFontSize, compactMode, setCompactMode, showCopyConfirmation, setShowCopyConfirmation, autoExpandSections, setAutoExpandSections]);
 
   return (
     <SettingsContext.Provider value={contextValue}>

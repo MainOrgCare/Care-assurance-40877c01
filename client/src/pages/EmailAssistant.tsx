@@ -71,8 +71,8 @@ export default function EmailAssistant() {
     <div className="page-shell max-w-5xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
         <div className="space-y-1">
-          <h1 className="page-title leading-tight">Email Intelligence</h1>
-          <p className="page-subtitle">Refine raw care notes into professional, high-fidelity correspondence.</p>
+          <h1 className="page-title leading-tight">Email Assistant</h1>
+          <p className="page-subtitle">Refine raw care notes into clear, professional correspondence.</p>
         </div>
       </div>
 
@@ -85,7 +85,7 @@ export default function EmailAssistant() {
               Draft Input
             </CardTitle>
             <CardDescription className="text-xs font-medium">
-              Enter rough bullet points or conversational notes below.
+              Enter rough bullet points or draft notes below.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-1 min-h-[400px] pt-6">
@@ -122,11 +122,11 @@ export default function EmailAssistant() {
                   <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Sparkles size={16} />
                   </div>
-                  Polished Intelligence
+                  Refined Draft
                 </CardTitle>
                 {outputText && (
                   <Badge className="bg-primary/15 text-primary border-primary/20 rounded-lg font-black text-[10px] tracking-widest px-2.5">
-                    OPTIMIZED
+                    READY
                   </Badge>
                 )}
               </div>
@@ -138,7 +138,7 @@ export default function EmailAssistant() {
                     <RefreshCw className="h-10 w-10 animate-spin text-primary opacity-30" />
                     <Sparkles className="h-5 w-5 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
                   </div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-primary mt-6">Reconstructing Language...</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary mt-6">Preparing draft...</p>
                 </div>
               )}
               
@@ -156,14 +156,14 @@ export default function EmailAssistant() {
                 disabled={isProcessing}
               >
                 {outputText ? (
-                  <><RefreshCw className="mr-2.5 h-4 w-4 group-hover:rotate-180 transition-transform duration-700"/> RE-REWRITE</>
+                  <><RefreshCw className="mr-2.5 h-4 w-4 group-hover:rotate-180 transition-transform duration-700"/> Refine Draft</>
                 ) : (
-                  <><Sparkles className="mr-2.5 h-4 w-4 animate-pulse"/> REWRITE magic</>
+                  <><Sparkles className="mr-2.5 h-4 w-4 animate-pulse"/> Rewrite Email</>
                 )}
               </Button>
               {outputText && (
                 <Button variant="outline" onClick={copyToClipboard} className="h-12 px-6 rounded-xl border-border/60 font-bold tracking-tight hover:bg-muted/50 transition-all">
-                  <Copy className="mr-2.5 h-4 w-4" /> COPY
+                  <Copy className="mr-2.5 h-4 w-4" /> Copy
                 </Button>
               )}
             </CardFooter>

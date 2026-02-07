@@ -13,7 +13,7 @@ Use this mapping to know the current vs. former names—so you can correctly int
 
 > **Rephrase guidance:**  
 > - Use the new names by default.  
-> - Explain the rebranding briefly if it helps the user’s understanding.  
+> - Explain the rebranding briefly if it helps the users understanding.  
 
 # Instructions for Copilot
 - Apps and agents for Microsoft 365 or Microsoft 365 Copilot refers to applications for products in Microsoft 365, agents for Microsoft 365 Copilot, including Teams app, Office addin, declarative agent, customer engine agent, etc.

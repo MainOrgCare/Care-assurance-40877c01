@@ -97,9 +97,9 @@ const SortableWidgetItem = memo(SortableWidgetItemBase);
 
 const QUICK_ACTIONS: { icon: LucideIcon; label: string; description: string; href: string; color: string; glow: string }[] = [
   { icon: Upload, label: "EMAR Audit", description: "Upload and analyze medication records", href: "/care-workers/emar-audit", color: "from-blue-500 to-cyan-500", glow: "shadow-blue-500/25" },
-  { icon: FileText, label: "Care Plan", description: "Generate AI-powered care plans", href: "/service-users/upload", color: "from-violet-500 to-purple-500", glow: "shadow-violet-500/25" },
+  { icon: FileText, label: "Care Plan", description: "Generate AI-powered care plans", href: "/service-users/upload", color: "from-indigo-500 to-blue-600", glow: "shadow-indigo-500/25" },
   { icon: Shield, label: "Risk Assessment", description: "Create comprehensive risk assessments", href: "/service-users/risk-assessment", color: "from-amber-500 to-orange-500", glow: "shadow-amber-500/25" },
-  { icon: Brain, label: "Plan Enhancer", description: "Enhance existing care plans with AI", href: "/care-plan-enhancer", color: "from-emerald-500 to-teal-500", glow: "shadow-emerald-500/25" },
+  { icon: Brain, label: "Plan Enhancer", description: "Enhance existing care plans with AI", href: "/service-users/plan-enhancer", color: "from-emerald-500 to-teal-500", glow: "shadow-emerald-500/25" },
 ];
 
 export default function Dashboard() {
@@ -374,24 +374,24 @@ export default function Dashboard() {
   return (
     <div className="page-shell">
       {user?.isDemo && (
-        <Card className="bg-gradient-to-r from-violet-600/10 via-fuchsia-600/10 to-pink-600/10 border-violet-500/20 shadow-lg animate-fade-in" data-testid="demo-mode-banner">
+        <Card className="bg-gradient-to-r from-blue-600/10 via-cyan-600/10 to-emerald-600/10 border-primary/25 shadow-lg animate-fade-in" data-testid="demo-mode-banner">
           <CardContent className="p-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
                   <Play className="h-5 w-5 text-white" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-foreground">Demo Mode Active</h3>
-                    <Badge variant="outline" className="border-purple-500/50 text-purple-300">Sample Data</Badge>
+                    <Badge variant="outline" className="border-primary/35 text-primary">Sample Data</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Explore CareAssurance with pre-loaded sample data. Changes won't be saved.
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-xs text-purple-300">
+              <div className="flex items-center gap-2 text-xs text-primary">
                 <Info className="h-4 w-4" />
                 Read-only mode
               </div>
@@ -403,9 +403,9 @@ export default function Dashboard() {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
         <div className="space-y-1">
           <p className="text-sm font-semibold text-primary tracking-tight px-1">
-            Hello, {user?.firstName || user?.username || 'there'} 👋
+            Welcome, {user?.firstName || user?.username || 'there'}
           </p>
-          <h1 className="page-title leading-tight" data-testid="text-dashboard-title">Intelligence Hub</h1>
+          <h1 className="page-title leading-tight" data-testid="text-dashboard-title">Operations Dashboard</h1>
           <p className="page-subtitle">Unified operations overview for the last 24 hours.</p>
         </div>
         <div className="flex gap-3">
@@ -474,7 +474,7 @@ export default function Dashboard() {
                 </div>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate("/service-users/upload")} className="cursor-pointer">
-                <FileText className="h-4 w-4 mr-2 text-violet-500" />
+                <FileText className="h-4 w-4 mr-2 text-indigo-500" />
                 <div className="flex flex-col">
                   <span>Care Plan</span>
                   <span className="text-xs text-muted-foreground">Generate AI care plans</span>
@@ -487,7 +487,7 @@ export default function Dashboard() {
                   <span className="text-xs text-muted-foreground">Create risk assessments</span>
                 </div>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/care-plan-enhancer")} className="cursor-pointer">
+              <DropdownMenuItem onClick={() => navigate("/service-users/plan-enhancer")} className="cursor-pointer">
                 <Sparkles className="h-4 w-4 mr-2 text-emerald-500" />
                 <div className="flex flex-col">
                   <span>Plan Enhancer</span>
@@ -534,7 +534,7 @@ export default function Dashboard() {
                   <p className="text-xs leading-relaxed text-muted-foreground font-medium">{action.description}</p>
                   
                   <div className="flex items-center gap-2 mt-4 text-xs font-bold text-primary opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-2 group-hover:translate-y-0">
-                    <span>EXECUTE MODULE</span>
+                    <span>OPEN WORKFLOW</span>
                     <ArrowRight className="h-3.5 w-3.5" />
                   </div>
                 </CardContent>
@@ -573,7 +573,7 @@ export default function Dashboard() {
                          {isLoading ? <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
                        </p>
                     </div>
-                    <div className="space-y-1.5 px-2 border-l-2 border-violet-500/30">
+                    <div className="space-y-1.5 px-2 border-l-2 border-indigo-500/30">
                        <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Care Plan Reviews</p>
                        <p className="text-4xl font-black tracking-tight text-foreground" data-testid="text-care-plan-reviews">
                          {isLoading ? <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
@@ -695,19 +695,19 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-sm font-bold text-foreground mb-1">Deep Analysis</p>
-                <p className="text-xs leading-relaxed text-muted-foreground font-medium">Consensus-driven logic identifies discrepancies with precision.</p>
+                <p className="text-xs leading-relaxed text-muted-foreground font-medium">Layered review logic identifies discrepancies with precision.</p>
               </div>
             </div>
             <div className="space-y-3 group p-6 rounded-2xl bg-muted/20 hover:bg-muted/30 transition-all border border-border/40 hover:border-border hover:shadow-soft">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-background flex items-center justify-center border border-border/60 shadow-xs group-hover:scale-110 group-hover:text-violet-500 transition-all">
+                <div className="h-10 w-10 rounded-xl bg-background flex items-center justify-center border border-border/60 shadow-xs group-hover:scale-110 group-hover:text-indigo-500 transition-all">
                   <Shield className="h-5 w-5" />
                 </div>
                 <span className="text-3xl font-black tracking-tighter text-foreground">Live</span>
               </div>
               <div>
                 <p className="text-sm font-bold text-foreground mb-1">Active Guard</p>
-                <p className="text-xs leading-relaxed text-muted-foreground font-medium">Real-time telemetry of compliance and incident vectors.</p>
+                <p className="text-xs leading-relaxed text-muted-foreground font-medium">Real-time telemetry of compliance and incident signals.</p>
               </div>
             </div>
             <div className="space-y-3 group p-6 rounded-2xl bg-muted/20 hover:bg-muted/30 transition-all border border-border/40 hover:border-border hover:shadow-soft">

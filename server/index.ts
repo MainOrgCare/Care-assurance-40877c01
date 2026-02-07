@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import compression from "compression";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -184,12 +184,17 @@ const authLimiter = rateLimit({
   message: { message: 'Too many authentication attempts. Please try again in 15 minutes.' },
   skip: (req) => process.env.NODE_ENV !== 'production',
   keyGenerator: (req) => {
-    // Use X-Forwarded-For if behind proxy, otherwise use IP
+    // Prefer forwarded client IP if present (common behind proxies/load balancers).
     const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded) {
-      return (typeof forwarded === 'string' ? forwarded : forwarded[0]).split(',')[0].trim();
-    }
-    return req.ip || req.socket?.remoteAddress || 'unknown';
+    const forwardedIp =
+      typeof forwarded === 'string'
+        ? forwarded.split(',')[0]?.trim()
+        : Array.isArray(forwarded)
+          ? forwarded[0]?.split(',')[0]?.trim()
+          : undefined;
+
+    // Normalize IPv6 keys via express-rate-limit helper to prevent bypasses.
+    return ipKeyGenerator(forwardedIp || req.ip || req.socket?.remoteAddress || 'unknown');
   },
 });
 app.use('/api/auth/login', authLimiter);
