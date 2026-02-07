@@ -1,19 +1,38 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.3.0
-// Streamlined with direct Care Assurance integration
+// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.3.1
+// Streamlined with direct Care Assurance integration via content script proxy
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Try multiple possible URLs in order of preference
 const CARE_ASSURANCE_URLS = [
-  "https://careassurance.uk",
-  "https://care-assurance-api.onrender.com",
-  "https://care-assurance-web.onrender.com",
-  "http://localhost:5000",
-  "http://localhost:3000"
+  "careassurance.uk",
+  "care-assurance-api.onrender.com",
+  "care-assurance-web.onrender.com",
+  "localhost:5000",
+  "localhost:3000"
 ];
 
 // Will be set after successful connection
 let CARE_ASSURANCE_URL = CARE_ASSURANCE_URLS[0];
+
+// API proxy function - routes requests through content script for authentication
+async function apiProxy(endpoint, method = 'GET', body = null) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({
+      type: 'CA_API_PROXY_REQUEST',
+      endpoint,
+      method,
+      body,
+      targetOrigin: CARE_ASSURANCE_URL
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        resolve({ ok: false, error: chrome.runtime.lastError.message });
+        return;
+      }
+      resolve(response || { ok: false, error: 'No response from background' });
+    });
+  });
+}
 
 const FALLBACK_STORAGE_KEYS = {
   payload: "caAcpPayload",
@@ -183,32 +202,25 @@ async function connectToCareAssurance() {
   let lastError = null;
   let connected = false;
   
-  // Try each URL in order
-  for (const url of [CARE_ASSURANCE_URL, ...CARE_ASSURANCE_URLS.filter(u => u !== CARE_ASSURANCE_URL)]) {
+  // Try each URL in order using API proxy (via content script)
+  for (const targetOrigin of [CARE_ASSURANCE_URL, ...CARE_ASSURANCE_URLS.filter(u => u !== CARE_ASSURANCE_URL)]) {
+    CARE_ASSURANCE_URL = targetOrigin;
+    if (connectStatus) connectStatus.innerHTML = `<span>Trying ${targetOrigin}...</span>`;
+    
     try {
-      if (connectStatus) connectStatus.innerHTML = `<span>Trying ${url}...</span>`;
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
-      const statusRes = await fetch(`${url}/api/extension/status`, { 
-        credentials: "include",
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
+      const statusRes = await apiProxy('/api/extension/status');
       
       if (statusRes.ok) {
-        const status = await statusRes.json();
-        CARE_ASSURANCE_URL = url;
-        await setStorage({ caAcpServerUrl: url });
+        const status = statusRes.data;
+        await setStorage({ caAcpServerUrl: targetOrigin });
         updateConnectionUI(true, status.user);
         connected = true;
         
         // Fetch service users
         try {
-          const usersRes = await fetch(`${url}/api/extension/service-users`, { credentials: "include" });
+          const usersRes = await apiProxy('/api/extension/service-users');
           if (usersRes.ok) {
-            const data = await usersRes.json();
+            const data = usersRes.data;
             serviceUsers = data.users || [];
             await setStorage({ [STORAGE_KEYS.serviceUsers]: serviceUsers });
             displayServiceUsers();
@@ -219,9 +231,9 @@ async function connectToCareAssurance() {
         
         // Fetch recent items
         try {
-          const recentRes = await fetch(`${url}/api/extension/recent`, { credentials: "include" });
+          const recentRes = await apiProxy('/api/extension/recent');
           if (recentRes.ok) {
-            const data = await recentRes.json();
+            const data = recentRes.data;
             displayRecentItems(data);
           }
         } catch (e) {
@@ -229,29 +241,28 @@ async function connectToCareAssurance() {
         }
         
         break;
-      } else if (statusRes.status === 401) {
+      } else if (statusRes.status === 401 || statusRes.error === 'Not logged in') {
         // Server found but not logged in
-        CARE_ASSURANCE_URL = url;
-        await setStorage({ caAcpServerUrl: url });
-        lastError = `Found server at ${url} but not logged in. Please log in to Care Assurance first.`;
+        await setStorage({ caAcpServerUrl: targetOrigin });
+        lastError = `Found server but not logged in. Please log in to Care Assurance in your browser first.`;
+        break; // Don't try other URLs, just need to log in
+      } else if (statusRes.needsTab) {
+        lastError = statusRes.error;
+        // Try next URL
       } else {
-        lastError = `Server at ${url} returned ${statusRes.status}`;
+        lastError = `Server returned error: ${statusRes.error || 'Unknown error'}`;
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
-        lastError = `${url} timed out`;
-      } else {
-        lastError = `${url}: ${error.message}`;
-      }
-      console.warn(`Connection to ${url} failed:`, error);
+      lastError = `${targetOrigin}: ${error.message}`;
+      console.warn(`Connection to ${targetOrigin} failed:`, error);
     }
   }
   
   if (!connected) {
     updateConnectionUI(false);
-    const errorMsg = lastError?.includes('not logged in')
+    const errorMsg = lastError?.includes('not logged in') || lastError?.includes('No Care Assurance tab')
       ? lastError
-      : "Connection failed. Make sure Care Assurance is running and you're logged in.";
+      : "Connection failed. Please open Care Assurance in a browser tab and log in first.";
     showError(errorMsg);
     
     // Show help text
@@ -259,10 +270,12 @@ async function connectToCareAssurance() {
       connectStatus.innerHTML = `
         <div style="color: var(--color-error); font-size: 11px;">
           <p style="margin-bottom: 8px;">${errorMsg}</p>
-          <p style="margin-bottom: 4px;">Tried URLs:</p>
-          <ul style="padding-left: 16px; margin: 0;">
-            ${CARE_ASSURANCE_URLS.slice(0, 3).map(u => `<li style="font-size: 10px;">${u}</li>`).join('')}
-          </ul>
+          <p style="margin-bottom: 4px;"><strong>Steps to connect:</strong></p>
+          <ol style="padding-left: 16px; margin: 0; font-size: 10px;">
+            <li>Open careassurance.uk in a browser tab</li>
+            <li>Log in to your account</li>
+            <li>Click Connect again in this extension</li>
+          </ol>
         </div>
       `;
     }
@@ -332,10 +345,10 @@ loadCarePlanBtn?.addEventListener("click", async () => {
   loadCarePlanBtn.textContent = "Loading...";
   
   try {
-    const res = await fetch(`${CARE_ASSURANCE_URL}/api/extension/care-plan/${selectedUser.id}`, { credentials: "include" });
-    if (!res.ok) throw new Error("Failed to load care plan");
+    const res = await apiProxy(`/api/extension/care-plan/${selectedUser.id}`);
+    if (!res.ok) throw new Error(res.error || "Failed to load care plan");
     
-    const payload = await res.json();
+    const payload = res.data;
     await setStorage({ [STORAGE_KEYS.payload]: payload });
     
     showSuccess("Care plan loaded! Go to Autofill tab.");
@@ -357,10 +370,10 @@ loadRiskBtn?.addEventListener("click", async () => {
   loadRiskBtn.textContent = "Loading...";
   
   try {
-    const res = await fetch(`${CARE_ASSURANCE_URL}/api/extension/risk-assessment/${selectedUser.riskAssessmentId}`, { credentials: "include" });
-    if (!res.ok) throw new Error("Failed to load risk assessment");
+    const res = await apiProxy(`/api/extension/risk-assessment/${selectedUser.riskAssessmentId}`);
+    if (!res.ok) throw new Error(res.error || "Failed to load risk assessment");
     
-    const payload = await res.json();
+    const payload = res.data;
     await setStorage({ [STORAGE_KEYS.payload]: payload });
     
     showSuccess("Risk assessment loaded! Go to Autofill tab.");
@@ -403,13 +416,13 @@ function displayRecentItems(data) {
 async function loadRecentItem(id, type) {
   try {
     const endpoint = type === "carePlan" 
-      ? `${CARE_ASSURANCE_URL}/api/extension/care-plan/${id}`
-      : `${CARE_ASSURANCE_URL}/api/extension/risk-assessment/${id}`;
+      ? `/api/extension/care-plan/${id}`
+      : `/api/extension/risk-assessment/${id}`;
     
-    const res = await fetch(endpoint, { credentials: "include" });
-    if (!res.ok) throw new Error("Failed to load");
+    const res = await apiProxy(endpoint);
+    if (!res.ok) throw new Error(res.error || "Failed to load");
     
-    const payload = await res.json();
+    const payload = res.data;
     await setStorage({ [STORAGE_KEYS.payload]: payload });
     
     showSuccess("Data loaded!");
@@ -741,22 +754,24 @@ function showSuccess(message) {
     CARE_ASSURANCE_URL = stored.caAcpServerUrl;
   }
   
-  // Try to check if already connected (quick check with saved URL only)
+  // Try quick connection check using API proxy
+  if (connectStatus) {
+    connectStatus.innerHTML = `<span style="font-size: 11px;">Checking connection...</span>`;
+  }
+  
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-    
-    const res = await fetch(`${CARE_ASSURANCE_URL}/api/extension/status`, { 
-      credentials: "include",
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
+    const res = await apiProxy('/api/extension/status');
     
     if (res.ok) {
-      const status = await res.json();
+      const status = res.data;
       updateConnectionUI(true, status.user);
       // Do full refresh in background
       connectToCareAssurance();
+    } else if (res.needsTab) {
+      updateConnectionUI(false);
+      if (connectStatus) {
+        connectStatus.innerHTML = `<span style="font-size: 11px;">Open Care Assurance in a tab, then click Connect</span>`;
+      }
     } else {
       updateConnectionUI(false);
       if (connectStatus) {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Care Assurance ACP Autofill",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Streamlined autofill for Access Care Planning. Direct integration with Care Assurance for risk assessments, care plans, and initial assessments.",
   "action": {
     "default_title": "ACP Autofill",

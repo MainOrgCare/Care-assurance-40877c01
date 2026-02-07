@@ -98,6 +98,20 @@ const corsOptions: CorsOptions = {
       return cb(null, true);
     }
     
+    // Allow browser extensions (Chrome, Edge, Firefox)
+    if (origin.startsWith('chrome-extension://') || 
+        origin.startsWith('moz-extension://') || 
+        origin.startsWith('extension://')) {
+      log(`✓ Origin allowed (browser extension): ${origin}`);
+      return cb(null, true);
+    }
+    
+    // Allow Render.com subdomains for API server
+    if (origin.includes('.onrender.com')) {
+      log(`✓ Origin allowed (Render subdomain): ${origin}`);
+      return cb(null, true);
+    }
+    
     log(`✗ Origin rejected: ${origin} (not in allowed list)`);
     return cb(new Error("Not allowed by CORS"));
   },

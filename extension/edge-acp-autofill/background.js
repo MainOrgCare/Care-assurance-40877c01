@@ -2,6 +2,11 @@ importScripts("constants.js");
 
 const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES } = self.CA_EXTENSION_CONSTANTS;
 
+const API_PROXY_TYPE = "CA_API_PROXY_REQUEST";
+
+// Track tabs with content-app.js ready
+let contentScriptReadyTabs = new Map(); // origin -> tabId
+
 const getStored = (keys) =>
   new Promise((resolve) => chrome.storage.local.get(keys, (items) => resolve(items)));
 
@@ -287,6 +292,86 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       });
 
     return true; // Keep message channel open for async response
+  }
+  
+  // Handle content script ready notification
+  if (message?.type === "CA_CONTENT_SCRIPT_READY") {
+    const origin = message.origin;
+    contentScriptReadyTabs.set(origin, _sender.tab?.id);
+    console.log(`[CA Extension] Content script ready on: ${origin}`);
+    return false;
+  }
+  
+  // Handle API proxy requests from popup
+  if (message?.type === API_PROXY_TYPE) {
+    const { endpoint, method, body, targetOrigin } = message;
+    
+    // Find a tab with content script ready for the target origin
+    const findContentScriptTab = async () => {
+      // First check cached tabs
+      for (const [origin, tabId] of contentScriptReadyTabs.entries()) {
+        if (origin.includes(targetOrigin) || targetOrigin.includes(origin.replace(/^https?:\/\//, ''))) {
+          try {
+            const tab = await chrome.tabs.get(tabId);
+            if (tab) return tabId;
+          } catch (e) {
+            contentScriptReadyTabs.delete(origin);
+          }
+        }
+      }
+      
+      // Query for matching tabs
+      const patterns = [
+        `https://${targetOrigin}/*`,
+        `https://www.${targetOrigin}/*`,
+        `http://localhost:*/*`,
+        `http://127.0.0.1:*/*`
+      ];
+      
+      for (const pattern of patterns) {
+        try {
+          const tabs = await chrome.tabs.query({ url: pattern });
+          if (tabs.length > 0) {
+            return tabs[0].id;
+          }
+        } catch (e) {
+          // Invalid pattern, skip
+        }
+      }
+      
+      return null;
+    };
+    
+    findContentScriptTab()
+      .then(async (tabId) => {
+        if (!tabId) {
+          sendResponse({ 
+            ok: false, 
+            error: `No Care Assurance tab found. Please open ${targetOrigin} and log in first.`,
+            needsTab: true 
+          });
+          return;
+        }
+        
+        // Forward request to content script
+        try {
+          const response = await chrome.tabs.sendMessage(tabId, {
+            type: API_PROXY_TYPE,
+            endpoint,
+            method,
+            body
+          });
+          sendResponse(response);
+        } catch (error) {
+          console.error('[CA Extension] Error forwarding to content script:', error);
+          sendResponse({ ok: false, error: error.message || 'Failed to communicate with tab' });
+        }
+      })
+      .catch((error) => {
+        sendResponse({ ok: false, error: error.message });
+      });
+    
+    return true; // Keep message channel open
   }
 
   return false;
