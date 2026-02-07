@@ -45,31 +45,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  useEffect(() => {
-    checkSession();
-  }, []);
-
-  const checkSession = useCallback(async () => {
-    try {
-      const response = await fetch("/api/auth/me", {
-        credentials: "include",
-      });
-      
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-        if (userData.role === "admin") {
-          await fetchUsers();
-          await fetchSystemLogs();
-        }
-      }
-    } catch (error) {
-      console.error("Session check failed:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const mapSystemLog = (log: any) => {
     const details = log?.details && typeof log.details === "object" ? log.details : {};
     return {
@@ -86,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   };
 
-  const fetchSystemLogs = async () => {
+  const fetchSystemLogs = useCallback(async () => {
     try {
       const response = await fetch("/api/system-logs", {
         credentials: "include",
@@ -99,17 +74,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Failed to fetch system logs:", error);
     }
-  };
+  }, []);
+
+  const checkSession = useCallback(async () => {
+    try {
+      const response = await fetch("/api/auth/session", {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        setUser(null);
+        setAllUsers([]);
+        setAuditLogs([]);
+        return;
+      }
+
+      const sessionData = await response.json();
+      if (sessionData?.authenticated && sessionData?.user) {
+        setUser(sessionData.user);
+      } else {
+        setUser(null);
+        setAllUsers([]);
+        setAuditLogs([]);
+      }
+    } catch (error) {
+      console.error("Session check failed:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkSession();
+  }, [checkSession]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      checkSession();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkSession();
+      }
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [checkSession]);
 
   const refetchUser = useCallback(async () => {
     try {
-      const response = await fetch("/api/auth/me", {
+      const response = await fetch("/api/auth/session", {
         credentials: "include",
       });
-      
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
+
+      if (!response.ok) {
+        return;
+      }
+
+      const sessionData = await response.json();
+      if (sessionData?.authenticated && sessionData?.user) {
+        setUser(sessionData.user);
+      } else {
+        setUser(null);
+        setAllUsers([]);
+        setAuditLogs([]);
       }
     } catch (error) {
       console.error("Refetch user failed:", error);
@@ -130,6 +163,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Failed to fetch users:", error);
     }
   }, []);
+
+  useEffect(() => {
+    if (user?.role === "admin") {
+      fetchUsers();
+      fetchSystemLogs();
+      return;
+    }
+    setAllUsers([]);
+  }, [user?.role, fetchUsers, fetchSystemLogs]);
 
   const logAction = useCallback((action: string, target: string, status: "Authorized" | "Flagged" | "Blocked" | "System" = "Authorized", alert?: string, details?: Record<string, any>) => {
     const newLog = {

@@ -25,6 +25,8 @@ services:
         value: "false"
       - key: CORS_ORIGIN
         sync: false
+      - key: AI_ENABLED
+        value: "true"
       # Optional overrides; defaults exist in code. Prefer setting in Render dashboard.
       - key: CONTACT_EMAIL
         sync: false
@@ -43,6 +45,13 @@ services:
         sync: false
       # If you use Postgres, set DATABASE_URL in the dashboard.
       - key: DATABASE_URL
+        sync: false
+      # AI provider keys (set at least one in dashboard).
+      - key: PAT_AI_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_FALLBACK_API_KEY
         sync: false
       # Local LLM disabled - using GitHub AI / OpenAI instead
       # - key: LOCAL_LLM_URL

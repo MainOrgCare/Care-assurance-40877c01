@@ -31,6 +31,8 @@ import {
   ChevronRight,
   Loader2,
   Building2,
+  Menu,
+  X,
 } from "lucide-react";
 
 const HOURLY_RATE = 14.5;
@@ -134,6 +136,34 @@ const OVERVIEW_BULLETS = [
   "Clear reports for managers, auditors, and care teams.",
 ] as const;
 
+const NAV_SECTIONS = [
+  { id: "platform", label: "Platform" },
+  { id: "compliance", label: "Compliance" },
+  { id: "roi", label: "Savings" },
+  { id: "contact", label: "Contact" },
+] as const;
+
+const HERO_ACTIVITY = [
+  {
+    title: "EMAR compliance audit",
+    detail: "12 medication records reviewed • 0 discrepancies",
+    tone: "success",
+    icon: CheckCircle2,
+  },
+  {
+    title: "Care plan generated",
+    detail: "11 sections • inspection-ready format",
+    tone: "success",
+    icon: FileText,
+  },
+  {
+    title: "Visit reconciliation",
+    detail: "Analysing 48 visits • 2 variances flagged",
+    tone: "info",
+    icon: ClipboardCheck,
+  },
+] as const;
+
 const calculateROI = (users: number) => {
   let totalManualMins = 0;
   let totalAiMins = 0;
@@ -213,16 +243,15 @@ export default function Homepage() {
     setServiceUsers(value[0]);
   }, []);
 
-  const scrollToSection = useCallback((id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
   const [, setLocation] = useLocation();
   const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<(typeof NAV_SECTIONS)[number]["id"]>("platform");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [headerScrolled, setHeaderScrolled] = useState(false);
 
   const handleLogin = useCallback(
     async (e: React.FormEvent) => {
@@ -239,8 +268,14 @@ export default function Homepage() {
   );
 
   const openLoginFromCTA = useCallback(() => {
+    setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
     window.setTimeout(() => setLoginOpen(true), 250);
+  }, []);
+
+  const scrollToSection = useCallback((id: string) => {
+    setActiveSection(id as (typeof NAV_SECTIONS)[number]["id"]);
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
   const roi = useMemo(() => calculateROI(serviceUsers), [serviceUsers]);
@@ -263,59 +298,74 @@ export default function Homepage() {
     [prefersReducedMotion]
   );
 
+  useEffect(() => {
+    const updateScrollState = () => {
+      setHeaderScrolled(window.scrollY > 12);
+
+      const viewportAnchor = window.scrollY + window.innerHeight * 0.35;
+      let currentSection = NAV_SECTIONS[0].id;
+
+      NAV_SECTIONS.forEach((section) => {
+        const element = document.getElementById(section.id);
+        if (!element) return;
+        if (element.offsetTop <= viewportAnchor) {
+          currentSection = section.id;
+        }
+      });
+
+      setActiveSection(currentSection);
+    };
+
+    const closeMenuOnDesktop = () => {
+      if (window.innerWidth >= 768) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    updateScrollState();
+    window.addEventListener("scroll", updateScrollState, { passive: true });
+    window.addEventListener("resize", closeMenuOnDesktop);
+
+    return () => {
+      window.removeEventListener("scroll", updateScrollState);
+      window.removeEventListener("resize", closeMenuOnDesktop);
+    };
+  }, []);
+
   return (
     <div className="homepage-theme min-h-screen overflow-x-hidden">
       <div className="home-pattern fixed inset-0 pointer-events-none opacity-25" />
 
-      <header className="relative z-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex items-center justify-between gap-6">
+      <header className={`home-header ${headerScrolled ? "is-scrolled" : ""}`}>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-[#3b82f6] text-white flex items-center justify-center shadow-sm">
+            <div className="h-10 w-10 rounded-xl home-brand-mark flex items-center justify-center shadow-sm">
               <ShieldCheck className="h-5 w-5" />
             </div>
-            <div>
-              <div className="text-base font-bold" style={{ color: '#0f172a', fontFamily: '"Plus Jakarta Sans", sans-serif' }}>CareAssurance</div>
-              <div className="text-[11px] tracking-wide font-medium" style={{ color: '#64748b' }}>Compliance Platform</div>
+            <div className="home-brand-copy">
+              <div className="text-base font-bold">CareAssurance</div>
+              <div className="text-[11px] tracking-wide font-medium">Compliance Platform</div>
             </div>
           </div>
 
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-            <button
-              type="button"
-              className="bg-transparent p-0 text-sm font-medium transition-colors"
-              style={{ color: '#64748b' }}
-              onClick={() => scrollToSection("platform")}
-            >
-              Platform
-            </button>
-            <button
-              type="button"
-              className="bg-transparent p-0 text-sm font-medium transition-colors"
-              style={{ color: '#64748b' }}
-              onClick={() => scrollToSection("compliance")}
-            >
-              Compliance
-            </button>
-            <button
-              type="button"
-              className="bg-transparent p-0 text-sm font-medium transition-colors"
-              style={{ color: '#64748b' }}
-              onClick={() => scrollToSection("roi")}
-            >
-              Savings
-            </button>
-            <button
-              type="button"
-              className="bg-transparent p-0 text-sm font-medium transition-colors"
-              style={{ color: '#64748b' }}
-              onClick={() => scrollToSection("contact")}
-            >
-              Contact
-            </button>
+          <nav className="hidden md:flex items-center gap-2 text-sm font-medium">
+            {NAV_SECTIONS.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                className={`home-nav-link ${activeSection === section.id ? "is-active" : ""}`}
+                onClick={() => scrollToSection(section.id)}
+                aria-current={activeSection === section.id ? "true" : undefined}
+              >
+                {section.label}
+              </button>
+            ))}
           </nav>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="home-outline" onClick={() => scrollToSection("contact")}>Contact</Button>
+            <Button variant="outline" className="home-outline hidden sm:inline-flex" onClick={() => scrollToSection("contact")}>
+              Contact
+            </Button>
             <Popover open={loginOpen} onOpenChange={setLoginOpen}>
               <PopoverTrigger asChild>
                 <Button className="home-cta" data-testid="button-header-login">
@@ -330,7 +380,7 @@ export default function Homepage() {
                       <ShieldCheck className="h-4 w-4" />
                     </div>
                     <div>
-                      <h3 className="font-semibold" style={{ color: '#0f172a', fontFamily: 'Inter, sans-serif' }}>Welcome Back</h3>
+                      <h3 className="font-semibold" style={{ color: '#0f172a', fontFamily: 'Sora, sans-serif' }}>Welcome Back</h3>
                       <p className="text-xs" style={{ color: '#64748b' }}>Sign in to your account</p>
                     </div>
                   </div>
@@ -378,8 +428,36 @@ export default function Homepage() {
                 </div>
               </PopoverContent>
             </Popover>
+            <Button
+              variant="outline"
+              size="icon"
+              className="home-nav-toggle md:hidden"
+              aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+            >
+              {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
+        {mobileMenuOpen && (
+          <div className="md:hidden px-4 sm:px-6 lg:px-8 pb-4">
+            <div className="home-mobile-menu p-3">
+              {NAV_SECTIONS.map((section) => (
+                <button
+                  key={section.id}
+                  type="button"
+                  className={`home-mobile-link ${activeSection === section.id ? "is-active" : ""}`}
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    scrollToSection(section.id);
+                  }}
+                >
+                  {section.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </header>
 
       <main className="relative z-10">
@@ -426,42 +504,26 @@ export default function Homepage() {
             <motion.div {...reveal(0.1)} className="relative">
               <div className="home-card p-6">
                 <div className="space-y-4">
-                  <div className="flex items-start gap-4 p-4 rounded-lg" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-                    <div className="h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#dcfce7' }}>
-                      <CheckCircle2 className="h-5 w-5" style={{ color: '#16a34a' }} />
+                  {HERO_ACTIVITY.map((item) => (
+                    <div key={item.title} className={`home-signal home-signal-${item.tone}`}>
+                      <div className="home-signal-icon">
+                        <item.icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="home-signal-title">{item.title}</p>
+                        <p className="home-signal-detail">{item.detail}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold text-sm" style={{ color: '#0f172a' }}>EMAR compliance audit</p>
-                      <p className="text-xs mt-1" style={{ color: '#64748b' }}>12 medication records reviewed • 0 discrepancies</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-4 p-4 rounded-lg" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-                    <div className="h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#dcfce7' }}>
-                      <FileText className="h-5 w-5" style={{ color: '#16a34a' }} />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sm" style={{ color: '#0f172a' }}>Care plan generated</p>
-                      <p className="text-xs mt-1" style={{ color: '#64748b' }}>11 sections • inspection-ready format</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-4 p-4 rounded-lg" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
-                    <div className="h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#dbeafe' }}>
-                      <ClipboardCheck className="h-5 w-5" style={{ color: '#3b82f6' }} />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sm" style={{ color: '#0f172a' }}>Visit reconciliation</p>
-                      <p className="text-xs mt-1" style={{ color: '#64748b' }}>Analysing 48 visits • 2 variances flagged</p>
-                    </div>
-                  </div>
+                  ))}
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="home-card-soft p-3">
-                    <p className="text-xs" style={{ color: '#64748b' }}>Live audits reviewed</p>
-                    <p className="text-lg font-semibold" style={{ color: '#0f172a' }}>248</p>
+                  <div className="home-card-soft p-3 home-mini-stat">
+                    <p className="text-xs">Live audits reviewed</p>
+                    <p className="text-lg font-semibold">248</p>
                   </div>
-                  <div className="home-card-soft p-3">
-                    <p className="text-xs" style={{ color: '#64748b' }}>Open issues flagged</p>
-                    <p className="text-lg font-semibold" style={{ color: '#0f172a' }}>7</p>
+                  <div className="home-card-soft p-3 home-mini-stat">
+                    <p className="text-xs">Open issues flagged</p>
+                    <p className="text-lg font-semibold">7</p>
                   </div>
                 </div>
               </div>
@@ -584,7 +646,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section className="px-4 py-12 sm:py-16" style={{ backgroundColor: '#ffffff' }}>
+        <section className="px-4 py-12 sm:py-16 home-section-surface">
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">How it works</span>
@@ -595,13 +657,13 @@ export default function Homepage() {
                 No complex setup. Upload your existing documents and get actionable insights within minutes.
               </p>
             </motion.div>
-            <div className="mt-12 grid gap-8 md:grid-cols-3">
-              {WORKFLOW_STEPS.map((step) => (
+            <div className="mt-12 grid gap-8 md:grid-cols-3 home-workflow-grid">
+              {WORKFLOW_STEPS.map((step, index) => (
                 <motion.div
                   key={step.step}
                   {...reveal(0.1)}
-                  className="relative p-6 rounded-xl border"
-                  style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }}
+                  className={`relative p-6 rounded-xl border home-workflow-card ${index > 0 ? "home-workflow-step" : ""}`}
+                  style={{ borderColor: '#e2e8f0' }}
                 >
                   <div className="flex items-center gap-4 mb-4">
                     <span 

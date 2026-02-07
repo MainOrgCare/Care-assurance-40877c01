@@ -3652,43 +3652,53 @@ export async function registerRoutes(
   app.use('/api', csrfProtection);
 
   // Auth middleware
-  const requireAuth = async (req: any, res: any, next: any) => {
-    if (!req.session.userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+  const buildDemoSessionUser = (sessionUserId: string) => ({
+    id: sessionUserId,
+    username: "demo_user",
+    firstName: "Demo",
+    lastName: "User",
+    email: "demo@careassurance.co.uk",
+    role: "staff",
+    status: "active",
+    isDemo: true,
+    createdAt: new Date(),
+    dashboardWidgets: null,
+    termsAcceptedAt: new Date().toISOString(),
+    termsVersion: "1.0",
+  });
+
+  const resolveAuthenticatedUser = async (req: any): Promise<any | null> => {
+    if (!req.session?.userId) {
+      return null;
     }
-    
+
     // Handle demo sessions with virtual user
     if (req.session.isDemo) {
-      req.user = {
-        id: req.session.userId,
-        username: "demo_user",
-        firstName: "Demo",
-        lastName: "User",
-        email: "demo@careassurance.co.uk",
-        role: "staff",
-        status: "active",
-        isDemo: true,
-        createdAt: new Date(),
-        dashboardWidgets: null,
-      };
-      return next();
+      return buildDemoSessionUser(req.session.userId);
     }
-    
+
     const user = await storage.getUser(req.session.userId);
     if (!user || user.status !== "active") {
-      return res.status(401).json({ message: "Unauthorized" });
+      return null;
     }
-    
+
     // Check if session is still valid in active_sessions
     const activeSession = await storage.getActiveSessionBySessionId(req.sessionID);
     if (!activeSession || String(activeSession.userId) !== String(req.session.userId)) {
       req.session.destroy(() => {});
-      return res.status(401).json({ message: "Session expired" });
+      return null;
     }
-    
+
     // Update last activity
     await storage.updateSessionActivity(req.sessionID);
-    
+    return user;
+  };
+
+  const requireAuth = async (req: any, res: any, next: any) => {
+    const user = await resolveAuthenticatedUser(req);
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
     req.user = user;
     const shouldLog = false;
     if (shouldLog) {
@@ -4047,20 +4057,35 @@ export async function registerRoutes(
     }
   });
 
+  const toPublicUser = (user: any) => ({
+    id: user.id,
+    username: user.username,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    role: user.role,
+    status: user.status,
+    jobTitle: user.jobTitle,
+    termsAcceptedAt: user.termsAcceptedAt,
+    termsVersion: user.termsVersion,
+    isDemo: Boolean(user.isDemo),
+  });
+
+  // Session snapshot endpoint - returns 200 for both signed-in and signed-out states.
+  app.get("/api/auth/session", async (req: any, res) => {
+    try {
+      const user = await resolveAuthenticatedUser(req);
+      if (!user) {
+        return res.json({ authenticated: false });
+      }
+      return res.json({ authenticated: true, user: toPublicUser(user) });
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message || "Failed to check session" });
+    }
+  });
+
   // Check session
   app.get("/api/auth/me", requireAuth, async (req: any, res) => {
-    return res.json({
-      id: req.user.id,
-      username: req.user.username,
-      firstName: req.user.firstName,
-      lastName: req.user.lastName,
-      role: req.user.role,
-      status: req.user.status,
-      jobTitle: req.user.jobTitle,
-      termsAcceptedAt: req.user.termsAcceptedAt,
-      termsVersion: req.user.termsVersion,
-      isDemo: req.user.isDemo || false,
-    });
+    return res.json(toPublicUser(req.user));
   });
 
   // Accept terms and conditions
@@ -5179,12 +5204,72 @@ export async function registerRoutes(
 
   // ===== AI AUDIT ROUTES =====
 
+  const getAIProviderReadiness = async () => {
+    const provider = getPreferredProvider();
+    const hasOpenAIKey = !!(process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY || process.env.PAT_AI_KEY);
+    const hasPATKey = !!process.env.PAT_AI_KEY;
+    const localLLMUrl = getLocalLLMUrl();
+    const hasLocalLLM = await isLocalLLMAvailable();
+
+    let providerConfigured = false;
+    let providerIssue: string | null = null;
+
+    if (provider === "openai") {
+      providerConfigured = hasOpenAIKey;
+      if (!providerConfigured) {
+        providerIssue = "OpenAI provider is selected but no API key is configured (OPENAI_API_KEY, OPENAI_FALLBACK_API_KEY, or PAT_AI_KEY).";
+      }
+    } else if (provider === "github") {
+      providerConfigured = hasPATKey;
+      if (!providerConfigured) {
+        providerIssue = "GitHub provider is selected but PAT_AI_KEY is not configured.";
+      }
+    } else if (provider === "local") {
+      providerConfigured = hasLocalLLM;
+      if (!providerConfigured) {
+        providerIssue = `Local provider is selected but no local LLM is reachable at ${localLLMUrl}.`;
+      }
+    }
+
+    return {
+      provider,
+      hasOpenAIKey,
+      hasPATKey,
+      hasLocalLLM,
+      localLLMUrl,
+      providerConfigured,
+      providerIssue,
+    };
+  };
+
   // Security lockdown: block model-backed AI routes when AI is disabled.
-  // Keep deterministic preflight available for EMAR document structure checks.
+  // Keep deterministic preflight and status checks available.
   app.use("/api/ai", requireAuth, (req, res, next) => {
+    if (req.path === "/analyze-emar/preflight" || req.path === "/status" || req.path === "/chat") return next();
     if (isAIEnabled()) return next();
-    if (req.path === "/analyze-emar/preflight") return next();
-    return res.status(503).json({ message: AI_DISABLED_MESSAGE });
+    return res.status(503).json({ code: "AI_DISABLED", message: AI_DISABLED_MESSAGE });
+  });
+
+  app.get("/api/ai/status", requireAuth, async (req, res) => {
+    try {
+      const aiEnabled = isAIEnabled();
+      const readiness = await getAIProviderReadiness();
+      const available = aiEnabled && readiness.providerConfigured;
+      const message = !aiEnabled
+        ? AI_DISABLED_MESSAGE
+        : readiness.providerIssue;
+
+      return res.json({
+        available,
+        aiEnabled,
+        message,
+        provider: readiness.provider,
+        providerConfigured: readiness.providerConfigured,
+      });
+    } catch (error: any) {
+      console.error("AI status fetch error:", error);
+      return res.status(500).json({ message: error.message || "Failed to check AI status" });
+    }
   });
 
   // Parse PDF or Word document and extract text
@@ -15175,14 +15260,18 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   // Get current AI provider preference (admin-only)
   app.get("/api/admin/ai-provider", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const provider = getPreferredProvider();
       const aiEnabled = isAIEnabled();
-      // OpenAI can use its own key OR fall back to PAT_AI_KEY
-      const hasOpenAIKey = !!(process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY || process.env.PAT_AI_KEY);
-      const hasPATKey = !!process.env.PAT_AI_KEY;
-      const localLLMUrl = getLocalLLMUrl();
-      const hasLocalLLM = await isLocalLLMAvailable();
-      return res.json({ provider, aiEnabled, hasOpenAIKey, hasPATKey, hasLocalLLM, localLLMUrl });
+      const readiness = await getAIProviderReadiness();
+      return res.json({
+        provider: readiness.provider,
+        aiEnabled,
+        hasOpenAIKey: readiness.hasOpenAIKey,
+        hasPATKey: readiness.hasPATKey,
+        hasLocalLLM: readiness.hasLocalLLM,
+        localLLMUrl: readiness.localLLMUrl,
+        providerConfigured: readiness.providerConfigured,
+        providerIssue: readiness.providerIssue,
+      });
     } catch (error: any) {
       console.error("AI provider fetch error:", error);
       return res.status(500).json({ message: error.message || "Failed to fetch AI provider" });
@@ -17771,6 +17860,168 @@ Example phrases that should trigger message sending:
     },
   };
 
+  const CHAT_FALLBACK_PREFIX =
+    "Compli-ee is currently running in limited guidance mode while AI services are unavailable.";
+
+  const sanitizeChatPrompt = (value: unknown): string =>
+    typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+
+  const extractLastUserPrompt = (conversation: Array<{ role?: string; content?: string }>): string => {
+    for (let i = conversation.length - 1; i >= 0; i -= 1) {
+      const candidate = conversation[i];
+      if (candidate?.role === "user" && typeof candidate.content === "string") {
+        return candidate.content.trim();
+      }
+    }
+    return "";
+  };
+
+  const isAdminOnlyTopic = (message: string): boolean =>
+    /\b(system logs?|administrator controls?|roi|billing tool|testing features|rostering studio|admin)\b/i.test(
+      message
+    );
+
+  const isTechnicalTopic = (message: string): boolean =>
+    /\b(api|endpoint|database|server|infrastructure|architecture|algorithm|model)\b/i.test(message);
+
+  const wantsInboxMessage = (message: string): boolean =>
+    /\b(send|message|remind|put)\b.*\b(inbox|messages?)\b/i.test(message) ||
+    /\bremind me\b/i.test(message);
+
+  const buildFallbackSubject = (prompt: string): string => {
+    const cleaned = sanitizeChatPrompt(prompt);
+    const aboutMatch = cleaned.match(/\b(?:about|regarding|on)\b\s+(.+)$/i);
+    const base = aboutMatch?.[1] ? aboutMatch[1] : cleaned;
+    if (!base) return "Reminder from Compli-ee";
+    const normalized = base.replace(/[.?!]+$/, "");
+    return `Reminder: ${normalized}`.slice(0, 120);
+  };
+
+  const buildFallbackGuidance = (prompt: string, isAdmin: boolean): string => {
+    const normalized = prompt.toLowerCase();
+
+    if (!isAdmin && isAdminOnlyTopic(normalized)) {
+      return `${CHAT_FALLBACK_PREFIX}
+
+That feature is administrator-only. Please contact your admin for access.
+
+I can still help with:
+- EMAR and visit audit workflows
+- Care planning and risk assessment guidance
+- Drafting clear team or family communications`;
+    }
+
+    if (isTechnicalTopic(normalized)) {
+      return `${CHAT_FALLBACK_PREFIX}
+
+Ah, that is backstage wizardry I cannot unpack directly. I can still help with practical platform steps.
+
+Tell me what you are trying to achieve and I will map it to the right workflow.`;
+    }
+
+    if (/\bemar|medication|prn|refusal\b/i.test(normalized)) {
+      return `${CHAT_FALLBACK_PREFIX}
+
+For EMAR audits:
+1. Go to Care Workers -> EMAR Audit.
+2. Upload a PDF EMAR and run Quick Check first.
+3. Start AI analysis when available, or use manual checklist mode if AI is offline.
+4. Review refusals, PRN protocols, and discrepancies.
+5. Save the audit record for traceability.`;
+    }
+
+    if (/\brisk assessment|risk\b/i.test(normalized)) {
+      return `${CHAT_FALLBACK_PREFIX}
+
+For risk assessments:
+1. Open Service Users -> Risk Assessment.
+2. Upload or paste supporting information.
+3. Draft hazards, existing controls, and required actions.
+4. Confirm ownership and review dates.
+5. Save and share with the care team.`;
+    }
+
+    if (/\bcare plan|care planning|plan enhancer\b/i.test(normalized)) {
+      return `${CHAT_FALLBACK_PREFIX}
+
+For care planning:
+1. Open Service Users -> Care Planning.
+2. Select the person and source documents.
+3. Generate or edit each section with clear person-centred language.
+4. Review actions, escalation notes, and responsibilities.
+5. Finalize and save for distribution.`;
+    }
+
+    if (/\bvisit audit|visit\b/i.test(normalized)) {
+      return `${CHAT_FALLBACK_PREFIX}
+
+For visit audits:
+1. Open Care Workers -> Visit Audit.
+2. Upload call data export.
+3. Review missed visits, timing variances, and documentation gaps.
+4. Record follow-up actions and communicate to team leads.`;
+    }
+
+    return `${CHAT_FALLBACK_PREFIX}
+
+I can still help with navigation and workflow guidance:
+- Care Workers -> EMAR Audit / Visit Audit / Performance
+- Service Users -> Care Planning / Risk Assessment / Plan Enhancer
+- Messages for reminders and team notes
+
+Tell me the task you want to complete and I will give step-by-step guidance.`;
+  };
+
+  const buildFallbackChatResponse = async (
+    prompt: string,
+    req: any,
+    fallbackReason: string,
+    isAdmin: boolean
+  ): Promise<{ reply: string; messageSent: boolean; mode: "fallback"; fallbackReason: string }> => {
+    let messageSent = false;
+    const cleanedPrompt = sanitizeChatPrompt(prompt);
+
+    if (cleanedPrompt && wantsInboxMessage(cleanedPrompt) && req.user?.id) {
+      const subject = buildFallbackSubject(cleanedPrompt);
+      const body = [
+        "This reminder was created while Compli-ee was running in limited guidance mode.",
+        "",
+        `Original request: ${cleanedPrompt}`,
+        "",
+        `Saved at: ${new Date().toISOString()}`,
+      ].join("\n");
+
+      try {
+        await storage.createUserMessage({
+          recipientId: req.user.id,
+          senderId: null,
+          senderName: "Compli-ee",
+          subject,
+          message: body.slice(0, 10000),
+          priority: "normal",
+        });
+        messageSent = true;
+        console.log(`[Chat Assistant] Fallback reminder sent to ${req.user?.username}: "${subject}"`);
+      } catch (messageError: any) {
+        console.error("[Chat Assistant] Failed to send fallback reminder:", messageError?.message || messageError);
+      }
+    }
+
+    const baseReply = buildFallbackGuidance(cleanedPrompt, isAdmin);
+    const reply = messageSent
+      ? `${baseReply}
+
+I have also sent that reminder to your Messages inbox.`
+      : baseReply;
+
+    return {
+      reply,
+      messageSent,
+      mode: "fallback",
+      fallbackReason,
+    };
+  };
+
   app.post("/api/ai/chat", requireAuth, async (req: any, res) => {
     try {
       const { messages } = req.body;
@@ -17781,8 +18032,18 @@ Example phrases that should trigger message sending:
 
       // Limit conversation history to prevent token overflow
       const recentMessages = messages.slice(-10);
+      const lastUserPrompt = extractLastUserPrompt(recentMessages);
 
       const isAdmin = req.user?.role === "admin";
+
+      const readiness = await getAIProviderReadiness();
+      if (!isAIEnabled() || !readiness.providerConfigured) {
+        const fallbackReason = !isAIEnabled()
+          ? AI_DISABLED_MESSAGE
+          : readiness.providerIssue || "AI provider is currently unavailable.";
+        const fallback = await buildFallbackChatResponse(lastUserPrompt, req, fallbackReason, isAdmin);
+        return res.json(fallback);
+      }
       
       // Customize system prompt based on user role
       const roleContext = isAdmin
@@ -17874,8 +18135,56 @@ Example phrases that should trigger message sending:
       console.log(`[Chat Assistant] Response generated for ${req.user?.username}`);
       return res.json({ reply });
     } catch (error: any) {
-      console.error("[Chat Assistant] Error:", error.message);
-      return res.status(500).json({ message: "Failed to generate response" });
+      const errorMessage = String(error?.message || "Failed to generate response");
+      const normalized = errorMessage.toLowerCase();
+      const errorCode = String(error?.code || "");
+      const fallbackMessages = Array.isArray(req.body?.messages) ? req.body.messages.slice(-10) : [];
+      const fallbackPrompt = extractLastUserPrompt(fallbackMessages);
+      const isAdmin = req.user?.role === "admin";
+
+      console.error("[Chat Assistant] Error:", errorMessage);
+
+      if (errorCode === "AI_DISABLED" || normalized.includes("ai features are disabled")) {
+        const fallback = await buildFallbackChatResponse(
+          fallbackPrompt,
+          req,
+          AI_DISABLED_MESSAGE,
+          isAdmin
+        );
+        return res.status(200).json(fallback);
+      }
+
+      if (
+        normalized.includes("not configured") ||
+        normalized.includes("no ai configured") ||
+        normalized.includes("local llm")
+      ) {
+        const fallback = await buildFallbackChatResponse(fallbackPrompt, req, errorMessage, isAdmin);
+        return res.status(200).json(fallback);
+      }
+
+      if (error?.status === 429 || normalized.includes("rate limit")) {
+        const fallback = await buildFallbackChatResponse(
+          fallbackPrompt,
+          req,
+          "Compli-ee is temporarily rate-limited. Limited guidance mode is active.",
+          isAdmin
+        );
+        return res.status(200).json(fallback);
+      }
+
+      try {
+        const fallback = await buildFallbackChatResponse(
+          fallbackPrompt,
+          req,
+          "Compli-ee hit a temporary issue and switched to limited guidance mode.",
+          isAdmin
+        );
+        return res.status(200).json(fallback);
+      } catch (fallbackError: any) {
+        console.error("[Chat Assistant] Fallback response failed:", fallbackError?.message || fallbackError);
+        return res.status(500).json({ message: "Failed to generate response" });
+      }
     }
   });
 

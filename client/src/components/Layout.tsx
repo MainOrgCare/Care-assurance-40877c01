@@ -455,6 +455,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const autoCollapseRef = useRef(false);
 
+  const openChatAssistant = useCallback(() => {
+    setIsChatOpen(true);
+  }, []);
+
   // Fetch unread message count (visibility-aware to reduce background work)
   useEffect(() => {
     if (!user) return;
@@ -500,6 +504,30 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      const isTypingContext =
+        target?.isContentEditable ||
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        tagName === "SELECT";
+
+      if (isTypingContext) return;
+
+      if ((event.ctrlKey || event.metaKey) && event.key === "/") {
+        event.preventDefault();
+        setIsChatOpen((current) => !current);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [user?.id]);
 
   // Show Compli-ee intro after user has accepted terms
@@ -584,7 +612,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <main className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="h-14 px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 bg-background/95 border-b border-border/40">
+          <header className="h-14 px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 bg-background/88 backdrop-blur-md border-b border-border/55 shadow-[0_10px_26px_-22px_rgba(15,23,42,0.5)]">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -625,14 +653,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-5">
+            <div className="flex items-center gap-4 rounded-2xl border border-border/50 bg-card/65 px-2 py-1.5 shadow-[0_8px_22px_-20px_rgba(15,23,42,0.4)]">
               {/* Messages Button */}
               <Link href="/messages">
                 <button
-                  className="relative flex items-center justify-center h-9 w-9 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
+                  className={cn(
+                    "relative flex items-center justify-center h-9 w-9 rounded-xl transition-colors",
+                    unreadMessageCount > 0
+                      ? "bg-emerald-500/12 text-emerald-700 hover:bg-emerald-500/20"
+                      : "bg-muted/50 hover:bg-muted"
+                  )}
                   title="Messages"
                 >
-                  <Inbox className="h-4 w-4 text-muted-foreground" />
+                  <Inbox className={cn("h-4 w-4", unreadMessageCount > 0 ? "text-emerald-700" : "text-muted-foreground")} />
                   {unreadMessageCount > 0 && (
                     <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center">
                       {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
@@ -642,7 +675,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Link>
               
               {/* Compli-ee Help Button */}
-              <ComplieeIdleButton onClick={() => setIsChatOpen(true)} />
+              <div className="flex items-center gap-2">
+                <ComplieeIdleButton onClick={openChatAssistant} />
+                <div className="hidden xl:flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground">
+                  <span>Open</span>
+                  <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] leading-none text-foreground">Ctrl + /</kbd>
+                </div>
+              </div>
               
               <div className="flex items-center gap-3 bg-muted/30 pl-4 pr-1.5 py-1.5 rounded-2xl border border-border/40 hover:border-border/80 transition-all cursor-pointer group">
                 <div className="text-right hidden sm:block">
@@ -775,7 +814,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           onComplete={() => setShowComplieeIntro(false)}
           onAskHelp={() => {
             setShowComplieeIntro(false);
-            setIsChatOpen(true);
+            openChatAssistant();
           }}
         />
       )}

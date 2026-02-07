@@ -1,108 +1,152 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { X, Send, Loader2, User, Minimize2, HelpCircle } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import {
+  X,
+  Send,
+  Loader2,
+  User,
+  Minimize2,
+  HelpCircle,
+  RefreshCw,
+  RotateCcw,
+  Sparkles,
+  Copy,
+  Check,
+  Download,
+  ArrowUpRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { useLocation } from "wouter";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  timestamp: Date;
+  timestamp: string;
 }
 
-// Generate a unique ID for messages
-const generateId = () => Math.random().toString(36).substring(2, 9);
-
-// Animated Compliee SVG for the side character
-function ComplieeCharacter({ isBlinking = false }: { isBlinking?: boolean }) {
-  return (
-    <svg viewBox="0 0 64 80" className="w-full h-full">
-      {/* Hair base */}
-      <rect x="10" y="8" width="44" height="20" rx="10" fill="#FBBF24"/>
-      {/* Face */}
-      <rect x="8" y="16" width="48" height="36" rx="12" fill="#FED7AA"/>
-      {/* Hair bangs */}
-      <rect x="12" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>
-      <rect x="24" y="4" width="16" height="16" rx="6" fill="#FBBF24"/>
-      <rect x="36" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>
-      {/* Eyes  O_O */}
-      {isBlinking ? (
-        <>
-          <rect x="14" y="33" rx="2" width="14" height="3" fill="#1E40AF"/>
-          <rect x="36" y="33" rx="2" width="14" height="3" fill="#1E40AF"/>
-        </>
-      ) : (
-        <>
-          <circle cx="21" cy="34" r="10" fill="white"/>
-          <circle cx="43" cy="34" r="10" fill="white"/>
-          <circle cx="24" cy="35" r="6" fill="#1E40AF"/>
-          <circle cx="46" cy="35" r="6" fill="#1E40AF"/>
-          <circle cx="27" cy="32" r="3" fill="white"/>
-          <circle cx="49" cy="32" r="3" fill="white"/>
-        </>
-      )}
-      {/* Smile */}
-      <path d="M24 46 Q32 52 40 46" stroke="#78350F" strokeWidth="2" fill="none" strokeLinecap="round"/>
-      {/* Blush */}
-      <rect x="6" y="36" width="6" height="4" rx="2" fill="#FECACA" opacity="0.6"/>
-      <rect x="52" y="36" width="6" height="4" rx="2" fill="#FECACA" opacity="0.6"/>
-      {/* Body of compliee*/}
-      <rect x="14" y="50" width="36" height="26" rx="4" fill="#4F46E5"/>
-      {/* V detail of tunic*/}
-      <path d="M22 50 L32 60 L42 50" fill="#3730A3"/>
-      <line x1="22" y1="50" x2="32" y2="60" stroke="white" strokeWidth="2.5"/>
-      <line x1="42" y1="50" x2="32" y2="60" stroke="white" strokeWidth="1.5"/>
-      {/* Left hand with clipboard (Is a bit small, might increase size later) */}
-      <rect x="4" y="56" width="10" height="10" rx="4" fill="#FED7AA"/>
-      <rect x="0" y="52" width="8" height="10" rx="1" fill="#A5B4FC"/>
-      <rect x="2" y="50" width="4" height="3" rx="1" fill="#F59E0B"/>
-      {/* Right hand */}
-      <rect x="50" y="54" width="10" height="10" rx="4" fill="#FED7AA"/>
-      {/* Feet */}
-      <rect x="20" y="74" width="10" height="5" rx="2" fill="#374151"/>
-      <rect x="34" y="74" width="10" height="5" rx="2" fill="#374151"/>
-    </svg>
-  );
+interface ChatAssistantProps {
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-// Compli-ee character component - a friendly clipboard mascot
-export function ComplieeAvatar({ size = "md", animate = false }: { size?: "sm" | "md" | "lg"; animate?: boolean }) {
+interface AiStatusResponse {
+  available?: boolean;
+  message?: string;
+  aiEnabled?: boolean;
+  provider?: string;
+  providerConfigured?: boolean;
+}
+
+interface ChatResponse {
+  reply?: string;
+  messageSent?: boolean;
+  mode?: "full" | "fallback";
+  fallbackReason?: string;
+}
+
+const generateId = () =>
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+const MAX_CONTEXT_MESSAGES = 16;
+const MAX_PERSISTED_MESSAGES = 80;
+const MAX_TEXTAREA_HEIGHT = 140;
+const CHAT_STORAGE_PREFIX = "careassurance:chat-assistant";
+
+const QUICK_PROMPTS = [
+  "How do I run an EMAR audit from start to finish?",
+  "Where can I create or improve a risk assessment?",
+  "Help me draft a message for a care team update.",
+  "Send me a reminder in my Messages inbox.",
+] as const;
+
+const WORKSPACE_SHORTCUTS = [
+  { label: "EMAR Audit", path: "/care-workers/emar-audit" },
+  { label: "Risk Assessment", path: "/service-users/risk-assessment" },
+  { label: "Care Planning", path: "/service-users/care-planning" },
+  { label: "Messages", path: "/messages" },
+] as const;
+
+const createWelcomeMessage = (firstName?: string): Message => ({
+  id: generateId(),
+  role: "assistant",
+  content: `Hello${firstName ? ` ${firstName}` : ""}! I'm Compli-ee.
+
+I can help with:
+- EMAR and visit audit workflows
+- Care planning and risk assessment guidance
+- Writing clear internal or family communications
+- Sending reminders to your Messages inbox
+
+What would you like to do first?`,
+  timestamp: new Date().toISOString(),
+});
+
+const toUiMessage = (value: unknown): Message | null => {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Record<string, unknown>;
+  const role = candidate.role;
+  const content = candidate.content;
+  const timestamp = candidate.timestamp;
+
+  if ((role !== "user" && role !== "assistant") || typeof content !== "string") {
+    return null;
+  }
+
+  return {
+    id: typeof candidate.id === "string" ? candidate.id : generateId(),
+    role,
+    content,
+    timestamp:
+      typeof timestamp === "string" && !Number.isNaN(Date.parse(timestamp))
+        ? timestamp
+        : new Date().toISOString(),
+  };
+};
+
+const getStorageKey = (userId: string) => `${CHAT_STORAGE_PREFIX}:${userId}`;
+
+export function ComplieeAvatar({
+  size = "md",
+  animate = false,
+}: {
+  size?: "sm" | "md" | "lg";
+  animate?: boolean;
+}) {
   const sizeClasses = {
     sm: "h-6 w-6",
     md: "h-8 w-8",
     lg: "h-12 w-12",
   };
-  
+
   return (
-    <div 
+    <div
       className={cn(
         sizeClasses[size],
         "relative rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-md",
-        animate && "animate-bounce"
+        animate && "animate-pulse"
       )}
       title="Compli-ee - Your Compliance Assistant"
     >
-      {/* Clipboard body */}
       <div className="absolute inset-[15%] bg-white rounded-sm border-2 border-emerald-600/30">
-        {/* Clipboard clip at top */}
         <div className="absolute -top-[4px] left-1/2 -translate-x-1/2 w-[40%] h-[6px] bg-amber-400 rounded-sm border border-amber-500" />
-        {/* Checkmark lines */}
         <div className="absolute top-[35%] left-[20%] w-[60%] h-[2px] bg-emerald-500 rounded" />
         <div className="absolute top-[55%] left-[20%] w-[40%] h-[2px] bg-emerald-500 rounded" />
         <div className="absolute top-[75%] left-[20%] w-[50%] h-[2px] bg-emerald-400 rounded" />
       </div>
-      {/* Happy face */}
       <div className="absolute bottom-[18%] left-1/2 -translate-x-1/2 flex gap-[3px]">
         <div className="h-[3px] w-[3px] bg-emerald-700 rounded-full" />
         <div className="h-[3px] w-[3px] bg-emerald-700 rounded-full" />
       </div>
-      <div className="absolute bottom-[10%] left-1/2 -translate-x-1/2 w-[20%] h-[2px] bg-emerald-700 rounded-full" style={{ borderRadius: "0 0 50% 50%" }} />
+      <div
+        className="absolute bottom-[10%] left-1/2 -translate-x-1/2 w-[20%] h-[2px] bg-emerald-700 rounded-full"
+        style={{ borderRadius: "0 0 50% 50%" }}
+      />
     </div>
   );
 }
 
-// Trigger button to place in header
 export function ChatTriggerButton({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -116,330 +160,625 @@ export function ChatTriggerButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-interface ChatAssistantProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
 export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isBlinking, setIsBlinking] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
+  const [assistantAvailable, setAssistantAvailable] = useState(true);
+  const [limitedMode, setLimitedMode] = useState(false);
+  const [availabilityLoading, setAvailabilityLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Blink animation - occasional blink every 3-5 seconds
-  useEffect(() => {
-    if (!isOpen) return;
-    
-    const doBlink = () => {
-      setIsBlinking(true);
-      setTimeout(() => setIsBlinking(false), 150);
-    };
-    
-    // Initial blink after a random delay
-    const initialTimeout = setTimeout(doBlink, 1500 + Math.random() * 1500);
-    
-    // Recurring blinks
-    const interval = setInterval(() => {
-      doBlink();
-    }, 3000 + Math.random() * 2000);
-    
-    return () => {
-      clearTimeout(initialTimeout);
-      clearInterval(interval);
-    };
-  }, [isOpen]);
+  const hasUserPrompt = useMemo(
+    () => messages.some((message) => message.role === "user"),
+    [messages]
+  );
+  const canSendMessages = assistantAvailable || limitedMode;
 
-  // Auto-scroll to bottom of messages
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const formatTime = useCallback((timestamp: string) => {
+    try {
+      return new Date(timestamp).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "";
+    }
   }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+  const refreshAssistantAvailability = useCallback(async () => {
+    if (!user) return;
 
-  // Focus input when chat opens
-  useEffect(() => {
-    if (isOpen && !isMinimized) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [isOpen, isMinimized]);
-
-  // Welcome message on first open
-  useEffect(() => {
-    if (isOpen && messages.length === 0) {
-      const welcomeMessage: Message = {
-        id: generateId(),
-        role: "assistant",
-        content: `Hello${user?.firstName ? ` ${user.firstName}` : ""}! I'm Compli-ee, your friendly compliance assistant!\n\nI'm here to help you get the most out of CareAssurance. I can:\n\n• Show you around the platform\n• Explain features like EMAR Auditing and Risk Assessments\n• Offer tips to make your work easier\n\nWhat would you like to know?`,
-        timestamp: new Date(),
-      };
-      setMessages([welcomeMessage]);
-    }
-  }, [isOpen, messages.length, user?.firstName]);
-
-  const sendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
-
-    const userMessage: Message = {
-      id: generateId(),
-      role: "user",
-      content: inputValue.trim(),
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInputValue("");
-    setIsLoading(true);
-
+    setAvailabilityLoading(true);
     try {
-      // Build conversation history for context
-      const conversationHistory = [...messages, userMessage].map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-
-      const response = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch("/api/ai/status", {
         credentials: "include",
-        body: JSON.stringify({ messages: conversationHistory }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to get response");
+        const payload = await response.json().catch(() => ({}));
+        const fallback =
+          response.status === 401
+            ? "Your session has expired. Please sign in again."
+            : "AI is temporarily unavailable. Compli-ee will run in limited guidance mode.";
+        setAssistantAvailable(false);
+        setLimitedMode(response.status !== 401);
+        setStatusMessage(payload?.message || fallback);
+        return;
       }
 
-      const data = await response.json();
-
-      const assistantMessage: Message = {
-        id: generateId(),
-        role: "assistant",
-        content: data.reply,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
-      console.error("Chat error:", error);
-      const errorMessage: Message = {
-        id: generateId(),
-        role: "assistant",
-        content: "I apologise, but I'm having trouble connecting right now. Please try again in a moment.",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      const data = (await response.json()) as AiStatusResponse;
+      const fullModeAvailable = Boolean(data.available);
+      setAssistantAvailable(fullModeAvailable);
+      setLimitedMode(!fullModeAvailable);
+      setStatusMessage(
+        fullModeAvailable
+          ? data.message || null
+          : data.message || "AI is temporarily unavailable. You can still get workflow guidance and navigation help."
+      );
+    } catch {
+      setAssistantAvailable(false);
+      setLimitedMode(true);
+      setStatusMessage("Unable to verify AI status. Limited guidance mode is available.");
     } finally {
-      setIsLoading(false);
+      setAvailabilityLoading(false);
     }
-  };
+  }, [user]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+  const resetConversation = useCallback(() => {
+    setMessages([createWelcomeMessage(user?.firstName)]);
+    setInputValue("");
+    setStatusMessage(null);
+  }, [user?.firstName]);
+
+  const copyMessage = useCallback(async (message: Message) => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopiedMessageId(message.id);
+      window.setTimeout(() => {
+        setCopiedMessageId((current) => (current === message.id ? null : current));
+      }, 1200);
+    } catch {
+      setCopiedMessageId(null);
     }
-  };
+  }, []);
 
-  const handleClose = () => {
-    setIsExiting(true);
-    setTimeout(() => {
-      setIsExiting(false);
+  const downloadTranscript = useCallback(() => {
+    if (messages.length === 0) return;
+    const lines = messages.map((message) => {
+      const name = message.role === "assistant" ? "Compli-ee" : "You";
+      return `[${new Date(message.timestamp).toLocaleString()}] ${name}\n${message.content}\n`;
+    });
+    const content = lines.join("\n");
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `compli-ee-chat-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }, [messages]);
+
+  const openWorkspace = useCallback(
+    (path: string) => {
+      setLocation(path);
       onClose();
-    }, 400);
-  };
+    },
+    [onClose, setLocation]
+  );
 
-  // Auto-resize textarea
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputValue(e.target.value);
-    // Reset height to auto to get scrollHeight, then set to scrollHeight
-    e.target.style.height = 'auto';
-    e.target.style.height = Math.min(e.target.scrollHeight, 96) + 'px';
-  };
+  const sendMessage = useCallback(
+    async (presetPrompt?: string) => {
+      if (!user || isLoading || availabilityLoading) return;
 
-  // Don't render if not logged in
+      const prompt = (presetPrompt ?? inputValue).trim();
+      if (!prompt) return;
+
+      if (!canSendMessages) {
+        setStatusMessage(
+          (current) =>
+            current ||
+            "Compli-ee is unavailable right now. Refresh assistant status and try again."
+        );
+        return;
+      }
+
+      const userMessage: Message = {
+        id: generateId(),
+        role: "user",
+        content: prompt,
+        timestamp: new Date().toISOString(),
+      };
+
+      const nextMessages = [...messages, userMessage];
+      setMessages(nextMessages);
+      setInputValue("");
+      setStatusMessage(null);
+      setIsLoading(true);
+
+      try {
+        const response = await fetch("/api/ai/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            messages: nextMessages
+              .slice(-MAX_CONTEXT_MESSAGES)
+              .map((message) => ({ role: message.role, content: message.content })),
+          }),
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          let message = payload?.message || `Request failed (${response.status})`;
+
+          if (response.status === 401) {
+            message = "Your session has expired. Please sign in again.";
+          }
+          if (response.status === 503) {
+            setAssistantAvailable(false);
+          }
+
+          throw new Error(message);
+        }
+
+        const data = (await response.json()) as ChatResponse;
+        if (data?.mode === "fallback") {
+          setAssistantAvailable(false);
+          setLimitedMode(true);
+          if (data.fallbackReason) {
+            setStatusMessage(data.fallbackReason);
+          }
+        } else {
+          setAssistantAvailable(true);
+          setLimitedMode(false);
+        }
+
+        const assistantMessage: Message = {
+          id: generateId(),
+          role: "assistant",
+          content:
+            typeof data?.reply === "string" && data.reply.trim()
+              ? data.reply.trim()
+              : "I couldn't generate a response just now. Please try again.",
+          timestamp: new Date().toISOString(),
+        };
+
+        setMessages((current) => [...current, assistantMessage]);
+
+        if (data?.messageSent) {
+          setStatusMessage("Done. I sent that to your Messages inbox.");
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : "I’m having trouble connecting right now. Please try again.";
+        if (/session has expired/i.test(message)) {
+          setLimitedMode(false);
+        } else {
+          setLimitedMode(true);
+        }
+        setAssistantAvailable(false);
+        setStatusMessage(message);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [availabilityLoading, canSendMessages, inputValue, isLoading, messages, user]
+  );
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        void sendMessage();
+      }
+    },
+    [sendMessage]
+  );
+
+  const handleInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setInputValue(event.target.value);
+      event.target.style.height = "auto";
+      event.target.style.height = `${Math.min(
+        event.target.scrollHeight,
+        MAX_TEXTAREA_HEIGHT
+      )}px`;
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!user?.id) {
+      setHydrated(false);
+      setMessages([]);
+      return;
+    }
+
+    try {
+      const raw = localStorage.getItem(getStorageKey(user.id));
+      if (!raw) {
+        setMessages([]);
+        setIsMinimized(false);
+        setHydrated(true);
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as {
+        messages?: unknown[];
+        minimized?: unknown;
+      };
+
+      const persistedMessages = Array.isArray(parsed.messages)
+        ? parsed.messages
+            .map((entry) => toUiMessage(entry))
+            .filter((entry): entry is Message => Boolean(entry))
+            .slice(-MAX_PERSISTED_MESSAGES)
+        : [];
+
+      setMessages(persistedMessages);
+      setIsMinimized(Boolean(parsed.minimized));
+    } catch {
+      setMessages([]);
+      setIsMinimized(false);
+    } finally {
+      setHydrated(true);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!hydrated || !user?.id) return;
+
+    const payload = JSON.stringify({
+      messages: messages.slice(-MAX_PERSISTED_MESSAGES),
+      minimized: isMinimized,
+    });
+
+    localStorage.setItem(getStorageKey(user.id), payload);
+  }, [hydrated, isMinimized, messages, user?.id]);
+
+  useEffect(() => {
+    if (!isOpen || !hydrated) return;
+    if (messages.length > 0) return;
+    setMessages([createWelcomeMessage(user?.firstName)]);
+  }, [hydrated, isOpen, messages.length, user?.firstName]);
+
+  useEffect(() => {
+    if (!isOpen || isMinimized) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [isOpen, isMinimized, messages, isLoading]);
+
+  useEffect(() => {
+    if (!isOpen || isMinimized) return;
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 80);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, isMinimized]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void refreshAssistantAvailability();
+  }, [isOpen, refreshAssistantAvailability]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isOpen, onClose]);
+
   if (!user) return null;
 
   return (
-    <>
-      {/* CSS for animations */}
-      <style>{`
-        @keyframes compliee-bob {
-          0%, 100% { transform: translateY(0) rotate(-2deg); }
-          50% { transform: translateY(-4px) rotate(2deg); }
-        }
-        @keyframes compliee-exit {
-          0% { transform: translateX(0); opacity: 1; }
-          100% { transform: translateX(150%); opacity: 0; }
-        }
-        @keyframes chat-exit {
-          0% { transform: translateX(0); opacity: 1; }
-          100% { transform: translateX(100%); opacity: 0; }
-        }
-        .compliee-bobbing {
-          animation: compliee-bob 2s ease-in-out infinite;
-        }
-        .compliee-exiting {
-          animation: compliee-exit 0.4s ease-in forwards;
-        }
-        .chat-exiting {
-          animation: chat-exit 0.4s ease-in forwards;
-        }
-      `}</style>
-      
-      {/* Animated Compli-ee character peeking from the right */}
-      {isOpen && !isMinimized && (
-        <div 
-          className={cn(
-            "fixed bottom-[200px] -right-4 z-40 w-16 h-20 sm:w-20 sm:h-24 pointer-events-none",
-            isExiting ? "compliee-exiting" : "compliee-bobbing"
-          )}
-        >
-          <ComplieeCharacter isBlinking={isBlinking} />
-        </div>
+    <div
+      className={cn(
+        "fixed z-50 transition-all duration-250 bg-background border border-border/80 shadow-2xl overflow-hidden flex flex-col",
+        "rounded-2xl",
+        isOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-3 pointer-events-none",
+        isMinimized
+          ? "bottom-4 right-4 w-[300px] h-14"
+          : "bottom-4 left-3 right-3 sm:left-auto sm:right-4 sm:w-[430px] h-[min(78vh,620px)]"
       )}
-      
-      <div
-        className={cn(
-          "fixed bottom-6 right-6 z-50 transition-all duration-300 bg-background border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col",
-          isOpen && !isExiting ? "opacity-100 scale-100" : "",
-          !isOpen ? "opacity-0 scale-95 pointer-events-none" : "",
-          isExiting ? "chat-exiting" : "",
-          isMinimized ? "w-72 h-14" : "w-[380px] h-[520px] sm:w-[420px] sm:h-[580px]"
-        )}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
-          <div className="flex items-center gap-3">
-            <ComplieeAvatar size="md" />
-            {!isMinimized && (
-              <div>
-                <h3 className="font-semibold text-sm">Compli-ee</h3>
-                <p className="text-xs text-white/80">Your Compliance Assistant</p>
-              </div>
-            )}
-            {isMinimized && (
-              <span className="font-semibold text-sm">Compli-ee</span>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-white hover:bg-white/20 rounded-lg"
-              onClick={() => setIsMinimized(!isMinimized)}
-            >
-              <Minimize2 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-white hover:bg-white/20 rounded-lg"
-              onClick={handleClose}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+    >
+      <div className="flex items-center justify-between px-3.5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <ComplieeAvatar size="md" animate={isLoading} />
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm leading-tight">Compli-ee</h3>
+            <p className="text-[11px] text-white/85 truncate">
+              {availabilityLoading
+                ? "Checking availability..."
+                : assistantAvailable
+                  ? "Ready to help"
+                  : limitedMode
+                    ? "Limited guidance mode"
+                    : "Currently unavailable"}
+            </p>
           </div>
         </div>
+        <div className="flex items-center gap-1">
+          {!isMinimized && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-white hover:bg-white/20 rounded-lg"
+              onClick={downloadTranscript}
+              title="Download transcript"
+              disabled={messages.length === 0}
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+          )}
+          {!isMinimized && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-white hover:bg-white/20 rounded-lg"
+              onClick={resetConversation}
+              title="Start new chat"
+              disabled={isLoading}
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-white hover:bg-white/20 rounded-lg"
+            onClick={() => setIsMinimized((current) => !current)}
+            title={isMinimized ? "Expand" : "Minimize"}
+          >
+            <Minimize2 className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-white hover:bg-white/20 rounded-lg"
+            onClick={onClose}
+            title="Close"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
 
-        {/* Messages Area */}
-        {!isMinimized && (
-          <>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/30">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "flex gap-3",
-                    message.role === "user" ? "justify-end" : "justify-start"
-                  )}
-                >
-                  {message.role === "assistant" && (
-                    <div className="flex-shrink-0">
-                      <ComplieeAvatar size="sm" />
-                    </div>
-                  )}
-                  <div
-                    className={cn(
-                      "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm",
-                      message.role === "user"
-                        ? "bg-emerald-500 text-white rounded-br-md"
-                        : "bg-background border border-border shadow-sm rounded-bl-md"
-                    )}
-                  >
-                    <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                  </div>
-                  {message.role === "user" && (
-                    <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  )}
+      {!isMinimized && (
+        <>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-muted/35 to-muted/10">
+            {statusMessage && (
+              <div
+                className={cn(
+                  "rounded-xl border px-3 py-2.5 text-xs flex items-start justify-between gap-2",
+                  assistantAvailable
+                    ? "border-emerald-300/60 bg-emerald-50 text-emerald-800"
+                    : limitedMode
+                      ? "border-amber-300/60 bg-amber-50 text-amber-900"
+                      : "border-destructive/30 bg-destructive/10 text-destructive"
+                )}
+              >
+                <div className="flex items-start gap-2">
+                  <Sparkles className="h-3.5 w-3.5 mt-0.5" />
+                  <span>{statusMessage}</span>
                 </div>
-              ))}
-
-              {/* Typing indicator */}
-              {isLoading && (
-                <div className="flex gap-3 justify-start">
-                  <div className="flex-shrink-0">
-                    <ComplieeAvatar size="sm" animate />
-                  </div>
-                  <div className="bg-background border border-border shadow-sm rounded-2xl rounded-bl-md px-4 py-3">
-                    <div className="flex gap-1.5">
-                      <span className="h-2 w-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <span className="h-2 w-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <span className="h-2 w-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input Area */}
-            <div className="p-3 border-t border-border bg-background">
-              <div className="flex items-end gap-2">
-                <textarea
-                  ref={inputRef}
-                  value={inputValue}
-                  onChange={handleInputChange}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask Compli-ee anything..."
-                  rows={1}
-                  dir="ltr"
-                  className={cn(
-                    "flex-1 resize-none bg-muted/50 border border-border rounded-xl px-4 py-2.5 text-sm text-left",
-                    "focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50",
-                    "min-h-[42px] placeholder:text-muted-foreground overflow-hidden"
-                  )}
-                  disabled={isLoading}
-                />
                 <Button
-                  onClick={sendMessage}
-                  disabled={!inputValue.trim() || isLoading}
-                  size="icon"
-                  className="h-[42px] w-[42px] rounded-xl flex-shrink-0 bg-emerald-500 hover:bg-emerald-600"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-1.5"
+                  onClick={refreshAssistantAvailability}
+                  disabled={availabilityLoading}
                 >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
+                  <RefreshCw className={cn("h-3.5 w-3.5", availabilityLoading && "animate-spin")} />
                 </Button>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-2 text-center">
-                Press Enter to send • Shift+Enter for new line
-              </p>
+            )}
+
+            {!hasUserPrompt && canSendMessages && !availabilityLoading && (
+              <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-2">
+                  {assistantAvailable ? "Try one of these" : "Limited mode prompts"}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {QUICK_PROMPTS.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => void sendMessage(prompt)}
+                      className="rounded-full border border-border bg-muted/50 hover:bg-muted text-xs px-3 py-1.5 text-foreground transition-colors"
+                      disabled={isLoading}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3 border-t border-border/60 pt-3">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    Open workspace
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {WORKSPACE_SHORTCUTS.map((shortcut) => (
+                      <button
+                        key={shortcut.path}
+                        type="button"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors"
+                        onClick={() => openWorkspace(shortcut.path)}
+                      >
+                        {shortcut.label}
+                        <ArrowUpRight className="h-3 w-3" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={cn(
+                  "flex gap-2.5",
+                  message.role === "user" ? "justify-end" : "justify-start"
+                )}
+              >
+                {message.role === "assistant" && (
+                  <div className="flex-shrink-0 mt-0.5">
+                    <ComplieeAvatar size="sm" />
+                  </div>
+                )}
+
+                <div
+                  className={cn(
+                    "max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm",
+                    message.role === "user"
+                      ? "bg-emerald-500 text-white rounded-br-md"
+                      : "bg-background border border-border/70 rounded-bl-md"
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span
+                      className={cn(
+                        "text-[10px] font-semibold uppercase tracking-[0.08em]",
+                        message.role === "user" ? "text-white/80" : "text-muted-foreground"
+                      )}
+                    >
+                      {message.role === "user" ? "You" : "Compli-ee"}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[10px]",
+                        message.role === "user" ? "text-white/70" : "text-muted-foreground"
+                      )}
+                    >
+                      {formatTime(message.timestamp)}
+                    </span>
+                  </div>
+                  <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+
+                  {message.role === "assistant" && (
+                    <div className="mt-2 flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[11px]"
+                        onClick={() => void copyMessage(message)}
+                      >
+                        {copiedMessageId === message.id ? (
+                          <>
+                            <Check className="h-3 w-3 mr-1" />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3 w-3 mr-1" />
+                            Copy
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {message.role === "user" && (
+                  <div className="h-7 w-7 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {isLoading && (
+              <div className="flex gap-2.5 justify-start">
+                <div className="flex-shrink-0 mt-0.5">
+                  <ComplieeAvatar size="sm" animate />
+                </div>
+                <div className="bg-background border border-border/70 shadow-sm rounded-2xl rounded-bl-md px-3.5 py-3">
+                  <div className="flex gap-1.5">
+                    <span
+                      className="h-2 w-2 bg-emerald-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "0ms" }}
+                    />
+                    <span
+                      className="h-2 w-2 bg-emerald-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "120ms" }}
+                    />
+                    <span
+                      className="h-2 w-2 bg-emerald-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "240ms" }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          <div className="p-3 border-t border-border bg-background">
+            <div className="flex items-end gap-2">
+              <textarea
+                ref={inputRef}
+                value={inputValue}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  assistantAvailable
+                    ? "Ask Compli-ee anything about the platform..."
+                    : limitedMode
+                      ? "Limited mode: ask for workflow steps or where to find features..."
+                      : "Assistant unavailable - refresh status to retry"
+                }
+                rows={1}
+                dir="ltr"
+                className={cn(
+                  "flex-1 resize-none bg-muted/50 border border-border rounded-xl px-3.5 py-2.5 text-sm text-left",
+                  "focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50",
+                  "min-h-[42px] max-h-[140px] placeholder:text-muted-foreground overflow-y-auto"
+                )}
+                disabled={isLoading || availabilityLoading || !canSendMessages}
+              />
+
+              <Button
+                onClick={() => void sendMessage()}
+                disabled={
+                  !inputValue.trim() ||
+                  isLoading ||
+                  availabilityLoading ||
+                  !canSendMessages
+                }
+                size="icon"
+                className="h-[42px] w-[42px] rounded-xl flex-shrink-0 bg-emerald-500 hover:bg-emerald-600"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
             </div>
-          </>
-        )}
+
+            <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>Enter to send, Shift+Enter for newline</span>
+              <span>{inputValue.trim().length} chars</span>
+            </div>
+          </div>
+        </>
+      )}
     </div>
-    </>
   );
 }

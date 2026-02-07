@@ -240,6 +240,14 @@ interface EmarPreflightResult {
   warnings: string[];
 }
 
+interface AiStatusResponse {
+  available?: boolean;
+  aiEnabled?: boolean;
+  message?: string;
+  provider?: string;
+  providerConfigured?: boolean;
+}
+
 interface EmarRecord {
   id: string;
   file: File;
@@ -284,6 +292,14 @@ interface EmarRecordState {
 const MAX_EMAR_UPLOAD_MB = 40;
 const MAX_EMAR_UPLOAD_BYTES = MAX_EMAR_UPLOAD_MB * 1024 * 1024;
 const LARGE_FILE_WARNING_MB = 25;
+const MANUAL_AUDIT_CHECKLIST = [
+  "1. Run Quick Check to validate pages, dates, and medication cells.",
+  "2. Confirm care worker initials and map any unknown initials.",
+  "3. Review all non-administration/refusal codes and supporting notes.",
+  "4. Verify PRN protocol completion for each PRN medication.",
+  "5. Record discrepancies and escalate repeated refusals to a manager.",
+  "6. Save findings in your audit trail once AI services are restored.",
+].join("\n");
 
 const formatFileSize = (bytes: number): string => {
   if (!Number.isFinite(bytes)) return "";
@@ -477,6 +493,9 @@ export default function EMARAudit() {
   const [preflightLoading, setPreflightLoading] = useState(false);
   const [preflightResult, setPreflightResult] = useState<EmarPreflightResult | null>(null);
   const [preflightError, setPreflightError] = useState<string | null>(null);
+  const [aiStatusLoading, setAiStatusLoading] = useState(true);
+  const [aiAvailable, setAiAvailable] = useState(true);
+  const [aiStatusMessage, setAiStatusMessage] = useState<string | null>(null);
   const [analyzed, setAnalyzed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<EmarAnalysisResult | null>(null);
@@ -511,6 +530,37 @@ export default function EMARAudit() {
       setProgressStatus(status);
     }
   }, []);
+
+  const refreshAiStatus = useCallback(async () => {
+    setAiStatusLoading(true);
+    try {
+      const response = await fetch("/api/ai/status", {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const fallbackMessage =
+          response.status === 401
+            ? "Your session has expired. Please sign in again."
+            : response.status === 503
+              ? "AI analysis is currently unavailable in this environment."
+              : "Unable to verify AI availability right now.";
+        setAiAvailable(false);
+        setAiStatusMessage(errorData?.message || fallbackMessage);
+        return;
+      }
+
+      const statusData = (await response.json()) as AiStatusResponse;
+      setAiAvailable(Boolean(statusData.available));
+      setAiStatusMessage(statusData.message || null);
+    } catch {
+      setAiAvailable(false);
+      setAiStatusMessage("Unable to verify AI availability right now. Please try again.");
+    } finally {
+      setAiStatusLoading(false);
+    }
+  }, []);
   
   const [refusalReviews, setRefusalReviews] = useState<RefusalReviewState>({});
   const [expandedRefusals, setExpandedRefusals] = useState<Set<string>>(new Set());
@@ -534,6 +584,10 @@ export default function EMARAudit() {
     }
     prevContentRef.current = documentContent;
   }, [documentContent, resetTimer]);
+
+  useEffect(() => {
+    refreshAiStatus();
+  }, [refreshAiStatus]);
 
   useEffect(() => {
     if (result?.prnMedications?.hasPRN && prnProtocolChecks.length === 0) {
@@ -1122,6 +1176,22 @@ export default function EMARAudit() {
     }
   };
 
+  const copyManualChecklist = async () => {
+    try {
+      await navigator.clipboard.writeText(MANUAL_AUDIT_CHECKLIST);
+      toast({
+        title: "Checklist Copied",
+        description: "Manual audit checklist copied to clipboard.",
+      });
+    } catch {
+      toast({
+        title: "Copy Failed",
+        description: "Unable to copy checklist. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const processAudit = async () => {
     const isPdf = file && (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
     
@@ -1130,6 +1200,23 @@ export default function EMARAudit() {
         title: "Missing Information", 
         description: "Please upload a PDF or paste EMAR document content",
         variant: "destructive"
+      });
+      return;
+    }
+
+    if (aiStatusLoading) {
+      toast({
+        title: "Checking AI Availability",
+        description: "Please wait a moment and try again.",
+      });
+      return;
+    }
+
+    if (!aiAvailable) {
+      toast({
+        title: "AI Unavailable",
+        description: aiStatusMessage || "AI analysis is currently unavailable in this environment.",
+        variant: "destructive",
       });
       return;
     }
@@ -1175,13 +1262,37 @@ export default function EMARAudit() {
       // Check for non-streaming error responses (auth failures, server errors)
       const contentType = response.headers.get('content-type') || '';
       if (!response.ok || !contentType.includes('event-stream')) {
-        // Try to parse as JSON error
+        let message = `Analysis failed with status ${response.status}`;
+        let parsedMessage: string | null = null;
+
         try {
           const error = await response.json();
-          throw new Error(error.message || `Server error: ${response.status}`);
+          if (error && typeof error.message === "string" && error.message.trim()) {
+            parsedMessage = error.message.trim();
+          }
         } catch {
-          throw new Error(`Analysis failed with status ${response.status}`);
+          // Ignore JSON parse failures; keep status-based fallback message.
         }
+
+        if (parsedMessage) {
+          message = parsedMessage;
+        } else if (response.status === 401) {
+          message = "Your session has expired. Please sign in again.";
+        } else if (response.status === 503) {
+          message = "AI analysis is currently unavailable in this environment. Please contact your administrator.";
+        }
+
+        if (response.status === 503) {
+          setAiAvailable(false);
+          setAiStatusMessage(message);
+        }
+        if (response.status === 401) {
+          setAiAvailable(false);
+          setAiStatusMessage("Your session has expired. Please sign in again.");
+        }
+        const statusError = new Error(message) as Error & { status?: number };
+        statusError.status = response.status;
+        throw statusError;
       }
 
       if (!response.body) {
@@ -1338,13 +1449,31 @@ export default function EMARAudit() {
         throw new Error("Analysis completed but no result was received");
       }
     } catch (error: any) {
+      const statusCode = Number(error?.status || 0);
+      const errorMessage = error?.message || "Failed to analyze document";
+      const normalizedMessage = String(errorMessage).toLowerCase();
+      const isServiceUnavailable =
+        statusCode === 503 ||
+        normalizedMessage.includes("unavailable") ||
+        normalizedMessage.includes("disabled");
+
+      if (statusCode === 401) {
+        setAiAvailable(false);
+        setAiStatusMessage("Your session has expired. Please sign in again.");
+      } else if (isServiceUnavailable) {
+        setAiAvailable(false);
+        setAiStatusMessage(
+          "AI analysis is currently unavailable. You can continue with Quick Check and the manual checklist below."
+        );
+      }
+
       logAction("EMAR Audit Failed", file?.name || "EMAR", "Flagged", error.message || "Failed to analyze document", {
         event: "emar_audit_failed",
         fileName: file?.name,
       });
       toast({
         title: "Analysis Failed",
-        description: error.message || "Failed to analyze document",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -2568,8 +2697,17 @@ ${generatedProtocol.additionalComments}`;
               )}
 
               <div className="flex flex-wrap items-center gap-3">
-                <Button onClick={processAudit} disabled={loading || !file || !fileReady} data-testid="button-analyze">
-                  {loading ? (
+                <Button
+                  onClick={processAudit}
+                  disabled={loading || !file || !fileReady || aiStatusLoading || !aiAvailable}
+                  data-testid="button-analyze"
+                >
+                  {aiStatusLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Checking AI Status...
+                    </>
+                  ) : loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Analyzing Images...
@@ -2607,6 +2745,90 @@ ${generatedProtocol.additionalComments}`;
                   </Button>
                 )}
               </div>
+              {(aiStatusLoading || !aiAvailable || Boolean(aiStatusMessage)) && (
+                <div
+                  className={cn(
+                    "flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm",
+                    aiAvailable
+                      ? "border-border/60 bg-muted/40 text-muted-foreground"
+                      : "border-destructive/30 bg-destructive/10 text-destructive"
+                  )}
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 mt-0.5" />
+                    <span>
+                      {aiStatusLoading
+                        ? "Checking AI availability..."
+                        : aiStatusMessage || "AI analysis is currently unavailable in this environment."}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={refreshAiStatus}
+                    disabled={aiStatusLoading}
+                    className="h-7 px-2"
+                  >
+                    <RefreshCw className={cn("h-3.5 w-3.5", aiStatusLoading && "animate-spin")} />
+                    Refresh
+                  </Button>
+                </div>
+              )}
+              {!aiStatusLoading && !aiAvailable && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-700 dark:text-amber-200" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                        Continue in Manual Assurance Mode
+                      </p>
+                      <p className="text-xs text-amber-800/90 dark:text-amber-100/80 mt-1">
+                        AI analysis is paused, but you can still complete a defensible review using Quick Check and a structured manual checklist.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={runPreflightCheck}
+                      disabled={!file || !fileReady || preflightLoading}
+                      className="border-amber-600/30 bg-background/80 hover:bg-background"
+                    >
+                      {preflightLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Running Quick Check...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          Run Quick Check
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void copyManualChecklist()}
+                      className="border-amber-600/30 bg-background/80 hover:bg-background"
+                    >
+                      <Copy className="mr-2 h-4 w-4" />
+                      Copy Manual Checklist
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={refreshAiStatus}
+                      disabled={aiStatusLoading}
+                    >
+                      <RefreshCw className={cn("mr-2 h-4 w-4", aiStatusLoading && "animate-spin")} />
+                      Retry AI
+                    </Button>
+                  </div>
+                </div>
+              )}
               {isAdmin && (
                 <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                   <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
