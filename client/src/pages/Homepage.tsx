@@ -303,7 +303,7 @@ export default function Homepage() {
       setHeaderScrolled(window.scrollY > 12);
 
       const viewportAnchor = window.scrollY + window.innerHeight * 0.35;
-      let currentSection = NAV_SECTIONS[0].id;
+      let currentSection: (typeof NAV_SECTIONS)[number]["id"] = NAV_SECTIONS[0].id;
 
       NAV_SECTIONS.forEach((section) => {
         const element = document.getElementById(section.id);

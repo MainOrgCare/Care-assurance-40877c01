@@ -1,7 +1,9 @@
 import { useAuth } from "@/context/AuthContext";
 import { Redirect, Route } from "wouter";
-import Layout from "./Layout";
+import { Suspense, lazy } from "react";
 import { Loader2 } from "lucide-react";
+
+const Layout = lazy(() => import("./Layout"));
 
 export default function ProtectedRoute({
   component: Component,
@@ -28,9 +30,17 @@ export default function ProtectedRoute({
   return (
     <Route path={path}>
       {(params) => (
-        <Layout>
-          <Component {...params} />
-        </Layout>
+        <Suspense
+          fallback={
+            <div className="min-h-screen w-full flex items-center justify-center bg-background text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          }
+        >
+          <Layout>
+            <Component {...params} />
+          </Layout>
+        </Suspense>
       )}
     </Route>
   );

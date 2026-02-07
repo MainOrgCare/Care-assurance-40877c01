@@ -28,7 +28,7 @@ import {
   Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, Suspense, memo, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, Suspense, memo, useCallback, useRef, useMemo, lazy } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useSession } from "@/context/SessionContext";
 import { useTemporaryDataTimer } from "@/context/TemporaryDataContext";
@@ -36,8 +36,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
-import ChatAssistant from "@/components/ChatAssistant";
-import ComplieeIntro, { ComplieeIdleButton } from "@/components/ComplieeIntro";
+import ComplieeIdleButton from "@/components/ComplieeIdleButton";
 
 type PageMeta = {
   section: string;
@@ -138,6 +137,9 @@ const resolvePageMeta = (path: string): PageMeta => {
   const matched = PAGE_META_RULES.find((rule) => rule.match(path));
   return matched?.meta || DEFAULT_PAGE_META;
 };
+
+const ChatAssistant = lazy(() => import("@/components/ChatAssistant"));
+const ComplieeIntro = lazy(() => import("@/components/ComplieeIntro"));
 
 const SidebarContent = memo(function SidebarContent({
   location,
@@ -451,11 +453,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [hasOpenedChat, setHasOpenedChat] = useState(false);
   const [showComplieeIntro, setShowComplieeIntro] = useState(false);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const autoCollapseRef = useRef(false);
 
   const openChatAssistant = useCallback(() => {
+    setHasOpenedChat(true);
     setIsChatOpen(true);
   }, []);
 
@@ -522,7 +526,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       if ((event.ctrlKey || event.metaKey) && event.key === "/") {
         event.preventDefault();
-        setIsChatOpen((current) => !current);
+        setIsChatOpen((current) => {
+          const next = !current;
+          if (next) {
+            setHasOpenedChat(true);
+          }
+          return next;
+        });
       }
     };
 
@@ -810,17 +820,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Compli-ee Chat Assistant */}
-      <ChatAssistant isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      {hasOpenedChat && (
+        <Suspense fallback={null}>
+          <ChatAssistant isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+        </Suspense>
+      )}
 
       {/* Compli-ee Intro Animation (first time after accepting terms) */}
       {showComplieeIntro && (
-        <ComplieeIntro
-          onComplete={() => setShowComplieeIntro(false)}
-          onAskHelp={() => {
-            setShowComplieeIntro(false);
-            openChatAssistant();
-          }}
-        />
+        <Suspense fallback={null}>
+          <ComplieeIntro
+            onComplete={() => setShowComplieeIntro(false)}
+            onAskHelp={() => {
+              setShowComplieeIntro(false);
+              openChatAssistant();
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );
