@@ -17,6 +17,7 @@ import { TemplateFiller } from "@/components/TemplateFiller";
 import { Badge } from "@/components/ui/badge";
 import { processVaultResponse } from "@/lib/pii-vault";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { consumeJsonSseStream } from "@/lib/sse";
 
 /**
  * Highlight template placeholders like [Name], [NHS Number] etc.
@@ -55,6 +56,7 @@ function countPlaceholders(text: string): number {
 }
 
 interface CarePlanTemplate {
+  generationMode?: string;
   verificationQuestions?: string[];
   thisIsMe: {
     whoAmI: string;
@@ -272,7 +274,7 @@ export default function PlanEnhancer() {
   useEffect(() => {
     const docs = getAllDocumentContent();
     const hasContent = docs && Object.values(docs).some((s) => s && s.trim().length > 50);
-    if (hasContent && !isAnyParsing) {
+    if (hasContent && !isAnyParsing()) {
       const timer = setTimeout(runPreAnalysis, 500);
       return () => clearTimeout(timer);
     }
@@ -296,6 +298,7 @@ export default function PlanEnhancer() {
     [showSensitive, resultRaw, resultScrubbed]
   );
   const copyResult = resultScrubbed || resultRaw;
+  const isRuleBasedOutput = displayResult?.generationMode === "rule-based";
 
   const recommendedTopics = useMemo(() => {
     if (!displayResult) return [];
@@ -529,101 +532,30 @@ export default function PlanEnhancer() {
         }
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("No response stream available");
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
       let resultRaw: CarePlanTemplate | null = null;
       let resultScrubbed: CarePlanTemplate | null = null;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
-        
-        const messages = buffer.split("\n\n");
-        buffer = messages.pop() || "";
-
-        for (const message of messages) {
-          if (!message.trim() || message.startsWith(":")) continue;
-          const lines = message.split("\n");
-          let eventType = "";
-          let dataStr = "";
-          for (const line of lines) {
-            if (line.startsWith("event:")) {
-              eventType = line.substring(6).trim();
-            } else if (line.startsWith("data:")) {
-              dataStr = line.substring(5).trim();
-            }
-          }
-          if (eventType && dataStr) {
-            try {
-              const data = JSON.parse(dataStr);
-              if (eventType === "progress") {
-                console.log("[PlanEnhancer] Progress update:", data.percent, data.status);
-                throttledSetProgress(data.percent, data.status);
-              } else if (eventType === "result") {
-              // Process vault response for PII restoration
-              console.log("[PlanEnhancer] Received result event, data keys:", Object.keys(data));
-              const { scrubbed, raw } = processVaultResponse<CarePlanTemplate>(
-                data,
-                isAdmin && allowSensitive
-              );
-              
-              console.log("[PlanEnhancer] processVaultResponse returned - scrubbed keys:", scrubbed ? Object.keys(scrubbed) : 'null', "raw:", raw ? "present" : "null");
-              resultScrubbed = scrubbed;
-              resultRaw = raw || scrubbed;
-              
-              if (raw) {
-                console.log("[PlanEnhancer] PII restored locally from vault");
-              }
-            } else if (eventType === "error") {
-              throw new Error(data.message);
-            }
-            } catch (parseErr) {
-              console.error("[PlanEnhancer] SSE parse error:", parseErr);
-            }
-          }
+      await consumeJsonSseStream(response, ({ eventType, data }) => {
+        const payload = data as any;
+        if (eventType === "progress") {
+          const percent = typeof payload?.percent === "number" ? payload.percent : 0;
+          const status = typeof payload?.status === "string" ? payload.status : "Generating care plan...";
+          throttledSetProgress(percent, status);
+          return;
         }
-      }
-
-      // Process any remaining data in buffer after stream ends
-      if (buffer.trim() && !buffer.startsWith(":")) {
-        console.log("[PlanEnhancer] Processing remaining buffer after stream end");
-        const lines = buffer.split("\n");
-        let eventType = "";
-        let dataStr = "";
-        for (const line of lines) {
-          if (line.startsWith("event:")) {
-            eventType = line.substring(6).trim();
-          } else if (line.startsWith("data:")) {
-            dataStr = line.substring(5).trim();
-          }
+        if (eventType === "error") {
+          throw new Error(payload?.message || "Plan enhancement failed");
         }
-        if (eventType && dataStr) {
-          try {
-            const data = JSON.parse(dataStr);
-            if (eventType === "result") {
-              console.log("[PlanEnhancer] Found result in remaining buffer, data keys:", Object.keys(data));
-              const { scrubbed, raw } = processVaultResponse<CarePlanTemplate>(
-                data,
-                isAdmin && allowSensitive
-              );
-              resultScrubbed = scrubbed;
-              resultRaw = raw || scrubbed;
-            } else if (eventType === "error") {
-              throw new Error(data.message);
-            }
-          } catch (parseErr) {
-            console.error("[PlanEnhancer] Buffer parse error:", parseErr);
-          }
+        if (eventType !== "result" || !payload || typeof payload !== "object") {
+          return;
         }
-      }
+        const { scrubbed, raw } = processVaultResponse<CarePlanTemplate>(
+          payload,
+          isAdmin && allowSensitive
+        );
+        resultScrubbed = scrubbed;
+        resultRaw = raw || scrubbed;
+      });
 
       if (!resultRaw) {
         throw new Error("No result received from server");
@@ -1245,6 +1177,11 @@ export default function PlanEnhancer() {
           <p className="page-subtitle">Synthesize complete care templates from multi-source documentation.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {isRuleBasedOutput && (
+            <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-700">
+              Secure Rule-Based Output
+            </Badge>
+          )}
           {isAdmin && (
             <div className="flex flex-col items-start gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-2 text-xs text-muted-foreground glass-card">
               <div className="flex items-center gap-3">

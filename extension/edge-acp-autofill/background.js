@@ -160,6 +160,89 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
+const buildTargetPatterns = (targetOrigin) => {
+  const normalized = String(targetOrigin || "").trim();
+  if (!normalized) return ["https://careassurance.uk/*", "https://www.careassurance.uk/*"];
+  if (normalized.includes("localhost") || normalized.includes("127.0.0.1")) {
+    return [`http://${normalized}/*`];
+  }
+  if (normalized.includes("onrender.com")) {
+    return [`https://${normalized}/*`];
+  }
+  return [`https://${normalized}/*`, `https://www.${normalized}/*`];
+};
+
+const findContentScriptTab = async (targetOrigin) => {
+  const patterns = buildTargetPatterns(targetOrigin);
+  console.log(`[CA Extension] Searching tabs with patterns:`, patterns);
+  for (const pattern of patterns) {
+    try {
+      const tabs = await chrome.tabs.query({ url: pattern });
+      console.log(`[CA Extension] Pattern ${pattern}: found ${tabs.length} tabs`);
+      if (tabs.length > 0) {
+        const activeTab = tabs.find((tab) => tab.active) || tabs[0];
+        console.log(`[CA Extension] Using tab ${activeTab.id}: ${activeTab.url}`);
+        return activeTab.id;
+      }
+    } catch (error) {
+      console.warn(`[CA Extension] Tab query failed for ${pattern}:`, error);
+    }
+  }
+  return null;
+};
+
+const forwardProxyRequest = async (request, sendResponse) => {
+  const { endpoint, method = "GET", body, targetOrigin } = request || {};
+  const resolvedTargetOrigin = targetOrigin || "careassurance.uk";
+  console.log(`[CA Extension] API proxy request: ${method} ${endpoint} for ${resolvedTargetOrigin}`);
+  try {
+    const tabId = await findContentScriptTab(resolvedTargetOrigin);
+    if (!tabId) {
+      sendResponse({
+        ok: false,
+        error: `No Care Assurance tab found. Please open https://${resolvedTargetOrigin} and log in first.`,
+        needsTab: true,
+      });
+      return;
+    }
+
+    try {
+      const response = await chrome.tabs.sendMessage(tabId, {
+        type: API_PROXY_TYPE,
+        endpoint,
+        method,
+        body,
+      });
+      sendResponse(response);
+    } catch (forwardError) {
+      console.error("[CA Extension] Error forwarding to content script:", forwardError);
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          files: ["constants.js", "content-app.js"],
+        });
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const retryResponse = await chrome.tabs.sendMessage(tabId, {
+          type: API_PROXY_TYPE,
+          endpoint,
+          method,
+          body,
+        });
+        sendResponse(retryResponse);
+      } catch (injectError) {
+        console.error("[CA Extension] Failed to inject script:", injectError);
+        sendResponse({
+          ok: false,
+          error: "Could not communicate with Care Assurance tab. Please refresh the page and try again.",
+        });
+      }
+    }
+  } catch (error) {
+    console.error("[CA Extension] API proxy error:", error);
+    sendResponse({ ok: false, error: error?.message || "Proxy request failed" });
+  }
+};
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === MESSAGE_TYPES.storePayload) {
     setStored({ [STORAGE_KEYS.payload]: message.payload })
@@ -218,79 +301,30 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === MESSAGE_TYPES.analyzeRisks || message?.type === "CA_EXTENSION_ANALYZE_RISKS") {
-    const { documentContent, authToken } = message;
-    
-    if (!documentContent || !authToken) {
-      sendResponse({ ok: false, error: "Missing document content or auth token" });
+    const { documentContent, targetOrigin } = message;
+    if (!documentContent || typeof documentContent !== "string" || !documentContent.trim()) {
+      sendResponse({ ok: false, error: "Missing document content" });
       return false;
     }
-
-    // Call Care Assurance API with SSE support
-    const careAssuranceUrl = "https://careassurance.uk";
-    
-    fetch(`${careAssuranceUrl}/api/ai/analyze-risks`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Cookie": `session=${authToken}`
+    forwardProxyRequest(
+      {
+        endpoint: "/api/ai/analyze-risks",
+        method: "POST",
+        body: {
+          documentContent,
+          allowSensitive: false,
+        },
+        targetOrigin: targetOrigin || "careassurance.uk",
       },
-      credentials: "include",
-      body: JSON.stringify({
-        documentContent: documentContent,
-        allowSensitive: false
-      })
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status} ${response.statusText}`);
+      (response) => {
+        if (!response?.ok) {
+          const proxyError = new Error(response?.error || "Analysis failed");
+          setLastError(proxyError).then(() => sendResponse(response));
+          return;
         }
-
-        // Parse SSE stream
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let lastResult = null;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (line.startsWith("data:")) {
-              const dataStr = line.substring(5).trim();
-              if (!dataStr || dataStr.startsWith(":")) continue;
-
-              try {
-                const data = JSON.parse(dataStr);
-                
-                // Store the result if it contains service user data
-                if (data.serviceUser) {
-                  lastResult = data;
-                }
-              } catch (parseError) {
-                console.warn("Failed to parse SSE data:", dataStr);
-              }
-            }
-          }
-        }
-
-        if (lastResult) {
-          sendResponse({ ok: true, result: lastResult });
-        } else {
-          throw new Error("No result received from API");
-        }
-      })
-      .catch((error) => {
-        console.error("Risk analysis error:", error);
-        setLastError(error).then(() => {
-          sendResponse({ ok: false, error: error.message || "Analysis failed" });
-        });
-      });
-
+        sendResponse({ ...response, result: response.data || response.result });
+      }
+    );
     return true; // Keep message channel open for async response
   }
   
@@ -304,102 +338,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   
   // Handle API proxy requests from popup
   if (message?.type === API_PROXY_TYPE) {
-    const { endpoint, method, body, targetOrigin } = message;
-    
-    console.log(`[CA Extension] API proxy request: ${method} ${endpoint} for ${targetOrigin}`);
-    
-    // Find a tab with Care Assurance open
-    const findContentScriptTab = async () => {
-      // Build all possible URL patterns for the target
-      const patterns = [];
-      
-      // Handle different target formats
-      if (targetOrigin.includes('localhost') || targetOrigin.includes('127.0.0.1')) {
-        patterns.push(`http://${targetOrigin}/*`);
-      } else if (targetOrigin.includes('onrender.com')) {
-        patterns.push(`https://${targetOrigin}/*`);
-      } else {
-        // Main domain - try with and without www
-        patterns.push(`https://${targetOrigin}/*`);
-        patterns.push(`https://www.${targetOrigin}/*`);
-      }
-      
-      console.log(`[CA Extension] Searching tabs with patterns:`, patterns);
-      
-      for (const pattern of patterns) {
-        try {
-          const tabs = await chrome.tabs.query({ url: pattern });
-          console.log(`[CA Extension] Pattern ${pattern}: found ${tabs.length} tabs`);
-          if (tabs.length > 0) {
-            // Prefer active tab, otherwise use first matching tab
-            const activeTab = tabs.find(t => t.active) || tabs[0];
-            console.log(`[CA Extension] Using tab ${activeTab.id}: ${activeTab.url}`);
-            return activeTab.id;
-          }
-        } catch (e) {
-          console.warn(`[CA Extension] Tab query failed for ${pattern}:`, e);
-        }
-      }
-      
-      return null;
-    };
-    
-    findContentScriptTab()
-      .then(async (tabId) => {
-        if (!tabId) {
-          console.warn(`[CA Extension] No tab found for ${targetOrigin}`);
-          sendResponse({ 
-            ok: false, 
-            error: `No Care Assurance tab found. Please open https://${targetOrigin} and log in first.`,
-            needsTab: true 
-          });
-          return;
-        }
-        
-        // Forward request to content script
-        try {
-          console.log(`[CA Extension] Forwarding to tab ${tabId}:`, { endpoint, method });
-          const response = await chrome.tabs.sendMessage(tabId, {
-            type: API_PROXY_TYPE,
-            endpoint,
-            method,
-            body
-          });
-          console.log(`[CA Extension] Response from tab:`, response);
-          sendResponse(response);
-        } catch (error) {
-          console.error('[CA Extension] Error forwarding to content script:', error);
-          // Content script might not be loaded yet - try injecting it
-          try {
-            console.log(`[CA Extension] Trying to inject content script into tab ${tabId}`);
-            await chrome.scripting.executeScript({
-              target: { tabId },
-              files: ['constants.js', 'content-app.js']
-            });
-            // Wait a moment for script to initialize
-            await new Promise(r => setTimeout(r, 500));
-            // Retry the message
-            const retryResponse = await chrome.tabs.sendMessage(tabId, {
-              type: API_PROXY_TYPE,
-              endpoint,
-              method,
-              body
-            });
-            sendResponse(retryResponse);
-          } catch (injectError) {
-            console.error('[CA Extension] Failed to inject script:', injectError);
-            sendResponse({ 
-              ok: false, 
-              error: 'Could not communicate with Care Assurance tab. Please refresh the page and try again.' 
-            });
-          }
-        }
-      })
-      .catch((error) => {
-        console.error('[CA Extension] findContentScriptTab error:', error);
-        sendResponse({ ok: false, error: error.message });
-      });
-    
+    forwardProxyRequest(message, sendResponse);
     return true; // Keep message channel open
   }
 

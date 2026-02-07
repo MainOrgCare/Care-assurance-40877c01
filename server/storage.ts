@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
 const { Pool } = pkg;
 import bcrypt from "bcrypt";
+import { getPgPoolConfig } from "./utils/pgPoolConfig";
 import {
   type User,
   type InsertUser,
@@ -414,9 +415,7 @@ export class DatabaseStorage implements IStorage {
   private db;
 
   constructor() {
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-    });
+    const pool = new Pool(getPgPoolConfig(process.env.DATABASE_URL));
     this.db = drizzle(pool);
   }
 

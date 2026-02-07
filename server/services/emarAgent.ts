@@ -188,38 +188,63 @@ export const inferRequiredGapHoursFromText = (text: string): number | null => {
     fourteen: 14,
     fifteen: 15,
     sixteen: 16,
+    seventeen: 17,
     eighteen: 18,
+    nineteen: 19,
     twenty: 20,
     twentyfour: 24,
+  };
+  const wordNumberPattern =
+    "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty(?:\\s|-)?four";
+  const toNumber = (value: string): number | null => {
+    if (!value) return null;
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+    const normalizedWord = value.toLowerCase().replace(/[\s-]/g, "");
+    return wordToNumber[normalizedWord] ?? null;
   };
 
   // "must be 12 hours apart", "12 hours apart", "12 hrs apart"
   const apartMatch = lower.match(/\b(\d{1,2})\s*(?:hours?|hrs?|hr)\s*apart\b/);
   if (apartMatch) candidates.push(Number(apartMatch[1]));
+  const apartWordMatch = lower.match(new RegExp(`\\b(${wordNumberPattern})\\s*(?:hours?|hrs?|hr)\\s*apart\\b`));
+  if (apartWordMatch) candidates.push(toNumber(apartWordMatch[1]));
 
   // "at least 6 hours between doses", "minimum 6 hours"
   const minMatch = lower.match(
     /\b(?:at\s*least|minimum|min\.?|no\s*less\s*than|not\s*less\s*than)\s*(\d{1,2})\s*(?:hours?|hrs?|hr)\b/
   );
   if (minMatch) candidates.push(Number(minMatch[1]));
+  const minWordMatch = lower.match(
+    new RegExp(`\\b(?:at\\s*least|minimum|min\\.?|no\\s*less\\s*than|not\\s*less\\s*than)\\s*(${wordNumberPattern})\\s*(?:hours?|hrs?|hr)\\b`)
+  );
+  if (minWordMatch) candidates.push(toNumber(minWordMatch[1]));
 
   // "6 hours between doses"
   const betweenMatch = lower.match(/\b(\d{1,2})\s*(?:hours?|hrs?|hr)\s*between\b/);
   if (betweenMatch) candidates.push(Number(betweenMatch[1]));
+  const betweenWordMatch = lower.match(new RegExp(`\\b(${wordNumberPattern})\\s*(?:hours?|hrs?|hr)\\s*between\\b`));
+  if (betweenWordMatch) candidates.push(toNumber(betweenWordMatch[1]));
 
   // "every 8 hours", "every 6 hour"
   const everyMatch = lower.match(/\bevery\s*(\d{1,2})\s*(?:hours?|hrs?|hr|h)\b/);
   if (everyMatch) candidates.push(Number(everyMatch[1]));
-  const everyWordMatch = lower.match(/\bevery\s*(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s*(?:hours?|hrs?|hr)\b/);
-  if (everyWordMatch) candidates.push(wordToNumber[everyWordMatch[1]]);
+  const everyWordMatch = lower.match(new RegExp(`\\bevery\\s*(${wordNumberPattern})\\s*(?:hours?|hrs?|hr)\\b`));
+  if (everyWordMatch) candidates.push(toNumber(everyWordMatch[1]));
 
   // "4-6 hourly", "4 - 6 hours"
   const rangeMatch = lower.match(/\b(\d{1,2})\s*(?:-|–|to)\s*(\d{1,2})\s*(?:hours?|hrs?|hr|hourly|hrly)\b/);
   if (rangeMatch) candidates.push(Number(rangeMatch[1]));
+  const wordRangeMatch = lower.match(
+    new RegExp(`\\b(${wordNumberPattern}|\\d{1,2})\\s*(?:-|–|to)\\s*(${wordNumberPattern}|\\d{1,2})\\s*(?:hours?|hrs?|hr|hourly|hrly)\\b`)
+  );
+  if (wordRangeMatch) candidates.push(toNumber(wordRangeMatch[1]));
 
   // "6 hourly"
   const hourlyMatch = lower.match(/\b(\d{1,2})\s*[- ]?\s*(?:hourly|hrly)\b/);
   if (hourlyMatch) candidates.push(Number(hourlyMatch[1]));
+  const hourlyWordMatch = lower.match(new RegExp(`\\b(${wordNumberPattern})\\s*[- ]?\\s*(?:hourly|hrly)\\b`));
+  if (hourlyWordMatch) candidates.push(toNumber(hourlyWordMatch[1]));
 
   // "q6h", "q6hr", "q6 hrs", "q4-6h"
   const qMatch = lower.match(/\bq\s*(\d{1,2})(?:\s*(?:-|–|to)\s*(\d{1,2}))?\s*(?:h|hr|hrs|hours)\b/);
@@ -278,6 +303,7 @@ const normalizeCode = (raw: unknown): string => {
     .replace(/\s+/g, "");
 
   if (!code) return "";
+  if (code === "-" || code === "--" || code === "BLANK" || code === "EMPTY" || code === "NONE" || code === "NULL" || code === "NIL") return "BLANK";
   if (code === "F" || code === "FA" || code === "FAMILY" || code === "FAM" || code === "F/A") return "F";
   if (code === "S/A" || code === "S-A") return "SA";
   if (code === "M/U") return "MU";
@@ -286,13 +312,65 @@ const normalizeCode = (raw: unknown): string => {
   if (code === "A/S") return "AS";
   if (code === "PRNAD" || code === "PRN-AD") return "PRN-AD";
   if (code === "PRNAS" || code === "PRN-AS") return "PRN-AS";
-  if (code === "PRNR" || code === "PRN-R" || code === "PRNREFUSED" || code === "PRNREFUS") return "PRN-R";
+  if (code === "PRNR" || code === "PRN-R" || code === "PRNREFUSED" || code === "PRNREFUS" || code === "PRNREF" || code === "PRNRF") return "PRN-R";
   if (code === "REFUSED" || code === "REFUSE" || code === "REF") return "R";
   if (code === "SELADMIN" || code === "SELFADMIN" || code === "SA") return "SA";
   if (code === "MEDUNAV" || code === "MEDUNAVAILABLE" || code === "UNAVAILABLE" || code === "MU") return "MU";
   if (code === "NOTHOME" || code === "NH") return "NH";
   if (code === "NA") return "N/A";
   return code;
+};
+
+const TIME_RANGE_PATTERN = /\b(?:\d{1,2}[:.][0-5]\d|\d{1,2}\s*(?:am|pm)|(?:[01]?\d|2[0-3])[0-5]\d)\s*[-–]\s*(?:\d{1,2}[:.][0-5]\d|\d{1,2}\s*(?:am|pm)|(?:[01]?\d|2[0-3])[0-5]\d)\b/gi;
+const SINGLE_TIME_PATTERN = /\b(?:\d{1,2}[:.][0-5]\d(?:\s*(?:am|pm))?|(?:[01]?\d|2[0-3])[0-5]\d)\b/i;
+const CODE_TOKEN_PATTERN = /\b(PRN\s*[-–]?\s*AD|PRNAD|PRN\s*[-–]?\s*AS|PRNAS|PRN\s*[-–]?\s*R|PRNR|PRNREFUSED|PRNREFUS|PRNREF|PRNRF|MISSED|N\/?A|AD|AS|P|R|MU|NH|SA|FA|F|S\s*\/\s*A|S\s*[-–]\s*A|F\s*\/\s*A|M\s*\/\s*U|N\s*\/\s*H|A\s*\/\s*D|A\s*\/\s*S|REFUSED|REFUSE|MED(?:ICATION)?\s*UNAVAILABLE|NOT\s*HOME)\b/i;
+
+const normalizeCodeTextForScan = (value: unknown): string => {
+  const text = String(value || "");
+  if (!text.trim()) return "";
+  return text
+    .toUpperCase()
+    .replace(/[(){}[\]]/g, " ")
+    .replace(/[–—]/g, "-")
+    .replace(/\bP\s*R\s*N\s*[-–]?\s*A\s*D\b/g, "PRN-AD")
+    .replace(/\bP\s*R\s*N\s*[-–]?\s*A\s*S\b/g, "PRN-AS")
+    .replace(/\bP\s*R\s*N\s*[-–]?\s*R\b/g, "PRN-R")
+    .replace(/\bP\s*R\s*N\b/g, "PRN")
+    .replace(/\bS\s*[-–\/]?\s*A\b/g, "SA")
+    .replace(/\bF\s*[-–\/]?\s*A\b/g, "F")
+    .replace(/\bM\s*\/\s*U\b/g, "MU")
+    .replace(/\bN\s*\/\s*H\b/g, "NH")
+    .replace(/\bA\s*\/\s*D\b/g, "AD")
+    .replace(/\bA\s*\/\s*S\b/g, "AS");
+};
+
+const extractCodeFromContent = (value: unknown): string => {
+  const normalizedText = normalizeCodeTextForScan(value);
+  if (!normalizedText) return "";
+  const match = normalizedText.match(CODE_TOKEN_PATTERN);
+  if (!match) return "";
+  return normalizeCode(match[1]);
+};
+
+const extractTimeFromContent = (value: unknown): string => {
+  const text = String(value || "");
+  if (!text.trim()) return "";
+  const withoutRanges = text.replace(TIME_RANGE_PATTERN, " ");
+  const match = withoutRanges.match(SINGLE_TIME_PATTERN);
+  return match ? match[0].trim() : "";
+};
+
+const normalizeMedicationCodeForType = (code: string, isPrn: boolean, hasTime: boolean): string => {
+  const normalized = normalizeCode(code);
+  if (!normalized || normalized === "BLANK" || normalized === "N/A") return normalized;
+  if (!isPrn) return normalized;
+
+  if (normalized === "R") return "PRN-R";
+  if (normalized === "AD") return hasTime ? "PRN-AD" : "PRN-R";
+  if (normalized === "AS") return hasTime ? "PRN-AS" : "PRN-R";
+  if (normalized === "P") return hasTime ? "PRN" : "PRN-R";
+  if (normalized === "PRN" && !hasTime) return "PRN-R";
+  return normalized;
 };
 
 const TIME_REGEX = /^(?:(?:0?[0-9]|1[0-9]|2[0-3])[:.]?[0-5][0-9]|(?:0?[0-9]|1[0-2])[:.]?[0-5][0-9]\s*(?:am|pm|AM|PM))$/;
@@ -675,7 +753,7 @@ export const emarAgent = {
       const medStatsById = new Map<number, { prnCount: number; nonBlankCount: number }>();
       const medStatsByKey = new Map<string, { prnCount: number; nonBlankCount: number }>();
       for (const cell of rawCells) {
-        const code = nonBlankCode((cell as any)?.code);
+        const code = nonBlankCode((cell as any)?.code) || nonBlankCode(extractCodeFromContent((cell as any)?.content));
         if (!code) continue;
 
         const medId = resolveCellMedicationId(cell);
@@ -829,11 +907,11 @@ export const emarAgent = {
 
           const date = normalizeDate((cell as any)?.date);
           const timeSlot = normalizeTimeSlot((cell as any)?.timeSlot) || "UNSPECIFIED";
-          const careWorkerInitials = normalizeInitials((cell as any)?.careWorker);
-          const time = String((cell as any)?.time || "").trim();
+          const careWorkerInitials = normalizeInitials((cell as any)?.careWorker || (cell as any)?.careWorkerInitials);
+          const time = String((cell as any)?.time || "").trim() || extractTimeFromContent((cell as any)?.content);
           const hasTime = computeHasTime({ time });
 
-          let code = nonBlankCode((cell as any)?.code);
+          let code = nonBlankCode((cell as any)?.code) || nonBlankCode(extractCodeFromContent((cell as any)?.content));
 
           const hasInitials = Boolean(careWorkerInitials);
 
@@ -842,11 +920,7 @@ export const emarAgent = {
             code = isPrn ? "PRN" : "AD";
           }
 
-          // Normalize PRN refusal handling when no time is recorded.
-          if (isPrn) {
-            if (code === "R") code = "PRN-R";
-            if (code === "PRN" && !hasTime) code = "PRN-R";
-          }
+          code = normalizeMedicationCodeForType(code, isPrn, hasTime);
 
           if (!date || !code) continue;
           if (code === "N/A" || code === "BLANK") continue;
@@ -1079,12 +1153,18 @@ export const emarAgent = {
 
     const validMedicationIds = new Set(medicationsWithIds.map((med) => med.medicationId));
     const medIdsByKey = new Map<string, number[]>();
+    const knownDateByKey = new Map<string, string>();
     for (const med of medicationsWithIds) {
       const key = normalizeMedicationKey(med.name);
       if (!key) continue;
       const existing = medIdsByKey.get(key) || [];
       existing.push(med.medicationId);
       medIdsByKey.set(key, existing);
+    }
+    for (const date of mergedMetadata.dates) {
+      const normalized = normalizeDate(date);
+      if (!normalized) continue;
+      knownDateByKey.set(normalizeKeyString(normalized), normalized);
     }
 
     const normalizeEntry = (entry: any): any | null => {
@@ -1116,11 +1196,12 @@ export const emarAgent = {
 
       const medDetails = medicationsWithIds.find((med) => med.medicationId === medId);
       const isPrn = Boolean(medDetails?.isPRN);
-      const date = normalizeDate(entry?.date);
-      const time = String(entry?.time || "").trim();
+      const rawDate = normalizeDate(entry?.date);
+      const date = knownDateByKey.get(normalizeKeyString(rawDate)) || rawDate;
+      const time = String(entry?.time || "").trim() || extractTimeFromContent(entry?.content || entry?.cellContent);
       let timeSlot = resolveTimeSlot(entry?.timeSlot, time, mergedMetadata.timeSlots);
-      let code = normalizeCode(entry?.code);
-      const careWorkerInitials = normalizeInitials(entry?.careWorkerInitials);
+      let code = normalizeCode(entry?.code) || normalizeCode(extractCodeFromContent(entry?.content || entry?.cellContent));
+      const careWorkerInitials = normalizeInitials(entry?.careWorkerInitials || entry?.careWorker);
       const hasTime = typeof entry?.hasTime === "boolean" ? entry.hasTime : computeHasTime({ time });
       const isOfficeClosed = Boolean(entry?.isOfficeClosed);
       const closedByStaff = String(entry?.closedByStaff || "").trim();
@@ -1139,10 +1220,9 @@ export const emarAgent = {
       if (!code && (hasTime || careWorkerInitials)) {
         code = isPrn ? "PRN" : "AD";
       }
-      if (isPrn && (code === "PRN" || code === "") && !hasTime) {
-        code = "PRN-R";
-      }
+      code = normalizeMedicationCodeForType(code, isPrn, hasTime);
       if (!date || !code) return null;
+      if (code === "N/A" || code === "BLANK") return null;
 
       return {
         medicationId: medId,

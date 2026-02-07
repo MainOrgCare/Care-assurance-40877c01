@@ -33,7 +33,7 @@ app.use((req, res, next) => {
 const isProduction = process.env.NODE_ENV === "production";
 
 // CSP is stricter in production, relaxed in dev for HMR/debugging
-const cspDirectives: Record<string, string[] | boolean> = {
+const cspDirectives: Record<string, string[]> = {
   defaultSrc: ["'self'"],
   scriptSrc: isProduction 
     ? ["'self'"] // No unsafe-inline/eval in production
@@ -50,12 +50,12 @@ const cspDirectives: Record<string, string[] | boolean> = {
   baseUri: ["'self'"],
   formAction: ["'self'"],
   frameAncestors: ["'none'"],
-  ...(isProduction && { upgradeInsecureRequests: true }),
+  ...(isProduction && { upgradeInsecureRequests: [] }), // Empty array enables directive
 };
 
 app.use(helmet({
   contentSecurityPolicy: {
-    directives: cspDirectives as any,
+    directives: cspDirectives,
   },
   hsts: {
     maxAge: 31536000, // 1 year
@@ -72,6 +72,24 @@ app.use(helmet({
   originAgentCluster: true,
 }));
 app.disable('x-powered-by'); // Remove Express fingerprinting
+
+// Additional security headers for API responses
+app.use('/api/', (req, res, next) => {
+  // Prevent caching of sensitive data
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  
+  // Permissions Policy (formerly Feature Policy) - restrict browser features
+  res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  
+  // Additional security headers
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Download-Options', 'noopen');
+  
+  next();
+});
+
 log(`Security headers enabled (Helmet) - CSP mode: ${isProduction ? 'strict' : 'development'}`);
 
 // CORS middleware
@@ -210,16 +228,21 @@ app.use(compression({
   }
 }));
 
+// Request body size limits - reduced for security
+// Large uploads are handled by specific endpoints with multer
+const DEFAULT_BODY_LIMIT = '1mb'; // General API requests
+const LARGE_BODY_LIMIT = '10mb'; // For endpoints that need larger payloads (e.g., care plans)
+
 app.use(
   express.json({
-    limit: '100mb',
+    limit: DEFAULT_BODY_LIMIT,
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
   }),
 );
 
-app.use(express.urlencoded({ extended: false, limit: '100mb' }));
+app.use(express.urlencoded({ extended: false, limit: DEFAULT_BODY_LIMIT }));
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

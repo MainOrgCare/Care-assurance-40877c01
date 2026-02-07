@@ -20,6 +20,85 @@ const sendAck = (requestId, ok, error) => {
   );
 };
 
+const parseSseStream = async (response) => {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("No response stream available");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result = null;
+  let lastProgress = null;
+
+  const parseEvent = (rawEvent) => {
+    if (!rawEvent || !rawEvent.trim() || rawEvent.startsWith(":")) return null;
+    const lines = rawEvent.split("\n");
+    let eventType = "";
+    const dataLines = [];
+    for (const line of lines) {
+      if (line.startsWith("event:")) {
+        eventType = line.slice(6).trim();
+      } else if (line.startsWith("data:")) {
+        dataLines.push(line.slice(5).trim());
+      }
+    }
+    if (!eventType || !dataLines.length) return null;
+    return { eventType, dataStr: dataLines.join("\n") };
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true }).replace(/\r/g, "");
+    const messages = buffer.split("\n\n");
+    buffer = messages.pop() || "";
+
+    for (const message of messages) {
+      const parsed = parseEvent(message);
+      if (!parsed) continue;
+      let payload;
+      try {
+        payload = JSON.parse(parsed.dataStr);
+      } catch {
+        continue;
+      }
+      if (parsed.eventType === "progress") {
+        lastProgress = payload;
+      } else if (parsed.eventType === "result") {
+        result = payload;
+      } else if (parsed.eventType === "error") {
+        throw new Error(payload?.message || "Server-side processing failed");
+      }
+    }
+  }
+
+  if (buffer.trim()) {
+    const parsed = parseEvent(buffer);
+    if (parsed) {
+      let payload;
+      try {
+        payload = JSON.parse(parsed.dataStr);
+      } catch {
+        payload = null;
+      }
+      if (!payload) {
+        // ignore invalid trailing payloads
+      } else if (parsed.eventType === "result") {
+        result = payload;
+      } else if (parsed.eventType === "error") {
+        throw new Error(payload?.message || "Server-side processing failed");
+      }
+    }
+  }
+
+  if (!result) {
+    throw new Error("No result received from stream");
+  }
+
+  return { result, lastProgress };
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // API PROXY - Allow popup to make authenticated API requests via content script
 // ═══════════════════════════════════════════════════════════════════════════
@@ -59,8 +138,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         return;
       }
-      const data = await res.json();
-      console.log(`[CA Extension Content] Request successful, data keys:`, Object.keys(data));
+      const contentType = (res.headers.get("content-type") || "").toLowerCase();
+      if (contentType.includes("text/event-stream")) {
+        const streamed = await parseSseStream(res);
+        sendResponse({
+          ok: true,
+          data: streamed.result,
+          status: res.status,
+          streamed: true,
+          lastProgress: streamed.lastProgress,
+        });
+        return;
+      }
+
+      const rawText = await res.text();
+      let data = null;
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        data = { message: rawText };
+      }
+      if (data && typeof data === "object") {
+        console.log(`[CA Extension Content] Request successful, data keys:`, Object.keys(data));
+      }
       sendResponse({ ok: true, data, status: res.status });
     })
     .catch((error) => {

@@ -28,7 +28,7 @@ import {
   Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, Suspense, memo, useCallback, useRef } from "react";
+import { useState, useEffect, Suspense, memo, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useSession } from "@/context/SessionContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
@@ -38,6 +38,106 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Badge } from "@/components/ui/badge";
 import ChatAssistant from "@/components/ChatAssistant";
 import ComplieeIntro, { ComplieeIdleButton } from "@/components/ComplieeIntro";
+
+type PageMeta = {
+  section: string;
+  title: string;
+  subtitle: string;
+};
+
+const PAGE_META_RULES: Array<{ match: (path: string) => boolean; meta: PageMeta }> = [
+  {
+    match: (path) => path === "/dashboard",
+    meta: {
+      section: "Overview",
+      title: "Operations Dashboard",
+      subtitle: "Live visibility of compliance, workforce, and service delivery performance.",
+    },
+  },
+  {
+    match: (path) => path === "/messages",
+    meta: {
+      section: "Communication",
+      title: "Team Messages",
+      subtitle: "Track updates, handovers, and operational communications in one place.",
+    },
+  },
+  {
+    match: (path) => path === "/email-assistant",
+    meta: {
+      section: "Communication",
+      title: "Email Assistant",
+      subtitle: "Create structured, professional communications quickly with standardized workflows.",
+    },
+  },
+  {
+    match: (path) => path.startsWith("/service-users"),
+    meta: {
+      section: "Service Users",
+      title: "Service User Management",
+      subtitle: "Upload records, produce care planning outputs, and maintain person-centred documentation.",
+    },
+  },
+  {
+    match: (path) => path.startsWith("/care-workers"),
+    meta: {
+      section: "Care Workers",
+      title: "Care Worker Operations",
+      subtitle: "Review EMAR, visit audits, and workforce performance from a unified workspace.",
+    },
+  },
+  {
+    match: (path) => path.startsWith("/rostering"),
+    meta: {
+      section: "Rostering",
+      title: "Rostering Studio",
+      subtitle: "Plan, optimize, and compare schedules with clear workload and quality signals.",
+    },
+  },
+  {
+    match: (path) => path === "/call-reconciliation",
+    meta: {
+      section: "Assurance",
+      title: "Call Reconciliation",
+      subtitle: "Validate call evidence and reconcile completed visits against expected delivery.",
+    },
+  },
+  {
+    match: (path) => path === "/compliance",
+    meta: {
+      section: "Assurance",
+      title: "Compliance Hub",
+      subtitle: "Monitor regulatory posture and track outstanding compliance actions.",
+    },
+  },
+  {
+    match: (path) => path === "/settings",
+    meta: {
+      section: "Administration",
+      title: "System Settings",
+      subtitle: "Configure security, user preferences, and operating defaults.",
+    },
+  },
+  {
+    match: (path) => path.startsWith("/shadow-admin-portal") || path.startsWith("/system-logs") || path.startsWith("/testing-features") || path.startsWith("/billing-tool") || path.startsWith("/roi-calculator"),
+    meta: {
+      section: "Administration",
+      title: "Administrative Controls",
+      subtitle: "Platform configuration, diagnostics, and management controls for authorized users.",
+    },
+  },
+];
+
+const DEFAULT_PAGE_META: PageMeta = {
+  section: "Workspace",
+  title: "CareAssurance",
+  subtitle: "Operational tooling for high-trust, compliant care delivery.",
+};
+
+const resolvePageMeta = (path: string): PageMeta => {
+  const matched = PAGE_META_RULES.find((rule) => rule.match(path));
+  return matched?.meta || DEFAULT_PAGE_META;
+};
 
 const SidebarContent = memo(function SidebarContent({
   location,
@@ -92,11 +192,11 @@ const SidebarContent = memo(function SidebarContent({
 
   const navLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-3 rounded-xl text-sm font-bold transition-all duration-300 group cursor-pointer relative overflow-hidden",
+      "flex items-center gap-3 rounded-xl text-sm font-semibold transition-colors duration-150 group cursor-pointer relative overflow-hidden border",
       isCollapsed ? "px-2 py-2.5 justify-center gap-0" : "px-3.5 py-2.5",
       isActive
-        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]"
-        : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
+        ? "bg-primary/10 text-primary border-primary/20"
+        : "text-muted-foreground hover:text-foreground hover:bg-muted/60 border-transparent"
     ), [isCollapsed]);
 
   const subNavLinkClass = useCallback((isActive: boolean) =>
@@ -121,16 +221,15 @@ const SidebarContent = memo(function SidebarContent({
             onClick={handleSecretClick}
             className={cn("flex items-center gap-4 cursor-pointer group", isCollapsed && "justify-center")}
           >
-            <div className="relative h-11 w-11 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-500 bg-gradient-to-br from-primary to-primary/80 group-hover:rotate-6 group-hover:scale-110">
+            <div className="relative h-11 w-11 rounded-2xl flex items-center justify-center shadow-sm bg-primary">
               <ShieldCheck className="h-6 w-6 text-white" />
-              <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
-              <h1 className="font-heading text-xl leading-none tracking-tighter">
+              <h1 className="font-heading text-lg leading-none tracking-tight">
                 <span className="font-black text-foreground">Care</span><span className="font-medium text-muted-foreground/80">Assurance</span>
               </h1>
-              <span className="text-[9px] mt-1 font-bold uppercase tracking-[0.25em] text-primary/70">OPERATIONS OS</span>
+              <span className="text-[10px] mt-1 font-semibold uppercase tracking-[0.12em] text-muted-foreground">Operations Platform</span>
             </div>
             )}
           </div>
@@ -342,6 +441,7 @@ const SidebarContent = memo(function SidebarContent({
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
+  const pageMeta = useMemo(() => resolvePageMeta(location), [location]);
   const isFullBleed = location === "/rostering-unified";
   const isSingleScreenRoute =
     location === "/rostering-unified" || location === "/care-worker-rotas";
@@ -355,27 +455,52 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const autoCollapseRef = useRef(false);
 
-  // Fetch unread message count
+  // Fetch unread message count (visibility-aware to reduce background work)
   useEffect(() => {
     if (!user) return;
-    
+
+    let isDisposed = false;
+    let controller: AbortController | null = null;
+
     const fetchUnreadCount = async () => {
+      if (isDisposed || document.visibilityState === "hidden") return;
+      controller?.abort();
+      controller = new AbortController();
       try {
-        const res = await fetch('/api/messages/unread-count', { credentials: 'include' });
+        const res = await fetch('/api/messages/unread-count', {
+          credentials: 'include',
+          signal: controller.signal,
+        });
         if (res.ok) {
           const data = await res.json();
-          setUnreadMessageCount(data.count || 0);
+          if (!isDisposed) {
+            setUnreadMessageCount(data.count || 0);
+          }
         }
       } catch (error) {
-        console.error('Failed to fetch unread message count:', error);
+        if ((error as any)?.name !== "AbortError") {
+          console.error('Failed to fetch unread message count:', error);
+        }
       }
     };
-    
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchUnreadCount();
+      }
+    };
+
     fetchUnreadCount();
-    // Poll every 60 seconds for new messages
-    const interval = setInterval(fetchUnreadCount, 60000);
-    return () => clearInterval(interval);
-  }, [user]);
+    const interval = window.setInterval(fetchUnreadCount, 90000);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      isDisposed = true;
+      controller?.abort();
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [user?.id]);
 
   // Show Compli-ee intro after user has accepted terms
   useEffect(() => {
@@ -388,11 +513,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const contentWrapperClass = cn(
     "w-full flex-1 min-h-0",
-    isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6",
+    isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-6 py-4 sm:py-5 lg:py-6",
     isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(
-    "glass-card rounded-lg border border-border/70 p-4 sm:p-6 lg:p-8 flex flex-col shadow-md animate-fade-in w-full flex-1 min-h-0",
+    "rounded-2xl border border-border/70 bg-card p-4 sm:p-6 lg:p-7 flex flex-col shadow-[0_10px_28px_-14px_rgba(15,23,42,0.24)] w-full flex-1 min-h-0",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
@@ -459,8 +584,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <main className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="h-12 px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 bg-background/95 border-b border-border/40">
-            <div className="flex items-center gap-4">
+          <header className="h-14 px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 bg-background/95 border-b border-border/40">
+            <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
                 <SheetTrigger asChild>
@@ -493,6 +618,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 {isSidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
                 <span className="sr-only">Toggle sidebar</span>
               </Button>
+
+              <div className="hidden lg:block min-w-0 ml-2">
+                <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-muted-foreground">{pageMeta.section}</p>
+                <h2 className="text-sm font-semibold text-foreground truncate">{pageMeta.title}</h2>
+              </div>
             </div>
 
             <div className="flex items-center gap-5">
@@ -591,20 +721,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Suspense>
             ) : (
               <>
-                {/* Internal Page Brand Header */}
-                <div className="flex flex-wrap items-center gap-4 justify-between mb-8 sm:mb-10">
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-2xl flex items-center justify-center font-black text-xs bg-muted border border-border/60 shadow-xs text-primary group-hover:bg-primary transition-all">
-                      CA
-                    </div>
-                    <div className="space-y-0.5">
-                      <p className="text-[10px] uppercase font-black tracking-[0.3em] text-muted-foreground/50">Enterprise Intelligence</p>
-                      <p className="text-lg font-heading font-black tracking-tight text-foreground">Module Pipeline</p>
-                    </div>
-                  </div>
-
+                <div className="mb-5 sm:mb-6">
+                  <p className="text-[11px] uppercase tracking-[0.12em] font-semibold text-muted-foreground">{pageMeta.section}</p>
+                  <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground mt-1">{pageMeta.title}</h1>
+                  <p className="text-sm text-muted-foreground mt-2 max-w-3xl">{pageMeta.subtitle}</p>
                 </div>
-                <div className="h-px mb-4 sm:mb-5 bg-border/80" />
+                <div className="h-px mb-4 sm:mb-5 bg-border/70" />
                 <Suspense fallback={
                   <div className="flex-1 flex flex-col gap-4 animate-pulse">
                     <div className="h-8 w-48 bg-muted rounded-lg" />

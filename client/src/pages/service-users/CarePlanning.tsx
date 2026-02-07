@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { TemplateFiller } from "@/components/TemplateFiller";
 import { processVaultResponse } from "@/lib/pii-vault";
+import { consumeJsonSseStream } from "@/lib/sse";
 
 /**
  * Highlight template placeholders like [Name], [NHS Number] etc.
@@ -73,6 +74,7 @@ interface CarePlanResult {
   serviceUserInitials: string;
   generatedDate: string;
   callType?: string;
+  generationMode?: string;
   content?: string; // New simplified format
   sections?: CarePlanSection[]; // Legacy format
   emergencyContacts?: string;
@@ -143,6 +145,7 @@ export default function CarePlanning() {
     () => (showSensitive && currentCarePlanRaw ? currentCarePlanRaw : currentCarePlanScrubbed),
     [showSensitive, currentCarePlanRaw, currentCarePlanScrubbed]
   );
+  const isRuleBasedCarePlan = carePlan?.generationMode === "rule-based";
 
   const hasData = serviceUserData.socialWork || serviceUserData.initialAssessment;
   
@@ -316,128 +319,61 @@ export default function CarePlanning() {
         }
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("No response stream available");
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
       let resultRaw: CarePlanResult | null = null;
       let resultScrubbed: CarePlanResult | null = null;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
-        
-        const messages = buffer.split("\n\n");
-        buffer = messages.pop() || "";
-
-        for (const message of messages) {
-          if (!message.trim() || message.startsWith(":")) continue;
-          const lines = message.split("\n");
-          let eventType = "";
-          let dataStr = "";
-          for (const line of lines) {
-            if (line.startsWith("event:")) {
-              eventType = line.substring(6).trim();
-            } else if (line.startsWith("data:")) {
-              dataStr = line.substring(5).trim();
-            }
-          }
-          if (eventType && dataStr) {
-            try {
-              const data = JSON.parse(dataStr);
-              if (eventType === "progress") {
-                console.log("[CarePlan] Progress update:", data.percent, data.status);
-                throttledSetProgress(data.percent, data.status);
-              } else if (eventType === "section") {
-                // Legacy format - handle sections (still supported for backward compatibility)
-                console.log("[CarePlan] Section received:", data.index, data.section?.title);
-                if (data.section && typeof data.index === "number") {
-                  const sectionScrubbed = data.scrubbedSection || data.section;
-                  sectionsInProgressRaw[data.index] = data.section;
-                  sectionsInProgressScrubbed[data.index] = sectionScrubbed;
-                  const validSectionsRaw = sectionsInProgressRaw.filter((s): s is CarePlanSection => s !== undefined);
-                  const validSectionsScrubbed = sectionsInProgressScrubbed.filter((s): s is CarePlanSection => s !== undefined);
-                  // Update legacy single care plan state
-                  setCarePlanRaw(prev => ({
-                    serviceUserInitials: prev?.serviceUserInitials || "N.N.",
-                    generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
-                    sections: validSectionsRaw,
-                    emergencyContacts: prev?.emergencyContacts || "Loading...",
-                    gpDetails: prev?.gpDetails || "Loading...",
-                    additionalNotes: prev?.additionalNotes || "Loading...",
-                  }));
-                  setCarePlanScrubbed(prev => ({
-                    serviceUserInitials: prev?.serviceUserInitials || "N.N.",
-                    generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
-                    sections: validSectionsScrubbed,
-                    emergencyContacts: prev?.emergencyContacts || "Loading...",
-                    gpDetails: prev?.gpDetails || "Loading...",
-                    additionalNotes: prev?.additionalNotes || "Loading...",
-                  }));
-                  setExpandedSections(prev => {
-                    const newSet = new Set(prev);
-                    newSet.add(data.index);
-                    return newSet;
-                  });
-                }
-              } else if (eventType === "result") {
-                console.log("[CarePlan] Final result received, format:", data.content ? "simplified" : "legacy");
-                
-                // Process vault response for PII restoration
-                const { scrubbed, raw } = processVaultResponse<CarePlanResult>(
-                  data, 
-                  isAdmin && allowSensitive
-                );
-                
-                resultScrubbed = scrubbed;
-                resultRaw = raw || scrubbed;
-                
-                if (raw) {
-                  console.log("[CarePlan] PII restored locally from vault");
-                }
-              } else if (eventType === "error") {
-                throw new Error(data.message);
-              }
-            } catch (parseErr) {
-              console.error("SSE parse error:", parseErr, "data:", dataStr.substring(0, 100));
-            }
-          }
+      await consumeJsonSseStream(response, ({ eventType, data }) => {
+        const payload = data as any;
+        if (eventType === "progress") {
+          const percent = typeof payload?.percent === "number" ? payload.percent : 0;
+          const status = typeof payload?.status === "string" ? payload.status : "Generating care plan...";
+          throttledSetProgress(percent, status);
+          return;
         }
-      }
+        if (eventType === "section") {
+          if (!payload?.section || typeof payload.index !== "number") return;
+          const sectionScrubbed = payload.scrubbedSection || payload.section;
+          sectionsInProgressRaw[payload.index] = payload.section;
+          sectionsInProgressScrubbed[payload.index] = sectionScrubbed;
+          const validSectionsRaw = sectionsInProgressRaw.filter((s): s is CarePlanSection => s !== undefined);
+          const validSectionsScrubbed = sectionsInProgressScrubbed.filter((s): s is CarePlanSection => s !== undefined);
+          setCarePlanRaw((prev) => ({
+            serviceUserInitials: prev?.serviceUserInitials || "N.N.",
+            generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
+            sections: validSectionsRaw,
+            emergencyContacts: prev?.emergencyContacts || "Loading...",
+            gpDetails: prev?.gpDetails || "Loading...",
+            additionalNotes: prev?.additionalNotes || "Loading...",
+          }));
+          setCarePlanScrubbed((prev) => ({
+            serviceUserInitials: prev?.serviceUserInitials || "N.N.",
+            generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
+            sections: validSectionsScrubbed,
+            emergencyContacts: prev?.emergencyContacts || "Loading...",
+            gpDetails: prev?.gpDetails || "Loading...",
+            additionalNotes: prev?.additionalNotes || "Loading...",
+          }));
+          setExpandedSections((prev) => {
+            const next = new Set(prev);
+            next.add(payload.index);
+            return next;
+          });
+          return;
+        }
+        if (eventType === "error") {
+          throw new Error(payload?.message || "Care plan generation failed");
+        }
+        if (eventType !== "result" || !payload || typeof payload !== "object") {
+          return;
+        }
 
-      // Process any remaining buffer after stream ends
-      if (buffer.trim()) {
-        const lines = buffer.split("\n");
-        let eventType = "";
-        let dataStr = "";
-        for (const line of lines) {
-          if (line.startsWith("event:")) {
-            eventType = line.substring(6).trim();
-          } else if (line.startsWith("data:")) {
-            dataStr = line.substring(5).trim();
-          }
-        }
-        if (eventType === "result" && dataStr) {
-          try {
-            const data = JSON.parse(dataStr);
-            const { scrubbed, raw } = processVaultResponse<CarePlanResult>(
-              data, 
-              isAdmin && allowSensitive
-            );
-            resultScrubbed = scrubbed;
-            resultRaw = raw || scrubbed;
-            console.log("[CarePlan] Final result from remaining buffer");
-          } catch (parseErr) {
-            console.error("SSE buffer parse error:", parseErr);
-          }
-        }
-      }
+        const { scrubbed, raw } = processVaultResponse<CarePlanResult>(
+          payload,
+          isAdmin && allowSensitive
+        );
+        resultScrubbed = scrubbed;
+        resultRaw = raw || scrubbed;
+      });
 
       if (!resultRaw) {
         throw new Error("No result received from server");
@@ -634,6 +570,11 @@ export default function CarePlanning() {
           <p className="page-subtitle">Generate detailed, first-person care plans based on uploaded documentation.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {isRuleBasedCarePlan && (
+            <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-700">
+              Secure Rule-Based Output
+            </Badge>
+          )}
           {isAdmin && (
             <div className="flex flex-col items-start gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-2 text-xs text-muted-foreground glass-card">
               <div className="flex items-center gap-3">

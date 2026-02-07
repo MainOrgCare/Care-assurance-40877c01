@@ -15,7 +15,7 @@ import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser } from "@shared/schema";
-import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, AI_DISABLED_MESSAGE, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { getCacheStats, clearCache } from "./services/aiCache";
 import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseAI } from "./services/ruleBasedEngine";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
@@ -33,6 +33,7 @@ import { parse as parseDateFns, format as formatDateFns } from "date-fns";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
 import { extractFromRawCalls, getExpiryDate, type RawCallRecord } from "./services/serviceOrderBuilder";
+import { getPgPoolConfig } from "./utils/pgPoolConfig";
 // Vision-based extraction for improved EMAR accuracy
 
 const execFileAsync = promisify(execFile);
@@ -113,9 +114,14 @@ type LoginAttempt = {
   firstAttemptAt: number;
   lastAttemptAt: number;
   blockedUntil?: number;
+  blockCount?: number; // Track how many times they've been blocked (for progressive lockout)
 };
 
 const loginAttempts = new Map<string, LoginAttempt>();
+
+// Progressive lockout: block times increase with each block
+const PROGRESSIVE_BLOCK_MULTIPLIERS = [1, 2, 4, 8, 16]; // 15min, 30min, 1hr, 2hr, 4hr
+const AUTO_SUSPEND_AFTER_BLOCKS = 3; // Suspend user account after 3 blocks
 
 const validatePassword = (password: string, username?: string): string | null => {
   if (!password || typeof password !== "string") {
@@ -179,17 +185,56 @@ const getBlockedSeconds = (key: string): number => {
   return Math.ceil(remainingMs / 1000);
 };
 
-const recordLoginFailure = (key: string): void => {
+const recordLoginFailure = (key: string, username?: string): void => {
   const now = Date.now();
   const attempt = loginAttempts.get(key);
   if (!attempt || now - attempt.firstAttemptAt > LOGIN_ATTEMPT_WINDOW_MS) {
-    loginAttempts.set(key, { count: 1, firstAttemptAt: now, lastAttemptAt: now });
+    loginAttempts.set(key, { count: 1, firstAttemptAt: now, lastAttemptAt: now, blockCount: 0 });
     return;
   }
   attempt.count += 1;
   attempt.lastAttemptAt = now;
   if (attempt.count >= MAX_LOGIN_ATTEMPTS) {
-    attempt.blockedUntil = now + LOGIN_BLOCK_DURATION_MS;
+    // Progressive lockout - increase block time with each block
+    const blockCount = (attempt.blockCount || 0) + 1;
+    const multiplierIndex = Math.min(blockCount - 1, PROGRESSIVE_BLOCK_MULTIPLIERS.length - 1);
+    const blockDuration = LOGIN_BLOCK_DURATION_MS * PROGRESSIVE_BLOCK_MULTIPLIERS[multiplierIndex];
+    attempt.blockedUntil = now + blockDuration;
+    attempt.blockCount = blockCount;
+    
+    // Log the progressive lockout
+    logSecurityEvent({
+      eventType: 'LOGIN_BLOCKED',
+      endpoint: '/api/auth/login',
+      username: username,
+      details: {
+        reason: 'Progressive lockout',
+        blockCount,
+        blockDurationMinutes: Math.round(blockDuration / 60000),
+        willAutoSuspend: blockCount >= AUTO_SUSPEND_AFTER_BLOCKS,
+      },
+    });
+    
+    // Auto-suspend user account after repeated blocks
+    if (username && blockCount >= AUTO_SUSPEND_AFTER_BLOCKS) {
+      storage.getUserByUsername(username).then(async (user) => {
+        if (user && user.role !== 'admin') { // Never auto-suspend admins
+          const suspendUntil = new Date(now + 24 * 60 * 60 * 1000); // 24 hour suspension
+          await storage.suspendUser(user.id, suspendUntil);
+          logSecurityEvent({
+            eventType: 'ACCOUNT_SUSPENDED',
+            endpoint: '/api/auth/login',
+            userId: user.id,
+            username: user.username,
+            details: {
+              reason: 'Auto-suspended due to repeated failed login attempts',
+              blockCount,
+              suspendedUntil: suspendUntil.toISOString(),
+            },
+          });
+        }
+      }).catch(() => {}); // Silently fail if user lookup fails
+    }
   }
 };
 
@@ -2505,6 +2550,405 @@ const normalizeRiskRating = (value: unknown) => {
   return "Low";
 };
 
+const RULE_BASED_SIGNAL_GROUPS = {
+  medicalConditions: [
+    { label: "Diabetes", terms: ["diabet", "insulin", "blood glucose", "hypogly", "hypergly"] },
+    { label: "Dementia or cognitive impairment", terms: ["dementia", "alzheimer", "memory", "cognit", "confus"] },
+    { label: "Epilepsy or seizures", terms: ["epilep", "seizure"] },
+    { label: "Respiratory condition", terms: ["copd", "asthma", "breathless", "oxygen", "inhaler"] },
+    { label: "Cardiovascular condition", terms: ["heart", "cardiac", "angina", "hypertension", "bp"] },
+    { label: "Arthritis or musculoskeletal condition", terms: ["arthritis", "joint pain", "mobility pain"] },
+    { label: "Mental health condition", terms: ["depress", "anxiety", "psych", "low mood"] },
+  ],
+  careActivities: [
+    { label: "Medication support", terms: ["medication", "medicine", "tablet", "dosette", "blister pack", "mar"] },
+    { label: "Personal care support", terms: ["wash", "bathing", "shower", "dressing", "toilet", "toileting"] },
+    { label: "Mobility and transfers", terms: ["mobility", "transfer", "hoist", "stand aid", "wheelchair", "walking frame"] },
+    { label: "Nutrition and hydration support", terms: ["meal", "diet", "nutrition", "hydration", "feeding", "swallow"] },
+    { label: "Continence support", terms: ["continence", "incontinence", "catheter", "pad", "bowel", "urinary"] },
+    { label: "Communication support", terms: ["communication", "speech", "hearing", "vision", "interpreter"] },
+  ],
+  concerns: [
+    { label: "Falls risk", terms: ["fall", "unsteady", "trip", "slip", "balance"] },
+    { label: "Skin integrity risk", terms: ["pressure", "ulcer", "wound", "skin tear", "sore"] },
+    { label: "Choking or aspiration risk", terms: ["choking", "aspiration", "dysphagia", "thickened"] },
+    { label: "Medication safety risk", terms: ["medication error", "missed medication", "time critical"] },
+    { label: "Behavior or safeguarding concern", terms: ["agitation", "aggressive", "wandering", "self neglect", "abuse"] },
+    { label: "Infection risk", terms: ["infection", "uti", "mrsa", "sepsis", "covid"] },
+  ],
+  equipment: [
+    { label: "Hoist", terms: ["hoist"] },
+    { label: "Stand aid", terms: ["stand aid", "sara steady"] },
+    { label: "Wheelchair", terms: ["wheelchair"] },
+    { label: "Walking frame", terms: ["walking frame", "zimmer", "rollator"] },
+    { label: "Hospital/profiling bed", terms: ["hospital bed", "profiling bed"] },
+    { label: "Pressure-relieving equipment", terms: ["pressure mattress", "pressure cushion"] },
+    { label: "Assistive bathroom equipment", terms: ["shower chair", "bath board", "toilet frame", "commode", "grab rails"] },
+    { label: "Telecare or falls alarm", terms: ["falls sensor", "telecare", "pendant alarm"] },
+  ],
+  communicationNeeds: [
+    { label: "Hearing support", terms: ["hearing", "hearing aid"] },
+    { label: "Vision support", terms: ["vision", "eyesight", "glasses"] },
+    { label: "Speech/language support", terms: ["speech", "aphasia", "language"] },
+    { label: "Cognitive communication support", terms: ["memory", "confus", "orientation"] },
+  ],
+  environmentalFactors: [
+    { label: "Stairs or step access", terms: ["stairs", "steps", "upstairs"] },
+    { label: "Key safe or controlled access", terms: ["key safe", "keysafe", "key box"] },
+    { label: "Fire safety considerations", terms: ["smoke alarm", "fire", "smoking", "oxygen near heat"] },
+    { label: "Clutter or trip hazards", terms: ["clutter", "trip hazard", "uneven flooring", "poor lighting"] },
+    { label: "Lone working considerations", terms: ["lone working", "single carer", "double up care"] },
+  ],
+};
+
+const extractSignalLabels = (
+  content: string,
+  groups: Array<{ label: string; terms: string[] }>
+) => {
+  if (!content) return [] as string[];
+  const lower = content.toLowerCase();
+  return groups
+    .filter((group) => group.terms.some((term) => lower.includes(term)))
+    .map((group) => group.label);
+};
+
+const fallbackRiskProfileSummary = (analysis: {
+  careActivities: string[];
+  concerns: string[];
+  medicalConditions: string[];
+}) => {
+  const segments: string[] = [];
+  if (analysis.medicalConditions.length > 0) {
+    segments.push(`I have documented health needs including ${analysis.medicalConditions.slice(0, 3).join(", ")}.`);
+  }
+  if (analysis.careActivities.length > 0) {
+    segments.push(`I need support with ${analysis.careActivities.slice(0, 3).join(", ")}.`);
+  }
+  if (analysis.concerns.length > 0) {
+    segments.push(`My records identify risks around ${analysis.concerns.slice(0, 3).join(", ")}.`);
+  }
+  if (segments.length === 0) {
+    return "I need a person-centred review of my care needs based on the documents provided.";
+  }
+  return toFirstPerson(segments.join(" "));
+};
+
+const deescalateRiskRating = (rating: "Low" | "Medium" | "High"): "Low" | "Medium" | "High" => {
+  if (rating === "High") return "Medium";
+  return "Low";
+};
+
+const buildRuleBasedRiskAnalysisPayload = (
+  documentContent: string,
+  allowSensitiveView: boolean
+) => {
+  const fullName = normalizeFullName(extractServiceUserFullName(documentContent));
+  const serviceUser = allowSensitiveView && fullName
+    ? { fullName, initials: normalizeInitials(fullName) }
+    : { initials: normalizeInitials(fullName || "N.N.") };
+  const medicalConditions = extractSignalLabels(documentContent, RULE_BASED_SIGNAL_GROUPS.medicalConditions);
+  const careActivities = extractSignalLabels(documentContent, RULE_BASED_SIGNAL_GROUPS.careActivities);
+  const concerns = extractSignalLabels(documentContent, RULE_BASED_SIGNAL_GROUPS.concerns);
+  const equipment = extractSignalLabels(documentContent, RULE_BASED_SIGNAL_GROUPS.equipment);
+  const communicationNeeds = extractSignalLabels(documentContent, RULE_BASED_SIGNAL_GROUPS.communicationNeeds);
+  const environmentalFactors = extractSignalLabels(documentContent, RULE_BASED_SIGNAL_GROUPS.environmentalFactors);
+
+  const riskAnalysis = analyzeRiskLevel(documentContent);
+  const evidenceFinder = buildDocumentEvidenceFinder(documentContent);
+  const extractedFields = extractCommonFields(documentContent);
+  if (extractedFields.orientation) concerns.push(`Orientation status: ${extractedFields.orientation}`);
+  if (extractedFields.memory) concerns.push(`Memory status: ${extractedFields.memory}`);
+  if (extractedFields.moods) concerns.push(`Mood profile: ${extractedFields.moods}`);
+
+  let recommendedAssessments = buildAssessmentRecommendations(
+    { medicalConditions, careActivities, concerns, equipment, communicationNeeds, environmentalFactors },
+    evidenceFinder
+  );
+
+  if (!recommendedAssessments.length) {
+    const fallbackNames = [
+      "Medication Administration",
+      "Mobility & Moving and Handling",
+      "Personal Care",
+      "Nutrition",
+      "Environmental Safety",
+    ];
+    recommendedAssessments = fallbackNames.map((name) => {
+      const key = normalizeAssessmentKey(name);
+      const terms = ASSESSMENT_EVIDENCE_TERMS[key] || [];
+      const snippets = evidenceFinder.findAllSnippets(terms, 3).filter(isMeaningfulEvidence);
+      const evidence =
+        pickEvidenceSnippet(snippets) ||
+        truncateEvidence((documentContent || "").replace(/\s+/g, " ").trim(), 180) ||
+        "Information recorded in uploaded documents.";
+      return {
+        name,
+        isMandatory: false,
+        reason: toFirstPerson(`I need this assessment to manage my documented care needs safely.`),
+        evidence,
+        evidenceSnippets: snippets.length ? snippets : [evidence],
+      };
+    });
+  }
+
+  const dedupedConcerns = normalizeStringArray(concerns);
+  return {
+    serviceUser,
+    medicalConditions,
+    careActivities,
+    concerns: dedupedConcerns.length ? dedupedConcerns : [riskAnalysis.reason],
+    equipment,
+    communicationNeeds,
+    environmentalFactors,
+    recommendedAssessments: recommendedAssessments.map((item) => ({
+      ...item,
+      isMandatory: false,
+      reason: toFirstPerson(item.reason || "I need this assessment to manage identified risks."),
+      evidenceSnippets: normalizeStringArray(item.evidenceSnippets).filter(isMeaningfulEvidence),
+    })),
+    documentSummary: fallbackRiskProfileSummary({ medicalConditions, careActivities, concerns: dedupedConcerns }),
+    generationMode: "rule-based",
+  };
+};
+
+const buildRuleBasedRiskAssessmentPayload = (params: {
+  documentContent: string;
+  assessmentCategory: string;
+  serviceUserInitials?: string;
+  performedBy?: string;
+  performedByJobTitle?: string;
+}) => {
+  const { documentContent, assessmentCategory, serviceUserInitials, performedBy, performedByJobTitle } = params;
+  const category = canonicalizeAssessmentName(assessmentCategory || "General Risk Assessment");
+  const key = normalizeAssessmentKey(category);
+  const evidenceTerms = ASSESSMENT_EVIDENCE_TERMS[key] || [];
+  const evidenceFinder = buildDocumentEvidenceFinder(documentContent);
+  const snippets = evidenceFinder.findAllSnippets(evidenceTerms, 4).filter(isMeaningfulEvidence);
+  const baseline = normalizeRiskRating(analyzeRiskLevel(documentContent).level);
+  const residual = deescalateRiskRating(baseline);
+  const evidencePool =
+    snippets.length > 0
+      ? snippets
+      : [
+          truncateEvidence(documentContent.replace(/\s+/g, " ").trim(), 200) ||
+            "Information recorded in supporting documents.",
+        ];
+
+  const risks = evidencePool.slice(0, 3).map((snippet, index) => {
+    const supportLabel = index === 0 ? "primary" : "additional";
+    return {
+      riskDefinition: toFirstPerson(`I have a ${supportLabel} ${category.toLowerCase()} risk identified in my records.`),
+      initialRating: baseline,
+      howItsARisk: toFirstPerson(
+        `My documents note that ${snippet}. If this is not managed, my safety and wellbeing may be affected.`
+      ),
+      whoWillBeHarmed: "Service user and care workers",
+      controlMeasures: toFirstPerson(
+        sanitizeOutOfScopeText(
+          "My care team follows my agreed care plan, records observations, uses the correct equipment and escalates any concerns promptly."
+        )
+      ),
+      ratingAfterControls: residual,
+    };
+  });
+
+  return {
+    category,
+    serviceUserInitials: normalizeInitials(serviceUserInitials || "N.N."),
+    assessmentDate: formatRiskAssessmentDate(),
+    risks,
+    signedBy: normalizeSignedByName(performedBy || "Staff member"),
+    jobTitle: performedByJobTitle || "Care Staff",
+    additionalNotes: toFirstPerson("I need this risk area reviewed regularly and updated when my needs change."),
+    generationMode: "rule-based",
+  };
+};
+
+const buildRuleBasedCarePlanPayload = (params: {
+  documentContent: string;
+  serviceUserInitials?: string;
+  callType?: string;
+}) => {
+  const { documentContent, serviceUserInitials, callType } = params;
+  const callTypeLabel = callType || "General";
+  const evidenceFinder = buildDocumentEvidenceFinder(documentContent);
+  const callTypeTermMap: Record<string, string[]> = {
+    Morning: ["wake", "morning", "breakfast", "wash", "dress", "medication"],
+    Lunch: ["lunch", "meal", "hydration", "position", "medication"],
+    Tea: ["tea", "snack", "hydration", "evening", "comfort"],
+    Bed: ["night", "bed", "sleep", "evening medication", "toileting", "safe"],
+    Domestic: ["clean", "laundry", "shopping", "household", "kitchen"],
+    General: ["care", "support", "mobility", "medication", "nutrition", "safety"],
+  };
+  const terms = callTypeTermMap[callTypeLabel] || callTypeTermMap.General;
+  const snippets = evidenceFinder.findAllSnippets(terms, 6).filter(isMeaningfulEvidence);
+  const riskLevel = analyzeRiskLevel(documentContent).level;
+  const safetySentence =
+    riskLevel === "High"
+      ? "I have high-risk needs and my carers must follow my documented safety controls at every visit."
+      : riskLevel === "Medium"
+      ? "I have moderate risks and need carers to follow my agreed routine consistently."
+      : "My current risks are lower, but I still need my care plan followed each visit.";
+  const evidenceText =
+    snippets.length > 0
+      ? snippets.map((snippet) => `- ${snippet}`).join(" ")
+      : "- My supporting documents describe my daily care routines and risks.";
+
+  let content = toFirstPerson(
+    `This is my ${callTypeLabel.toLowerCase()} care plan. ${safetySentence} ` +
+      `My carers should provide person-centred support, respect my preferences, protect my dignity and record each visit clearly. ` +
+      `Key details from my documents include ${evidenceText} ` +
+      `My care team should use the right equipment, check my comfort and escalate to senior staff or healthcare professionals when concerns appear. ` +
+      `At the end of each visit, they should confirm I am safe, comfortable and have what I need before leaving.`
+  );
+
+  const minimumWords = 130;
+  const currentWords = content.trim().split(/\s+/).length;
+  if (currentWords < minimumWords) {
+    content +=
+      " I want consistent communication between carers, clear handovers and regular review of my care plan so support stays aligned with my current needs.";
+  }
+
+  return {
+    serviceUserInitials: normalizeInitials(serviceUserInitials || "N.N."),
+    generatedDate: new Date().toLocaleDateString("en-GB"),
+    callType: callTypeLabel,
+    content,
+    generationMode: "rule-based",
+  };
+};
+
+const buildRuleBasedPlanEnhancementPayload = (rawContent: string) => {
+  const riskLevel = normalizeRiskRating(analyzeRiskLevel(rawContent).level);
+  const profile = buildRuleBasedRiskAnalysisPayload(rawContent, false);
+  const evidenceFinder = buildDocumentEvidenceFinder(rawContent);
+  const keyLifeSnippets = evidenceFinder.findAllSnippets(
+    ["family", "preference", "routine", "support", "mobility", "medication", "nutrition", "safety"],
+    6
+  );
+  const highlights = keyLifeSnippets.length
+    ? keyLifeSnippets
+    : ["My uploaded documents include current care information that should be reviewed with me and my representatives."];
+
+  const equipmentRows = profile.equipment.slice(0, 4).map((item) => ({
+    name: item,
+    fitForPurpose: "Yes",
+    supplier: "Documented provider",
+    nextService: "Check maintenance schedule",
+  }));
+
+  const verificationQuestions: string[] = [];
+  if (!profile.medicalConditions.length) verificationQuestions.push("Please confirm my diagnosed medical conditions and current treatment plan.");
+  if (!profile.careActivities.length) verificationQuestions.push("Please confirm the exact daily care tasks and time-critical routines I need.");
+  if (!profile.equipment.length) verificationQuestions.push("Please confirm what moving/handling or safety equipment is currently in place.");
+
+  return {
+    verificationQuestions,
+    thisIsMe: {
+      whoAmI: toFirstPerson(`My name is [Name]. I want my carers to understand my background, my preferences and what matters most to me. ${highlights[0]}`),
+      hobbiesInterests: toFirstPerson(`I value meaningful activity and conversation. ${highlights.slice(1, 3).join(" ") || "My team should record my interests and use them in visit planning."}`),
+      whatMakesGoodDay: toFirstPerson(`A good day for me is when care is on time, respectful and consistent with my routines. ${highlights.slice(3, 5).join(" ")}`),
+    },
+    goalSetting: {
+      goals: [
+        {
+          goal: "Maintain safety and stability at home",
+          howToAchieve: "Follow documented routines, complete safety checks and escalate early if my condition changes.",
+          potentialBarriers: "Changes in mobility, health fluctuations or missed communication between visits.",
+          timeFrame: "Review at each care plan update",
+        },
+      ],
+      internetSupport: "Discuss if digital support or reminders would improve my independence.",
+      assistiveTechnology: profile.equipment.length > 0 ? `Current equipment includes ${profile.equipment.slice(0, 3).join(", ")}.` : "Assess whether assistive technology would improve safety and independence.",
+    },
+    advanceDecisions: {
+      advanceDecisionInPlace: "Verify from latest records",
+      dnrDetails: "Confirm any DNACPR or advance decision details with authorised documentation.",
+      lastingPOA: "Verify from records",
+      poaType: "Confirm Health and Welfare / Property and Finance status",
+      poaContact: "Record authorised contact details",
+    },
+    myCarePlan: {
+      capacityAndSafeguarding: "Record my decision-making capacity, safeguarding concerns and agreed escalation process.",
+      healthAndWellbeing: profile.medicalConditions.length ? `My key health conditions include ${profile.medicalConditions.slice(0, 4).join(", ")}.` : "Record my current health conditions and monitoring needs.",
+      triggerPoints: "Escalate if I show acute decline, new confusion, reduced intake, medication concerns or safety incidents.",
+      medicationRequirements: profile.careActivities.includes("Medication support") ? "Follow my MAR chart, check time-critical medicines and escalate omissions immediately." : "Confirm if I need medication prompting or administration support.",
+      nutrition: profile.careActivities.includes("Nutrition and hydration support") ? "Support me with meals and drinks according to my documented preferences and risks." : "Confirm my dietary requirements, allergies and hydration targets.",
+      personalCareNeeds: profile.careActivities.includes("Personal care support") ? "Support my washing, dressing and toileting needs with dignity and privacy." : "Confirm my personal care routines and preferred approach.",
+      mobilityAndEquipment: profile.careActivities.includes("Mobility and transfers") ? `Use agreed moving and handling techniques and equipment (${profile.equipment.slice(0, 3).join(", ") || "as documented"}).` : "Confirm my mobility level and required equipment.",
+      houseworkAndSocial: "Record domestic tasks, social preferences and wellbeing activities needed to maintain quality of life.",
+      financialArrangements: "Record relevant support boundaries and safeguarding controls for financial matters if applicable.",
+    },
+    riskSection1Health: {
+      healthOverview: profile.medicalConditions.join(", ") || "To be confirmed",
+      communicationNeeds: profile.communicationNeeds.join(", ") || "To be confirmed",
+      riskLevel,
+      riskPrevention: "Observe changes, document clearly and escalate to senior staff or health professionals when needed.",
+    },
+    riskSection2Medication: {
+      medicationSupport: profile.careActivities.includes("Medication support") ? "Required" : "Confirm requirement",
+      riskLevel,
+      riskPrevention: "Use MAR documentation and report omissions, refusals or side effects promptly.",
+    },
+    riskSection3Nutrition: {
+      nutritionSupport: profile.careActivities.includes("Nutrition and hydration support") ? "Required" : "Confirm requirement",
+      dietaryRisks: profile.concerns.filter((item) => /nutrition|choking|aspiration/i.test(item)).join(", ") || "To be confirmed",
+      riskLevel,
+      riskPrevention: "Follow documented meal and fluid guidance, monitor intake and escalate concerns.",
+    },
+    riskSection4Equipment: {
+      equipment: equipmentRows,
+      remedialAction: "Ensure equipment checks are documented and faults escalated immediately.",
+      riskLevel,
+      riskPrevention: "Use only approved equipment and follow moving and handling guidance.",
+    },
+    riskSection5Mobility: {
+      mobilitySupport: profile.careActivities.includes("Mobility and transfers") ? "Required" : "Confirm requirement",
+      fallsHistory: profile.concerns.filter((item) => /fall/i.test(item)).join(", ") || "No explicit falls history extracted",
+      riskLevel,
+      riskPrevention: "Maintain clear walkways, use aids correctly and apply falls prevention controls.",
+    },
+    riskSection6Appliances: {
+      applianceSafety: "Confirm domestic appliances are safe before leaving the property.",
+      handRails: profile.environmentalFactors.includes("Stairs or step access") ? "Check presence and condition of handrails/rails." : "Not specified",
+      riskLevel,
+      riskPrevention: "Report hazards and arrange maintenance for unsafe appliances.",
+    },
+    riskSection7Fire: {
+      smokingPolicy: profile.environmentalFactors.includes("Fire safety considerations") ? "Fire safety controls required and must be reviewed each visit." : "Confirm fire safety arrangements.",
+      actionsAndSafety: "Ensure alarms, exits and ignition risks are addressed per care plan.",
+      riskLevel,
+    },
+    riskSection8COSHH: {
+      cleaningProducts: "Use approved products only and store safely.",
+      riddorExplained: "Confirm incident reporting process with care staff.",
+      riskLevel,
+    },
+    riskSection9External: {
+      externalAccess: profile.environmentalFactors.join(", ") || "To be confirmed",
+      handrails: profile.environmentalFactors.includes("Stairs or step access") ? "Required/verify" : "Not specified",
+      riskLevel,
+    },
+    riskSection10Security: {
+      homeSecurity: profile.environmentalFactors.includes("Key safe or controlled access") ? "Controlled access in place" : "Verify security controls",
+      stopTap: "Confirm and document location",
+      riskLevel,
+    },
+    section11Bands: {
+      personalCare: profile.careActivities.includes("Personal care support") ? "Yes" : "No/confirm",
+      mentalHealth: profile.medicalConditions.some((item) => /mental/i.test(item)) ? "Yes" : "No/confirm",
+      physicalDisability: profile.careActivities.includes("Mobility and transfers") ? "Yes" : "No/confirm",
+      dementia: profile.medicalConditions.some((item) => /dementia|cognitive/i.test(item)) ? "Yes" : "No/confirm",
+      eatingDisorder: "No/confirm",
+      sensoryImpairment: profile.communicationNeeds.some((item) => /hearing|vision/i.test(item)) ? "Yes" : "No/confirm",
+      detainedMHA: "No/confirm",
+      drugAlcoholMisuse: "No/confirm",
+      learningDifficulties: "No/confirm",
+    },
+    generationMode: "rule-based",
+  };
+};
+
 // Drug interaction type definition
 interface DrugInteraction {
   drug1: string;
@@ -3108,7 +3552,7 @@ export async function registerRoutes(
   // Session store: prefer Postgres when available, fall back to in-memory for local dev
   if (hasDatabaseUrl) {
     const PgSession = connectPgSimple(session);
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const pool = new Pool(getPgPoolConfig(process.env.DATABASE_URL));
     sessionStore = new PgSession({ pool, createTableIfMissing: true });
   } else {
     sessionStore = null;
@@ -3343,14 +3787,14 @@ export async function registerRoutes(
       }
       
       if (!usernameValue || !password || typeof password !== "string") {
-        recordLoginFailure(attemptKey);
+        recordLoginFailure(attemptKey, usernameValue);
         return res.status(400).json({ message: "Username and password required" });
       }
 
       const user = await storage.getUserByUsername(usernameValue);
       
       if (!user) {
-        recordLoginFailure(attemptKey);
+        recordLoginFailure(attemptKey, usernameValue);
         logSecurityEvent({ 
           eventType: 'LOGIN_FAILED',
           endpoint: '/api/auth/login',
@@ -3365,7 +3809,7 @@ export async function registerRoutes(
 
       const isValidPassword = await storage.verifyPassword(password, user.password);
       if (!isValidPassword) {
-        recordLoginFailure(attemptKey);
+        recordLoginFailure(attemptKey, usernameValue);
         logSecurityEvent({ 
           eventType: 'LOGIN_FAILED',
           endpoint: '/api/auth/login',
@@ -3380,7 +3824,7 @@ export async function registerRoutes(
       }
 
       if (user.status !== "active") {
-        recordLoginFailure(attemptKey);
+        recordLoginFailure(attemptKey, usernameValue);
         logSecurityEvent({ 
           eventType: 'LOGIN_FAILED',
           endpoint: '/api/auth/login',
@@ -3398,7 +3842,7 @@ export async function registerRoutes(
       // Check if user is suspended
       if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) {
         const minutesLeft = Math.ceil((new Date(user.suspendedUntil).getTime() - Date.now()) / 60000);
-        recordLoginFailure(attemptKey);
+        recordLoginFailure(attemptKey, usernameValue);
         logSecurityEvent({ 
           eventType: 'ACCOUNT_SUSPENDED',
           endpoint: '/api/auth/login',
@@ -4013,13 +4457,40 @@ export async function registerRoutes(
       const hashedPassword = await bcrypt.default.hash(newPassword, 10);
       await storage.updateUserPassword(req.user.id, hashedPassword);
       
+      // Regenerate session after password change for additional security
+      await new Promise<void>((resolve, reject) => {
+        req.session.regenerate((err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      req.session.userId = user.id;
+      req.session.isDemo = false;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      
+      // Update active session with new session ID
+      await storage.deleteActiveSessionByUserId(user.id);
+      await storage.createActiveSession({
+        userId: user.id,
+        username: user.username,
+        role: user.role,
+        sessionId: req.sessionID,
+        ipAddress: null,
+      });
+      
       logSecurityEvent({
         eventType: 'PASSWORD_CHANGED',
         endpoint: '/api/auth/password',
         userId: req.user.id,
         username: req.user.username,
         details: {
-          changedBy: 'self'
+          changedBy: 'self',
+          sessionRegenerated: true
         }
       });
       
@@ -4051,6 +4522,9 @@ export async function registerRoutes(
       const hashedPassword = await bcrypt.default.hash(newPassword, 10);
       await storage.updateUserPassword(req.params.id, hashedPassword);
       
+      // Invalidate all active sessions for the user - forces re-login with new password
+      await storage.deleteActiveSessionByUserId(req.params.id);
+      
       logSecurityEvent({
         eventType: 'PASSWORD_RESET',
         endpoint: `/api/admin/users/${req.params.id}/reset-password`,
@@ -4059,11 +4533,12 @@ export async function registerRoutes(
         details: {
           targetUserId: req.params.id,
           targetUsername: user.username,
-          changedBy: 'admin'
+          changedBy: 'admin',
+          sessionsInvalidated: true
         }
       });
       
-      return res.json({ message: `Password reset for user ${user.username}` });
+      return res.json({ message: `Password reset for user ${user.username}. User will need to log in again.` });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
     }
@@ -4703,6 +5178,14 @@ export async function registerRoutes(
   });
 
   // ===== AI AUDIT ROUTES =====
+
+  // Security lockdown: block model-backed AI routes when AI is disabled.
+  // Keep deterministic preflight available for EMAR document structure checks.
+  app.use("/api/ai", requireAuth, (req, res, next) => {
+    if (isAIEnabled()) return next();
+    if (req.path === "/analyze-emar/preflight") return next();
+    return res.status(503).json({ message: AI_DISABLED_MESSAGE });
+  });
 
   // Parse PDF or Word document and extract text
   app.post("/api/parse-pdf", requireAuth, upload.single("file"), async (req, res) => {
@@ -11618,6 +12101,27 @@ Return JSON - include ALL by default:
         sendEvent('progress', { percent, status, stage });
       };
 
+      if (!isAIEnabled()) {
+        sendProgress(15, "Running secure rule-based analysis...", "rule_based");
+        const fallbackResult = buildRuleBasedRiskAnalysisPayload(documentContentForAi, allowSensitiveView);
+        const templateResult = piiVault.toPlaceholders(fallbackResult);
+        let payload: any = templateResult;
+        if (allowSensitiveView) {
+          const vaultExport = piiVault.export();
+          payload = {
+            ...templateResult,
+            vaultExport,
+            rawWithTokens: fallbackResult,
+          };
+          piiVault.logAudit('RESTORE', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
+        }
+        sendProgress(100, "Complete!", "complete");
+        sendEvent('result', payload);
+        piiVault.clear();
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+
       sendProgress(5, "Initializing risk assessment...", "init");
       await new Promise(resolve => setTimeout(resolve, 150)); // Give client time to process
       sendProgress(10, "Loading policy documents...", "loading_policies");
@@ -12328,6 +12832,35 @@ Remember: Extract information ONLY from service user documents above. Templates 
 
       sendProgress(10, "Analyzing documents...", "analyzing");
 
+      if (!isAIEnabled()) {
+        piiVault.logAudit('SCRUB', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
+        sendProgress(35, "Generating rule-based risk assessment...", "rule_based");
+        const scrubbedDocumentContent = piiVault.scrub(documentContent);
+        const fallbackResult = buildRuleBasedRiskAssessmentPayload({
+          documentContent: scrubbedDocumentContent,
+          assessmentCategory,
+          serviceUserInitials,
+          performedBy,
+          performedByJobTitle,
+        });
+        const templateResult = piiVault.toPlaceholders(fallbackResult);
+        let payload: any = templateResult;
+        if (allowSensitiveView) {
+          const vaultExport = piiVault.export();
+          payload = {
+            ...templateResult,
+            vaultExport,
+            rawWithTokens: fallbackResult,
+          };
+          piiVault.logAudit('RESTORE', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
+        }
+        sendProgress(100, "Complete!", "complete");
+        sendEvent('result', payload);
+        piiVault.clear();
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+
       const riskAssessmentPolicies = await storage.getPolicyDocumentsByCategory("risk_assessment");
       const initialAssessmentPolicies = await storage.getPolicyDocumentsByCategory("initial_assessment");
       const scopeOfPracticePolicies = await storage.getPolicyDocumentsByCategory("scope_of_practice");
@@ -12995,6 +13528,34 @@ OUTPUT FORMAT - Return ONLY valid JSON:
       sendProgress(20, `Generating ${callTypeLabel} care plan...`, "generating");
       console.log(`[CarePlan] Generating ${callTypeLabel} care plan`);
 
+      if (!isAIEnabled()) {
+        sendProgress(60, "Using secure rule-based care plan generator...", "rule_based");
+        const fallbackRaw = buildRuleBasedCarePlanPayload({
+          documentContent: documentContentForAi,
+          serviceUserInitials,
+          callType: callTypeLabel,
+        });
+        const templateContent = piiVault.toPlaceholders(fallbackRaw.content);
+        let result: any = {
+          ...fallbackRaw,
+          content: templateContent,
+        };
+        if (allowSensitiveView) {
+          const vaultExport = piiVault.export();
+          result = {
+            ...result,
+            vaultExport,
+            rawWithTokens: fallbackRaw,
+          };
+          piiVault.logAudit('RESTORE', '/api/ai/generate-care-plan', aiUserContext.userId, aiUserContext.username);
+        }
+        sendProgress(100, "Complete!", "complete");
+        sendEvent('result', result);
+        piiVault.clear();
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+
       // Simulated progress during AI call
       let simulatedProgress = 20;
       progressInterval = setInterval(() => {
@@ -13323,6 +13884,27 @@ Return ONLY valid JSON with content field.` }
       const vaultStats = piiVault.getStats();
       console.log(`[Enhance] PII Vault: Scrubbed ${vaultStats.total} sensitive items (${Object.entries(vaultStats.byCategory).filter(([,v]) => v > 0).map(([k,v]) => `${k}:${v}`).join(', ')})`);
       piiVault.logAudit('SCRUB', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
+
+      if (!isAIEnabled()) {
+        sendProgress(35, "Generating secure rule-based template...", "rule_based");
+        const fallbackResult = buildRuleBasedPlanEnhancementPayload(contentToEnhance);
+        const templateResult = piiVault.toPlaceholders(fallbackResult);
+        let payload: any = templateResult;
+        if (allowSensitiveView) {
+          const vaultExport = piiVault.export();
+          payload = {
+            ...templateResult,
+            vaultExport,
+            rawWithTokens: fallbackResult,
+          };
+          piiVault.logAudit('RESTORE', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
+        }
+        sendProgress(100, "Complete!", "complete");
+        sendEvent('result', payload);
+        piiVault.clear();
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
 
       const carePlanPolicies = await storage.getPolicyDocumentsByCategory("care_plan");
       const initialAssessmentPolicies = await storage.getPolicyDocumentsByCategory("initial_assessment");
@@ -14594,12 +15176,13 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   app.get("/api/admin/ai-provider", requireAuth, requireAdmin, async (req, res) => {
     try {
       const provider = getPreferredProvider();
+      const aiEnabled = isAIEnabled();
       // OpenAI can use its own key OR fall back to PAT_AI_KEY
       const hasOpenAIKey = !!(process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY || process.env.PAT_AI_KEY);
       const hasPATKey = !!process.env.PAT_AI_KEY;
       const localLLMUrl = getLocalLLMUrl();
       const hasLocalLLM = await isLocalLLMAvailable();
-      return res.json({ provider, hasOpenAIKey, hasPATKey, hasLocalLLM, localLLMUrl });
+      return res.json({ provider, aiEnabled, hasOpenAIKey, hasPATKey, hasLocalLLM, localLLMUrl });
     } catch (error: any) {
       console.error("AI provider fetch error:", error);
       return res.status(500).json({ message: error.message || "Failed to fetch AI provider" });
@@ -14610,6 +15193,9 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   app.post("/api/admin/ai-provider", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       const { provider } = req.body;
+      if (!isAIEnabled()) {
+        return res.status(503).json({ message: AI_DISABLED_MESSAGE });
+      }
       if (provider !== "openai" && provider !== "github" && provider !== "local") {
         return res.status(400).json({ message: "Invalid provider. Must be 'openai', 'github', or 'local'." });
       }
@@ -14660,6 +15246,9 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       if (typeof useEmarAgent !== "boolean") {
         return res.status(400).json({ message: "useEmarAgent must be a boolean value" });
       }
+      if (useEmarAgent && !isAIEnabled()) {
+        return res.status(503).json({ message: AI_DISABLED_MESSAGE });
+      }
       
       setUseEmarAgent(useEmarAgent, true);
       
@@ -14681,6 +15270,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     try {
       const cacheStats = getCacheStats();
       return res.json({
+        aiEnabled: isAIEnabled(),
         useCache: getUseAICache(),
         useRulesFirst: getUseRulesFirst(),
         liteMode: getAILiteMode(),
@@ -14695,7 +15285,19 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   // Set AI optimization settings (admin-only)
   app.post("/api/admin/ai-optimization", requireAuth, requireAdmin, async (req: any, res) => {
     try {
-      const { useCache, useRulesFirst, liteMode, clearCacheNow } = req.body;
+      const { aiEnabled, useCache, useRulesFirst, liteMode, clearCacheNow } = req.body;
+
+      if (typeof aiEnabled === "boolean") {
+        try {
+          setAIEnabled(aiEnabled, true);
+        } catch (error: any) {
+          return res.status(400).json({ message: error.message || "Invalid AI enabled setting" });
+        }
+        if (!aiEnabled) {
+          setUseEmarAgent(false, true);
+        }
+        console.log(`[Admin] AI ${aiEnabled ? "enabled" : "disabled"} by ${req.user?.username || 'unknown'}`);
+      }
       
       if (typeof useCache === "boolean") {
         setUseAICache(useCache, true);
@@ -14720,6 +15322,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       const cacheStats = getCacheStats();
       return res.json({
         success: true,
+        aiEnabled: isAIEnabled(),
         useCache: getUseAICache(),
         useRulesFirst: getUseRulesFirst(),
         liteMode: getAILiteMode(),
@@ -17008,6 +17611,9 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   // AI-powered schedule analysis
   app.post("/api/admin/rostering/workbooks/:id/analyze-schedule", requireAuth, requireAdmin, async (req: any, res) => {
     try {
+      if (!isAIEnabled()) {
+        return res.status(503).json({ message: AI_DISABLED_MESSAGE });
+      }
       const { analyzeScheduleWithAI } = await import("./services/scheduleAnalyzer");
       const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
       const analysis = await analyzeScheduleWithAI(req.body, aiUserContext);
@@ -17022,6 +17628,9 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   // AI-powered schedule comparison
   app.post("/api/admin/rostering/workbooks/:id/compare-schedules", requireAuth, requireAdmin, async (req: any, res) => {
     try {
+      if (!isAIEnabled()) {
+        return res.status(503).json({ message: AI_DISABLED_MESSAGE });
+      }
       const { compareSchedulesWithAI } = await import("./services/scheduleAnalyzer");
       const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
       const comparison = await compareSchedulesWithAI(req.body, aiUserContext);

@@ -19,26 +19,79 @@ const CARE_ASSURANCE_URLS = [
 // Will be set after successful connection
 let CARE_ASSURANCE_URL = CARE_ASSURANCE_URLS[0];
 
+const RETRYABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isRetryableProxyFailure = (response) => {
+  if (!response || response.ok) return false;
+  if (response.needsTab) return false;
+  const status = Number(response.status);
+  if (Number.isFinite(status) && RETRYABLE_STATUS_CODES.has(status)) {
+    return true;
+  }
+  const errorText = String(response.error || "").toLowerCase();
+  return (
+    errorText.includes("timed out") ||
+    errorText.includes("timeout") ||
+    errorText.includes("network") ||
+    errorText.includes("failed to fetch") ||
+    errorText.includes("no response from background")
+  );
+};
+
 // API proxy function - routes requests through content script for authentication
-async function apiProxy(endpoint, method = 'GET', body = null) {
+async function apiProxy(endpoint, method = 'GET', body = null, options = {}) {
+  const timeoutMs = typeof options.timeoutMs === "number" ? options.timeoutMs : 45000;
+  const maxRetries = Number.isInteger(options.maxRetries) ? Math.max(0, options.maxRetries) : 2;
+  const retryDelayMs = typeof options.retryDelayMs === "number" ? Math.max(100, options.retryDelayMs) : 700;
   console.log(`[CA Extension Popup] apiProxy: ${method} ${endpoint} via ${CARE_ASSURANCE_URL}`);
-  return new Promise((resolve) => {
-    chrome.runtime.sendMessage({
-      type: 'CA_API_PROXY_REQUEST',
-      endpoint,
-      method,
-      body,
-      targetOrigin: CARE_ASSURANCE_URL
-    }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.error('[CA Extension Popup] apiProxy error:', chrome.runtime.lastError.message);
-        resolve({ ok: false, error: chrome.runtime.lastError.message });
-        return;
-      }
-      console.log(`[CA Extension Popup] apiProxy response:`, response);
-      resolve(response || { ok: false, error: 'No response from background' });
+  let lastResponse = { ok: false, error: "Unknown proxy error" };
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    if (attempt > 0) {
+      const backoff = retryDelayMs * (2 ** (attempt - 1));
+      const jitter = Math.floor(Math.random() * 250);
+      const delay = Math.min(5000, backoff + jitter);
+      await wait(delay);
+      console.warn(`[CA Extension Popup] Retrying ${method} ${endpoint} (attempt ${attempt + 1}/${maxRetries + 1})`);
+    }
+
+    const response = await new Promise((resolve) => {
+      let settled = false;
+      const timeoutHandle = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        resolve({ ok: false, error: `Request timed out after ${Math.round(timeoutMs / 1000)}s` });
+      }, timeoutMs);
+
+      chrome.runtime.sendMessage({
+        type: 'CA_API_PROXY_REQUEST',
+        endpoint,
+        method,
+        body,
+        targetOrigin: CARE_ASSURANCE_URL
+      }, (innerResponse) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutHandle);
+        if (chrome.runtime.lastError) {
+          console.error('[CA Extension Popup] apiProxy error:', chrome.runtime.lastError.message);
+          resolve({ ok: false, error: chrome.runtime.lastError.message });
+          return;
+        }
+        console.log(`[CA Extension Popup] apiProxy response:`, innerResponse);
+        resolve(innerResponse || { ok: false, error: 'No response from background' });
+      });
     });
-  });
+
+    lastResponse = response;
+    if (!isRetryableProxyFailure(response) || attempt >= maxRetries) {
+      return response;
+    }
+  }
+
+  return lastResponse;
 }
 
 const FALLBACK_STORAGE_KEYS = {
@@ -492,26 +545,27 @@ analyzeButton?.addEventListener("click", async () => {
     if (uploadNotesInput?.value) {
       content += `\n\n=== Additional Notes ===\n${uploadNotesInput.value}`;
     }
-    
-    // Send to background for analysis
-    chrome.runtime.sendMessage({
-      type: MESSAGE_TYPES.analyzeRisks || "CA_EXTENSION_ANALYZE_RISKS",
-      documentContent: content,
-      authToken: "direct" // Background will handle auth
-    }, (response) => {
-      if (response?.ok) {
-        currentAnalysisResults = response.result;
-        displayAnalysisResults(response.result);
-        switchTab("autofill");
-      } else {
-        showError(response?.error || "Analysis failed");
-      }
-      if (analysisProgress) analysisProgress.hidden = true;
-      analyzeButton.disabled = false;
-    });
-    
+
+    const response = await apiProxy(
+      "/api/ai/analyze-risks",
+      "POST",
+      { documentContent: content, allowSensitive: false },
+      { timeoutMs: 180000 }
+    );
+    if (!response?.ok) {
+      throw new Error(response?.error || "Analysis failed");
+    }
+
+    const result = response.data || response.result;
+    if (!result) {
+      throw new Error("No analysis result returned");
+    }
+    currentAnalysisResults = result;
+    displayAnalysisResults(result);
+    switchTab("autofill");
   } catch (error) {
     showError(error.message);
+  } finally {
     if (analysisProgress) analysisProgress.hidden = true;
     analyzeButton.disabled = false;
   }

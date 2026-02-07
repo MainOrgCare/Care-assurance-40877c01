@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { emarAgent } from "../services/emarAgent.ts";
+import { emarAgent, inferRequiredGapHoursFromText } from "../services/emarAgent.ts";
 import type { ParsedEMAR } from "../emarGridParser";
 
 test("emarAgent.extract (gridBaseline) dedupes, infers PRN, normalizes PRN refusals, and skips BLANK/N/A", async () => {
@@ -237,4 +237,157 @@ test("emarAgent.extract (gridBaseline) filters out false positive medication nam
     "Should not include dose-only patterns like '10mg -'");
   assert.ok(!medNames.some((name: string) => /[-\/\\:;,]$/.test(name)), 
     "Should not include names ending with trailing punctuation");
+});
+
+test("emarAgent.extract (gridBaseline) recovers code/time from cell content and normalizes PRN admin codes", async () => {
+  const gridBaseline: ParsedEMAR = {
+    serviceUserName: "Test User",
+    allergies: "None",
+    auditPeriodStart: "",
+    auditPeriodEnd: "",
+    pageCount: 1,
+    pageCharCounts: [0],
+    pageTexts: [""],
+    dates: ["Mon, 01 Dec", "Tue, 02 Dec"],
+    timeSlots: ["08:00-09:00", "09:00-10:00"],
+    medications: [
+      {
+        name: "Morphine Sulfate 10mg",
+        row: 0,
+        instructions: "Take one tablet as required",
+        timeSlots: ["08:00-09:00", "09:00-10:00"],
+      },
+      {
+        name: "Warfarin 1mg",
+        row: 1,
+        instructions: "Take once daily",
+        timeSlots: ["08:00-09:00", "09:00-10:00"],
+      },
+    ],
+    cells: [
+      // code/time/careWorker missing but present in cell content
+      {
+        medication: "Morphine Sulfate 10mg",
+        medicationRow: 0,
+        date: "Mon, 01 Dec",
+        timeSlot: "08:00-09:00",
+        content: "PRN 08:45 CD",
+        code: "",
+        careWorker: "",
+        time: "",
+      },
+      // PRN refusal from content-only code
+      {
+        medication: "Morphine Sulfate 10mg",
+        medicationRow: 0,
+        date: "Tue, 02 Dec",
+        timeSlot: "08:00-09:00",
+        content: "R",
+        code: "",
+        careWorker: "",
+        time: "",
+      },
+      // PRN AD should normalize to PRN-AD
+      {
+        medication: "Morphine Sulfate 10mg",
+        medicationRow: 0,
+        date: "Mon, 01 Dec",
+        timeSlot: "09:00-10:00",
+        content: "AD 09:10",
+        code: "",
+        careWorker: "",
+        time: "",
+      },
+      // Non-PRN non-admin code from content-only
+      {
+        medication: "Warfarin 1mg",
+        medicationRow: 1,
+        date: "Mon, 01 Dec",
+        timeSlot: "08:00-09:00",
+        content: "MU",
+        code: "",
+        careWorker: "",
+        time: "",
+      },
+      // Non-PRN admin code from content-only
+      {
+        medication: "Warfarin 1mg",
+        medicationRow: 1,
+        date: "Tue, 02 Dec",
+        timeSlot: "08:00-09:00",
+        content: "AD",
+        code: "",
+        careWorker: "",
+        time: "",
+      },
+      // Content-only N/A should still be ignored
+      {
+        medication: "Warfarin 1mg",
+        medicationRow: 1,
+        date: "Tue, 02 Dec",
+        timeSlot: "09:00-10:00",
+        content: "N/A",
+        code: "",
+        careWorker: "",
+        time: "",
+      },
+    ],
+    rawText: "",
+    debugInfo: {
+      totalTextItems: 0,
+      dateColumnsFound: 0,
+      medicationsFound: 2,
+      timeSlotsFound: 2,
+      cellsGenerated: 6,
+    },
+  };
+
+  const result = await emarAgent.extract("", null, "", { userId: null, username: null }, { gridBaseline });
+
+  const prnDose = result.entries.find(
+    (e) => e.medicationId === 1 && e.date === "Mon, 01 Dec" && e.timeSlot === "08:00-09:00"
+  );
+  assert.ok(prnDose, "PRN dose extracted from content");
+  assert.equal(prnDose.code, "PRN");
+  assert.equal(prnDose.time, "08:45");
+  assert.equal(prnDose.hasTime, true);
+
+  const prnRefusal = result.entries.find(
+    (e) => e.medicationId === 1 && e.date === "Tue, 02 Dec" && e.timeSlot === "08:00-09:00"
+  );
+  assert.ok(prnRefusal, "PRN refusal extracted from content");
+  assert.equal(prnRefusal.code, "PRN-R");
+
+  const prnAdmin = result.entries.find(
+    (e) => e.medicationId === 1 && e.date === "Mon, 01 Dec" && e.timeSlot === "09:00-10:00"
+  );
+  assert.ok(prnAdmin, "PRN AD extracted from content");
+  assert.equal(prnAdmin.code, "PRN-AD");
+  assert.equal(prnAdmin.time, "09:10");
+  assert.equal(prnAdmin.hasTime, true);
+
+  const muEntry = result.entries.find(
+    (e) => e.medicationId === 2 && e.date === "Mon, 01 Dec" && e.timeSlot === "08:00-09:00"
+  );
+  assert.ok(muEntry, "MU extracted from content");
+  assert.equal(muEntry.code, "MU");
+
+  const adEntry = result.entries.find(
+    (e) => e.medicationId === 2 && e.date === "Tue, 02 Dec" && e.timeSlot === "08:00-09:00"
+  );
+  assert.ok(adEntry, "AD extracted from content");
+  assert.equal(adEntry.code, "AD");
+  assert.equal(adEntry.hasTime, false);
+
+  const hasNaEntry = result.entries.some(
+    (e) => e.medicationId === 2 && e.date === "Tue, 02 Dec" && e.timeSlot === "09:00-10:00"
+  );
+  assert.equal(hasNaEntry, false);
+});
+
+test("inferRequiredGapHoursFromText parses word-based intervals and ranges", () => {
+  assert.equal(inferRequiredGapHoursFromText("Administer every six hours as required"), 6);
+  assert.equal(inferRequiredGapHoursFromText("Must be at least eight hours apart"), 8);
+  assert.equal(inferRequiredGapHoursFromText("Give every four to six hours if needed"), 4);
+  assert.equal(inferRequiredGapHoursFromText("Take seventeen hourly when required"), 17);
 });

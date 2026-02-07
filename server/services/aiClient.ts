@@ -13,15 +13,34 @@ export interface AiUserContext {
 // Provider type for billing attribution
 export type AiProvider = "openai" | "github" | "local";
 
+const parseBoolean = (value: string | undefined | null, fallback: boolean): boolean => {
+  if (value == null) return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+};
+
+const AI_ENABLED_BY_ENV = parseBoolean(process.env.AI_ENABLED, false);
+const AI_ENV_LOCKED_DISABLED = !AI_ENABLED_BY_ENV;
+export const AI_DISABLED_MESSAGE = "AI features are disabled by security policy. Use rule-based workflows or local document parsing endpoints.";
+
+const createAIDisabledError = (): Error => {
+  const error = new Error(AI_DISABLED_MESSAGE) as Error & { code?: string };
+  error.code = "AI_DISABLED";
+  return error;
+};
+
 // Admin-configurable preferred AI provider (github uses PAT_AI_KEY)
 let preferredProvider: AiProvider = "github";
 let settingsLoaded = false;
+let aiEnabled: boolean = AI_ENABLED_BY_ENV;
 
 // Admin-configurable preferred AI model (defaults to gpt-4.1-mini)
 let preferredModel: AvailableModel = "gpt-4.1-mini";
 
 // Admin-configurable EMAR agent usage (defaults to true)
-let useEmarAgent: boolean = true;
+let useEmarAgent: boolean = aiEnabled;
 
 // AI Optimization Settings - reduces API calls and costs
 let useAICache: boolean = true;  // Cache AI responses for identical inputs
@@ -44,6 +63,15 @@ async function ensureSettingsLoaded(): Promise<void> {
       preferredProvider = savedProvider as AiProvider;
       console.log(`[AI Config] Loaded provider from DB: ${preferredProvider}`);
     }
+
+    const savedAIEnabled = await storage.getAppSetting("ai_enabled");
+    if (!AI_ENV_LOCKED_DISABLED && savedAIEnabled !== null) {
+      aiEnabled = savedAIEnabled === "true";
+      console.log(`[AI Config] Loaded AI enabled flag from DB: ${aiEnabled}`);
+    } else if (AI_ENV_LOCKED_DISABLED) {
+      aiEnabled = false;
+      console.log("[AI Config] AI disabled by environment policy (AI_ENABLED is not true)");
+    }
     
     const savedModel = await storage.getAppSetting("ai_model");
     if (savedModel) {
@@ -56,7 +84,7 @@ async function ensureSettingsLoaded(): Promise<void> {
     
     const savedEmarAgent = await storage.getAppSetting("emar_agent");
     if (savedEmarAgent !== null) {
-      useEmarAgent = savedEmarAgent === "true";
+      useEmarAgent = aiEnabled && savedEmarAgent === "true";
       console.log(`[AI Config] Loaded EMAR agent from DB: ${useEmarAgent}`);
     }
     
@@ -88,6 +116,32 @@ async function ensureSettingsLoaded(): Promise<void> {
 
 export function getPreferredProvider(): AiProvider {
   return preferredProvider;
+}
+
+export function isAIEnabled(): boolean {
+  return aiEnabled;
+}
+
+export function setAIEnabled(enabled: boolean, persist: boolean = false): void {
+  if (enabled && AI_ENV_LOCKED_DISABLED) {
+    throw new Error("AI cannot be enabled while AI_ENABLED environment variable is not set to true.");
+  }
+  aiEnabled = enabled;
+  if (!aiEnabled) {
+    useEmarAgent = false;
+  }
+  console.log(`[AI Config] AI ${aiEnabled ? "enabled" : "disabled"}${persist ? " (persisted)" : ""}`);
+
+  if (persist) {
+    storage.setAppSetting("ai_enabled", aiEnabled ? "true" : "false").catch(err =>
+      console.error("[AI Config] Failed to persist AI enabled setting:", err.message)
+    );
+    if (!aiEnabled) {
+      storage.setAppSetting("emar_agent", "false").catch(err =>
+        console.error("[AI Config] Failed to persist EMAR agent disable:", err.message)
+      );
+    }
+  }
 }
 
 export function setPreferredProvider(provider: AiProvider, persist: boolean = false): void {
@@ -133,11 +187,11 @@ export function getUseEmarAgent(): boolean {
 }
 
 export function setUseEmarAgent(enabled: boolean, persist: boolean = false): void {
-  useEmarAgent = enabled;
-  console.log(`[AI Config] EMAR Agent ${enabled ? 'enabled' : 'disabled'}${persist ? " (persisted)" : ""}`);
+  useEmarAgent = aiEnabled && enabled;
+  console.log(`[AI Config] EMAR Agent ${useEmarAgent ? 'enabled' : 'disabled'}${persist ? " (persisted)" : ""}`);
   
   if (persist) {
-    storage.setAppSetting("emar_agent", enabled ? "true" : "false").catch(err => 
+    storage.setAppSetting("emar_agent", useEmarAgent ? "true" : "false").catch(err => 
       console.error("[AI Config] Failed to persist EMAR agent setting:", err.message)
     );
   }
@@ -350,6 +404,10 @@ function isRateLimitError(error: any): boolean {
 async function createChatCompletionWithProvider(
   params: OpenAI.ChatCompletionCreateParamsNonStreaming
 ): Promise<AiCompletionResult> {
+  if (!aiEnabled) {
+    throw createAIDisabledError();
+  }
+
   const provider = preferredProvider;
   
   // Get the appropriate client based on preferred provider
@@ -442,6 +500,12 @@ export async function createChatCompletionWithLogging(
   userContext?: AiUserContext
 ): Promise<OpenAI.ChatCompletion> {
   const startTime = Date.now();
+  if (!aiEnabled) {
+    const duration = Date.now() - startTime;
+    console.warn(`[AI:${featureName}] Blocked in ${duration}ms: AI disabled by security policy`);
+    throw createAIDisabledError();
+  }
+
   // Ensure we use the model passed in params, which should be from getPreferredModel()
   let model = (params.model as string) || preferredModel;
   
@@ -563,6 +627,16 @@ export async function createHybridCompletion(
   model?: string
 ): Promise<{ result: any; usedAI: boolean; reason: string }> {
   await ensureSettingsLoaded();
+  const decision = shouldUseAI(taskType, content);
+
+  if (!aiEnabled) {
+    const fallback = decision.ruleBasedResult || extractCommonFields(content);
+    return {
+      result: fallback,
+      usedAI: false,
+      reason: `${decision.reason}; AI disabled by security policy`,
+    };
+  }
   
   // If rules-first is disabled, go straight to AI
   if (!useRulesFirst) {
@@ -572,8 +646,6 @@ export async function createHybridCompletion(
   }
   
   // Try rule-based extraction first
-  const decision = shouldUseAI(taskType, content);
-  
   if (!decision.useAI && decision.ruleBasedResult) {
     console.log(`[Hybrid:${featureName}] Using rule-based result (${decision.reason})`);
     return { 
@@ -646,4 +718,4 @@ export function getLocalLLMUrl(): string {
 }
 
 // Export the configured OpenAI client for legacy imports
-export const openai = getOpenAIClient();
+export const openai = aiEnabled ? getOpenAIClient() : null;

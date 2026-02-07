@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
 import { TemplateFiller } from "@/components/TemplateFiller";
 import { ClientPIIVault, VaultExport, restoreWithVault } from "@/lib/pii-vault";
+import { consumeJsonSseStream } from "@/lib/sse";
 
 /**
  * Count placeholders in text
@@ -78,6 +79,7 @@ interface RiskAnalysis {
   environmentalFactors?: string[];
   recommendedAssessments: RecommendedAssessment[];
   documentSummary: string;
+  generationMode?: string;
 }
 
 interface RiskRow {
@@ -97,6 +99,7 @@ interface GeneratedAssessment {
   signedBy: string;
   jobTitle: string;
   additionalNotes: string;
+  generationMode?: string;
 }
 
 export default function RiskAssessment() {
@@ -153,6 +156,19 @@ export default function RiskAssessment() {
     if (generatedAssessmentsScrubbed.length > 0) return generatedAssessmentsScrubbed;
     return generatedAssessmentsRaw;
   }, [showSensitive, generatedAssessmentsRaw, generatedAssessmentsScrubbed]);
+  const isRuleBasedAnalysis = useMemo(
+    () =>
+      analysis?.generationMode === "rule-based" ||
+      analysisScrubbed?.generationMode === "rule-based" ||
+      analysisRaw?.generationMode === "rule-based",
+    [analysis, analysisScrubbed, analysisRaw]
+  );
+  const hasRuleBasedGeneratedAssessments = useMemo(
+    () =>
+      generatedAssessments.some((assessment) => assessment.generationMode === "rule-based") ||
+      generatedAssessmentsForCopy.some((assessment) => assessment.generationMode === "rule-based"),
+    [generatedAssessments, generatedAssessmentsForCopy]
+  );
   const serviceUserDisplayName = useMemo(() => {
     const fullName = showSensitive ? analysisRaw?.serviceUser?.fullName : null;
     if (fullName && !/information not found/i.test(fullName)) return fullName.trim();
@@ -468,56 +484,16 @@ export default function RiskAssessment() {
           body: JSON.stringify({ documentContent, allowSensitive: true }),
         });
         if (!response.ok) return;
-        const reader = response.body?.getReader();
-        if (!reader) return;
-        const decoder = new TextDecoder();
-        let buffer = "";
         let resultRaw: RiskAnalysis | null = null;
         let resultScrubbed: RiskAnalysis | null = null;
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const messages = buffer.split("\n\n");
-          buffer = messages.pop() || "";
-
-          for (const message of messages) {
-            if (!message.trim()) continue;
-            const lines = message.split("\n");
-            let eventType = "";
-            let dataStr = "";
-            for (const line of lines) {
-              if (line.startsWith("event: ")) eventType = line.substring(7).trim();
-              else if (line.startsWith("data: ")) dataStr = line.substring(6);
-            }
-            if (eventType && dataStr) {
-              const data = JSON.parse(dataStr);
-              if (eventType === "result") {
-                resultRaw = data;
-                resultScrubbed = data?.scrubbedResult || data;
-              }
-            }
-          }
-        }
-
-        // Process any remaining buffer after stream ends
-        if (buffer.trim()) {
-          const lines = buffer.split("\n");
-          let eventType = "";
-          let dataStr = "";
-          for (const line of lines) {
-            if (line.startsWith("event: ")) eventType = line.substring(7).trim();
-            else if (line.startsWith("data: ")) dataStr = line.substring(6);
-          }
-          if (eventType === "result" && dataStr) {
-            try {
-              const data = JSON.parse(dataStr);
-              resultRaw = data;
-              resultScrubbed = data?.scrubbedResult || data;
-            } catch { /* ignore parse errors */ }
-          }
-        }
+        await consumeJsonSseStream(response, ({ eventType, data }) => {
+          if (eventType !== "result") return;
+          if (!data || typeof data !== "object") return;
+          const payload = data as RiskAnalysis & { scrubbedResult?: RiskAnalysis };
+          resultRaw = payload;
+          resultScrubbed = payload.scrubbedResult || payload;
+        });
 
         if (resultRaw) {
           setAnalysisRaw(resultRaw);
@@ -556,91 +532,40 @@ export default function RiskAssessment() {
         throw new Error("Failed to analyze documents");
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("No response stream available");
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
       let resultRaw: RiskAnalysis | null = null;
       let resultScrubbed: RiskAnalysis | null = null;
       let resultVaultExport: VaultExport | null = null;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const messages = buffer.split("\n\n");
-        buffer = messages.pop() || "";
-
-        for (const message of messages) {
-          if (!message.trim()) continue;
-          const lines = message.split("\n");
-          let eventType = "";
-          let dataStr = "";
-          for (const line of lines) {
-            if (line.startsWith("event: ")) eventType = line.substring(7).trim();
-            else if (line.startsWith("data: ")) dataStr = line.substring(6);
-          }
-          if (eventType && dataStr) {
-            const data = JSON.parse(dataStr);
-            if (eventType === "progress") {
-              throttledSetProgress(data.percent, data.status);
-            } else if (eventType === "result") {
-              // Check if server included vault export for admin sensitive view
-              const vaultExport = data?.vaultExport as VaultExport | undefined;
-              const rawWithTokens = data?.rawWithTokens;
-              
-              if (vaultExport && rawWithTokens) {
-                // Server included vault for local PII restoration
-                // Create client-side vault and restore PII locally
-                const vault = new ClientPIIVault(vaultExport);
-                resultRaw = vault.restore(rawWithTokens);
-                resultVaultExport = vaultExport;
-                console.log(`[Analyze] PII Vault restored ${vault.getStats().total} tokens locally`);
-              } else {
-                resultRaw = data;
-              }
-              
-              // The base result (without vault fields) is the scrubbed version with placeholders
-              const { vaultExport: _ve, rawWithTokens: _rwt, ...scrubbedData } = data;
-              resultScrubbed = scrubbedData;
-            } else if (eventType === "error") {
-              throw new Error(data.message);
-            }
-          }
+      await consumeJsonSseStream(response, ({ eventType, data }) => {
+        const payload = data as any;
+        if (eventType === "progress") {
+          const percent = typeof payload?.percent === "number" ? payload.percent : 0;
+          const status = typeof payload?.status === "string" ? payload.status : "Processing...";
+          throttledSetProgress(percent, status);
+          return;
         }
-      }
+        if (eventType === "error") {
+          throw new Error(payload?.message || "Analysis failed");
+        }
+        if (eventType !== "result" || !payload || typeof payload !== "object") {
+          return;
+        }
 
-      // Process any remaining buffer after stream ends
-      if (buffer.trim()) {
-        const lines = buffer.split("\n");
-        let eventType = "";
-        let dataStr = "";
-        for (const line of lines) {
-          if (line.startsWith("event: ")) eventType = line.substring(7).trim();
-          else if (line.startsWith("data: ")) dataStr = line.substring(6);
+        const vaultExport = payload?.vaultExport as VaultExport | undefined;
+        const rawWithTokens = payload?.rawWithTokens;
+
+        if (vaultExport && rawWithTokens) {
+          const vault = new ClientPIIVault(vaultExport);
+          resultRaw = vault.restore(rawWithTokens);
+          resultVaultExport = vaultExport;
+          console.log(`[Analyze] PII Vault restored ${vault.getStats().total} tokens locally`);
+        } else {
+          resultRaw = payload;
         }
-        if (eventType === "result" && dataStr) {
-          try {
-            const data = JSON.parse(dataStr);
-            const vaultExport = data?.vaultExport as VaultExport | undefined;
-            const rawWithTokens = data?.rawWithTokens;
-            
-            if (vaultExport && rawWithTokens) {
-              const vault = new ClientPIIVault(vaultExport);
-              resultRaw = vault.restore(rawWithTokens);
-              resultVaultExport = vaultExport;
-            } else {
-              resultRaw = data;
-            }
-            const { vaultExport: _ve, rawWithTokens: _rwt, ...scrubbedData } = data;
-            resultScrubbed = scrubbedData;
-          } catch { /* ignore parse errors */ }
-        }
-      }
+
+        const { vaultExport: _ve, rawWithTokens: _rwt, ...scrubbedData } = payload;
+        resultScrubbed = scrubbedData;
+      });
 
       if (!resultRaw) {
         throw new Error("No result received from server");
@@ -659,8 +584,9 @@ export default function RiskAssessment() {
       setStep("select");
       
       // Auto-select mandatory assessments
+      const finalAnalysis: RiskAnalysis = resultScrubbed ?? resultRaw;
       const mandatory = new Set<string>(
-        (resultScrubbed || resultRaw).recommendedAssessments
+        finalAnalysis.recommendedAssessments
           .filter((a: RecommendedAssessment) => a.isMandatory)
           .map((a: RecommendedAssessment) => a.name)
       );
@@ -871,87 +797,38 @@ export default function RiskAssessment() {
           throw new Error(message);
         }
 
-        const reader = response.body?.getReader();
-        if (!reader) {
-          throw new Error(`No response stream for ${assessmentName}`);
-        }
-        const decoder = new TextDecoder();
-        let buffer = "";
         let resultRaw: GeneratedAssessment | null = null;
         let resultScrubbed: GeneratedAssessment | null = null;
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const messages = buffer.split("\n\n");
-          buffer = messages.pop() || "";
-
-          for (const message of messages) {
-            if (!message.trim()) continue;
-            const lines = message.split("\n");
-            let eventType = "";
-            let dataStr = "";
-            for (const line of lines) {
-              if (line.startsWith("event: ")) eventType = line.substring(7).trim();
-              else if (line.startsWith("data: ")) dataStr = line.substring(6);
-            }
-            if (eventType && dataStr) {
-              const data = JSON.parse(dataStr);
-              if (eventType === "progress") {
-                inFlightProgress.set(assessmentName, Math.min(100, Math.max(0, data.percent)));
-                updateOverallProgress();
-              } else if (eventType === "result") {
-                // Check if server included vault export for admin sensitive view
-                const vaultExport = data?.vaultExport as VaultExport | undefined;
-                const rawWithTokens = data?.rawWithTokens;
-                
-                if (vaultExport && rawWithTokens) {
-                  // Server included vault for local PII restoration
-                  const vault = new ClientPIIVault(vaultExport);
-                  resultRaw = vault.restore(rawWithTokens);
-                  console.log(`[Generate ${assessmentName}] PII Vault restored ${vault.getStats().total} tokens locally`);
-                } else {
-                  resultRaw = data;
-                }
-                
-                // The base result (without vault fields) is the scrubbed version
-                const { vaultExport: _ve, rawWithTokens: _rwt, ...scrubbedData } = data;
-                resultScrubbed = scrubbedData;
-              } else if (eventType === "error") {
-                throw new Error(data?.message || `Failed to generate ${assessmentName}`);
-              }
-            }
+        await consumeJsonSseStream(response, ({ eventType, data }) => {
+          const payload = data as any;
+          if (eventType === "progress") {
+            const percent = typeof payload?.percent === "number" ? payload.percent : 0;
+            inFlightProgress.set(assessmentName, Math.min(100, Math.max(0, percent)));
+            updateOverallProgress();
+            return;
           }
-        }
+          if (eventType === "error") {
+            throw new Error(payload?.message || `Failed to generate ${assessmentName}`);
+          }
+          if (eventType !== "result" || !payload || typeof payload !== "object") {
+            return;
+          }
 
-        // Process any remaining buffer after stream ends
-        if (buffer.trim()) {
-          const lines = buffer.split("\n");
-          let eventType = "";
-          let dataStr = "";
-          for (const line of lines) {
-            if (line.startsWith("event: ")) eventType = line.substring(7).trim();
-            else if (line.startsWith("data: ")) dataStr = line.substring(6);
+          const vaultExport = payload?.vaultExport as VaultExport | undefined;
+          const rawWithTokens = payload?.rawWithTokens;
+
+          if (vaultExport && rawWithTokens) {
+            const vault = new ClientPIIVault(vaultExport);
+            resultRaw = vault.restore(rawWithTokens);
+            console.log(`[Generate ${assessmentName}] PII Vault restored ${vault.getStats().total} tokens locally`);
+          } else {
+            resultRaw = payload;
           }
-          if (eventType === "result" && dataStr) {
-            try {
-              const data = JSON.parse(dataStr);
-              const vaultExport = data?.vaultExport as VaultExport | undefined;
-              const rawWithTokens = data?.rawWithTokens;
-              
-              if (vaultExport && rawWithTokens) {
-                const vault = new ClientPIIVault(vaultExport);
-                resultRaw = vault.restore(rawWithTokens);
-              } else {
-                resultRaw = data;
-              }
-              const { vaultExport: _ve, rawWithTokens: _rwt, ...scrubbedData } = data;
-              resultScrubbed = scrubbedData;
-            } catch { /* ignore parse errors */ }
-          }
-        }
+
+          const { vaultExport: _ve, rawWithTokens: _rwt, ...scrubbedData } = payload;
+          resultScrubbed = scrubbedData;
+        });
 
         if (resultRaw) {
           generatedRawMap.set(assessmentName, resultRaw);
@@ -1485,6 +1362,15 @@ export default function RiskAssessment() {
             </AlertDescription>
           </Alert>
         )}
+        {isRuleBasedAnalysis && (
+          <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
+            <Info className="h-4 w-4" />
+            <AlertTitle>Secure Rule-Based Mode</AlertTitle>
+            <AlertDescription>
+              Analysis was generated using the local rule-based engine without external AI.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Service User Info */}
         <Card className="bg-card border-border">
@@ -1836,6 +1722,11 @@ export default function RiskAssessment() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {hasRuleBasedGeneratedAssessments && (
+              <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-700">
+                Secure Rule-Based Output
+              </Badge>
+            )}
             {totalPlaceholders > 0 && (
               <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-bold">
                 <Edit3 size={12} className="mr-1" />
