@@ -125,6 +125,7 @@ type WeekdayLabel = (typeof WEEKDAY_OPTIONS)[number];
 const DEFAULT_TEMPLATE_WEEK: TemplateWeekKey = "week1";
 const DEFAULT_TEMPLATE_DAY: WeekdayLabel = WEEKDAY_OPTIONS[0];
 const TEMPLATE_WEEK_1_START_DAY_NUMBER = Math.floor(Date.UTC(2000, 0, 3) / 86400000);
+const ROSTERING_LOCAL_DRAFT_PREFIX = "rostering-studio-local-draft:v1";
 
 // ===== TYPES =====
 interface RowAnalysis {
@@ -314,6 +315,16 @@ type DayTemplateStats = {
   unrosteredNonTemplated: number;
 };
 
+type LocalRosteringDraft = {
+  version: 1;
+  workbookId: string;
+  templateWeek: TemplateWeekKey;
+  templateDay: WeekdayLabel;
+  timeOverrides: Record<string, number>;
+  laneOverrides: Record<string, string>;
+  savedAt: string;
+};
+
 // ===== HELPER FUNCTIONS =====
 const formatMinutesDisplay = (minutes: number | null | undefined): string => {
   if (minutes === null || minutes === undefined) return "—";
@@ -347,6 +358,42 @@ const sanitizeFileName = (value: string): string => {
 
 const buildRecommendationKey = (serviceUserKey: string, callTypeLabel: string): string => {
   return `${serviceUserKey}|${callTypeLabel.trim().toLowerCase()}`;
+};
+
+const isValidTemplateWeek = (value: unknown): value is TemplateWeekKey =>
+  value === "week1" || value === "week2";
+
+const isValidTemplateDay = (value: unknown): value is WeekdayLabel =>
+  typeof value === "string" && WEEKDAY_OPTIONS.includes(value as WeekdayLabel);
+
+const buildLocalDraftStorageKey = (
+  workbookId: string,
+  templateWeek: TemplateWeekKey,
+  templateDay: WeekdayLabel
+): string => `${ROSTERING_LOCAL_DRAFT_PREFIX}:${workbookId}:${templateWeek}:${templateDay}`;
+
+const parseLocalRosteringDraft = (raw: string): LocalRosteringDraft | null => {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (parsed.version !== 1) return null;
+    if (typeof parsed.workbookId !== "string" || !parsed.workbookId.trim()) return null;
+    if (!isValidTemplateWeek(parsed.templateWeek) || !isValidTemplateDay(parsed.templateDay)) return null;
+    if (!parsed.timeOverrides || typeof parsed.timeOverrides !== "object") return null;
+    if (!parsed.laneOverrides || typeof parsed.laneOverrides !== "object") return null;
+    if (typeof parsed.savedAt !== "string" || Number.isNaN(Date.parse(parsed.savedAt))) return null;
+    return {
+      version: 1,
+      workbookId: parsed.workbookId,
+      templateWeek: parsed.templateWeek,
+      templateDay: parsed.templateDay,
+      timeOverrides: parsed.timeOverrides as Record<string, number>,
+      laneOverrides: parsed.laneOverrides as Record<string, string>,
+      savedAt: parsed.savedAt,
+    };
+  } catch {
+    return null;
+  }
 };
 
 const formatMinutesToTime = (minutes: number): string => {
@@ -459,7 +506,9 @@ export default function RosteringStudio({
   // Template selection
   const [selectedTemplateWeek, setSelectedTemplateWeek] = useState<TemplateWeekKey>(DEFAULT_TEMPLATE_WEEK);
   const [selectedTemplateDay, setSelectedTemplateDay] = useState<WeekdayLabel>(DEFAULT_TEMPLATE_DAY);
+  const [localDraftSavedAt, setLocalDraftSavedAt] = useState<string | null>(null);
   const focusWorkerRef = useRef<string | null>(null);
+  const appliedActiveStateKeyRef = useRef<string | null>(null);
 
   const { focusWorkerKey, focusWeek, focusDay, focusTab } = useMemo(() => {
     const params = new URLSearchParams(location.split("?")[1] ?? "");
@@ -513,12 +562,19 @@ export default function RosteringStudio({
 
   // Auto-select the latest workbook when workbooks are loaded
   useEffect(() => {
-    if (workbooks.length === 0) return;
-    // Always use the most recent upload to keep templates current.
-    const latestWorkbook = workbooks[workbooks.length - 1];
-    if (selectedWorkbookId !== latestWorkbook.id) {
-      setSelectedWorkbookId(latestWorkbook.id);
+    if (workbooks.length === 0) {
+      if (selectedWorkbookId !== null) {
+        setSelectedWorkbookId(null);
+      }
+      return;
     }
+
+    if (selectedWorkbookId && workbooks.some((workbook) => workbook.id === selectedWorkbookId)) {
+      return;
+    }
+
+    const latestWorkbook = workbooks[workbooks.length - 1];
+    setSelectedWorkbookId(latestWorkbook.id);
   }, [workbooks, selectedWorkbookId]);
 
   // Fetch care worker rota library summaries
@@ -609,6 +665,46 @@ export default function RosteringStudio({
     },
     enabled: !!selectedWorkbookId && !!user && user.role === "admin",
   });
+
+  const { data: activeSavedState = null, refetch: refetchActiveSavedState } = useQuery<SavedRosterStateSummary | null>({
+    queryKey: [
+      "/api/admin/rostering/workbooks",
+      selectedWorkbookId,
+      "active-state",
+      selectedTemplateWeek,
+      selectedTemplateDay,
+    ],
+    queryFn: async () => {
+      if (!selectedWorkbookId) return null;
+      const params = new URLSearchParams({
+        templateWeek: selectedTemplateWeek,
+        templateDay: selectedTemplateDay,
+      });
+      const res = await fetch(
+        `/api/admin/rostering/workbooks/${selectedWorkbookId}/active-state?${params.toString()}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) return null;
+      const payload = await res.json();
+      return payload || null;
+    },
+    enabled: !!selectedWorkbookId && !!user && user.role === "admin",
+  });
+
+  const selectedWorkbookSummary = useMemo(
+    () => workbooks.find((workbook) => workbook.id === selectedWorkbookId) || null,
+    [workbooks, selectedWorkbookId]
+  );
+
+  const localDraftStorageKey = useMemo(() => {
+    if (!selectedWorkbookId) return null;
+    return buildLocalDraftStorageKey(selectedWorkbookId, selectedTemplateWeek, selectedTemplateDay);
+  }, [selectedWorkbookId, selectedTemplateWeek, selectedTemplateDay]);
+
+  const localDraftSavedAtLabel = useMemo(
+    () => (localDraftSavedAt ? new Date(localDraftSavedAt).toLocaleString() : null),
+    [localDraftSavedAt]
+  );
 
   // Call time mutations
   const saveCallTimeMutation = useMutation({
@@ -714,15 +810,32 @@ export default function RosteringStudio({
       if (!res.ok) throw new Error("Failed to load roster state");
       return res.json();
     },
-    onSuccess: (data: { name: string; timeOverrides?: Record<string, number>; laneOverrides?: Record<string, string> }) => {
+    onSuccess: (
+      data: {
+        id?: string;
+        name: string;
+        templateWeek?: string;
+        templateDay?: string;
+        timeOverrides?: Record<string, number>;
+        laneOverrides?: Record<string, string>;
+      }
+    ) => {
       // Apply the loaded overrides to the reducer state
       dispatchRoster({
         type: "APPLY_OPTIMIZATION",
         timeOverrides: (data.timeOverrides || {}) as Record<string, number>,
         laneOverrides: (data.laneOverrides || {}) as Record<string, string>,
       });
+
+      const stateWeek = isValidTemplateWeek(data.templateWeek) ? data.templateWeek : selectedTemplateWeek;
+      const stateDay = isValidTemplateDay(data.templateDay) ? data.templateDay : selectedTemplateDay;
+      if (data.id) {
+        appliedActiveStateKeyRef.current = `${selectedWorkbookId}:${stateWeek}:${stateDay}:${data.id}`;
+      }
+
       toast({ title: "Schedule loaded", description: `Loaded "${data.name}"` });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "saved-states"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "active-state"] });
     },
     onError: (error: Error) => {
       toast({ title: "Failed to load schedule", description: error.message, variant: "destructive" });
@@ -741,8 +854,50 @@ export default function RosteringStudio({
     onSuccess: () => {
       toast({ title: "Schedule deleted" });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "saved-states"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/rostering/workbooks", selectedWorkbookId, "active-state"] });
     },
   });
+
+  useEffect(() => {
+    if (!localDraftStorageKey) {
+      setLocalDraftSavedAt(null);
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(localDraftStorageKey);
+      if (!raw) {
+        setLocalDraftSavedAt(null);
+        return;
+      }
+      const parsed = parseLocalRosteringDraft(raw);
+      setLocalDraftSavedAt(parsed?.savedAt || null);
+    } catch {
+      setLocalDraftSavedAt(null);
+    }
+  }, [localDraftStorageKey]);
+
+  useEffect(() => {
+    if (!selectedWorkbookId || !activeSavedState) return;
+    const selectionKey = `${selectedWorkbookId}:${selectedTemplateWeek}:${selectedTemplateDay}:${activeSavedState.id}`;
+    if (appliedActiveStateKeyRef.current === selectionKey) return;
+
+    dispatchRoster({
+      type: "APPLY_OPTIMIZATION",
+      timeOverrides: activeSavedState.timeOverrides || {},
+      laneOverrides: activeSavedState.laneOverrides || {},
+    });
+    appliedActiveStateKeyRef.current = selectionKey;
+    toast({
+      title: "Active schedule loaded",
+      description: `Loaded "${activeSavedState.name}" for ${selectedTemplateDay}.`,
+    });
+  }, [
+    activeSavedState,
+    selectedWorkbookId,
+    selectedTemplateDay,
+    selectedTemplateWeek,
+    toast,
+  ]);
 
   // Derived data
   const careWorkerRosters = useMemo<CareWorkerRoster[]>(() => {
@@ -1962,6 +2117,116 @@ export default function RosteringStudio({
   }, [selectedWorkerCallGroups, rosterCallSearch]);
 
   // ===== HANDLERS =====
+  const handleLoadActiveSchedule = useCallback(() => {
+    if (!activeSavedState) {
+      toast({
+        title: "No active schedule",
+        description: "No active saved schedule was found for this workbook day.",
+      });
+      return;
+    }
+
+    dispatchRoster({
+      type: "APPLY_OPTIMIZATION",
+      timeOverrides: activeSavedState.timeOverrides || {},
+      laneOverrides: activeSavedState.laneOverrides || {},
+    });
+    appliedActiveStateKeyRef.current = `${selectedWorkbookId}:${selectedTemplateWeek}:${selectedTemplateDay}:${activeSavedState.id}`;
+    toast({
+      title: "Active schedule loaded",
+      description: `Loaded "${activeSavedState.name}".`,
+    });
+  }, [
+    activeSavedState,
+    selectedTemplateDay,
+    selectedTemplateWeek,
+    selectedWorkbookId,
+    toast,
+  ]);
+
+  const handleSaveLocalDraft = useCallback(() => {
+    if (!localDraftStorageKey || !selectedWorkbookId) return;
+    const draft: LocalRosteringDraft = {
+      version: 1,
+      workbookId: selectedWorkbookId,
+      templateWeek: selectedTemplateWeek,
+      templateDay: selectedTemplateDay,
+      timeOverrides: { ...rosterState.present.timeOverrides },
+      laneOverrides: { ...rosterState.present.laneOverrides },
+      savedAt: new Date().toISOString(),
+    };
+
+    try {
+      window.localStorage.setItem(localDraftStorageKey, JSON.stringify(draft));
+      setLocalDraftSavedAt(draft.savedAt);
+      toast({
+        title: "Local draft saved",
+        description: `Saved for ${selectedTemplateDay} ${selectedTemplateWeekLabel}.`,
+      });
+    } catch {
+      toast({
+        title: "Draft save failed",
+        description: "Unable to write local draft in this browser.",
+        variant: "destructive",
+      });
+    }
+  }, [
+    localDraftStorageKey,
+    rosterState.present.laneOverrides,
+    rosterState.present.timeOverrides,
+    selectedTemplateDay,
+    selectedTemplateWeek,
+    selectedTemplateWeekLabel,
+    selectedWorkbookId,
+    toast,
+  ]);
+
+  const handleRestoreLocalDraft = useCallback(() => {
+    if (!localDraftStorageKey) return;
+    try {
+      const raw = window.localStorage.getItem(localDraftStorageKey);
+      if (!raw) {
+        toast({
+          title: "No local draft",
+          description: "Save a local draft first for this workbook day.",
+        });
+        return;
+      }
+      const parsed = parseLocalRosteringDraft(raw);
+      if (!parsed) {
+        throw new Error("Local draft data is invalid");
+      }
+      dispatchRoster({
+        type: "APPLY_OPTIMIZATION",
+        timeOverrides: parsed.timeOverrides,
+        laneOverrides: parsed.laneOverrides,
+      });
+      setLocalDraftSavedAt(parsed.savedAt);
+      toast({
+        title: "Local draft restored",
+        description: `Restored draft from ${new Date(parsed.savedAt).toLocaleString()}.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Draft restore failed",
+        description: error instanceof Error ? error.message : "Unable to restore local draft.",
+        variant: "destructive",
+      });
+    }
+  }, [localDraftStorageKey, toast]);
+
+  const handleClearLocalDraft = useCallback(() => {
+    if (!localDraftStorageKey) return;
+    const confirmed = window.confirm("Delete the local draft for this workbook day?");
+    if (!confirmed) return;
+    window.localStorage.removeItem(localDraftStorageKey);
+    setLocalDraftSavedAt(null);
+    toast({
+      title: "Local draft cleared",
+      description: "Saved browser draft has been removed.",
+    });
+  }, [localDraftStorageKey, toast]);
+
   const handleResetStudio = useCallback(() => {
     setSelectedWorkerCallKeys([]);
     setRosterCallSearch("");
@@ -2419,6 +2684,7 @@ export default function RosteringStudio({
           onClick={() => {
             refetchWorkbooks();
             refetchWorkbook();
+            refetchActiveSavedState();
           }}
         >
           <RefreshCw className="h-3.5 w-3.5 mr-1" />
@@ -2823,6 +3089,7 @@ export default function RosteringStudio({
                     onClick={() => {
                       refetchWorkbooks();
                       refetchWorkbook();
+                      refetchActiveSavedState();
                     }}
                   >
                     <RefreshCw className="h-4 w-4 mr-2" />
@@ -2864,9 +3131,43 @@ export default function RosteringStudio({
                   <Loader2 className="h-5 w-5 text-muted-foreground" />
                 </div>
               ) : (
-                <div className="text-xs text-muted-foreground">
-                  {rotas.length} saved rotas available.
-                </div>
+                <>
+                  <div className="text-xs text-muted-foreground">
+                    {rotas.length} saved rotas available.
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Workbook</p>
+                    <Select
+                      value={selectedWorkbookId ?? undefined}
+                      onValueChange={(value: string) => setSelectedWorkbookId(value)}
+                      disabled={workbooks.length === 0}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder={workbooksLoading ? "Loading workbooks..." : "Select workbook"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {workbooks.map((workbook, index) => (
+                          <SelectItem key={workbook.id} value={workbook.id} className="text-xs">
+                            {workbook.name || workbook.fileName || `Workbook ${index + 1}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedWorkbookSummary && (
+                    <div className="rounded-md border border-border/60 bg-muted/20 p-2 text-[10px] text-muted-foreground space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate">{selectedWorkbookSummary.fileName}</span>
+                        <Badge variant="outline" className="text-[9px]">
+                          {selectedWorkbookSummary.totalRows} rows
+                        </Badge>
+                      </div>
+                      <p>
+                        Updated {new Date(selectedWorkbookSummary.updatedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
@@ -3498,6 +3799,57 @@ export default function RosteringStudio({
                           </Button>
                         </div>
 
+                        <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs font-semibold">Quick Resume</p>
+                            <Badge variant="outline" className="text-[10px]">
+                              {selectedTemplateWeekLabel} · {selectedTemplateDay}
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleLoadActiveSchedule}
+                              disabled={!activeSavedState}
+                            >
+                              <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
+                              Load Active
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={handleSaveLocalDraft}>
+                              <Save className="h-3.5 w-3.5 mr-1.5" />
+                              Save Local Draft
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleRestoreLocalDraft}
+                              disabled={!localDraftSavedAt}
+                            >
+                              <History className="h-3.5 w-3.5 mr-1.5" />
+                              Restore Draft
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={handleClearLocalDraft}
+                              disabled={!localDraftSavedAt}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                              Clear Draft
+                            </Button>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            {activeSavedState
+                              ? `Active: ${activeSavedState.name}.`
+                              : "No active saved schedule for this week/day."}
+                            {" "}
+                            {localDraftSavedAtLabel
+                              ? `Local draft saved ${localDraftSavedAtLabel}.`
+                              : "No local draft saved yet."}
+                          </p>
+                        </div>
+
                         {savedStates.length === 0 ? (
                           <div className="rounded-xl border border-dashed border-border/60 p-8 text-center">
                             <History className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
@@ -3525,7 +3877,7 @@ export default function RosteringStudio({
                                     )}
                                   </div>
                                   <p className="text-xs text-muted-foreground">
-                                    {state.templateDay} {state.templateWeek === "week_a" ? "Week A" : state.templateWeek === "week_b" ? "Week B" : state.templateWeek}
+                                    {state.templateDay} {state.templateWeek === "week1" ? "Week 1" : state.templateWeek === "week2" ? "Week 2" : state.templateWeek}
                                     {state.description && ` • ${state.description}`}
                                   </p>
                                   <p className="text-[10px] text-muted-foreground mt-0.5">

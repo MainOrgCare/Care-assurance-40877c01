@@ -247,19 +247,18 @@ export default function Dashboard() {
     switch (widgetId) {
       case "compliance_score":
         return (
-          <Card key={widgetId} className="glass-card group overflow-hidden" data-testid="widget-compliance-score">
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br from-success/10 to-transparent" />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Compliance Score</CardTitle>
-              <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-success/15 shadow-sm group-hover:scale-110 transition-transform">
-                <CheckCircle2 className="h-5 w-5 text-success" />
+          <Card key={widgetId} className="group" data-testid="widget-compliance-score">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Compliance Score</CardTitle>
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-success/10">
+                <CheckCircle2 className="h-4 w-4 text-success" />
               </div>
             </CardHeader>
-            <CardContent className="relative pt-2">
-              <div className="text-4xl font-black tracking-tighter text-foreground" data-testid="text-compliance-score">
-                {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ? "100%" : "-"}
+            <CardContent className="pt-1">
+              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-compliance-score">
+                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ? "100%" : "-"}
               </div>
-              <p className="text-[10px] font-medium text-muted-foreground mt-2 flex items-center gap-1.5">
+              <p className="text-[11px] text-muted-foreground mt-1.5 flex items-center gap-1.5">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-success" />
                 {stats?.auditsCompleted ? "Based on completed audits" : "No data yet"}
               </p>
@@ -268,40 +267,38 @@ export default function Dashboard() {
         );
       case "audits_completed":
         return (
-          <Card key={widgetId} className="glass-card group overflow-hidden" data-testid="widget-audits-completed">
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br from-primary/10 to-transparent" />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Audits Completed</CardTitle>
-              <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-primary/15 shadow-sm group-hover:scale-110 transition-transform">
-                <FileText className="h-5 w-5 text-primary" />
+          <Card key={widgetId} className="group" data-testid="widget-audits-completed">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Audits Completed</CardTitle>
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-primary/10">
+                <FileText className="h-4 w-4 text-primary" />
               </div>
             </CardHeader>
-            <CardContent className="relative pt-2">
-              <div className="text-4xl font-black tracking-tighter text-foreground" data-testid="text-audits-completed">
-                {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ?? 0}
+            <CardContent className="pt-1">
+              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-audits-completed">
+                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ?? 0}
               </div>
-              <p className="text-[10px] font-medium text-muted-foreground mt-2">Last 24 hours activity</p>
+              <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
             </CardContent>
           </Card>
         );
       case "active_alerts":
         return (
-          <Card key={widgetId} className="glass-card group overflow-hidden" data-testid="widget-active-alerts">
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br from-destructive/10 to-transparent" />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Active Alerts</CardTitle>
+          <Card key={widgetId} className="group" data-testid="widget-active-alerts">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Active Alerts</CardTitle>
               <div className={cn(
-                "h-10 w-10 rounded-xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform",
-                stats?.activeAlerts ? "bg-destructive/20" : "bg-muted"
+                "h-9 w-9 rounded-lg flex items-center justify-center",
+                stats?.activeAlerts ? "bg-destructive/10" : "bg-muted"
               )}>
-                <AlertCircle className={cn("h-5 w-5", stats?.activeAlerts ? "text-destructive" : "text-muted-foreground")} />
+                <AlertCircle className={cn("h-4 w-4", stats?.activeAlerts ? "text-destructive" : "text-muted-foreground")} />
               </div>
             </CardHeader>
-            <CardContent className="relative pt-2">
-              <div className={cn("text-4xl font-black tracking-tighter", stats?.activeAlerts ? "text-destructive" : "text-foreground")} data-testid="text-active-alerts">
-                {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.activeAlerts ?? 0}
+            <CardContent className="pt-1">
+              <div className={cn("text-3xl font-bold tracking-tight", stats?.activeAlerts ? "text-destructive" : "text-foreground")} data-testid="text-active-alerts">
+                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.activeAlerts ?? 0}
               </div>
-              <p className="text-[10px] font-medium text-muted-foreground mt-2">
+              <p className="text-[11px] text-muted-foreground mt-1.5">
                 {stats?.activeAlerts ? "Immediate attention required" : "All systems normal"}
               </p>
             </CardContent>
@@ -309,89 +306,84 @@ export default function Dashboard() {
         );
       case "plans_updated":
         return (
-          <Card key={widgetId} className="glass-card group overflow-hidden" data-testid="widget-plans-updated">
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br from-violet-500/10 to-transparent" />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Plans Updated</CardTitle>
-              <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-violet-500/15 shadow-sm group-hover:scale-110 transition-transform">
-                <Activity className="h-5 w-5 text-violet-500" />
+          <Card key={widgetId} className="group" data-testid="widget-plans-updated">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Plans Updated</CardTitle>
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-violet-500/10">
+                <Activity className="h-4 w-4 text-violet-600" />
               </div>
             </CardHeader>
-            <CardContent className="relative pt-2">
-              <div className="text-4xl font-black tracking-tighter text-foreground" data-testid="text-plans-updated">
-                {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.plansUpdated ?? 0}
+            <CardContent className="pt-1">
+              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-plans-updated">
+                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.plansUpdated ?? 0}
               </div>
-              <p className="text-[10px] font-medium text-muted-foreground mt-2">Recently synchronized plans</p>
+              <p className="text-[11px] text-muted-foreground mt-1.5">Recently synchronized plans</p>
             </CardContent>
           </Card>
         );
       case "medication_audits":
         return (
-          <Card key={widgetId} className="glass-card group overflow-hidden" data-testid="widget-medication-audits">
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br from-blue-500/10 to-transparent" />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Medication Audits</CardTitle>
-              <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-blue-500/15 shadow-sm group-hover:scale-110 transition-transform">
-                <Pill className="h-5 w-5 text-blue-500" />
+          <Card key={widgetId} className="group" data-testid="widget-medication-audits">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Medication Audits</CardTitle>
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-blue-500/10">
+                <Pill className="h-4 w-4 text-blue-600" />
               </div>
             </CardHeader>
-            <CardContent className="relative pt-2">
-              <div className="text-4xl font-black tracking-tighter text-foreground" data-testid="text-medication-audits-widget">
-                {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
+            <CardContent className="pt-1">
+              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-medication-audits-widget">
+                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
               </div>
-              <p className="text-[10px] font-medium text-muted-foreground mt-2">Last 24 hours activity</p>
+              <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
             </CardContent>
           </Card>
         );
       case "care_plan_reviews":
         return (
-          <Card key={widgetId} className="glass-card group overflow-hidden" data-testid="widget-care-plan-reviews">
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br from-cyan-500/10 to-transparent" />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Care Plan Reviews</CardTitle>
-              <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-cyan-500/15 shadow-sm group-hover:scale-110 transition-transform">
-                <FileText className="h-5 w-5 text-cyan-500" />
+          <Card key={widgetId} className="group" data-testid="widget-care-plan-reviews">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Care Plan Reviews</CardTitle>
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-cyan-500/10">
+                <FileText className="h-4 w-4 text-cyan-600" />
               </div>
             </CardHeader>
-            <CardContent className="relative pt-2">
-              <div className="text-4xl font-black tracking-tighter text-foreground" data-testid="text-care-plan-reviews-widget">
-                {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
+            <CardContent className="pt-1">
+              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-care-plan-reviews-widget">
+                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
               </div>
-              <p className="text-[10px] font-medium text-muted-foreground mt-2">Last 24 hours activity</p>
+              <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
             </CardContent>
           </Card>
         );
       case "risk_assessments":
         return (
-          <Card key={widgetId} className="glass-card group overflow-hidden" data-testid="widget-risk-assessments">
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br from-amber-500/10 to-transparent" />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Risk Assessments</CardTitle>
-              <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-amber-500/15 shadow-sm group-hover:scale-110 transition-transform">
-                <Shield className="h-5 w-5 text-amber-500" />
+          <Card key={widgetId} className="group" data-testid="widget-risk-assessments">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Risk Assessments</CardTitle>
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-amber-500/10">
+                <Shield className="h-4 w-4 text-amber-600" />
               </div>
             </CardHeader>
-            <CardContent className="relative pt-2">
-              <div className="text-4xl font-black tracking-tighter text-foreground" data-testid="text-risk-assessments-widget">
-                {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
+            <CardContent className="pt-1">
+              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-risk-assessments-widget">
+                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
               </div>
-              <p className="text-[10px] font-medium text-muted-foreground mt-2">Last 24 hours activity</p>
+              <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
             </CardContent>
           </Card>
         );
       case "staff_checks":
         return (
-          <Card key={widgetId} className="glass-card group overflow-hidden" data-testid="widget-staff-checks">
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br from-indigo-500/10 to-transparent" />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Staff Checks</CardTitle>
-              <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-indigo-500/15 shadow-sm group-hover:scale-110 transition-transform">
-                <Users className="h-5 w-5 text-indigo-500" />
+          <Card key={widgetId} className="group" data-testid="widget-staff-checks">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Staff Checks</CardTitle>
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-indigo-500/10">
+                <Users className="h-4 w-4 text-indigo-600" />
               </div>
             </CardHeader>
-            <CardContent className="relative pt-2">
-              <div className="text-4xl font-black tracking-tighter text-foreground" data-testid="text-staff-checks-widget">0</div>
-              <p className="text-[10px] font-medium text-muted-foreground mt-2">Last 24 hours activity</p>
+            <CardContent className="pt-1">
+              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-staff-checks-widget">0</div>
+              <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
             </CardContent>
           </Card>
         );
@@ -429,9 +421,9 @@ export default function Dashboard() {
         </Card>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-slide-up stagger-1">
         <div className="space-y-1">
-          <p className="text-sm font-semibold text-primary tracking-tight px-1">
+          <p className="text-xs font-medium text-primary px-0.5">
             Welcome, {user?.firstName || user?.username || 'there'}
           </p>
           <h1 className="page-title leading-tight" data-testid="text-dashboard-title">Operations Dashboard</h1>
@@ -539,29 +531,29 @@ export default function Dashboard() {
       {/* Quick Actions */}
       <div className="space-y-4 animate-slide-up stagger-2">
         <div className="flex items-center gap-3 px-1">
-          <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-amber-500/15 shadow-xs">
-            <Zap className="h-5 w-5 text-amber-500" />
+          <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-amber-500/10">
+            <Zap className="h-4 w-4 text-amber-600" />
           </div>
           <div>
-            <h3 className="text-lg font-bold tracking-tight text-foreground">Launch Center</h3>
-            <p className="text-xs font-medium text-muted-foreground">Accelerated workflows for care teams</p>
+            <h3 className="text-base font-semibold tracking-tight text-foreground">Launch Center</h3>
+            <p className="text-xs text-muted-foreground">Accelerated workflows for care teams</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {QUICK_ACTIONS.map((action, index) => (
             <Link key={index} href={action.href}>
-              <Card className="glass-card-interactive group h-full overflow-hidden" data-testid={`card-quick-action-${index}`}>
-                <CardContent className={`p-6 relative border ${action.panelTone} rounded-2xl transition-colors duration-200`}>
-                  <div className={`relative h-12 w-12 rounded-2xl ${action.iconTone} flex items-center justify-center mb-5 transition-transform duration-200 group-hover:scale-105`}>
-                    <action.icon className="h-6 w-6" />
+              <Card className="group h-full" data-testid={`card-quick-action-${index}`}>
+                <CardContent className={`p-5 relative border ${action.panelTone} rounded-xl transition-colors duration-150`}>
+                  <div className={`relative h-10 w-10 rounded-lg ${action.iconTone} flex items-center justify-center mb-4 transition-transform duration-150 group-hover:scale-105`}>
+                    <action.icon className="h-5 w-5" />
                   </div>
                   
-                  <h4 className="font-bold text-base mb-2 group-hover:text-primary transition-colors text-foreground">{action.label}</h4>
-                  <p className="text-xs leading-relaxed text-muted-foreground font-medium">{action.description}</p>
+                  <h4 className="font-semibold text-sm mb-1.5 group-hover:text-primary transition-colors text-foreground">{action.label}</h4>
+                  <p className="text-xs leading-relaxed text-muted-foreground">{action.description}</p>
                   
-                  <div className="flex items-center gap-2 mt-4 text-xs font-bold text-primary opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-1 group-hover:translate-y-0">
-                    <span>OPEN WORKFLOW</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
+                  <div className="flex items-center gap-1.5 mt-3 text-[11px] font-medium text-primary opacity-0 group-hover:opacity-100 transition-all duration-150">
+                    <span>Open</span>
+                    <ArrowRight className="h-3 w-3" />
                   </div>
                 </CardContent>
               </Card>
@@ -571,49 +563,49 @@ export default function Dashboard() {
       </div>
 
       {smallWidgets.length > 0 && (
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-3">
           {smallWidgets.map(widgetId => renderSmallWidget(widgetId))}
         </div>
       )}
 
       {largeWidgets.length > 0 && (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7 animate-slide-up stagger-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 animate-slide-up stagger-4">
           {largeWidgets.includes("compliance_data") && (
-            <Card className={cn("glass-card shadow-medium", largeWidgets.includes("recent_alerts") ? "lg:col-span-4" : "lg:col-span-7")} data-testid="widget-compliance-data">
-              <CardHeader className="border-b border-border/40 pb-6 mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <TrendingUp className="h-4.5 w-4.5 text-primary" />
+            <Card className={cn("shadow-sm", largeWidgets.includes("recent_alerts") ? "lg:col-span-4" : "lg:col-span-7")} data-testid="widget-compliance-data">
+              <CardHeader className="border-b border-border/40 pb-4 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center">
+                    <TrendingUp className="h-3.5 w-3.5 text-primary" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">Audit Performance</CardTitle>
-                    <CardDescription>Live telemetry for the current operational window.</CardDescription>
+                    <CardTitle className="text-sm font-semibold">Audit Performance</CardTitle>
+                    <CardDescription className="text-xs">Current operational window.</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                 <div className="grid grid-cols-2 gap-y-10 gap-x-8">
-                    <div className="space-y-1.5 px-2 border-l-2 border-blue-500/30">
-                       <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Medication Audits</p>
-                       <p className="text-4xl font-black tracking-tight text-foreground" data-testid="text-medication-audits">
-                         {isLoading ? <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
+                 <div className="grid grid-cols-2 gap-y-8 gap-x-6">
+                    <div className="space-y-1 pl-3 border-l-2 border-blue-500/25">
+                       <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Medication Audits</p>
+                       <p className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-medication-audits">
+                         {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
                        </p>
                     </div>
-                    <div className="space-y-1.5 px-2 border-l-2 border-indigo-500/30">
-                       <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Care Plan Reviews</p>
-                       <p className="text-4xl font-black tracking-tight text-foreground" data-testid="text-care-plan-reviews">
-                         {isLoading ? <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
+                    <div className="space-y-1 pl-3 border-l-2 border-indigo-500/25">
+                       <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Care Plan Reviews</p>
+                       <p className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-care-plan-reviews">
+                         {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
                        </p>
                     </div>
-                    <div className="space-y-1.5 px-2 border-l-2 border-amber-500/30">
-                       <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Risk Assessments</p>
-                       <p className="text-4xl font-black tracking-tight text-foreground" data-testid="text-risk-assessments">
-                         {isLoading ? <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
+                    <div className="space-y-1 pl-3 border-l-2 border-amber-500/25">
+                       <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Risk Assessments</p>
+                       <p className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-risk-assessments">
+                         {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
                        </p>
                     </div>
-                    <div className="space-y-1.5 px-2 border-l-2 border-emerald-500/30">
-                       <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Staff Checks</p>
-                       <p className="text-4xl font-black tracking-tight text-foreground" data-testid="text-staff-checks">0</p>
+                    <div className="space-y-1 pl-3 border-l-2 border-emerald-500/25">
+                       <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Staff Checks</p>
+                       <p className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-staff-checks">0</p>
                     </div>
                  </div>
               </CardContent>
@@ -621,46 +613,44 @@ export default function Dashboard() {
           )}
 
           {largeWidgets.includes("recent_alerts") && (
-            <Card className={cn("glass-card shadow-medium", largeWidgets.includes("compliance_data") ? "lg:col-span-3" : "lg:col-span-7")} data-testid="widget-recent-alerts">
-              <CardHeader className="border-b border-border/40 pb-6 mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-lg bg-destructive/10 flex items-center justify-center text-destructive">
-                    <AlertCircle className="h-4.5 w-4.5" />
+            <Card className={cn("shadow-sm", largeWidgets.includes("compliance_data") ? "lg:col-span-3" : "lg:col-span-7")} data-testid="widget-recent-alerts">
+              <CardHeader className="border-b border-border/40 pb-4 mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-7 w-7 rounded-md bg-destructive/10 flex items-center justify-center text-destructive">
+                    <AlertCircle className="h-3.5 w-3.5" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">Incident Feed</CardTitle>
-                    <CardDescription>Real-time security and compliance logs.</CardDescription>
+                    <CardTitle className="text-sm font-semibold">Incident Feed</CardTitle>
+                    <CardDescription className="text-xs">Security and compliance logs.</CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="px-2">
+              <CardContent className="px-3">
                 {isLoading ? (
                   <div className="flex items-center justify-center h-48">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : recentAlerts.length > 0 ? (
-                  <div className="space-y-2 overflow-y-auto max-h-[300px] pr-2">
+                  <div className="space-y-2 overflow-y-auto max-h-[280px] pr-1">
                     {recentAlerts.map((alert) => (
-                      <div key={alert.id} className="flex items-start gap-4 p-4 rounded-2xl border border-border/40 bg-muted/20 hover:bg-muted/30 transition-colors group">
-                        <div className="h-10 w-10 rounded-xl bg-background flex items-center justify-center border border-border/50 shrink-0 shadow-xs group-hover:scale-105 transition-transform">
-                          <Activity className="h-5 w-5 text-destructive" />
+                      <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg border border-border/40 bg-muted/15 hover:bg-muted/25 transition-colors group">
+                        <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50 shrink-0">
+                          <Activity className="h-4 w-4 text-destructive" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <p className="text-sm font-bold truncate text-foreground">{alert.careWorkerName}</p>
-                            <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap bg-muted px-2 py-0.5 rounded-full uppercase tracking-tighter">{formatTimeAgo(alert.createdAt)}</span>
+                          <div className="flex items-center justify-between gap-2 mb-0.5">
+                            <p className="text-sm font-semibold truncate text-foreground">{alert.careWorkerName}</p>
+                            <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">{formatTimeAgo(alert.createdAt)}</span>
                           </div>
-                          <p className="text-xs leading-relaxed text-muted-foreground font-medium line-clamp-2">{alert.message}</p>
+                          <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">{alert.message}</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-48 text-muted-foreground space-y-3">
-                    <div className="h-12 w-12 rounded-full bg-muted/30 flex items-center justify-center">
-                      <CheckCircle2 className="h-6 w-6 text-muted-foreground/40" />
-                    </div>
-                    <p className="text-sm font-medium">No alerts in the last 24 hours</p>
+                  <div className="flex flex-col items-center justify-center h-48 text-muted-foreground space-y-2">
+                    <CheckCircle2 className="h-8 w-8 text-muted-foreground/30" />
+                    <p className="text-sm">No alerts in the last 24 hours</p>
                   </div>
                 )}
               </CardContent>
@@ -670,14 +660,12 @@ export default function Dashboard() {
       )}
 
       {activeWidgets.length === 0 && (
-        <Card className="glass-card">
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <div className="h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center mb-6">
-              <Settings className="h-8 w-8 text-muted-foreground/40" />
-            </div>
-            <p className="text-xl font-bold text-foreground mb-2">Workspace Empty</p>
-            <p className="text-sm text-muted-foreground mb-8 text-center max-w-xs font-medium">Configure your mission control by adding widgets to the dashboard.</p>
-            <Button variant="outline" size="lg" onClick={() => setSettingsOpen(true)} className="rounded-xl border-border/60 font-bold tracking-tight">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-14">
+            <Settings className="h-10 w-10 text-muted-foreground/30 mb-4" />
+            <p className="text-lg font-semibold text-foreground mb-1">Dashboard Empty</p>
+            <p className="text-sm text-muted-foreground mb-6 text-center max-w-xs">Add widgets to customize your dashboard view.</p>
+            <Button variant="outline" onClick={() => setSettingsOpen(true)} className="font-medium">
               <Settings className="h-4 w-4 mr-2" />
               Configure Dashboard
             </Button>
@@ -686,78 +674,78 @@ export default function Dashboard() {
       )}
 
       {/* Platform Benefits */}
-      <Card className="glass-card overflow-hidden animate-slide-up stagger-5" data-testid="card-platform-benefits">
-        <CardHeader className="pb-6 border-b border-border/40">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-blue-500/15 shadow-xs">
-              <TrendingUp className="h-5 w-5 text-blue-500" />
+      <Card className="overflow-hidden animate-slide-up stagger-5" data-testid="card-platform-benefits">
+        <CardHeader className="pb-4 border-b border-border/40">
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-md flex items-center justify-center bg-blue-500/10">
+              <TrendingUp className="h-3.5 w-3.5 text-blue-600" />
             </div>
             <div>
-              <CardTitle className="text-lg">Performance Metrics</CardTitle>
-              <CardDescription className="text-xs font-medium">Propelling efficiency across care delivery.</CardDescription>
+              <CardTitle className="text-sm font-semibold">Performance Metrics</CardTitle>
+              <CardDescription className="text-xs">Efficiency indicators across care delivery.</CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="space-y-3 group p-6 rounded-2xl bg-muted/20 hover:bg-muted/30 transition-all border border-border/40 hover:border-border hover:shadow-soft">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-background flex items-center justify-center border border-border/60 shadow-xs group-hover:scale-110 group-hover:text-primary transition-all">
-                  <Clock className="h-5 w-5" />
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2 group p-5 rounded-lg bg-muted/15 hover:bg-muted/25 transition-colors border border-border/30">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50">
+                  <Clock className="h-4 w-4 text-foreground" />
                 </div>
-                <span className="text-3xl font-black tracking-tighter text-foreground">90%</span>
+                <span className="text-2xl font-bold tracking-tight text-foreground">90%</span>
               </div>
               <div>
-                <p className="text-sm font-bold text-foreground mb-1">Time Recovery</p>
-                <p className="text-xs leading-relaxed text-muted-foreground font-medium">Autonomous auditing recaptures hours for frontline care.</p>
+                <p className="text-sm font-semibold text-foreground mb-0.5">Time Recovery</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">Autonomous auditing recaptures hours for frontline care.</p>
               </div>
             </div>
-            <div className="space-y-3 group p-6 rounded-2xl bg-muted/20 hover:bg-muted/30 transition-all border border-border/40 hover:border-border hover:shadow-soft">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-background flex items-center justify-center border border-border/60 shadow-xs group-hover:scale-110 group-hover:text-success transition-all">
-                  <CheckCircle2 className="h-5 w-5" />
+            <div className="space-y-2 group p-5 rounded-lg bg-muted/15 hover:bg-muted/25 transition-colors border border-border/30">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50">
+                  <CheckCircle2 className="h-4 w-4 text-foreground" />
                 </div>
-                <span className="text-3xl font-black tracking-tighter text-foreground">3-Pass</span>
+                <span className="text-2xl font-bold tracking-tight text-foreground">3-Pass</span>
               </div>
               <div>
-                <p className="text-sm font-bold text-foreground mb-1">Deep Analysis</p>
-                <p className="text-xs leading-relaxed text-muted-foreground font-medium">Layered review logic identifies discrepancies with precision.</p>
+                <p className="text-sm font-semibold text-foreground mb-0.5">Deep Analysis</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">Layered review logic identifies discrepancies with precision.</p>
               </div>
             </div>
-            <div className="space-y-3 group p-6 rounded-2xl bg-muted/20 hover:bg-muted/30 transition-all border border-border/40 hover:border-border hover:shadow-soft">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-background flex items-center justify-center border border-border/60 shadow-xs group-hover:scale-110 group-hover:text-indigo-500 transition-all">
-                  <Shield className="h-5 w-5" />
+            <div className="space-y-2 group p-5 rounded-lg bg-muted/15 hover:bg-muted/25 transition-colors border border-border/30">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50">
+                  <Shield className="h-4 w-4 text-foreground" />
                 </div>
-                <span className="text-3xl font-black tracking-tighter text-foreground">Live</span>
+                <span className="text-2xl font-bold tracking-tight text-foreground">Live</span>
               </div>
               <div>
-                <p className="text-sm font-bold text-foreground mb-1">Active Guard</p>
-                <p className="text-xs leading-relaxed text-muted-foreground font-medium">Real-time telemetry of compliance and incident signals.</p>
+                <p className="text-sm font-semibold text-foreground mb-0.5">Active Guard</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">Real-time telemetry of compliance and incident signals.</p>
               </div>
             </div>
-            <div className="space-y-3 group p-6 rounded-2xl bg-muted/20 hover:bg-muted/30 transition-all border border-border/40 hover:border-border hover:shadow-soft">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-background flex items-center justify-center border border-border/60 shadow-xs group-hover:scale-110 group-hover:text-amber-500 transition-all">
-                  <Brain className="h-5 w-5" />
+            <div className="space-y-2 group p-5 rounded-lg bg-muted/15 hover:bg-muted/25 transition-colors border border-border/30">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50">
+                  <Brain className="h-4 w-4 text-foreground" />
                 </div>
-                <span className="text-3xl font-black tracking-tighter text-foreground">Expert</span>
+                <span className="text-2xl font-bold tracking-tight text-foreground">Expert</span>
               </div>
               <div>
-                <p className="text-sm font-bold text-foreground mb-1">Contextual AI</p>
-                <p className="text-xs leading-relaxed text-muted-foreground font-medium">Neural processing of complex medical and care plan data.</p>
+                <p className="text-sm font-semibold text-foreground mb-0.5">Contextual AI</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">Neural processing of complex medical and care plan data.</p>
               </div>
             </div>
           </div>
-          <div className="mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-6 border-t border-border/40">
-            <p className="text-sm font-semibold text-muted-foreground">
+          <div className="mt-6 pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/40">
+            <p className="text-sm text-muted-foreground">
               Calculate your organization's potential ROI from autonomous compliance.
             </p>
             <Link href="/roi-calculator">
-              <Button variant="outline" size="lg" className="rounded-xl border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary font-bold tracking-tight shadow-glow group" data-testid="button-roi-calculator">
-                <TrendingUp className="h-4.5 w-4.5 mr-2.5" />
+              <Button variant="outline" className="font-medium" data-testid="button-roi-calculator">
+                <TrendingUp className="h-4 w-4 mr-2" />
                 Savings Estimator
-                <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="h-3.5 w-3.5 ml-2" />
               </Button>
             </Link>
           </div>

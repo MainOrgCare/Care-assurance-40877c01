@@ -224,19 +224,19 @@ const SidebarContent = memo(function SidebarContent({
 
   const navLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-3 rounded-xl text-sm font-semibold transition-[background-color,border-color,color,box-shadow,transform] duration-200 group cursor-pointer relative overflow-hidden border",
-      isCollapsed ? "px-2 py-2.5 justify-center gap-0" : "px-3.5 py-2.5",
+      "flex items-center gap-3 rounded-lg text-[13px] font-medium transition-all duration-150 group cursor-pointer",
+      isCollapsed ? "px-2.5 py-2.5 justify-center gap-0" : "px-3 py-2",
       isActive
-        ? "bg-[linear-gradient(120deg,hsl(213_84%_43%/_0.14),hsl(194_85%_36%/_0.1))] text-primary border-primary/35 shadow-[0_12px_24px_-18px_rgba(37,99,235,0.72)]"
-        : "text-muted-foreground hover:text-foreground hover:bg-background/80 hover:border-border/70 border-transparent hover:translate-x-[1px]"
+        ? "bg-white/10 text-white"
+        : "text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-white/[0.06]"
     ), [isCollapsed]);
 
   const subNavLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold transition-[background-color,color,border-color,transform] duration-200 border",
+      "flex items-center gap-3 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150",
       isActive
-        ? "bg-primary/10 text-primary border-primary/35"
-        : "text-muted-foreground border-transparent hover:text-foreground hover:bg-background/70 hover:border-border/65 hover:translate-x-[1px]"
+        ? "bg-white/10 text-white"
+        : "text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-white/[0.05]"
     ), []);
 
   const labelClass = cn(
@@ -245,23 +245,23 @@ const SidebarContent = memo(function SidebarContent({
   );
 
   return (
-    <div className="flex h-full flex-col bg-sidebar/92 backdrop-blur-xl">
+    <div className="flex h-full flex-col bg-sidebar">
       {/* Logo Section */}
-      <div className={cn("px-6 pt-8 pb-6", isCollapsed && "px-3 pt-6 pb-4")}>
+      <div className={cn("px-5 pt-6 pb-5", isCollapsed && "px-3 pt-5 pb-4")}>
         <Link href="/">
           <div 
             onClick={handleSecretClick}
-            className={cn("flex items-center gap-4 cursor-pointer group", isCollapsed && "justify-center")}
+            className={cn("flex items-center gap-3 cursor-pointer group", isCollapsed && "justify-center")}
           >
-            <div className="relative h-11 w-11 rounded-2xl flex items-center justify-center bg-[linear-gradient(145deg,hsl(213_84%_43%),hsl(194_85%_36%))] shadow-[0_14px_24px_-16px_rgba(14,116,144,0.82)]">
-              <ShieldCheck className="h-6 w-6 text-white" />
+            <div className="relative h-9 w-9 rounded-lg flex items-center justify-center bg-white/10 border border-white/10">
+              <ShieldCheck className="h-[18px] w-[18px] text-white" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
-              <h1 className="font-heading text-lg leading-none tracking-tight">
-                <span className="font-black text-foreground">Care</span><span className="font-medium text-muted-foreground/80">Assurance</span>
+              <h1 className="font-heading text-[15px] leading-none tracking-tight">
+                <span className="font-semibold text-white">Care</span><span className="font-normal text-white/60">Assurance</span>
               </h1>
-              <span className="text-[10px] mt-1 font-semibold uppercase tracking-[0.12em] text-muted-foreground">Operations Platform</span>
+              <span className="text-[10px] mt-1 font-medium uppercase tracking-[0.08em] text-white/40">Operations Platform</span>
             </div>
             )}
           </div>
@@ -269,39 +269,39 @@ const SidebarContent = memo(function SidebarContent({
       </div>
 
       {/* Divider */}
-      <div className={cn("mx-6 h-px bg-border/65", isCollapsed && "mx-3")} />
+      <div className={cn("mx-5 h-px bg-white/8", isCollapsed && "mx-3")} />
 
-      <nav className={cn("flex-1 space-y-1.5 py-3 overflow-y-auto overscroll-contain", isCollapsed ? "px-2" : "px-3")}>
+      <nav className={cn("flex-1 space-y-0.5 py-3 overflow-y-auto overscroll-contain", isCollapsed ? "px-2" : "px-3")}>
         
         {/* Dashboard */}
         <Link href="/dashboard" className={navLinkClass(location === "/dashboard")} title={isCollapsed ? "Dashboard" : undefined}>
-            <LayoutDashboard size={18} />
+            <LayoutDashboard size={16} />
             <span className={labelClass}>Dashboard</span>
-            {!isCollapsed && location === "/dashboard" && <ArrowUpRight size={14} className="ml-auto opacity-60" />}
+            {!isCollapsed && location === "/dashboard" && <ArrowUpRight size={12} className="ml-auto opacity-50" />}
         </Link>
 
         {/* Messages */}
         <Link href="/messages" className={navLinkClass(location === "/messages")} title={isCollapsed ? "Messages" : undefined}>
-          <Inbox size={18} />
+          <Inbox size={16} />
           <span className={labelClass}>Messages</span>
         </Link>
 
         {/* Email Assistant */}
         <Link href="/email-assistant" className={navLinkClass(location === "/email-assistant")} title={isCollapsed ? "Email Assistant" : undefined}>
-          <Mail size={18} />
+          <Mail size={16} />
           <span className={labelClass}>Email Assistant</span>
         </Link>
 
         {/* Compliance */}
         <Link href="/compliance" className={navLinkClass(location === "/compliance")} title={isCollapsed ? "Compliance" : undefined}>
-          <CheckCircle size={18} />
+          <CheckCircle size={16} />
           <span className={labelClass}>Compliance</span>
         </Link>
 
         {/* Section Label */}
         {!isCollapsed && (
-          <div className="px-4 pt-3 pb-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/85">Modules</span>
+          <div className="px-3 pt-4 pb-1">
+            <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-white/30">Modules</span>
           </div>
         )}
 
@@ -315,11 +315,11 @@ const SidebarContent = memo(function SidebarContent({
            <CollapsibleTrigger
             title={isCollapsed ? "Service Users" : undefined}
             className={cn(
-            "flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium rounded-xl transition-all group hover:bg-muted",
-            isCollapsed && "justify-center px-2"
+            "flex items-center justify-between w-full px-3 py-2 text-[13px] font-medium rounded-lg transition-all group hover:bg-white/[0.06]",
+            isCollapsed && "justify-center px-2.5"
            )}>
             <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
-              <Users size={18} className="text-muted-foreground" />
+              <Users size={16} className="text-sidebar-foreground/55" />
                <span className={labelClass}>Service Users</span>
             </div>
             {!isCollapsed && (
@@ -329,23 +329,23 @@ const SidebarContent = memo(function SidebarContent({
                    {formatTime(timeLeft)}
                  </Badge>
                )}
-              <ChevronDown size={14} className={cn("transition-transform duration-200 text-muted-foreground", openServiceUsers ? "rotate-180" : "")} />
+              <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openServiceUsers ? "rotate-180" : "")} />
             </div>
             )}
           </CollapsibleTrigger>
           {!isCollapsed && (
-            <CollapsibleContent className="space-y-0.5 pl-3">
+            <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5">
              <Link href="/service-users/upload" className={subNavLinkClass(location === "/service-users/upload")}>
-                <Upload size={15} /> Data Upload
+                <Upload size={14} /> Data Upload
              </Link>
              <Link href="/service-users/care-planning" className={subNavLinkClass(location === "/service-users/care-planning")}>
-                <FileText size={15} /> Care Planning
+                <FileText size={14} /> Care Planning
              </Link>
              <Link href="/service-users/risk-assessment" className={subNavLinkClass(location === "/service-users/risk-assessment")}>
-                <ShieldAlert size={15} /> Risk Assessment
+                <ShieldAlert size={14} /> Risk Assessment
              </Link>
              <Link href="/service-users/plan-enhancer" className={subNavLinkClass(location === "/service-users/plan-enhancer")}>
-                <Sparkles size={15} /> Plan Enhancer
+                <Sparkles size={14} /> Plan Enhancer
              </Link>
             </CollapsibleContent>
           )}
@@ -361,30 +361,30 @@ const SidebarContent = memo(function SidebarContent({
            <CollapsibleTrigger
             title={isCollapsed ? "Care Workers" : undefined}
             className={cn(
-            "flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium rounded-xl transition-all group hover:bg-muted",
-            isCollapsed && "justify-center px-2"
+            "flex items-center justify-between w-full px-3 py-2 text-[13px] font-medium rounded-lg transition-all group hover:bg-white/[0.06]",
+            isCollapsed && "justify-center px-2.5"
            )}>
             <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
-              <UserCog size={18} className="text-muted-foreground" />
+              <UserCog size={16} className="text-sidebar-foreground/55" />
                <span className={labelClass}>Care Workers</span>
             </div>
             {!isCollapsed && (
-              <ChevronDown size={14} className={cn("transition-transform duration-200 text-muted-foreground", openCareWorkers ? "rotate-180" : "")}/>
+              <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openCareWorkers ? "rotate-180" : "")}/>
             )}
           </CollapsibleTrigger>
           {!isCollapsed && (
-            <CollapsibleContent className="space-y-0.5 pl-3">
+            <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5">
              <Link href="/care-workers/list" className={subNavLinkClass(location === "/care-workers/list")}>
-                <Users size={15} /> Carers
+                <Users size={14} /> Carers
              </Link>
              <Link href="/care-workers/emar-audit" className={subNavLinkClass(location === "/care-workers/emar-audit")}>
-                <Activity size={15} /> EMAR Audit
+                <Activity size={14} /> EMAR Audit
              </Link>
              <Link href="/care-workers/visit-audit" className={subNavLinkClass(location === "/care-workers/visit-audit")}>
-                <ClipboardList size={15} /> Visit Audit
+                <ClipboardList size={14} /> Visit Audit
              </Link>
              <Link href="/care-workers/performance" className={subNavLinkClass(location === "/care-workers/performance")}>
-                <BarChart size={15} /> Performance
+                <BarChart size={14} /> Performance
              </Link>
             </CollapsibleContent>
           )}
@@ -401,39 +401,39 @@ const SidebarContent = memo(function SidebarContent({
             <CollapsibleTrigger
               title={isCollapsed ? "Admin" : undefined}
               className={cn(
-              "flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium rounded-xl transition-all group hover:bg-muted",
-              isCollapsed && "justify-center px-2"
+              "flex items-center justify-between w-full px-3 py-2 text-[13px] font-medium rounded-lg transition-all group hover:bg-white/[0.06]",
+              isCollapsed && "justify-center px-2.5"
             )}>
               <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
-                <Lock size={18} className="text-muted-foreground" />
+                <Lock size={16} className="text-sidebar-foreground/55" />
                 <span className={labelClass}>Admin</span>
               </div>
               {!isCollapsed && (
-                <ChevronDown size={14} className={cn("transition-transform duration-200 text-muted-foreground", openAdmin ? "rotate-180" : "")} />
+                <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openAdmin ? "rotate-180" : "")} />
               )}
             </CollapsibleTrigger>
             {!isCollapsed && (
-              <CollapsibleContent className="space-y-0.5 pl-3">
+              <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5">
               <Link href="/shadow-admin-portal" className={subNavLinkClass(location === "/shadow-admin-portal")}>
-                <ShieldCheck size={15} /> Administrator Controls
+                <ShieldCheck size={14} /> Administrator Controls
               </Link>
               <Link href="/roi-calculator" className={subNavLinkClass(location === "/roi-calculator")} data-testid="link-roi-calculator">
-                <Calculator size={15} /> Features & Benefits
+                <Calculator size={14} /> Features & Benefits
               </Link>
               <Link href="/testing-features" className={subNavLinkClass(location === "/testing-features")}>
-                <FlaskConical size={15} /> Testing Features
+                <FlaskConical size={14} /> Testing Features
               </Link>
               <Link href="/system-logs" className={subNavLinkClass(location === "/system-logs")}>
-                <Terminal size={15} /> System Logs
+                <Terminal size={14} /> System Logs
               </Link>
               <Link
                 href="/rostering-unified"
                 className={subNavLinkClass(location === "/rostering-unified")}
               >
-                <ClipboardList size={15} /> Rostering Studio
+                <ClipboardList size={14} /> Rostering Studio
               </Link>
               <Link href="/billing-tool" className={subNavLinkClass(location === "/billing-tool")} data-testid="link-billing-tool">
-                <FileSpreadsheet size={15} /> Billing Tool
+                <FileSpreadsheet size={14} /> Billing Tool
               </Link>
               </CollapsibleContent>
             )}
@@ -442,28 +442,28 @@ const SidebarContent = memo(function SidebarContent({
       </nav>
 
       {/* Footer Actions */}
-      <div className={cn("px-3 pb-6 space-y-1 mt-auto border-t border-border/40 pt-4", isCollapsed && "px-2")}>
+      <div className={cn("px-3 pb-5 space-y-0.5 mt-auto border-t border-white/8 pt-3", isCollapsed && "px-2")}>
         <Link
           href="/settings"
           className={cn(
-            "w-full flex items-center gap-3 rounded-xl text-sm font-bold transition-all hover:bg-muted text-muted-foreground hover:text-foreground",
-            isCollapsed ? "justify-center px-2 py-3 gap-0" : "px-4 py-3"
+            "w-full flex items-center gap-3 rounded-lg text-[13px] font-medium transition-all text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-white/[0.06]",
+            isCollapsed ? "justify-center px-2.5 py-2.5 gap-0" : "px-3 py-2"
           )}
           data-testid="button-settings"
           title={isCollapsed ? "System Settings" : undefined}
         >
-          <Settings size={18} />
+          <Settings size={16} />
           <span className={labelClass}>System Settings</span>
         </Link>
         <button
           className={cn(
-            "w-full flex items-center gap-3 rounded-xl text-sm font-bold transition-all text-destructive hover:bg-destructive/10",
-            isCollapsed ? "justify-center px-2 py-3 gap-0" : "px-4 py-3"
+            "w-full flex items-center gap-3 rounded-lg text-[13px] font-medium transition-all text-red-400/80 hover:text-red-400 hover:bg-red-500/10",
+            isCollapsed ? "justify-center px-2.5 py-2.5 gap-0" : "px-3 py-2"
           )}
           onClick={logout}
           title={isCollapsed ? "Terminate Session" : undefined}
         >
-          <LogOut size={18} />
+          <LogOut size={16} />
           <span className={labelClass}>Terminate Session</span>
         </button>
       </div>
@@ -599,7 +599,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
 
     void fetchPlatformControls();
-    const interval = window.setInterval(fetchPlatformControls, 60000);
+    // Poll more frequently so emergency admin announcement/maintenance changes clear quickly.
+    const interval = window.setInterval(fetchPlatformControls, 20000);
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         void fetchPlatformControls();
@@ -630,7 +631,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(
-    "workspace-card rounded-2xl border border-border/70 bg-card/98 p-4 sm:p-6 lg:p-7 flex flex-col shadow-[0_14px_30px_-24px_rgba(15,23,42,0.28),0_1px_0_rgba(255,255,255,0.75)_inset] w-full flex-1 min-h-0 motion-safe:animate-[fade-in_180ms_ease-out]",
+    "workspace-card rounded-xl border border-border/50 bg-card p-4 sm:p-6 lg:p-7 flex flex-col shadow-sm w-full flex-1 min-h-0 motion-safe:animate-[fade-in_150ms_ease-out]",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
@@ -742,13 +743,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="workspace-root relative flex h-[100dvh] min-h-screen w-full overflow-hidden bg-background">
       <div className="pointer-events-none absolute inset-0 -z-[1] overflow-hidden">
-        <div className="absolute -top-44 -left-28 h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgba(30,64,175,0.12),rgba(30,64,175,0)_72%)] blur-lg" />
-        <div className="absolute -top-28 -right-20 h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,rgba(15,23,42,0.1),rgba(15,23,42,0)_72%)] blur-lg" />
+        <div className="absolute -top-44 -left-28 h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgba(30,64,175,0.04),rgba(30,64,175,0)_72%)] blur-lg" />
       </div>
       {/* Desktop Sidebar */}
       <aside className={cn(
-        "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-border/65 bg-sidebar/96 shadow-[0_0_0_1px_rgba(255,255,255,0.28)_inset] transition-all duration-300",
-        isSidebarCollapsed ? "w-[84px]" : "w-[288px]"
+        "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-white/[0.06] bg-sidebar transition-all duration-200",
+        isSidebarCollapsed ? "w-[72px]" : "w-[260px]"
       )}>
         <SidebarContent
           location={location}
@@ -764,12 +764,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="workspace-header sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/65 bg-background/94 px-4 backdrop-blur-sm md:px-6 shadow-[0_10px_24px_-22px_rgba(15,23,42,0.32)]">
+          <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/50 bg-background/95 px-4 backdrop-blur-sm md:px-6">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="md:hidden hover:bg-muted/80 rounded-xl transition-all">
+                  <Button variant="ghost" size="icon" className="md:hidden hover:bg-muted/60 rounded-lg transition-colors">
                     <Menu className="h-5 w-5 text-foreground" />
                     <span className="sr-only">Toggle menu</span>
                   </Button>
@@ -789,7 +789,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="hidden md:inline-flex hover:bg-muted/80 rounded-xl transition-all"
+                className="hidden md:inline-flex hover:bg-muted/60 rounded-lg transition-colors"
                 onClick={() => {
                   autoCollapseRef.current = false;
                   setIsSidebarCollapsed((prev) => !prev);
@@ -805,7 +805,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 rounded-2xl border border-border/65 bg-card/94 px-2.5 py-2 shadow-[0_10px_20px_-18px_rgba(15,23,42,0.28)]">
+            <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-card/90 px-2 py-1.5">
               {/* Messages Button */}
               <Link href="/messages">
                 <button
@@ -835,7 +835,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
               
-              <div className="group flex cursor-pointer items-center gap-3 rounded-2xl border border-border/55 bg-muted/45 py-1.5 pl-4 pr-1.5 transition-all hover:border-primary/28">
+              <div className="group flex cursor-pointer items-center gap-2.5 rounded-lg border border-border/40 bg-muted/30 py-1 pl-3 pr-1 transition-all hover:border-border/60">
                 <div className="text-right hidden sm:block">
                   <p className="text-xs font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
                     {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username}
@@ -850,7 +850,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     </p>
                   </div>
                 </div>
-                <div className="relative h-8 w-8 rounded-xl flex items-center justify-center font-black uppercase text-[10px] bg-primary text-primary-foreground shadow-sm shadow-primary/20 group-hover:scale-105 transition-transform">
+                <div className="relative h-7 w-7 rounded-lg flex items-center justify-center font-bold uppercase text-[10px] bg-primary text-primary-foreground">
                   {user?.firstName ? user.firstName.substring(0, 1) : user?.username?.substring(0, 1) || "?"}
                   {user?.lastName ? user.lastName.substring(0, 1) : ""}
                   <div className={cn(
@@ -978,8 +978,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         {!isSingleScreenRoute && (
-          <footer className="workspace-footer flex-shrink-0 border-t border-border/65 bg-background/94 px-4 py-3 backdrop-blur-sm shadow-[0_-10px_20px_-20px_rgba(15,23,42,0.25)]">
-            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-muted-foreground">
+          <footer className="workspace-footer flex-shrink-0 border-t border-border/40 bg-background/95 px-4 py-2.5">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
               <div className="flex items-center gap-1.5 font-medium">
                 <span>{new Date().getFullYear()} CareAssurance</span>
                 <span className="hidden sm:inline text-muted-foreground">·</span>

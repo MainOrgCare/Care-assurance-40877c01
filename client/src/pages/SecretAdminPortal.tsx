@@ -3010,6 +3010,47 @@ function OperationsCommandCenter({
     );
   };
 
+  const handleStopAnnouncement = async () => {
+    const confirmed = window.confirm(
+      "Stop the global announcement now? This immediately disables the broadcast banner."
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    try {
+      const response = await fetch("/api/admin/platform-controls/announcement/stop", {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to stop global announcement");
+      }
+
+      const next = data.controls as PlatformControlsState | undefined;
+      if (next) {
+        setControls(next);
+        syncDrafts(next);
+      } else {
+        setAnnouncementEnabledDraft(false);
+        setAnnouncementTextDraft("");
+      }
+
+      toast({
+        title: "Broadcast stopped",
+        description: "Global announcement has been disabled and cleared.",
+      });
+    } catch (error) {
+      toast({
+        title: "Stop failed",
+        description: error instanceof Error ? error.message : "Could not stop global announcement",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSaveMaintenanceWindow = async () => {
     if (!scheduleStartDraft || !scheduleEndDraft) {
       toast({
@@ -3198,6 +3239,9 @@ function OperationsCommandCenter({
     warning: "Warning",
     critical: "Critical",
   };
+  const hasActiveAnnouncement = Boolean(
+    controls?.announcementEnabled && controls.announcementText?.trim()
+  );
 
   return (
     <div className="space-y-6">
@@ -3439,11 +3483,23 @@ function OperationsCommandCenter({
                 <Megaphone size={16} style={{ color: "#3b82f6" }} />
                 <p className="text-sm font-semibold text-foreground">Global Announcement</p>
               </div>
-              <Switch
-                checked={announcementEnabledDraft}
-                disabled={saving}
-                onCheckedChange={setAnnouncementEnabledDraft}
-              />
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={
+                    hasActiveAnnouncement
+                      ? "border-emerald-500/40 text-emerald-300"
+                      : "border-border text-muted-foreground"
+                  }
+                >
+                  {hasActiveAnnouncement ? "Live" : "Stopped"}
+                </Badge>
+                <Switch
+                  checked={announcementEnabledDraft}
+                  disabled={saving}
+                  onCheckedChange={setAnnouncementEnabledDraft}
+                />
+              </div>
             </div>
             <Input
               value={announcementTextDraft}
@@ -3457,15 +3513,26 @@ function OperationsCommandCenter({
               <Badge variant="outline" className="border-border text-muted-foreground">
                 {severityCopy[announcementSeverityDraft]}
               </Badge>
-              <Button
-                onClick={handleSaveMessaging}
-                disabled={saving}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white"
-                data-testid="button-save-platform-messaging"
-              >
-                {saving ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Save size={14} className="mr-2" />}
-                Save Messaging Controls
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleStopAnnouncement}
+                  disabled={saving || !hasActiveAnnouncement}
+                  className="border-red-500/40 text-red-400 hover:bg-red-500/10"
+                  data-testid="button-stop-global-announcement"
+                >
+                  Stop Broadcast
+                </Button>
+                <Button
+                  onClick={handleSaveMessaging}
+                  disabled={saving}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white"
+                  data-testid="button-save-platform-messaging"
+                >
+                  {saving ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Save size={14} className="mr-2" />}
+                  Save Messaging Controls
+                </Button>
+              </div>
             </div>
           </div>
 

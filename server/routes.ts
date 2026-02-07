@@ -5225,6 +5225,51 @@ export async function registerRoutes(
     }
   });
 
+  // Emergency announcement control: immediately stop and clear global broadcast
+  app.post(
+    "/api/admin/platform-controls/announcement/stop",
+    requireAuth,
+    requireAdmin,
+    blockDemoWrites,
+    async (req: any, res) => {
+      try {
+        const existing = await getPlatformControls();
+        if (!existing.announcementEnabled && !existing.announcementText.trim()) {
+          return res.json({
+            message: "Global announcement is already stopped",
+            controls: existing,
+          });
+        }
+
+        const controls = await updatePlatformControls(
+          {
+            announcementEnabled: false,
+            announcementText: "",
+          },
+          req.user?.id
+        );
+
+        storage
+          .createSystemLog({
+            eventType: "platform_announcement_stopped",
+            userId: req.user?.id,
+            username: req.user?.username,
+            serviceUserInitials: null,
+            details: {
+              action: "Stopped global announcement broadcast",
+              target: "platform_controls",
+              status: "Success",
+            },
+          })
+          .catch(() => {});
+
+        return res.json({ message: "Global announcement stopped", controls });
+      } catch (error: any) {
+        return res.status(500).json({ message: error.message });
+      }
+    }
+  );
+
   app.get("/api/admin/ops-incidents", requireAuth, requireAdmin, async (req, res) => {
     try {
       const requestedLimit = parseInt(String(req.query.limit || "12"), 10);

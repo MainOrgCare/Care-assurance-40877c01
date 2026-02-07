@@ -27,7 +27,7 @@ const DrawerOverlay = React.forwardRef<
   <DrawerPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/80 backdrop-blur-sm",
+      "fixed inset-0 z-50 bg-black/40",
       className
     )}
     {...props}
@@ -44,7 +44,7 @@ const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-3xl border border-border/60 bg-card/95 shadow-[0_-18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl",
+        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-xl border border-border/60 bg-card shadow-lg",
         className
       )}
       {...props}

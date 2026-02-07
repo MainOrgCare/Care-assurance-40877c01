@@ -4,26 +4,26 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "whitespace-nowrap inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring/45 focus:ring-offset-1",
+  "whitespace-nowrap inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1",
   {
     variants: {
       variant: {
         default:
-          "border-primary/25 bg-primary/12 text-primary ring-1 ring-primary/20",
+          "border-primary/20 bg-primary/8 text-primary",
         secondary:
-          "border-secondary/25 bg-secondary/12 text-secondary ring-1 ring-secondary/20",
+          "border-secondary/20 bg-secondary/8 text-secondary",
         destructive:
-          "border-destructive/25 bg-destructive/12 text-destructive ring-1 ring-destructive/20",
+          "border-destructive/20 bg-destructive/8 text-destructive",
         success:
-          "border-emerald-500/30 bg-emerald-500/12 text-emerald-600 ring-1 ring-emerald-500/20",
+          "border-emerald-600/20 bg-emerald-600/8 text-emerald-700",
         warning:
-          "border-amber-500/30 bg-amber-500/12 text-amber-700 ring-1 ring-amber-500/20",
+          "border-amber-500/20 bg-amber-500/8 text-amber-700",
         outline: 
-          "text-foreground/80 border-border/70 bg-background/70",
+          "text-foreground/80 border-border bg-background",
         muted:
-          "text-muted-foreground border-border/60 bg-muted/45",
+          "text-muted-foreground border-border bg-muted/50",
         premium:
-          "border-primary/25 bg-[linear-gradient(120deg,hsl(213_84%_43%/_0.16),hsl(194_85%_36%/_0.16))] text-primary ring-1 ring-primary/20",
+          "border-primary/20 bg-primary/8 text-primary",
       },
     },
     defaultVariants: {
