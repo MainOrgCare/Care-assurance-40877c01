@@ -33,6 +33,7 @@
     "https://clece.mobizio.com/*",
     "https://careassurance.uk/*",
     "https://www.careassurance.uk/*",
+    "https://*.onrender.com/*",
     "http://localhost:*/*",
     "http://127.0.0.1:*/*"
   ],
@@ -41,6 +42,7 @@
       "matches": [
         "https://careassurance.uk/*",
         "https://www.careassurance.uk/*",
+        "https://*.onrender.com/*",
         "http://localhost:*/*",
         "http://127.0.0.1:*/*"
       ],

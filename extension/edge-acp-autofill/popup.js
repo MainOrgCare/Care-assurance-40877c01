@@ -3,7 +3,17 @@
 // Streamlined with direct Care Assurance integration
 // ═══════════════════════════════════════════════════════════════════════════
 
-const CARE_ASSURANCE_URL = "https://careassurance.uk";
+// Try multiple possible URLs in order of preference
+const CARE_ASSURANCE_URLS = [
+  "https://careassurance.uk",
+  "https://care-assurance-api.onrender.com",
+  "https://care-assurance-web.onrender.com",
+  "http://localhost:5000",
+  "http://localhost:3000"
+];
+
+// Will be set after successful connection
+let CARE_ASSURANCE_URL = CARE_ASSURANCE_URLS[0];
 
 const FALLBACK_STORAGE_KEYS = {
   payload: "caAcpPayload",
@@ -164,37 +174,101 @@ async function connectToCareAssurance() {
   if (connectBtn) connectBtn.disabled = true;
   if (connectStatus) connectStatus.innerHTML = "<span>Connecting...</span>";
   
-  try {
-    // Check connection status
-    const statusRes = await fetch(`${CARE_ASSURANCE_URL}/api/extension/status`, { credentials: "include" });
-    if (!statusRes.ok) throw new Error("Not logged in");
-    
-    const status = await statusRes.json();
-    updateConnectionUI(true, status.user);
-    
-    // Fetch service users
-    const usersRes = await fetch(`${CARE_ASSURANCE_URL}/api/extension/service-users`, { credentials: "include" });
-    if (usersRes.ok) {
-      const data = await usersRes.json();
-      serviceUsers = data.users || [];
-      await setStorage({ [STORAGE_KEYS.serviceUsers]: serviceUsers });
-      displayServiceUsers();
-    }
-    
-    // Fetch recent items
-    const recentRes = await fetch(`${CARE_ASSURANCE_URL}/api/extension/recent`, { credentials: "include" });
-    if (recentRes.ok) {
-      const data = await recentRes.json();
-      displayRecentItems(data);
-    }
-    
-  } catch (error) {
-    console.error("Connection error:", error);
-    updateConnectionUI(false);
-    showError("Connection failed. Make sure you're logged in to Care Assurance.");
-  } finally {
-    if (connectBtn) connectBtn.disabled = false;
+  // Try to load saved URL first
+  const stored = await loadStorage(['caAcpServerUrl']);
+  if (stored.caAcpServerUrl) {
+    CARE_ASSURANCE_URL = stored.caAcpServerUrl;
   }
+  
+  let lastError = null;
+  let connected = false;
+  
+  // Try each URL in order
+  for (const url of [CARE_ASSURANCE_URL, ...CARE_ASSURANCE_URLS.filter(u => u !== CARE_ASSURANCE_URL)]) {
+    try {
+      if (connectStatus) connectStatus.innerHTML = `<span>Trying ${url}...</span>`;
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const statusRes = await fetch(`${url}/api/extension/status`, { 
+        credentials: "include",
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
+      if (statusRes.ok) {
+        const status = await statusRes.json();
+        CARE_ASSURANCE_URL = url;
+        await setStorage({ caAcpServerUrl: url });
+        updateConnectionUI(true, status.user);
+        connected = true;
+        
+        // Fetch service users
+        try {
+          const usersRes = await fetch(`${url}/api/extension/service-users`, { credentials: "include" });
+          if (usersRes.ok) {
+            const data = await usersRes.json();
+            serviceUsers = data.users || [];
+            await setStorage({ [STORAGE_KEYS.serviceUsers]: serviceUsers });
+            displayServiceUsers();
+          }
+        } catch (e) {
+          console.warn("Failed to fetch service users:", e);
+        }
+        
+        // Fetch recent items
+        try {
+          const recentRes = await fetch(`${url}/api/extension/recent`, { credentials: "include" });
+          if (recentRes.ok) {
+            const data = await recentRes.json();
+            displayRecentItems(data);
+          }
+        } catch (e) {
+          console.warn("Failed to fetch recent items:", e);
+        }
+        
+        break;
+      } else if (statusRes.status === 401) {
+        // Server found but not logged in
+        CARE_ASSURANCE_URL = url;
+        await setStorage({ caAcpServerUrl: url });
+        lastError = `Found server at ${url} but not logged in. Please log in to Care Assurance first.`;
+      } else {
+        lastError = `Server at ${url} returned ${statusRes.status}`;
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        lastError = `${url} timed out`;
+      } else {
+        lastError = `${url}: ${error.message}`;
+      }
+      console.warn(`Connection to ${url} failed:`, error);
+    }
+  }
+  
+  if (!connected) {
+    updateConnectionUI(false);
+    const errorMsg = lastError?.includes('not logged in')
+      ? lastError
+      : "Connection failed. Make sure Care Assurance is running and you're logged in.";
+    showError(errorMsg);
+    
+    // Show help text
+    if (connectStatus) {
+      connectStatus.innerHTML = `
+        <div style="color: var(--color-error); font-size: 11px;">
+          <p style="margin-bottom: 8px;">${errorMsg}</p>
+          <p style="margin-bottom: 4px;">Tried URLs:</p>
+          <ul style="padding-left: 16px; margin: 0;">
+            ${CARE_ASSURANCE_URLS.slice(0, 3).map(u => `<li style="font-size: 10px;">${u}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    }
+  }
+  
+  if (connectBtn) connectBtn.disabled = false;
 }
 
 connectBtn?.addEventListener("click", connectToCareAssurance);
@@ -661,16 +735,39 @@ function showSuccess(message) {
 (async function init() {
   await refreshPayloadStatus();
   
-  // Check if already connected
+  // Load saved server URL
+  const stored = await loadStorage(['caAcpServerUrl']);
+  if (stored.caAcpServerUrl) {
+    CARE_ASSURANCE_URL = stored.caAcpServerUrl;
+  }
+  
+  // Try to check if already connected (quick check with saved URL only)
   try {
-    const res = await fetch(`${CARE_ASSURANCE_URL}/api/extension/status`, { credentials: "include" });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    
+    const res = await fetch(`${CARE_ASSURANCE_URL}/api/extension/status`, { 
+      credentials: "include",
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
     if (res.ok) {
       const status = await res.json();
       updateConnectionUI(true, status.user);
-      connectToCareAssurance(); // Full refresh
+      // Do full refresh in background
+      connectToCareAssurance();
+    } else {
+      updateConnectionUI(false);
+      if (connectStatus) {
+        connectStatus.innerHTML = `<span style="font-size: 11px;">Click "Connect" to find server</span>`;
+      }
     }
   } catch (e) {
     updateConnectionUI(false);
+    if (connectStatus) {
+      connectStatus.innerHTML = `<span style="font-size: 11px;">Click "Connect" to find server</span>`;
+    }
   }
   
   // Check if we have a payload
