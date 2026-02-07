@@ -415,6 +415,55 @@ export default function PlanEnhancer() {
     return Array.from(topics).slice(0, 6);
   }, [displayResult]);
 
+  // Calculate fields that will need verification when sent to extension
+  const verificationStats = useMemo(() => {
+    if (!displayResult) return { missing: 0, ambiguous: 0, total: 0 };
+    
+    let missing = 0;
+    let ambiguous = 0;
+    
+    const checkValue = (value: unknown) => {
+      if (typeof value !== 'string' || !value) return;
+      const lower = value.toLowerCase().trim();
+      
+      // Check for missing info
+      if (lower.includes('information is not provided') ||
+          lower.includes('information not provided') ||
+          lower.includes('not provided') ||
+          lower.includes('no information') ||
+          lower === 'n/a' || lower === 'na' ||
+          lower === 'unknown' || lower === '') {
+        missing++;
+        return;
+      }
+      
+      // Check for ambiguous yes/no
+      if (lower.includes('yes') && lower.includes('no')) {
+        ambiguous++;
+      }
+    };
+    
+    const checkObject = (obj: unknown) => {
+      if (!obj || typeof obj !== 'object') return;
+      for (const value of Object.values(obj as Record<string, unknown>)) {
+        if (typeof value === 'string') {
+          checkValue(value);
+        } else if (Array.isArray(value)) {
+          value.forEach(item => {
+            if (typeof item === 'object') checkObject(item);
+            else checkValue(item);
+          });
+        } else if (typeof value === 'object') {
+          checkObject(value);
+        }
+      }
+    };
+    
+    checkObject(displayResult);
+    
+    return { missing, ambiguous, total: missing + ambiguous };
+  }, [displayResult]);
+
   const hasData = Boolean(
     serviceUserData.carePlan ||
     serviceUserData.socialWork ||
@@ -494,24 +543,31 @@ export default function PlanEnhancer() {
         const { done, value } = await reader.read();
         if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        
         const messages = buffer.split("\n\n");
         buffer = messages.pop() || "";
 
         for (const message of messages) {
-          if (!message.trim()) continue;
+          if (!message.trim() || message.startsWith(":")) continue;
           const lines = message.split("\n");
           let eventType = "";
           let dataStr = "";
           for (const line of lines) {
-            if (line.startsWith("event: ")) eventType = line.substring(7).trim();
-            else if (line.startsWith("data: ")) dataStr = line.substring(6);
+            if (line.startsWith("event:")) {
+              eventType = line.substring(6).trim();
+            } else if (line.startsWith("data:")) {
+              dataStr = line.substring(5).trim();
+            }
           }
           if (eventType && dataStr) {
-            const data = JSON.parse(dataStr);
-            if (eventType === "progress") {
-              throttledSetProgress(data.percent, data.status);
-            } else if (eventType === "result") {
+            try {
+              const data = JSON.parse(dataStr);
+              if (eventType === "progress") {
+                console.log("[PlanEnhancer] Progress update:", data.percent, data.status);
+                throttledSetProgress(data.percent, data.status);
+              } else if (eventType === "result") {
               // Process vault response for PII restoration
               console.log("[PlanEnhancer] Received result event, data keys:", Object.keys(data));
               const { scrubbed, raw } = processVaultResponse<CarePlanTemplate>(
@@ -534,27 +590,34 @@ export default function PlanEnhancer() {
       }
 
       // Process any remaining data in buffer after stream ends
-      if (buffer.trim()) {
+      if (buffer.trim() && !buffer.startsWith(":")) {
         console.log("[PlanEnhancer] Processing remaining buffer after stream end");
         const lines = buffer.split("\n");
         let eventType = "";
         let dataStr = "";
         for (const line of lines) {
-          if (line.startsWith("event: ")) eventType = line.substring(7).trim();
-          else if (line.startsWith("data: ")) dataStr = line.substring(6);
+          if (line.startsWith("event:")) {
+            eventType = line.substring(6).trim();
+          } else if (line.startsWith("data:")) {
+            dataStr = line.substring(5).trim();
+          }
         }
         if (eventType && dataStr) {
-          const data = JSON.parse(dataStr);
-          if (eventType === "result") {
-            console.log("[PlanEnhancer] Found result in remaining buffer, data keys:", Object.keys(data));
-            const { scrubbed, raw } = processVaultResponse<CarePlanTemplate>(
-              data,
-              isAdmin && allowSensitive
-            );
-            resultScrubbed = scrubbed;
-            resultRaw = raw || scrubbed;
-          } else if (eventType === "error") {
-            throw new Error(data.message);
+          try {
+            const data = JSON.parse(dataStr);
+            if (eventType === "result") {
+              console.log("[PlanEnhancer] Found result in remaining buffer, data keys:", Object.keys(data));
+              const { scrubbed, raw } = processVaultResponse<CarePlanTemplate>(
+                data,
+                isAdmin && allowSensitive
+              );
+              resultScrubbed = scrubbed;
+              resultRaw = raw || scrubbed;
+            } else if (eventType === "error") {
+              throw new Error(data.message);
+            }
+          } catch (parseErr) {
+            console.error("[PlanEnhancer] Buffer parse error:", parseErr);
           }
         }
       }
@@ -1108,9 +1171,38 @@ export default function PlanEnhancer() {
         payload,
       }, "*");
 
+      // Count fields that will need verification
+      const countMissingFields = (obj: any): number => {
+        if (!obj) return 0;
+        let count = 0;
+        for (const value of Object.values(obj)) {
+          if (typeof value === 'string') {
+            const lower = value.toLowerCase().trim();
+            if (lower.includes('information is not provided') ||
+                lower.includes('information not provided') ||
+                lower.includes('not provided') ||
+                lower === 'n/a' || lower === 'na' ||
+                lower === 'unknown' || lower === '') {
+              count++;
+            }
+            // Check for ambiguous yes/no
+            if (lower.includes('yes') && lower.includes('no')) {
+              count++;
+            }
+          } else if (typeof value === 'object' && value !== null) {
+            count += countMissingFields(value);
+          }
+        }
+        return count;
+      };
+
+      const pendingFields = countMissingFields(payload.initialAssessmentData);
+      
       toast({
         title: "Sent to Extension",
-        description: "Plan data is ready. Open the extension on the Initial Assessment form to autofill.",
+        description: pendingFields > 0 
+          ? `Plan data ready. ${pendingFields} field(s) will need verification.`
+          : "Plan data is ready. Open the extension on the form to autofill.",
       });
     } catch (error) {
       toast({
@@ -1488,13 +1580,35 @@ export default function PlanEnhancer() {
               <Button
                 variant="secondary"
                 size="sm"
-                className="gap-2"
+                className="gap-2 relative"
                 onClick={sendToInitialAssessment}
                 disabled={!displayResult}
                 data-testid="button-send-to-initial-assessment"
               >
                 <Send size={14} />
                 Send to IA Form
+                {verificationStats.total > 0 && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge 
+                          variant="secondary" 
+                          className="absolute -top-2 -right-2 h-5 min-w-5 p-0 flex items-center justify-center text-[10px] bg-amber-500 text-white border-0"
+                        >
+                          {verificationStats.total}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        <p className="font-medium">{verificationStats.total} field(s) will need verification:</p>
+                        <ul className="text-xs mt-1">
+                          {verificationStats.missing > 0 && <li>• {verificationStats.missing} with "Information not provided"</li>}
+                          {verificationStats.ambiguous > 0 && <li>• {verificationStats.ambiguous} with ambiguous yes/no answers</li>}
+                        </ul>
+                        <p className="text-xs mt-1 text-muted-foreground">These will be highlighted yellow on the form.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
               </Button>
               <Tabs value={viewMode} onValueChange={(v: string) => setViewMode(v as "enhanced" | "comparison")} className="bg-muted/20 p-1 rounded-xl border border-border/40">
                 <TabsList className="bg-transparent border-0 h-9 p-0">

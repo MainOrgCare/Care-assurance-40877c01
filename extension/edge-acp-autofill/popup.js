@@ -487,21 +487,62 @@ proceedWithSelection?.addEventListener("click", async () => {
 // AUTOFILL TAB
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Verification navigation state
+let currentVerificationIndex = -1;
+
 async function refreshPayloadStatus() {
   const data = await loadStorage([
     STORAGE_KEYS.payload, STORAGE_KEYS.caseInfo, STORAGE_KEYS.autoSubmit,
-    STORAGE_KEYS.dryRun, STORAGE_KEYS.interactionMode, STORAGE_KEYS.logs
+    STORAGE_KEYS.dryRun, STORAGE_KEYS.interactionMode, STORAGE_KEYS.logs,
+    STORAGE_KEYS.verificationFields
   ]);
   
   const payload = data.caAcpPayload;
+  const verificationFields = data.caAcpVerificationFields || [];
   
   if (payloadStatus) {
+    let statusHTML = '';
     if (payload?.formType === "initialAssessment") {
-      payloadStatus.innerHTML = '<span style="color: var(--color-success);">✓ Care Plan ready for Initial Assessment</span>';
+      statusHTML = '<span style="color: var(--color-success);">✓ Care Plan ready for Initial Assessment</span>';
     } else if (payload?.formType === "acp" && payload?.assessments?.length) {
-      payloadStatus.innerHTML = `<span style="color: var(--color-success);">✓ ${payload.assessments.length} assessment(s) ready</span>`;
+      statusHTML = `<span style="color: var(--color-success);">✓ ${payload.assessments.length} assessment(s) ready</span>`;
     } else {
-      payloadStatus.innerHTML = '<span>No data loaded</span>';
+      statusHTML = '<span>No data loaded</span>';
+    }
+    
+    // Add verification status if there are fields to verify
+    if (verificationFields.length > 0) {
+      const missingCount = verificationFields.filter(f => f.reason === 'missing').length;
+      const ambiguousCount = verificationFields.filter(f => f.reason === 'ambiguous').length;
+      statusHTML += `
+        <div style="margin-top: 8px; padding: 8px; background: #fff3cd; border-radius: 4px; border: 1px solid #ffc107;">
+          <div style="font-size: 11px; color: #856404; margin-bottom: 6px;">
+            <strong>⚠️ ${verificationFields.length} field(s) need verification</strong>
+          </div>
+          <div style="font-size: 10px; color: #856404; margin-bottom: 8px;">
+            ${missingCount > 0 ? `${missingCount} missing info` : ''}
+            ${missingCount > 0 && ambiguousCount > 0 ? ' • ' : ''}
+            ${ambiguousCount > 0 ? `${ambiguousCount} ambiguous` : ''}
+          </div>
+          <div style="display: flex; gap: 4px;">
+            <button id="nav-prev-field" class="btn btn-small" style="flex: 1; font-size: 10px; padding: 4px 8px;">← Prev</button>
+            <button id="nav-next-field" class="btn btn-small btn-primary" style="flex: 1; font-size: 10px; padding: 4px 8px;">Next →</button>
+          </div>
+        </div>
+      `;
+    }
+    
+    payloadStatus.innerHTML = statusHTML;
+    
+    // Add event listeners for verification navigation
+    const prevBtn = document.getElementById('nav-prev-field');
+    const nextBtn = document.getElementById('nav-next-field');
+    
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => navigateToVerificationField(-1));
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => navigateToVerificationField(1));
     }
   }
   
@@ -516,6 +557,36 @@ async function refreshPayloadStatus() {
   
   if (logList && data.caAcpLogs) {
     logList.textContent = data.caAcpLogs.join("\n");
+  }
+}
+
+/**
+ * Navigate to verification field on the page
+ */
+async function navigateToVerificationField(direction) {
+  try {
+    // Get current tab
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) return;
+    
+    // Update index based on direction
+    currentVerificationIndex += direction;
+    if (currentVerificationIndex < 0) currentVerificationIndex = 0;
+    
+    // Send message to content script
+    chrome.tabs.sendMessage(tab.id, {
+      type: 'CA_EXTENSION_SCROLL_TO_NEXT',
+      payload: { index: currentVerificationIndex }
+    }, (response) => {
+      if (response?.found) {
+        currentVerificationIndex = response.index;
+        showSuccess(`Field ${response.index + 1} of ${response.total}`);
+      } else if (response?.total === 0) {
+        showSuccess("No verification fields on this page");
+      }
+    });
+  } catch (e) {
+    console.error("Navigation error:", e);
   }
 }
 

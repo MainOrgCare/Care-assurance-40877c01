@@ -12731,6 +12731,30 @@ FORMATTING RULES:
 ${privacyRules}
 - Keep place names as written
 
+CARE WORKER SCOPE OF PRACTICE - CRITICAL:
+Care workers are NON-CLINICAL support staff. They CANNOT perform clinical assessments.
+
+🔴 NEVER ASK CARE WORKERS TO:
+- Check breathing, respiration, pulse, heart rate, or blood pressure
+- Take or record vital signs (temperature, SpO2, oxygen saturation)
+- Assess wounds, pressure areas, or skin integrity clinically
+- Apply sterile dressings or clinical wound care
+- Catheter care, stoma care, PEG feeding, insulin injections
+- Make clinical judgments or diagnose conditions
+- Manage oxygen equipment or suction airways
+
+🟢 CARE WORKERS CAN:
+- Observe and report changes (not assess)
+- Assist with personal care, mobility, meals, medication prompting
+- Call for help when concerned
+
+⚠️ REWORD CLINICAL OBSERVATIONS AS ESCALATION:
+WRONG: "check my breathing" or "monitor respiration"
+RIGHT: "If I appear unusually breathless or struggling to breathe, call 999 immediately"
+
+WRONG: "observe wound healing"
+RIGHT: "District Nurse manages my dressing. Report any redness, leaking, or odour to District Nurse"
+
 EXAMPLE QUALITY (Morning call - 250 words):
 "I like to wake up naturally around 8am - please knock gently and wait for my response before entering. I need support to sit up in bed using the bed rail on my right side. My morning routine starts with toileting - I can walk to the bathroom with my walking frame but need supervision for safety as I had a fall last year. I prefer a wash at the sink rather than a shower on morning calls. Please help me wash my upper body and back as I struggle to reach. I like the water warm but not too hot. After washing I need help drying thoroughly, especially between my toes as I have diabetes and poor circulation. For dressing I prefer comfortable loose clothing - my clothes are laid out in the wardrobe. I can manage my upper body but need full assistance with lower body dressing due to my hip arthritis. Please help me put on my compression stockings - left leg first as this is weaker. I take 3 medications at breakfast time which are in the dosette box in the kitchen. I need prompting but can take them myself with a glass of water. For breakfast I like porridge made with semi-skimmed milk and a mug of tea with one sugar. Please ensure I eat and drink as I sometimes forget. Before leaving please check I have my call pendant on and my mobile phone is within reach."
 
@@ -13135,15 +13159,58 @@ ${privacyDirective}
 Keep place names, locations, and healthcare facility names as written. Do not redact places.
 
 ════════════════════════════════════════════════════════════════════════════════
-⚖️ CARE WORKER SCOPE OF PRACTICE - CRITICAL
+⚖️ CARE WORKER SCOPE OF PRACTICE - ABSOLUTELY CRITICAL
 ════════════════════════════════════════════════════════════════════════════════
 
-This care plan must be actionable by care workers within their scope of practice:
-- Care workers CAN: Personal care, medication prompting/administration (if MAR trained), mobility assistance, meal preparation, emotional support, observations, basic health monitoring
-- Care workers CANNOT: Diagnose conditions, adjust medication, provide nursing care (wound dressings requiring sterile technique, catheter care, insulin adjustments), physiotherapy, make clinical decisions
-- For anything outside scope: Document what to observe, who to escalate to, and contact numbers
+This care plan MUST be actionable by CARE WORKERS (not nurses, not clinical staff).
+Care workers are NON-CLINICAL support staff. They are NOT medically trained.
 
-Always include: "If concerned about [X], contact [GP/District Nurse/999] immediately"
+🟢 CARE WORKERS CAN DO:
+- Personal care: washing, bathing, dressing, toileting, continence pad changes
+- Medication prompting or administration from pre-dispensed dosette boxes (if MAR trained)
+- Mobility assistance: helping transfers, walking with aids, positioning
+- Meal preparation and assistance with eating/drinking
+- Emotional support, companionship, conversation
+- Light housework, laundry, shopping
+- OBSERVE and REPORT changes (NOT assess or diagnose)
+- Document observations in care notes
+- Escort to appointments
+
+🔴 CARE WORKERS CANNOT DO (NEVER INCLUDE THESE AS CARE WORKER TASKS):
+- Check breathing, respiration rate, or lung function
+- Check pulse, heart rate, or blood pressure
+- Take or record vital signs (temperature, SpO2, pulse, BP)
+- Assess wounds, pressure sores, or skin integrity clinically
+- Apply sterile dressings or wound care requiring clinical technique
+- Catheter care, stoma care, or PEG feeding
+- Insulin injections or blood glucose monitoring
+- Change medication doses or make medication decisions
+- Diagnose conditions or symptoms
+- Provide physiotherapy or occupational therapy exercises (unless specifically trained and delegated)
+- Make clinical judgments about deterioration
+- Suction airways or manage oxygen equipment
+- Administer controlled drugs
+
+⚠️ CRITICAL REWORDING RULES:
+WRONG: "Care workers should check my breathing regularly"
+RIGHT: "If I appear to be struggling to breathe, wheezing, or unusually breathless, carers should call 999 immediately"
+
+WRONG: "Staff should monitor my blood pressure"
+RIGHT: "District Nurse visits weekly to check my blood pressure. If I feel dizzy or faint, carers should help me sit down and contact the GP surgery"
+
+WRONG: "Care workers should assess my wound"
+RIGHT: "District Nurse manages my leg dressing on Tuesdays and Fridays. Carers should OBSERVE and REPORT any redness, leaking, odour or pain to the District Nurse immediately"
+
+WRONG: "Check pulse and respiration"
+RIGHT: "If I become unresponsive, very pale, or am struggling to breathe, call 999 immediately"
+
+🔄 FOR CLINICAL NEEDS - STATE THE ESCALATION:
+- Who is responsible (District Nurse, GP, Specialist)
+- When they visit or how to contact them
+- What carers should OBSERVE and REPORT
+- When to call 999
+
+Always include: "If concerned about [specific sign], contact [GP/District Nurse/999] immediately"
 
 ════════════════════════════════════════════════════════════════════════════════
 ✍️ WRITING QUALITY STANDARDS - NON-NEGOTIABLE REQUIREMENTS
@@ -13156,6 +13223,27 @@ Always include: "If concerned about [X], contact [GP/District Nurse/999] immedia
 - Write in clear, flowing sentences that read naturally
 - Use specific details: equipment names, times, quantities, preferences
 - NO PLACEHOLDERS MID-SENTENCE. Never write "I need [needs user input]" or "My condition [to be confirmed]"
+
+STYLE GUIDANCE - MATCH THE PROVIDED CASE-2 EXAMPLES:
+- Sound human, warm and practical. Write as if the assessor captured my voice naturally.
+- Use plain English with gentle, respectful phrasing. Avoid clinical or robotic wording.
+- Prefer short to medium sentences. Do not use bullet lists in narrative fields.
+- Keep the tone consistent with real assessments: factual, supportive and grounded.
+- If a field is routine or independent, state it clearly and naturally ("I manage this myself").
+- For risks, use "observe and report" language and clear escalation to GP/office/999.
+- Do not invent details beyond the documents. If missing, state what is needed.
+
+CONSISTENT PHRASING PATTERNS (USE THESE WHEN FITTING THE CONTEXT):
+- Independence: "I am fully independent with ... and do not require assistance at this time."
+- Support needed: "I require support with ... to help me remain safe and comfortable."
+- Preferences: "I prefer ..." / "I like ..." / "It helps me if ..."
+- Escalation: "If there are any concerns about ..., carers should report this to the office and seek advice from my GP."
+- Changes: "If this changes, I will inform the office so my care plan can be updated."
+
+DON'TS (MATCH THE EXAMPLES):
+- Do not use clinical commands like "monitor respiration" or "check vital signs".
+- Do not use medical jargon where plain English is available.
+- Do not over-formalize. Avoid legalistic phrasing unless it is already in the documents.
 
 📏 WORD COUNT REQUIREMENTS - SUBSTANTIALLY INCREASED MINIMUMS:
 - **thisIsMe.whoAmI**: MINIMUM 600 words (full life story - see format below)

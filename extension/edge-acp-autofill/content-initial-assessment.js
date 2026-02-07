@@ -296,7 +296,94 @@ const INITIAL_ASSESSMENT_FORM_ID = "1040788";
 let DRY_RUN = false;
 let INTERACTION_MODE = "auto";
 
+// Track fields that need human verification
+const NEEDS_VERIFICATION = [];
+
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Check if a value indicates missing or ambiguous information
+ * Returns: 'missing' | 'ambiguous' | 'valid'
+ */
+const checkValueStatus = (value) => {
+  if (!value) return 'missing';
+  const normalized = String(value).toLowerCase().trim();
+  
+  // Check for "information not provided" variations
+  if (normalized.includes('information is not provided') ||
+      normalized.includes('information not provided') ||
+      normalized.includes('not provided') ||
+      normalized.includes('no information') ||
+      normalized === 'n/a' ||
+      normalized === 'na' ||
+      normalized === 'unknown') {
+    return 'missing';
+  }
+  
+  // Check for ambiguous yes/no (both selected or unclear)
+  if (normalized.includes('yes') && normalized.includes('no')) {
+    return 'ambiguous';
+  }
+  if (normalized === 'both' || normalized === 'unclear' || normalized === 'unsure') {
+    return 'ambiguous';
+  }
+  
+  return 'valid';
+};
+
+/**
+ * Highlight a field that needs human verification
+ */
+const highlightField = (field, reason) => {
+  if (!field) return;
+  
+  // Apply yellow highlight with border
+  field.style.backgroundColor = '#fff3cd';
+  field.style.border = '2px solid #ffc107';
+  field.style.boxShadow = '0 0 5px rgba(255, 193, 7, 0.5)';
+  
+  // Add title tooltip explaining why
+  const tooltipText = reason === 'missing' 
+    ? 'Information not provided - requires verification' 
+    : 'Ambiguous answer - requires verification';
+  field.title = tooltipText;
+  
+  // Try to find parent container and highlight that too for visibility
+  const container = field.closest('.form-group') || field.closest('td') || field.parentElement;
+  if (container && container !== field) {
+    container.style.backgroundColor = '#fff3cd';
+  }
+  
+  logAction(`Highlighted field for ${reason}: ${field.name || field.id}`);
+};
+
+/**
+ * Highlight radio button group
+ */
+const highlightRadioGroup = (fieldName, reason) => {
+  const radios = document.querySelectorAll(`[name="${fieldName}"]`);
+  radios.forEach(radio => {
+    const label = radio.closest('label') || radio.parentElement;
+    if (label) {
+      label.style.backgroundColor = '#fff3cd';
+      label.style.border = '2px solid #ffc107';
+      label.style.padding = '2px 4px';
+      label.style.borderRadius = '4px';
+    }
+  });
+  
+  // Also try to highlight the container
+  if (radios.length > 0) {
+    const container = radios[0].closest('.form-group') || radios[0].closest('td');
+    if (container) {
+      container.style.backgroundColor = '#fff3cd';
+      container.title = reason === 'missing' 
+        ? 'Information not provided - requires verification' 
+        : 'Ambiguous answer (both yes/no indicated) - requires verification';
+    }
+  }
+  logAction(`Highlighted radio group for ${reason}: ${fieldName}`);
+};
 
 const logAction = (message) => {
   const timestamp = new Date().toLocaleTimeString();
@@ -316,9 +403,11 @@ const loadStorage = (keys) =>
 
 /**
  * Set value for a text input or textarea
+ * Also highlights field if value indicates missing information
  */
 const setTextValue = async (fieldName, value) => {
   if (!value && value !== 0) return false;
+  
   const field = document.querySelector(`[name="${fieldName}"]`) ||
                 document.querySelector(`#${fieldName}`) ||
                 document.querySelector(`#textarea_${fieldName}`);
@@ -326,11 +415,28 @@ const setTextValue = async (fieldName, value) => {
     logAction(`Field not found: ${fieldName}`);
     return false;
   }
+  
+  // Check if value indicates missing information
+  const valueStatus = checkValueStatus(value);
+  
   if (DRY_RUN) {
     field.style.outline = "2px solid #1ea97a";
     logAction(`Dry run: would set ${fieldName}`);
     return true;
   }
+  
+  // If information is not provided, highlight and leave empty or set with highlight
+  if (valueStatus === 'missing') {
+    highlightField(field, 'missing');
+    // Still set the value so user can see what was provided, but highlighted
+    field.value = String(value);
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    field.dispatchEvent(new Event("blur", { bubbles: true }));
+    NEEDS_VERIFICATION.push({ field: fieldName, reason: 'missing' });
+    return true;
+  }
+  
   field.value = String(value);
   field.dispatchEvent(new Event("input", { bubbles: true }));
   field.dispatchEvent(new Event("change", { bubbles: true }));
@@ -414,20 +520,45 @@ const setMultiSelectValue = async (fieldName, values) => {
 
 /**
  * Set value for radio buttons
+ * For yes/no fields: if ambiguous (both yes and no indicated), leave blank for human verification
+ * If information is not provided, highlight the field
  */
 const setRadioValue = async (fieldName, value) => {
   if (!value) return false;
-  const targetValue = String(value).trim().toLowerCase();
+  
   const radios = document.querySelectorAll(`[name="${fieldName}"]`);
   if (radios.length === 0) {
     logAction(`Radio field not found: ${fieldName}`);
     return false;
   }
+  
+  // Check if this is a yes/no field and if value is ambiguous or missing
+  const valueStatus = checkValueStatus(value);
+  
   if (DRY_RUN) {
     radios[0].style.outline = "2px solid #1ea97a";
     logAction(`Dry run: would check radio ${value} for ${fieldName}`);
     return true;
   }
+  
+  // If value is ambiguous (contains both yes and no), leave blank for human verification
+  if (valueStatus === 'ambiguous') {
+    highlightRadioGroup(fieldName, 'ambiguous');
+    NEEDS_VERIFICATION.push({ field: fieldName, reason: 'ambiguous', value: value });
+    logAction(`Skipping ambiguous yes/no for ${fieldName}: "${value}" - left for human verification`);
+    return false; // Don't select anything
+  }
+  
+  // If information not provided, highlight but don't select
+  if (valueStatus === 'missing') {
+    highlightRadioGroup(fieldName, 'missing');
+    NEEDS_VERIFICATION.push({ field: fieldName, reason: 'missing', value: value });
+    logAction(`Skipping missing info for ${fieldName}: "${value}" - highlighted for verification`);
+    return false; // Don't select anything
+  }
+  
+  // Value is valid, proceed with selection
+  const targetValue = String(value).trim().toLowerCase();
   
   for (const radio of radios) {
     const radioValue = (radio.value || "").trim().toLowerCase();
@@ -771,6 +902,9 @@ const mapPlanEnhancerToFormData = (planData) => {
 const fillInitialAssessment = async (data, metadata = {}) => {
   logAction("Starting Initial Assessment autofill...");
   
+  // Reset verification tracking for new fill
+  NEEDS_VERIFICATION.length = 0;
+  
   // Basic Info Section
   if (data.title) await setSelectValue(IA_FIELD_MAPPINGS.basicInfo.title, data.title);
   if (data.serviceUserName) await setTextValue(IA_FIELD_MAPPINGS.basicInfo.serviceUserName, data.serviceUserName);
@@ -939,8 +1073,216 @@ const fillInitialAssessment = async (data, metadata = {}) => {
     await setTextValue(IA_FIELD_MAPPINGS.completion.nameOfAssessor, data.nameOfAssessor || metadata.assessor);
   }
   
+  // Log summary of fields needing verification
+  if (NEEDS_VERIFICATION.length > 0) {
+    const missingCount = NEEDS_VERIFICATION.filter(f => f.reason === 'missing').length;
+    const ambiguousCount = NEEDS_VERIFICATION.filter(f => f.reason === 'ambiguous').length;
+    logAction(`⚠️ ${NEEDS_VERIFICATION.length} fields need human verification:`);
+    if (missingCount > 0) logAction(`  - ${missingCount} fields have 'Information not provided'`);
+    if (ambiguousCount > 0) logAction(`  - ${ambiguousCount} yes/no fields have ambiguous answers`);
+    logAction("Look for YELLOW highlighted fields on the form.");
+    
+    // Save verification fields to storage for popup access
+    try {
+      chrome.storage.local.set({
+        [STORAGE_KEYS.verificationFields || 'caAcpVerificationFields']: NEEDS_VERIFICATION
+      });
+    } catch (e) {
+      console.warn('Failed to save verification fields to storage:', e);
+    }
+    
+    // Show a summary notification on the page
+    showVerificationSummary(NEEDS_VERIFICATION);
+  } else {
+    // Clear verification fields from storage if none needed
+    try {
+      chrome.storage.local.set({
+        [STORAGE_KEYS.verificationFields || 'caAcpVerificationFields']: []
+      });
+    } catch (e) {
+      // Ignore
+    }
+  }
+  
   logAction("Initial Assessment autofill complete!");
   return true;
+};
+
+/**
+ * Show a floating notification about fields needing verification with navigation
+ */
+const showVerificationSummary = (fields) => {
+  const existing = document.getElementById('ca-verification-summary');
+  if (existing) existing.remove();
+  
+  // Inject animation styles for pulse effect
+  if (!document.getElementById('ca-verification-styles')) {
+    const style = document.createElement('style');
+    style.id = 'ca-verification-styles';
+    style.textContent = `
+      @keyframes ca-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.02); box-shadow: 0 0 15px rgba(255, 193, 7, 0.8); }
+      }
+      [data-ca-verification] {
+        transition: all 0.2s ease;
+      }
+      [data-ca-verification]:focus {
+        box-shadow: 0 0 10px rgba(255, 193, 7, 0.8) !important;
+      }
+      .ca-nav-btn {
+        padding: 6px 12px;
+        border: 1px solid #ffc107;
+        border-radius: 4px;
+        background: #fff;
+        color: #856404;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        transition: all 0.2s;
+      }
+      .ca-nav-btn:hover {
+        background: #ffc107;
+        color: #000;
+      }
+      .ca-nav-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  const missingCount = fields.filter(f => f.reason === 'missing').length;
+  const ambiguousCount = fields.filter(f => f.reason === 'ambiguous').length;
+  
+  // Track current navigation index
+  let currentIndex = -1;
+  
+  const summary = document.createElement('div');
+  summary.id = 'ca-verification-summary';
+  summary.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #fff3cd;
+    border: 2px solid #ffc107;
+    border-radius: 8px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 10000;
+    font-family: Arial, sans-serif;
+    max-width: 380px;
+    min-width: 300px;
+  `;
+  
+  summary.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+      <strong style="color: #856404; font-size: 14px;">⚠️ Verification Required</strong>
+      <div>
+        <button id="ca-minimize-summary" style="background: none; border: none; cursor: pointer; font-size: 14px; color: #856404; margin-right: 8px;" title="Minimize">_</button>
+        <button id="ca-close-summary" style="background: none; border: none; cursor: pointer; font-size: 18px; color: #856404;" title="Close">×</button>
+      </div>
+    </div>
+    <div id="ca-summary-content" style="color: #856404; font-size: 13px; line-height: 1.5;">
+      <p style="margin: 0 0 8px 0;">${fields.length} field(s) need manual review:</p>
+      <ul style="margin: 0; padding-left: 18px; margin-bottom: 12px;">
+        ${missingCount > 0 ? `<li>${missingCount} with "Information not provided"</li>` : ''}
+        ${ambiguousCount > 0 ? `<li>${ambiguousCount} yes/no fields with ambiguous answers</li>` : ''}
+      </ul>
+      
+      <div style="display: flex; gap: 8px; justify-content: center; align-items: center; margin: 12px 0;">
+        <button id="ca-nav-prev" class="ca-nav-btn" title="Previous field (Ctrl+Shift+P)">← Prev</button>
+        <span id="ca-nav-counter" style="font-size: 12px; min-width: 60px; text-align: center;">- / ${fields.length}</span>
+        <button id="ca-nav-next" class="ca-nav-btn" title="Next field (Ctrl+Shift+N)">Next →</button>
+      </div>
+      
+      <p id="ca-current-field" style="margin: 8px 0 0 0; font-size: 11px; text-align: center; font-style: italic;">Click Next to start navigating</p>
+      
+      <p style="margin: 10px 0 0 0; font-size: 11px; text-align: center; color: #665200;">
+        Shortcuts: <kbd style="background: #fff; padding: 1px 4px; border-radius: 3px; border: 1px solid #ccc;">Ctrl+Shift+N</kbd> Next &nbsp;
+        <kbd style="background: #fff; padding: 1px 4px; border-radius: 3px; border: 1px solid #ccc;">Ctrl+Shift+P</kbd> Prev
+      </p>
+    </div>
+  `;
+  
+  document.body.appendChild(summary);
+  
+  const counterEl = document.getElementById('ca-nav-counter');
+  const currentFieldEl = document.getElementById('ca-current-field');
+  const contentEl = document.getElementById('ca-summary-content');
+  
+  const updateCounter = () => {
+    counterEl.textContent = `${currentIndex + 1} / ${fields.length}`;
+    const field = fields[currentIndex];
+    if (field) {
+      currentFieldEl.textContent = field.reason === 'missing' 
+        ? `Missing info: ${field.field}`
+        : `Ambiguous: ${field.field}`;
+    }
+  };
+  
+  const navigateToField = (index) => {
+    const verificationFields = document.querySelectorAll('[data-ca-verification]');
+    if (verificationFields.length === 0) return;
+    
+    currentIndex = ((index % verificationFields.length) + verificationFields.length) % verificationFields.length;
+    const field = verificationFields[currentIndex];
+    
+    if (field) {
+      field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      field.style.animation = 'none';
+      field.offsetHeight; // Trigger reflow
+      field.style.animation = 'ca-pulse 0.5s ease-in-out 2';
+      field.focus();
+      
+      // Try to focus the actual input if this is a container
+      const input = field.querySelector('input, select, textarea') || field;
+      if (input && typeof input.focus === 'function') {
+        setTimeout(() => input.focus(), 100);
+      }
+    }
+    
+    updateCounter();
+  };
+  
+  document.getElementById('ca-nav-next').addEventListener('click', () => navigateToField(currentIndex + 1));
+  document.getElementById('ca-nav-prev').addEventListener('click', () => navigateToField(currentIndex - 1));
+  
+  document.getElementById('ca-close-summary').addEventListener('click', () => {
+    summary.remove();
+  });
+  
+  document.getElementById('ca-minimize-summary').addEventListener('click', () => {
+    const isMinimized = contentEl.style.display === 'none';
+    contentEl.style.display = isMinimized ? 'block' : 'none';
+    summary.style.minWidth = isMinimized ? '300px' : '150px';
+  });
+  
+  // Keyboard shortcuts
+  const keyHandler = (e) => {
+    if (e.ctrlKey && e.shiftKey && e.key === 'N') {
+      e.preventDefault();
+      navigateToField(currentIndex + 1);
+    } else if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+      e.preventDefault();
+      navigateToField(currentIndex - 1);
+    }
+  };
+  
+  document.addEventListener('keydown', keyHandler);
+  
+  // Clean up event listener when summary is closed
+  const observer = new MutationObserver(() => {
+    if (!document.getElementById('ca-verification-summary')) {
+      document.removeEventListener('keydown', keyHandler);
+      observer.disconnect();
+    }
+  });
+  observer.observe(document.body, { childList: true });
+  
+  // Don't auto-close - let user close manually
+  logAction(`Verification panel ready. ${fields.length} fields to review.`);
 };
 
 /**
@@ -993,6 +1335,54 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   
   if (message?.type === "CA_CHECK_INITIAL_ASSESSMENT_PAGE") {
     sendResponse({ isInitialAssessmentPage: isInitialAssessmentPage() });
+    return true;
+  }
+  
+  // Handle scroll-to-next verification field from popup
+  if (message?.type === "CA_EXTENSION_SCROLL_TO_NEXT") {
+    const requestedIndex = message.payload?.index ?? 0;
+    const verificationFields = document.querySelectorAll('[data-ca-verification]');
+    
+    if (verificationFields.length === 0) {
+      sendResponse({ found: false, total: 0 });
+      return true;
+    }
+    
+    // Clamp index to valid range
+    const index = Math.max(0, Math.min(requestedIndex, verificationFields.length - 1));
+    const field = verificationFields[index];
+    
+    if (field) {
+      field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      field.style.animation = 'none';
+      field.offsetHeight; // Trigger reflow
+      field.style.animation = 'ca-pulse 0.5s ease-in-out 2';
+      
+      // Try to focus
+      const focusable = field.querySelector('input, select, textarea') || field;
+      if (focusable && typeof focusable.focus === 'function') {
+        setTimeout(() => focusable.focus(), 100);
+      }
+    }
+    
+    sendResponse({
+      found: true,
+      index: index,
+      total: verificationFields.length,
+      fieldName: field?.dataset?.caVerification || ''
+    });
+    return true;
+  }
+  
+  // Handle get verification status
+  if (message?.type === "CA_EXTENSION_GET_VERIFICATION_STATUS") {
+    const fields = document.querySelectorAll('[data-ca-verification]');
+    const status = {
+      total: fields.length,
+      missing: Array.from(fields).filter(f => f.dataset.caVerification === 'missing').length,
+      ambiguous: Array.from(fields).filter(f => f.dataset.caVerification === 'ambiguous').length
+    };
+    sendResponse(status);
     return true;
   }
   
