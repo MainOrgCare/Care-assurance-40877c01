@@ -183,7 +183,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       status,
       alert
     };
-    setAuditLogs(prev => [newLog, ...prev]);
+    const enqueueLogUpdate = () => setAuditLogs(prev => [newLog, ...prev]);
+    if (typeof queueMicrotask === "function") {
+      queueMicrotask(enqueueLogUpdate);
+    } else {
+      Promise.resolve().then(enqueueLogUpdate);
+    }
     fetch("/api/system-logs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

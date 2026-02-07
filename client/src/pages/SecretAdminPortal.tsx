@@ -3425,6 +3425,7 @@ export default function SecretAdminPortal() {
                           placeholder="Enter password" 
                           value={newUserPassword}
                           onChange={(e) => setNewUserPassword(e.target.value)}
+                          autoComplete="new-password"
                           className="bg-card border-border text-foreground" 
                           data-testid="input-new-password"
                         />
@@ -3886,51 +3887,61 @@ export default function SecretAdminPortal() {
               Set a new password for {resetPasswordUser?.username || "this user"}.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label className="text-muted-foreground">New Password</Label>
-              <Input
-                value={resetPasswordValue}
-                onChange={(e) => setResetPasswordValue(e.target.value)}
-                type="password"
-                placeholder="Enter new password"
-                className="bg-muted border-border text-foreground"
-                data-testid="input-reset-password"
-              />
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleResetPassword();
+            }}
+          >
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">New Password</Label>
+                <Input
+                  value={resetPasswordValue}
+                  onChange={(e) => setResetPasswordValue(e.target.value)}
+                  type="password"
+                  placeholder="Enter new password"
+                  autoComplete="new-password"
+                  className="bg-muted border-border text-foreground"
+                  data-testid="input-reset-password"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Confirm Password</Label>
+                <Input
+                  value={resetPasswordConfirm}
+                  onChange={(e) => setResetPasswordConfirm(e.target.value)}
+                  type="password"
+                  placeholder="Confirm new password"
+                  autoComplete="new-password"
+                  className="bg-muted border-border text-foreground"
+                  data-testid="input-reset-password-confirm"
+                />
+                <p className="text-xs text-muted-foreground">{PASSWORD_RULES_TEXT}</p>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label className="text-muted-foreground">Confirm Password</Label>
-              <Input
-                value={resetPasswordConfirm}
-                onChange={(e) => setResetPasswordConfirm(e.target.value)}
-                type="password"
-                placeholder="Confirm new password"
-                className="bg-muted border-border text-foreground"
-                data-testid="input-reset-password-confirm"
-              />
-              <p className="text-xs text-muted-foreground">{PASSWORD_RULES_TEXT}</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setResetPasswordUser(null);
-                setResetPasswordValue("");
-                setResetPasswordConfirm("");
-              }}
-              className="border-border text-foreground"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleResetPassword}
-              className="bg-amber-600 hover:bg-amber-500 text-white"
-              data-testid="button-confirm-reset-password"
-            >
-              <FileKey size={16} className="mr-2" /> Reset Password
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setResetPasswordUser(null);
+                  setResetPasswordValue("");
+                  setResetPasswordConfirm("");
+                }}
+                className="border-border text-foreground"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-amber-600 hover:bg-amber-500 text-white"
+                data-testid="button-confirm-reset-password"
+              >
+                <FileKey size={16} className="mr-2" /> Reset Password
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

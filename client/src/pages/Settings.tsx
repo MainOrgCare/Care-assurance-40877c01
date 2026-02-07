@@ -219,12 +219,19 @@ export default function Settings() {
               <KeyRound className="h-4 w-4 text-primary" />
               Change Password
             </div>
-            <div className="space-y-3">
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleChangePassword();
+              }}
+            >
               <Input
                 type="password"
                 placeholder="Current password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
                 data-testid="input-current-password"
               />
               <Input
@@ -232,6 +239,7 @@ export default function Settings() {
                 placeholder="New password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
                 data-testid="input-new-password"
               />
               <Input
@@ -239,11 +247,12 @@ export default function Settings() {
                 placeholder="Confirm new password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
                 data-testid="input-confirm-password"
               />
               <p className="text-xs text-muted-foreground">{PASSWORD_RULES_TEXT}</p>
               <Button
-                onClick={handleChangePassword}
+                type="submit"
                 disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
                 className="w-full"
                 data-testid="button-change-password"
@@ -251,7 +260,7 @@ export default function Settings() {
                 {changingPassword ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Change Password
               </Button>
-            </div>
+            </form>
           </section>
 
           <Separator />

@@ -1064,6 +1064,24 @@ export default function RosteringStudioUnified({
 
   // Loading states
   const isLoading = workbooksLoading || workbookLoading;
+  const mainPanelDefaultSize = panelVisibility.workers
+    ? panelVisibility.details
+      ? 63
+      : 88
+    : panelVisibility.details
+      ? 75
+      : 100;
+  const hasAdditionalBottomPanel =
+    panelVisibility.callTimes ||
+    panelVisibility.constraints ||
+    panelVisibility.workload ||
+    panelVisibility.optimization ||
+    panelVisibility.database ||
+    panelVisibility.aiAnalysis ||
+    panelVisibility.comparison ||
+    panelVisibility.costs ||
+    panelVisibility.templates;
+  const mapPanelDefaultSize = hasAdditionalBottomPanel ? 80 : 100;
 
   if (isLoading) {
     return (
@@ -1624,7 +1642,7 @@ export default function RosteringStudioUnified({
             )}
 
             {/* MAIN CONTENT - Resizable Layout */}
-                <ResizablePanel defaultSize={panelVisibility.workers ? 63 : 78} className="min-h-0">
+                <ResizablePanel defaultSize={mainPanelDefaultSize} className="min-h-0">
               <ResizablePanelGroup direction="vertical" className="h-full">
                 {/* Top Row: Timeline */}
                 {panelVisibility.timeline && (
@@ -1785,7 +1803,7 @@ export default function RosteringStudioUnified({
                 <ResizablePanelGroup direction="horizontal" className="h-full">
                   {/* Map Panel */}
                   {panelVisibility.map && (
-                    <ResizablePanel defaultSize={80} minSize={40} className="min-h-0">
+                    <ResizablePanel defaultSize={mapPanelDefaultSize} minSize={40} className="min-h-0">
                     <div className="h-full min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-blue-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <MapIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
