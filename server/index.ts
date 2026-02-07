@@ -159,6 +159,12 @@ const corsOptions: CorsOptions = {
 app.use(cors(corsOptions));
 log(`CORS enabled for origin(s): ${allowedOrigins.join(", ")}`);
 
+// Lightweight health endpoint for infrastructure checks (Render, load balancers, etc.)
+// Keep this outside /api so it bypasses API-specific middleware and auth concerns.
+app.get("/healthz", (_req, res) => {
+  res.status(200).type("text/plain").send("ok");
+});
+
 // Global API rate limiting (100 requests per 15 minutes)
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -167,6 +173,9 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
   message: 'Too many requests from this IP, please try again after 15 minutes',
   skip: (req) => {
+    // Never rate limit health/status probes (Render health checks can be frequent)
+    if (req.path === "/api/contact/status") return true;
+
     // Skip rate limiting in development for easier testing
     return process.env.NODE_ENV !== 'production';
   },
