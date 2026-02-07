@@ -585,6 +585,9 @@ export default function PlanEnhancer() {
             } else if (eventType === "error") {
               throw new Error(data.message);
             }
+            } catch (parseErr) {
+              console.error("[PlanEnhancer] SSE parse error:", parseErr);
+            }
           }
         }
       }
