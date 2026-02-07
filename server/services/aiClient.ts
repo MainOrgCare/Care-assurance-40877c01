@@ -23,10 +23,14 @@ const parseBoolean = (value: string | undefined | null, fallback: boolean): bool
 
 const AI_ENABLED_BY_ENV = parseBoolean(process.env.AI_ENABLED, false);
 const AI_ENV_LOCKED_DISABLED = !AI_ENABLED_BY_ENV;
-export const AI_DISABLED_MESSAGE = "AI features are disabled by policy (AI_ENABLED is not true). Use rule-based workflows or ask an admin to enable AI in deployment settings.";
+export const AI_DISABLED_BY_ENV_MESSAGE = "AI features are disabled by policy (AI_ENABLED is not true). Use rule-based workflows or ask an admin to enable AI in deployment settings.";
+export const AI_DISABLED_BY_ADMIN_MESSAGE = "AI features are disabled in app settings. Ask an admin to enable AI in Secret Admin Portal > AI Optimization.";
+export const getAIDisabledMessage = (): string => (
+  AI_ENV_LOCKED_DISABLED ? AI_DISABLED_BY_ENV_MESSAGE : AI_DISABLED_BY_ADMIN_MESSAGE
+);
 
 const createAIDisabledError = (): Error => {
-  const error = new Error(AI_DISABLED_MESSAGE) as Error & { code?: string };
+  const error = new Error(getAIDisabledMessage()) as Error & { code?: string };
   error.code = "AI_DISABLED";
   return error;
 };

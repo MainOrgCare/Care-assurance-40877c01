@@ -192,19 +192,19 @@ const SidebarContent = memo(function SidebarContent({
 
   const navLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-3 rounded-xl text-sm font-semibold transition-colors duration-150 group cursor-pointer relative overflow-hidden border",
+      "flex items-center gap-3 rounded-xl text-sm font-semibold transition-[background-color,border-color,color,box-shadow] duration-200 group cursor-pointer relative overflow-hidden border",
       isCollapsed ? "px-2 py-2.5 justify-center gap-0" : "px-3.5 py-2.5",
       isActive
-        ? "bg-primary/10 text-primary border-primary/20"
-        : "text-muted-foreground hover:text-foreground hover:bg-muted/60 border-transparent"
+        ? "bg-primary/12 text-primary border-primary/35 shadow-[0_10px_18px_-16px_rgba(37,99,235,0.75)]"
+        : "text-muted-foreground hover:text-foreground hover:bg-background/72 hover:border-border/70 border-transparent"
     ), [isCollapsed]);
 
   const subNavLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200",
+      "flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold transition-[background-color,color,border-color] duration-200 border",
       isActive
-        ? "bg-primary/10 text-primary border-l-2 border-primary"
-        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+        ? "bg-primary/10 text-primary border-primary/35"
+        : "text-muted-foreground border-transparent hover:text-foreground hover:bg-background/70 hover:border-border/65"
     ), []);
 
   const labelClass = cn(
@@ -213,7 +213,7 @@ const SidebarContent = memo(function SidebarContent({
   );
 
   return (
-    <div className="flex flex-col h-full bg-sidebar">
+    <div className="flex h-full flex-col bg-sidebar/92 backdrop-blur-xl">
       {/* Logo Section */}
       <div className={cn("px-6 pt-8 pb-6", isCollapsed && "px-3 pt-6 pb-4")}>
         <Link href="/">
@@ -221,7 +221,7 @@ const SidebarContent = memo(function SidebarContent({
             onClick={handleSecretClick}
             className={cn("flex items-center gap-4 cursor-pointer group", isCollapsed && "justify-center")}
           >
-            <div className="relative h-11 w-11 rounded-2xl flex items-center justify-center shadow-sm bg-primary">
+            <div className="relative h-11 w-11 rounded-2xl flex items-center justify-center bg-[linear-gradient(145deg,hsl(213_84%_43%),hsl(194_85%_36%))] shadow-[0_14px_24px_-16px_rgba(14,116,144,0.82)]">
               <ShieldCheck className="h-6 w-6 text-white" />
             </div>
             {!isCollapsed && (
@@ -237,9 +237,9 @@ const SidebarContent = memo(function SidebarContent({
       </div>
 
       {/* Divider */}
-      <div className={cn("mx-6 h-px bg-border/40", isCollapsed && "mx-3")} />
+      <div className={cn("mx-6 h-px bg-border/65", isCollapsed && "mx-3")} />
 
-      <nav className={cn("flex-1 space-y-1 py-3 overflow-y-auto", isCollapsed ? "px-2" : "px-3")}>
+      <nav className={cn("flex-1 space-y-1 py-3 overflow-y-auto overscroll-contain", isCollapsed ? "px-2" : "px-3")}>
         
         {/* Dashboard */}
         <Link href="/dashboard" className={navLinkClass(location === "/dashboard")} title={isCollapsed ? "Dashboard" : undefined}>
@@ -268,8 +268,8 @@ const SidebarContent = memo(function SidebarContent({
 
         {/* Section Label */}
         {!isCollapsed && (
-          <div className="pt-3 pb-1.5 px-4">
-            <span className="text-[10px] uppercase tracking-[0.2em] font-medium text-muted-foreground">Modules</span>
+          <div className="px-4 pt-3 pb-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/85">Modules</span>
           </div>
         )}
 
@@ -545,12 +545,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(
-    "rounded-2xl border border-border/70 bg-card p-4 sm:p-6 lg:p-7 flex flex-col shadow-[0_10px_28px_-14px_rgba(15,23,42,0.24)] w-full flex-1 min-h-0",
+    "rounded-2xl border border-border/75 bg-card/95 p-4 sm:p-6 lg:p-7 flex flex-col shadow-[0_18px_36px_-24px_rgba(15,23,42,0.4),0_1px_0_rgba(255,255,255,0.75)_inset] w-full flex-1 min-h-0",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
-    "flex-1 flex flex-col w-full relative z-10 scroll-smooth",
-    isSingleScreenRoute ? "overflow-hidden" : "overflow-auto"
+    "flex-1 min-h-0 flex flex-col w-full relative z-10 scroll-smooth",
+    isSingleScreenRoute ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden overscroll-y-contain"
   );
 
   useEffect(() => {
@@ -594,10 +594,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="relative flex h-screen w-full overflow-hidden bg-background">
+    <div className="relative flex h-[100dvh] min-h-screen w-full overflow-hidden bg-background">
+      <div className="pointer-events-none absolute inset-0 -z-[1] overflow-hidden">
+        <div className="absolute -top-44 -left-28 h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.18),rgba(59,130,246,0)_70%)] blur-xl" />
+        <div className="absolute -top-28 -right-20 h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,rgba(6,182,212,0.14),rgba(6,182,212,0)_72%)] blur-xl" />
+      </div>
       {/* Desktop Sidebar */}
       <aside className={cn(
-        "hidden md:flex flex-shrink-0 flex-col z-20 border-r border-border/50 bg-sidebar transition-all duration-300",
+        "hidden md:flex flex-shrink-0 flex-col z-20 border-r border-border/70 bg-sidebar/90 backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.35)_inset] transition-all duration-300",
         isSidebarCollapsed ? "w-[84px]" : "w-[280px]"
       )}>
         <SidebarContent
@@ -612,7 +616,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <main className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="h-14 px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 bg-background/88 backdrop-blur-md border-b border-border/55 shadow-[0_10px_26px_-22px_rgba(15,23,42,0.5)]">
+          <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/70 bg-background/82 px-4 backdrop-blur-xl md:px-6 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.48)]">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -653,7 +657,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 rounded-2xl border border-border/50 bg-card/65 px-2 py-1.5 shadow-[0_8px_22px_-20px_rgba(15,23,42,0.4)]">
+            <div className="flex items-center gap-4 rounded-2xl border border-border/70 bg-card/82 px-2 py-1.5 shadow-[0_14px_28px_-20px_rgba(15,23,42,0.45)]">
               {/* Messages Button */}
               <Link href="/messages">
                 <button
@@ -683,7 +687,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
               
-              <div className="flex items-center gap-3 bg-muted/30 pl-4 pr-1.5 py-1.5 rounded-2xl border border-border/40 hover:border-border/80 transition-all cursor-pointer group">
+              <div className="group flex cursor-pointer items-center gap-3 rounded-2xl border border-border/55 bg-muted/38 py-1.5 pl-4 pr-1.5 transition-all hover:border-primary/30">
                 <div className="text-right hidden sm:block">
                   <p className="text-xs font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
                     {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username}
@@ -785,7 +789,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         {!isSingleScreenRoute && (
-          <footer className="px-4 py-3 border-t border-border/80 bg-background flex-shrink-0">
+          <footer className="flex-shrink-0 border-t border-border/75 bg-background/82 px-4 py-3 backdrop-blur">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-muted-foreground">
               <div className="flex items-center gap-1.5 font-medium">
                 <span>{new Date().getFullYear()} CareAssurance</span>

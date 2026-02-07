@@ -2125,7 +2125,7 @@ export default function RosteringStudio({
   // Access check
   if (user?.role !== "admin") {
     return (
-      <div className="min-h-screen py-24 px-4 lg:px-10 max-w-7xl mx-auto">
+      <div className="min-h-full py-24 px-4 lg:px-10 max-w-7xl mx-auto">
         <Card className="p-8 text-center">
           <CardHeader>
             <CardTitle>Access Restricted</CardTitle>

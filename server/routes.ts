@@ -15,7 +15,7 @@ import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser } from "@shared/schema";
-import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, AI_DISABLED_MESSAGE, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { getCacheStats, clearCache } from "./services/aiCache";
 import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseAI } from "./services/ruleBasedEngine";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
@@ -5247,7 +5247,7 @@ export async function registerRoutes(
   app.use("/api/ai", requireAuth, (req, res, next) => {
     if (req.path === "/analyze-emar/preflight" || req.path === "/status" || req.path === "/chat") return next();
     if (isAIEnabled()) return next();
-    return res.status(503).json({ code: "AI_DISABLED", message: AI_DISABLED_MESSAGE });
+    return res.status(503).json({ code: "AI_DISABLED", message: getAIDisabledMessage() });
   });
 
   app.get("/api/ai/status", requireAuth, async (req, res) => {
@@ -5256,7 +5256,7 @@ export async function registerRoutes(
       const readiness = await getAIProviderReadiness();
       const available = aiEnabled && readiness.providerConfigured;
       const message = !aiEnabled
-        ? AI_DISABLED_MESSAGE
+        ? getAIDisabledMessage()
         : readiness.providerIssue;
 
       return res.json({
@@ -15283,7 +15283,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     try {
       const { provider } = req.body;
       if (!isAIEnabled()) {
-        return res.status(503).json({ message: AI_DISABLED_MESSAGE });
+        return res.status(503).json({ message: getAIDisabledMessage() });
       }
       if (provider !== "openai" && provider !== "github" && provider !== "local") {
         return res.status(400).json({ message: "Invalid provider. Must be 'openai', 'github', or 'local'." });
@@ -15336,7 +15336,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         return res.status(400).json({ message: "useEmarAgent must be a boolean value" });
       }
       if (useEmarAgent && !isAIEnabled()) {
-        return res.status(503).json({ message: AI_DISABLED_MESSAGE });
+        return res.status(503).json({ message: getAIDisabledMessage() });
       }
       
       setUseEmarAgent(useEmarAgent, true);
@@ -17701,7 +17701,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   app.post("/api/admin/rostering/workbooks/:id/analyze-schedule", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       if (!isAIEnabled()) {
-        return res.status(503).json({ message: AI_DISABLED_MESSAGE });
+        return res.status(503).json({ message: getAIDisabledMessage() });
       }
       const { analyzeScheduleWithAI } = await import("./services/scheduleAnalyzer");
       const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
@@ -17718,7 +17718,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   app.post("/api/admin/rostering/workbooks/:id/compare-schedules", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       if (!isAIEnabled()) {
-        return res.status(503).json({ message: AI_DISABLED_MESSAGE });
+        return res.status(503).json({ message: getAIDisabledMessage() });
       }
       const { compareSchedulesWithAI } = await import("./services/scheduleAnalyzer");
       const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
@@ -18039,7 +18039,7 @@ I have also sent that reminder to your Messages inbox.`
       const readiness = await getAIProviderReadiness();
       if (!isAIEnabled() || !readiness.providerConfigured) {
         const fallbackReason = !isAIEnabled()
-          ? AI_DISABLED_MESSAGE
+          ? getAIDisabledMessage()
           : readiness.providerIssue || "AI provider is currently unavailable.";
         const fallback = await buildFallbackChatResponse(lastUserPrompt, req, fallbackReason, isAdmin);
         return res.json(fallback);
@@ -18148,7 +18148,7 @@ I have also sent that reminder to your Messages inbox.`
         const fallback = await buildFallbackChatResponse(
           fallbackPrompt,
           req,
-          AI_DISABLED_MESSAGE,
+          getAIDisabledMessage(),
           isAdmin
         );
         return res.status(200).json(fallback);

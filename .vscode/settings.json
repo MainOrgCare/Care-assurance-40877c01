@@ -47,5 +47,6 @@
     "appModernization.javaUpgrade.enableQuickPick": true,
     "github.copilot.chat.agentCustomizationSkill.enabled": true,
     "github.copilot.chat.anthropic.contextEditing.config": null,
-    "github.copilot.chat.anthropic.toolSearchTool.enabled": true
+    "github.copilot.chat.anthropic.toolSearchTool.enabled": true,
+    "websearch.preferredEngine": "bing"
 }
