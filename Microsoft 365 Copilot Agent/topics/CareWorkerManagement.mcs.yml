@@ -1,0 +1,53 @@
+# Name: Care Worker Management
+# ACTION TOPIC — Retrieves care worker data via CareAssurance API.
+# Operation: getCareWorkers (GET /api/copilot/care-workers)
+kind: AdaptiveDialog
+modelDescription: |
+  This topic retrieves and displays the care worker directory from CareAssurance.
+  Use the getCareWorkers action to list all care workers with their details.
+  Can also help with care worker related queries about audits and discrepancies.
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: Care Worker Management
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - care workers
+      - care worker list
+      - staff directory
+      - who are the care workers
+      - show care workers
+      - find care worker
+      - care worker details
+      - which carers work here
+      - staff list
+
+  actions:
+    - kind: SendActivity
+      id: working
+      activity: "Fetching care worker directory..."
+
+    - kind: SearchAndSummarizeContent
+      id: workers-action
+      variable: Topic.Result
+      userInput: |-
+        Execute the getCareWorkers action to get the care worker directory.
+        Display each care worker's name, initials, role, and status.
+        Show the total count.
+
+    - kind: ConditionGroup
+      id: result-check
+      conditions:
+        - id: has-result
+          condition: =!IsBlank(Topic.Result)
+          actions:
+            - kind: SendActivity
+              id: show-result
+              activity: "{Topic.Result}"
+        - id: no-result
+          condition: =IsBlank(Topic.Result)
+          actions:
+            - kind: SendActivity
+              id: fallback
+              activity: "I couldn't fetch the care worker list right now. Check the Care Workers page in CareAssurance directly."

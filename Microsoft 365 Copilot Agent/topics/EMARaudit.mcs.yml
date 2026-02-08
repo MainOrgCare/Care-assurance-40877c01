@@ -1,7 +1,15 @@
 # Name: EMAR Audit
-# Handles EMAR analysis including multi-pass AI extraction, medication codes,
-# discrepancies, drug interactions, refused medication reviews, and corrections.
+# ACTION TOPIC — Handles EMAR analysis and medication auditing.
+# The full EMAR PDF analysis requires the web UI for file upload.
+# This topic handles text-based EMAR queries, code lookups, and directs
+# users to the Copilot API for document-based analysis.
 kind: AdaptiveDialog
+modelDescription: |
+  This topic handles EMAR (Electronic Medication Administration Record) analysis.
+  For text-based medication queries, use the chatWithCompliee action.
+  For full EMAR PDF analysis, explain that the user should use the CareAssurance web app
+  or provide the document text for analysis.
+  Can also check drug interactions by routing to the checkDrugInteractions action.
 beginDialog:
   kind: OnRecognizedIntent
   id: main
@@ -18,88 +26,64 @@ beginDialog:
       - missed dose
       - refused medication
       - medication administration
-      - drug interaction
       - EMAR code
       - what does AD mean
       - what does NH mean
       - what does MU mean
       - what does SA mean
-      - PRN medication
       - unsigned refusal
       - medication review
-      - bulk review medications
       - EMAR report
       - medication compliance
       - medication extraction
-      - EMAR correction
-      - multi-pass analysis
 
   actions:
+    - kind: SendActivity
+      id: emar-intro
+      activity: |-
+        I can help with EMAR and medication analysis!
+
+        **What I can do right now:**
+        - Answer questions about EMAR codes (AD, R, NH, SA, F, MU, PRN, etc.)
+        - Check drug interactions between medications
+        - Explain medication administration discrepancies
+        - Help interpret EMAR audit results
+
+        **For full EMAR PDF analysis**, paste the extracted text from your EMAR document below, or use the **EMAR Analysis** page in CareAssurance to upload the PDF directly for the complete multi-pass AI audit.
+
     - kind: SearchAndSummarizeContent
       id: emar-search
       variable: Topic.Answer
       userInput: =System.Activity.Text
 
     - kind: ConditionGroup
-      id: emar-conditions
+      id: emar-result
       conditions:
-        - id: has-emar-answer
+        - id: has-answer
           condition: =!IsBlank(Topic.Answer)
           actions:
             - kind: SendActivity
-              id: emar-response
+              id: show-answer
               activity: "{Topic.Answer}"
-
+        - id: no-answer
+          condition: =IsBlank(Topic.Answer)
+          actions:
             - kind: SendActivity
-              id: emar-followup
-              activity: Would you like more details about a specific EMAR code, discrepancy type, or the multi-pass analysis process?
+              id: emar-fallback
+              activity: |-
+                I couldn't find specific information about that. Here are the EMAR codes for reference:
 
-      elseActions:
-        - kind: SendActivity
-          id: emar-guidance
-          activity: |-
-            I can help with EMAR audits. Here's the complete guide:
+                | Code | Meaning |
+                |------|---------|
+                | AD | Administered |
+                | R | Refused |
+                | NH | Not Home |
+                | SA | Self Administered |
+                | F | Family Administered |
+                | MU | Medication Unavailable |
+                | PRN | As Needed |
+                | MISSED | Missed dose (blank) |
+                | AS | As Stated |
+                | P | Prompted |
 
-            **🔬 AI Multi-Pass Analysis Pipeline:**
-            1. **Table Detection** — Identifies grid layout vs list format
-            2. **Metadata Extraction** (2-pass parallel) — Service user initials, allergies, medications, date range
-            3. **Entry Extraction** (3-pass with voting) — Each administration event with date, time, code, carer
-            4. **Validation** — Cross-checks for consistency (count validation, equivalence)
-            5. **Domain Validation** — Medication coverage, date coverage, code distribution
-            6. **Drug Interactions** — UK pharmacist checks for dangerous combinations
-
-            **📋 EMAR Codes:**
-            | Code | Meaning |
-            |------|---------|
-            | **AD** | Administered |
-            | **R** | Refused (requires review) |
-            | **NH** | Not Home |
-            | **SA** | Self Administered |
-            | **F** | Family Administered |
-            | **MU** | Medication Unavailable |
-            | **PRN** | As Needed |
-            | **PRN-AD/R/AS** | PRN sub-codes |
-            | **MISSED** | Missed dose (blank entry) |
-            | **AS/P** | As Stated / Prompted |
-
-            **⚠️ Discrepancy Types Detected:**
-            - Missed doses (blank entries)
-            - Time gaps between administrations
-            - Refused medications without documented reason
-            - Unsigned refusals
-            - PRN without outcome documentation
-
-            **🔧 Post-Analysis Actions:**
-            - Review refused medications (individual or bulk)
-            - Correct AI extraction errors (stored for training)
-            - Log discrepancies against care workers
-            - Auto-alert at 3+ discrepancies
-
-            **💊 Drug Interactions:**
-            - Checked automatically during analysis
-            - Severity: high / moderate / low
-            - Results cached for 24 hours
-
-            To start, go to **Care Workers → EMAR Audit** and upload a PDF or DOCX.
-
-            What specific aspect would you like help with?
+                Try asking about a specific code or medication query.

@@ -1,6 +1,11 @@
 # Name: Drug Interactions
-# Handles drug-drug interaction checking, severity levels, and medication safety.
+# ACTION TOPIC — Checks drug interactions via CareAssurance API.
+# Operation: checkDrugInteractions (POST /api/copilot/check-drug-interactions)
 kind: AdaptiveDialog
+modelDescription: |
+  This topic checks for drug-drug interactions. Ask the user for a list of medications,
+  then use the CareAssurance API checkDrugInteractions action. Display all interactions
+  found with severity levels, clinical significance, and recommendations.
 beginDialog:
   kind: OnRecognizedIntent
   id: main
@@ -9,60 +14,51 @@ beginDialog:
     includeInOnSelectIntent: true
     triggerQueries:
       - drug interaction
+      - check interactions
       - medication interaction
-      - drug combination
-      - medication safety
+      - drug safety check
+      - can these medications be taken together
+      - medication clash
       - dangerous drug combination
-      - can I take these together
-      - medication conflict
-      - drug contraindication
-      - polypharmacy
-      - multiple medications
-      - interaction check
-      - interaction severity
+      - drug interaction check
+      - BNF interaction
+      - polypharmacy check
 
   actions:
+    - kind: Question
+      id: medication-list
+      alwaysPrompt: true
+      variable: init:Topic.Medications
+      prompt: |-
+        I'll check for drug interactions. List the medications to check (at least 2), separated by commas.
+
+        **Example:** Warfarin, Ibuprofen, Paracetamol, Ramipril
+      entity: StringPrebuiltEntity
+
+    - kind: SendActivity
+      id: working
+      activity: "Checking for drug interactions using UK BNF guidelines..."
+
     - kind: SearchAndSummarizeContent
-      id: drug-search
-      variable: Topic.Answer
-      userInput: =System.Activity.Text
+      id: interaction-action
+      variable: Topic.Result
+      userInput: |-
+        Execute the checkDrugInteractions action with medications=[{Topic.Medications}].
+        Return all interactions found including drug pairs, severity (mild/moderate/severe/critical),
+        clinical significance, and recommendations. Include a summary of the overall medication regimen safety.
 
     - kind: ConditionGroup
-      id: drug-conditions
+      id: result-check
       conditions:
-        - id: has-drug-answer
-          condition: =!IsBlank(Topic.Answer)
+        - id: has-result
+          condition: =!IsBlank(Topic.Result)
           actions:
             - kind: SendActivity
-              id: drug-response
-              activity: "{Topic.Answer}"
-
-      elseActions:
-        - kind: SendActivity
-          id: drug-guidance
-          activity: |-
-            I can help you understand drug interaction checking in CareAssurance.
-
-            **How It Works:**
-            The AI uses a **UK pharmacist persona** to check for dangerous drug-drug interactions. This runs:
-            - **Automatically** during EMAR analysis (after medication list extraction)
-            - Results are **cached for 24 hours** to avoid duplicate checks
-
-            **Severity Levels:**
-            | Level | Meaning | Action |
-            |-------|---------|--------|
-            | 🔴 **High** | Potentially dangerous combination | Urgent review — contact prescriber |
-            | 🟡 **Moderate** | Monitor required | Note in care plan, observe for effects |
-            | 🟢 **Low** | Minor interaction | Be aware, usually manageable |
-
-            **Output for Each Interaction:**
-            - Drug 1 name
-            - Drug 2 name
-            - Severity level
-            - Brief clinical concern description
-
-            **⚠️ Important:** Drug interaction results are AI-generated guidance, not clinical advice. Always consult the prescribing GP or pharmacist for definitive interaction checks.
-
-            **Where:** Drug interactions appear in the EMAR audit results under **Care Workers → EMAR Audit**.
-
-            Would you like to know more about a specific interaction concern?
+              id: show-result
+              activity: "{Topic.Result}"
+        - id: no-result
+          condition: =IsBlank(Topic.Result)
+          actions:
+            - kind: SendActivity
+              id: fallback
+              activity: "I couldn't complete the interaction check right now. The drug interaction check is also available within the EMAR Analysis results in CareAssurance."

@@ -1,0 +1,83 @@
+# Name: Messaging and Chat
+# Handles internal messaging system, Compli-ee chatbot, admin communications, and notifications.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: Messaging and Chat
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - messages
+      - messaging
+      - send message
+      - inbox
+      - unread messages
+      - chat
+      - Compli-ee
+      - chatbot
+      - internal message
+      - notification
+      - admin message
+      - contact form
+      - contact us
+      - send notification
+      - read messages
+      - archive message
+      - delete message
+      - message priority
+      - urgent message
+
+  actions:
+    - kind: SearchAndSummarizeContent
+      id: messaging-search
+      variable: Topic.Answer
+      userInput: =System.Activity.Text
+
+    - kind: ConditionGroup
+      id: messaging-conditions
+      conditions:
+        - id: has-messaging-answer
+          condition: =!IsBlank(Topic.Answer)
+          actions:
+            - kind: SendActivity
+              id: messaging-response
+              activity: "{Topic.Answer}"
+
+      elseActions:
+        - kind: SendActivity
+          id: messaging-guidance
+          activity: |-
+            I can help with messaging and communications in CareAssurance.
+
+            **💬 Compli-ee Chat Assistant**
+            The in-app AI chatbot (that's me in the platform!) that:
+            - Guides you through all platform modules
+            - Answers questions about features and workflows
+            - Can send messages to your inbox via function calling
+            - Adapts guidance based on your role (admin vs staff)
+            - Uses pattern-matched fallback when AI is unavailable
+
+            **📨 Internal Messaging System**
+            | Feature | Description |
+            |---------|-------------|
+            | **Send Messages** | Send messages to other platform users |
+            | **Priority Levels** | Normal, high, urgent message priorities |
+            | **Read/Unread** | Track which messages have been read |
+            | **Archive** | Archive old messages without deleting |
+            | **Delete** | Permanently remove messages |
+            | **Unread Count** | Badge showing unread message count |
+
+            **📬 Admin Communications**
+            - System-generated alerts (e.g. 3+ discrepancy warnings)
+            - Platform announcements from admin
+            - Automated notifications for pending approvals
+
+            **📋 Contact Form**
+            - Public-facing contact form for enquiries
+            - Admin review queue for submitted messages
+            - Read, archive, and respond to contact messages
+
+            **Where to find it:** Click **Messages** in the sidebar navigation.
+
+            What do you need help with?

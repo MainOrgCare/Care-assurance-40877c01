@@ -1,0 +1,36 @@
+# Name: Sign in
+# This system topic handles authentication when the agent requires sign-in.
+# Configured for Microsoft 365 Integrated authentication.
+kind: AdaptiveDialog
+startBehavior: CancelOtherTopics
+beginDialog:
+  kind: OnSignIn
+  id: main
+  actions:
+    - kind: ConditionGroup
+      id: conditionGroup_auth
+      conditions:
+        - id: conditionItem_authenticated
+          condition: =System.User.IsAuthenticated = true
+          actions:
+            - kind: SendActivity
+              id: sendMessage_authenticated
+              activity: |-
+                ✅ You're signed in successfully. Welcome to CareAssurance Copilot!
+
+                How can I help you today?
+
+      elseActions:
+        - kind: SendActivity
+          id: sendMessage_authFailed
+          activity: |-
+            I wasn't able to sign you in. Please try again.
+
+            **Troubleshooting:**
+            - Ensure you're using your Microsoft 365 organisational account
+            - Check that your account has CareAssurance access
+            - Clear your browser cache and try again
+            - Contact your IT administrator if the issue persists
+
+        - kind: EndConversation
+          id: endConversation_authFail

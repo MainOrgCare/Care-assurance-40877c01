@@ -1,0 +1,95 @@
+# Name: Policy Documents and Compliance
+# Handles policy document management, compliance overview, and regulatory framework queries.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: Policy Documents and Compliance
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - policy documents
+      - policies
+      - compliance
+      - compliance overview
+      - upload policy
+      - care policy
+      - medication policy
+      - safeguarding policy
+      - moving and handling policy
+      - infection control policy
+      - CQC compliance
+      - CQC standards
+      - CQC inspection
+      - regulatory compliance
+      - policy management
+      - company policies
+      - policy library
+      - policy category
+      - add policy document
+      - update policy
+      - delete policy
+
+  actions:
+    - kind: SearchAndSummarizeContent
+      id: policy-search
+      variable: Topic.Answer
+      userInput: =System.Activity.Text
+
+    - kind: ConditionGroup
+      id: policy-conditions
+      conditions:
+        - id: has-policy-answer
+          condition: =!IsBlank(Topic.Answer)
+          actions:
+            - kind: SendActivity
+              id: policy-response
+              activity: "{Topic.Answer}"
+
+            - kind: SendActivity
+              id: policy-followup
+              activity: Would you like help finding a specific policy or understanding a compliance requirement?
+
+      elseActions:
+        - kind: SendActivity
+          id: policy-guidance
+          activity: |-
+            I can help with policy documents and compliance management.
+
+            **📚 Policy Document Library**
+            CareAssurance maintains a structured policy library that the AI uses as a knowledge source:
+            - Upload, edit, and organise policy documents
+            - Categorise by type (medication, safeguarding, HR, infection control, etc.)
+            - AI references these policies when generating care plans and risk assessments
+            - Version tracking and update history
+
+            **Policy Categories:**
+            | Category | Examples |
+            |----------|----------|
+            | **Medication** | MAR policy, PRN policy, controlled drugs |
+            | **Safeguarding** | Adult safeguarding, whistleblowing, MCA |
+            | **Health & Safety** | Moving & handling, fire safety, COSHH, lone working |
+            | **Infection Control** | Hand hygiene, PPE, outbreak management |
+            | **HR & Operations** | Recruitment, training, supervision, complaints |
+            | **Data Protection** | GDPR, data retention, breach notification |
+            | **Clinical** | Nutrition, skin integrity, continence, end of life |
+
+            **📋 Compliance Overview**
+            The compliance page provides:
+            - Summary of policy coverage across categories
+            - Policies due for review
+            - Gap analysis against CQC fundamental standards
+            - Quick access to key regulatory frameworks
+
+            **Key Regulatory Frameworks:**
+            - CQC Fundamental Standards (2024)
+            - Health and Social Care Act 2008
+            - Care Act 2014
+            - Mental Capacity Act 2005
+            - UK GDPR / Data Protection Act 2018
+            - NICE Guidelines
+            - NHS England Standards
+
+            **Where to find it:** **Compliance** in the main navigation, or **Admin Portal → Policy Documents**.
+
+            What policy or compliance area do you need help with?

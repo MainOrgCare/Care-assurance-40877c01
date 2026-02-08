@@ -1,0 +1,64 @@
+# Name: PRN Protocol
+# ACTION TOPIC — Generates PRN medication protocols via CareAssurance API.
+# Operation: generatePRNProtocol (POST /api/copilot/generate-prn-protocol)
+kind: AdaptiveDialog
+modelDescription: |
+  This topic generates PRN (as-needed) medication protocols. Ask the user for the
+  medication name, then use the CareAssurance API generatePRNProtocol action.
+  Display the complete protocol with dosage, route, frequency, max doses, and instructions.
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: PRN Protocol
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - PRN protocol
+      - generate PRN
+      - medication protocol
+      - as needed medication
+      - PRN medication
+      - create PRN
+      - paracetamol protocol
+      - medication administration protocol
+      - when needed medication guide
+
+  actions:
+    - kind: Question
+      id: medication-name
+      alwaysPrompt: true
+      variable: init:Topic.MedicationName
+      prompt: |-
+        I'll generate a complete PRN protocol. What medication do you need a protocol for?
+
+        (e.g. Paracetamol, Lorazepam, Gaviscon, Ibuprofen)
+      entity: StringPrebuiltEntity
+
+    - kind: SendActivity
+      id: working
+      activity: "Generating PRN protocol for **{Topic.MedicationName}**..."
+
+    - kind: SearchAndSummarizeContent
+      id: prn-action
+      variable: Topic.Result
+      userInput: |-
+        Execute the generatePRNProtocol action with medicationName={Topic.MedicationName}.
+        Return the complete protocol including dose, route, frequency, maximum in 24 hours,
+        minimum time between doses, special instructions, reasons for administration,
+        side effects, and additional comments.
+
+    - kind: ConditionGroup
+      id: result-check
+      conditions:
+        - id: has-result
+          condition: =!IsBlank(Topic.Result)
+          actions:
+            - kind: SendActivity
+              id: show-result
+              activity: "{Topic.Result}"
+        - id: no-result
+          condition: =IsBlank(Topic.Result)
+          actions:
+            - kind: SendActivity
+              id: fallback
+              activity: "I couldn't generate the protocol right now. Try the PRN Protocol page in CareAssurance directly."

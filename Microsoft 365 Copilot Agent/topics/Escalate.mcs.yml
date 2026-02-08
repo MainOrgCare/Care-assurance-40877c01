@@ -1,11 +1,6 @@
 # Name: Escalate
 # This system topic is triggered when the user indicates they would like to speak
 # to a representative. Configured with CareAssurance-specific escalation paths.
-<<<<<<< 
-=======
-# Name: Escalate
-# This system topic is triggered when the user indicates they would like to speak
-# to a representative. Configured with CareAssurance-specific escalation paths.
 kind: AdaptiveDialog
 startBehavior: CancelOtherTopics
 beginDialog:
@@ -58,4 +53,3 @@ beginDialog:
         - In an emergency, call **999**
 
         Is there anything else I can help you with in the meantime?
->>>>>>> 

@@ -1,0 +1,16 @@
+# Name: Reset Conversation
+# Resets all conversation variables and starts fresh.
+kind: AdaptiveDialog
+startBehavior: CancelOtherTopics
+beginDialog:
+  kind: OnSystemRedirect
+  id: main
+  actions:
+    - kind: SendActivity
+      id: sendMessage_reset
+      activity: |-
+        Conversation reset. All previous context has been cleared.
+
+        I'm CareAssurance Copilot — ready to help with EMAR audits, care plans, risk assessments, visit audits, rostering, billing, GDPR, and more.
+
+        What would you like help with?

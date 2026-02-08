@@ -1,6 +1,11 @@
 # Name: Visit Audit
-# Handles visit log auditing, location/duration compliance, note quality, and triple-check validation.
+# ACTION TOPIC — Executes visit log auditing via CareAssurance API.
+# Operation: analyzeVisitLogs (POST /api/copilot/analyze-visit)
 kind: AdaptiveDialog
+modelDescription: |
+  This topic audits care visit logs. Ask the user to paste their visit log content,
+  then use the CareAssurance API analyzeVisitLogs action to perform a compliance audit.
+  Display the full audit results including discrepancies, compliance rates, themes, and training gaps.
 beginDialog:
   kind: OnRecognizedIntent
   id: main
@@ -9,65 +14,56 @@ beginDialog:
     includeInOnSelectIntent: true
     triggerQueries:
       - visit audit
-      - visit log
-      - visit analysis
-      - carer visit
+      - audit visit logs
+      - carer visit check
       - visit compliance
-      - visit discrepancy
-      - location check
-      - visit duration
-      - care call audit
-      - visit note quality
-      - was the carer on time
-      - how long was the visit
-      - visit not long enough
+      - visit log analysis
+      - check visit times
+      - visit duration check
+      - location compliance
       - missed visit
       - late visit
       - short visit
-      - visit report
+      - visit discrepancy
+      - audit care calls
+      - check carer attendance
 
   actions:
+    - kind: Question
+      id: visit-content
+      alwaysPrompt: true
+      variable: init:Topic.VisitContent
+      prompt: |-
+        I'll audit your visit logs for compliance. Paste the visit log content below.
+
+        This should include visit entries with dates, times, care worker names, durations, and care notes. You can paste from a VisitExport.csv or similar report.
+      entity: StringPrebuiltEntity
+
+    - kind: SendActivity
+      id: working
+      activity: "Auditing visit logs for compliance - checking location, duration, note quality and concerns..."
+
     - kind: SearchAndSummarizeContent
-      id: visit-search
-      variable: Topic.Answer
-      userInput: =System.Activity.Text
+      id: visit-action
+      variable: Topic.Result
+      userInput: |-
+        Execute the analyzeVisitLogs action with documentContent={Topic.VisitContent}.
+        Return the full audit results including: service user initials, audit period,
+        whether discrepancies were found, all care calls with compliance status,
+        all discrepancies with recommended actions, themes and trends, and gaps in knowledge.
 
     - kind: ConditionGroup
-      id: visit-conditions
+      id: result-check
       conditions:
-        - id: has-visit-answer
-          condition: =!IsBlank(Topic.Answer)
+        - id: has-result
+          condition: =!IsBlank(Topic.Result)
           actions:
             - kind: SendActivity
-              id: visit-response
-              activity: "{Topic.Answer}"
-
+              id: show-result
+              activity: "{Topic.Result}"
+        - id: no-result
+          condition: =IsBlank(Topic.Result)
+          actions:
             - kind: SendActivity
-              id: visit-followup
-              activity: Would you like help interpreting a specific visit audit result or understanding a discrepancy?
-
-      elseActions:
-        - kind: SendActivity
-          id: visit-guidance
-          activity: |-
-            I can help with visit audits. Here's how the AI visit analysis works:
-
-            **What Gets Checked (per visit):**
-            - 📍 **Location** — Was the carer within 200m of the service user?
-            - ⏱️ **Duration** — Did the visit last ≥70% of the expected time?
-            - 📝 **Note Quality** — Are care notes sufficiently detailed and relevant?
-            - ⚠️ **Concerns** — Any safeguarding, health, or behaviour concerns noted?
-
-            **Triple-Check Validation:**
-            The AI runs 3 independent passes to filter false positives. Each discrepancy must have evidence from the original document.
-
-            **Output Includes:**
-            - Individual care call breakdown
-            - Discrepancy list with evidence
-            - Themes & trends across the audit period
-            - Gaps in knowledge (missing data)
-            - Validation status and confidence
-
-            **To run a visit audit:** Go to **Care Workers → Visit Audit** in CareAssurance and upload the visit log.
-
-            What would you like help with?
+              id: fallback
+              activity: "I couldn't complete the audit right now. Try using the Visit Audit page in CareAssurance directly."

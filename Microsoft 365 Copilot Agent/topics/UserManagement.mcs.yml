@@ -1,0 +1,104 @@
+# Name: User Management and Administration
+# Handles user accounts, sessions, suspensions, IP blocking, and admin operations.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: User Management and Administration
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - user management
+      - manage users
+      - create user
+      - delete user
+      - approve user
+      - pending users
+      - change role
+      - make admin
+      - reset password
+      - user accounts
+      - suspend user
+      - reinstate user
+      - kick user
+      - block IP
+      - IP blocking
+      - active sessions
+      - forced disconnect
+      - session management
+      - who is logged in
+      - lock out user
+      - admin portal
+      - admin operations
+      - user registration
+      - change username
+      - update job title
+      - suspension log
+      - login history
+      - audit trail
+      - platform maintenance
+      - read only mode
+      - maintenance mode
+      - announcement
+
+  actions:
+    - kind: SearchAndSummarizeContent
+      id: admin-search
+      variable: Topic.Answer
+      userInput: =System.Activity.Text
+
+    - kind: ConditionGroup
+      id: admin-conditions
+      conditions:
+        - id: has-admin-answer
+          condition: =!IsBlank(Topic.Answer)
+          actions:
+            - kind: SendActivity
+              id: admin-response
+              activity: "{Topic.Answer}"
+
+            - kind: SendActivity
+              id: admin-followup
+              activity: Would you like help with a specific admin task? Note that admin operations require an administrator account.
+
+      elseActions:
+        - kind: SendActivity
+          id: admin-guidance
+          activity: |-
+            I can help with user management and administration. Here's what's available:
+
+            **👤 User Account Management**
+            | Action | Description |
+            |--------|-------------|
+            | **Create User** | Add new users (immediately active) |
+            | **Approve Pending** | Approve self-registered users awaiting activation |
+            | **Change Role** | Switch between admin and staff roles |
+            | **Reset Password** | Force password reset for any user |
+            | **Delete User** | Permanently remove a user account |
+            | **Update Details** | Change username, job title, name |
+
+            **🔒 Session & Security Management**
+            | Action | Description |
+            |--------|-------------|
+            | **Active Sessions** | See who is currently logged in (with geolocation) |
+            | **Force Disconnect** | End a specific user's session immediately |
+            | **Mass Disconnect** | Disconnect all non-admin users at once |
+            | **Suspend User** | Temporarily revoke access (with reason) |
+            | **Reinstate User** | Restore suspended user's access |
+            | **Block IP** | Block specific IP addresses from accessing the platform |
+
+            **🔐 Login Security**
+            - Progressive lockout: 5 failed attempts → 15 min block → 4 hour block → auto-suspend
+            - Password complexity: 12+ characters, mixed case, digits, special characters
+            - Session timeout: 30 minutes with rolling refresh
+            - Login/logout history with full audit trail
+
+            **⚙️ Platform Controls (Admin)**
+            - **Maintenance Mode** — Take the platform offline for updates
+            - **Read-Only Mode** — Allow viewing but prevent modifications
+            - **Scheduled Maintenance** — Set future maintenance windows
+            - **Announcements** — Broadcast messages to all users
+
+            **Where to find it:** Go to the **Admin Portal** (admin accounts only).
+
+            Which admin task would you like help with?

@@ -1,6 +1,11 @@
 # Name: PRN Protocol
-# Handles PRN (Pro Re Nata / as-needed) medication protocol generation with clinical accuracy.
+# ACTION TOPIC — Generates PRN medication protocols via CareAssurance API.
+# Operation: generatePRNProtocol (POST /api/copilot/generate-prn-protocol)
 kind: AdaptiveDialog
+modelDescription: |
+  This topic generates PRN (as-needed) medication protocols. Ask the user for the
+  medication name, then use the CareAssurance API generatePRNProtocol action.
+  Display the complete protocol with dosage, route, frequency, max doses, and instructions.
 beginDialog:
   kind: OnRecognizedIntent
   id: main
@@ -9,64 +14,51 @@ beginDialog:
     includeInOnSelectIntent: true
     triggerQueries:
       - PRN protocol
-      - PRN medication
-      - as needed medication
-      - pro re nata
-      - generate PRN protocol
+      - generate PRN
       - medication protocol
-      - PRN dosing
-      - max dose 24 hours
-      - time between doses
-      - PRN side effects
-      - when to give PRN
+      - as needed medication
+      - PRN medication
+      - create PRN
       - paracetamol protocol
-      - ibuprofen protocol
-      - medication instructions
+      - medication administration protocol
+      - when needed medication guide
 
   actions:
+    - kind: Question
+      id: medication-name
+      alwaysPrompt: true
+      variable: init:Topic.MedicationName
+      prompt: |-
+        I'll generate a complete PRN protocol. What medication do you need a protocol for?
+
+        (e.g. Paracetamol, Lorazepam, Gaviscon, Ibuprofen)
+      entity: StringPrebuiltEntity
+
+    - kind: SendActivity
+      id: working
+      activity: "Generating PRN protocol for **{Topic.MedicationName}**..."
+
     - kind: SearchAndSummarizeContent
-      id: prn-search
-      variable: Topic.Answer
-      userInput: =System.Activity.Text
+      id: prn-action
+      variable: Topic.Result
+      userInput: |-
+        Execute the generatePRNProtocol action with medicationName={Topic.MedicationName}.
+        Return the complete protocol including dose, route, frequency, maximum in 24 hours,
+        minimum time between doses, special instructions, reasons for administration,
+        side effects, and additional comments.
 
     - kind: ConditionGroup
-      id: prn-conditions
+      id: result-check
       conditions:
-        - id: has-prn-answer
-          condition: =!IsBlank(Topic.Answer)
+        - id: has-result
+          condition: =!IsBlank(Topic.Result)
           actions:
             - kind: SendActivity
-              id: prn-response
-              activity: "{Topic.Answer}"
-
-      elseActions:
-        - kind: SendActivity
-          id: prn-guidance
-          activity: |-
-            I can help with PRN (Pro Re Nata / "as needed") medication protocols.
-
-            **What the AI Generates:**
-            The PRN protocol generator creates a clinically accurate protocol following UK care standards, including:
-
-            | Field | Description |
-            |-------|-------------|
-            | **Medication Name** | Full drug name and formulation |
-            | **Dose** | Standard dosing amount |
-            | **Route** | How administered (oral, topical, etc.) |
-            | **Frequency** | How often it can be given |
-            | **Max Dose in 24 Hours** | Safety limit |
-            | **Min Time Between Doses** | Minimum interval |
-            | **Special Instructions** | Storage, food interactions, etc. |
-            | **Reasons for Administration** | When to offer the medication |
-            | **Predictable Side Effects** | Common reactions to monitor |
-            | **Additional Comments** | Clinical notes |
-
-            **How to Generate:**
-            1. Go to **Service Users → Care Planning** in CareAssurance
-            2. Enter the medication name
-            3. Optionally provide existing data to enhance
-            4. Click **Generate Protocol**
-
-            **⚠️ Important:** PRN protocols are AI-generated and should be verified against the prescriber's instructions and the service user's MAR chart. Always consult the prescribing GP for clinical queries.
-
-            Would you like guidance on a specific medication or protocol field?
+              id: show-result
+              activity: "{Topic.Result}"
+        - id: no-result
+          condition: =IsBlank(Topic.Result)
+          actions:
+            - kind: SendActivity
+              id: fallback
+              activity: "I couldn't generate the protocol right now. Try the PRN Protocol page in CareAssurance directly."

@@ -1,0 +1,810 @@
+openapi: 3.0.3
+info:
+  title: CareAssurance Copilot API
+  description: |
+    API for Microsoft 365 Copilot Studio to execute CareAssurance platform AI functions.
+    Enables the Copilot agent to perform EMAR audits, generate care plans, analyze risks,
+    rewrite emails, check drug interactions, and access platform data.
+  version: "1.0.0"
+  contact:
+    name: CareAssurance Support
+servers:
+  - url: https://care-assurance.onrender.com
+    description: Production server
+  - url: http://localhost:5000
+    description: Local development
+
+security:
+  - ApiKeyAuth: []
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Copilot-Key
+      description: API key for Copilot Studio authentication
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+    EmailRewriteRequest:
+      type: object
+      required: [inputText, tone]
+      properties:
+        inputText:
+          type: string
+          description: The rough draft, notes, or bullet points to transform into a polished email
+        tone:
+          type: string
+          enum: [professional, direct, empathetic, formal, urgent]
+          description: The desired tone for the email
+        generateSubject:
+          type: boolean
+          default: true
+          description: Whether to generate a subject line
+
+    EmailRewriteResponse:
+      type: object
+      properties:
+        rewrittenEmail:
+          type: string
+          description: The polished, rewritten email
+        tone:
+          type: string
+        model:
+          type: string
+
+    PRNProtocolRequest:
+      type: object
+      required: [medicationName]
+      properties:
+        medicationName:
+          type: string
+          description: The name of the medication to generate a PRN protocol for
+        existingData:
+          type: object
+          description: Any existing protocol data to enhance
+
+    PRNProtocolResponse:
+      type: object
+      properties:
+        protocol:
+          type: object
+          description: The complete PRN protocol
+          properties:
+            medicationName:
+              type: string
+            dose:
+              type: string
+            route:
+              type: string
+            frequency:
+              type: string
+            maxDoseIn24Hours:
+              type: string
+            minimumTimeBetweenDoses:
+              type: string
+            specialInstructions:
+              type: string
+            reasonsForAdministration:
+              type: string
+            predictableSideEffects:
+              type: string
+            additionalComments:
+              type: string
+        model:
+          type: string
+
+    VisitAuditRequest:
+      type: object
+      required: [documentContent]
+      properties:
+        documentContent:
+          type: string
+          description: The visit log text content to audit (paste from VisitExport.csv or similar)
+
+    VisitAuditResponse:
+      type: object
+      properties:
+        analysis:
+          type: object
+          description: Structured audit results
+          properties:
+            serviceUserName:
+              type: string
+            auditPeriodStart:
+              type: string
+            auditPeriodEnd:
+              type: string
+            hasDiscrepancies:
+              type: boolean
+            totalVisitsAudited:
+              type: integer
+            careCalls:
+              type: array
+              items:
+                type: object
+            discrepancies:
+              type: array
+              items:
+                type: object
+            themesAndTrends:
+              type: string
+            gapsInKnowledge:
+              type: string
+        model:
+          type: string
+
+    RiskAnalysisRequest:
+      type: object
+      required: [documentContent]
+      properties:
+        documentContent:
+          type: string
+          description: Service user documents to analyze for risks (assessments, medical records, care notes)
+
+    RiskAnalysisResponse:
+      type: object
+      properties:
+        riskProfile:
+          type: object
+          description: Structured risk profile with conditions and recommended assessments
+          properties:
+            serviceUser:
+              type: object
+            documentSummary:
+              type: string
+            medicalConditions:
+              type: array
+              items:
+                type: object
+            recommendedAssessments:
+              type: array
+              items:
+                type: object
+            concerns:
+              type: array
+              items:
+                type: string
+            overallRiskLevel:
+              type: string
+            summary:
+              type: string
+        model:
+          type: string
+
+    RiskAssessmentRequest:
+      type: object
+      required: [category]
+      properties:
+        category:
+          type: string
+          description: The risk assessment category (e.g. Falls, Medication, Skin Integrity, Moving & Handling)
+        riskProfile:
+          type: object
+          description: Previously generated risk profile data
+        documentContent:
+          type: string
+          description: Supporting document text
+
+    RiskAssessmentResponse:
+      type: object
+      properties:
+        assessment:
+          type: object
+          description: Complete risk assessment for the category
+          properties:
+            category:
+              type: string
+            hazards:
+              type: array
+              items:
+                type: object
+            assessmentDate:
+              type: string
+            reviewDate:
+              type: string
+            overallRiskRating:
+              type: string
+            actionPlan:
+              type: array
+              items:
+                type: object
+            personCentredNarrative:
+              type: string
+            escalationProcedure:
+              type: string
+            reviewTriggers:
+              type: array
+              items:
+                type: string
+        category:
+          type: string
+        model:
+          type: string
+
+    CarePlanRequest:
+      type: object
+      required: [documentContent]
+      properties:
+        documentContent:
+          type: string
+          description: Service user documents to generate a care plan from
+        callType:
+          type: string
+          enum: [Morning, Lunch, Tea, Bed, Domestic, General]
+          description: The type of care call this plan is for
+
+    CarePlanResponse:
+      type: object
+      properties:
+        carePlan:
+          type: object
+          description: Complete 12-section care plan
+          properties:
+            callType:
+              type: string
+            serviceUserInitials:
+              type: string
+            sections:
+              type: array
+              items:
+                type: object
+            verificationQuestions:
+              type: array
+              items:
+                type: string
+            summary:
+              type: string
+        callType:
+          type: string
+        model:
+          type: string
+
+    PlanEnhanceRequest:
+      type: object
+      properties:
+        existingPlanContent:
+          type: string
+          description: The current care plan text to enhance
+        documentContent:
+          type: string
+          description: Supporting documents with additional information
+
+    PlanEnhanceResponse:
+      type: object
+      properties:
+        enhancedPlan:
+          type: object
+          description: Enhanced care plan with improvements noted
+          properties:
+            serviceUserInitials:
+              type: string
+            sections:
+              type: array
+              items:
+                type: object
+            verificationQuestions:
+              type: array
+              items:
+                type: string
+            enhancementSummary:
+              type: string
+        model:
+          type: string
+
+    DrugInteractionRequest:
+      type: object
+      required: [medications]
+      properties:
+        medications:
+          type: array
+          items:
+            type: string
+          minItems: 2
+          description: List of medication names to check for interactions
+
+    DrugInteractionResponse:
+      type: object
+      properties:
+        interactions:
+          type: array
+          items:
+            type: object
+            properties:
+              drug1:
+                type: string
+              drug2:
+                type: string
+              severity:
+                type: string
+                enum: [mild, moderate, severe, critical]
+              interaction:
+                type: string
+              clinicalSignificance:
+                type: string
+              recommendation:
+                type: string
+        summary:
+          type: string
+        totalMedicationsChecked:
+          type: integer
+        interactionsFound:
+          type: integer
+        model:
+          type: string
+
+    ChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: The question or request for Compli-ee AI assistant
+        context:
+          type: string
+          description: Additional context about the current task
+
+    ChatResponse:
+      type: object
+      properties:
+        reply:
+          type: string
+          description: Compli-ee's response
+        model:
+          type: string
+
+    StatusResponse:
+      type: object
+      properties:
+        available:
+          type: boolean
+        aiEnabled:
+          type: boolean
+        provider:
+          type: string
+        model:
+          type: string
+        message:
+          type: string
+        copilotApiVersion:
+          type: string
+
+    DashboardResponse:
+      type: object
+      properties:
+        summary:
+          type: object
+          properties:
+            totalCareWorkers:
+              type: integer
+            totalAudits:
+              type: integer
+            totalDiscrepancies:
+              type: integer
+            unresolvedDiscrepancies:
+              type: integer
+            totalServiceUsers:
+              type: integer
+        recentAudits:
+          type: array
+          items:
+            type: object
+        alerts:
+          type: string
+
+    CareWorkersResponse:
+      type: object
+      properties:
+        careWorkers:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              initials:
+                type: string
+              role:
+                type: string
+              status:
+                type: string
+        total:
+          type: integer
+
+    AuditsResponse:
+      type: object
+      properties:
+        audits:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              type:
+                type: string
+              serviceUserInitials:
+                type: string
+              createdAt:
+                type: string
+              status:
+                type: string
+              discrepancyCount:
+                type: integer
+              careWorkerName:
+                type: string
+        total:
+          type: integer
+        showing:
+          type: integer
+
+    DiscrepanciesResponse:
+      type: object
+      properties:
+        discrepancies:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              careWorkerName:
+                type: string
+              serviceUserInitials:
+                type: string
+              issue:
+                type: string
+              status:
+                type: string
+              severity:
+                type: string
+              createdAt:
+                type: string
+              auditId:
+                type: integer
+        total:
+          type: integer
+        showing:
+          type: integer
+
+paths:
+  /api/copilot/status:
+    get:
+      operationId: getAIStatus
+      summary: Check AI service availability
+      description: Returns the current AI service status, provider, model, and availability
+      responses:
+        "200":
+          description: AI status information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+
+  /api/copilot/rewrite-email:
+    post:
+      operationId: rewriteEmail
+      summary: Rewrite an email in a specified tone
+      description: |
+        Transforms rough notes, bullet points, or draft text into a polished, 
+        well-structured email using the specified tone. Supports professional, 
+        direct, empathetic, formal, and urgent tones.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailRewriteRequest"
+      responses:
+        "200":
+          description: Rewritten email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailRewriteResponse"
+        "400":
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/copilot/generate-prn-protocol:
+    post:
+      operationId: generatePRNProtocol
+      summary: Generate a PRN medication protocol
+      description: |
+        Generates a comprehensive PRN (as-needed) medication protocol following 
+        UK care standards. Includes dosage, route, frequency, maximum doses, 
+        and administration instructions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PRNProtocolRequest"
+      responses:
+        "200":
+          description: Generated PRN protocol
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PRNProtocolResponse"
+        "400":
+          description: Missing medication name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/copilot/analyze-visit:
+    post:
+      operationId: analyzeVisitLogs
+      summary: Audit care visit logs
+      description: |
+        Analyzes visit log entries against compliance rules. Checks location 
+        verification, duration compliance, note quality, and identifies 
+        discrepancies, themes, and training gaps.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VisitAuditRequest"
+      responses:
+        "200":
+          description: Visit audit results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitAuditResponse"
+        "400":
+          description: Missing document content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/copilot/analyze-risks:
+    post:
+      operationId: analyzeRisks
+      summary: Analyze documents for risks
+      description: |
+        Builds a person-centred risk profile from service user documents 
+        following CQC 2024 standards and NHS England 12 principles. Identifies 
+        medical conditions, recommends assessments, and provides evidence-based 
+        risk ratings.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RiskAnalysisRequest"
+      responses:
+        "200":
+          description: Risk analysis profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiskAnalysisResponse"
+        "400":
+          description: Missing document content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/copilot/generate-risk-assessment:
+    post:
+      operationId: generateRiskAssessment
+      summary: Generate a specific risk assessment
+      description: |
+        Generates a comprehensive risk assessment for a specific category 
+        (e.g. Falls, Medication, Skin Integrity). Includes hazard identification, 
+        risk ratings, control measures, and action plans.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RiskAssessmentRequest"
+      responses:
+        "200":
+          description: Generated risk assessment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiskAssessmentResponse"
+        "400":
+          description: Missing category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/copilot/generate-care-plan:
+    post:
+      operationId: generateCarePlan
+      summary: Generate a 12-section care plan
+      description: |
+        Generates a comprehensive care plan from service user documents. 
+        Includes all 12 mandatory sections following CQC 2024 standards. 
+        Can be tailored for specific call types (Morning, Lunch, Tea, Bed, Domestic).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CarePlanRequest"
+      responses:
+        "200":
+          description: Generated care plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarePlanResponse"
+        "400":
+          description: Missing document content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/copilot/enhance-plan:
+    post:
+      operationId: enhanceCarePlan
+      summary: Enhance an existing care plan
+      description: |
+        Takes an existing care plan and supporting documents, then creates 
+        an enhanced version that fills gaps, adds detail, and ensures all 
+        12 mandatory sections are comprehensive and evidence-based.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanEnhanceRequest"
+      responses:
+        "200":
+          description: Enhanced care plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanEnhanceResponse"
+        "400":
+          description: Missing content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/copilot/check-drug-interactions:
+    post:
+      operationId: checkDrugInteractions
+      summary: Check for drug interactions
+      description: |
+        Analyzes a list of medications for dangerous drug-drug interactions, 
+        duplicate therapy, and dose concerns. Uses UK BNF guidelines.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DrugInteractionRequest"
+      responses:
+        "200":
+          description: Drug interaction results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrugInteractionResponse"
+        "400":
+          description: Insufficient medications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/copilot/chat:
+    post:
+      operationId: chatWithCompliee
+      summary: Chat with Compli-ee AI assistant
+      description: |
+        Ask Compli-ee (the CareAssurance AI assistant) questions about care 
+        compliance, CQC standards, medication management, care planning, 
+        risk assessment, staff management, and policy interpretation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Chat response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+        "400":
+          description: Missing message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/copilot/dashboard:
+    get:
+      operationId: getDashboard
+      summary: Get platform dashboard summary
+      description: Returns summary statistics including care worker counts, audit totals, discrepancy status, and recent audit activity
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardResponse"
+
+  /api/copilot/care-workers:
+    get:
+      operationId: getCareWorkers
+      summary: List care workers
+      description: Returns the full directory of care workers with their details
+      responses:
+        "200":
+          description: Care worker list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareWorkersResponse"
+
+  /api/copilot/audits:
+    get:
+      operationId: getAudits
+      summary: Get recent audit history
+      description: Returns recent audit results sorted by date
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of audits to return
+      responses:
+        "200":
+          description: Audit list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditsResponse"
+
+  /api/copilot/discrepancies:
+    get:
+      operationId: getDiscrepancies
+      summary: Get discrepancy list
+      description: Returns discrepancies, optionally filtered by status
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, resolved, pending]
+          description: Filter by discrepancy status
+      responses:
+        "200":
+          description: Discrepancy list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiscrepanciesResponse"

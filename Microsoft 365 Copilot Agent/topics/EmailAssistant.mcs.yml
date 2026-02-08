@@ -1,6 +1,11 @@
 # Name: Email Assistant
-# Handles email rewriting, drafting, and tone adjustment with 5 professional tones.
+# ACTION TOPIC — Executes email rewriting via CareAssurance API plugin.
+# Operation: rewriteEmail (POST /api/copilot/rewrite-email)
 kind: AdaptiveDialog
+modelDescription: |
+  This topic rewrites emails. Collect the desired tone and the draft text from the user,
+  then use the CareAssurance API rewriteEmail action to generate the polished email.
+  Display the full rewritten email text to the user.
 beginDialog:
   kind: OnRecognizedIntent
   id: main
@@ -12,7 +17,6 @@ beginDialog:
       - rewrite email
       - email assistant
       - draft email
-      - email tone
       - professional email
       - formal email
       - urgent email
@@ -21,57 +25,55 @@ beginDialog:
       - help me write
       - improve my email
       - make this more professional
-      - email template
+      - polish this email
       - email to family
       - email to manager
-      - email to social worker
-      - email subject line
 
   actions:
     - kind: Question
-      id: email-tone-question
+      id: email-tone
       alwaysPrompt: true
       variable: init:Topic.EmailTone
       prompt: |-
-        I can help you write or rewrite an email. What tone would you like?
+        I'll rewrite your email right now. What tone would you like?
 
-        1. **Professional** — Standard business communication
-        2. **Direct** — Clear and concise, straight to the point
-        3. **Empathetic** — Warm and understanding (good for families)
-        4. **Formal** — Official correspondence (CQC, local authority)
-        5. **Urgent** — Time-sensitive communication
+        1. **Professional** - Standard business communication
+        2. **Direct** - Clear, concise, to the point
+        3. **Empathetic** - Warm and understanding (good for families)
+        4. **Formal** - Official correspondence (CQC, local authority)
+        5. **Urgent** - Time-sensitive, action-oriented
       entity: StringPrebuiltEntity
 
     - kind: Question
-      id: email-content-question
+      id: email-content
       alwaysPrompt: true
       variable: init:Topic.EmailContent
       prompt: |-
-        Great! Now paste your rough notes, bullet points, or key messages and I'll transform them into a polished email.
-
-        **Tips:**
-        - Include the main points you want to communicate
-        - Mention who the email is to (e.g. family member, manager, social worker)
-        - Note any specific action items or deadlines
+        Paste your rough notes, bullet points, or draft text and I'll rewrite it in the **{Topic.EmailTone}** tone.
       entity: StringPrebuiltEntity
 
     - kind: SendActivity
-      id: email-processing
-      activity: |-
-        ✅ I've noted your request. To generate the email:
+      id: email-working
+      activity: "Rewriting your email in **{Topic.EmailTone}** tone..."
 
-        1. Go to the **Email Assistant** in CareAssurance (accessible from the sidebar)
-        2. Paste your notes into the input field
-        3. Select the **{Topic.EmailTone}** tone
-        4. Optionally tick "Generate subject line"
-        5. Click **Rewrite**
+    - kind: SearchAndSummarizeContent
+      id: email-action
+      variable: Topic.Result
+      userInput: |-
+        Execute the rewriteEmail action with tone={Topic.EmailTone} and inputText={Topic.EmailContent}. Generate a subject line. Return the complete rewritten email.
 
-        The AI will transform your notes into a polished, well-structured email with:
-        - Proper greeting and sign-off
-        - UK English spelling
-        - Professional formatting
-        - Placeholders for names where needed
-
-        **Remember:** Always review AI-generated emails before sending, especially for clinical or safeguarding content.
-
-        Would you like help with anything else?
+    - kind: ConditionGroup
+      id: result-check
+      conditions:
+        - id: has-result
+          condition: =!IsBlank(Topic.Result)
+          actions:
+            - kind: SendActivity
+              id: show-result
+              activity: "{Topic.Result}"
+        - id: no-result
+          condition: =IsBlank(Topic.Result)
+          actions:
+            - kind: SendActivity
+              id: fallback
+              activity: "I couldn't generate the email right now. Please try the Email Assistant page in CareAssurance directly."

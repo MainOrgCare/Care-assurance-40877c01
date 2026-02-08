@@ -3,6 +3,7 @@ import compression from "compression";
 import helmet from "helmet";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { registerRoutes } from "./routes";
+import { registerCopilotRoutes } from "./copilotRoutes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
@@ -381,6 +382,9 @@ const DEFAULT_ADMIN_USERNAME = "Lewis.barron";
   }
 
   await registerRoutes(httpServer, app);
+
+  // Register Copilot API endpoints (API key authenticated, non-SSE JSON responses)
+  registerCopilotRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     if (res.headersSent) {

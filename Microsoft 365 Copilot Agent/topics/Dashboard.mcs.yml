@@ -1,0 +1,56 @@
+# Name: Dashboard
+# ACTION TOPIC — Retrieves platform dashboard data via CareAssurance API.
+# Operation: getDashboard (GET /api/copilot/dashboard)
+kind: AdaptiveDialog
+modelDescription: |
+  This topic retrieves and displays CareAssurance platform dashboard statistics.
+  Use the getDashboard action to get current totals for care workers, audits,
+  discrepancies, and service users. Also supports getCareWorkers and getAudits actions.
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: Dashboard
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - dashboard
+      - platform stats
+      - show statistics
+      - how many audits
+      - how many care workers
+      - how many discrepancies
+      - unresolved issues
+      - recent audits
+      - overview
+      - summary
+      - platform status
+
+  actions:
+    - kind: SendActivity
+      id: working
+      activity: "Fetching CareAssurance dashboard data..."
+
+    - kind: SearchAndSummarizeContent
+      id: dashboard-action
+      variable: Topic.Result
+      userInput: |-
+        Execute the getDashboard action to get the current platform statistics.
+        Display the summary (total care workers, audits, discrepancies, unresolved items,
+        service users), the most recent audits, and any alerts.
+        Format the data clearly with the key numbers highlighted.
+
+    - kind: ConditionGroup
+      id: result-check
+      conditions:
+        - id: has-result
+          condition: =!IsBlank(Topic.Result)
+          actions:
+            - kind: SendActivity
+              id: show-result
+              activity: "{Topic.Result}"
+        - id: no-result
+          condition: =IsBlank(Topic.Result)
+          actions:
+            - kind: SendActivity
+              id: fallback
+              activity: "I couldn't fetch the dashboard data right now. Check the Dashboard page in CareAssurance directly."

@@ -1,0 +1,36 @@
+# Name: Fallback
+# This system topic triggers when the user's utterance does not match any existing topics.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnUnknownIntent
+  id: main
+  actions:
+    - kind: ConditionGroup
+      id: conditionGroup_LktzXw
+      conditions:
+        - id: conditionItem_tlGIVo
+          condition: =System.FallbackCount < 3
+          actions:
+            - kind: SendActivity
+              id: sendMessage_QZreqo
+              activity: |-
+                I'm sorry, I'm not sure how to help with that. Can you try rephrasing?
+
+                Here are the main areas I can help with:
+                - **EMAR Audit** — Medication record analysis
+                - **Visit Audit** — Visit log compliance
+                - **Care Plans** — Generate or enhance care plans
+                - **Risk Assessments** — AI-powered risk analysis
+                - **PRN Protocols** — Medication protocols
+                - **Email Assistant** — Email rewriting
+                - **Call Reconciliation** — ECM data processing
+                - **Rostering** — Rota planning and scheduling
+                - **Billing** — Service requirement extraction
+                - **GDPR** — Data protection guidance
+                - **Safeguarding** — Safety procedures
+                - **Admin** — User management, settings, logs
+
+      elseActions:
+        - kind: BeginDialog
+          id: 5aXj5M
+          dialog: cr6a5_agent3.topic.Escalate

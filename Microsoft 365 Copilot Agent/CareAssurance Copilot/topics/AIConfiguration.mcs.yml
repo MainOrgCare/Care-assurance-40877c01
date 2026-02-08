@@ -1,0 +1,84 @@
+# Name: AI Configuration
+# Handles AI provider management, model switching, optimisation settings, and usage tracking.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: AI Configuration
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - AI configuration
+      - AI settings
+      - AI provider
+      - change AI model
+      - AI model
+      - switch AI
+      - OpenAI settings
+      - AI optimisation
+      - AI cache
+      - AI usage
+      - AI costs
+      - token usage
+      - AI lite mode
+      - rules first
+      - EMAR agent
+      - AI status
+      - which AI model
+      - AI not working
+      - AI slow
+      - AI errors
+      - reduce AI costs
+      - AI budget
+
+  actions:
+    - kind: SearchAndSummarizeContent
+      id: ai-config-search
+      variable: Topic.Answer
+      userInput: =System.Activity.Text
+
+    - kind: ConditionGroup
+      id: ai-config-conditions
+      conditions:
+        - id: has-ai-config-answer
+          condition: =!IsBlank(Topic.Answer)
+          actions:
+            - kind: SendActivity
+              id: ai-config-response
+              activity: "{Topic.Answer}"
+
+      elseActions:
+        - kind: SendActivity
+          id: ai-config-guidance
+          activity: |-
+            I can help with AI configuration. Here's what CareAssurance offers:
+
+            **🤖 AI Provider Management**
+            - Switch between AI providers and models (e.g. GPT-4o, GPT-4o-mini)
+            - Check AI availability and provider status
+            - Configure primary and fallback providers
+            - View current model being used for each feature
+
+            **⚡ AI Optimisation Settings**
+            | Setting | Description |
+            |---------|-------------|
+            | **AI Cache** | Cache repeated queries to reduce costs and latency |
+            | **Lite Mode** | Use smaller/faster models for simple tasks |
+            | **Rules-First** | Try rule-based analysis before calling AI (lower cost) |
+            | **EMAR Agent** | Enable/disable the specialised multi-pass EMAR agent |
+
+            **📊 Usage & Cost Tracking**
+            - View token usage per feature (EMAR, care plans, risk assessments, etc.)
+            - Track costs per user and per feature area
+            - Monitor cache hit rates
+            - Review AI call logs with timings
+
+            **🔧 Troubleshooting**
+            - **AI not responding?** Check provider status at **Admin Portal → AI Status**
+            - **AI slow?** Enable cache and lite mode for non-critical tasks
+            - **High costs?** Enable rules-first mode and review usage breakdown
+            - **Incorrect results?** Report via EMAR corrections or contact admin
+
+            **Where to find it:** **Admin Portal → AI Configuration** (admin accounts only).
+
+            What would you like to configure?

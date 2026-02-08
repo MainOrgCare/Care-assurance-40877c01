@@ -1,0 +1,76 @@
+# Name: Edge Extension
+# Handles the CareAssurance Edge browser extension for Access Care Planning auto-fill.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: Edge Extension
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - edge extension
+      - browser extension
+      - ACP extension
+      - Access Care Planning
+      - auto fill
+      - autofill
+      - ACP autofill
+      - install extension
+      - extension not working
+      - extension setup
+      - Chrome extension
+      - care planning extension
+      - extension sync
+      - extension download
+
+  actions:
+    - kind: SearchAndSummarizeContent
+      id: extension-search
+      variable: Topic.Answer
+      userInput: =System.Activity.Text
+
+    - kind: ConditionGroup
+      id: extension-conditions
+      conditions:
+        - id: has-extension-answer
+          condition: =!IsBlank(Topic.Answer)
+          actions:
+            - kind: SendActivity
+              id: extension-response
+              activity: "{Topic.Answer}"
+
+      elseActions:
+        - kind: SendActivity
+          id: extension-guidance
+          activity: |-
+            I can help with the CareAssurance Edge Extension for Access Care Planning (ACP) auto-fill.
+
+            **🔌 What It Does**
+            The browser extension connects CareAssurance to the Access Care Planning (ACP) web portal, enabling:
+            - **Auto-fill care plans** — Push generated care plan data directly into ACP fields
+            - **Auto-fill risk assessments** — Transfer risk assessment data into ACP risk forms
+            - **Service user sync** — Pull service user data from CareAssurance to match ACP records
+            - **Recent activity** — Quick access to recently generated plans and assessments
+
+            **📦 Installation**
+            1. Download the extension from **Admin Portal → Extension** in CareAssurance
+            2. Open Edge browser and go to `edge://extensions/`
+            3. Enable "Developer mode"
+            4. Click "Load unpacked" and select the downloaded extension folder
+            5. The CareAssurance icon will appear in your browser toolbar
+
+            **🔧 How to Use**
+            1. Open ACP in your browser
+            2. Navigate to the service user's care plan or risk assessment form
+            3. Click the CareAssurance extension icon
+            4. Select the data you want to auto-fill
+            5. Review the filled fields and save in ACP
+
+            **⚠️ Troubleshooting**
+            - **Extension not connecting?** Ensure you're logged into CareAssurance and the platform is running
+            - **Data not populating?** Check that the service user exists in both systems
+            - **Extension disappeared?** Re-enable it in `edge://extensions/`
+
+            **Where to find it:** **Admin Portal → Extension** to download and manage.
+
+            What do you need help with?

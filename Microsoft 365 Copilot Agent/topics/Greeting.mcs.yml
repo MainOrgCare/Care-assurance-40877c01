@@ -1,9 +1,5 @@
 # Name: Greeting
 # This topic is triggered when the user greets the agent.
-<<<<<<< 
-=======
-# Name: Greeting
-# This topic is triggered when the user greets the agent.
 kind: AdaptiveDialog
 beginDialog:
   kind: OnRecognizedIntent
@@ -17,6 +13,8 @@ beginDialog:
       - Hello
       - Hey
       - Hi
+      - Hiya
+      - Alright
 
   actions:
     - kind: SendActivity
@@ -24,7 +22,7 @@ beginDialog:
       activity:
         text:
           - |-
-            Hello! 👋 I'm CareAssurance Copilot — ready to help with EMAR audits, care plans, risk assessments, visit audits, PRN protocols, email rewriting, call reconciliation, and more.
+            Hello! 👋 I'm CareAssurance Copilot — ready to help with EMAR audits, care plans, risk assessments, visit audits, PRN protocols, email rewriting, call reconciliation, rostering, billing, GDPR, admin, and more.
 
             What would you like help with?
         speak:
@@ -32,4 +30,3 @@ beginDialog:
 
     - kind: CancelAllDialogs
       id: cancelAllDialogs_01At22
->>>>>>> 
