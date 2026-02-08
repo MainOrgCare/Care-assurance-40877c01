@@ -140,12 +140,12 @@ export default function CarersList() {
                     <FileText className="h-6 w-6 text-muted-foreground/30" />
                   </div>
                   <p className="text-sm font-semibold text-foreground/70">No discrepancies found</p>
-                  <p className="text-xs text-muted-foreground/60 max-w-xs mx-auto">Complete EMAR or Visit audits to see care worker data here.</p>
+                  <p className="text-xs text-muted-foreground max-w-xs mx-auto">Complete EMAR or Visit audits to see care worker data here.</p>
                 </div>
               )}
             </div>
           ) : (
-            <Table>
+            <Table aria-label="Staff with discrepancies">
               <TableHeader>
                 <TableRow>
                   <TableHead>Staff Name</TableHead>
@@ -183,7 +183,7 @@ export default function CarersList() {
                           <Button 
                             size="sm" 
                             variant="ghost" 
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                             data-testid={`button-view-details-${worker.name.replace(/\s/g, '-')}`}
                           >
                             View Details <ChevronRight size={16} />
@@ -208,10 +208,10 @@ export default function CarersList() {
                             )}
                             
                             <div className="space-y-2">
-                              <h4 className="text-sm font-medium text-foreground">Recorded Issues</h4>
+                              <h3 className="text-sm font-medium text-foreground">Recorded Issues</h3>
                               {worker.discrepancies.map((disc, idx) => (
                                 <div 
-                                  key={idx} 
+                                  key={`${disc.date}-${disc.type}`} 
                                   className="p-3 rounded-lg text-sm bg-muted/40 border border-border/60"
                                   data-testid={`card-discrepancy-${idx}`}
                                 >
@@ -264,12 +264,12 @@ export default function CarersList() {
                     <Users className="h-6 w-6 text-muted-foreground/30" />
                   </div>
                   <p className="text-sm font-semibold text-foreground/70">No care workers found</p>
-                  <p className="text-xs text-muted-foreground/60 max-w-xs mx-auto">Save EMAR or Visit audits to populate this list.</p>
+                  <p className="text-xs text-muted-foreground max-w-xs mx-auto">Save EMAR or Visit audits to populate this list.</p>
                 </div>
               )}
             </div>
           ) : (
-            <Table>
+            <Table aria-label="All care workers">
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>

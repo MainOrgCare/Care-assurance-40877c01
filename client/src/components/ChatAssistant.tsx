@@ -561,6 +561,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
               className="h-8 w-8 text-white hover:bg-white/20 rounded-lg"
               onClick={downloadTranscript}
               title="Download transcript"
+              aria-label="Download transcript"
               disabled={messages.length === 0}
             >
               <Download className="h-4 w-4" />
@@ -573,6 +574,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
               className="h-8 w-8 text-white hover:bg-white/20 rounded-lg"
               onClick={resetConversation}
               title="Start new chat"
+              aria-label="Start new chat"
               disabled={isLoading}
             >
               <RotateCcw className="h-4 w-4" />
@@ -584,6 +586,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
             className="h-8 w-8 text-white hover:bg-white/20 rounded-lg"
             onClick={() => setIsMinimized((current) => !current)}
             title={isMinimized ? "Expand" : "Minimize"}
+            aria-label={isMinimized ? "Expand chat" : "Minimize chat"}
           >
             <Minimize2 className="h-4 w-4" />
           </Button>
@@ -593,6 +596,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
             className="h-8 w-8 text-white hover:bg-white/20 rounded-lg"
             onClick={onClose}
             title="Close"
+            aria-label="Close chat assistant"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -803,6 +807,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                   !canSendMessages
                 }
                 size="icon"
+                aria-label="Send message"
                 className="h-[42px] w-[42px] rounded-xl flex-shrink-0 bg-emerald-500 hover:bg-emerald-600 shadow-[0_12px_24px_-14px_rgba(5,150,105,0.75)]"
               >
                 {isLoading ? (

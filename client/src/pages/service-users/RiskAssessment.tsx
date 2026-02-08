@@ -1308,7 +1308,7 @@ export default function RiskAssessment() {
             </Button>
 
             {isAnalyzing && (
-              <div className="space-y-3 p-4 bg-primary/5 border border-primary/20 rounded-lg" data-testid="progress-container">
+              <div className="space-y-3 p-4 bg-primary/5 border border-primary/20 rounded-lg" data-testid="progress-container" aria-live="polite" role="status">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Loader2 size={16} className="animate-spin text-primary" />
@@ -1678,7 +1678,7 @@ export default function RiskAssessment() {
           </p>
         </div>
         {isGenerating && (
-          <div className="w-full max-w-md space-y-3 p-4 bg-primary/5 border border-primary/20 rounded-lg" data-testid="progress-container">
+          <div className="w-full max-w-md space-y-3 p-4 bg-primary/5 border border-primary/20 rounded-lg" data-testid="progress-container" aria-live="polite" role="status">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Loader2 size={16} className="animate-spin text-primary" />

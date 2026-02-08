@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Eye, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, UserMinus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download } from "lucide-react";
+import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download } from "lucide-react";
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
@@ -1455,8 +1455,8 @@ function ActivePresenceSection() {
     );
   }
 
-  const onlineUsers = users.filter(u => u.isOnline);
-  const offlineUsers = users.filter(u => !u.isOnline && u.role !== "admin");
+  const onlineUsers = useMemo(() => users.filter(u => u.isOnline), [users]);
+  const offlineUsers = useMemo(() => users.filter(u => !u.isOnline && u.role !== "admin"), [users]);
 
   return (
     <div className="space-y-6">
@@ -2618,7 +2618,7 @@ function ContactMessagesSection() {
     }
   };
 
-  const unreadCount = messages.filter(m => !m.isRead).length;
+  const unreadCount = useMemo(() => messages.filter(m => !m.isRead).length, [messages]);
 
   if (loading) {
     return (
@@ -3665,7 +3665,7 @@ interface EditingUser {
 }
 
 export default function SecretAdminPortal() {
-  const { users, approveUser, rejectUser, auditLogs, createUser, fetchUsers } = useAuth();
+  const { users, approveUser, rejectUser, auditLogs, fetchUsers } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [adminAlerts, setAdminAlerts] = useState<AdminAlert[]>([]);
   const { toast } = useToast();
@@ -4028,7 +4028,7 @@ export default function SecretAdminPortal() {
   };
 
   // Filter logs
-  const filteredLogs = systemLogs.filter(log => {
+  const filteredLogs = useMemo(() => systemLogs.filter(log => {
     const matchesSearch = logSearch === "" || 
       log.user.toLowerCase().includes(logSearch.toLowerCase()) ||
       log.action.toLowerCase().includes(logSearch.toLowerCase()) ||
@@ -4037,10 +4037,10 @@ export default function SecretAdminPortal() {
     const matchesStatus = logStatusFilter === "all" || log.status === logStatusFilter;
     
     return matchesSearch && matchesStatus;
-  });
+  }), [systemLogs, logSearch, logStatusFilter]);
 
   // Filter users
-  const filteredUsers = users.filter(u => {
+  const filteredUsers = useMemo(() => users.filter(u => {
     const matchesSearch = userSearch === "" ||
       u.username.toLowerCase().includes(userSearch.toLowerCase()) ||
       (u.jobTitle && u.jobTitle.toLowerCase().includes(userSearch.toLowerCase()));
@@ -4049,12 +4049,12 @@ export default function SecretAdminPortal() {
     const matchesStatus = userStatusFilter === "all" || u.status === userStatusFilter;
     
     return matchesSearch && matchesRole && matchesStatus;
-  });
+  }), [users, userSearch, userRoleFilter, userStatusFilter]);
 
   if (!mounted) return null;
 
-  const pendingUsers = users.filter(u => u.status === "pending");
-  const activeUsers = users.filter(u => u.status === "active");
+  const pendingUsers = useMemo(() => users.filter(u => u.status === "pending"), [users]);
+  const activeUsers = useMemo(() => users.filter(u => u.status === "active"), [users]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 p-2 md:p-8 bg-muted/50">

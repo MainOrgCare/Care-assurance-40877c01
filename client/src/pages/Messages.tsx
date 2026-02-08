@@ -152,7 +152,7 @@ export default function Messages() {
     <div className="page-shell">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon-sm" onClick={() => setLocation("/dashboard")} className="mt-0.5 text-muted-foreground">
+          <Button variant="ghost" size="icon-sm" onClick={() => setLocation("/dashboard")} aria-label="Back to dashboard" className="mt-0.5 text-muted-foreground">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="h-10 w-10 rounded-xl bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
@@ -205,7 +205,7 @@ export default function Messages() {
                   <Mail className="h-6 w-6 text-muted-foreground/30" />
                 </div>
                 <p className="text-sm font-semibold text-foreground/80">Inbox empty</p>
-                <p className="text-xs mt-1.5 text-muted-foreground/60 max-w-[200px] mx-auto">Ask Compli-ee to send you a message to get started.</p>
+                <p className="text-xs mt-1.5 text-muted-foreground max-w-[200px] mx-auto">Ask Compli-ee to send you a message to get started.</p>
               </div>
             ) : (
               <div className="divide-y divide-border/55">
@@ -313,7 +313,7 @@ export default function Messages() {
                   <Inbox className="h-7 w-7 text-muted-foreground/25" />
                 </div>
                 <p className="text-sm font-semibold text-foreground/70">No message selected</p>
-                <p className="text-xs mt-1 text-muted-foreground/50">Choose a message from the inbox to view details</p>
+                <p className="text-xs mt-1 text-muted-foreground">Choose a message from the inbox to view details</p>
               </div>
             </div>
           )}

@@ -63,11 +63,9 @@ import {
 
 // Icons
 import {
-  AlertCircle,
   ArrowLeft,
   BarChart3,
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -122,7 +120,6 @@ import {
   applyOverridesToLanes,
   canUndo,
   canRedo,
-  type RosterHistoryState,
 } from "@/lib/rostering/rosterReducer";
 import {
   OptimizationSettings,
@@ -492,7 +489,7 @@ export default function RosteringStudioUnified({
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
 
   // Comparison data for before/after analysis
-  const [savedComparisonData, setSavedComparisonData] = useState<any>(null);
+  const [savedComparisonData] = useState<any>(null);
 
   const timelineZoom = TIMELINE_ZOOM_LEVELS[timelineZoomIndex] ?? 100;
   const timelineRowHeight = useMemo(
@@ -999,15 +996,6 @@ export default function RosteringStudioUnified({
     [rosterState.present.selectedEntryIds, toast]
   );
 
-  const handleBulkDelete = useCallback(() => {
-    const entryIds = Array.from(rosterState.present.selectedEntryIds);
-    if (entryIds.length === 0) return;
-    dispatchRoster({
-      type: "BULK_DELETE_ENTRIES",
-      entryIds,
-    });
-    toast({ title: `${entryIds.length} visits removed` });
-  }, [rosterState.present.selectedEntryIds, toast]);
 
   const handleClearSelection = useCallback(() => {
     dispatchRoster({ type: "CLEAR_SELECTION" });

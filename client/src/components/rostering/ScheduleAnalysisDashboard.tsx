@@ -279,7 +279,7 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
                         {type} Insights ({typedInsights.length})
                       </h3>
                       {typedInsights.map((insight, idx) => (
-                        <Alert key={idx} variant={type === "critical" ? "destructive" : "default"}>
+                        <Alert key={`${insight.title}-${insight.category}`} variant={type === "critical" ? "destructive" : "default"}>
                           <AlertDescription>
                             <div className="space-y-1">
                               <div className="flex items-start justify-between">
@@ -307,7 +307,7 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
                 {analysis.recommendations
                   .sort((a, b) => b.priority - a.priority)
                   .map((rec, idx) => (
-                    <Card key={idx}>
+                    <Card key={rec.action}>
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between">
                           <CardTitle className="text-sm font-medium">
@@ -350,7 +350,7 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
                       {analysis.predictive.burnoutRisk
                         .sort((a, b) => b.riskScore - a.riskScore)
                         .map((risk, idx) => (
-                          <div key={idx} className="space-y-2">
+                          <div key={risk.workerName} className="space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="font-medium">{risk.workerName}</span>
                               <span className="text-sm font-semibold">{risk.riskScore}% risk</span>
@@ -382,7 +382,7 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
                     </CardHeader>
                     <CardContent className="space-y-2">
                       {analysis.predictive.bottlenecks.map((bottleneck, idx) => (
-                        <Alert key={idx}>
+                        <Alert key={bottleneck.timeWindow}>
                           <AlertDescription>
                             <div className="space-y-1">
                               <div className="flex items-center justify-between">

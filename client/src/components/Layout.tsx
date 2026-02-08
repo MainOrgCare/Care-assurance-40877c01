@@ -627,7 +627,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (error) {
-        if ((error as any)?.name !== "AbortError") {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
           console.error('Failed to fetch unread message count:', error);
         }
       }
@@ -711,7 +711,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           setPlatformControls(data);
         }
       } catch (error) {
-        if ((error as any)?.name === "AbortError") return;
+        if (error instanceof DOMException && error.name === "AbortError") return;
         // Keep UI resilient if controls endpoint is unavailable.
       }
     };
@@ -866,6 +866,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="workspace-root relative flex h-[100dvh] min-h-screen w-full overflow-hidden bg-background">
+      {/* Skip Navigation Link */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground focus:shadow-lg focus:outline-none"
+      >
+        Skip to main content
+      </a>
+
       {/* Desktop Sidebar */}
       <aside className={cn(
         "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-sidebar-border bg-sidebar transition-all duration-200",
@@ -882,7 +890,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main + Footer Column */}
       <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col">
         {/* Main Content */}
-        <main className={mainClass}>
+        <main id="main-content" className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
           <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/40 bg-background px-4 md:px-6 transition-[background-color,border-color] duration-200">
@@ -970,6 +978,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       : "bg-muted/40 hover:bg-muted/60"
                   )}
                   title="Messages"
+                  aria-label={unreadMessageCount > 0 ? `Messages (${unreadMessageCount} unread)` : "Messages"}
                 >
                   <Inbox className={cn("h-4 w-4", unreadMessageCount > 0 ? "text-emerald-600" : "text-muted-foreground")} />
                   {unreadMessageCount > 0 && (
@@ -1141,10 +1150,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-2.5 font-medium">
                 <span className="text-foreground/70">&copy; {new Date().getFullYear()} CareAssurance</span>
                 <span className="hidden sm:inline text-muted-foreground/30">&middot;</span>
-                <span className="hidden sm:inline text-muted-foreground/60 text-[11px]">Precision tools for high-trust care teams</span>
+                <span className="hidden sm:inline text-muted-foreground text-[11px]">Precision tools for high-trust care teams</span>
               </div>
               <div className="flex items-center gap-3">
-                <div className="hidden md:flex items-center gap-1.5 text-[9px] text-muted-foreground/45 font-medium tabular-nums">
+                <div className="hidden md:flex items-center gap-1.5 text-[9px] text-muted-foreground/60 font-medium tabular-nums">
                   <span className={cn(
                     "h-1.5 w-1.5 rounded-full transition-colors",
                     isConnected ? "bg-emerald-500" : "bg-red-500"
@@ -1154,10 +1163,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <span>{sessionDuration}</span>
                 </div>
                 <div className="hidden sm:block h-3 w-px bg-border/40" />
-                <Link href="/terms" className="transition-colors hover:text-foreground text-[11px] font-medium" data-testid="link-footer-terms">
+                <Link href="/terms" className="transition-colors hover:text-foreground text-[11px] font-medium underline-offset-2 hover:underline" data-testid="link-footer-terms">
                   Terms
                 </Link>
-                <Link href="/privacy" className="transition-colors hover:text-foreground text-[11px] font-medium" data-testid="link-footer-privacy">
+                <Link href="/privacy" className="transition-colors hover:text-foreground text-[11px] font-medium underline-offset-2 hover:underline" data-testid="link-footer-privacy">
                   Privacy
                 </Link>
               </div>

@@ -6,6 +6,12 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Button } from "@/components/ui/button";
 import { useDataExport } from "@/hooks/useDataExport";
 
+interface AuditResults {
+  discrepancies?: { length: number }[];
+  warnings?: { length: number }[];
+  [key: string]: unknown;
+}
+
 interface Audit {
   id: string;
   serviceUserName: string;
@@ -13,7 +19,7 @@ interface Audit {
   auditType: string;
   periodStart: string;
   periodEnd: string;
-  results: any;
+  results: AuditResults | null;
   createdAt: string;
 }
 
@@ -56,12 +62,12 @@ export default function Compliance() {
   const visitAudits = auditList.filter((a: Audit) => a.auditType === "Visit");
   
   const totalDiscrepancies = auditList.reduce((sum: number, audit: Audit) => {
-    const results = audit.results as any;
+    const results = audit.results;
     return sum + (results?.discrepancies?.length || 0);
   }, 0);
 
   const totalWarnings = auditList.reduce((sum: number, audit: Audit) => {
-    const results = audit.results as any;
+    const results = audit.results;
     return sum + (results?.warnings?.length || 0);
   }, 0);
 
@@ -239,7 +245,7 @@ export default function Compliance() {
           {auditList.length > 0 ? (
             <div className="space-y-4">
               {auditList.slice(0, 10).map((audit: Audit) => {
-                const results = audit.results as any;
+                const results = audit.results;
                 const discrepancyCount = results?.discrepancies?.length || 0;
                 const warningCount = results?.warnings?.length || 0;
                 
@@ -292,7 +298,7 @@ export default function Compliance() {
                 <FileText className="h-6 w-6 text-muted-foreground/30" />
               </div>
               <p className="text-sm font-semibold text-foreground/70">No audits recorded</p>
-              <p className="text-xs mt-1.5 text-muted-foreground/60 max-w-xs mx-auto">Complete an EMAR or Visit audit to see compliance results here</p>
+              <p className="text-xs mt-1.5 text-muted-foreground max-w-xs mx-auto">Complete an EMAR or Visit audit to see compliance results here</p>
             </div>
           )}
         </CardContent>

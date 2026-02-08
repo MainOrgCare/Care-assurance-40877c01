@@ -272,7 +272,7 @@ export default function CostAnalysisDashboard({ workers }: CostAnalysisProp) {
                   {costData
                     .sort((a, b) => b.totalCost - a.totalCost)
                     .map((worker, idx) => (
-                      <TableRow key={idx}>
+                      <TableRow key={worker.name}>
                         <TableCell className="font-medium">{worker.name}</TableCell>
                         <TableCell className="text-right">{formatHours(worker.regularHours)}</TableCell>
                         <TableCell className="text-right">

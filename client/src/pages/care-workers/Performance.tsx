@@ -336,9 +336,10 @@ export default function Performance() {
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
                       className="pl-9 h-9 w-48 text-sm"
+                      aria-label="Search staff by name"
                     />
                     {searchTerm && (
-                      <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      <button onClick={() => setSearchTerm("")} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                         <X className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -356,17 +357,17 @@ export default function Performance() {
             </CardHeader>
             <CardContent className="p-0">
               {/* Table Header */}
-              <div className="grid grid-cols-12 gap-2 px-5 py-3 bg-muted/20 border-b border-border/40 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                <button onClick={() => toggleSort("name")} className="col-span-4 flex items-center gap-1 hover:text-foreground transition-colors text-left">
+              <div role="row" className="grid grid-cols-12 gap-2 px-5 py-3 bg-muted/20 border-b border-border/40 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                <button onClick={() => toggleSort("name")} aria-sort={sortField === "name" ? (sortDirection === "asc" ? "ascending" : "descending") : undefined} className="col-span-4 flex items-center gap-1 hover:text-foreground transition-colors text-left">
                   Name <ArrowUpDown className="h-3 w-3" />
                 </button>
-                <button onClick={() => toggleSort("compliance")} className="col-span-3 flex items-center gap-1 hover:text-foreground transition-colors text-left">
+                <button onClick={() => toggleSort("compliance")} aria-sort={sortField === "compliance" ? (sortDirection === "asc" ? "ascending" : "descending") : undefined} className="col-span-3 flex items-center gap-1 hover:text-foreground transition-colors text-left">
                   Compliance <ArrowUpDown className="h-3 w-3" />
                 </button>
-                <button onClick={() => toggleSort("audits")} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors text-left">
+                <button onClick={() => toggleSort("audits")} aria-sort={sortField === "audits" ? (sortDirection === "asc" ? "ascending" : "descending") : undefined} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors text-left">
                   Audits <ArrowUpDown className="h-3 w-3" />
                 </button>
-                <button onClick={() => toggleSort("discrepancies")} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors text-left">
+                <button onClick={() => toggleSort("discrepancies")} aria-sort={sortField === "discrepancies" ? (sortDirection === "asc" ? "ascending" : "descending") : undefined} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors text-left">
                   Issues <ArrowUpDown className="h-3 w-3" />
                 </button>
                 <div className="col-span-1 text-right">Detail</div>
@@ -386,8 +387,11 @@ export default function Performance() {
                     return (
                       <div
                         key={worker.name}
-                        className="grid grid-cols-12 gap-2 px-5 py-3.5 items-center hover:bg-muted/20 transition-colors group cursor-pointer"
+                        role="button"
+                        tabIndex={0}
+                        className="grid grid-cols-12 gap-2 px-5 py-3.5 items-center hover:bg-muted/20 focus-visible:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-inset transition-colors group cursor-pointer"
                         onClick={() => setSelectedWorker(worker)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedWorker(worker); } }}
                         data-testid={`worker-row-${worker.name.replace(/\s/g, '-')}`}
                       >
                         <div className="col-span-4 flex items-center gap-3">
@@ -503,7 +507,7 @@ export default function Performance() {
                   <div className="space-y-4">
                     {trainingRecommendations.map((rec, idx) => (
                       <div
-                        key={idx}
+                        key={rec.topic}
                         className="p-4 bg-primary/5 border border-primary/10 rounded-xl group hover:bg-primary/10 transition-colors"
                         data-testid={`training-${idx}`}
                       >

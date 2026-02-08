@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Mail, Sparkles, Copy, RefreshCw, Check, History, FileText, Trash2, Clock, Heading, LetterText, ChevronDown, BookTemplate, ArrowRight } from "lucide-react";
+import { Mail, Sparkles, Copy, RefreshCw, Check, History, FileText, Trash2, Clock, Heading, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -100,7 +100,7 @@ export default function EmailAssistant() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [outputText, setOutputText] = useState("");
   const [subjectLine, setSubjectLine] = useState("");
-  const [generateSubject, setGenerateSubject] = useState(true);
+  const [generateSubject] = useState(true);
   const [history, setHistory] = useState<RewriteHistoryEntry[]>(loadHistory);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -243,7 +243,7 @@ export default function EmailAssistant() {
             )}
           </Button>
           {(inputText || outputText) && (
-            <Button variant="ghost" size="icon-sm" onClick={clearAll} className="text-muted-foreground">
+            <Button variant="ghost" size="icon-sm" onClick={clearAll} aria-label="Clear all content" className="text-muted-foreground">
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           )}
@@ -264,13 +264,14 @@ export default function EmailAssistant() {
           </CardHeader>
           <CardContent className="flex-1 min-h-[400px] pt-5 relative">
             <Textarea
+              id="email-draft-input"
               placeholder="e.g. update Sarah about missing medication logs, request an update by Friday, and check in on how her holiday went."
               className="h-full resize-none p-5 text-sm leading-relaxed bg-muted/15 border-border/30 rounded-xl focus:bg-background"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
             />
             {inputText && (
-              <div className="absolute bottom-2.5 right-5 flex gap-3 text-[10px] font-medium text-muted-foreground/60 tabular-nums">
+              <div className="absolute bottom-2.5 right-5 flex gap-3 text-[10px] font-medium text-muted-foreground tabular-nums">
                 <span>{wordCount.input} words</span>
                 <span>{charCount.input} chars</span>
               </div>
@@ -330,7 +331,7 @@ export default function EmailAssistant() {
               <div className="px-6 pt-4 pb-3 border-b border-border/20 bg-muted/5">
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <Heading className="h-3 w-3 text-muted-foreground/50" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">Subject</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Subject</span>
                 </div>
                 <Input
                   value={subjectLine}
@@ -353,6 +354,7 @@ export default function EmailAssistant() {
 
               <Textarea
                 readOnly
+                aria-label="Generated email output"
                 className="h-full w-full resize-none border-0 focus-visible:ring-0 p-8 text-sm font-medium leading-relaxed bg-transparent text-foreground"
                 placeholder={isProcessing ? "" : "Synthesized professional correspondence will appear here."}
                 value={outputText}
@@ -394,7 +396,7 @@ export default function EmailAssistant() {
           <div className="flex-1 overflow-y-auto space-y-5 py-3">
             {uniqueCategories.map(category => (
               <div key={category}>
-                <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-2.5 px-1">{category}</h4>
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2.5 px-1">{category}</h4>
                 <div className="space-y-1.5">
                   {EMAIL_TEMPLATES.filter(t => t.category === category).map(template => (
                     <button
@@ -431,7 +433,7 @@ export default function EmailAssistant() {
               <div className="text-center py-16 text-muted-foreground">
                 <Clock className="h-8 w-8 mx-auto mb-3 opacity-20" />
                 <p className="text-sm font-medium">No history yet</p>
-                <p className="text-xs mt-1 text-muted-foreground/60">Rewritten emails will appear here.</p>
+                <p className="text-xs mt-1 text-muted-foreground">Rewritten emails will appear here.</p>
               </div>
             ) : (
               history.map(entry => (
@@ -442,14 +444,14 @@ export default function EmailAssistant() {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <Badge variant="outline" className="text-[9px] font-semibold capitalize h-5">{entry.tone}</Badge>
-                    <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
                       {new Date(entry.timestamp).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </div>
                   {entry.subjectLine && (
                     <p className="text-xs font-semibold text-primary mt-1">{entry.subjectLine}</p>
                   )}
-                  <p className="text-xs text-muted-foreground/60 mt-1 line-clamp-2">{entry.inputText}</p>
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{entry.inputText}</p>
                 </button>
               ))
             )}

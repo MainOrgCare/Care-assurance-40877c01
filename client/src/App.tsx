@@ -13,6 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Redirect } from "wouter";
 import React, { Suspense, useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Lazy loaded pages for code splitting - reduces initial bundle size
 const NotFound = React.lazy(() => import("@/pages/not-found"));
@@ -96,8 +97,9 @@ function HomeRoute() {
 
 function Router() {
   return (
-    <Suspense fallback={<RouteFallback />}>
-      <Switch>
+    <ErrorBoundary>
+      <Suspense fallback={<RouteFallback />}>
+        <Switch>
         <Route path="/terms" component={TermsConditions} />
         <Route path="/privacy" component={PrivacyPolicy} />
         <ProtectedRoute path="/dashboard" component={Dashboard} />
@@ -146,6 +148,7 @@ function Router() {
         <Route component={NotFound} />
       </Switch>
     </Suspense>
+    </ErrorBoundary>
   );
 }
 

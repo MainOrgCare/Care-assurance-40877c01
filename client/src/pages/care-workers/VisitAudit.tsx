@@ -94,7 +94,7 @@ const CopyButton = memo(function CopyButton({ text, label }: { text: string; lab
   };
 
   return (
-    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCopy} data-testid={`button-copy-${label?.toLowerCase().replace(/\s/g, '-') || 'text'}`}>
+    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCopy} aria-label={label ? `Copy ${label}` : 'Copy to clipboard'} data-testid={`button-copy-${label?.toLowerCase().replace(/\s/g, '-') || 'text'}`}>
       {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
     </Button>
   );
@@ -457,8 +457,9 @@ export default function VisitAudit() {
           </CardHeader>
           <CardContent className="space-y-6 pt-6">
             <div className="space-y-3">
-              <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground px-1">Raw Telemetry / Log Data</Label>
+              <Label htmlFor="visit-log-content" className="text-xs font-black uppercase tracking-widest text-muted-foreground px-1">Raw Telemetry / Log Data</Label>
               <Textarea
+                id="visit-log-content"
                 placeholder="Paste your visit log data here or upload a file below...
 
 The AI will automatically extract:
@@ -499,7 +500,7 @@ The AI will automatically extract:
             </div>
 
             {loading && (
-              <div className="space-y-4 p-5 bg-primary/5 border border-primary/10 rounded-xl" data-testid="progress-container">
+              <div className="space-y-4 p-5 bg-primary/5 border border-primary/10 rounded-xl" data-testid="progress-container" aria-live="polite" role="status">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-3">
                     <div className="h-2 w-2 rounded-full bg-primary animate-ping" />
@@ -540,7 +541,7 @@ The AI will automatically extract:
             </CardHeader>
             <CardContent className="pt-6">
               <div className="overflow-x-auto rounded-xl border border-border/40">
-                <Table>
+                <Table aria-label="Care calls audit results">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Care Worker</TableHead>
@@ -554,7 +555,7 @@ The AI will automatically extract:
                   </TableHeader>
                   <TableBody className="bg-muted/5">
                     {result.careCalls.map((call, idx) => (
-                      <TableRow key={idx} data-testid={`row-care-call-${idx}`} className="hover:bg-muted/10 transition-colors border-border/30">
+                      <TableRow key={`${call.careWorkerName}-${call.date}-${call.expectedTime}`} data-testid={`row-care-call-${idx}`} className="hover:bg-muted/10 transition-colors border-border/30">
                         <TableCell className="text-foreground font-medium tracking-tight">{call.careWorkerName}</TableCell>
                         <TableCell className="text-muted-foreground font-medium text-xs">{call.date}</TableCell>
                         <TableCell className="text-center">
@@ -585,7 +586,7 @@ The AI will automatically extract:
                         </TableCell>
                         <TableCell className="text-xs">
                           {call.comment === "NA" ? (
-                            <span className="text-muted-foreground/60 font-medium italic">NO LOGS</span>
+                            <span className="text-muted-foreground font-medium italic">NO LOGS</span>
                           ) : (
                             <span className="text-foreground font-semibold">{call.comment}</span>
                           )}
@@ -657,7 +658,7 @@ The AI will automatically extract:
                       />
                     </div>
                     <div className="overflow-hidden rounded-xl border border-destructive/20 shadow-sm">
-                      <Table>
+                      <Table aria-label="Discrepancy details">
                         <TableHeader className="bg-destructive/10">
                           <TableRow className="border-destructive/20">
                             <TableHead className="w-24 text-destructive/80 font-semibold uppercase text-[10px] tracking-widest">Date</TableHead>
@@ -667,7 +668,7 @@ The AI will automatically extract:
                         </TableHeader>
                         <TableBody className="bg-background/40">
                           {discrepancies.map((disc, idx) => (
-                            <TableRow key={idx} data-testid={`row-discrepancy-${carerIdx}-${idx}`} className="border-destructive/10 hover:bg-destructive/5 transition-colors">
+                            <TableRow key={`${disc.date}-${disc.issue}`} data-testid={`row-discrepancy-${carerIdx}-${idx}`} className="border-destructive/10 hover:bg-destructive/5 transition-colors">
                               <TableCell className="text-muted-foreground font-semibold text-xs">{disc.date}</TableCell>
                               <TableCell className="text-foreground font-semibold text-xs leading-relaxed">{disc.issue}</TableCell>
                               <TableCell>

@@ -580,7 +580,7 @@ export default function CarePlanning() {
                 <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
                 <span className="font-medium tracking-tight">Show full names (admin view)</span>
               </div>
-              <span className="text-[10px] text-muted-foreground/60 font-medium">Copies and saves use initials only.</span>
+              <span className="text-[10px] text-muted-foreground font-medium">Copies and saves use initials only.</span>
             </div>
           )}
           {carePlan && (

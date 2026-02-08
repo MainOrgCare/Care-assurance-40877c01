@@ -77,7 +77,7 @@ function SortableWidgetItemBase({ widget, isActive, onToggle }: { widget: Widget
       )}
     >
       <div className="flex items-center gap-3">
-        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1.5 rounded-lg hover:bg-background/80 text-muted-foreground transition-colors">
+        <button {...attributes} {...listeners} aria-label={`Drag to reorder ${widget.label}`} className="cursor-grab active:cursor-grabbing p-1.5 rounded-lg hover:bg-background/80 text-muted-foreground transition-colors">
           <GripVertical className="h-4 w-4" />
         </button>
         <div className="p-2 rounded-lg bg-background/50 text-primary shadow-xs">
@@ -214,7 +214,7 @@ export default function Dashboard() {
     if (widgetPrefs?.widgets && widgetPrefs.widgets.length > 0) {
       const savedWidgets = widgetPrefs.widgets;
       const visibleIds = savedWidgets.filter((w: string) => !w.startsWith("hidden:"));
-      const hiddenIds = savedWidgets.filter((w: string) => w.startsWith("hidden:")).map((w: string) => w.replace("hidden:", ""));
+      savedWidgets.filter((w: string) => w.startsWith("hidden:")).map((w: string) => w.replace("hidden:", ""));
       const orderedIds = savedWidgets.map((w: string) => w.replace("hidden:", ""));
       const missingWidgets = ALL_WIDGETS.map(w => w.id).filter(id => !orderedIds.includes(id));
       setActiveWidgets(visibleIds);
@@ -260,7 +260,6 @@ export default function Dashboard() {
     return `${Math.floor(diffHours / 24)}d ago`;
   }, []);
 
-  const isWidgetActive = useCallback((id: string) => activeWidgets.includes(id), [activeWidgets]);
   
   const sortedActiveWidgets = useMemo(() => widgetOrder.filter(id => activeWidgets.includes(id)), [widgetOrder, activeWidgets]);
   const smallWidgets = useMemo(() => sortedActiveWidgets.filter(id => !["compliance_data", "recent_alerts", "activity_feed"].includes(id)), [sortedActiveWidgets]);
@@ -427,7 +426,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-foreground">Demo Mode Active</h3>
+                    <h2 className="font-semibold text-foreground">Demo Mode Active</h2>
                     <Badge variant="outline" className="border-primary/35 text-primary">Sample Data</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -558,7 +557,7 @@ export default function Dashboard() {
             <Zap className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <h3 className="text-sm font-bold tracking-tight text-foreground">Launch Center</h3>
+            <h2 className="text-sm font-bold tracking-tight text-foreground">Launch Center</h2>
             <p className="text-[11px] text-muted-foreground/70">Accelerated workflows for care teams</p>
           </div>
         </div>
@@ -571,10 +570,10 @@ export default function Dashboard() {
                     <action.icon className="h-4.5 w-4.5" />
                   </div>
                   
-                  <h4 className="font-bold text-[0.8125rem] mb-1 group-hover:text-primary transition-colors duration-200 text-foreground tracking-tight">{action.label}</h4>
+                  <h3 className="font-bold text-[0.8125rem] mb-1 group-hover:text-primary transition-colors duration-200 text-foreground tracking-tight">{action.label}</h3>
                   <p className="text-[11px] leading-relaxed text-muted-foreground/80">{action.description}</p>
                   
-                  <div className="flex items-center gap-1.5 mt-3 text-[10px] font-semibold text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                  <div className="flex items-center gap-1.5 mt-3 text-[10px] font-semibold text-primary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150">
                     <span>Open</span>
                     <ArrowRight className="h-3 w-3" />
                   </div>

@@ -88,9 +88,9 @@ export default function SystemLogs() {
         { header: "Event Type", accessor: "eventType" },
         { header: "Username", accessor: "username" },
         { header: "Service User", accessor: "serviceUserInitials" },
-        { header: "Action", accessor: (row) => (row.details as any)?.action ?? "" },
-        { header: "Target", accessor: (row) => (row.details as any)?.target ?? "" },
-        { header: "Status", accessor: (row) => (row.details as any)?.status ?? "" },
+        { header: "Action", accessor: (row) => (row.details as SystemLogEntry["details"])?.action ?? "" },
+        { header: "Target", accessor: (row) => (row.details as SystemLogEntry["details"])?.target ?? "" },
+        { header: "Status", accessor: (row) => (row.details as SystemLogEntry["details"])?.status ?? "" },
       ],
       `system-logs-${new Date().toISOString().slice(0, 10)}`,
     );

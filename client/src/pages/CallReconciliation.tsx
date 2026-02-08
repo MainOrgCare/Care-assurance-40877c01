@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, FileSpreadsheet, ArrowRightLeft, CheckCircle2, Download, Lock, Info, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -189,7 +189,7 @@ export default function CallReconciliation() {
       )}
 
       {step === "processing" && (
-        <Card className="glass-card p-16 flex flex-col items-center justify-center text-center space-y-8">
+        <Card className="glass-card p-16 flex flex-col items-center justify-center text-center space-y-8" aria-live="polite" role="status">
           <div className="relative">
              <div className="h-20 w-20 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
              <div className="absolute inset-0 flex items-center justify-center text-primary">

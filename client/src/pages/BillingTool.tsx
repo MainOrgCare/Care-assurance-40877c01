@@ -648,6 +648,7 @@ export default function BillingTool() {
                   accept="image/png"
                   multiple
                   className="absolute inset-0 opacity-0 cursor-pointer"
+                  aria-label="Add billing photos"
                   onChange={(e) => {
                     handleFilesAdded(e.target.files);
                     e.currentTarget.value = "";
@@ -864,6 +865,7 @@ export default function BillingTool() {
                       type="file"
                       accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                       className="absolute inset-0 cursor-pointer opacity-0"
+                      aria-label="Choose support plan file"
                       onChange={(e) => {
                         handleSupportPlanSelect(e.target.files);
                         e.currentTarget.value = "";
@@ -1015,7 +1017,7 @@ export default function BillingTool() {
                   </div>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="px-5 pb-5">
-                  <Table>
+                  <Table aria-label="Billing segments">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Start</TableHead>

@@ -295,7 +295,7 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
                   </TableHeader>
                   <TableBody>
                     {comparison.workerImpact.map((worker, idx) => (
-                      <TableRow key={idx}>
+                      <TableRow key={worker.workerName}>
                         <TableCell className="font-medium">{worker.workerName}</TableCell>
                         <TableCell className="text-right">
                           {getDeltaDisplay(worker.callsDelta)}
