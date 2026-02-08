@@ -272,7 +272,7 @@ const SidebarContent = memo(function SidebarContent({
             onClick={handleSecretClick}
             className={cn("flex items-center gap-3 cursor-pointer group", isCollapsed && "justify-center")}
           >
-            <div className="relative h-9 w-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-sidebar-primary/20 to-sidebar-primary/5 border border-sidebar-primary/20 shadow-sm">
+            <div className="relative h-9 w-9 rounded-lg flex items-center justify-center bg-sidebar-primary/12 border border-sidebar-primary/15">
               <ShieldCheck className="h-[17px] w-[17px] text-sidebar-primary" />
             </div>
             {!isCollapsed && (
@@ -755,7 +755,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(
-    "workspace-card rounded-xl border border-border/50 bg-card p-4 sm:p-6 lg:p-7 flex flex-col shadow-sm w-full flex-1 min-h-0 motion-safe:animate-[fade-in_150ms_ease-out]",
+    "workspace-card rounded-xl border border-border/50 bg-card p-4 sm:p-6 lg:p-7 flex flex-col w-full flex-1 min-h-0 motion-safe:animate-[fade-in_150ms_ease-out]",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
@@ -866,9 +866,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="workspace-root relative flex h-[100dvh] min-h-screen w-full overflow-hidden bg-background">
-      <div className="pointer-events-none absolute inset-0 -z-[1] overflow-hidden">
-        <div className="absolute -top-44 -left-28 h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgba(30,64,175,0.04),rgba(30,64,175,0)_72%)] blur-lg" />
-      </div>
       {/* Desktop Sidebar */}
       <aside className={cn(
         "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-sidebar-border bg-sidebar transition-all duration-200",
@@ -888,7 +885,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/40 bg-background/92 px-4 backdrop-blur-md md:px-6 transition-[background-color,border-color] duration-200">
+          <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/40 bg-background px-4 md:px-6 transition-[background-color,border-color] duration-200">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -991,7 +988,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
               
-              <div className="group flex cursor-pointer items-center gap-2.5 rounded-lg border border-border/40 bg-muted/25 py-1.5 pl-3 pr-1.5 transition-all duration-200 hover:border-primary/20 hover:bg-muted/40 hover:shadow-sm">
+              <div className="group flex cursor-pointer items-center gap-2.5 rounded-lg border border-border/40 bg-muted/25 py-1.5 pl-3 pr-1.5 transition-colors duration-150 hover:border-primary/20 hover:bg-muted/40">
                 <div className="text-right hidden sm:block">
                   <p className="text-[10.5px] font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
                     {displayName}
@@ -1117,7 +1114,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground tracking-tight leading-tight">{pageMeta.title}</h1>
                   <p className="text-[0.8125rem] text-muted-foreground mt-1.5 max-w-2xl leading-relaxed">{pageMeta.subtitle}</p>
                 </div>
-                <div className="h-px mb-5 bg-gradient-to-r from-border/60 via-border/30 to-transparent" />
+                <div className="h-px mb-5 bg-border/40" />
                 <Suspense fallback={
                   <div className="flex-1 flex flex-col gap-4 animate-pulse">
                     <div className="h-8 w-48 bg-muted rounded-lg" />
@@ -1139,7 +1136,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         {!isSingleScreenRoute && (
-          <footer className="workspace-footer flex-shrink-0 border-t border-border/30 bg-background/94 px-4 py-2.5 backdrop-blur-sm transition-[background-color,border-color] duration-200">
+          <footer className="workspace-footer flex-shrink-0 border-t border-border/30 bg-background px-4 py-2.5 transition-[background-color,border-color] duration-200">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5 text-xs text-muted-foreground">
               <div className="flex items-center gap-2.5 font-medium">
                 <span className="text-foreground/70">&copy; {new Date().getFullYear()} CareAssurance</span>

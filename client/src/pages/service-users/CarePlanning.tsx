@@ -1044,7 +1044,7 @@ export default function CarePlanning() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className={cn(
-                          "h-10 w-10 rounded-xl flex items-center justify-center border transition-all duration-500 group-hover:scale-110 shadow-xs",
+                          "h-10 w-10 rounded-xl flex items-center justify-center border transition-all duration-500 shadow-xs",
                           section.priority === 'high' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
                           section.priority === 'medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
                           'bg-success/10 border-success/20 text-success'

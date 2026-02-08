@@ -2560,7 +2560,7 @@ ${generatedProtocol.additionalComments}`;
           </CardHeader>
           <CardContent className="space-y-8 pt-6">
             <div className="bg-muted/30 border border-border/40 rounded-2xl p-6 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
                 <Brain className="h-24 w-24" />
               </div>
               <p className="text-sm font-semibold text-foreground mb-4 uppercase tracking-widest flex items-center gap-2">
@@ -2606,7 +2606,7 @@ ${generatedProtocol.additionalComments}`;
                   data-testid="input-file-upload"
                 />
                 <Label htmlFor="emar-upload" className="flex flex-col items-center gap-4 text-center cursor-pointer">
-                  <div className="h-16 w-16 rounded-2xl bg-background border border-border/60 flex items-center justify-center shadow-xs group-hover:scale-110 group-hover:text-primary transition-all">
+                  <div className="h-16 w-16 rounded-2xl bg-background border border-border/60 flex items-center justify-center shadow-xs group-hover:text-primary transition-all">
                     <Upload className="h-8 w-8" />
                   </div>
                   <div className="space-y-1">
@@ -3220,7 +3220,7 @@ ${generatedProtocol.additionalComments}`;
               <div className="flex items-center justify-between gap-6">
                 <div className="flex items-center gap-5">
                   <div className={cn(
-                    "h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg transition-transform hover:scale-110",
+                    "h-14 w-14 rounded-2xl flex items-center justify-center shadow-sm",
                     hasAnyDiscrepancies() ? "bg-destructive/20 text-destructive" : "bg-success/20 text-success"
                   )}>
                     {hasAnyDiscrepancies() ? <X className="h-8 w-8" /> : <Check className="h-8 w-8" />}
@@ -3596,8 +3596,8 @@ ${generatedProtocol.additionalComments}`;
                                       key={item.key}
                                       className={cn(
                                         "flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border transition-all duration-300",
-                                        isEscalate ? "bg-destructive/10 border-destructive/30 shadow-lg shadow-destructive/5" :
-                                        isAcceptable ? "bg-success/10 border-success/30 shadow-lg shadow-success/5" :
+                                        isEscalate ? "bg-destructive/10 border-destructive/30 shadow-sm" :
+                                        isAcceptable ? "bg-success/10 border-success/30 shadow-sm" :
                                         "bg-background border-border/60"
                                       )}
                                       data-testid={`refusal-item-${codeGroup.code}-${itemIdx}`}
@@ -3669,11 +3669,11 @@ ${generatedProtocol.additionalComments}`;
                       <Button
                         onClick={handleSubmitRefusalReview}
                         disabled={getRefusalReviewStats.reviewed === 0}
-                        className="h-11 px-8 rounded-xl font-medium tracking-tight shadow-glow group"
+                        className="h-11 px-8 rounded-xl font-medium tracking-tight group"
                         data-testid="button-submit-refusal-review"
                       >
                         {getRefusalReviewStats.toEscalate > 0 && (
-                          <AlertTriangle className="h-4 w-4 mr-2.5 group-hover:scale-110 transition-transform" />
+                          <AlertTriangle className="h-4 w-4 mr-2.5" />
                         )}
                         COMMIT REVIEW
                         {getRefusalReviewStats.toEscalate > 0 && ` (${getRefusalReviewStats.toEscalate} ESCALATIONS)`}
@@ -3965,7 +3965,7 @@ ${generatedProtocol.additionalComments}`;
               <Button
                 onClick={saveAudit}
                 disabled={loading}
-                className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-medium tracking-tight shadow-glow bg-gradient-to-r from-primary to-blue-600 border-0"
+                className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-medium tracking-tight bg-primary border-0"
                 data-testid="button-save-emar-audit"
               >
                 {loading ? "SAVING..." : "COMMIT AUDIT"}

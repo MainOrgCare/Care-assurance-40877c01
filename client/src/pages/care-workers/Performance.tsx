@@ -517,7 +517,7 @@ export default function Performance() {
                               Assigned: {rec.assignedTo.join(", ")}
                             </p>
                             <div className="flex items-center gap-2 text-xs font-medium text-primary">
-                              <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                              <div className="h-1.5 w-1.5 rounded-full bg-primary" />
                               {rec.reason}
                             </div>
                           </div>

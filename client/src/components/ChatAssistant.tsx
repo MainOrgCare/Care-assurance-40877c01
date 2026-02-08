@@ -529,14 +529,14 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
   return (
     <div
       className={cn(
-        "fixed z-50 transition-all duration-250 bg-background/96 border border-border/80 shadow-[0_34px_78px_-42px_rgba(15,23,42,0.75)] backdrop-blur-xl overflow-hidden flex flex-col rounded-2xl",
+        "fixed z-50 transition-all duration-250 bg-background border border-border shadow-lg overflow-hidden flex flex-col rounded-xl",
         isOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-3 pointer-events-none",
         isMinimized
           ? "bottom-4 right-4 w-[300px] h-14"
           : "bottom-4 left-3 right-3 sm:left-auto sm:right-4 sm:w-[430px] h-[min(78vh,620px)]"
       )}
     >
-      <div className="relative flex items-center justify-between px-3.5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
+      <div className="relative flex items-center justify-between px-3.5 py-3 bg-emerald-600 text-white">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/70" />
         <div className="flex items-center gap-2.5 min-w-0">
           <ComplieeAvatar size="md" animate={isLoading} />

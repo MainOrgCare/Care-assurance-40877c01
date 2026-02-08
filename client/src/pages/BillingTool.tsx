@@ -758,7 +758,7 @@ export default function BillingTool() {
             </div>
 
             <Button
-              className="w-full bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+              className="w-full bg-primary text-primary-foreground"
               size="lg"
               onClick={handleAnalyze}
               disabled={!canAnalyze}
@@ -889,7 +889,7 @@ export default function BillingTool() {
 
               <div className="flex flex-wrap gap-3">
                 <Button
-                  className="bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                  className="bg-primary text-primary-foreground"
                   onClick={handleCompareSupportPlan}
                   disabled={!supportPlanFile || !analysis || supportPlanStatus === "processing"}
                 >

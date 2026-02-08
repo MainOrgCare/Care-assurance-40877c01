@@ -418,11 +418,11 @@ export default function Dashboard() {
   return (
     <div className="page-shell">
       {user?.isDemo && (
-        <Card className="bg-gradient-to-r from-blue-600/10 via-cyan-600/10 to-emerald-600/10 border-primary/25 shadow-lg animate-fade-in" data-testid="demo-mode-banner">
+        <Card className="bg-primary/5 border-primary/20 animate-fade-in" data-testid="demo-mode-banner">
           <CardContent className="p-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+                <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center">
                   <Play className="h-5 w-5 text-white" />
                 </div>
                 <div>
@@ -565,16 +565,16 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {QUICK_ACTIONS.map((action, index) => (
             <Link key={index} href={action.href}>
-              <Card className="group h-full hover:shadow-md transition-all duration-200" data-testid={`card-quick-action-${index}`}>
+              <Card className="group h-full" data-testid={`card-quick-action-${index}`}>
                 <CardContent className={`p-4 relative border ${action.panelTone} rounded-xl transition-colors duration-200`}>
-                  <div className={`relative h-9 w-9 rounded-lg ${action.iconTone} flex items-center justify-center mb-3 transition-transform duration-200 group-hover:scale-105`}>
+                  <div className={`relative h-9 w-9 rounded-lg ${action.iconTone} flex items-center justify-center mb-3`}>
                     <action.icon className="h-4.5 w-4.5" />
                   </div>
                   
                   <h4 className="font-bold text-[0.8125rem] mb-1 group-hover:text-primary transition-colors duration-200 text-foreground tracking-tight">{action.label}</h4>
                   <p className="text-[11px] leading-relaxed text-muted-foreground/80">{action.description}</p>
                   
-                  <div className="flex items-center gap-1.5 mt-3 text-[10px] font-semibold text-primary opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-0 group-hover:translate-x-0.5">
+                  <div className="flex items-center gap-1.5 mt-3 text-[10px] font-semibold text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                     <span>Open</span>
                     <ArrowRight className="h-3 w-3" />
                   </div>

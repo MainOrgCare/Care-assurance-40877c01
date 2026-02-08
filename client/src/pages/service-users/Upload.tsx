@@ -86,7 +86,7 @@ export default function ServiceUserUpload() {
           onDragLeave={handleDragLeave}
         >
           {serviceUserData.socialWork && (
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-emerald-400" />
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary/40" />
           )}
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2.5 text-base">
@@ -154,7 +154,7 @@ export default function ServiceUserUpload() {
           onDragLeave={handleDragLeave}
         >
           {serviceUserData.initialAssessment && (
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-emerald-400" />
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary/40" />
           )}
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2.5 text-base">
@@ -266,7 +266,7 @@ export default function ServiceUserUpload() {
           onDragLeave={handleDragLeave}
         >
           {serviceUserData.carePlan && (
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-emerald-400" />
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary/40" />
           )}
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2.5 text-base">
@@ -334,7 +334,7 @@ export default function ServiceUserUpload() {
           onDragLeave={handleDragLeave}
         >
           {serviceUserData.movingHandling && (
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-emerald-400" />
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary/40" />
           )}
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2.5 text-base">
@@ -420,7 +420,7 @@ export default function ServiceUserUpload() {
           onDragLeave={handleDragLeave}
         >
           {(serviceUserData.additionalDocuments || []).length > 0 && (
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-emerald-400" />
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary/40" />
           )}
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2.5 text-base">

@@ -491,7 +491,7 @@ The AI will automatically extract:
                   </>
                 ) : (
                   <>
-                    <Upload className="mr-2.5 h-4.5 w-4.5 group-hover:-translate-y-1 transition-transform" />
+                    <Upload className="mr-2.5 h-4.5 w-4.5" />
                     PROCESS AUDIT
                   </>
                 )}
@@ -499,7 +499,7 @@ The AI will automatically extract:
             </div>
 
             {loading && (
-              <div className="space-y-4 p-5 bg-primary/5 border border-primary/10 rounded-2xl animate-pulse" data-testid="progress-container">
+              <div className="space-y-4 p-5 bg-primary/5 border border-primary/10 rounded-xl" data-testid="progress-container">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-3">
                     <div className="h-2 w-2 rounded-full bg-primary animate-ping" />
@@ -606,7 +606,7 @@ The AI will automatically extract:
                   <div className="flex items-center gap-4">
                     {result.hasDiscrepancies ? (
                       <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-2xl bg-destructive/15 flex items-center justify-center border border-destructive/20 shadow-lg shadow-destructive/5">
+                        <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center border border-destructive/20 shadow-sm">
                           <X className="h-6 w-6 text-destructive" />
                         </div>
                         <div>
@@ -616,7 +616,7 @@ The AI will automatically extract:
                       </div>
                     ) : (
                       <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-2xl bg-success/15 flex items-center justify-center border border-success/20 shadow-lg shadow-success/5">
+                        <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center border border-success/20 shadow-sm">
                           <Check className="h-6 w-6 text-success" />
                         </div>
                         <div>
@@ -656,7 +656,7 @@ The AI will automatically extract:
                         label={`carer-${carerIdx}`} 
                       />
                     </div>
-                    <div className="overflow-hidden rounded-xl border border-destructive/20 shadow-lg shadow-destructive/5">
+                    <div className="overflow-hidden rounded-xl border border-destructive/20 shadow-sm">
                       <Table>
                         <TableHeader className="bg-destructive/10">
                           <TableRow className="border-destructive/20">

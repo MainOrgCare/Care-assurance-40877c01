@@ -152,7 +152,7 @@ export default function CallReconciliation() {
            <div className="flex justify-center">
              <Button 
                size="lg" 
-               className="w-full md:w-auto min-w-[200px] bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20" 
+               className="w-full md:w-auto min-w-[200px] bg-primary hover:bg-primary/90 text-primary-foreground" 
                disabled={!file}
                onClick={handleProcess}
                data-testid="button-run-reconciliation"

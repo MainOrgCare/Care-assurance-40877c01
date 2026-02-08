@@ -1379,7 +1379,7 @@ export default function PlanEnhancer() {
           
           {/* Pre-Analysis Panel (Rule-based, no AI cost) */}
           {(preAnalysis || isPreAnalyzing) && (
-            <div className="p-5 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl">
+            <div className="p-5 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
                   <Zap size={12} />
@@ -1493,7 +1493,7 @@ export default function PlanEnhancer() {
           <Button 
             onClick={() => enhanceMutation.mutate()}
             disabled={enhanceMutation.isPending || isAnyParsing()}
-            className="w-full mt-2 h-12 rounded-xl font-medium tracking-tight shadow-glow bg-gradient-to-r from-violet-600 to-indigo-600 border-0"
+            className="w-full mt-2 h-12 rounded-xl font-medium tracking-tight bg-primary border-0"
             data-testid="button-enhance-plan"
           >
             {enhanceMutation.isPending ? (

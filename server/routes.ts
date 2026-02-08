@@ -17872,25 +17872,26 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         return res.status(404).json({ message: "Workbook not found" });
       }
 
-      const calls = await storage.getAllAnalyzedCalls();
-      const serviceOrders = await storage.getAllServiceOrders();
+      const isWithinUploadDateRange = (dateKey: string | null | undefined): boolean => {
+        if (!dateKey) return true;
+        if (upload.dateRangeStart && dateKey < upload.dateRangeStart) return false;
+        if (upload.dateRangeEnd && dateKey > upload.dateRangeEnd) return false;
+        return true;
+      };
+
+      const allCalls = await storage.getAllAnalyzedCalls();
+      const calls = allCalls.filter((call) => isWithinUploadDateRange(call.callDate));
       const serviceUsers = await storage.getAllAnalyzedServiceUsers();
       const serviceUserMap = new Map(serviceUsers.map((su) => [su.serviceUserKey, su]));
-      const templateAssignments = await storage.getAllTemplateAssignments();
-      const serviceOrderMap = new Map<string, (typeof serviceOrders)[number]>();
-      serviceOrders.forEach((order) => {
-        const key = `${order.serviceUserKey}|${order.callTypeKey}|${order.timeBand}`;
-        serviceOrderMap.set(key, order);
-      });
+      const allTemplateAssignments = await storage.getAllTemplateAssignments();
+      const templateAssignments = allTemplateAssignments.filter((assignment) =>
+        isWithinUploadDateRange(assignment.sourceDateKey)
+      );
       const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string; updatedAtMs: number }>();
-      // Track which (serviceUserKey, callTypeLabel) combos have ANY template assignments
-      const templatedSlots = new Set<string>();
       templateAssignments
         .filter((assignment) => assignment.isTemplated)
         .forEach((assignment) => {
           const key = `${assignment.serviceUserKey}|${assignment.callTypeLabel}|${assignment.templateWeek}|${assignment.templateDay}`;
-          const slotKey = `${assignment.serviceUserKey}|${assignment.callTypeLabel}`;
-          templatedSlots.add(slotKey);
           const existing = templateAssignmentMap.get(key);
           const updatedAtMs = (assignment.updatedAt ?? assignment.createdAt ?? new Date(0)).getTime();
           if (!existing || updatedAtMs > existing.updatedAtMs) {
@@ -17913,13 +17914,9 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         const templateAssignment = templateAssignmentMap.get(assignmentKey);
         const workerKey = templateAssignment?.workerKey ?? call.workerKey;
         const workerName = templateAssignment?.workerName ?? call.workerName;
-        const orderKey = `${call.serviceUserKey}|${call.callTypeKey}|${call.timeBand}`;
-        const serviceOrder = serviceOrderMap.get(orderKey);
         const serviceUserProfile = serviceUserMap.get(call.serviceUserKey);
         const serviceRequirementEndMinutes =
-          typeof serviceOrder?.serviceRequirementEndTime === "number"
-            ? serviceOrder.serviceRequirementEndTime
-            : typeof call.serviceRequirementEndMinutes === "number"
+          typeof call.serviceRequirementEndMinutes === "number"
             ? call.serviceRequirementEndMinutes
             : null;
         const plannedEndMinutes =
@@ -17949,13 +17946,11 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         };
 
         const requirementStart =
-          serviceOrder?.serviceRequirementStartTime ??
           call.serviceRequirementStartMinutes ??
           call.plannedStartMinutes ??
           call.actualStartMinutes ??
           null;
         const durationMinutes =
-          serviceOrder?.serviceRequirementMinutes ??
           call.plannedDurationMinutes ??
           call.actualDurationMinutes ??
           null;
@@ -17991,10 +17986,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
           actualDurationMinutes: call.actualDurationMinutes ?? null,
           plannedTimeMinutes: call.plannedStartMinutes ?? null,
           actualTimeMinutes: call.actualStartMinutes ?? null,
-          serviceRequirementTimeMinutes:
-            serviceOrder?.serviceRequirementStartTime ??
-            call.serviceRequirementStartMinutes ??
-            null,
+          serviceRequirementTimeMinutes: call.serviceRequirementStartMinutes ?? null,
           serviceRequirementTimeLabel: null,
           plannedDateLabel: call.callDate,
           plannedDateKey: call.callDate,
@@ -18057,14 +18049,10 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         group.totalCalls += 1;
         if (call.isTimeCritical) group.isTimeCritical = true;
         const templateKey = `${call.templateWeek}|${call.templateDay}`;
-        // Check if this slot (serviceUser + callType) has ANY template assignments
-        const slotKey = `${call.serviceUserKey}|${call.callTypeLabel}`;
-        const isSlotTemplated = templatedSlots.has(slotKey);
-        if (templateAssignment || isSlotTemplated) {
+        const isTemplatedForSlot = Boolean(templateAssignment || call.isTemplated);
+        if (isTemplatedForSlot) {
           group.templatedWeekdayKeys.add(templateKey);
-          if (templateAssignment) {
-            group.templatedRows += 1;
-          }
+          group.templatedRows += 1;
           roster.usesTemplateAssignments = true;
         }
         if (call.isDoubleUp) {
@@ -18342,19 +18330,26 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         return res.status(404).json({ message: "Workbook not found" });
       }
 
-      const calls = await storage.getAllAnalyzedCalls();
+      const isWithinUploadDateRange = (dateKey: string | null | undefined): boolean => {
+        if (!dateKey) return true;
+        if (upload.dateRangeStart && dateKey < upload.dateRangeStart) return false;
+        if (upload.dateRangeEnd && dateKey > upload.dateRangeEnd) return false;
+        return true;
+      };
+
+      const allCalls = await storage.getAllAnalyzedCalls();
+      const calls = allCalls.filter((call) => isWithinUploadDateRange(call.callDate));
       const serviceUsers = await storage.getAllAnalyzedServiceUsers();
       const serviceUserMap = new Map(serviceUsers.map((su) => [su.serviceUserKey, su]));
-      const templateAssignments = await storage.getAllTemplateAssignments();
+      const allTemplateAssignments = await storage.getAllTemplateAssignments();
+      const templateAssignments = allTemplateAssignments.filter((assignment) =>
+        isWithinUploadDateRange(assignment.sourceDateKey)
+      );
       const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string; updatedAtMs: number }>();
-      // Track which (serviceUserKey, callTypeLabel) combos have ANY template assignments
-      const templatedSlots = new Set<string>();
       templateAssignments
         .filter((assignment) => assignment.isTemplated)
         .forEach((assignment) => {
           const key = `${assignment.serviceUserKey}|${assignment.callTypeLabel}|${assignment.templateWeek}|${assignment.templateDay}`;
-          const slotKey = `${assignment.serviceUserKey}|${assignment.callTypeLabel}`;
-          templatedSlots.add(slotKey);
           const existing = templateAssignmentMap.get(key);
           const updatedAtMs = (assignment.updatedAt ?? assignment.createdAt ?? new Date(0)).getTime();
           if (!existing || updatedAtMs > existing.updatedAtMs) {
@@ -18378,9 +18373,6 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         const workerKey = templateAssignment?.workerKey ?? call.workerKey;
         const workerName = templateAssignment?.workerName ?? call.workerName;
         const serviceUserProfile = serviceUserMap.get(call.serviceUserKey);
-        // Check if this slot (serviceUser + callType) has ANY template assignments
-        const slotKey = `${call.serviceUserKey}|${call.callTypeLabel}`;
-        const isSlotTemplated = templatedSlots.has(slotKey);
         const serviceRequirementEndMinutes =
           typeof call.serviceRequirementEndMinutes === "number" ? call.serviceRequirementEndMinutes : null;
         const plannedEndMinutes =
@@ -18507,11 +18499,10 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         group.totalCalls += 1;
         if (call.isTimeCritical) group.isTimeCritical = true;
         const templateKey = `${call.templateWeek}|${call.templateDay}`;
-        if (templateAssignment || isSlotTemplated) {
+        const isTemplatedForSlot = Boolean(templateAssignment || call.isTemplated);
+        if (isTemplatedForSlot) {
           group.templatedWeekdayKeys.add(templateKey);
-          if (templateAssignment) {
-            group.templatedRows += 1;
-          }
+          group.templatedRows += 1;
           roster.usesTemplateAssignments = true;
         }
         if (call.isDoubleUp) {
