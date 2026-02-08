@@ -165,7 +165,6 @@ aISettings:
     modelNameHint: GPT5Reasoning
 
 knowledgeSources:
-  # SharePoint knowledge sources
   - kind: SharePoint
     displayName: Care Policies and Procedures
     description: Organisation care policies, procedures, medication guides, safeguarding protocols, H&S policies, infection control procedures, and HR policies.
@@ -190,7 +189,6 @@ knowledgeSources:
     displayName: Risk Assessment Templates and Frameworks
     description: Risk assessment frameworks, category-specific guidance, NHS England 12 Principles, and Moving & Handling assessment standards.
 
-  # Website knowledge sources
   - kind: Website
     displayName: CQC Official Guidance
     description: Care Quality Commission official guidance, standards, and inspection criteria.
@@ -206,7 +204,6 @@ knowledgeSources:
     description: NICE guidelines relevant to adult social care, including medication, falls prevention, dementia, and end of life care.
     url: https://www.nice.org.uk/guidance/conditions-and-diseases
 
-  # File knowledge sources
   - kind: File
     displayName: EMAR Code Reference
     description: Complete reference for all EMAR medication administration codes (AD, R, NH, SA, F, MU, PRN, MISSED, AS, P) with meanings and required actions.
@@ -226,3 +223,4 @@ knowledgeSources:
   - kind: File
     displayName: Platform Quick Reference
     description: Quick reference guide covering all CareAssurance pages, workflows, shortcuts, and common tasks.
+
