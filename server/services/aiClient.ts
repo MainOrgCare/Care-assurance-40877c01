@@ -21,6 +21,16 @@ const parseBoolean = (value: string | undefined | null, fallback: boolean): bool
   return fallback;
 };
 
+const IS_CODESPACES = parseBoolean(process.env.CODESPACES, false);
+const LOCAL_LLM_ENABLED = parseBoolean(process.env.LOCAL_LLM_ENABLED, !IS_CODESPACES);
+const LOCAL_LLM_DISABLED_MESSAGE = "Local LLM is disabled in this environment. Set LOCAL_LLM_ENABLED=true to re-enable.";
+
+function getFallbackProviderWhenLocalDisabled(): AiProvider {
+  if (process.env.PAT_AI_KEY) return "github";
+  if (process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY) return "openai";
+  return "github";
+}
+
 const AI_ENABLED_BY_ENV = parseBoolean(process.env.AI_ENABLED, false);
 const AI_ENV_LOCKED_DISABLED = !AI_ENABLED_BY_ENV;
 export const AI_DISABLED_BY_ENV_MESSAGE = "AI features are disabled by policy (AI_ENABLED is not true). Use rule-based workflows or ask an admin to enable AI in deployment settings.";
@@ -65,7 +75,13 @@ async function ensureSettingsLoaded(): Promise<void> {
     const savedProvider = await storage.getAppSetting("ai_provider");
     if (savedProvider && (savedProvider === "openai" || savedProvider === "github" || savedProvider === "local")) {
       preferredProvider = savedProvider as AiProvider;
-      console.log(`[AI Config] Loaded provider from DB: ${preferredProvider}`);
+      if (preferredProvider === "local" && !LOCAL_LLM_ENABLED) {
+        const fallbackProvider = getFallbackProviderWhenLocalDisabled();
+        preferredProvider = fallbackProvider;
+        console.log(`[AI Config] Local LLM disabled by environment; using ${fallbackProvider} provider`);
+      } else {
+        console.log(`[AI Config] Loaded provider from DB: ${preferredProvider}`);
+      }
     }
 
     const savedAIEnabled = await storage.getAppSetting("ai_enabled");
@@ -151,6 +167,9 @@ export function setAIEnabled(enabled: boolean, persist: boolean = false): void {
 export function setPreferredProvider(provider: AiProvider, persist: boolean = false): void {
   if (provider !== "openai" && provider !== "github" && provider !== "local") {
     throw new Error("Invalid provider. Must be 'openai', 'github', or 'local'.");
+  }
+  if (provider === "local" && !LOCAL_LLM_ENABLED) {
+    throw new Error(LOCAL_LLM_DISABLED_MESSAGE);
   }
   preferredProvider = provider;
   console.log(`[AI Config] Preferred provider set to: ${provider}${persist ? " (persisted)" : ""}`);
@@ -309,6 +328,7 @@ function getGitHubClient(): OpenAI | null {
 let localClient: OpenAI | null = null;
 
 function getLocalClient(): OpenAI | null {
+  if (!LOCAL_LLM_ENABLED) return null;
   if (localClient) return localClient;
   
   // Local LLM doesn't need an API key
@@ -322,6 +342,7 @@ function getLocalClient(): OpenAI | null {
 
 // Check if local LLM is available
 async function isLocalLLMAvailable(): Promise<boolean> {
+  if (!LOCAL_LLM_ENABLED) return false;
   try {
     const response = await fetch(`${LOCAL_LLM_URL}/api/tags`, {
       method: "GET",
@@ -419,6 +440,9 @@ async function createChatCompletionWithProvider(
   let model = (params.model as string) || preferredModel;
   
   if (provider === "local") {
+    if (!LOCAL_LLM_ENABLED) {
+      throw new Error(LOCAL_LLM_DISABLED_MESSAGE);
+    }
     client = getLocalClient();
     if (!client) {
       throw new Error("Local LLM client could not be initialized.");

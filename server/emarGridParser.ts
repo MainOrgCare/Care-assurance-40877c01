@@ -391,7 +391,7 @@ const CODE_PRIORITY: Record<string, number> = {
   "MU": 90,
   "NH": 90,
   "SA": 88,
-  "F": 88,
+  "FA": 88,
   "PRN-AD": 82,
   "PRN-AS": 82,
   "PRN": 80,
@@ -521,7 +521,7 @@ const normalizeCodeText = (value: string): string => {
     .replace(/\bP\s*R\s*N\s*[-–]?\s*A\s*S\b/g, "PRN-AS")
     .replace(/\bP\s*R\s*N\b/g, "PRN")
     .replace(/\bS\s*[-–\/]?\s*A\b/g, "SA")
-    .replace(/\bF\s*[-–\/]?\s*A\b/g, "F")
+    .replace(/\bF\s*[-–\/]?\s*A\b/g, "FA")
     .replace(/\bN\s*\/\s*H\b/g, "NH")
     .replace(/\bM\s*\/\s*U\b/g, "MU")
     .replace(/\bA\s*\/\s*D\b/g, "AD")
@@ -530,7 +530,7 @@ const normalizeCodeText = (value: string): string => {
     .replace(/\bM\s*U\b/g, "MU")
     .replace(/\bA\s*D\b/g, "AD")
     .replace(/\bA\s*S\b/g, "AS")
-    .replace(/\bF\b/g, "F");
+    .replace(/\bF\b/g, "FA");
 };
 
 const expandKeyCodes = (codes: Set<string>): Set<string> => {
@@ -589,7 +589,7 @@ const normalizeGridCode = (raw: string): string => {
     .replace(/\s+/g, "");
 
   if (normalized === "N/A" || normalized === "NA") return "N/A";
-  if (normalized === "F/A" || normalized === "FA" || normalized === "F") return "F";
+  if (normalized === "F/A" || normalized === "FA" || normalized === "F") return "FA";
   if (normalized === "S/A" || normalized === "S-A") return "SA";
   if (normalized === "M/U" || normalized === "MU") return "MU";
   if (normalized === "N/H" || normalized === "NH") return "NH";

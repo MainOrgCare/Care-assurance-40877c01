@@ -18,8 +18,13 @@
     "start:api": "NODE_ENV=production AI_ENABLED=${AI_ENABLED:-true} node dist/index.cjs",
     "start:worker": "NODE_ENV=production node dist/worker.cjs",
     "start": "npm run start:api",
-    "test": "node --import tsx --test",
+    "test": "npm run test:server && npm run test:client",
+    "test:server": "node --import tsx --test --test-force-exit server/__tests__/*.test.ts",
+    "test:client": "vitest run client/src/lib/__tests__",
+    "test:client:watch": "vitest client/src/lib/__tests__",
     "check": "tsc",
+    "quality": "npm run test && npm run check && npm run build",
+    "audit:prod": "npm audit --omit=dev",
     "db:push": "drizzle-kit push"
   },
   "engines": {
@@ -91,7 +96,6 @@
     "memorystore": "^1.6.7",
     "multer": "^2.0.2",
     "next-themes": "^0.4.6",
-    "node": "^25.6.0",
     "openai": "^6.14.0",
     "pako": "^2.1.0",
     "passport": "^0.7.0",
@@ -139,6 +143,7 @@
     "esbuild": "^0.25.12",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
+    "vitest": "^3.2.4",
     "tsx": "^4.21.0",
     "typescript": "5.6.3",
     "vite": "^7.3.0"

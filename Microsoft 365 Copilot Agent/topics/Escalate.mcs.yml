@@ -1,0 +1,61 @@
+# Name: Escalate
+# This system topic is triggered when the user indicates they would like to speak
+# to a representative. Configured with CareAssurance-specific escalation paths.
+<<<<<<< 
+=======
+# Name: Escalate
+# This system topic is triggered when the user indicates they would like to speak
+# to a representative. Configured with CareAssurance-specific escalation paths.
+kind: AdaptiveDialog
+startBehavior: CancelOtherTopics
+beginDialog:
+  kind: OnEscalate
+  id: main
+  intent:
+    displayName: Escalate
+    includeInOnSelectIntent: false
+    triggerQueries:
+      - Talk to agent
+      - Talk to a person
+      - Talk to someone
+      - Call back
+      - Call customer service
+      - Call me please
+      - Call support
+      - Call technical support
+      - Can I speak to a representative
+      - Can I talk to a human
+      - Connect me to a live agent
+      - Connect me to a person
+      - Customer service
+      - I need help from a person
+      - I want to talk to customer service
+      - I want to speak with a consultant
+      - Talk to manager
+      - Speak to supervisor
+      - I need a care coordinator
+      - Contact the office
+      - Speak to admin
+
+  actions:
+    - kind: SendActivity
+      id: sendMessage_escalate
+      conversationOutcome: Escalated
+      activity: |-
+        I understand you'd like to speak with someone directly. Here are your options:
+
+        **For CareAssurance Platform Support:**
+        - Contact your organisation's CareAssurance administrator
+        - Email support via the platform's help section
+
+        **For Care-Related Concerns:**
+        - Contact your **line manager** or **care coordinator** directly
+        - For rostering/staffing queries, contact your **scheduling team**
+
+        **For Safeguarding Concerns:**
+        - Follow your organisation's safeguarding procedures
+        - Contact CQC on **03000 616161** if needed
+        - In an emergency, call **999**
+
+        Is there anything else I can help you with in the meantime?
+>>>>>>> 

@@ -1,0 +1,64 @@
+# Name: GDPR and Privacy
+# Handles data protection queries, GDPR compliance, DSARs, and privacy obligations.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: GDPR and Privacy
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - GDPR
+      - data protection
+      - privacy
+      - data subject access request
+      - DSAR
+      - personal data
+      - data retention
+      - consent
+      - lawful basis
+      - PII
+      - data breach
+      - privacy notice
+      - data privacy
+      - information governance
+      - service user data
+
+  actions:
+    - kind: SearchAndSummarizeContent
+      id: gdpr-search
+      variable: Topic.Answer
+      userInput: =System.Activity.Text
+
+    - kind: ConditionGroup
+      id: gdpr-conditions
+      conditions:
+        - id: has-gdpr-answer
+          condition: =!IsBlank(Topic.Answer)
+          actions:
+            - kind: SendActivity
+              id: gdpr-response
+              activity: "{Topic.Answer}"
+
+      elseActions:
+        - kind: SendActivity
+          id: gdpr-guidance
+          activity: |-
+            I can help with GDPR and data privacy in CareAssurance.
+
+            **Privacy-by-Design Principles:**
+            - Only service user **initials** are stored (never full names or dates of birth)
+            - All text is **PII-scrubbed** before AI processing
+            - Clinical terms are whitelisted to preserve medical accuracy
+            - Full names/dates are redacted to `[SERVICE USER]`
+
+            **Key GDPR Features:**
+            - Data subject access request (DSAR) support
+            - Lawful basis documentation for care data processing
+            - Data retention policies with secure deletion
+            - Security logging and audit trails
+            - IP blocking and session management for admin control
+
+            **Lawful Basis:** Processing is primarily under Article 6(1)(e) — public task/official authority, and Article 9(2)(h) — health/social care purposes.
+
+            Would you like guidance on a specific GDPR requirement or data handling question?

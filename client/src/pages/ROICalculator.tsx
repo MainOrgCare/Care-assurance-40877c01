@@ -2,10 +2,11 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { 
   Clock, Shield, Lock, FileCheck, Heart, ClipboardCheck, AlertTriangle,
   Timer, CheckCircle, XCircle, Cpu, ScanLine, KeyRound, FileX2, Scale,
-  Zap, Users, TrendingUp, Brain, Eye, Pill, MapPin, Sparkles, ArrowRight
+  Zap, Users, TrendingUp, Brain, Eye, Pill, MapPin, Sparkles, ArrowRight, Download
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -99,6 +100,24 @@ const IMPACT_METRICS = [
     value: "More",
     label: "Care Time",
     description: "Staff freed for direct patient care",
+  },
+];
+
+const EXTENSION_ADMIN_BENEFITS = [
+  {
+    icon: Zap,
+    title: "Faster Handover",
+    description: "Send generated assessments into the ACP extension flow without extra export steps.",
+  },
+  {
+    icon: Shield,
+    title: "Admin-Gated Access",
+    description: "Package download is restricted to authenticated admin controls for safer rollout.",
+  },
+  {
+    icon: FileCheck,
+    title: "Consistent Setup",
+    description: "Install teams from one CareAssurance source to reduce version drift across devices.",
   },
 ];
 
@@ -197,6 +216,49 @@ export default function ROICalculator() {
           </Card>
         ))}
       </div>
+
+      {/* Admin Extension Direct Add */}
+      <section data-testid="admin-extension-direct-add-section">
+        <Card className="glass-card border-primary/20">
+          <CardHeader>
+            <Badge variant="outline" className="w-fit gap-1">
+              <Lock className="h-3 w-3" />
+              Administrator Controls
+            </Badge>
+            <CardTitle className="mt-3 flex items-center gap-2 text-2xl text-foreground">
+              <Download className="h-5 w-5 text-primary" />
+              Download Edge Extension
+            </CardTitle>
+            <CardDescription>
+              Download the ACP Autofill Edge package directly from your admin Features & Benefits workspace.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              {EXTENSION_ADMIN_BENEFITS.map((benefit) => (
+                <div key={benefit.title} className="rounded-lg border border-border/50 bg-muted/20 p-4">
+                  <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <benefit.icon className="h-4 w-4" />
+                  </div>
+                  <div className="text-sm font-medium text-foreground">{benefit.title}</div>
+                  <p className="mt-1 text-xs text-muted-foreground">{benefit.description}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button asChild className="gap-2" data-testid="button-direct-add-extension">
+                <a href="/api/admin/extension/package?fresh=1" target="_blank" rel="noopener noreferrer">
+                  <Download className="h-4 w-4" />
+                  Download Edge Extension (.zip)
+                </a>
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Downloads the latest Edge ACP Autofill package for installation or update.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
 
       {/* Core Features */}
       <section data-testid="feature-benefits-section">

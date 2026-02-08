@@ -140,6 +140,19 @@ interface OpsIncident {
   status: string;
 }
 
+interface ExtensionPackageInfo {
+  manifestVersion: string | null;
+  downloadUrl: string;
+  package: {
+    available: boolean;
+    filename: string | null;
+    sizeBytes: number | null;
+    sha256: string | null;
+    packagedAt: string | null;
+    rebuilt?: boolean;
+  };
+}
+
 function formatCost(microDollars: number): string {
   const dollars = microDollars / 1000000;
   if (dollars < 0.01) {
@@ -149,6 +162,13 @@ function formatCost(microDollars: number): string {
   } else {
     return `$${dollars.toFixed(2)}`;
   }
+}
+
+function formatBytes(bytes: number | null | undefined): string {
+  if (typeof bytes !== "number" || Number.isNaN(bytes) || bytes < 0) return "Unavailable";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 const PASSWORD_RULES_TEXT = "Password must be at least 8 characters and include a letter and a number.";
@@ -3704,6 +3724,9 @@ export default function SecretAdminPortal() {
     periodEnd: string;
     createdAt: string;
   }>>([]);
+  const [extensionInfo, setExtensionInfo] = useState<ExtensionPackageInfo | null>(null);
+  const [extensionInfoLoading, setExtensionInfoLoading] = useState(false);
+  const [extensionInfoRefreshing, setExtensionInfoRefreshing] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -3756,6 +3779,47 @@ export default function SecretAdminPortal() {
       console.error("Failed to fetch admin alerts:", error);
     }
   };
+
+  const fetchExtensionPackageInfo = async (fresh = false) => {
+    if (!extensionInfo) {
+      setExtensionInfoLoading(true);
+    } else {
+      setExtensionInfoRefreshing(true);
+    }
+
+    try {
+      const response = await fetch(`/api/admin/extension/info${fresh ? "?fresh=1" : ""}`, {
+        credentials: "include",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to fetch extension package status.");
+      }
+
+      setExtensionInfo(data as ExtensionPackageInfo);
+      if (fresh) {
+        toast({
+          title: "Extension package refreshed",
+          description: "Latest Edge extension build is ready to download.",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch extension package info:", error);
+      toast({
+        title: "Extension status unavailable",
+        description: error instanceof Error ? error.message : "Could not load extension package metadata.",
+        variant: "destructive",
+      });
+    } finally {
+      setExtensionInfoLoading(false);
+      setExtensionInfoRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!mounted) return;
+    void fetchExtensionPackageInfo();
+  }, [mounted]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -4051,10 +4115,19 @@ export default function SecretAdminPortal() {
     return matchesSearch && matchesRole && matchesStatus;
   }), [users, userSearch, userRoleFilter, userStatusFilter]);
 
-  if (!mounted) return null;
-
   const pendingUsers = useMemo(() => users.filter(u => u.status === "pending"), [users]);
   const activeUsers = useMemo(() => users.filter(u => u.status === "active"), [users]);
+  const extensionManifestVersion = extensionInfo?.manifestVersion || "Unknown";
+  const extensionSizeLabel = formatBytes(extensionInfo?.package?.sizeBytes);
+  const extensionPackagedAt = extensionInfo?.package?.packagedAt
+    ? new Date(extensionInfo.package.packagedAt).toLocaleString()
+    : "Unavailable";
+  const extensionHashShort = extensionInfo?.package?.sha256
+    ? `${extensionInfo.package.sha256.slice(0, 12)}...${extensionInfo.package.sha256.slice(-8)}`
+    : "Unavailable";
+  const extensionDownloadUrl = extensionInfo?.downloadUrl || "/api/admin/extension/package?fresh=1";
+
+  if (!mounted) return null;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 p-2 md:p-8 bg-muted/50">
@@ -4193,6 +4266,83 @@ export default function SecretAdminPortal() {
                   </CardContent>
                 </Card>
               )}
+
+              <Card className="border shadow-sm bg-white dark:bg-card border-border" data-testid="card-download-edge-extension">
+                <CardHeader className="border-b border-border bg-muted/50">
+                  <CardTitle className="flex items-center gap-2 text-base text-foreground">
+                    <Download size={18} className="text-muted-foreground" />
+                    Edge Extension Download
+                  </CardTitle>
+                  <CardDescription className="text-muted-foreground">
+                    Download the latest ACP Autofill Edge extension package from CareAssurance.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  {extensionInfoLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 size={16} className="animate-spin" />
+                      Loading extension package metadata...
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="extension-package-metadata">
+                      <div className="rounded-lg border border-border bg-muted/30 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Version</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{extensionManifestVersion}</p>
+                      </div>
+                      <div className="rounded-lg border border-border bg-muted/30 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Package Size</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{extensionSizeLabel}</p>
+                      </div>
+                      <div className="rounded-lg border border-border bg-muted/30 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Packaged At</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{extensionPackagedAt}</p>
+                      </div>
+                      <div className="rounded-lg border border-border bg-muted/30 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">SHA-256</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{extensionHashShort}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button asChild data-testid="button-download-edge-extension">
+                        <a href={extensionDownloadUrl} target="_blank" rel="noopener noreferrer">
+                          <Download size={16} />
+                          Download Edge Extension (.zip)
+                        </a>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void fetchExtensionPackageInfo(false)}
+                        disabled={extensionInfoLoading || extensionInfoRefreshing}
+                        data-testid="button-refresh-edge-extension-status"
+                      >
+                        {extensionInfoRefreshing ? <Loader2 size={14} className="mr-2 animate-spin" /> : <RefreshCcw size={14} className="mr-2" />}
+                        Refresh Status
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void fetchExtensionPackageInfo(true)}
+                        disabled={extensionInfoLoading || extensionInfoRefreshing}
+                        data-testid="button-rebuild-edge-extension"
+                      >
+                        <Zap size={14} className="mr-2" />
+                        Rebuild Package
+                      </Button>
+                    </div>
+                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 bg-emerald-500/5">
+                      {extensionInfo?.package?.rebuilt ? "Package rebuilt this refresh" : "Package freshness verified"}
+                    </Badge>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Use this ZIP in Edge via <strong>Extensions</strong> → <strong>Load unpacked</strong> or upload to Edge Add-ons.
+                  </p>
+                </CardContent>
+              </Card>
 
               <div className="grid md:grid-cols-3 gap-4">
                 {[

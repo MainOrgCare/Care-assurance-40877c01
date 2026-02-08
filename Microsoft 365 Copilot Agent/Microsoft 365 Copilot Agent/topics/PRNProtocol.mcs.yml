@@ -1,0 +1,72 @@
+# Name: PRN Protocol
+# Handles PRN (Pro Re Nata / as-needed) medication protocol generation with clinical accuracy.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: PRN Protocol
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - PRN protocol
+      - PRN medication
+      - as needed medication
+      - pro re nata
+      - generate PRN protocol
+      - medication protocol
+      - PRN dosing
+      - max dose 24 hours
+      - time between doses
+      - PRN side effects
+      - when to give PRN
+      - paracetamol protocol
+      - ibuprofen protocol
+      - medication instructions
+
+  actions:
+    - kind: SearchAndSummarizeContent
+      id: prn-search
+      variable: Topic.Answer
+      userInput: =System.Activity.Text
+
+    - kind: ConditionGroup
+      id: prn-conditions
+      conditions:
+        - id: has-prn-answer
+          condition: =!IsBlank(Topic.Answer)
+          actions:
+            - kind: SendActivity
+              id: prn-response
+              activity: "{Topic.Answer}"
+
+      elseActions:
+        - kind: SendActivity
+          id: prn-guidance
+          activity: |-
+            I can help with PRN (Pro Re Nata / "as needed") medication protocols.
+
+            **What the AI Generates:**
+            The PRN protocol generator creates a clinically accurate protocol following UK care standards, including:
+
+            | Field | Description |
+            |-------|-------------|
+            | **Medication Name** | Full drug name and formulation |
+            | **Dose** | Standard dosing amount |
+            | **Route** | How administered (oral, topical, etc.) |
+            | **Frequency** | How often it can be given |
+            | **Max Dose in 24 Hours** | Safety limit |
+            | **Min Time Between Doses** | Minimum interval |
+            | **Special Instructions** | Storage, food interactions, etc. |
+            | **Reasons for Administration** | When to offer the medication |
+            | **Predictable Side Effects** | Common reactions to monitor |
+            | **Additional Comments** | Clinical notes |
+
+            **How to Generate:**
+            1. Go to **Service Users → Care Planning** in CareAssurance
+            2. Enter the medication name
+            3. Optionally provide existing data to enhance
+            4. Click **Generate Protocol**
+
+            **⚠️ Important:** PRN protocols are AI-generated and should be verified against the prescriber's instructions and the service user's MAR chart. Always consult the prescribing GP for clinical queries.
+
+            Would you like guidance on a specific medication or protocol field?

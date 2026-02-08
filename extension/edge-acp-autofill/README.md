@@ -58,28 +58,33 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 - Custom autofill uses `fields` with `selector`, `name`, or `label` plus a `value`, and can target any formId.
 - If the ACP form URL or selectors change, update content-acp.js.
 
-## Edge Add-ons Publishing (Unlisted)
+## Edge Add-ons Publishing (Unlisted Release Process)
 
-1. Bump the version: `npm run bump:extension`
-2. Package the zip: `npm run package:extension` (outputs `dist/edge-acp-autofill.zip`)
-3. Upload the zip in the Edge Add-ons dashboard (Unlisted)
-4. Use privacy policy URL: `https://careassurance.uk/privacy`
+1. Bump extension version: `npm run bump:extension`
+2. Build package: `npm run package:extension` (outputs `dist/edge-acp-autofill.zip`)
+3. Publish via API: `npm run publish:edge-addon`
+4. Privacy policy URL for listing: `https://careassurance.uk/privacy`
 
-Note: If the store rejects SVG icons, replace the icon set with PNGs at `assets/icon-16.png`, `assets/icon-32.png`, `assets/icon-48.png`, `assets/icon-128.png` and update `manifest.json`.
+### Local Publishing Commands
 
-### GitHub Actions Auto-Publish (Edge Add-ons API)
+- Standard publish: `npm run publish:edge-addon`
+- Preflight validation only (no API calls): `python3 script/edge-addons-publish.py --zip dist/edge-acp-autofill.zip --dry-run`
+- Strict mode (fail if another submission is currently being processed): `python3 script/edge-addons-publish.py --zip dist/edge-acp-autofill.zip --fail-on-in-progress`
 
-This repo includes `.github/workflows/edge-addons-publish.yml` which publishes automatically on pushes to `main` (when extension files change) or via manual dispatch.
+The publish script validates `manifest.json` before upload, including required fields, icon references, and Edge description length limits.
 
-Secrets required in GitHub:
+### GitHub Actions Auto-Publish
+
+This repository includes `.github/workflows/edge-addons-publish.yml` for automated publication on pushes to `main` (when extension or publish files change), and manual workflow dispatch.
+
+Required GitHub secrets:
 - `EDGE_ADDONS_PRODUCT_ID`
 - `EDGE_ADDONS_CLIENT_ID`
 - `EDGE_ADDONS_API_KEY`
 
-Local publish command (optional, uses the same API):
-`npm run publish:edge-addon`
+Certification notes can be provided through the manual workflow input or by setting `EDGE_ADDONS_NOTES`.
 
-Notes for certification can be passed via the workflow input or by setting `EDGE_ADDONS_NOTES`.
+Note: If icon validation fails in store review, ensure PNG icon files exist and are referenced correctly in `manifest.json`.
 
 ### Custom payload example
 

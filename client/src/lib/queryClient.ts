@@ -1,9 +1,56 @@
 import { QueryClient, QueryFunction, type QueryFunctionContext } from "@tanstack/react-query";
 
-async function throwIfResNotOk(res: Response) {
+const REQUEST_ID_HEADER = "X-Request-ID";
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
+const randomRequestId = (): string =>
+  (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+class ApiError extends Error {
+  status: number;
+  body: string;
+
+  constructor(status: number, body: string) {
+    super(`${status}: ${body}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+const withRequestIdHeader = (headers?: HeadersInit): Headers => {
+  const nextHeaders = new Headers(headers || undefined);
+  if (!nextHeaders.has(REQUEST_ID_HEADER)) {
+    nextHeaders.set(REQUEST_ID_HEADER, randomRequestId());
+  }
+  return nextHeaders;
+};
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      headers: withRequestIdHeader(init?.headers),
+      signal: init?.signal ?? controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function throwIfResNotOk(res: Response): Promise<void> {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    throw new ApiError(res.status, text);
   }
 }
 
@@ -12,7 +59,7 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
@@ -30,7 +77,7 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }: QueryFunctionContext) => {
     const path = (queryKey as readonly string[]).join("/");
-    const res = await fetch(path, {
+    const res = await fetchWithTimeout(path, {
       credentials: "include",
     });
 
@@ -55,7 +102,15 @@ export const queryClient = new QueryClient({
       staleTime: 5 * 60_000, // 5 minutes
       gcTime: 15 * 60_000, // 15 minutes
       placeholderData: (previousData: unknown) => previousData,
-      retry: false,
+      retry: (failureCount: number, error: unknown) => {
+        if (failureCount >= 2) return false;
+        if (error instanceof ApiError) {
+          if (error.status === 401 || error.status === 403 || error.status === 404) return false;
+          return error.status >= 500 || error.status === 429;
+        }
+        // Network / abort / unknown runtime errors can be transient.
+        return true;
+      },
     },
     mutations: {
       retry: false,

@@ -1,1 +1,6 @@
-{"image":"mcr.microsoft.com/devcontainers/universal:2"}
+{
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "containerEnv": {
+    "LOCAL_LLM_ENABLED": "false"
+  }
+}

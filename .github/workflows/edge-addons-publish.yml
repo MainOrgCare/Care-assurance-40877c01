@@ -1,10 +1,12 @@
-name: Publish Edge Add-on
+name: Edge Add-ons Publish
+
+run-name: Edge Add-ons Publish - ${{ github.ref_name }} - ${{ github.sha }}
 
 on:
   workflow_dispatch:
     inputs:
       notes:
-        description: "Notes for Edge Add-ons certification"
+        description: "Optional certification notes to include with this submission"
         required: false
         default: ""
   push:
@@ -17,19 +19,28 @@ on:
       - package-lock.json
       - .github/workflows/edge-addons-publish.yml
 
+permissions:
+  contents: read
+
+concurrency:
+  group: edge-addons-publish
+  cancel-in-progress: false
+
 jobs:
   publish:
+    name: Package and Publish
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
@@ -39,8 +50,15 @@ jobs:
 
       - name: Publish to Edge Add-ons
         env:
+          PYTHONUNBUFFERED: "1"
           EDGE_ADDONS_PRODUCT_ID: ${{ secrets.EDGE_ADDONS_PRODUCT_ID }}
           EDGE_ADDONS_CLIENT_ID: ${{ secrets.EDGE_ADDONS_CLIENT_ID }}
           EDGE_ADDONS_API_KEY: ${{ secrets.EDGE_ADDONS_API_KEY }}
-          EDGE_ADDONS_NOTES: "Automated update from GitHub Actions. Commit: ${{ github.sha }}"
-        run: python script/edge-addons-publish.py --zip dist/edge-acp-autofill.zip --notes "${{ inputs.notes }}"
+        run: |
+          NOTES="${{ github.event.inputs.notes || '' }}"
+          if [ -z "$NOTES" ]; then
+            NOTES="Automated publish from GitHub Actions on ${GITHUB_REF_NAME}. Commit: ${GITHUB_SHA}"
+          fi
+          python3 script/edge-addons-publish.py \
+            --zip dist/edge-acp-autofill.zip \
+            --notes "$NOTES"

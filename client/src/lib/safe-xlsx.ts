@@ -94,6 +94,7 @@ export const RawXLSX = XLSX;
 export const SafeXLSX = {
   read: safeRead,
   write: XLSX.write,
+  writeFile: XLSX.writeFile,
 
   utils: {
     sheet_to_json: safeSheetToJson,

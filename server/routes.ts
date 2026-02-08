@@ -16809,6 +16809,164 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   // EXTENSION API - Direct Integration with Care Assurance Extension
   // =====================================================================
 
+  const EXTENSION_PACKAGE_CANDIDATES = [
+    path.resolve(process.cwd(), "dist", "edge-acp-autofill.zip"),
+    path.resolve(process.cwd(), "edge-acp-autofill.zip"),
+  ] as const;
+  const EXTENSION_SOURCE_DIR = path.resolve(process.cwd(), "extension", "edge-acp-autofill");
+  const EXTENSION_MANIFEST_PATH = path.resolve(EXTENSION_SOURCE_DIR, "manifest.json");
+  const EXTENSION_PACKAGE_SCRIPT = path.resolve(process.cwd(), "script", "package-extension.py");
+
+  const packageExtensionZip = async (): Promise<void> => {
+    try {
+      await fs.access(EXTENSION_PACKAGE_SCRIPT);
+    } catch {
+      throw new Error(`Extension packaging script not found at ${EXTENSION_PACKAGE_SCRIPT}`);
+    }
+
+    const pythonCandidates = ["python3", "python"] as const;
+    let lastError: unknown = null;
+
+    for (const pythonCmd of pythonCandidates) {
+      try {
+        await execFileAsync(pythonCmd, [EXTENSION_PACKAGE_SCRIPT], {
+          cwd: process.cwd(),
+          timeout: 120000,
+        });
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw new Error(
+      `Failed to package Edge extension zip. ${
+        lastError instanceof Error ? lastError.message : "Python runtime unavailable."
+      }`
+    );
+  };
+
+  const resolveExtensionPackagePath = async (): Promise<string | null> => {
+    for (const candidate of EXTENSION_PACKAGE_CANDIDATES) {
+      try {
+        await fs.access(candidate);
+        return candidate;
+      } catch {
+        // Keep checking fallback locations.
+      }
+    }
+    return null;
+  };
+
+  const readExtensionManifestVersion = async (): Promise<string | null> => {
+    try {
+      const manifestRaw = await fs.readFile(EXTENSION_MANIFEST_PATH, "utf8");
+      const manifest = JSON.parse(manifestRaw) as Record<string, unknown>;
+      return typeof manifest.version === "string" ? manifest.version : null;
+    } catch (error) {
+      console.warn("Failed to read extension manifest version:", error);
+      return null;
+    }
+  };
+
+  const getLatestSourceMtimeMs = async (rootDir: string): Promise<number> => {
+    let latest = 0;
+    const ignoredDirs = new Set([".git", "node_modules", "dist", "__pycache__"]);
+
+    const walk = async (currentDir: string): Promise<void> => {
+      const entries = await fs.readdir(currentDir, { withFileTypes: true });
+      await Promise.all(
+        entries.map(async (entry) => {
+          const fullPath = path.join(currentDir, entry.name);
+          if (entry.isDirectory()) {
+            if (!ignoredDirs.has(entry.name)) {
+              await walk(fullPath);
+            }
+            return;
+          }
+          if (!entry.isFile()) return;
+          const stat = await fs.stat(fullPath);
+          if (stat.mtimeMs > latest) latest = stat.mtimeMs;
+        })
+      );
+    };
+
+    try {
+      await walk(rootDir);
+    } catch (error) {
+      console.warn("Failed to inspect extension source timestamps:", error);
+      return 0;
+    }
+    return latest;
+  };
+
+  const isExtensionPackageStale = async (packagePath: string): Promise<boolean> => {
+    try {
+      const [packageStat, latestSourceMtimeMs] = await Promise.all([
+        fs.stat(packagePath),
+        getLatestSourceMtimeMs(EXTENSION_SOURCE_DIR),
+      ]);
+      if (!latestSourceMtimeMs) return false;
+      return packageStat.mtimeMs < latestSourceMtimeMs;
+    } catch (error) {
+      console.warn("Failed to compare extension package freshness:", error);
+      return false;
+    }
+  };
+
+  const ensureLatestExtensionPackage = async (forceBuild: boolean): Promise<{ packagePath: string | null; rebuilt: boolean }> => {
+    let rebuilt = false;
+    if (forceBuild) {
+      await packageExtensionZip();
+      rebuilt = true;
+    }
+
+    let packagePath = await resolveExtensionPackagePath();
+    if (!packagePath) {
+      await packageExtensionZip();
+      rebuilt = true;
+      packagePath = await resolveExtensionPackagePath();
+    }
+
+    if (packagePath && !forceBuild) {
+      const stale = await isExtensionPackageStale(packagePath);
+      if (stale) {
+        await packageExtensionZip();
+        rebuilt = true;
+        packagePath = await resolveExtensionPackagePath();
+      }
+    }
+
+    return { packagePath, rebuilt };
+  };
+
+  const getExtensionPackageMetadata = async (forceBuild: boolean): Promise<{
+    packagePath: string;
+    filename: string;
+    sizeBytes: number;
+    sha256: string;
+    packagedAt: string;
+    manifestVersion: string | null;
+    rebuilt: boolean;
+  } | null> => {
+    const manifestVersion = await readExtensionManifestVersion();
+    const { packagePath, rebuilt } = await ensureLatestExtensionPackage(forceBuild);
+    if (!packagePath) return null;
+
+    const [packageStat, packageBuffer] = await Promise.all([fs.stat(packagePath), fs.readFile(packagePath)]);
+    const sha256 = createHash("sha256").update(packageBuffer).digest("hex");
+
+    return {
+      packagePath,
+      filename: path.basename(packagePath),
+      sizeBytes: packageStat.size,
+      sha256,
+      packagedAt: packageStat.mtime.toISOString(),
+      manifestVersion,
+      rebuilt,
+    };
+  };
+
   // Get extension status and connection info
   app.get("/api/extension/status", requireAuth, async (req: any, res) => {
     try {
@@ -16829,6 +16987,65 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       return res.status(500).json({ message: error.message || "Failed to get extension status" });
+    }
+  });
+
+  // Admin-only metadata endpoint to verify extension package freshness.
+  app.get("/api/admin/extension/info", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const forceBuild = String(req.query?.fresh || req.query?.rebuild || "").toLowerCase() === "1";
+      const metadata = await getExtensionPackageMetadata(forceBuild);
+      if (!metadata) {
+        return res.status(404).json({
+          message:
+            "Extension package is unavailable. Run `npm run package:extension` to generate dist/edge-acp-autofill.zip.",
+        });
+      }
+
+      res.setHeader("Cache-Control", "no-store");
+      return res.json({
+        manifestVersion: metadata.manifestVersion,
+        downloadUrl: "/api/admin/extension/package?fresh=1",
+        package: {
+          available: true,
+          filename: metadata.filename,
+          sizeBytes: metadata.sizeBytes,
+          sha256: metadata.sha256,
+          packagedAt: metadata.packagedAt,
+          rebuilt: metadata.rebuilt,
+        },
+      });
+    } catch (error: any) {
+      console.error("Extension package metadata error:", error);
+      return res.status(500).json({ message: error.message || "Failed to load extension package metadata" });
+    }
+  });
+
+  // Admin-only direct package download for browser extension rollout.
+  app.get("/api/admin/extension/package", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const forceBuild = String(req.query?.fresh || req.query?.rebuild || "").toLowerCase() === "1";
+      const metadata = await getExtensionPackageMetadata(forceBuild);
+      if (!metadata) {
+        return res.status(404).json({
+          message:
+            "Extension package is unavailable. Run `npm run package:extension` to generate dist/edge-acp-autofill.zip.",
+        });
+      }
+
+      const versionSuffix = metadata.manifestVersion ? `-v${metadata.manifestVersion}` : "";
+      const downloadName = `careassurance-edge-acp-autofill${versionSuffix}.zip`;
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Extension-Version", metadata.manifestVersion || "unknown");
+      res.setHeader("X-Extension-Sha256", metadata.sha256);
+      res.download(metadata.packagePath, downloadName, (downloadError) => {
+        if (!downloadError || res.headersSent) return;
+        console.error("Extension package download error:", downloadError);
+        res.status(500).json({ message: "Failed to download extension package" });
+      });
+    } catch (error: any) {
+      console.error("Extension package lookup error:", error);
+      return res.status(500).json({ message: error.message || "Failed to prepare extension package" });
     }
   });
 

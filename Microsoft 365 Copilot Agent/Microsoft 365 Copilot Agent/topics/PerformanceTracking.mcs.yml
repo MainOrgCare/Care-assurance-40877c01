@@ -1,0 +1,61 @@
+# Name: Performance Tracking
+# Handles care worker performance monitoring, discrepancy tracking, and alert management.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: Performance Tracking
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - performance tracking
+      - care worker performance
+      - discrepancy report
+      - performance metrics
+      - discrepancy alert
+      - performance trend
+      - corrective action
+      - performance note
+      - office discussion
+      - manager referral
+      - care worker discrepancy
+      - staff performance
+
+  actions:
+    - kind: SearchAndSummarizeContent
+      id: perf-search
+      variable: Topic.Answer
+      userInput: =System.Activity.Text
+
+    - kind: ConditionGroup
+      id: perf-conditions
+      conditions:
+        - id: has-perf-answer
+          condition: =!IsBlank(Topic.Answer)
+          actions:
+            - kind: SendActivity
+              id: perf-response
+              activity: "{Topic.Answer}"
+
+      elseActions:
+        - kind: SendActivity
+          id: perf-guidance
+          activity: |-
+            I can help with performance tracking. Here's how CareAssurance manages it:
+
+            **Discrepancy Severity Levels:**
+            - 🟢 **Low** — Minor documentation gaps (e.g. missing signature)
+            - 🟡 **Medium** — Patterns of concern requiring discussion
+            - 🔴 **High** — Immediate safety concern requiring urgent action
+
+            **Alert Threshold:** Auto-alerts trigger at **3+ EMAR discrepancies** for a care worker.
+
+            **Corrective Action Options:**
+            - Office discussion (in-person meeting)
+            - Phone call
+            - Video call
+            - Manager referral (for serious or repeated issues)
+
+            **Where to find it:** Go to **Care Workers → Performance** in CareAssurance.
+
+            Would you like help interpreting a specific discrepancy or deciding on an appropriate action?

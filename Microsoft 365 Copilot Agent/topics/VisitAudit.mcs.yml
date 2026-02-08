@@ -1,0 +1,73 @@
+# Name: Visit Audit
+# Handles visit log auditing, location/duration compliance, note quality, and triple-check validation.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: Visit Audit
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - visit audit
+      - visit log
+      - visit analysis
+      - carer visit
+      - visit compliance
+      - visit discrepancy
+      - location check
+      - visit duration
+      - care call audit
+      - visit note quality
+      - was the carer on time
+      - how long was the visit
+      - visit not long enough
+      - missed visit
+      - late visit
+      - short visit
+      - visit report
+
+  actions:
+    - kind: SearchAndSummarizeContent
+      id: visit-search
+      variable: Topic.Answer
+      userInput: =System.Activity.Text
+
+    - kind: ConditionGroup
+      id: visit-conditions
+      conditions:
+        - id: has-visit-answer
+          condition: =!IsBlank(Topic.Answer)
+          actions:
+            - kind: SendActivity
+              id: visit-response
+              activity: "{Topic.Answer}"
+
+            - kind: SendActivity
+              id: visit-followup
+              activity: Would you like help interpreting a specific visit audit result or understanding a discrepancy?
+
+      elseActions:
+        - kind: SendActivity
+          id: visit-guidance
+          activity: |-
+            I can help with visit audits. Here's how the AI visit analysis works:
+
+            **What Gets Checked (per visit):**
+            - 📍 **Location** — Was the carer within 200m of the service user?
+            - ⏱️ **Duration** — Did the visit last ≥70% of the expected time?
+            - 📝 **Note Quality** — Are care notes sufficiently detailed and relevant?
+            - ⚠️ **Concerns** — Any safeguarding, health, or behaviour concerns noted?
+
+            **Triple-Check Validation:**
+            The AI runs 3 independent passes to filter false positives. Each discrepancy must have evidence from the original document.
+
+            **Output Includes:**
+            - Individual care call breakdown
+            - Discrepancy list with evidence
+            - Themes & trends across the audit period
+            - Gaps in knowledge (missing data)
+            - Validation status and confidence
+
+            **To run a visit audit:** Go to **Care Workers → Visit Audit** in CareAssurance and upload the visit log.
+
+            What would you like help with?

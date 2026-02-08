@@ -1,0 +1,62 @@
+# Name: Call Reconciliation
+# Handles ECM call data reconciliation, variation codes, and cancellation reason mapping.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: Call Reconciliation
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - call reconciliation
+      - ECM reconciliation
+      - variation code
+      - cancellation reason
+      - L1 code
+      - L4 code
+      - L5 code
+      - A1 code
+      - reconcile calls
+      - upload reconciliation
+      - call data
+      - variation reason
+      - hospital cancellation
+      - capacity cancellation
+
+  actions:
+    - kind: SearchAndSummarizeContent
+      id: recon-search
+      variable: Topic.Answer
+      userInput: =System.Activity.Text
+
+    - kind: ConditionGroup
+      id: recon-conditions
+      conditions:
+        - id: has-recon-answer
+          condition: =!IsBlank(Topic.Answer)
+          actions:
+            - kind: SendActivity
+              id: recon-response
+              activity: "{Topic.Answer}"
+
+      elseActions:
+        - kind: SendActivity
+          id: recon-guidance
+          activity: |-
+            I can help with call reconciliation. Here's how it works:
+
+            **Process:**
+            1. Upload your ECM Excel file via **Call Reconciliation** in CareAssurance
+            2. The system automatically strips unnecessary columns (~150 removed)
+            3. Cancellation reasons are mapped to variation codes
+            4. A "Variation Reason" column is added to the output
+
+            **Variation Code Reference:**
+            | Code | Meaning |
+            |------|---------|
+            | **L1** | Hospital — service user is in hospital |
+            | **L4** | Cancellation with more than 24 hours notice |
+            | **L5** | Cancellation with less than 24 hours notice or capacity |
+            | **A1** | Empty service requirement |
+
+            Would you like help uploading a file or understanding a specific code?

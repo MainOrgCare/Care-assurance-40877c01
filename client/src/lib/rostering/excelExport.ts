@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import { SafeXLSX } from "@/lib/safe-xlsx";
 
 interface Call {
   id: string;
@@ -38,7 +38,7 @@ interface ExportData {
 }
 
 export function exportRosterToExcel(data: ExportData, filename: string = 'roster-schedule.xlsx') {
-  const workbook = XLSX.utils.book_new();
+  const workbook = SafeXLSX.utils.book_new();
 
   // Sheet 1: Summary
   const summaryData = [
@@ -61,7 +61,7 @@ export function exportRosterToExcel(data: ExportData, filename: string = 'roster
     summaryData.push(['Optimization Score', `${data.optimizationScore}/100`]);
   }
 
-  const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+  const summarySheet = SafeXLSX.utils.aoa_to_sheet(summaryData);
   
   // Set column widths
   summarySheet['!cols'] = [
@@ -70,7 +70,7 @@ export function exportRosterToExcel(data: ExportData, filename: string = 'roster
   ];
 
   // Add summary sheet
-  XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+  SafeXLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
 
   // Sheet 2: Schedule by Worker
   const scheduleData: any[][] = [
@@ -85,7 +85,7 @@ export function exportRosterToExcel(data: ExportData, filename: string = 'roster
     ])
   ];
 
-  const scheduleSheet = XLSX.utils.aoa_to_sheet(scheduleData);
+  const scheduleSheet = SafeXLSX.utils.aoa_to_sheet(scheduleData);
   
   scheduleSheet['!cols'] = [
     { wch: 20 },
@@ -96,7 +96,7 @@ export function exportRosterToExcel(data: ExportData, filename: string = 'roster
     { wch: 15 }
   ];
 
-  XLSX.utils.book_append_sheet(workbook, scheduleSheet, 'Worker Summary');
+  SafeXLSX.utils.book_append_sheet(workbook, scheduleSheet, 'Worker Summary');
 
   // Sheet 3: Detailed Calls (One sheet per worker, up to 10 workers)
   data.workers.slice(0, 10).forEach((worker, workerIdx) => {
@@ -116,7 +116,7 @@ export function exportRosterToExcel(data: ExportData, filename: string = 'roster
       ])
     ];
 
-    const callsSheet = XLSX.utils.aoa_to_sheet(callsData);
+    const callsSheet = SafeXLSX.utils.aoa_to_sheet(callsData);
     
     callsSheet['!cols'] = [
       { wch: 25 },
@@ -131,7 +131,7 @@ export function exportRosterToExcel(data: ExportData, filename: string = 'roster
 
     // Truncate worker name to 31 chars (Excel sheet name limit)
     const sheetName = worker.name.substring(0, 28) + (worker.name.length > 28 ? '...' : '');
-    XLSX.utils.book_append_sheet(workbook, callsSheet, sheetName);
+    SafeXLSX.utils.book_append_sheet(workbook, callsSheet, sheetName);
   });
 
   // Sheet 4: Call List (All calls)
@@ -156,7 +156,7 @@ export function exportRosterToExcel(data: ExportData, filename: string = 'roster
     });
   });
 
-  const allCallsSheet = XLSX.utils.aoa_to_sheet(allCallsData);
+  const allCallsSheet = SafeXLSX.utils.aoa_to_sheet(allCallsData);
   
   allCallsSheet['!cols'] = [
     { wch: 20 },
@@ -169,10 +169,10 @@ export function exportRosterToExcel(data: ExportData, filename: string = 'roster
     { wch: 12 }
   ];
 
-  XLSX.utils.book_append_sheet(workbook, allCallsSheet, 'All Calls');
+  SafeXLSX.utils.book_append_sheet(workbook, allCallsSheet, 'All Calls');
 
   // Export the file
-  XLSX.writeFile(workbook, filename);
+  SafeXLSX.writeFile(workbook, filename);
 }
 
 export function exportWorkerScheduleToExcel(
@@ -182,7 +182,7 @@ export function exportWorkerScheduleToExcel(
   weekDay: string,
   filename?: string
 ) {
-  const workbook = XLSX.utils.book_new();
+  const workbook = SafeXLSX.utils.book_new();
 
   // Summary
   const totalMinutes = calls.reduce((sum, call) => sum + call.duration, 0);
@@ -201,9 +201,9 @@ export function exportWorkerScheduleToExcel(
     ['Double-Up Calls:', calls.filter(c => c.isDoubleUp).length],
   ];
 
-  const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+  const summarySheet = SafeXLSX.utils.aoa_to_sheet(summaryData);
   summarySheet['!cols'] = [{ wch: 25 }, { wch: 20 }];
-  XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+  SafeXLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
 
   // Detailed calls
   const callsData: any[][] = [
@@ -220,7 +220,7 @@ export function exportWorkerScheduleToExcel(
     ])
   ];
 
-  const callsSheet = XLSX.utils.aoa_to_sheet(callsData);
+  const callsSheet = SafeXLSX.utils.aoa_to_sheet(callsData);
   callsSheet['!cols'] = [
     { wch: 25 },
     { wch: 12 },
@@ -232,9 +232,9 @@ export function exportWorkerScheduleToExcel(
     { wch: 40 }
   ];
 
-  XLSX.utils.book_append_sheet(workbook, callsSheet, 'Calls');
+  SafeXLSX.utils.book_append_sheet(workbook, callsSheet, 'Calls');
 
   // Export
   const defaultFilename = `${workerName.replace(/[^a-z0-9]/gi, '-')}-${weekDay}-${weekNumber}.xlsx`;
-  XLSX.writeFile(workbook, filename || defaultFilename);
+  SafeXLSX.writeFile(workbook, filename || defaultFilename);
 }

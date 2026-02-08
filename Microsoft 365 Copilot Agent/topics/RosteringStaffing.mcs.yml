@@ -1,0 +1,61 @@
+# Name: Rostering and Staffing
+# Handles rota planning, shift management, and staffing optimisation queries.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: Rostering and Staffing
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - rostering
+      - rota
+      - shift planning
+      - staffing
+      - staff rota
+      - shift cover
+      - shift swap
+      - staff allocation
+      - rota analysis
+      - staff schedule
+      - who is working
+      - shift gap
+      - understaffing
+      - overstaffing
+      - staff availability
+
+  actions:
+    - kind: SearchAndSummarizeContent
+      id: roster-search
+      variable: Topic.Answer
+      userInput: =System.Activity.Text
+
+    - kind: ConditionGroup
+      id: roster-conditions
+      conditions:
+        - id: has-roster-answer
+          condition: =!IsBlank(Topic.Answer)
+          actions:
+            - kind: SendActivity
+              id: roster-response
+              activity: "{Topic.Answer}"
+
+      elseActions:
+        - kind: SendActivity
+          id: roster-guidance
+          activity: |-
+            I can help with rostering and staffing. Here's what CareAssurance offers:
+
+            1. **Rota Planning** — Create and manage staff rotas with visual timeline views
+            2. **Shift Gap Analysis** — Identify uncovered shifts and staffing shortfalls
+            3. **Staff Allocation** — Optimise assignments based on service user needs and skills
+            4. **Compliance Checks** — Ensure rotas meet working time regulations
+            5. **Availability Management** — Track staff availability and preferences
+
+            **Best Practices:**
+            - Ensure adequate staff-to-service-user ratios
+            - Consider continuity of care when assigning workers
+            - Plan for contingencies (sickness, annual leave)
+            - Review rota patterns for fair distribution of shifts
+
+            Would you like help with a specific rostering task?

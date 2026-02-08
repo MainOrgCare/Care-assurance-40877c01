@@ -7,6 +7,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
 import cors, { CorsOptions } from "cors";
+import { randomUUID } from "node:crypto";
 
 const app = express();
 const httpServer = createServer(app);
@@ -16,6 +17,24 @@ declare module "http" {
     rawBody: unknown;
   }
 }
+
+declare module "express-serve-static-core" {
+  interface Request {
+    requestId?: string;
+  }
+}
+
+const REQUEST_ID_HEADER = "x-request-id";
+const CORS_DEBUG =
+  ["1", "true", "yes", "on"].includes((process.env.CORS_DEBUG || "").trim().toLowerCase());
+
+app.use((req, res, next) => {
+  const incomingRequestId = req.get(REQUEST_ID_HEADER)?.trim();
+  const requestId = incomingRequestId || randomUUID();
+  req.requestId = requestId;
+  res.setHeader("X-Request-ID", requestId);
+  next();
+});
 
 // Domain redirect middleware - redirect non-canonical hosts to the custom domain in production
 const CANONICAL_DOMAIN = process.env.CANONICAL_DOMAIN || "careassurance.uk";
@@ -114,16 +133,21 @@ log(`NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
 
 const corsOptions: CorsOptions = {
   origin: (origin, cb) => {
-    // Log the origin for debugging
-    log(`CORS request from origin: ${origin || '(no origin - same origin request)'}`);
+    if (CORS_DEBUG) {
+      log(`CORS request from origin: ${origin || "(no origin - same origin request)"}`);
+    }
     
     // In development, allow ALL origins for easier debugging
     if (process.env.NODE_ENV !== "production") {
       if (!origin) {
-        log(`✓ No origin header - same-origin request allowed`);
+        if (CORS_DEBUG) {
+          log("CORS: no origin header, same-origin request allowed");
+        }
         return cb(null, true);
       }
-      log(`✓ Origin allowed (dev mode - all origins permitted): ${origin}`);
+      if (CORS_DEBUG) {
+        log(`CORS: origin allowed (development mode): ${origin}`);
+      }
       return cb(null, true);
     }
     
@@ -131,7 +155,9 @@ const corsOptions: CorsOptions = {
     if (!origin) return cb(null, true);
     
     if (allowedOrigins.includes(origin)) {
-      log(`✓ Origin allowed (in allowedOrigins): ${origin}`);
+      if (CORS_DEBUG) {
+        log(`CORS: origin allowed (allow-list): ${origin}`);
+      }
       return cb(null, true);
     }
     
@@ -139,22 +165,27 @@ const corsOptions: CorsOptions = {
     if (origin.startsWith('chrome-extension://') || 
         origin.startsWith('moz-extension://') || 
         origin.startsWith('extension://')) {
-      log(`✓ Origin allowed (browser extension): ${origin}`);
+      if (CORS_DEBUG) {
+        log(`CORS: browser extension origin allowed: ${origin}`);
+      }
       return cb(null, true);
     }
     
     // Allow Render.com subdomains for API server
     if (origin.includes('.onrender.com')) {
-      log(`✓ Origin allowed (Render subdomain): ${origin}`);
+      if (CORS_DEBUG) {
+        log(`CORS: Render subdomain origin allowed: ${origin}`);
+      }
       return cb(null, true);
     }
     
-    log(`✗ Origin rejected: ${origin} (not in allowed list)`);
+    log(`CORS rejected origin: ${origin}`);
     return cb(new Error("Not allowed by CORS"));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
+  exposedHeaders: ["X-Request-ID"],
 };
 app.use(cors(corsOptions));
 log(`CORS enabled for origin(s): ${allowedOrigins.join(", ")}`);
@@ -163,6 +194,18 @@ log(`CORS enabled for origin(s): ${allowedOrigins.join(", ")}`);
 // Keep this outside /api so it bypasses API-specific middleware and auth concerns.
 app.get("/healthz", (_req, res) => {
   res.status(200).type("text/plain").send("ok");
+});
+
+app.get("/readyz", async (_req, res) => {
+  try {
+    await Promise.race([
+      storage.getAppSetting("platform_controls"),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Readiness check timed out")), 3000)),
+    ]);
+    res.status(200).json({ status: "ready" });
+  } catch {
+    res.status(503).json({ status: "not-ready" });
+  }
 });
 
 // Global API rate limiting (100 requests per 15 minutes)
@@ -293,7 +336,7 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      let logLine = `[${req.requestId || "no-request-id"}] ${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse && process.env.NODE_ENV !== "production") {
         logLine += ` :: ${safeStringify(capturedJsonResponse)}`;
       }
@@ -350,14 +393,15 @@ const DEFAULT_ADMIN_USERNAME = "Lewis.barron";
     const safeMessage = process.env.NODE_ENV === "production" && status === 500
       ? "Internal Server Error"
       : message;
+    const requestId = _req.requestId || "no-request-id";
 
-    res.status(status).json({ message: safeMessage });
+    res.status(status).json({ message: safeMessage, requestId });
     
     // Log full error server-side only (never send to client)
     if (process.env.NODE_ENV !== "production") {
-      console.error("[API Error]", err);
+      console.error(`[API Error] [${requestId}]`, err);
     } else {
-      console.error(`[API Error] ${status} - ${message}`, {
+      console.error(`[API Error] [${requestId}] ${status} - ${message}`, {
         path: _req.path,
         method: _req.method,
         error: err.message,
@@ -381,7 +425,7 @@ const DEFAULT_ADMIN_USERNAME = "Lewis.barron";
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
+  const server = httpServer.listen(
     {
       port,
       host: "0.0.0.0",
@@ -391,4 +435,35 @@ const DEFAULT_ADMIN_USERNAME = "Lewis.barron";
       log(`serving on port ${port}`);
     },
   );
+
+  let isShuttingDown = false;
+  const shutdown = (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    log(`${signal} received. Starting graceful shutdown...`);
+
+    server.close((closeErr) => {
+      if (closeErr) {
+        console.error("[Shutdown] Error while closing HTTP server", closeErr);
+        process.exit(1);
+      }
+      log("Graceful shutdown complete.");
+      process.exit(0);
+    });
+
+    setTimeout(() => {
+      console.error("[Shutdown] Graceful shutdown timed out after 10s; forcing exit.");
+      process.exit(1);
+    }, 10_000).unref();
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("unhandledRejection", (reason) => {
+    console.error("[UnhandledRejection]", reason);
+  });
+  process.on("uncaughtException", (uncaughtError) => {
+    console.error("[UncaughtException]", uncaughtError);
+    shutdown("uncaughtException");
+  });
 })();

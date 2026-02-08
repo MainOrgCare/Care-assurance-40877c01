@@ -4,7 +4,6 @@
  * Verifies that the vault correctly restores PII tokens back to original values
  * using the vault export provided by the server.
  */
-// @ts-expect-error - vitest types are provided by vitest runner at test time
 import { describe, it, expect } from 'vitest';
 import { 
   ClientPIIVault, 

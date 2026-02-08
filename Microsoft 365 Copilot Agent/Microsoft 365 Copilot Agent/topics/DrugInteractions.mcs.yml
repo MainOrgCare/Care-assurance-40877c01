@@ -1,0 +1,68 @@
+# Name: Drug Interactions
+# Handles drug-drug interaction checking, severity levels, and medication safety.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: Drug Interactions
+    includeInOnSelectIntent: true
+    triggerQueries:
+      - drug interaction
+      - medication interaction
+      - drug combination
+      - medication safety
+      - dangerous drug combination
+      - can I take these together
+      - medication conflict
+      - drug contraindication
+      - polypharmacy
+      - multiple medications
+      - interaction check
+      - interaction severity
+
+  actions:
+    - kind: SearchAndSummarizeContent
+      id: drug-search
+      variable: Topic.Answer
+      userInput: =System.Activity.Text
+
+    - kind: ConditionGroup
+      id: drug-conditions
+      conditions:
+        - id: has-drug-answer
+          condition: =!IsBlank(Topic.Answer)
+          actions:
+            - kind: SendActivity
+              id: drug-response
+              activity: "{Topic.Answer}"
+
+      elseActions:
+        - kind: SendActivity
+          id: drug-guidance
+          activity: |-
+            I can help you understand drug interaction checking in CareAssurance.
+
+            **How It Works:**
+            The AI uses a **UK pharmacist persona** to check for dangerous drug-drug interactions. This runs:
+            - **Automatically** during EMAR analysis (after medication list extraction)
+            - Results are **cached for 24 hours** to avoid duplicate checks
+
+            **Severity Levels:**
+            | Level | Meaning | Action |
+            |-------|---------|--------|
+            | 🔴 **High** | Potentially dangerous combination | Urgent review — contact prescriber |
+            | 🟡 **Moderate** | Monitor required | Note in care plan, observe for effects |
+            | 🟢 **Low** | Minor interaction | Be aware, usually manageable |
+
+            **Output for Each Interaction:**
+            - Drug 1 name
+            - Drug 2 name
+            - Severity level
+            - Brief clinical concern description
+
+            **⚠️ Important:** Drug interaction results are AI-generated guidance, not clinical advice. Always consult the prescribing GP or pharmacist for definitive interaction checks.
+
+            **Where:** Drug interactions appear in the EMAR audit results under **Care Workers → EMAR Audit**.
+
+            Would you like to know more about a specific interaction concern?
