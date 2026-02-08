@@ -591,11 +591,16 @@ export default function BillingTool() {
 
   return (
     <div className="page-shell max-w-6xl mx-auto" data-testid="billing-tool-page">
-      <div className="space-y-2">
-        <h2 className="text-3xl font-heading font-bold text-foreground">Billing Tool</h2>
-        <p className="text-muted-foreground">
-          Upload service order screenshots to calculate weekly hours across active date ranges.
-        </p>
+      <div className="flex items-start gap-4">
+        <div className="h-10 w-10 rounded-xl bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
+          <FileImage className="h-5 w-5 text-primary" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="page-title">Billing Tool</h2>
+          <p className="page-subtitle">
+            Upload service order screenshots to calculate weekly hours across active date ranges.
+          </p>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">

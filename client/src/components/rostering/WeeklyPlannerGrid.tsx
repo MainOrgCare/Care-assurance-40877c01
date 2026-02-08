@@ -69,13 +69,13 @@ const SHORT_WEEKDAYS: Record<string, string> = {
 };
 
 const CALL_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  am: { bg: "bg-blue-100", text: "text-blue-800", border: "border-blue-300" },
-  morning: { bg: "bg-blue-100", text: "text-blue-800", border: "border-blue-300" },
-  lunch: { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-300" },
-  tea: { bg: "bg-orange-100", text: "text-orange-800", border: "border-orange-300" },
-  evening: { bg: "bg-purple-100", text: "text-purple-800", border: "border-purple-300" },
-  night: { bg: "bg-slate-200", text: "text-slate-800", border: "border-slate-400" },
-  default: { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-300" },
+  am: { bg: "bg-blue-100 dark:bg-blue-950/40", text: "text-blue-800 dark:text-blue-400", border: "border-blue-300 dark:border-blue-700/60" },
+  morning: { bg: "bg-blue-100 dark:bg-blue-950/40", text: "text-blue-800 dark:text-blue-400", border: "border-blue-300 dark:border-blue-700/60" },
+  lunch: { bg: "bg-amber-100 dark:bg-amber-950/40", text: "text-amber-800 dark:text-amber-400", border: "border-amber-300 dark:border-amber-700/60" },
+  tea: { bg: "bg-orange-100 dark:bg-orange-950/40", text: "text-orange-800 dark:text-orange-400", border: "border-orange-300 dark:border-orange-700/60" },
+  evening: { bg: "bg-purple-100 dark:bg-purple-950/40", text: "text-purple-800 dark:text-purple-400", border: "border-purple-300 dark:border-purple-700/60" },
+  night: { bg: "bg-muted", text: "text-foreground", border: "border-border" },
+  default: { bg: "bg-muted", text: "text-muted-foreground", border: "border-border" },
 };
 
 // ===== UTILITY FUNCTIONS =====

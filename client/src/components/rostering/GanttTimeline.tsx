@@ -98,7 +98,7 @@ const getCallTypeColor = (callTypeLabel: string | null | undefined): { bg: strin
   if (label.includes("bed") || label.includes("evening") || label.includes("night") || label.includes("eve")) {
     return { bg: "bg-indigo-100/80 dark:bg-indigo-950/30", border: "border-indigo-300/80 dark:border-indigo-700/60" };
   }
-  return { bg: "bg-slate-100/70 dark:bg-slate-900/40", border: "border-slate-300/70 dark:border-slate-700/60" };
+  return { bg: "bg-muted/70", border: "border-border/70" };
 };
 
 const getTimeBandBackgrounds = (
@@ -625,7 +625,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
             <DragOverlay dropAnimation={null}>
               {activeEntry && (
                 <div
-                  className="rounded-lg px-3 text-left text-[11px] font-semibold text-white shadow-lg bg-slate-700 border-l-4 border-slate-900 pointer-events-none"
+                  className="rounded-lg px-3 text-left text-[11px] font-semibold text-primary-foreground shadow-lg bg-primary border-l-4 border-primary/80 pointer-events-none"
                   style={{ height: entryHeight }}
                 >
                   <div className="flex items-center gap-1.5 pt-1.5">
@@ -984,12 +984,12 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
               </span>
             </div>
             {hasConflict && !entry.isDoubleUp && (
-              <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border border-white" />
+              <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border border-background" />
             )}
             {/* Recommended time indicator */}
             {recommendedStatus?.hasRecommendation && !entry.isDoubleUp && (
               <div 
-                className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border border-white flex items-center justify-center ${
+                className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border border-background flex items-center justify-center ${
                   recommendedStatus.isWithinWindow ? "bg-emerald-500" : "bg-amber-500"
                 }`}
               >

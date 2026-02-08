@@ -1949,8 +1949,8 @@ export default function RosteringStudioUnified({
                   {panelVisibility.database && (
                     <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
                     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-                      <div className="flex items-center gap-2 bg-gradient-to-r from-slate-500/10 to-transparent px-3 py-1 border-b shadow-sm">
-                        <Database className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-muted/60 to-transparent px-3 py-1 border-b shadow-sm">
+                        <Database className="h-4 w-4 text-muted-foreground" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Database</span>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">

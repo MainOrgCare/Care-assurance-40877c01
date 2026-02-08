@@ -74,8 +74,8 @@ export default function CarersList() {
     <div className="page-shell">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-heading font-bold text-foreground">Care Workers</h2>
-          <p className="text-muted-foreground mt-2">
+          <h2 className="page-title">Care Workers</h2>
+          <p className="page-subtitle mt-1">
             Performance data extracted from saved audits.
           </p>
         </div>

@@ -192,7 +192,7 @@ export const AdminDatabasePanel: React.FC = () => {
     { label: "Service Orders", value: stats?.serviceOrdersCount ?? 0, icon: Clipboard, color: "bg-amber-500" },
     { label: "Template Assignments", value: stats?.templateAssignmentsCount ?? 0, icon: Calendar, color: "bg-violet-500" },
     { label: "Pending Recommendations", value: stats?.pendingRecommendationsCount ?? 0, icon: AlertCircle, color: "bg-orange-500" },
-    { label: "Workbook Uploads", value: stats?.workbookUploadsCount ?? 0, icon: Database, color: "bg-slate-500" },
+    { label: "Workbook Uploads", value: stats?.workbookUploadsCount ?? 0, icon: Database, color: "bg-zinc-500" },
   ];
 
   return (

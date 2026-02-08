@@ -2936,7 +2936,7 @@ export default function RosteringStudio({
                               >
                                 <span className="text-left">{day.day.slice(0, 3)}</span>
                                 <span className="text-center">{day.total}</span>
-                                <span className="text-center text-emerald-600">{day.templated}</span>
+                                <span className="text-center text-emerald-600 dark:text-emerald-400">{day.templated}</span>
                                 <span className="text-center text-rose-600">{day.nonTemplated}</span>
                               </button>
                             );
@@ -3176,7 +3176,7 @@ export default function RosteringStudio({
           {workerConstraints.length > 0 && (
             <Card className="border-amber-500/50 bg-amber-500/5">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2 text-amber-600">
+                <CardTitle className="text-sm flex items-center gap-2 text-amber-600 dark:text-amber-400">
                   <AlertCircle className="h-4 w-4" />
                   Workers With Workload Limits
                 </CardTitle>
@@ -4004,7 +4004,7 @@ export default function RosteringStudio({
                                   </Badge>
                                 ) : null}
                                 {selectedEntryDeltaMinutes !== null && (
-                                  <span className={selectedEntryDeltaMinutes === 0 ? "text-emerald-600" : ""}>
+                                  <span className={selectedEntryDeltaMinutes === 0 ? "text-emerald-600 dark:text-emerald-400" : ""}>
                                     {formatDeltaLabel(selectedEntryDeltaMinutes)}
                                   </span>
                                 )}
@@ -4452,7 +4452,7 @@ export default function RosteringStudio({
                               </Alert>
                             ) : (
                               <div className="space-y-2">
-                                {filteredCallGroups.map((group) => {
+                                {filteredCallGroups.map((group, index) => {
                                   const isTemplated = group.templatedWeekdayKeys.has(templateSelectionKey);
                                   const isSelected = selectedWorkerCallKeys.includes(group.key);
                                   const hasRequirementTime = typeof group.requirementStartMinutes === "number";
@@ -4460,7 +4460,7 @@ export default function RosteringStudio({
 
                                   return (
                                     <div
-                                      key={group.key}
+                                      key={`${group.key}-${group.callTypeLabel}-${group.timeBandLabel}-${index}`}
                                       onClick={() => {
                                         if (!hasRequirementTime) return;
                                         setSelectedWorkerCallKeys((prev) =>

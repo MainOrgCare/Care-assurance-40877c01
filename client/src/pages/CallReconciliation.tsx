@@ -93,9 +93,14 @@ export default function CallReconciliation() {
 
   return (
     <div className="page-shell max-w-6xl mx-auto">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-heading font-bold text-foreground">Call Monitoring Reconciliation</h2>
-        <p className="text-muted-foreground">Upload your ECM data file to process cancellation reasons and generate variation codes.</p>
+      <div className="flex items-start gap-4">
+        <div className="h-10 w-10 rounded-xl bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
+          <ArrowRightLeft className="h-5 w-5 text-primary" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="page-title">Call Monitoring Reconciliation</h2>
+          <p className="page-subtitle">Upload your ECM data file to process cancellation reasons and generate variation codes.</p>
+        </div>
       </div>
 
       {step === "upload" && (

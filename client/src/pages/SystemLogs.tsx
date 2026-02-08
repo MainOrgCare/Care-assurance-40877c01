@@ -99,14 +99,18 @@ export default function SystemLogs() {
   return (
     <div className="page-shell space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-3xl font-heading font-bold text-foreground flex items-center gap-2">
-            <Terminal className="h-6 w-6 text-purple-400" />
-            System Logs
-          </h2>
-          <p className="text-muted-foreground mt-1">
-            Full system activity log. Filter by action, target, or status.
-          </p>
+        <div className="flex items-start gap-4">
+          <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/15 flex items-center justify-center shrink-0">
+            <Terminal className="h-5 w-5 text-purple-500" />
+          </div>
+          <div>
+            <h2 className="page-title text-2xl sm:text-3xl">
+              System Logs
+            </h2>
+            <p className="page-subtitle mt-1">
+              Full system activity log. Filter by action, target, or status.
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleExportLogs} disabled={logs.length === 0}>
@@ -120,7 +124,7 @@ export default function SystemLogs() {
         </div>
       </div>
 
-      <Card className="glass-card">
+      <Card>
         <CardHeader>
           <CardTitle>Filters</CardTitle>
           <CardDescription>Search across action, target, user, or alert text. Results update as you type.</CardDescription>
@@ -151,7 +155,7 @@ export default function SystemLogs() {
         </CardContent>
       </Card>
 
-      <Card className="glass-card">
+      <Card>
         <CardHeader>
           <CardTitle>Activity Log</CardTitle>
           <CardDescription>

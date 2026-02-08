@@ -219,27 +219,32 @@ export default function EmailAssistant() {
   return (
     <div className="page-shell max-w-5xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
-        <div className="space-y-1">
-          <h1 className="page-title leading-tight">Email Assistant</h1>
-          <p className="page-subtitle">Refine raw care notes into clear, professional correspondence.</p>
+        <div className="flex items-start gap-4">
+          <div className="h-11 w-11 rounded-xl bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
+            <Mail className="h-5 w-5 text-primary" />
+          </div>
+          <div className="space-y-1">
+            <h1 className="page-title leading-tight">Email Assistant</h1>
+            <p className="page-subtitle">Refine raw care notes into clear, professional correspondence.</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setTemplateOpen(true)}>
-            <FileText className="h-4 w-4 mr-2" />
+            <FileText className="h-4 w-4 mr-1.5" />
             Templates
           </Button>
           <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="relative">
-            <History className="h-4 w-4 mr-2" />
+            <History className="h-4 w-4 mr-1.5" />
             History
             {history.length > 0 && (
-              <Badge className="absolute -top-2 -right-2 h-5 min-w-[1.25rem] px-1 bg-primary text-primary-foreground text-[10px] font-bold">
+              <Badge className="absolute -top-1.5 -right-1.5 h-[18px] min-w-[18px] px-1 bg-primary text-primary-foreground text-[10px] font-bold rounded-full leading-none flex items-center justify-center">
                 {history.length}
               </Badge>
             )}
           </Button>
           {(inputText || outputText) && (
-            <Button variant="ghost" size="sm" onClick={clearAll} className="text-muted-foreground">
-              <Trash2 className="h-4 w-4" />
+            <Button variant="ghost" size="icon-sm" onClick={clearAll} className="text-muted-foreground">
+              <Trash2 className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>
@@ -247,35 +252,35 @@ export default function EmailAssistant() {
 
       <div className="grid lg:grid-cols-2 gap-8 mt-6 h-full animate-slide-up stagger-2">
         {/* Input Section */}
-        <Card className="glass-card flex flex-col h-full overflow-hidden">
-          <CardHeader className="border-b border-border/40 pb-6">
+        <Card className="flex flex-col h-full overflow-hidden">
+          <CardHeader className="border-b border-border/30 pb-5">
             <CardTitle className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center border border-border/60 text-[10px] font-black">1</div>
+              <span className="h-7 w-7 rounded-lg bg-muted/80 flex items-center justify-center text-[11px] font-bold text-muted-foreground tabular-nums border border-border/40">1</span>
               Draft Input
             </CardTitle>
-            <CardDescription className="text-xs font-medium">
+            <CardDescription>
               Enter rough bullet points or draft notes below.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex-1 min-h-[400px] pt-6 relative">
+          <CardContent className="flex-1 min-h-[400px] pt-5 relative">
             <Textarea
               placeholder="e.g. update Sarah about missing medication logs, request an update by Friday, and check in on how her holiday went."
-              className="h-full resize-none p-5 text-sm font-medium leading-relaxed bg-muted/20 border-border/40 rounded-2xl"
+              className="h-full resize-none p-5 text-sm leading-relaxed bg-muted/15 border-border/30 rounded-xl focus:bg-background"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
             />
             {inputText && (
-              <div className="absolute bottom-2 right-4 flex gap-3 text-[10px] font-semibold text-muted-foreground">
+              <div className="absolute bottom-2.5 right-5 flex gap-3 text-[10px] font-medium text-muted-foreground/60 tabular-nums">
                 <span>{wordCount.input} words</span>
                 <span>{charCount.input} chars</span>
               </div>
             )}
           </CardContent>
-          <CardFooter className="flex flex-col gap-4 p-5 bg-muted/20 border-t border-border/40">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground whitespace-nowrap">Tone:</Label>
+          <CardFooter className="flex flex-col gap-3 px-5 py-4 bg-muted/10 border-t border-border/30">
+            <div className="flex items-center gap-3 w-full">
+              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 whitespace-nowrap">Tone</Label>
               <Select value={tone} onValueChange={setTone}>
-                <SelectTrigger className="h-9 text-xs">
+                <SelectTrigger className="h-8 text-xs flex-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -296,22 +301,22 @@ export default function EmailAssistant() {
         {/* Output Section */}
         <div className="flex flex-col gap-4 h-full">
           <Card className={cn(
-            "glass-card flex flex-col h-full overflow-hidden transition-all duration-700",
-            outputText ? "border-primary/30 shadow-primary/5" : "opacity-80"
+            "flex flex-col h-full overflow-hidden transition-all duration-500",
+            outputText ? "border-primary/25" : "opacity-75"
           )}>
-            <CardHeader className="border-b border-border/40 pb-6 bg-primary/5">
+            <CardHeader className="border-b border-border/30 pb-5 bg-primary/[0.03]">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-3 text-primary">
-                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Sparkles size={16} />
-                  </div>
+                  <span className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Sparkles size={14} />
+                  </span>
                   Refined Draft
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   {outputText && (
                     <>
-                      <span className="text-[10px] font-semibold text-muted-foreground">{wordCount.output} words</span>
-                      <Badge className="bg-primary/15 text-primary border-primary/20 rounded-lg font-black text-[10px] tracking-widest px-2.5">
+                      <span className="text-[10px] font-medium text-muted-foreground tabular-nums">{wordCount.output} words</span>
+                      <Badge variant="outline" className="bg-primary/8 text-primary border-primary/20 rounded-md font-bold text-[10px] tracking-wider px-2 py-0.5">
                         READY
                       </Badge>
                     </>
@@ -322,10 +327,10 @@ export default function EmailAssistant() {
 
             {/* Subject Line */}
             {subjectLine && (
-              <div className="px-6 pt-4 pb-2 border-b border-border/30 bg-muted/10">
-                <div className="flex items-center gap-2 mb-1">
-                  <Heading className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Subject Line</span>
+              <div className="px-6 pt-4 pb-3 border-b border-border/20 bg-muted/5">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Heading className="h-3 w-3 text-muted-foreground/50" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">Subject</span>
                 </div>
                 <Input
                   value={subjectLine}
@@ -337,12 +342,12 @@ export default function EmailAssistant() {
 
             <CardContent className="flex-1 p-0 relative min-h-[360px]">
               {isProcessing && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center glass-card z-10 border-0 rounded-none bg-background/60 backdrop-blur-md">
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-background/70 backdrop-blur-sm">
                   <div className="relative">
-                    <RefreshCw className="h-10 w-10 animate-spin text-primary opacity-30" />
-                    <Sparkles className="h-5 w-5 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+                    <RefreshCw className="h-8 w-8 animate-spin text-primary/25" />
+                    <Sparkles className="h-4 w-4 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
                   </div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-primary mt-6">Preparing draft...</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-5">Preparing draft…</p>
                 </div>
               )}
 
@@ -353,21 +358,21 @@ export default function EmailAssistant() {
                 value={outputText}
               />
             </CardContent>
-            <CardFooter className="p-5 flex gap-4 bg-background border-t border-border/40">
+            <CardFooter className="px-5 py-4 flex gap-3 border-t border-border/30">
               <Button
                 onClick={handleRewrite}
-                className="flex-1 h-12 rounded-xl font-medium tracking-tight shadow-glow group"
+                className="flex-1 h-10 font-semibold tracking-tight group"
                 disabled={isProcessing}
               >
                 {outputText ? (
-                  <><RefreshCw className="mr-2.5 h-4 w-4 group-hover:rotate-180 transition-transform duration-700"/> Refine Draft</>
+                  <><RefreshCw className="mr-2 h-4 w-4 group-hover:rotate-180 transition-transform duration-500"/> Refine Draft</>
                 ) : (
-                  <><Sparkles className="mr-2.5 h-4 w-4 animate-pulse"/> Rewrite Email</>
+                  <><Sparkles className="mr-2 h-4 w-4 animate-pulse"/> Rewrite Email</>
                 )}
               </Button>
               {outputText && (
-                <Button variant="outline" onClick={copyToClipboard} className="h-12 px-6 rounded-xl border-border/60 font-medium tracking-tight hover:bg-muted/50 transition-all">
-                  {copied ? <Check className="mr-2.5 h-4 w-4 text-success" /> : <Copy className="mr-2.5 h-4 w-4" />}
+                <Button variant="outline" onClick={copyToClipboard} className="h-10 px-5 font-medium tracking-tight">
+                  {copied ? <Check className="mr-2 h-4 w-4 text-success" /> : <Copy className="mr-2 h-4 w-4" />}
                   {copied ? "Copied" : "Copy"}
                 </Button>
               )}
@@ -386,22 +391,22 @@ export default function EmailAssistant() {
             </DialogTitle>
             <DialogDescription>Quick-start with pre-written templates for common care communications.</DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto space-y-6 py-4">
+          <div className="flex-1 overflow-y-auto space-y-5 py-3">
             {uniqueCategories.map(category => (
               <div key={category}>
-                <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 px-1">{category}</h4>
-                <div className="space-y-2">
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-2.5 px-1">{category}</h4>
+                <div className="space-y-1.5">
                   {EMAIL_TEMPLATES.filter(t => t.category === category).map(template => (
                     <button
                       key={template.id}
-                      className="w-full text-left p-4 rounded-xl border border-border/50 bg-muted/10 hover:bg-muted/30 hover:border-primary/30 transition-all group"
+                      className="w-full text-left px-4 py-3 rounded-lg border border-transparent hover:bg-muted/40 hover:border-border/40 transition-all group"
                       onClick={() => loadTemplate(template)}
                     >
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between mb-0.5">
                         <h5 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">{template.label}</h5>
-                        <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-primary/60 group-hover:translate-x-0.5 transition-all" />
                       </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{template.inputText}</p>
+                      <p className="text-xs text-muted-foreground/70 leading-relaxed line-clamp-2">{template.inputText}</p>
                     </button>
                   ))}
                 </div>
@@ -421,30 +426,30 @@ export default function EmailAssistant() {
             </DialogTitle>
             <DialogDescription>Your recent email rewrites (stored locally).</DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto space-y-2 py-4">
+          <div className="flex-1 overflow-y-auto space-y-1.5 py-3">
             {history.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Clock className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <div className="text-center py-16 text-muted-foreground">
+                <Clock className="h-8 w-8 mx-auto mb-3 opacity-20" />
                 <p className="text-sm font-medium">No history yet</p>
-                <p className="text-xs mt-1">Rewritten emails will appear here.</p>
+                <p className="text-xs mt-1 text-muted-foreground/60">Rewritten emails will appear here.</p>
               </div>
             ) : (
               history.map(entry => (
                 <button
                   key={entry.id}
-                  className="w-full text-left p-4 rounded-xl border border-border/50 bg-muted/10 hover:bg-muted/30 hover:border-primary/30 transition-all group"
+                  className="w-full text-left px-4 py-3 rounded-lg border border-transparent hover:bg-muted/40 hover:border-border/40 transition-all group"
                   onClick={() => loadFromHistory(entry)}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <Badge variant="outline" className="text-[9px] font-bold capitalize">{entry.tone}</Badge>
-                    <span className="text-[10px] text-muted-foreground">
+                    <Badge variant="outline" className="text-[9px] font-semibold capitalize h-5">{entry.tone}</Badge>
+                    <span className="text-[10px] text-muted-foreground/60 tabular-nums">
                       {new Date(entry.timestamp).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </div>
                   {entry.subjectLine && (
                     <p className="text-xs font-semibold text-primary mt-1">{entry.subjectLine}</p>
                   )}
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{entry.inputText}</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1 line-clamp-2">{entry.inputText}</p>
                 </button>
               ))
             )}

@@ -6,10 +6,10 @@ const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto rounded-xl border border-border/80 bg-card/92 shadow-[0_12px_28px_-22px_rgba(15,23,42,0.4)]">
+  <div className="relative w-full overflow-auto rounded-lg border border-border/60 bg-card shadow-xs">
     <table
       ref={ref}
-      className={cn("w-full caption-bottom text-[0.9rem]", className)}
+      className={cn("w-full caption-bottom text-sm", className)}
       {...props}
     />
   </div>
@@ -22,7 +22,7 @@ const TableHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <thead
     ref={ref}
-    className={cn("sticky top-0 z-[1] bg-muted/55 text-[0.64rem] uppercase tracking-[0.08em] font-semibold text-muted-foreground [&_tr]:border-b [&_tr]:border-border/70", className)}
+    className={cn("sticky top-0 z-[1] bg-muted/40 text-[0.65rem] uppercase tracking-[0.08em] font-semibold text-muted-foreground [&_tr]:border-b [&_tr]:border-border/50", className)}
     {...props}
   />
 ))
@@ -62,7 +62,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "border-b border-border/70 transition-colors hover:bg-muted/40 data-[state=selected]:bg-accent/50",
+      "border-b border-border/40 transition-colors hover:bg-muted/30 data-[state=selected]:bg-accent/50",
       className
     )}
     {...props}
@@ -77,7 +77,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "h-11 px-3 text-left align-middle font-semibold text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+      "h-10 px-3 text-left align-middle font-semibold text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
       className
     )}
     {...props}
@@ -92,7 +92,7 @@ const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn(
-      "p-3 align-middle text-[0.89rem] text-foreground/95 [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+      "p-3 align-middle text-sm text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
       className
     )}
     {...props}

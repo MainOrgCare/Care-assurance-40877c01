@@ -278,7 +278,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-compliance-score">
+              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-compliance-score">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ? "100%" : "-"}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5 flex items-center gap-1.5">
@@ -298,7 +298,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-audits-completed">
+              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-audits-completed">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ?? 0}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
@@ -318,7 +318,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className={cn("text-3xl font-semibold tracking-tight", stats?.activeAlerts ? "text-destructive" : "text-foreground")} data-testid="text-active-alerts">
+              <div className={cn("text-3xl font-bold tracking-tight tabular-nums", stats?.activeAlerts ? "text-destructive" : "text-foreground")} data-testid="text-active-alerts">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.activeAlerts ?? 0}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">
@@ -337,7 +337,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-plans-updated">
+              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-plans-updated">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.plansUpdated ?? 0}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">Recently synchronized plans</p>
@@ -354,7 +354,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-medication-audits-widget">
+              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-medication-audits-widget">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
@@ -371,7 +371,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-care-plan-reviews-widget">
+              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-care-plan-reviews-widget">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
@@ -388,7 +388,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-risk-assessments-widget">
+              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-risk-assessments-widget">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
@@ -405,7 +405,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-staff-checks-widget">0</div>
+              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-staff-checks-widget">0</div>
               <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
             </CardContent>
           </Card>
@@ -552,29 +552,29 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="space-y-4 animate-slide-up stagger-2">
-        <div className="flex items-center gap-3 px-1">
-          <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-amber-500/10">
-            <Zap className="h-4 w-4 text-amber-600" />
+      <div className="space-y-3 animate-slide-up stagger-2">
+        <div className="flex items-center gap-2.5 px-0.5">
+          <div className="h-7 w-7 rounded-md flex items-center justify-center bg-amber-500/8 border border-amber-500/15">
+            <Zap className="h-3.5 w-3.5 text-amber-600" />
           </div>
           <div>
-            <h3 className="text-base font-semibold tracking-tight text-foreground">Launch Center</h3>
-            <p className="text-xs text-muted-foreground">Accelerated workflows for care teams</p>
+            <h3 className="text-sm font-bold tracking-tight text-foreground">Launch Center</h3>
+            <p className="text-[11px] text-muted-foreground">Accelerated workflows for care teams</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {QUICK_ACTIONS.map((action, index) => (
             <Link key={index} href={action.href}>
-              <Card className="group h-full" data-testid={`card-quick-action-${index}`}>
-                <CardContent className={`p-5 relative border ${action.panelTone} rounded-xl transition-colors duration-150`}>
-                  <div className={`relative h-10 w-10 rounded-lg ${action.iconTone} flex items-center justify-center mb-4 transition-transform duration-150 group-hover:scale-105`}>
-                    <action.icon className="h-5 w-5" />
+              <Card className="group h-full hover:shadow-md transition-shadow" data-testid={`card-quick-action-${index}`}>
+                <CardContent className={`p-4 relative border ${action.panelTone} rounded-xl transition-colors duration-150`}>
+                  <div className={`relative h-9 w-9 rounded-lg ${action.iconTone} flex items-center justify-center mb-3 transition-transform duration-150 group-hover:scale-105`}>
+                    <action.icon className="h-4.5 w-4.5" />
                   </div>
                   
-                  <h4 className="font-semibold text-sm mb-1.5 group-hover:text-primary transition-colors text-foreground">{action.label}</h4>
-                  <p className="text-xs leading-relaxed text-muted-foreground">{action.description}</p>
+                  <h4 className="font-bold text-[0.8125rem] mb-1 group-hover:text-primary transition-colors text-foreground tracking-tight">{action.label}</h4>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">{action.description}</p>
                   
-                  <div className="flex items-center gap-1.5 mt-3 text-[11px] font-medium text-primary opacity-0 group-hover:opacity-100 transition-all duration-150">
+                  <div className="flex items-center gap-1.5 mt-2.5 text-[10px] font-semibold text-primary opacity-0 group-hover:opacity-100 transition-all duration-150 translate-x-0 group-hover:translate-x-1">
                     <span>Open</span>
                     <ArrowRight className="h-3 w-3" />
                   </div>

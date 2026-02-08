@@ -8,11 +8,11 @@ export interface OptimizationScoreProps {
 }
 
 const gradeColors: Record<OptimizationMetrics["grade"], { bg: string; text: string; border: string }> = {
-  A: { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-300" },
-  B: { bg: "bg-green-100", text: "text-green-700", border: "border-green-300" },
-  C: { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-300" },
-  D: { bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-300" },
-  F: { bg: "bg-red-100", text: "text-red-700", border: "border-red-300" },
+  A: { bg: "bg-emerald-100 dark:bg-emerald-950/40", text: "text-emerald-700 dark:text-emerald-400", border: "border-emerald-300 dark:border-emerald-700/60" },
+  B: { bg: "bg-green-100 dark:bg-green-950/40", text: "text-green-700 dark:text-green-400", border: "border-green-300 dark:border-green-700/60" },
+  C: { bg: "bg-amber-100 dark:bg-amber-950/40", text: "text-amber-700 dark:text-amber-400", border: "border-amber-300 dark:border-amber-700/60" },
+  D: { bg: "bg-orange-100 dark:bg-orange-950/40", text: "text-orange-700 dark:text-orange-400", border: "border-orange-300 dark:border-orange-700/60" },
+  F: { bg: "bg-red-100 dark:bg-red-950/40", text: "text-red-700 dark:text-red-400", border: "border-red-300 dark:border-red-700/60" },
 };
 
 const gradeDescriptions: Record<OptimizationMetrics["grade"], string> = {
@@ -96,7 +96,7 @@ export const OptimizationScore: React.FC<OptimizationScoreProps> = ({
               )}
               <span className="text-[10px] uppercase tracking-wide">Conflicts</span>
             </div>
-            <p className={`text-sm font-semibold mt-1 ${metrics.conflictCount > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+            <p className={`text-sm font-semibold mt-1 ${metrics.conflictCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
               {metrics.conflictCount}
             </p>
           </div>

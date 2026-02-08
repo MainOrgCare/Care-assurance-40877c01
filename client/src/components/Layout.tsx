@@ -243,19 +243,19 @@ const SidebarContent = memo(function SidebarContent({
 
   const navLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-3 rounded-xl text-[0.835rem] font-semibold tracking-[0.005em] transition-all duration-200 group cursor-pointer",
-      isCollapsed ? "px-2.5 py-2.5 justify-center gap-0" : "px-3 py-2",
+      "flex items-center gap-3 rounded-lg text-[0.82rem] font-medium tracking-[0.003em] transition-all duration-150 group cursor-pointer",
+      isCollapsed ? "px-2.5 py-2.5 justify-center gap-0" : "px-3 py-[0.4375rem]",
       isActive
-        ? "bg-sidebar-accent text-sidebar-foreground shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
-        : "text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.06]"
+        ? "bg-sidebar-primary/12 text-sidebar-primary font-semibold shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
+        : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.06]"
     ), [isCollapsed]);
 
   const subNavLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-3 px-3 py-1.5 rounded-lg text-[0.79rem] font-medium transition-all duration-150",
+      "flex items-center gap-3 px-3 py-1.5 rounded-md text-[0.78rem] font-medium transition-all duration-150",
       isActive
-        ? "bg-sidebar-accent text-sidebar-foreground"
-        : "text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.05]"
+        ? "bg-sidebar-primary/10 text-sidebar-primary"
+        : "text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.05]"
     ), []);
 
   const labelClass = cn(
@@ -266,21 +266,21 @@ const SidebarContent = memo(function SidebarContent({
   return (
     <div className="flex h-full flex-col bg-sidebar">
       {/* Logo Section */}
-      <div className={cn("px-5 pt-6 pb-5", isCollapsed && "px-3 pt-5 pb-4")}>
+      <div className={cn("px-5 pt-6 pb-4", isCollapsed && "px-3 pt-5 pb-3")}>
         <Link href="/">
           <div 
             onClick={handleSecretClick}
             className={cn("flex items-center gap-3 cursor-pointer group", isCollapsed && "justify-center")}
           >
-            <div className="relative h-10 w-10 rounded-xl flex items-center justify-center bg-sidebar-accent border border-sidebar-border">
-              <ShieldCheck className="h-[18px] w-[18px] text-sidebar-foreground" />
+            <div className="relative h-9 w-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-sidebar-primary/20 to-sidebar-primary/5 border border-sidebar-primary/20 shadow-sm">
+              <ShieldCheck className="h-[17px] w-[17px] text-sidebar-primary" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
-              <h1 className="font-heading text-[16px] leading-none tracking-[-0.02em]">
-                <span className="font-bold text-sidebar-foreground">Care</span><span className="font-normal text-sidebar-foreground/60">Assurance</span>
+              <h1 className="font-heading text-[15px] leading-none tracking-[-0.02em]">
+                <span className="font-bold text-sidebar-foreground">Care</span><span className="font-normal text-sidebar-foreground/55">Assurance</span>
               </h1>
-              <span className="text-[10px] mt-1 font-semibold uppercase tracking-[0.11em] text-sidebar-foreground/48">Operations Platform</span>
+              <span className="text-[9.5px] mt-0.5 font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/40">Operations Platform</span>
             </div>
             )}
           </div>
@@ -288,7 +288,7 @@ const SidebarContent = memo(function SidebarContent({
       </div>
 
       {/* Divider */}
-      <div className={cn("mx-5 h-px bg-sidebar-border", isCollapsed && "mx-3")} />
+      <div className={cn("mx-5 h-px bg-sidebar-border/60", isCollapsed && "mx-3")} />
 
       <nav aria-label="Main navigation" className={cn("flex-1 space-y-0.5 py-3 overflow-y-auto overscroll-contain", isCollapsed ? "px-2" : "px-3")}>
         
@@ -319,8 +319,8 @@ const SidebarContent = memo(function SidebarContent({
 
         {/* Section Label */}
         {!isCollapsed && (
-          <div className="px-3 pt-4 pb-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-sidebar-foreground/40">Modules</span>
+          <div className="px-3 pt-5 pb-1.5">
+            <span className="text-[9.5px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/30">Modules</span>
           </div>
         )}
 
@@ -334,11 +334,11 @@ const SidebarContent = memo(function SidebarContent({
            <CollapsibleTrigger
             title={isCollapsed ? "Service Users" : undefined}
             className={cn(
-            "flex items-center justify-between w-full px-3 py-2 text-[0.835rem] font-semibold rounded-xl transition-all group hover:bg-sidebar-foreground/[0.06]",
+            "flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]",
             isCollapsed && "justify-center px-2.5"
            )}>
             <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
-              <Users size={16} className="text-sidebar-foreground/55" />
+              <Users size={16} className="text-sidebar-foreground/50" />
                <span className={labelClass}>Service Users</span>
             </div>
             {!isCollapsed && (
@@ -380,11 +380,11 @@ const SidebarContent = memo(function SidebarContent({
            <CollapsibleTrigger
             title={isCollapsed ? "Care Workers" : undefined}
             className={cn(
-            "flex items-center justify-between w-full px-3 py-2 text-[0.835rem] font-semibold rounded-xl transition-all group hover:bg-sidebar-foreground/[0.06]",
+            "flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]",
             isCollapsed && "justify-center px-2.5"
            )}>
             <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
-              <UserCog size={16} className="text-sidebar-foreground/55" />
+              <UserCog size={16} className="text-sidebar-foreground/50" />
                <span className={labelClass}>Care Workers</span>
             </div>
             {!isCollapsed && (
@@ -420,11 +420,11 @@ const SidebarContent = memo(function SidebarContent({
             <CollapsibleTrigger
               title={isCollapsed ? "Admin" : undefined}
               className={cn(
-              "flex items-center justify-between w-full px-3 py-2 text-[0.835rem] font-semibold rounded-xl transition-all group hover:bg-sidebar-foreground/[0.06]",
+              "flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]",
               isCollapsed && "justify-center px-2.5"
             )}>
               <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
-                <Lock size={16} className="text-sidebar-foreground/55" />
+                <Lock size={16} className="text-sidebar-foreground/50" />
                 <span className={labelClass}>Admin</span>
               </div>
               {!isCollapsed && (
@@ -461,12 +461,12 @@ const SidebarContent = memo(function SidebarContent({
       </nav>
 
       {/* Footer Actions */}
-      <div className={cn("px-3 pb-5 space-y-0.5 mt-auto border-t border-sidebar-border pt-3", isCollapsed && "px-2")}>
+      <div className={cn("px-3 pb-4 space-y-0.5 mt-auto border-t border-sidebar-border/50 pt-3", isCollapsed && "px-2")}>
         <Link
           href="/settings"
           className={cn(
-            "w-full flex items-center gap-3 rounded-xl text-[0.835rem] font-semibold transition-all text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.06]",
-            isCollapsed ? "justify-center px-2.5 py-2.5 gap-0" : "px-3 py-2"
+            "w-full flex items-center gap-3 rounded-lg text-[0.82rem] font-medium transition-all text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.06]",
+            isCollapsed ? "justify-center px-2.5 py-2.5 gap-0" : "px-3 py-[0.4375rem]"
           )}
           data-testid="button-settings"
           title={isCollapsed ? "System Settings" : undefined}
@@ -476,8 +476,8 @@ const SidebarContent = memo(function SidebarContent({
         </Link>
         <button
           className={cn(
-            "w-full flex items-center gap-3 rounded-xl text-[0.835rem] font-semibold transition-all text-red-400/80 hover:text-red-400 hover:bg-red-500/10",
-            isCollapsed ? "justify-center px-2.5 py-2.5 gap-0" : "px-3 py-2"
+            "w-full flex items-center gap-3 rounded-lg text-[0.82rem] font-medium transition-all text-red-400/70 hover:text-red-400 hover:bg-red-500/8",
+            isCollapsed ? "justify-center px-2.5 py-2.5 gap-0" : "px-3 py-[0.4375rem]"
           )}
           onClick={logout}
           title={isCollapsed ? "Terminate Session" : undefined}
@@ -588,6 +588,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setHasOpenedChat(true);
     setIsChatOpen(true);
   }, []);
+
+  const displayName = useMemo(() => {
+    const full = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+    if (full) return full;
+    const username = user?.username?.trim();
+    if (!username) return "Account";
+    return username.toLowerCase() === "admin" ? "Administrator" : username;
+  }, [user?.firstName, user?.lastName, user?.username]);
 
   // Fetch unread message count (visibility-aware to reduce background work)
   useEffect(() => {
@@ -880,13 +888,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="workspace-header sticky top-0 z-30 flex h-[3.75rem] items-center justify-between border-b border-border/50 bg-background/95 px-4 backdrop-blur-sm md:px-6">
+          <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/40 bg-background/92 px-4 backdrop-blur-md md:px-6">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="md:hidden hover:bg-muted/60 rounded-lg transition-colors">
-                    <Menu className="h-5 w-5 text-foreground" />
+                  <Button variant="ghost" size="icon" className="md:hidden hover:bg-muted/60 rounded-lg transition-colors h-8 w-8">
+                    <Menu className="h-4.5 w-4.5 text-foreground" />
                     <span className="sr-only">Toggle menu</span>
                   </Button>
                 </SheetTrigger>
@@ -905,7 +913,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="hidden md:inline-flex hover:bg-muted/60 rounded-lg transition-colors"
+                className="hidden md:inline-flex hover:bg-muted/60 rounded-lg transition-colors h-8 w-8"
                 onClick={() => {
                   autoCollapseRef.current = false;
                   setIsSidebarCollapsed((prev) => !prev);
@@ -915,13 +923,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="sr-only">Toggle sidebar</span>
               </Button>
 
-              <div className="hidden lg:flex items-center gap-3 min-w-0 ml-2">
+              <div className="hidden lg:flex items-center gap-3 min-w-0 ml-1">
                 <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-[0.14em] font-semibold text-muted-foreground">{pageMeta.section}</p>
-                  <h2 className="text-[0.96rem] font-semibold tracking-[-0.01em] text-foreground truncate">{pageMeta.title}</h2>
+                  <p className="text-[9.5px] uppercase tracking-[0.14em] font-bold text-primary/60">{pageMeta.section}</p>
+                  <h2 className="text-[0.9rem] font-bold tracking-[-0.014em] text-foreground truncate leading-tight">{pageMeta.title}</h2>
                 </div>
                 {breadcrumbs.length > 0 && (
-                  <div className="hidden xl:block border-l border-border/50 pl-3 ml-1">
+                  <div className="hidden xl:block border-l border-border/40 pl-3 ml-1">
                     <Breadcrumb>
                       <BreadcrumbList>
                         {breadcrumbs.map((crumb, i) => (
@@ -943,32 +951,32 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 rounded-xl border border-border/60 bg-card/92 px-2.5 py-1.5 shadow-[0_12px_24px_-22px_rgba(15,23,42,0.45)]">
+            <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-card/80 px-2 py-1 shadow-xs">
               {/* Command Palette Trigger */}
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}
-                className="hidden md:flex items-center gap-2 rounded-lg border border-border/60 bg-muted/45 px-3 py-1.5 text-[0.76rem] font-semibold text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors cursor-pointer"
+                className="hidden md:flex items-center gap-2 rounded-md border border-border/50 bg-muted/35 px-2.5 py-1 text-[0.75rem] font-medium text-muted-foreground hover:bg-muted/55 hover:text-foreground transition-colors cursor-pointer"
                 title="Command Palette (Ctrl+K)"
               >
                 <Search className="h-3.5 w-3.5" />
                 <span className="hidden lg:inline">Search...</span>
-                <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] leading-none text-foreground">⌘K</kbd>
+                <kbd className="rounded border border-border/70 bg-background px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground">⌘K</kbd>
               </button>
 
               {/* Messages Button */}
               <Link href="/messages">
                 <button
                   className={cn(
-                    "relative flex items-center justify-center h-9 w-9 rounded-xl transition-colors",
+                    "relative flex items-center justify-center h-8 w-8 rounded-lg transition-colors",
                     unreadMessageCount > 0
-                      ? "bg-emerald-500/12 text-emerald-700 hover:bg-emerald-500/20"
-                      : "bg-muted/50 hover:bg-muted"
+                      ? "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/18"
+                      : "bg-muted/40 hover:bg-muted/60"
                   )}
                   title="Messages"
                 >
-                  <Inbox className={cn("h-4 w-4", unreadMessageCount > 0 ? "text-emerald-700" : "text-muted-foreground")} />
+                  <Inbox className={cn("h-4 w-4", unreadMessageCount > 0 ? "text-emerald-600" : "text-muted-foreground")} />
                   {unreadMessageCount > 0 && (
-                    <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-semibold flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1 rounded-full bg-emerald-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm">
                       {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
                     </span>
                   )}
@@ -976,34 +984,35 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Link>
               
               {/* Compli-ee Help Button */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <ComplieeIdleButton onClick={openChatAssistant} />
-                <div className="hidden xl:flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/45 px-2 py-1 text-[10px] font-semibold text-muted-foreground">
-                  <span>Open</span>
-                  <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] leading-none text-foreground">Ctrl + /</kbd>
+                <div className="hidden xl:flex items-center gap-1 rounded-md border border-border/50 bg-muted/35 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">
+                  <kbd className="font-mono text-[9px] text-muted-foreground">Ctrl /</kbd>
                 </div>
               </div>
               
-              <div className="group flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/50 bg-muted/34 py-1.5 pl-3 pr-1.5 transition-all hover:border-primary/25 hover:bg-muted/46">
+              <div className="group flex cursor-pointer items-center gap-2 rounded-lg border border-border/40 bg-muted/25 py-1 pl-2.5 pr-1 transition-all hover:border-primary/20 hover:bg-muted/40">
                 <div className="text-right hidden sm:block">
-                  <p className="text-xs font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
-                    {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username}
+                  <p className="text-[10px] font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
+                    {displayName}
                   </p>
-                  <div className="flex items-center justify-end gap-1.5">
-                    <span className={cn(
-                      "h-1.5 w-1.5 rounded-full",
-                      isConnected ? "bg-emerald-500" : "bg-red-500"
-                    )} />
-                    <p className="text-[10px] font-semibold uppercase tracking-[-0.01em] leading-tight text-muted-foreground">
-                      {user?.role} · {isConnected ? "online" : "offline"}
-                    </p>
+                  <div className="flex items-center justify-end gap-1">
+                    <span
+                      title={isConnected ? "Online" : "Offline"}
+                      className={cn("h-1.5 w-1.5 rounded-full", isConnected ? "bg-emerald-500" : "bg-red-500")}
+                    />
+                    {user?.role === "admin" && (
+                      <span className="inline-flex items-center rounded-full border border-border/50 bg-background/60 px-1 py-0 text-[7px] font-medium uppercase tracking-[0.02em] leading-[1.2] text-muted-foreground/85">
+                        admin
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="relative h-8 w-8 rounded-lg flex items-center justify-center font-semibold uppercase text-[10px] bg-primary text-primary-foreground">
+                <div className="relative h-7 w-7 rounded-md flex items-center justify-center font-bold uppercase text-[10px] bg-primary text-primary-foreground">
                   {user?.firstName ? user.firstName.substring(0, 1) : user?.username?.substring(0, 1) || "?"}
                   {user?.lastName ? user.lastName.substring(0, 1) : ""}
                   <div className={cn(
-                    "absolute -top-1 -right-1 h-3 w-3 rounded-full border-2 border-background shadow-xs",
+                    "absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background",
                     isConnected ? "bg-emerald-500" : "bg-red-500"
                   )} />
                 </div>
@@ -1100,12 +1109,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Suspense>
             ) : (
               <>
-                <div className="mb-5 sm:mb-6">
-                  <p className="text-[11px] uppercase tracking-[0.12em] font-medium text-muted-foreground">{pageMeta.section}</p>
-                  <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground mt-1">{pageMeta.title}</h1>
-                  <p className="text-sm text-muted-foreground mt-2 max-w-3xl">{pageMeta.subtitle}</p>
+                <div className="mb-5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/60" />
+                    <p className="text-[10px] uppercase tracking-[0.13em] font-bold text-primary/55">{pageMeta.section}</p>
+                  </div>
+                  <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground tracking-tight">{pageMeta.title}</h1>
+                  <p className="text-[0.8125rem] text-muted-foreground mt-1.5 max-w-2xl leading-relaxed">{pageMeta.subtitle}</p>
                 </div>
-                <div className="h-px mb-4 sm:mb-5 bg-border/70" />
+                <div className="h-px mb-4 bg-gradient-to-r from-border/60 via-border/30 to-transparent" />
                 <Suspense fallback={
                   <div className="flex-1 flex flex-col gap-4 animate-pulse">
                     <div className="h-8 w-48 bg-muted rounded-lg" />
@@ -1127,29 +1139,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         {!isSingleScreenRoute && (
-          <footer className="workspace-footer flex-shrink-0 border-t border-border/40 bg-background/95 px-4 py-2.5">
-            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
-              <div className="flex items-center gap-3 font-medium">
-                <span>{new Date().getFullYear()} CareAssurance</span>
-                <span className="hidden sm:inline text-muted-foreground/60">·</span>
-                <span className="hidden sm:inline">Precision tools for high-trust care teams</span>
+          <footer className="workspace-footer flex-shrink-0 border-t border-border/30 bg-background/94 px-4 py-2 backdrop-blur-sm">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2.5 font-medium">
+                <span className="text-foreground/70">{new Date().getFullYear()} CareAssurance</span>
+                <span className="hidden sm:inline text-muted-foreground/40">·</span>
+                <span className="hidden sm:inline text-muted-foreground/70">Precision tools for high-trust care teams</span>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="hidden md:flex items-center gap-1.5 text-[10px] text-muted-foreground/50">
+              <div className="flex items-center gap-3">
+                <div className="hidden md:flex items-center gap-1.5 text-[9px] text-muted-foreground/45 font-medium">
                   <span className={cn(
                     "h-1.5 w-1.5 rounded-full",
                     isConnected ? "bg-emerald-500" : "bg-red-500"
                   )} />
                   <span>{isConnected ? "Connected" : "Disconnected"}</span>
-                  <span className="mx-1">·</span>
-                  <span>Session: {sessionDuration}</span>
+                  <span className="mx-0.5 opacity-50">·</span>
+                  <span className="tabular-nums">{sessionDuration}</span>
                 </div>
-                <div className="hidden sm:block h-3 w-px bg-border/50" />
-                <Link href="/terms" className="transition-colors hover:text-foreground" data-testid="link-footer-terms">
-                  Terms & Conditions
+                <div className="hidden sm:block h-3 w-px bg-border/40" />
+                <Link href="/terms" className="transition-colors hover:text-foreground text-[11px]" data-testid="link-footer-terms">
+                  Terms
                 </Link>
-                <Link href="/privacy" className="transition-colors hover:text-foreground" data-testid="link-footer-privacy">
-                  Privacy Policy
+                <Link href="/privacy" className="transition-colors hover:text-foreground text-[11px]" data-testid="link-footer-privacy">
+                  Privacy
                 </Link>
               </div>
             </div>

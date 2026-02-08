@@ -1714,8 +1714,8 @@ export default function RiskAssessment() {
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-3xl font-heading font-bold text-foreground">Risk Assessments</h2>
-            <p className="text-muted-foreground mt-2">
+            <h2 className="page-title">Risk Assessments</h2>
+            <p className="page-subtitle mt-1">
               Generated {generatedAssessments.length} risk assessment{generatedAssessments.length !== 1 ? "s" : ""} for {serviceUserDisplayName}
             </p>
           </div>

@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSettings, FontSize, AppTheme } from "@/context/SettingsContext";
 import { useAuth } from "@/context/AuthContext";
-import { Type, Layout as LayoutIcon, Bell, ArrowLeft, KeyRound, Loader2, SwatchBook, Download, Keyboard, Database, FileText, Shield, Clock } from "lucide-react";
+import { Type, Layout as LayoutIcon, Bell, ArrowLeft, KeyRound, Loader2, SwatchBook, Download, Keyboard, Database, FileText, Shield, Clock, Settings as SettingsIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -138,27 +138,31 @@ export default function Settings() {
 
   return (
     <div className="page-shell max-w-3xl mx-auto">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 mb-6">
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon-sm"
           onClick={() => setLocation("/dashboard")}
           data-testid="button-back"
+          className="text-muted-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
+        <div className="h-10 w-10 rounded-xl bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
+          <SettingsIcon className="h-5 w-5 text-primary" />
+        </div>
         <div>
           <h1 className="page-title">Settings</h1>
           <p className="page-subtitle">Manage security, display preferences, and notifications.</p>
         </div>
       </div>
 
-      <Card className="glass-card">
-        <CardContent className="space-y-6 pt-6">
+      <Card>
+        <CardContent className="space-y-8 pt-6">
           <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <SwatchBook className="h-4 w-4 text-primary" />
-              Theme
+            <div className="flex items-center gap-2">
+              <SwatchBook className="h-4 w-4 text-primary/70" />
+              <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">Theme</h3>
             </div>
             <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Theme selection">
               {themeOptions.map((option) => {
@@ -171,10 +175,10 @@ export default function Settings() {
                     aria-checked={isActive}
                     onClick={() => setTheme(option.value)}
                     className={cn(
-                      "rounded-xl border p-3 text-left transition-all",
+                      "rounded-xl border p-3 text-left transition-all duration-150",
                       isActive
-                        ? "border-primary/60 bg-primary/10 shadow-[0_10px_20px_-16px_rgba(37,99,235,0.6)]"
-                        : "border-border/70 bg-muted/25 hover:border-primary/35 hover:bg-muted/45"
+                        ? "border-primary/50 bg-primary/[0.06] ring-1 ring-primary/15"
+                        : "border-border/50 bg-muted/20 hover:border-primary/30 hover:bg-muted/35"
                     )}
                     data-testid={`theme-${option.value}`}
                   >
@@ -219,9 +223,9 @@ export default function Settings() {
           <Separator />
 
           <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <KeyRound className="h-4 w-4 text-primary" />
-              Change Password
+            <div className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-primary/70" />
+              <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">Change Password</h3>
             </div>
             <form
               className="space-y-3"
@@ -281,9 +285,9 @@ export default function Settings() {
           <Separator />
 
           <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <Type className="h-4 w-4 text-primary" />
-              Font Size
+            <div className="flex items-center gap-2">
+              <Type className="h-4 w-4 text-primary/70" />
+              <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">Font Size</h3>
             </div>
             <RadioGroup value={fontSize} onValueChange={(v) => setFontSize(v as FontSize)} className="grid gap-3 sm:grid-cols-3">
               {fontSizeOptions.map((option) => (
@@ -291,10 +295,10 @@ export default function Settings() {
                   key={option.value}
                   htmlFor={`font-${option.value}`}
                   className={cn(
-                    "flex items-center justify-center gap-2 p-3 rounded-xl cursor-pointer transition-all border",
+                    "flex items-center justify-center gap-2 p-3 rounded-xl cursor-pointer transition-all duration-150 border",
                     fontSize === option.value
-                      ? "border-primary/60 bg-primary/10 text-primary"
-                      : "border-border/70 bg-muted/35 hover:bg-muted/55 text-foreground"
+                      ? "border-primary/50 bg-primary/[0.06] text-primary ring-1 ring-primary/15"
+                      : "border-border/50 bg-muted/20 hover:bg-muted/35 text-foreground"
                   )}
                   data-testid={`font-${option.value}`}
                 >
@@ -308,16 +312,16 @@ export default function Settings() {
           <Separator />
 
           <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <LayoutIcon className="h-4 w-4 text-primary" />
-              Display
+            <div className="flex items-center gap-2">
+              <LayoutIcon className="h-4 w-4 text-primary/70" />
+              <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">Display</h3>
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/35 p-3.5">
+              <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/15 p-3.5">
                 <div>
-                  <Label htmlFor="compact-mode" className="cursor-pointer text-foreground">Compact Mode</Label>
-                  <p className="text-xs text-muted-foreground">Reduce spacing for more content</p>
+                  <Label htmlFor="compact-mode" className="cursor-pointer text-sm font-medium text-foreground">Compact Mode</Label>
+                  <p className="text-xs text-muted-foreground/70">Reduce spacing for more content</p>
                 </div>
                 <Switch
                   id="compact-mode"
@@ -327,10 +331,10 @@ export default function Settings() {
                 />
               </div>
 
-              <div className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/35 p-3.5">
+              <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/15 p-3.5">
                 <div>
-                  <Label htmlFor="auto-expand" className="cursor-pointer text-foreground">Auto-expand Sections</Label>
-                  <p className="text-xs text-muted-foreground">Automatically expand menu sections</p>
+                  <Label htmlFor="auto-expand" className="cursor-pointer text-sm font-medium text-foreground">Auto-expand Sections</Label>
+                  <p className="text-xs text-muted-foreground/70">Automatically expand menu sections</p>
                 </div>
                 <Switch
                   id="auto-expand"
@@ -345,15 +349,15 @@ export default function Settings() {
           <Separator />
 
           <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <Bell className="h-4 w-4 text-primary" />
-              Notifications
+            <div className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-primary/70" />
+              <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">Notifications</h3>
             </div>
 
-            <div className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/35 p-3.5">
+            <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/15 p-3.5">
               <div>
-                <Label htmlFor="copy-confirmation" className="cursor-pointer text-foreground">Copy Confirmations</Label>
-                <p className="text-xs text-muted-foreground">Show toast when copying to clipboard</p>
+                <Label htmlFor="copy-confirmation" className="cursor-pointer text-sm font-medium text-foreground">Copy Confirmations</Label>
+                <p className="text-xs text-muted-foreground/70">Show toast when copying to clipboard</p>
               </div>
               <Switch
                 id="copy-confirmation"
@@ -367,9 +371,9 @@ export default function Settings() {
           <Separator />
 
           <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <Download className="h-4 w-4 text-primary" />
-              Data Export
+            <div className="flex items-center gap-2">
+              <Download className="h-4 w-4 text-primary/70" />
+              <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">Data Export</h3>
             </div>
             <p className="text-xs text-muted-foreground">
               Export your data for reporting, backup, or compliance purposes.
@@ -459,9 +463,9 @@ export default function Settings() {
           <Separator />
 
           <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <Keyboard className="h-4 w-4 text-primary" />
-              Keyboard Shortcuts
+            <div className="flex items-center gap-2">
+              <Keyboard className="h-4 w-4 text-primary/70" />
+              <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">Keyboard Shortcuts</h3>
             </div>
             <div className="space-y-2">
               {[
@@ -470,12 +474,12 @@ export default function Settings() {
                 { keys: ["Ctrl", "/"], description: "Open keyboard shortcuts" },
                 { keys: ["Esc"], description: "Close dialog / modal" },
               ].map((shortcut, i) => (
-                <div key={i} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/35 p-3">
+                <div key={i} className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/15 p-3">
                   <span className="text-sm text-foreground">{shortcut.description}</span>
                   <div className="flex items-center gap-1">
                     {shortcut.keys.map((key, ki) => (
                       <span key={ki}>
-                        <kbd className="px-2 py-1 text-[10px] font-bold uppercase tracking-widest bg-background border border-border rounded-md text-muted-foreground shadow-xs">{key}</kbd>
+                        <kbd className="px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-background border border-border/60 rounded-md text-muted-foreground shadow-xs">{key}</kbd>
                         {ki < shortcut.keys.length - 1 && <span className="text-muted-foreground mx-0.5">+</span>}
                       </span>
                     ))}
@@ -488,11 +492,11 @@ export default function Settings() {
           <Separator />
 
           <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <Database className="h-4 w-4 text-primary" />
-              Session Information
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-primary/70" />
+              <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">Session Information</h3>
             </div>
-            <div className="rounded-xl border border-border/70 bg-muted/35 p-4 space-y-3">
+            <div className="rounded-lg border border-border/40 bg-muted/15 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Logged in as</span>
                 <Badge variant="outline" className="font-semibold">{user?.username || "Unknown"}</Badge>

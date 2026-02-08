@@ -221,17 +221,17 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ entries, showTravelL
               >
                 <Popup>
                   <div className="text-xs min-w-[160px]">
-                    <div className="font-semibold text-slate-900 text-sm">{index + 1}. {entry.title}</div>
-                    {entry.serviceUserName && <div className="text-slate-700 mt-1">{entry.serviceUserName}</div>}
-                    {entry.address && <div className="text-slate-500">{entry.address}</div>}
-                    <div className="mt-2 flex items-center gap-2 text-slate-600">
+                    <div className="font-semibold text-foreground text-sm">{index + 1}. {entry.title}</div>
+                    {entry.serviceUserName && <div className="text-foreground/80 mt-1">{entry.serviceUserName}</div>}
+                    {entry.address && <div className="text-muted-foreground">{entry.address}</div>}
+                    <div className="mt-2 flex items-center gap-2 text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       <span>{Math.floor(entry.startMinutes / 60)}:{String(entry.startMinutes % 60).padStart(2, "0")}</span>
                       <span>·</span>
                       <span>{entry.durationMinutes}m</span>
                     </div>
                     {entry.isTimeCritical && (
-                      <div className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                      <div className="mt-1 inline-block rounded-full bg-amber-100 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
                         Time critical
                       </div>
                     )}

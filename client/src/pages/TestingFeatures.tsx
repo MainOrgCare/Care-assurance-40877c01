@@ -6371,7 +6371,7 @@ export default function TestingFeatures() {
                                   {filteredResolvedCallGroups.length ? (
                                     <div className="rounded-xl border border-border/60 bg-background/60">
                                       <div className="space-y-3 p-3">
-                                        {filteredResolvedCallGroups.map((group) => {
+                                        {filteredResolvedCallGroups.map((group, index) => {
                                           const isTemplatedForSelection = group.templatedWeekdayKeys.has(templateSelectionKey);
                                           const isSelected = selectedWorkerCallKeys.includes(group.key);
                                           const hasRequirementTime = typeof group.effectiveRequirementStartMinutes === "number";
@@ -6387,7 +6387,7 @@ export default function TestingFeatures() {
                                           const isExpanded = expandedTemplateGroupKeys.includes(group.overrideKey);
                                           return (
                                             <div
-                                              key={group.key}
+                                              key={`${group.overrideKey}-${group.key}-${index}`}
                                               className={`flex flex-col gap-3 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between transition-colors ${
                                                 isSelectable
                                                   ? isSelected
@@ -6808,7 +6808,7 @@ export default function TestingFeatures() {
 
                                   {optimizedRun.length ? (
                                     <div className="mt-3 space-y-2">
-                                      {optimizedRun.map((entry) => {
+                                      {optimizedRun.map((entry, index) => {
                                         const requiredLabel = deriveTimeLabel(entry.requirementStartMinutes, null) || "—";
                                         const scheduledStart = deriveTimeLabel(entry.scheduledStartMinutes, null) || "—";
                                         const scheduledEnd = deriveTimeLabel(entry.scheduledEndMinutes, null) || "—";
@@ -6873,7 +6873,7 @@ export default function TestingFeatures() {
                                             : "border-l-primary/70";
                                         return (
                                           <div
-                                            key={entry.key}
+                                            key={`${entry.key}-${entry.callTypeLabel}-${entry.timeBandLabel}-${entry.requirementStartMinutes ?? "none"}-${index}`}
                                             className={`flex flex-col gap-2 rounded-xl border border-border/60 bg-background/60 p-3 shadow-sm transition-shadow hover:shadow-md border-l-4 ${borderTone}`}
                                           >
                                             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">

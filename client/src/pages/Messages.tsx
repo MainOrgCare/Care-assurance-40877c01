@@ -152,13 +152,15 @@ export default function Messages() {
     <div className="page-shell">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="outline" size="icon-sm" onClick={() => setLocation("/dashboard")} className="mt-0.5">
+          <Button variant="ghost" size="icon-sm" onClick={() => setLocation("/dashboard")} className="mt-0.5 text-muted-foreground">
             <ArrowLeft className="h-4 w-4" />
           </Button>
+          <div className="h-10 w-10 rounded-xl bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
+            <Inbox className="h-5 w-5 text-primary" />
+          </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="page-title flex items-center gap-2 text-2xl sm:text-3xl">
-                <Inbox className="h-6 w-6 text-primary" />
+              <h2 className="page-title text-2xl sm:text-3xl">
                 Messages
               </h2>
               {unreadCount > 0 && (
@@ -183,7 +185,7 @@ export default function Messages() {
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[360px_1fr] min-h-0">
-        <Card className="glass-card overflow-hidden" data-testid="messages-list">
+        <Card className="overflow-hidden" data-testid="messages-list">
           <CardHeader className="py-4">
             <CardTitle className="text-lg">Inbox</CardTitle>
             <CardDescription>
@@ -198,10 +200,10 @@ export default function Messages() {
                 Loading messages...
               </div>
             ) : messages.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
-                <Mail className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
-                <p>No messages yet</p>
-                <p className="text-sm mt-1">Ask Compli-ee to send you a message.</p>
+              <div className="p-12 text-center text-muted-foreground">
+                <Mail className="h-8 w-8 mx-auto mb-3 text-muted-foreground/25" />
+                <p className="text-sm font-medium">No messages yet</p>
+                <p className="text-xs mt-1 text-muted-foreground/60">Ask Compli-ee to send you a message.</p>
               </div>
             ) : (
               <div className="divide-y divide-border/55">
@@ -254,7 +256,7 @@ export default function Messages() {
           </ScrollArea>
         </Card>
 
-        <Card className="glass-card overflow-hidden" data-testid="messages-detail">
+        <Card className="overflow-hidden" data-testid="messages-detail">
           {selectedMessage ? (
             <>
               <CardHeader className="py-4">
@@ -305,8 +307,8 @@ export default function Messages() {
           ) : (
             <div className="flex h-[clamp(380px,62vh,760px)] items-center justify-center text-muted-foreground">
               <div className="text-center">
-                <Mail className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
-                <p>Select a message to read</p>
+                <Mail className="h-8 w-8 mx-auto mb-3 text-muted-foreground/20" />
+                <p className="text-sm font-medium">Select a message to read</p>
               </div>
             </div>
           )}

@@ -151,14 +151,14 @@ export const CallTimeEditor: React.FC<CallTimeEditorProps> = ({
   };
 
   const callTypeColors: Record<string, string> = {
-    morning: "bg-sky-100 text-sky-700 border-sky-200",
-    am: "bg-sky-100 text-sky-700 border-sky-200",
-    lunch: "bg-amber-100 text-amber-700 border-amber-200",
-    tea: "bg-orange-100 text-orange-700 border-orange-200",
-    evening: "bg-violet-100 text-violet-700 border-violet-200",
-    pm: "bg-violet-100 text-violet-700 border-violet-200",
-    bed: "bg-indigo-100 text-indigo-700 border-indigo-200",
-    night: "bg-slate-100 text-slate-700 border-slate-200",
+    morning: "bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-700/60",
+    am: "bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-700/60",
+    lunch: "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-700/60",
+    tea: "bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-700/60",
+    evening: "bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-700/60",
+    pm: "bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-700/60",
+    bed: "bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-700/60",
+    night: "bg-muted text-muted-foreground border-border",
   };
 
   const getCallTypeStyle = (label: string) => {
@@ -166,7 +166,7 @@ export const CallTimeEditor: React.FC<CallTimeEditorProps> = ({
     for (const [key, style] of Object.entries(callTypeColors)) {
       if (l.includes(key)) return style;
     }
-    return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    return "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700/60";
   };
 
   return (

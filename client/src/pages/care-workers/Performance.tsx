@@ -219,49 +219,49 @@ export default function Performance() {
       ) : (
         <div className="space-y-6 animate-slide-up stagger-2 mt-6">
           {/* KPI Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
             <Card className="col-span-1">
-              <CardContent className="p-4 text-center">
-                <p className="text-3xl font-black tracking-tighter text-foreground">{stats.total}</p>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Total Staff</p>
+              <CardContent className="p-3.5 text-center">
+                <p className="text-2xl font-bold tracking-tight text-foreground tabular-nums">{stats.total}</p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">Total Staff</p>
               </CardContent>
             </Card>
             <Card className="col-span-1">
-              <CardContent className="p-4 text-center">
-                <p className={cn("text-3xl font-black tracking-tighter", stats.avgCompliance >= 90 ? "text-success" : stats.avgCompliance >= 70 ? "text-amber-500" : "text-destructive")}>
+              <CardContent className="p-3.5 text-center">
+                <p className={cn("text-2xl font-bold tracking-tight tabular-nums", stats.avgCompliance >= 90 ? "text-success" : stats.avgCompliance >= 70 ? "text-amber-500" : "text-destructive")}>
                   {stats.avgCompliance}%
                 </p>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Avg Compliance</p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">Avg Compliance</p>
               </CardContent>
             </Card>
             <Card className="col-span-1">
-              <CardContent className="p-4 text-center">
-                <p className="text-3xl font-black tracking-tighter text-primary">{stats.totalAudits}</p>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Total Audits</p>
+              <CardContent className="p-3.5 text-center">
+                <p className="text-2xl font-bold tracking-tight text-primary tabular-nums">{stats.totalAudits}</p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">Total Audits</p>
               </CardContent>
             </Card>
             <Card className="col-span-1">
-              <CardContent className="p-4 text-center">
-                <p className="text-3xl font-black tracking-tighter text-destructive">{stats.totalDiscrepancies}</p>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Discrepancies</p>
+              <CardContent className="p-3.5 text-center">
+                <p className="text-2xl font-bold tracking-tight text-destructive tabular-nums">{stats.totalDiscrepancies}</p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">Discrepancies</p>
               </CardContent>
             </Card>
             <Card className="col-span-1">
-              <CardContent className="p-4 text-center">
-                <p className="text-3xl font-black tracking-tighter text-success">{stats.compliant}</p>
-                <p className="text-[10px] font-bold text-success uppercase tracking-widest mt-1">Compliant</p>
+              <CardContent className="p-3.5 text-center">
+                <p className="text-2xl font-bold tracking-tight text-success tabular-nums">{stats.compliant}</p>
+                <p className="text-[9px] font-bold text-success uppercase tracking-widest mt-0.5">Compliant</p>
               </CardContent>
             </Card>
             <Card className="col-span-1">
-              <CardContent className="p-4 text-center">
-                <p className="text-3xl font-black tracking-tighter text-amber-500">{stats.atRisk}</p>
-                <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mt-1">At Risk</p>
+              <CardContent className="p-3.5 text-center">
+                <p className="text-2xl font-bold tracking-tight text-amber-500 tabular-nums">{stats.atRisk}</p>
+                <p className="text-[9px] font-bold text-amber-500 uppercase tracking-widest mt-0.5">At Risk</p>
               </CardContent>
             </Card>
             <Card className="col-span-1">
-              <CardContent className="p-4 text-center">
-                <p className="text-3xl font-black tracking-tighter text-destructive">{stats.critical}</p>
-                <p className="text-[10px] font-bold text-destructive uppercase tracking-widest mt-1">Critical</p>
+              <CardContent className="p-3.5 text-center">
+                <p className="text-2xl font-bold tracking-tight text-destructive tabular-nums">{stats.critical}</p>
+                <p className="text-[9px] font-bold text-destructive uppercase tracking-widest mt-0.5">Critical</p>
               </CardContent>
             </Card>
           </div>

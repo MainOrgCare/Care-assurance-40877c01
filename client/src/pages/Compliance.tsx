@@ -73,9 +73,9 @@ export default function Compliance() {
   return (
     <div className="page-shell max-w-7xl mx-auto" data-testid="compliance-page">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-3xl font-heading font-bold text-foreground">Compliance Overview</h2>
-          <p className="text-muted-foreground">View audit history, discrepancies, and compliance metrics across all service users.</p>
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-2xl font-heading font-bold text-foreground tracking-tight">Compliance Overview</h2>
+          <p className="text-sm text-muted-foreground max-w-xl">View audit history, discrepancies, and compliance metrics across all service users.</p>
         </div>
         <Button
           variant="outline"

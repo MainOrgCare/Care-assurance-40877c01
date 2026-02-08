@@ -28,28 +28,28 @@ export interface ConflictDetail {
 const conflictConfig: Record<ConflictType, { icon: typeof AlertTriangle; color: string; bgColor: string }> = {
   overlap: {
     icon: Clock,
-    color: "text-red-600",
-    bgColor: "bg-red-50 border-red-200",
+    color: "text-red-600 dark:text-red-400",
+    bgColor: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800/50",
   },
   travel: {
     icon: MapPin,
-    color: "text-amber-600",
-    bgColor: "bg-amber-50 border-amber-200",
+    color: "text-amber-600 dark:text-amber-400",
+    bgColor: "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50",
   },
   "double-up": {
     icon: Users,
-    color: "text-violet-600",
-    bgColor: "bg-violet-50 border-violet-200",
+    color: "text-violet-600 dark:text-violet-400",
+    bgColor: "bg-violet-50 dark:bg-violet-950/30 border-violet-200 dark:border-violet-800/50",
   },
   "time-critical": {
     icon: AlertTriangle,
-    color: "text-orange-600",
-    bgColor: "bg-orange-50 border-orange-200",
+    color: "text-orange-600 dark:text-orange-400",
+    bgColor: "bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800/50",
   },
   workload: {
     icon: Users,
-    color: "text-amber-700",
-    bgColor: "bg-amber-50 border-amber-200",
+    color: "text-amber-700 dark:text-amber-400",
+    bgColor: "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50",
   },
 };
 
@@ -65,14 +65,14 @@ export const ConflictAlert: React.FC<ConflictAlertProps> = ({
 
   return (
     <div className={`flex items-start gap-3 rounded-xl border p-3 ${config.bgColor}`}>
-      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white ${config.color}`}>
+      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background ${config.color}`}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <p className={`text-sm font-semibold ${config.color}`}>{title}</p>
           {count !== undefined && count > 0 && (
-            <span className={`rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold ${config.color}`}>
+            <span className={`rounded-full bg-background px-1.5 py-0.5 text-[10px] font-semibold ${config.color}`}>
               {count}
             </span>
           )}
@@ -83,7 +83,7 @@ export const ConflictAlert: React.FC<ConflictAlertProps> = ({
         <button
           type="button"
           onClick={onResolve}
-          className={`shrink-0 rounded-lg border bg-white px-2.5 py-1 text-xs font-medium transition hover:bg-muted/40 ${config.color}`}
+          className={`shrink-0 rounded-lg border bg-background px-2.5 py-1 text-xs font-medium transition hover:bg-muted/40 ${config.color}`}
         >
           Resolve
         </button>
@@ -103,13 +103,13 @@ export const ConflictSummary: React.FC<ConflictSummaryProps> = ({ conflicts, onR
 
   if (total === 0) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+      <div className="flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2">
         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white">
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <p className="text-sm font-medium text-emerald-700">No conflicts detected</p>
+        <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">No conflicts detected</p>
       </div>
     );
   }

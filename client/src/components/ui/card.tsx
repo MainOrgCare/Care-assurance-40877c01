@@ -9,11 +9,9 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "relative overflow-hidden rounded-2xl border border-border/80 bg-[linear-gradient(165deg,hsl(0_0%_100%/_0.95),hsl(204_30%_98%/_0.88))] text-card-foreground backdrop-blur-[3px]",
-      "before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(165deg,rgba(255,255,255,0.78),rgba(255,255,255,0)_58%)] before:opacity-85",
-      "after:pointer-events-none after:absolute after:-right-[24%] after:-top-[42%] after:h-[86%] after:w-[68%] after:rounded-full after:bg-[radial-gradient(circle,rgba(14,116,144,0.10),rgba(14,116,144,0)_70%)]",
-      "shadow-[0_14px_32px_-24px_rgba(15,23,42,0.4),0_2px_8px_rgba(15,23,42,0.08)]",
-      "hover:border-primary/28 hover:shadow-[0_22px_42px_-30px_rgba(15,23,42,0.48),0_2px_10px_rgba(15,23,42,0.08)] hover:-translate-y-px",
+      "relative overflow-hidden rounded-xl border border-border/60 bg-card text-card-foreground",
+      "shadow-[0_1px_3px_rgba(15,23,42,0.04),0_4px_16px_-6px_rgba(15,23,42,0.08)]",
+      "hover:border-primary/20 hover:shadow-[0_4px_20px_-6px_rgba(15,23,42,0.12),0_8px_32px_-12px_rgba(15,23,42,0.1)] hover:-translate-y-[0.5px]",
       "transition-[border-color,box-shadow,transform] duration-200 ease-out",
       className
     )}
@@ -40,7 +38,7 @@ const CardTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("font-heading text-[1.02rem] font-semibold leading-none tracking-[-0.024em] text-foreground", className)}
+    className={cn("font-heading text-[0.9375rem] font-bold leading-tight tracking-[-0.02em] text-foreground", className)}
     {...props}
   />
 ))
@@ -52,7 +50,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("text-[0.88rem] text-muted-foreground leading-relaxed", className)}
+    className={cn("text-[0.8125rem] text-muted-foreground leading-relaxed", className)}
     {...props}
   />
 ))
