@@ -17575,7 +17575,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     return Math.round(value);
   };
 
-  app.post("/api/admin/rostering/workbook-uploads/ingest", express.json({ limit: '100mb' }), requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+  app.post("/api/admin/rostering/workbook-uploads/ingest", express.json({ limit: '200mb' }), requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
     try {
       const payload = workbookIngestSchema.parse(req.body);
 

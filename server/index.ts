@@ -243,10 +243,9 @@ app.use(compression({
   }
 }));
 
-// Request body size limits - reduced for security
-// Large uploads are handled by specific endpoints with multer
-const DEFAULT_BODY_LIMIT = '1mb'; // General API requests
-const LARGE_BODY_LIMIT = '10mb'; // For endpoints that need larger payloads (e.g., care plans)
+// Request body size limits
+// Raw file uploads are handled by specific endpoints with multer
+const DEFAULT_BODY_LIMIT = '200mb'; // JSON API requests (includes large workbook ingestion payloads)
 
 app.use(
   express.json({
