@@ -8,13 +8,10 @@
  * - Resizable sidebar for worker list
  */
 
-import { useCallback, useMemo, useReducer, useState } from "react";
-import { Link, useLocation } from "wouter";
-import { useAuth } from "@/context/AuthContext";
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useReducer, useState } from "react";
+import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 
 // UI Components
 import { Button } from "@/components/ui/button";
@@ -112,18 +109,12 @@ import {
 
 // Rostering Components
 import { GanttTimeline } from "@/components/rostering/GanttTimeline";
-import { RouteMapView } from "@/components/rostering/RouteMapView";
 import { CallTypeChip } from "@/components/rostering/CallTypeChip";
 import { WorkerAvatar } from "@/components/rostering/WorkerAvatar";
 import { CallTimeEditor, type RecommendedCallTime } from "@/components/rostering/CallTimeEditor";
 import { WorkloadHeatmap } from "@/components/rostering/WorkloadHeatmap";
 import { WorkerConstraintsEditor, type WorkerConstraint as WorkerConstraintUI } from "@/components/rostering/WorkerConstraintsEditor";
-import ScheduleAnalysisDashboard from "@/components/rostering/ScheduleAnalysisDashboard";
-import ScheduleComparison from "@/components/rostering/ScheduleComparison";
-import CostAnalysisDashboard from "@/components/rostering/CostAnalysisDashboard";
-import ScheduleTemplateLibrary from "@/components/rostering/ScheduleTemplateLibrary";
 import { buildAllWorkerLanes, buildWorkerSummaries, type TimelineEntry, type GanttLane } from "@/lib/rostering/rosterModel";
-import { exportRosterToExcel, exportWorkerScheduleToExcel } from "@/lib/rostering/excelExport";
 import { useRosteringKeyboardShortcuts, buildRosteringShortcuts, type KeyboardShortcut } from "@/hooks/useRosteringKeyboardShortcuts";
 import {
   rosterHistoryReducer,
@@ -140,14 +131,18 @@ import {
   defaultWeights,
   defaultConstraints,
 } from "@/components/rostering/OptimizationSettings";
-import AdminDatabasePanel from "@/components/rostering/AdminDatabasePanel";
 import { runFullOptimization, type OptimizationResult } from "@/lib/rostering/optimizer";
+import "./rostering-studio-redesign.css";
 
 // ===== CONSTANTS =====
 const ROSTER_DAY_START_MINUTES = 6 * 60;
 const ROSTER_DAY_HARD_END_MINUTES = 22 * 60;
 const TIMELINE_ZOOM_LEVELS = [70, 85, 100, 115, 130] as const;
 const BASE_TIMELINE_ROW_HEIGHT = 72;
+const ROSTERING_QUERY_OPTIONS = {
+  refetchOnWindowFocus: false as const,
+  refetchOnReconnect: false as const,
+};
 
 const TEMPLATE_WEEK_OPTIONS = [
   { key: "week1", label: "Week 1" },
@@ -388,6 +383,25 @@ const defaultPanelVisibility: PanelVisibility = {
   templates: false,
 };
 
+const RouteMapViewLazy = lazy(async () => {
+  const module = await import("@/components/rostering/RouteMapView");
+  return { default: module.RouteMapView };
+});
+const AdminDatabasePanelLazy = lazy(() => import("@/components/rostering/AdminDatabasePanel"));
+const ScheduleAnalysisDashboardLazy = lazy(() => import("@/components/rostering/ScheduleAnalysisDashboard"));
+const ScheduleComparisonLazy = lazy(() => import("@/components/rostering/ScheduleComparison"));
+const CostAnalysisDashboardLazy = lazy(() => import("@/components/rostering/CostAnalysisDashboard"));
+const ScheduleTemplateLibraryLazy = lazy(() => import("@/components/rostering/ScheduleTemplateLibrary"));
+
+function PanelLoading({ label }: { label: string }) {
+  return (
+    <div className="flex h-full min-h-[140px] items-center justify-center gap-2 text-xs text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+      Loading {label}...
+    </div>
+  );
+}
+
 // ===== MAIN COMPONENT =====
 export default function RosteringStudioUnified({
   embedded = false,
@@ -396,6 +410,44 @@ export default function RosteringStudioUnified({
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Warm optional heavy chunks in idle time so first panel-open feels instant.
+  useEffect(() => {
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    const shouldLimitPreload =
+      connection?.saveData ||
+      connection?.effectiveType === "slow-2g" ||
+      connection?.effectiveType === "2g";
+    if (shouldLimitPreload) return;
+
+    const preload = () => {
+      void import("@/components/rostering/RouteMapView");
+      void import("@/components/rostering/AdminDatabasePanel");
+      void import("@/components/rostering/ScheduleAnalysisDashboard");
+      void import("@/components/rostering/ScheduleComparison");
+      void import("@/components/rostering/CostAnalysisDashboard");
+      void import("@/components/rostering/ScheduleTemplateLibrary");
+      void import("@/lib/rostering/excelExport");
+    };
+
+    const win = window as Window & {
+      requestIdleCallback?: (
+        callback: IdleRequestCallback,
+        options?: IdleRequestOptions
+      ) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    if (typeof win.requestIdleCallback === "function") {
+      const idleId = win.requestIdleCallback(preload, { timeout: 3500 });
+      return () => win.cancelIdleCallback?.(idleId);
+    }
+
+    const timeoutId = setTimeout(preload, 1800);
+    return () => clearTimeout(timeoutId);
+  }, []);
 
   // Panel visibility state
   const [panelVisibility, setPanelVisibility] = useState<PanelVisibility>(defaultPanelVisibility);
@@ -407,6 +459,7 @@ export default function RosteringStudioUnified({
   const [selectedWorkbookId, setSelectedWorkbookId] = useState<string | null>(null);
   const [selectedCareWorkerKey, setSelectedCareWorkerKey] = useState<string>("");
   const [careWorkerSearch, setCareWorkerSearch] = useState("");
+  const deferredCareWorkerSearch = useDeferredValue(careWorkerSearch);
 
   // Template selection
   const [selectedTemplateWeek, setSelectedTemplateWeek] = useState<TemplateWeekKey>(DEFAULT_TEMPLATE_WEEK);
@@ -448,10 +501,19 @@ export default function RosteringStudioUnified({
   );
 
   const templateSelectionKey = computeTemplateSelectionKey(selectedTemplateWeek, selectedTemplateDay);
+  const rosterOverrides = useMemo(
+    () => ({
+      timeOverrides: rosterState.present.timeOverrides,
+      laneOverrides: rosterState.present.laneOverrides,
+    }),
+    [rosterState.present.timeOverrides, rosterState.present.laneOverrides]
+  );
 
   // ===== DATA QUERIES =====
   const { data: workbooksList = [], isLoading: workbooksLoading } = useQuery<WorkbookSummary[]>({
     queryKey: ["/api/admin/rostering/workbook-uploads"],
+    staleTime: 5 * 60 * 1000,
+    ...ROSTERING_QUERY_OPTIONS,
   });
 
   const activeWorkbookId = selectedWorkbookId || workbooksList[0]?.id || null;
@@ -459,6 +521,8 @@ export default function RosteringStudioUnified({
   const { data: workbookData, isLoading: workbookLoading } = useQuery<WorkbookFull>({
     queryKey: ["/api/admin/rostering/workbook-uploads", activeWorkbookId],
     enabled: !!activeWorkbookId,
+    staleTime: 2 * 60 * 1000,
+    ...ROSTERING_QUERY_OPTIONS,
   });
 
   // Convert arrays to Sets for templatedWeekdayKeys and doubleUpWeekdayKeys
@@ -484,6 +548,8 @@ export default function RosteringStudioUnified({
   const { data: callTimesRaw = [] } = useQuery<RecommendedCallTime[]>({
     queryKey: ["/api/admin/rostering/workbooks", activeWorkbookId, "call-times"],
     enabled: !!activeWorkbookId,
+    staleTime: 60 * 1000,
+    ...ROSTERING_QUERY_OPTIONS,
   });
   const callTimesForEditor = useMemo(() => callTimesRaw, [callTimesRaw]);
 
@@ -491,6 +557,8 @@ export default function RosteringStudioUnified({
   const { data: constraintsRaw = [] } = useQuery<WorkerConstraintUI[]>({
     queryKey: ["/api/admin/rostering/workbooks", activeWorkbookId, "worker-constraints"],
     enabled: !!activeWorkbookId,
+    staleTime: 60 * 1000,
+    ...ROSTERING_QUERY_OPTIONS,
   });
   const constraintsForEditor = useMemo(() => constraintsRaw, [constraintsRaw]);
 
@@ -498,6 +566,8 @@ export default function RosteringStudioUnified({
   const { data: savedStates = [] } = useQuery<SavedRosterStateSummary[]>({
     queryKey: ["/api/admin/rostering/workbooks", activeWorkbookId, "saved-states"],
     enabled: !!activeWorkbookId,
+    staleTime: 60 * 1000,
+    ...ROSTERING_QUERY_OPTIONS,
   });
 
   // ===== COMPUTED DATA =====
@@ -516,7 +586,7 @@ export default function RosteringStudioUnified({
   }, [workerSummaries]);
 
   const filteredWorkers = useMemo((): CareWorkerRoster[] => {
-    const term = careWorkerSearch.toLowerCase().trim();
+    const term = deferredCareWorkerSearch.toLowerCase().trim();
     return careWorkerRosters.filter((worker: CareWorkerRoster) => {
       if (term && !worker.workerName.toLowerCase().includes(term)) return false;
       if (workerFilter === "all") return true;
@@ -526,7 +596,7 @@ export default function RosteringStudioUnified({
       if (workerFilter === "under") return minutes > 0 && minutes <= WORKLOAD_UNDER_MINUTES;
       return true;
     });
-  }, [careWorkerRosters, careWorkerSearch, workerFilter, workerSummaryByKey]);
+  }, [careWorkerRosters, deferredCareWorkerSearch, workerFilter, workerSummaryByKey]);
 
   const workerFilterCounts = useMemo(() => {
     const counts = { all: careWorkerRosters.length, over: 0, under: 0 };
@@ -540,13 +610,70 @@ export default function RosteringStudioUnified({
   }, [careWorkerRosters, workerSummaryByKey]);
 
   // Build timeline lanes
-  const timelineLanes = useMemo(() => {
+  const baseTimelineLanes = useMemo(() => {
     if (!careWorkerRosters.length) return [];
     // Only filter by template key if showOnlyTemplated is enabled
     const filterKey = showOnlyTemplated ? templateSelectionKey : undefined;
-    const baseLanes = buildAllWorkerLanes(careWorkerRosters, filterKey);
-    return applyOverridesToLanes(baseLanes, rosterState.present);
-  }, [careWorkerRosters, templateSelectionKey, showOnlyTemplated, rosterState.present]);
+    return buildAllWorkerLanes(careWorkerRosters, filterKey);
+  }, [careWorkerRosters, templateSelectionKey, showOnlyTemplated]);
+
+  const timelineLanes = useMemo(() => {
+    const lanesWithOverrides = applyOverridesToLanes(baseTimelineLanes, rosterOverrides);
+    if (!showOnlyTemplated) {
+      return lanesWithOverrides;
+    }
+    const templatedLanes = lanesWithOverrides.map((lane) => ({
+      ...lane,
+      entries: lane.entries.filter((entry) => entry.isTemplated),
+    }));
+    const slotStats = new Map<string, { count: number; hasDoubleUp: boolean }>();
+    const buildSlotKey = (entry: TimelineEntry) => {
+      const serviceKey = entry.serviceUserKey || entry.serviceUserName || entry.title;
+      return `${serviceKey}|${entry.startMinutes}|${entry.durationMinutes}|${entry.callTypeLabel ?? ""}`;
+    };
+    for (const lane of templatedLanes) {
+      for (const entry of lane.entries) {
+        const key = buildSlotKey(entry);
+        const prev = slotStats.get(key);
+        if (prev) {
+          prev.count += 1;
+          prev.hasDoubleUp = prev.hasDoubleUp || Boolean(entry.isDoubleUp);
+        } else {
+          slotStats.set(key, { count: 1, hasDoubleUp: Boolean(entry.isDoubleUp) });
+        }
+      }
+    }
+    const seenNonDoubleSlot = new Set<string>();
+    return templatedLanes.map((lane) => ({
+      ...lane,
+      entries: lane.entries.filter((entry) => {
+        const key = buildSlotKey(entry);
+        const stats = slotStats.get(key);
+        if (!stats || stats.count <= 1 || stats.hasDoubleUp) {
+          return true;
+        }
+        if (seenNonDoubleSlot.has(key)) {
+          return false;
+        }
+        seenNonDoubleSlot.add(key);
+        return true;
+      }),
+    }));
+  }, [baseTimelineLanes, rosterOverrides, showOnlyTemplated]);
+
+  const timelineEntryIndex = useMemo(() => {
+    const entryById = new Map<string, TimelineEntry>();
+    const laneIdByEntryId = new Map<string, string>();
+    for (const lane of timelineLanes) {
+      for (const entry of lane.entries) {
+        if (!entryById.has(entry.id)) {
+          entryById.set(entry.id, entry);
+          laneIdByEntryId.set(entry.id, lane.id);
+        }
+      }
+    }
+    return { entryById, laneIdByEntryId };
+  }, [timelineLanes]);
 
   // Selected worker's lanes
   const selectedWorkerLanes = useMemo(() => {
@@ -580,12 +707,8 @@ export default function RosteringStudioUnified({
   // Selected entry
   const selectedTimelineEntry = useMemo(() => {
     if (!selectedTimelineEntryId) return null;
-    for (const lane of timelineLanes) {
-      const entry = lane.entries.find((e) => e.id === selectedTimelineEntryId);
-      if (entry) return entry;
-    }
-    return null;
-  }, [selectedTimelineEntryId, timelineLanes]);
+    return timelineEntryIndex.entryById.get(selectedTimelineEntryId) ?? null;
+  }, [selectedTimelineEntryId, timelineEntryIndex]);
 
   // Route entries for map
   const routeEntriesSorted = useMemo(() => {
@@ -598,31 +721,17 @@ export default function RosteringStudioUnified({
 
   // Stats calculations
   const totalWorkersCount = careWorkerRosters.length;
-  const totalServiceUsersCount = useMemo(() => {
+  const timelineStats = useMemo(() => {
     const keys = new Set<string>();
-    for (const lane of timelineLanes) {
-      for (const entry of lane.entries) {
-        if (entry.serviceUserKey) keys.add(entry.serviceUserKey);
-      }
-    }
-    return keys.size;
-  }, [timelineLanes]);
-
-  const totalCallsCount = useMemo(() => {
-    return timelineLanes.reduce((sum, lane) => sum + lane.entries.length, 0);
-  }, [timelineLanes]);
-
-  const totalHoursCount = useMemo(() => {
-    const totalMinutes = timelineLanes.reduce(
-      (sum, lane) => sum + lane.entries.reduce((s, e) => s + e.durationMinutes, 0),
-      0
-    );
-    return Math.round(totalMinutes / 60 * 10) / 10;
-  }, [timelineLanes]);
-
-  const conflictsCount = useMemo(() => {
+    let totalCalls = 0;
+    let totalMinutes = 0;
     let conflicts = 0;
     for (const lane of timelineLanes) {
+      totalCalls += lane.entries.length;
+      for (const entry of lane.entries) {
+        if (entry.serviceUserKey) keys.add(entry.serviceUserKey);
+        totalMinutes += entry.durationMinutes;
+      }
       const sorted = [...lane.entries].sort((a, b) => a.startMinutes - b.startMinutes);
       for (let i = 0; i < sorted.length - 1; i++) {
         const curr = sorted[i];
@@ -632,8 +741,17 @@ export default function RosteringStudioUnified({
         }
       }
     }
-    return conflicts;
+    return {
+      totalServiceUsersCount: keys.size,
+      totalCallsCount: totalCalls,
+      totalHoursCount: Math.round((totalMinutes / 60) * 10) / 10,
+      conflictsCount: conflicts,
+    };
   }, [timelineLanes]);
+  const totalServiceUsersCount = timelineStats.totalServiceUsersCount;
+  const totalCallsCount = timelineStats.totalCallsCount;
+  const totalHoursCount = timelineStats.totalHoursCount;
+  const conflictsCount = timelineStats.conflictsCount;
 
   const doubleUpsCount = doubleUpSlots.size;
 
@@ -686,6 +804,14 @@ export default function RosteringStudioUnified({
     }
     return Array.from(set).sort();
   }, [careWorkerRosters]);
+  const callTimeLookup = useMemo(() => {
+    const map = new Map<string, RecommendedCallTime>();
+    for (const callTime of callTimesForEditor) {
+      const key = `${callTime.serviceUserKey}::${(callTime.callTypeLabel || "").toLowerCase()}`;
+      map.set(key, callTime);
+    }
+    return map;
+  }, [callTimesForEditor]);
 
   // ===== MUTATIONS =====
   const saveCallTimeMutation = useMutation({
@@ -699,7 +825,11 @@ export default function RosteringStudioUnified({
       return res.json() as Promise<RecommendedCallTime>;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/rostering/call-times"] });
+      if (activeWorkbookId) {
+        queryClient.invalidateQueries({
+          queryKey: ["/api/admin/rostering/workbooks", activeWorkbookId, "call-times"],
+        });
+      }
       toast({ title: "Call time saved" });
     },
   });
@@ -710,7 +840,11 @@ export default function RosteringStudioUnified({
       if (!res.ok) throw new Error("Failed to delete");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/rostering/call-times"] });
+      if (activeWorkbookId) {
+        queryClient.invalidateQueries({
+          queryKey: ["/api/admin/rostering/workbooks", activeWorkbookId, "call-times"],
+        });
+      }
       toast({ title: "Call time deleted" });
     },
   });
@@ -726,7 +860,11 @@ export default function RosteringStudioUnified({
       return res.json() as Promise<WorkerConstraintUI>;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/rostering/worker-constraints"] });
+      if (activeWorkbookId) {
+        queryClient.invalidateQueries({
+          queryKey: ["/api/admin/rostering/workbooks", activeWorkbookId, "worker-constraints"],
+        });
+      }
       toast({ title: "Constraint saved" });
     },
   });
@@ -737,7 +875,11 @@ export default function RosteringStudioUnified({
       if (!res.ok) throw new Error("Failed to delete");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/rostering/worker-constraints"] });
+      if (activeWorkbookId) {
+        queryClient.invalidateQueries({
+          queryKey: ["/api/admin/rostering/workbooks", activeWorkbookId, "worker-constraints"],
+        });
+      }
       toast({ title: "Constraint deleted" });
     },
   });
@@ -759,7 +901,11 @@ export default function RosteringStudioUnified({
       return res.json() as Promise<SavedRosterStateSummary>;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/rostering/saved-states"] });
+      if (activeWorkbookId) {
+        queryClient.invalidateQueries({
+          queryKey: ["/api/admin/rostering/workbooks", activeWorkbookId, "saved-states"],
+        });
+      }
       toast({ title: "Schedule saved" });
     },
   });
@@ -786,7 +932,11 @@ export default function RosteringStudioUnified({
       if (!res.ok) throw new Error("Failed to delete");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/rostering/saved-states"] });
+      if (activeWorkbookId) {
+        queryClient.invalidateQueries({
+          queryKey: ["/api/admin/rostering/workbooks", activeWorkbookId, "saved-states"],
+        });
+      }
       toast({ title: "Schedule deleted" });
     },
   });
@@ -806,14 +956,11 @@ export default function RosteringStudioUnified({
 
   const handleSelectEntry = useCallback((entry: TimelineEntry, _event?: React.MouseEvent) => {
     setSelectedTimelineEntryId(entry.id);
-    // Find which lane this entry belongs to
-    for (const lane of timelineLanes) {
-      if (lane.entries.some(e => e.id === entry.id)) {
-        setSelectedCareWorkerKey(lane.id);
-        break;
-      }
+    const laneId = timelineEntryIndex.laneIdByEntryId.get(entry.id);
+    if (laneId) {
+      setSelectedCareWorkerKey(laneId);
     }
-  }, [timelineLanes]);
+  }, [timelineEntryIndex]);
 
   const handleEntryMove = useCallback(
     (entryId: string, newStartMinutes: number) => {
@@ -907,11 +1054,8 @@ export default function RosteringStudioUnified({
     const timeOverrides: Record<string, number> = {};
     for (const lane of timelineLanes) {
       for (const entry of lane.entries) {
-        const rec = callTimesForEditor.find(
-          (ct: RecommendedCallTime) =>
-            ct.serviceUserKey === entry.serviceUserKey &&
-            ct.callTypeLabel?.toLowerCase() === entry.callTypeLabel?.toLowerCase()
-        );
+        const key = `${entry.serviceUserKey || ""}::${(entry.callTypeLabel || "").toLowerCase()}`;
+        const rec = callTimeLookup.get(key);
         if (rec) {
           timeOverrides[entry.id] = rec.recommendedStartMinutes;
           applied++;
@@ -925,7 +1069,7 @@ export default function RosteringStudioUnified({
       });
     }
     toast({ title: `Applied ${applied} recommended times` });
-  }, [timelineLanes, callTimesForEditor, toast]);
+  }, [timelineLanes, callTimeLookup, toast]);
 
   const handleAutoBalance = useCallback(() => {
     // Open optimization settings panel with workload balance focus
@@ -958,32 +1102,40 @@ export default function RosteringStudioUnified({
     setTimelineZoomIndex(defaultIndex === -1 ? 0 : defaultIndex);
   }, []);
 
-  const handleExportPDF = useCallback(() => {
-    const doc = new jsPDF({ orientation: "landscape" });
-    doc.setFontSize(16);
-    doc.text(`Roster - ${selectedTemplateWeek} ${selectedTemplateDay}`, 14, 20);
+  const handleExportPDF = useCallback(async () => {
+    try {
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
+      const doc = new jsPDF({ orientation: "landscape" });
+      doc.setFontSize(16);
+      doc.text(`Roster - ${selectedTemplateWeek} ${selectedTemplateDay}`, 14, 20);
 
-    const tableData = timelineLanes.flatMap((lane) =>
-      lane.entries.map((e) => [
-        lane.label,
-        e.title,
-        formatTimeOfDay(e.startMinutes),
-        formatMinutesDisplay(e.durationMinutes),
-        e.callTypeLabel || "-",
-      ])
-    );
+      const tableData = timelineLanes.flatMap((lane) =>
+        lane.entries.map((e) => [
+          lane.label,
+          e.title,
+          formatTimeOfDay(e.startMinutes),
+          formatMinutesDisplay(e.durationMinutes),
+          e.callTypeLabel || "-",
+        ])
+      );
 
-    autoTable(doc, {
-      startY: 30,
-      head: [["Worker", "Service User", "Time", "Duration", "Call Type"]],
-      body: tableData,
-    });
+      autoTable(doc, {
+        startY: 30,
+        head: [["Worker", "Service User", "Time", "Duration", "Call Type"]],
+        body: tableData,
+      });
 
-    doc.save(`roster-${selectedTemplateWeek}-${selectedTemplateDay}.pdf`);
-    toast({ title: "PDF exported" });
+      doc.save(`roster-${selectedTemplateWeek}-${selectedTemplateDay}.pdf`);
+      toast({ title: "PDF exported" });
+    } catch {
+      toast({ title: "PDF export failed", variant: "destructive" });
+    }
   }, [timelineLanes, selectedTemplateWeek, selectedTemplateDay, toast]);
 
-  const handleExportExcel = useCallback(() => {
+  const handleExportExcel = useCallback(async () => {
     const exportData = {
       weekNumber: selectedTemplateWeek,
       weekDay: selectedTemplateDay,
@@ -1017,11 +1169,16 @@ export default function RosteringStudioUnified({
       optimizationScore: 0, // Calculate if available
     };
 
-    exportRosterToExcel(
-      exportData,
-      `roster-${selectedTemplateWeek}-${selectedTemplateDay}.xlsx`
-    );
-    toast({ title: "Excel file exported" });
+    try {
+      const { exportRosterToExcel } = await import("@/lib/rostering/excelExport");
+      exportRosterToExcel(
+        exportData,
+        `roster-${selectedTemplateWeek}-${selectedTemplateDay}.xlsx`
+      );
+      toast({ title: "Excel file exported" });
+    } catch {
+      toast({ title: "Excel export failed", variant: "destructive" });
+    }
   }, [timelineLanes, selectedTemplateWeek, selectedTemplateDay, toast]);
 
   const openWorkerTools = useCallback((workerKey: string) => {
@@ -1071,6 +1228,7 @@ export default function RosteringStudioUnified({
     : panelVisibility.details
       ? 75
       : 100;
+  const hasComparisonPanel = Boolean(panelVisibility.comparison && savedComparisonData);
   const hasAdditionalBottomPanel =
     panelVisibility.callTimes ||
     panelVisibility.constraints ||
@@ -1078,15 +1236,72 @@ export default function RosteringStudioUnified({
     panelVisibility.optimization ||
     panelVisibility.database ||
     panelVisibility.aiAnalysis ||
-    panelVisibility.comparison ||
+    hasComparisonPanel ||
     panelVisibility.costs ||
     panelVisibility.templates;
-  const mapPanelDefaultSize = hasAdditionalBottomPanel ? 80 : 100;
+  const hasBottomPanels = Boolean(
+    panelVisibility.map ||
+      panelVisibility.callTimes ||
+      panelVisibility.constraints ||
+      panelVisibility.workload ||
+      panelVisibility.optimization ||
+      panelVisibility.database ||
+      panelVisibility.aiAnalysis ||
+      hasComparisonPanel ||
+      panelVisibility.costs ||
+      panelVisibility.templates
+  );
+  const timelineDefaultSize = hasBottomPanels ? 55 : 100;
+  const bottomDefaultSize = panelVisibility.timeline ? 45 : 100;
+  const bottomPanelKeys = [
+    "map",
+    "callTimes",
+    "constraints",
+    "workload",
+    "optimization",
+    "database",
+    "aiAnalysis",
+    "comparison",
+    "costs",
+    "templates",
+  ] as const;
+  type BottomPanelKey = (typeof bottomPanelKeys)[number];
+  const bottomPanelWeights: Record<BottomPanelKey, number> = {
+    map: hasAdditionalBottomPanel ? 38 : 100,
+    callTimes: 20,
+    constraints: 20,
+    workload: 18,
+    optimization: 20,
+    database: 20,
+    aiAnalysis: 22,
+    comparison: 20,
+    costs: 18,
+    templates: 20,
+  };
+  const bottomVisiblePanelKeys = bottomPanelKeys.filter((key) => {
+    if (key === "comparison") return hasComparisonPanel;
+    return Boolean(panelVisibility[key]);
+  });
+  const bottomPanelDefaultSizes = bottomVisiblePanelKeys.reduce<Record<string, number>>((acc, key, idx) => {
+    const totalWeight = bottomVisiblePanelKeys.reduce((sum, panelKey) => {
+      return sum + bottomPanelWeights[panelKey];
+    }, 0);
+    const used = Object.values(acc).reduce((sum, size) => sum + size, 0);
+    const isLast = idx === bottomVisiblePanelKeys.length - 1;
+    const nextSize = isLast
+      ? Math.max(0, 100 - used)
+      : Math.round((bottomPanelWeights[key] / Math.max(totalWeight, 1)) * 1000) / 10;
+    acc[key] = nextSize;
+    return acc;
+  }, {});
 
   if (isLoading) {
     return (
-      <div className="flex h-full w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="rstd-loading">
+        <div className="rstd-loading-orb">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+        <p className="rstd-loading-text">Loading Rostering Studio</p>
       </div>
     );
   }
@@ -1095,10 +1310,17 @@ export default function RosteringStudioUnified({
   return (
     <TooltipProvider>
       {/* IMPORTANT: Use `h-full` (not `h-screen`) because Layout already owns the viewport height. */}
-      <div className="flex h-full min-h-0 flex-col bg-background overflow-hidden">
+      <div className="rostering-studio-redesign flex h-full min-h-0 flex-col overflow-hidden">
         {/* TOP MENU BAR */}
-        <div className="flex h-9 items-center justify-between border-b bg-gradient-to-r from-muted/50 via-muted/30 to-muted/50 px-3 shadow-sm flex-shrink-0">
-          <div className="flex items-center gap-0.5">
+        <div className="rstd-topbar flex h-14 items-center justify-between px-4 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="rstd-brand">
+              <span className="rstd-brand-mark">RS</span>
+              <div className="rstd-brand-copy">
+                <p className="rstd-brand-title">Rostering Studio</p>
+                <p className="rstd-brand-subtitle">Operational Command Deck</p>
+              </div>
+            </div>
             {!embedded && (
               <Button variant="ghost" size="sm" asChild className="mr-1 h-7 w-7 p-0">
                 <Link href="/testing-features">
@@ -1446,29 +1668,29 @@ export default function RosteringStudioUnified({
         </div>
 
         {/* STATS BAR */}
-        <div className="flex h-6 items-center justify-between border-b bg-muted/20 px-3 text-[11px] flex-shrink-0">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-1.5">
+        <div className="rstd-stats flex items-center justify-between px-4 py-2 text-[11px] flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="rstd-stat-chip">
               <Users className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="font-semibold">{totalWorkersCount}</span>
               <span className="text-muted-foreground">Workers</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="rstd-stat-chip">
               <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="font-semibold">{totalServiceUsersCount}</span>
               <span className="text-muted-foreground">Service Users</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="rstd-stat-chip">
               <ClipboardList className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="font-semibold">{totalCallsCount}</span>
               <span className="text-muted-foreground">Calls</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="rstd-stat-chip">
               <Clock className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="font-semibold">{totalHoursCount}</span>
               <span className="text-muted-foreground">Hours</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="rstd-stat-chip">
               {conflictsCount > 0 ? (
                 <AlertTriangle className="h-3 w-3 text-destructive" />
               ) : (
@@ -1479,7 +1701,7 @@ export default function RosteringStudioUnified({
               </span>
               <span className="text-muted-foreground">Conflicts</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="rstd-stat-chip">
               <Users className="h-3 w-3 text-muted-foreground" />
               <span className="font-semibold">{doubleUpsCount}</span>
               <span className="text-muted-foreground">2-ups</span>
@@ -1498,7 +1720,7 @@ export default function RosteringStudioUnified({
         </div>
 
         {/* PANEL DOCK - quick toggles so every tool is reachable without hunting menus */}
-        <div className="flex h-8 items-center gap-1 border-b bg-background/70 px-2 text-[11px] flex-shrink-0 overflow-x-auto">
+        <div className="rstd-dock flex h-10 items-center gap-1 px-2 text-[11px] flex-shrink-0 overflow-x-auto">
           {(
             [
               { key: "workers", label: "Workers", icon: Users },
@@ -1548,14 +1770,21 @@ export default function RosteringStudioUnified({
         </div>
 
         {/* MAIN WORKSPACE - Grid Layout */}
-        <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="rstd-main flex min-h-0 flex-1 overflow-hidden">
           <ResizablePanelGroup direction="horizontal" className="h-full">
             {/* LEFT SIDEBAR - Workers */}
             {panelVisibility.workers && (
               <>
-                <ResizablePanel defaultSize={12} minSize={8} maxSize={18} className="min-h-0">
-                  <div className="flex h-full min-h-0 flex-col border-r bg-gradient-to-b from-muted/20 to-background">
-                    <div className="flex items-center justify-between border-b bg-gradient-to-r from-primary/5 to-transparent px-3 py-1.5 shadow-sm">
+                <ResizablePanel
+                  id="rstd-left-workers"
+                  order={1}
+                  defaultSize={12}
+                  minSize={8}
+                  maxSize={18}
+                  className="min-h-0"
+                >
+                  <div className="rstd-panel rstd-panel-workers flex h-full min-h-0 flex-col border-r">
+                    <div className="rstd-panel-head flex items-center justify-between px-3 py-2">
                       <div className="flex items-center gap-1.5">
                         <Users className="h-3.5 w-3.5 text-primary" />
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground">Workers</span>
@@ -1598,7 +1827,7 @@ export default function RosteringStudioUnified({
                         ))}
                       </div>
                     </div>
-                    <ScrollArea className="flex-1 overflow-auto">
+                    <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
                       <div className="px-1.5 pb-2">
                         <div className="divide-y">
                         {filteredWorkers.map((worker: CareWorkerRoster) => {
@@ -1642,13 +1871,20 @@ export default function RosteringStudioUnified({
             )}
 
             {/* MAIN CONTENT - Resizable Layout */}
-                <ResizablePanel defaultSize={mainPanelDefaultSize} className="min-h-0">
+                <ResizablePanel id="rstd-main" order={2} defaultSize={mainPanelDefaultSize} className="min-h-0">
               <ResizablePanelGroup direction="vertical" className="h-full">
                 {/* Top Row: Timeline */}
                 {panelVisibility.timeline && (
-                  <ResizablePanel defaultSize={55} minSize={30} maxSize={80} className="overflow-hidden">
+                  <ResizablePanel
+                    id="rstd-main-timeline"
+                    order={1}
+                    defaultSize={timelineDefaultSize}
+                    minSize={30}
+                    maxSize={80}
+                    className="overflow-hidden"
+                  >
                   <div className="h-full flex flex-col overflow-hidden">
-                    <div className="flex items-center justify-between bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-3 py-1 border-b shrink-0 shadow-sm">
+                    <div className="rstd-panel-head flex items-center justify-between px-3 py-2 shrink-0">
                       <div className="flex items-center gap-2">
                         <Timer className="h-4 w-4 text-primary" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Timeline</span>
@@ -1769,7 +2005,7 @@ export default function RosteringStudioUnified({
                         </Button>
                       </div>
                     </div>
-                    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-0.5">
+                    <div className="rstd-scroll-native flex-1 min-h-0 p-0.5">
                       <GanttTimeline
                         lanes={timelineVisibleLanes}
                         startMinutes={timelineWindow.start}
@@ -1793,19 +2029,32 @@ export default function RosteringStudioUnified({
                   </ResizablePanel>
                 )}
                 
-                {panelVisibility.timeline && (panelVisibility.map || panelVisibility.callTimes || panelVisibility.constraints || panelVisibility.workload || panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                {panelVisibility.timeline && hasBottomPanels && (
                   <ResizableHandle withHandle />
                 )}
 
                 {/* Bottom Row: Horizontal panels */}
-                {(panelVisibility.map || panelVisibility.callTimes || panelVisibility.constraints || panelVisibility.workload || panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
-                  <ResizablePanel defaultSize={45} minSize={20} maxSize={70} className="overflow-hidden">
+                {hasBottomPanels && (
+                  <ResizablePanel
+                    id="rstd-main-bottom"
+                    order={2}
+                    defaultSize={bottomDefaultSize}
+                    minSize={20}
+                    maxSize={70}
+                    className="overflow-hidden"
+                  >
                 <ResizablePanelGroup direction="horizontal" className="h-full">
                   {/* Map Panel */}
                   {panelVisibility.map && (
-                    <ResizablePanel defaultSize={mapPanelDefaultSize} minSize={40} className="min-h-0">
+                    <ResizablePanel
+                      id="rstd-bottom-map"
+                      order={1}
+                      defaultSize={bottomPanelDefaultSizes.map}
+                      minSize={12}
+                      className="min-h-0"
+                    >
                     <div className="h-full min-w-0 min-h-0 flex flex-col">
-                      <div className="flex items-center gap-2 bg-gradient-to-r from-blue-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                      <div className="rstd-panel-head rstd-panel-head-map flex items-center gap-2 px-3 py-2">
                         <MapIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Map</span>
                         <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20">
@@ -1813,28 +2062,36 @@ export default function RosteringStudioUnified({
                         </Badge>
                       </div>
                       <div className="flex-1 min-h-0 overflow-hidden">
-                        <RouteMapView entries={routeEntriesSorted} />
+                        <Suspense fallback={<PanelLoading label="map" />}>
+                          <RouteMapViewLazy entries={routeEntriesSorted} />
+                        </Suspense>
                       </div>
                     </div>
                     </ResizablePanel>
                   )}
                   
-                  {panelVisibility.map && (panelVisibility.callTimes || panelVisibility.constraints || panelVisibility.workload || panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                  {panelVisibility.map && (panelVisibility.callTimes || panelVisibility.constraints || panelVisibility.workload || panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || hasComparisonPanel || panelVisibility.costs || panelVisibility.templates) && (
                     <ResizableHandle withHandle />
                   )}
 
                   {/* Call Times Panel */}
                   {panelVisibility.callTimes && (
-                    <ResizablePanel defaultSize={20} minSize={15} className="min-h-0">
-                    <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
-                      <div className="flex items-center gap-2 bg-gradient-to-r from-purple-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                    <ResizablePanel
+                      id="rstd-bottom-call-times"
+                      order={2}
+                      defaultSize={bottomPanelDefaultSizes.callTimes}
+                      minSize={8}
+                      className="min-h-0"
+                    >
+                    <div className="h-full min-w-0 min-h-0 border-r flex flex-col">
+                      <div className="rstd-panel-head rstd-panel-head-call-times flex items-center gap-2 px-3 py-2">
                         <Clock className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Call Times</span>
                         <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20">
                           {callTimesForEditor.length}
                         </Badge>
                       </div>
-                      <ScrollArea className="flex-1 min-h-0">
+                      <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
                         <div className="p-0.5">
                           <CallTimeEditor
                             serviceUsers={uniqueServiceUsers}
@@ -1850,22 +2107,28 @@ export default function RosteringStudioUnified({
                     </ResizablePanel>
                   )}
                   
-                  {panelVisibility.callTimes && (panelVisibility.constraints || panelVisibility.workload || panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                  {panelVisibility.callTimes && (panelVisibility.constraints || panelVisibility.workload || panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || hasComparisonPanel || panelVisibility.costs || panelVisibility.templates) && (
                     <ResizableHandle withHandle />
                   )}
 
                   {/* Constraints Panel */}
                   {panelVisibility.constraints && (
-                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
-                    <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
-                      <div className="flex items-center gap-2 bg-gradient-to-r from-amber-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                    <ResizablePanel
+                      id="rstd-bottom-constraints"
+                      order={3}
+                      defaultSize={bottomPanelDefaultSizes.constraints}
+                      minSize={8}
+                      className="min-h-0"
+                    >
+                    <div className="h-full min-w-0 min-h-0 border-r flex flex-col">
+                      <div className="rstd-panel-head rstd-panel-head-constraints flex items-center gap-2 px-3 py-2">
                         <UserCog className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Constraints</span>
                         <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20">
                           {constraintsForEditor.length}
                         </Badge>
                       </div>
-                      <ScrollArea className="flex-1 min-h-0">
+                      <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
                         <div className="p-0.5">
                           <WorkerConstraintsEditor
                             workers={careWorkerRosters.map((r: CareWorkerRoster) => ({
@@ -1885,19 +2148,25 @@ export default function RosteringStudioUnified({
                     </ResizablePanel>
                   )}
                   
-                  {panelVisibility.constraints && (panelVisibility.workload || panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                  {panelVisibility.constraints && (panelVisibility.workload || panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || hasComparisonPanel || panelVisibility.costs || panelVisibility.templates) && (
                     <ResizableHandle withHandle />
                   )}
 
                   {/* Workload Heatmap */}
                   {panelVisibility.workload && (
-                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
-                    <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
-                      <div className="flex items-center gap-2 bg-gradient-to-r from-green-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                    <ResizablePanel
+                      id="rstd-bottom-workload"
+                      order={4}
+                      defaultSize={bottomPanelDefaultSizes.workload}
+                      minSize={8}
+                      className="min-h-0"
+                    >
+                    <div className="h-full min-w-0 min-h-0 border-r flex flex-col">
+                      <div className="rstd-panel-head rstd-panel-head-workload flex items-center gap-2 px-3 py-2">
                         <BarChart3 className="h-4 w-4 text-green-600 dark:text-green-400" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Workload</span>
                       </div>
-                      <div className="flex-1 min-h-0 p-0.5 overflow-auto">
+                      <div className="rstd-scroll-native flex-1 min-h-0 p-0.5">
                         <WorkloadHeatmap
                           workers={heatmapSummaries}
                           constraints={constraintsForEditor}
@@ -1913,20 +2182,26 @@ export default function RosteringStudioUnified({
                     </ResizablePanel>
                   )}
                   
-                  {panelVisibility.workload && (panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                  {panelVisibility.workload && (panelVisibility.optimization || panelVisibility.database || panelVisibility.aiAnalysis || hasComparisonPanel || panelVisibility.costs || panelVisibility.templates) && (
                     <ResizableHandle withHandle />
                   )}
 
                   {/* Optimization Panel */}
                   {panelVisibility.optimization && (
-                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
-                    <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
-                      <div className="flex items-center gap-2 bg-gradient-to-r from-orange-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                    <ResizablePanel
+                      id="rstd-bottom-optimization"
+                      order={5}
+                      defaultSize={bottomPanelDefaultSizes.optimization}
+                      minSize={8}
+                      className="min-h-0"
+                    >
+                    <div className="h-full min-w-0 min-h-0 border-r flex flex-col">
+                      <div className="rstd-panel-head rstd-panel-head-optimization flex items-center gap-2 px-3 py-2">
                         <Sliders className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Optimization</span>
                       </div>
-                      <ScrollArea className="flex-1 min-h-0">
-                        <div className="p-0.5">
+                      <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
+                        <div className="h-full p-0.5">
                           <OptimizationSettings
                             weights={optimizationWeights}
                             constraints={optimizationConstraints}
@@ -1941,63 +2216,79 @@ export default function RosteringStudioUnified({
                     </ResizablePanel>
                   )}
                   
-                  {panelVisibility.optimization && (panelVisibility.database || panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                  {panelVisibility.optimization && (panelVisibility.database || panelVisibility.aiAnalysis || hasComparisonPanel || panelVisibility.costs || panelVisibility.templates) && (
                     <ResizableHandle withHandle />
                   )}
 
                   {/* Database Panel */}
                   {panelVisibility.database && (
-                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
-                    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-                      <div className="flex items-center gap-2 bg-gradient-to-r from-muted/60 to-transparent px-3 py-1 border-b shadow-sm">
+                    <ResizablePanel
+                      id="rstd-bottom-database"
+                      order={6}
+                      defaultSize={bottomPanelDefaultSizes.database}
+                      minSize={8}
+                      className="min-h-0"
+                    >
+                    <div className="h-full min-w-0 min-h-0 flex flex-col">
+                      <div className="rstd-panel-head flex items-center gap-2 px-3 py-2">
                         <Database className="h-4 w-4 text-muted-foreground" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Database</span>
                       </div>
-                      <ScrollArea className="flex-1 min-h-0">
+                      <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
                         <div className="p-0.5">
-                          <AdminDatabasePanel />
+                          <Suspense fallback={<PanelLoading label="database tools" />}>
+                            <AdminDatabasePanelLazy />
+                          </Suspense>
                         </div>
                       </ScrollArea>
                     </div>
                     </ResizablePanel>
                   )}
                   
-                  {panelVisibility.database && (panelVisibility.aiAnalysis || panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                  {panelVisibility.database && (panelVisibility.aiAnalysis || hasComparisonPanel || panelVisibility.costs || panelVisibility.templates) && (
                     <ResizableHandle withHandle />
                   )}
 
                   {/* AI Analysis Panel */}
                   {panelVisibility.aiAnalysis && (
-                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
-                    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-                      <div className="flex items-center gap-2 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-transparent px-3 py-1 border-b shadow-sm">
+                    <ResizablePanel
+                      id="rstd-bottom-ai-analysis"
+                      order={7}
+                      defaultSize={bottomPanelDefaultSizes.aiAnalysis}
+                      minSize={8}
+                      className="min-h-0"
+                    >
+                    <div className="h-full min-w-0 min-h-0 flex flex-col">
+                      <div className="rstd-panel-head rstd-panel-head-ai flex items-center gap-2 px-3 py-2">
                         <Brain className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">AI Schedule Analysis</span>
                       </div>
-                      <ScrollArea className="flex-1 min-h-0">
+                      <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
                         <div className="p-0.5">
                           {activeWorkbookId && (
-                            <ScheduleAnalysisDashboard
-                              workbookId={parseInt(activeWorkbookId)}
-                              workers={workerSummaries.map(ws => ({
-                                key: ws.key,
-                                name: ws.workerName,
-                                calls: ws.totalCalls,
-                                minutes: ws.totalDurationMinutes,
-                                serviceUsers: ws.uniqueServiceUsers,
-                              }))}
-                              conflicts={0}
-                              travelGaps={0}
-                              utilizationStats={{
-                                avgCalls: workerSummaries.length > 0 ? workerSummaries.reduce((sum, w) => sum + w.totalCalls, 0) / workerSummaries.length : 0,
-                                avgHours: workerSummaries.length > 0 ? workerSummaries.reduce((sum, w) => sum + w.totalDurationMinutes, 0) / workerSummaries.length / 60 : 0,
-                                workersOverLimit: workerFilterCounts.over,
-                                workersUnderUtilized: workerFilterCounts.under,
-                              }}
-                              constraintViolations={[]}
-                              weekDay={selectedTemplateDay}
-                              weekNumber={selectedTemplateWeek}
-                            />
+                            <Suspense fallback={<PanelLoading label="AI analysis" />}>
+                              <ScheduleAnalysisDashboardLazy
+                                workbookId={parseInt(activeWorkbookId)}
+                                workers={workerSummaries.map(ws => ({
+                                  key: ws.key,
+                                  name: ws.workerName,
+                                  calls: ws.totalCalls,
+                                  minutes: ws.totalDurationMinutes,
+                                  serviceUsers: ws.uniqueServiceUsers,
+                                }))}
+                                conflicts={0}
+                                travelGaps={0}
+                                utilizationStats={{
+                                  avgCalls: workerSummaries.length > 0 ? workerSummaries.reduce((sum, w) => sum + w.totalCalls, 0) / workerSummaries.length : 0,
+                                  avgHours: workerSummaries.length > 0 ? workerSummaries.reduce((sum, w) => sum + w.totalDurationMinutes, 0) / workerSummaries.length / 60 : 0,
+                                  workersOverLimit: workerFilterCounts.over,
+                                  workersUnderUtilized: workerFilterCounts.under,
+                                }}
+                                constraintViolations={[]}
+                                weekDay={selectedTemplateDay}
+                                weekNumber={selectedTemplateWeek}
+                              />
+                            </Suspense>
                           )}
                         </div>
                       </ScrollArea>
@@ -2005,27 +2296,35 @@ export default function RosteringStudioUnified({
                     </ResizablePanel>
                   )}
                   
-                  {panelVisibility.aiAnalysis && (panelVisibility.comparison || panelVisibility.costs || panelVisibility.templates) && (
+                  {panelVisibility.aiAnalysis && (hasComparisonPanel || panelVisibility.costs || panelVisibility.templates) && (
                     <ResizableHandle withHandle />
                   )}
 
                   {/* Schedule Comparison Panel */}
                   {panelVisibility.comparison && savedComparisonData && (
-                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
-                    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-                      <div className="flex items-center gap-2 bg-gradient-to-r from-cyan-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                    <ResizablePanel
+                      id="rstd-bottom-comparison"
+                      order={8}
+                      defaultSize={bottomPanelDefaultSizes.comparison}
+                      minSize={8}
+                      className="min-h-0"
+                    >
+                    <div className="h-full min-w-0 min-h-0 flex flex-col">
+                      <div className="rstd-panel-head rstd-panel-head-comparison flex items-center gap-2 px-3 py-2">
                         <GitCompare className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Schedule Comparison</span>
                       </div>
-                      <ScrollArea className="flex-1 min-h-0">
+                      <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
                         <div className="p-0.5">
                           {activeWorkbookId && (
-                            <ScheduleComparison
-                              workbookId={parseInt(activeWorkbookId)}
-                              beforeSchedule={savedComparisonData.before}
-                              afterSchedule={savedComparisonData.after}
-                              changes={savedComparisonData.changes}
-                            />
+                            <Suspense fallback={<PanelLoading label="comparison" />}>
+                              <ScheduleComparisonLazy
+                                workbookId={parseInt(activeWorkbookId)}
+                                beforeSchedule={savedComparisonData.before}
+                                afterSchedule={savedComparisonData.after}
+                                changes={savedComparisonData.changes}
+                              />
+                            </Suspense>
                           )}
                         </div>
                       </ScrollArea>
@@ -2039,21 +2338,29 @@ export default function RosteringStudioUnified({
 
                   {/* Cost Analysis Panel */}
                   {panelVisibility.costs && (
-                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
-                    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-                      <div className="flex items-center gap-2 bg-gradient-to-r from-emerald-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                    <ResizablePanel
+                      id="rstd-bottom-costs"
+                      order={9}
+                      defaultSize={bottomPanelDefaultSizes.costs}
+                      minSize={8}
+                      className="min-h-0"
+                    >
+                    <div className="h-full min-w-0 min-h-0 flex flex-col">
+                      <div className="rstd-panel-head rstd-panel-head-costs flex items-center gap-2 px-3 py-2">
                         <Calculator className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Cost Analysis</span>
                       </div>
-                      <ScrollArea className="flex-1 min-h-0">
+                      <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
                         <div className="p-0.5">
-                          <CostAnalysisDashboard
-                            workers={workerSummaries.map(ws => ({
-                              name: ws.workerName,
-                              totalMinutes: ws.totalDurationMinutes,
-                              travelDistanceMeters: 0, // Calculate from route data if available
-                            }))}
-                          />
+                          <Suspense fallback={<PanelLoading label="cost analysis" />}>
+                            <CostAnalysisDashboardLazy
+                              workers={workerSummaries.map(ws => ({
+                                name: ws.workerName,
+                                totalMinutes: ws.totalDurationMinutes,
+                                travelDistanceMeters: 0, // Calculate from route data if available
+                              }))}
+                            />
+                          </Suspense>
                         </div>
                       </ScrollArea>
                     </div>
@@ -2066,34 +2373,42 @@ export default function RosteringStudioUnified({
 
                   {/* Template Library Panel */}
                   {panelVisibility.templates && (
-                    <ResizablePanel defaultSize={25} minSize={15} className="min-h-0">
-                    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-                      <div className="flex items-center gap-2 bg-gradient-to-r from-rose-500/10 to-transparent px-3 py-1 border-b shadow-sm">
+                    <ResizablePanel
+                      id="rstd-bottom-templates"
+                      order={10}
+                      defaultSize={bottomPanelDefaultSizes.templates}
+                      minSize={8}
+                      className="min-h-0"
+                    >
+                    <div className="h-full min-w-0 min-h-0 flex flex-col">
+                      <div className="rstd-panel-head rstd-panel-head-templates flex items-center gap-2 px-3 py-2">
                         <BookTemplate className="h-4 w-4 text-rose-600 dark:text-rose-400" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Template Library</span>
                       </div>
-                      <ScrollArea className="flex-1 min-h-0">
+                      <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
                         <div className="p-0.5">
                           {activeWorkbookId && (
-                            <ScheduleTemplateLibrary
-                              workbookId={parseInt(activeWorkbookId)}
-                              currentWeekDay={selectedTemplateDay}
-                              currentWeekNumber={selectedTemplateWeek}
-                              currentScheduleState={{
-                                timeOverrides: rosterState.present.timeOverrides,
-                                laneOverrides: rosterState.present.laneOverrides,
-                              }}
-                              onLoadTemplate={(state) => {
-                                // Apply loaded state as optimization result
-                                if (state.timeOverrides || state.laneOverrides) {
-                                  dispatchRoster({
-                                    type: "APPLY_OPTIMIZATION",
-                                    timeOverrides: state.timeOverrides as Record<string, number> || {},
-                                    laneOverrides: state.laneOverrides as Record<string, string> || {},
-                                  });
-                                }
-                              }}
-                            />
+                            <Suspense fallback={<PanelLoading label="templates" />}>
+                              <ScheduleTemplateLibraryLazy
+                                workbookId={parseInt(activeWorkbookId)}
+                                currentWeekDay={selectedTemplateDay}
+                                currentWeekNumber={selectedTemplateWeek}
+                                currentScheduleState={{
+                                  timeOverrides: rosterState.present.timeOverrides,
+                                  laneOverrides: rosterState.present.laneOverrides,
+                                }}
+                                onLoadTemplate={(state) => {
+                                  // Apply loaded state as optimization result
+                                  if (state.timeOverrides || state.laneOverrides) {
+                                    dispatchRoster({
+                                      type: "APPLY_OPTIMIZATION",
+                                      timeOverrides: state.timeOverrides as Record<string, number> || {},
+                                      laneOverrides: state.laneOverrides as Record<string, string> || {},
+                                    });
+                                  }
+                                }}
+                              />
+                            </Suspense>
                           )}
                         </div>
                       </ScrollArea>
@@ -2104,8 +2419,8 @@ export default function RosteringStudioUnified({
                   {/* Placeholder when no bottom panels visible */}
                   {!panelVisibility.map && !panelVisibility.callTimes && !panelVisibility.constraints && 
                    !panelVisibility.workload && !panelVisibility.optimization && !panelVisibility.database &&
-                   !panelVisibility.aiAnalysis && !panelVisibility.comparison && !panelVisibility.costs && !panelVisibility.templates && (
-                    <ResizablePanel defaultSize={100} className="min-h-0">
+                   !panelVisibility.aiAnalysis && !hasComparisonPanel && !panelVisibility.costs && !panelVisibility.templates && (
+                    <ResizablePanel id="rstd-bottom-empty" order={11} defaultSize={100} className="min-h-0">
                     <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs gap-3">
                       <Layers className="h-12 w-12 text-muted-foreground/50" />
                       <div className="text-center space-y-1">
@@ -2125,15 +2440,22 @@ export default function RosteringStudioUnified({
             {panelVisibility.details && (
               <>
                 <ResizableHandle withHandle />
-                <ResizablePanel defaultSize={25} minSize={15} maxSize={35} className="min-h-0">
-                  <div className="flex h-full min-h-0 flex-col border-l bg-gradient-to-b from-muted/10 to-background">
-                    <div className="border-b bg-gradient-to-r from-primary/5 to-transparent px-3 py-1.5 shadow-sm">
+                <ResizablePanel
+                  id="rstd-right-details"
+                  order={3}
+                  defaultSize={25}
+                  minSize={15}
+                  maxSize={35}
+                  className="min-h-0"
+                >
+                  <div className="rstd-panel rstd-panel-details flex h-full min-h-0 flex-col border-l">
+                    <div className="rstd-panel-head px-3 py-2">
                       <div className="flex items-center gap-1.5">
                         <Eye className="h-3.5 w-3.5  text-primary" />
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground">Details</span>
                       </div>
                     </div>
-                    <ScrollArea className="flex-1 min-h-0">
+                    <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
                       <div className="p-2 space-y-2.5">
                         {/* Selected Visit Details */}
                         <div className="rounded-lg border bg-gradient-to-br from-primary/5 to-transparent p-2 shadow-sm">

@@ -73,8 +73,8 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
   const isBalanced = Math.abs(totalWeight - 100) <= 5;
 
   return (
-    <Card className="border-border/60 bg-background/70">
-      <CardHeader className="pb-3">
+    <Card className="border-border/60 bg-background/70 h-full min-h-0 flex flex-col">
+      <CardHeader className="pb-3 shrink-0">
         <CardTitle className="text-sm flex items-center gap-2">
           <Settings2 className="h-4 w-4 text-primary" />
           Optimization Settings
@@ -83,7 +83,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
           Configure how the optimizer balances travel, workload, and continuity.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="flex-1 min-h-0 space-y-5 overflow-y-auto overscroll-contain pr-1">
         {/* Priority Weights */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">

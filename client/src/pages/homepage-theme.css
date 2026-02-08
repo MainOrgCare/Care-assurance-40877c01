@@ -212,27 +212,27 @@
 }
 
 .homepage-theme .home-signal-success {
-  border-color: #bae9d2;
-  background-color: #edf9f3;
+  border-color: color-mix(in oklab, var(--color-success) 30%, transparent);
+  background-color: color-mix(in oklab, var(--color-success) 8%, var(--color-card));
 }
 
 .homepage-theme .home-signal-success .home-signal-icon {
-  background-color: #d8f1e4;
-  color: #0e8f5d;
+  background-color: color-mix(in oklab, var(--color-success) 18%, transparent);
+  color: var(--color-success);
 }
 
 .homepage-theme .home-signal-info {
-  border-color: #bfdff4;
-  background-color: #edf6fd;
+  border-color: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  background-color: color-mix(in oklab, var(--color-primary) 8%, var(--color-card));
 }
 
 .homepage-theme .home-signal-info .home-signal-icon {
-  background-color: #dbeefb;
-  color: #0f72ba;
+  background-color: color-mix(in oklab, var(--color-primary) 18%, transparent);
+  color: var(--color-primary);
 }
 
 .homepage-theme .home-signal-title {
-  color: #0f1f33;
+  color: var(--color-foreground);
   font-weight: 700;
   font-size: 0.9rem;
 }
@@ -334,25 +334,25 @@
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.12;
-  color: #0f1f33 !important;
+  color: var(--color-foreground) !important;
 }
 
 .homepage-theme p {
   line-height: 1.72;
-  color: #3f5872;
+  color: var(--color-muted-foreground);
 }
 
 .homepage-theme .text-foreground {
-  color: #0f1f33 !important;
+  color: var(--color-foreground) !important;
 }
 
 .homepage-theme .text-muted-foreground {
-  color: #62798f !important;
+  color: var(--color-muted-foreground) !important;
 }
 
 @media (max-width: 768px) {
   .homepage-theme {
-    background-image: linear-gradient(180deg, #f4f9ff, #eef5fc);
+    background-image: linear-gradient(180deg, var(--color-background), color-mix(in oklab, var(--color-background) 90%, var(--color-muted)));
   }
 
   .homepage-theme .home-pattern {

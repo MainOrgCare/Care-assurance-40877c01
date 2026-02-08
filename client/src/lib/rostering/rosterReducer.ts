@@ -321,9 +321,29 @@ export const getRedoCount = (state: RosterHistoryState): number => state.future.
  */
 export const applyOverridesToLanes = (
   baseLanes: GanttLane[],
-  state: RosterState
+  state: Pick<RosterState, "timeOverrides" | "laneOverrides">
 ): GanttLane[] => {
   const { timeOverrides, laneOverrides } = state;
+  const getLegacyEntryId = (entryId: string): string | null => {
+    const separatorIndex = entryId.indexOf("::");
+    if (separatorIndex === -1) return null;
+    const scopedPart = entryId.slice(separatorIndex + 2);
+    const duplicateSuffixIndex = scopedPart.lastIndexOf("::dup");
+    if (duplicateSuffixIndex !== -1) {
+      return scopedPart.slice(0, duplicateSuffixIndex);
+    }
+    return scopedPart;
+  };
+  const getOverrideValue = <T,>(overrides: Record<string, T>, entryId: string): T | undefined => {
+    if (Object.prototype.hasOwnProperty.call(overrides, entryId)) {
+      return overrides[entryId];
+    }
+    const legacyId = getLegacyEntryId(entryId);
+    if (legacyId && Object.prototype.hasOwnProperty.call(overrides, legacyId)) {
+      return overrides[legacyId];
+    }
+    return undefined;
+  };
 
   // If no overrides, return original
   if (Object.keys(timeOverrides).length === 0 && Object.keys(laneOverrides).length === 0) {
@@ -333,14 +353,20 @@ export const applyOverridesToLanes = (
   // Build entry lookup
   const entryLookup = new Map<string, TimelineEntry>();
   baseLanes.forEach((lane) => {
-    lane.entries.forEach((entry) => entryLookup.set(entry.id, entry));
+    lane.entries.forEach((entry) => {
+      entryLookup.set(entry.id, entry);
+      const legacyId = getLegacyEntryId(entry.id);
+      if (legacyId && !entryLookup.has(legacyId)) {
+        entryLookup.set(legacyId, entry);
+      }
+    });
   });
 
   // Apply time overrides
   const withTimeOverrides = baseLanes.map((lane) => ({
     ...lane,
     entries: lane.entries.map((entry) => {
-      const override = timeOverrides[entry.id];
+      const override = getOverrideValue(timeOverrides, entry.id);
       return typeof override === "number" ? { ...entry, startMinutes: override } : entry;
     }),
   }));
@@ -350,19 +376,37 @@ export const applyOverridesToLanes = (
     return withTimeOverrides;
   }
 
+  // Normalize lane overrides so one entry can only be moved once.
+  // This prevents duplicate inserts when both legacy + scoped IDs exist.
+  const normalizedLaneOverrides = new Map<
+    string,
+    { entry: TimelineEntry; targetLaneId: string; source: "exact" | "legacy" }
+  >();
+  Object.entries(laneOverrides).forEach(([overrideEntryId, targetLaneId]) => {
+    const entry = entryLookup.get(overrideEntryId);
+    if (!entry) return;
+    const source: "exact" | "legacy" = overrideEntryId === entry.id ? "exact" : "legacy";
+    const existing = normalizedLaneOverrides.get(entry.id);
+    if (!existing || (source === "exact" && existing.source === "legacy")) {
+      normalizedLaneOverrides.set(entry.id, { entry, targetLaneId, source });
+    }
+  });
+
+  if (normalizedLaneOverrides.size === 0) {
+    return withTimeOverrides;
+  }
+
   // Apply lane overrides: remove from original, add to target
   const nextLanes = withTimeOverrides.map((lane) => ({
     ...lane,
-    entries: lane.entries.filter((entry) => laneOverrides[entry.id] === undefined),
+    entries: lane.entries.filter((entry) => !normalizedLaneOverrides.has(entry.id)),
   }));
 
-  Object.entries(laneOverrides).forEach(([entryId, targetLaneId]) => {
-    const entry = entryLookup.get(entryId);
-    if (!entry) return;
-
-    // Apply time override if exists
-    const timeOverride = timeOverrides[entryId];
-    const adjustedEntry = typeof timeOverride === "number" ? { ...entry, startMinutes: timeOverride } : entry;
+  normalizedLaneOverrides.forEach(({ entry, targetLaneId }) => {
+    // Apply time override if exists (supports scoped and legacy IDs).
+    const timeOverride = getOverrideValue(timeOverrides, entry.id);
+    const adjustedEntry =
+      typeof timeOverride === "number" ? { ...entry, startMinutes: timeOverride } : entry;
 
     const targetLane = nextLanes.find((lane) => lane.id === targetLaneId);
     if (targetLane) {

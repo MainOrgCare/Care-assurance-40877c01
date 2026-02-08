@@ -125,25 +125,6 @@ const getTimeBandBackgrounds = (
     .filter((v): v is NonNullable<typeof v> => v !== null);
 };
 
-// Check for overlaps in a lane
-const findConflicts = (entries: TimelineEntry[]): Set<string> => {
-  const conflicts = new Set<string>();
-  const sorted = [...entries]
-    .filter((e) => Number.isFinite(e.startMinutes))
-    .sort((a, b) => a.startMinutes - b.startMinutes);
-  
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const curr = sorted[i];
-    const next = sorted[i + 1];
-    const currEnd = curr.startMinutes + curr.durationMinutes;
-    if (next.startMinutes < currEnd) {
-      conflicts.add(curr.id);
-      conflicts.add(next.id);
-    }
-  }
-  return conflicts;
-};
-
 // Calculate travel gaps
 interface TravelGap {
   afterEntryId: string;
@@ -329,16 +310,63 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
     });
     return map;
   }, [lanes]);
+  const laneIdSet = useMemo(() => new Set(lanes.map((lane) => lane.id)), [lanes]);
 
-  // Find all conflicts across lanes
-  const allConflicts = useMemo(() => {
+  // Build per-lane diagnostics in one pass to avoid repeated sorting/reduction work.
+  const laneDiagnostics = useMemo(() => {
     const conflicts = new Set<string>();
-    if (!showConflicts) return conflicts;
-    lanes.forEach((lane) => {
-      findConflicts(lane.entries).forEach((id) => conflicts.add(id));
-    });
-    return conflicts;
-  }, [lanes, showConflicts]);
+    const gapsMap = new Map<string, TravelGap[]>();
+    const totalsMap = new Map<string, number>();
+
+    for (const lane of lanes) {
+      const gaps: TravelGap[] = [];
+      let laneTotalMinutes = 0;
+      for (const entry of lane.entries) {
+        laneTotalMinutes += entry.durationMinutes;
+      }
+      totalsMap.set(lane.id, laneTotalMinutes);
+
+      if (!showConflicts && !showTravelGaps) {
+        continue;
+      }
+
+      const sorted = [...lane.entries]
+        .filter((e) => Number.isFinite(e.startMinutes))
+        .sort((a, b) => a.startMinutes - b.startMinutes);
+
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const curr = sorted[i];
+        const next = sorted[i + 1];
+        const currEnd = curr.startMinutes + curr.durationMinutes;
+        const gapMinutes = next.startMinutes - currEnd;
+
+        if (showConflicts && next.startMinutes < currEnd) {
+          conflicts.add(curr.id);
+          conflicts.add(next.id);
+        }
+
+        if (showTravelGaps && gapMinutes > 5) {
+          const leftPercent = ((currEnd - startMinutes) / totalMinutes) * 100;
+          const widthPercent = (gapMinutes / totalMinutes) * 100;
+          gaps.push({
+            afterEntryId: curr.id,
+            gapMinutes,
+            leftPercent,
+            widthPercent,
+          });
+        }
+      }
+
+      if (showTravelGaps) {
+        gapsMap.set(lane.id, gaps);
+      }
+    }
+
+    return { conflicts, gapsMap, totalsMap };
+  }, [lanes, showConflicts, showTravelGaps, startMinutes, totalMinutes]);
+  const allConflicts = laneDiagnostics.conflicts;
+  const laneGaps = laneDiagnostics.gapsMap;
+  const laneTotalMinutesByLane = laneDiagnostics.totalsMap;
 
   // Check entries against recommended times - returns status per entry
   const recommendedTimeStatus = useMemo(() => {
@@ -376,50 +404,16 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
     return statusMap;
   }, [lanes, recommendedTimes]);
 
-  // Calculate travel gaps for each lane
-  const laneGaps = useMemo(() => {
-    if (!showTravelGaps) return new Map<string, TravelGap[]>();
-    const gapsMap = new Map<string, TravelGap[]>();
-    
-    lanes.forEach((lane) => {
-      const gaps: TravelGap[] = [];
-      const sorted = [...lane.entries]
-        .filter((e) => Number.isFinite(e.startMinutes))
-        .sort((a, b) => a.startMinutes - b.startMinutes);
-      
-      for (let i = 0; i < sorted.length - 1; i++) {
-        const curr = sorted[i];
-        const next = sorted[i + 1];
-        const currEnd = curr.startMinutes + curr.durationMinutes;
-        const gapMinutes = next.startMinutes - currEnd;
-        
-        if (gapMinutes > 5) { // Only show gaps > 5 minutes
-          const leftPercent = ((currEnd - startMinutes) / totalMinutes) * 100;
-          const widthPercent = (gapMinutes / totalMinutes) * 100;
-          gaps.push({
-            afterEntryId: curr.id,
-            gapMinutes,
-            leftPercent,
-            widthPercent,
-          });
-        }
-      }
-      gapsMap.set(lane.id, gaps);
-    });
-    
-    return gapsMap;
-  }, [lanes, showTravelGaps, startMinutes, totalMinutes]);
-
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const overId = event.over?.id;
     if (overId && typeof overId === "string") {
       // Check if hovering over a lane (lane IDs are used as droppable IDs)
-      const isLane = lanes.some((lane) => lane.id === overId);
+      const isLane = laneIdSet.has(overId);
       setDragOverLaneId(isLane ? overId : null);
     } else {
       setDragOverLaneId(null);
     }
-  }, [lanes]);
+  }, [laneIdSet]);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const entryId = String(event.active.id);
@@ -476,23 +470,24 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
     // Check if dropped on a different lane
     const targetLaneId = event.over?.id ? String(event.over.id) : undefined;
     const currentLaneId = entryToLaneMap.get(entryId);
-    const isLaneDrop = targetLaneId && lanes.some((lane) => lane.id === targetLaneId);
+    const isLaneDrop = Boolean(targetLaneId && laneIdSet.has(targetLaneId));
     const newLaneId = isLaneDrop && targetLaneId !== currentLaneId ? targetLaneId : undefined;
     
     // Only fire callback if something changed
     if (nextStart !== entry.startMinutes || newLaneId) {
       onEntryMove?.(entryId, nextStart, newLaneId);
     }
-  }, [entryIndex, trackWidth, totalMinutes, snapMinutes, startMinutes, endMinutes, entryToLaneMap, lanes, onEntryMove]);
+  }, [entryIndex, trackWidth, totalMinutes, snapMinutes, startMinutes, endMinutes, entryToLaneMap, laneIdSet, onEntryMove]);
 
   const totalConflicts = allConflicts.size;
 
   const containerPadding = showHeader ? "p-3" : "p-2";
 
   return (
-    <div
-      className={`rounded-lg border border-border/60 bg-background/70 ${containerPadding} shadow-md backdrop-blur-sm ${fitHeight ? "flex h-full min-h-0 flex-col" : ""}`}
-    >
+    <TooltipProvider delayDuration={300}>
+      <div
+        className={`rounded-lg border border-border/60 bg-background/70 ${containerPadding} shadow-md backdrop-blur-sm ${fitHeight ? "flex h-full min-h-0 flex-col" : ""}`}
+      >
       {showHeader && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
           <div>
@@ -653,7 +648,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
               <div className="relative" style={{ height: `${totalHeight}px` }}>
                 {visibleLanes.map((lane, idx) => {
                   const actualIdx = startIndex + idx;
-                  const laneTotalMinutes = lane.entries.reduce((acc, entry) => acc + entry.durationMinutes, 0);
+                  const laneTotalMinutes = laneTotalMinutesByLane.get(lane.id) ?? 0;
                   const utilization = Math.min(100, Math.round((laneTotalMinutes / (8 * 60)) * 100));
                   const gaps = laneGaps.get(lane.id) || [];
                   const isDropTarget = dragOverLaneId === lane.id && activeLaneId !== lane.id;
@@ -760,7 +755,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
             ) : (
               // Normal rendering for small datasets
               lanes.map((lane, idx) => {
-                const laneTotalMinutes = lane.entries.reduce((acc, entry) => acc + entry.durationMinutes, 0);
+                const laneTotalMinutes = laneTotalMinutesByLane.get(lane.id) ?? 0;
                 const utilization = Math.min(100, Math.round((laneTotalMinutes / (8 * 60)) * 100));
                 const gaps = laneGaps.get(lane.id) || [];
                 const isDropTarget = dragOverLaneId === lane.id && activeLaneId !== lane.id;
@@ -862,7 +857,8 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
           </div>
         </DndContext>
       </div>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 };
 
@@ -948,61 +944,59 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
   const initials = buildInitials(initialsSource);
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            ref={setNodeRef}
-            type="button"
-            onClick={handleClick}
-            className={`absolute rounded-md px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-foreground shadow-sm touch-manipulation
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          ref={setNodeRef}
+          type="button"
+          onClick={handleClick}
+          className={`absolute rounded-md px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-foreground shadow-sm touch-manipulation
               transition-shadow focus:outline-none focus:ring-1 focus:ring-primary/60 
               ${colors.bg} border ${colors.border}
               ${isDragging ? "opacity-60 shadow-md z-20" : "hover:shadow-md"}
               ${isSelected ? "ring-1 ring-primary shadow-md z-10" : ""}
               ${isFocused ? "ring-1 ring-primary z-10" : ""}
               ${hasConflict ? "ring-1 ring-red-400" : ""}`}
-            style={style}
-            {...attributes}
-            {...listeners}
-          >
-            {/* Selection indicator */}
-            {isSelected && (
-              <div className="absolute -top-1.5 -left-1.5 h-4 w-4 rounded-full bg-background shadow-sm flex items-center justify-center border border-border/60">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-              </div>
-            )}
-            {/* Double-up badge */}
-            {entry.isDoubleUp && (
-              <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-blue-600 border border-background shadow-sm flex items-center justify-center">
-                <span className="text-[9px] font-semibold text-white">2</span>
-              </div>
-            )}
-            <div className="flex h-full w-full items-center justify-center">
-              <span className="text-[9px] sm:text-[10px] font-semibold tracking-wide">
-                {initials || "?"}
-              </span>
+          style={style}
+          {...attributes}
+          {...listeners}
+        >
+          {/* Selection indicator */}
+          {isSelected && (
+            <div className="absolute -top-1.5 -left-1.5 h-4 w-4 rounded-full bg-background shadow-sm flex items-center justify-center border border-border/60">
+              <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
             </div>
-            {hasConflict && !entry.isDoubleUp && (
-              <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border border-background" />
-            )}
-            {/* Recommended time indicator */}
-            {recommendedStatus?.hasRecommendation && !entry.isDoubleUp && (
-              <div 
-                className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border border-background flex items-center justify-center ${
-                  recommendedStatus.isWithinWindow ? "bg-emerald-500" : "bg-amber-500"
-                }`}
-              >
-                <Target className="h-2 w-2 text-white" />
-              </div>
-            )}
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="p-2">
-          {tooltipContent}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+          )}
+          {/* Double-up badge */}
+          {entry.isDoubleUp && (
+            <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-blue-600 border border-background shadow-sm flex items-center justify-center">
+              <span className="text-[9px] font-semibold text-white">2</span>
+            </div>
+          )}
+          <div className="flex h-full w-full items-center justify-center">
+            <span className="text-[9px] sm:text-[10px] font-semibold tracking-wide">
+              {initials || "?"}
+            </span>
+          </div>
+          {hasConflict && !entry.isDoubleUp && (
+            <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border border-background" />
+          )}
+          {/* Recommended time indicator */}
+          {recommendedStatus?.hasRecommendation && !entry.isDoubleUp && (
+            <div
+              className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border border-background flex items-center justify-center ${
+                recommendedStatus.isWithinWindow ? "bg-emerald-500" : "bg-amber-500"
+              }`}
+            >
+              <Target className="h-2 w-2 text-white" />
+            </div>
+          )}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="p-2">
+        {tooltipContent}
+      </TooltipContent>
+    </Tooltip>
   );
 };
 

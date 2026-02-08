@@ -1,5 +1,5 @@
-import RosteringStudio from "@/pages/RosteringStudio";
+import RosteringStudioUnified from "@/pages/RosteringStudioUnified";
 
 export default function RosteringHub() {
-  return <RosteringStudio mode="studio" />;
+  return <RosteringStudioUnified />;
 }

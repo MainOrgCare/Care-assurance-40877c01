@@ -445,12 +445,12 @@ export default function Dashboard() {
       )}
 
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-slide-up stagger-1">
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-primary px-0.5">
-            Welcome, {user?.firstName || user?.username || 'there'}
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-semibold text-primary/70 tracking-wide uppercase px-0.5">
+            Welcome back, {user?.firstName || user?.username || 'there'}
           </p>
           <h1 className="page-title leading-tight" data-testid="text-dashboard-title">Operations Dashboard</h1>
-          <p className="page-subtitle">Unified operations overview for the last 24 hours.</p>
+          <p className="page-subtitle">Unified operations overview &mdash; last 24 hours.</p>
         </div>
         <div className="flex gap-3">
           <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
@@ -552,29 +552,29 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="space-y-3 animate-slide-up stagger-2">
+      <div className="space-y-3.5 animate-slide-up stagger-2">
         <div className="flex items-center gap-2.5 px-0.5">
-          <div className="h-7 w-7 rounded-md flex items-center justify-center bg-amber-500/8 border border-amber-500/15">
-            <Zap className="h-3.5 w-3.5 text-amber-600" />
+          <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-amber-500/8 border border-amber-500/15 dark:bg-amber-500/10 dark:border-amber-400/20">
+            <Zap className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
             <h3 className="text-sm font-bold tracking-tight text-foreground">Launch Center</h3>
-            <p className="text-[11px] text-muted-foreground">Accelerated workflows for care teams</p>
+            <p className="text-[11px] text-muted-foreground/70">Accelerated workflows for care teams</p>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {QUICK_ACTIONS.map((action, index) => (
             <Link key={index} href={action.href}>
-              <Card className="group h-full hover:shadow-md transition-shadow" data-testid={`card-quick-action-${index}`}>
-                <CardContent className={`p-4 relative border ${action.panelTone} rounded-xl transition-colors duration-150`}>
-                  <div className={`relative h-9 w-9 rounded-lg ${action.iconTone} flex items-center justify-center mb-3 transition-transform duration-150 group-hover:scale-105`}>
+              <Card className="group h-full hover:shadow-md transition-all duration-200" data-testid={`card-quick-action-${index}`}>
+                <CardContent className={`p-4 relative border ${action.panelTone} rounded-xl transition-colors duration-200`}>
+                  <div className={`relative h-9 w-9 rounded-lg ${action.iconTone} flex items-center justify-center mb-3 transition-transform duration-200 group-hover:scale-105`}>
                     <action.icon className="h-4.5 w-4.5" />
                   </div>
                   
-                  <h4 className="font-bold text-[0.8125rem] mb-1 group-hover:text-primary transition-colors text-foreground tracking-tight">{action.label}</h4>
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">{action.description}</p>
+                  <h4 className="font-bold text-[0.8125rem] mb-1 group-hover:text-primary transition-colors duration-200 text-foreground tracking-tight">{action.label}</h4>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground/80">{action.description}</p>
                   
-                  <div className="flex items-center gap-1.5 mt-2.5 text-[10px] font-semibold text-primary opacity-0 group-hover:opacity-100 transition-all duration-150 translate-x-0 group-hover:translate-x-1">
+                  <div className="flex items-center gap-1.5 mt-3 text-[10px] font-semibold text-primary opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-0 group-hover:translate-x-0.5">
                     <span>Open</span>
                     <ArrowRight className="h-3 w-3" />
                   </div>
@@ -755,8 +755,8 @@ export default function Dashboard() {
       <Card className="overflow-hidden animate-slide-up stagger-5" data-testid="card-platform-benefits">
         <CardHeader className="pb-4 border-b border-border/40">
           <div className="flex items-center gap-2.5">
-            <div className="h-7 w-7 rounded-md flex items-center justify-center bg-blue-500/10">
-              <TrendingUp className="h-3.5 w-3.5 text-blue-600" />
+            <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-blue-500/10 dark:bg-blue-400/10">
+              <TrendingUp className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <CardTitle className="text-sm font-semibold">Performance Metrics</CardTitle>
@@ -766,58 +766,58 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2 group p-5 rounded-lg bg-muted/15 hover:bg-muted/25 transition-colors border border-border/30">
+            <div className="space-y-2.5 group p-5 rounded-xl bg-muted/15 hover:bg-muted/25 transition-all duration-200 border border-border/30 hover:border-border/50">
               <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50">
-                  <Clock className="h-4 w-4 text-foreground" />
+                <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50 shadow-xs">
+                  <Clock className="h-4 w-4 text-foreground/70" />
                 </div>
-                <span className="text-2xl font-semibold tracking-tight text-foreground">90%</span>
+                <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums">90%</span>
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground mb-0.5">Time Recovery</p>
-                <p className="text-xs leading-relaxed text-muted-foreground">Autonomous auditing recaptures hours for frontline care.</p>
+                <p className="text-xs leading-relaxed text-muted-foreground/80">Autonomous auditing recaptures hours for frontline care.</p>
               </div>
             </div>
-            <div className="space-y-2 group p-5 rounded-lg bg-muted/15 hover:bg-muted/25 transition-colors border border-border/30">
+            <div className="space-y-2.5 group p-5 rounded-xl bg-muted/15 hover:bg-muted/25 transition-all duration-200 border border-border/30 hover:border-border/50">
               <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50">
-                  <CheckCircle2 className="h-4 w-4 text-foreground" />
+                <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50 shadow-xs">
+                  <CheckCircle2 className="h-4 w-4 text-foreground/70" />
                 </div>
-                <span className="text-2xl font-semibold tracking-tight text-foreground">3-Pass</span>
+                <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums">3-Pass</span>
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground mb-0.5">Deep Analysis</p>
-                <p className="text-xs leading-relaxed text-muted-foreground">Layered review logic identifies discrepancies with precision.</p>
+                <p className="text-xs leading-relaxed text-muted-foreground/80">Layered review logic identifies discrepancies with precision.</p>
               </div>
             </div>
-            <div className="space-y-2 group p-5 rounded-lg bg-muted/15 hover:bg-muted/25 transition-colors border border-border/30">
+            <div className="space-y-2.5 group p-5 rounded-xl bg-muted/15 hover:bg-muted/25 transition-all duration-200 border border-border/30 hover:border-border/50">
               <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50">
-                  <Shield className="h-4 w-4 text-foreground" />
+                <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50 shadow-xs">
+                  <Shield className="h-4 w-4 text-foreground/70" />
                 </div>
-                <span className="text-2xl font-semibold tracking-tight text-foreground">Live</span>
+                <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums">Live</span>
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground mb-0.5">Active Guard</p>
-                <p className="text-xs leading-relaxed text-muted-foreground">Real-time telemetry of compliance and incident signals.</p>
+                <p className="text-xs leading-relaxed text-muted-foreground/80">Real-time telemetry of compliance and incident signals.</p>
               </div>
             </div>
-            <div className="space-y-2 group p-5 rounded-lg bg-muted/15 hover:bg-muted/25 transition-colors border border-border/30">
+            <div className="space-y-2.5 group p-5 rounded-xl bg-muted/15 hover:bg-muted/25 transition-all duration-200 border border-border/30 hover:border-border/50">
               <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50">
-                  <Brain className="h-4 w-4 text-foreground" />
+                <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50 shadow-xs">
+                  <Brain className="h-4 w-4 text-foreground/70" />
                 </div>
-                <span className="text-2xl font-semibold tracking-tight text-foreground">Expert</span>
+                <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums">Expert</span>
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground mb-0.5">Contextual AI</p>
-                <p className="text-xs leading-relaxed text-muted-foreground">Neural processing of complex medical and care plan data.</p>
+                <p className="text-xs leading-relaxed text-muted-foreground/80">Neural processing of complex medical and care plan data.</p>
               </div>
             </div>
           </div>
-          <div className="mt-6 pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/40">
-            <p className="text-sm text-muted-foreground">
-              Calculate your organization's potential ROI from autonomous compliance.
+          <div className="mt-6 pt-5 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/40">
+            <p className="text-sm text-muted-foreground/80">
+              Calculate your organization&apos;s potential ROI from autonomous compliance.
             </p>
             <Link href="/roi-calculator">
               <Button variant="outline" className="font-medium" data-testid="button-roi-calculator">

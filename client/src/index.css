@@ -506,6 +506,31 @@
     background-color: hsl(0 0% 100% / 0.92);
     backdrop-filter: blur(8px);
   }
+
+  /* Dark theme workspace overrides */
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .workspace-header {
+    background-color: color-mix(in oklab, var(--color-background) 88%, transparent);
+  }
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .workspace-card {
+    background: color-mix(in oklab, var(--color-card) 92%, transparent);
+    border-color: color-mix(in oklab, var(--color-border) 80%, transparent);
+  }
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .workspace-footer {
+    background-color: color-mix(in oklab, var(--color-background) 92%, transparent);
+  }
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .glass-card,
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .glass-card-interactive {
+    background: color-mix(in oklab, var(--color-card) 80%, transparent);
+    border-color: color-mix(in oklab, var(--color-border) 70%, transparent);
+  }
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .app-surface {
+    background: color-mix(in oklab, var(--color-card) 85%, transparent);
+    border-color: color-mix(in oklab, var(--color-border) 65%, transparent);
+  }
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .stat-card {
+    background: color-mix(in oklab, var(--color-card) 85%, transparent);
+    border-color: color-mix(in oklab, var(--color-border) 65%, transparent);
+  }
 }
 
 /* Animations - simplified for performance */
@@ -561,6 +586,12 @@ html.theme-ocean body {
 
 html.theme-light body {
   background-color: hsl(220 20% 97%);
+}
+
+/* Suppress light-mode radial gradients on dark themes */
+:is(.dark, .theme-dark, .theme-midnight, .theme-ocean) body::before,
+:is(.dark, .theme-dark, .theme-midnight, .theme-ocean) body::after {
+  opacity: 0.15;
 }
 
 @layer utilities {

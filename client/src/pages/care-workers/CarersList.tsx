@@ -116,7 +116,7 @@ export default function CarersList() {
       <Card className="glass-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="text-amber-500" size={20} />
+            <AlertTriangle className="text-amber-500 dark:text-amber-400" size={20} />
             Staff with Discrepancies
           </CardTitle>
           <CardDescription>Staff with recorded discrepancies from saved audits.</CardDescription>
@@ -128,12 +128,19 @@ export default function CarersList() {
               Loading care workers...
             </div>
           ) : filteredWorkersWithDiscrepancies.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              {searchQuery ? "No staff found matching your search." : (
+            <div className="text-center py-12 text-muted-foreground">
+              {searchQuery ? (
                 <div className="space-y-2">
-                  <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <p>No discrepancies found in saved audits.</p>
-                  <p className="text-sm text-muted-foreground">Complete EMAR or Visit audits to see care worker data here.</p>
+                  <Search className="mx-auto h-8 w-8 text-muted-foreground/30" />
+                  <p className="text-sm font-medium text-foreground/70">No staff found matching your search</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="h-14 w-14 mx-auto mb-3 rounded-2xl bg-muted/40 flex items-center justify-center">
+                    <FileText className="h-6 w-6 text-muted-foreground/30" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground/70">No discrepancies found</p>
+                  <p className="text-xs text-muted-foreground/60 max-w-xs mx-auto">Complete EMAR or Visit audits to see care worker data here.</p>
                 </div>
               )}
             </div>
@@ -233,7 +240,7 @@ export default function CarersList() {
       <Card className="glass-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Users className="text-blue-500" size={20} />
+            <Users className="text-blue-500 dark:text-blue-400" size={20} />
             All Care Workers from Audits
           </CardTitle>
           <CardDescription>All care workers mentioned in saved audits.</CardDescription>
@@ -245,12 +252,19 @@ export default function CarersList() {
               Loading care workers...
             </div>
           ) : filteredAllWorkers.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              {searchQuery ? "No care workers found matching your search." : (
+            <div className="text-center py-12 text-muted-foreground">
+              {searchQuery ? (
                 <div className="space-y-2">
-                  <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <p>No care workers found in saved audits.</p>
-                  <p className="text-sm text-muted-foreground">Save EMAR or Visit audits to populate this list.</p>
+                  <Search className="mx-auto h-8 w-8 text-muted-foreground/30" />
+                  <p className="text-sm font-medium text-foreground/70">No care workers found matching your search</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="h-14 w-14 mx-auto mb-3 rounded-2xl bg-muted/40 flex items-center justify-center">
+                    <Users className="h-6 w-6 text-muted-foreground/30" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground/70">No care workers found</p>
+                  <p className="text-xs text-muted-foreground/60 max-w-xs mx-auto">Save EMAR or Visit audits to populate this list.</p>
                 </div>
               )}
             </div>

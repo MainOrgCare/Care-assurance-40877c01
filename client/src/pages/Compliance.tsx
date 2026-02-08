@@ -29,8 +29,9 @@ export default function Compliance() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
+        <p className="text-sm text-muted-foreground">Loading compliance data&hellip;</p>
       </div>
     );
   }
@@ -38,9 +39,10 @@ export default function Compliance() {
   if (error) {
     return (
       <div className="p-8">
-        <Card className="border-red-400/55 bg-card">
-          <CardContent className="pt-6">
-            <p className="text-red-600">Failed to load compliance data. Please try again.</p>
+        <Card className="border-destructive/30 bg-card">
+          <CardContent className="pt-6 flex flex-col items-center gap-3">
+            <AlertTriangle className="h-8 w-8 text-destructive/50" />
+            <p className="text-sm font-medium text-destructive">Failed to load compliance data. Please try again.</p>
           </CardContent>
         </Card>
       </div>
@@ -108,7 +110,7 @@ export default function Compliance() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-foreground">{auditList.length}</div>
+            <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums">{auditList.length}</div>
             <p className="text-xs text-muted-foreground">
               {emarAudits.length} EMAR, {visitAudits.length} Visit
             </p>
@@ -118,10 +120,10 @@ export default function Compliance() {
         <Card data-testid="stat-discrepancies" className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Discrepancies Found</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertTriangle className="h-4 w-4 text-amber-500 dark:text-amber-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-foreground">{totalDiscrepancies}</div>
+            <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums">{totalDiscrepancies}</div>
             <p className="text-xs text-muted-foreground">
               Across all audits
             </p>
@@ -131,10 +133,10 @@ export default function Compliance() {
         <Card data-testid="stat-warnings" className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Warnings</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+            <AlertTriangle className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-foreground">{totalWarnings}</div>
+            <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums">{totalWarnings}</div>
             <p className="text-xs text-muted-foreground">
               Items requiring attention
             </p>
@@ -144,10 +146,10 @@ export default function Compliance() {
         <Card data-testid="stat-compliance-rate" className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Compliance Rate</CardTitle>
-            <CheckCircle className="h-4 w-4 text-emerald-500" />
+            <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-foreground">
+            <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums">
               {auditList.length > 0 ? Math.round(100 - (totalDiscrepancies / Math.max(auditList.length, 1) * 10)) : 100}%
             </div>
             <p className="text-xs text-muted-foreground">
@@ -285,10 +287,12 @@ export default function Compliance() {
               })}
             </div>
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No audits found</p>
-              <p className="text-sm">Complete an EMAR or Visit audit to see results here</p>
+            <div className="text-center py-12 text-muted-foreground">
+              <div className="h-14 w-14 mx-auto mb-4 rounded-2xl bg-muted/40 flex items-center justify-center">
+                <FileText className="h-6 w-6 text-muted-foreground/30" />
+              </div>
+              <p className="text-sm font-semibold text-foreground/70">No audits recorded</p>
+              <p className="text-xs mt-1.5 text-muted-foreground/60 max-w-xs mx-auto">Complete an EMAR or Visit audit to see compliance results here</p>
             </div>
           )}
         </CardContent>

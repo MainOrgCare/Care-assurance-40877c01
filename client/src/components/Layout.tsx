@@ -888,7 +888,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/40 bg-background/92 px-4 backdrop-blur-md md:px-6">
+          <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/40 bg-background/92 px-4 backdrop-blur-md md:px-6 transition-[background-color,border-color] duration-200">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -991,28 +991,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
               
-              <div className="group flex cursor-pointer items-center gap-2 rounded-lg border border-border/40 bg-muted/25 py-1 pl-2.5 pr-1 transition-all hover:border-primary/20 hover:bg-muted/40">
+              <div className="group flex cursor-pointer items-center gap-2.5 rounded-lg border border-border/40 bg-muted/25 py-1.5 pl-3 pr-1.5 transition-all duration-200 hover:border-primary/20 hover:bg-muted/40 hover:shadow-sm">
                 <div className="text-right hidden sm:block">
-                  <p className="text-[10px] font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
+                  <p className="text-[10.5px] font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
                     {displayName}
                   </p>
-                  <div className="flex items-center justify-end gap-1">
+                  <div className="flex items-center justify-end gap-1 mt-0.5">
                     <span
                       title={isConnected ? "Online" : "Offline"}
-                      className={cn("h-1.5 w-1.5 rounded-full", isConnected ? "bg-emerald-500" : "bg-red-500")}
+                      className={cn("h-1.5 w-1.5 rounded-full transition-colors", isConnected ? "bg-emerald-500" : "bg-red-500")}
                     />
                     {user?.role === "admin" && (
-                      <span className="inline-flex items-center rounded-full border border-border/50 bg-background/60 px-1 py-0 text-[7px] font-medium uppercase tracking-[0.02em] leading-[1.2] text-muted-foreground/85">
+                      <span className="inline-flex items-center rounded-full border border-border/50 bg-background/60 px-1.5 py-0 text-[7px] font-medium uppercase tracking-[0.04em] leading-[1.2] text-muted-foreground/85">
                         admin
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="relative h-7 w-7 rounded-md flex items-center justify-center font-bold uppercase text-[10px] bg-primary text-primary-foreground">
+                <div className="relative h-7 w-7 rounded-lg flex items-center justify-center font-bold uppercase text-[10px] bg-primary text-primary-foreground shadow-sm">
                   {user?.firstName ? user.firstName.substring(0, 1) : user?.username?.substring(0, 1) || "?"}
                   {user?.lastName ? user.lastName.substring(0, 1) : ""}
                   <div className={cn(
-                    "absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background",
+                    "absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background transition-colors",
                     isConnected ? "bg-emerald-500" : "bg-red-500"
                   )} />
                 </div>
@@ -1109,15 +1109,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Suspense>
             ) : (
               <>
-                <div className="mb-5">
-                  <div className="flex items-center gap-2 mb-1">
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-1.5">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/60" />
                     <p className="text-[10px] uppercase tracking-[0.13em] font-bold text-primary/55">{pageMeta.section}</p>
                   </div>
-                  <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground tracking-tight">{pageMeta.title}</h1>
+                  <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground tracking-tight leading-tight">{pageMeta.title}</h1>
                   <p className="text-[0.8125rem] text-muted-foreground mt-1.5 max-w-2xl leading-relaxed">{pageMeta.subtitle}</p>
                 </div>
-                <div className="h-px mb-4 bg-gradient-to-r from-border/60 via-border/30 to-transparent" />
+                <div className="h-px mb-5 bg-gradient-to-r from-border/60 via-border/30 to-transparent" />
                 <Suspense fallback={
                   <div className="flex-1 flex flex-col gap-4 animate-pulse">
                     <div className="h-8 w-48 bg-muted rounded-lg" />
@@ -1139,28 +1139,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         {!isSingleScreenRoute && (
-          <footer className="workspace-footer flex-shrink-0 border-t border-border/30 bg-background/94 px-4 py-2 backdrop-blur-sm">
+          <footer className="workspace-footer flex-shrink-0 border-t border-border/30 bg-background/94 px-4 py-2.5 backdrop-blur-sm transition-[background-color,border-color] duration-200">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5 text-xs text-muted-foreground">
               <div className="flex items-center gap-2.5 font-medium">
-                <span className="text-foreground/70">{new Date().getFullYear()} CareAssurance</span>
-                <span className="hidden sm:inline text-muted-foreground/40">·</span>
-                <span className="hidden sm:inline text-muted-foreground/70">Precision tools for high-trust care teams</span>
+                <span className="text-foreground/70">&copy; {new Date().getFullYear()} CareAssurance</span>
+                <span className="hidden sm:inline text-muted-foreground/30">&middot;</span>
+                <span className="hidden sm:inline text-muted-foreground/60 text-[11px]">Precision tools for high-trust care teams</span>
               </div>
               <div className="flex items-center gap-3">
-                <div className="hidden md:flex items-center gap-1.5 text-[9px] text-muted-foreground/45 font-medium">
+                <div className="hidden md:flex items-center gap-1.5 text-[9px] text-muted-foreground/45 font-medium tabular-nums">
                   <span className={cn(
-                    "h-1.5 w-1.5 rounded-full",
+                    "h-1.5 w-1.5 rounded-full transition-colors",
                     isConnected ? "bg-emerald-500" : "bg-red-500"
                   )} />
                   <span>{isConnected ? "Connected" : "Disconnected"}</span>
-                  <span className="mx-0.5 opacity-50">·</span>
-                  <span className="tabular-nums">{sessionDuration}</span>
+                  <span className="mx-0.5 opacity-40">&middot;</span>
+                  <span>{sessionDuration}</span>
                 </div>
                 <div className="hidden sm:block h-3 w-px bg-border/40" />
-                <Link href="/terms" className="transition-colors hover:text-foreground text-[11px]" data-testid="link-footer-terms">
+                <Link href="/terms" className="transition-colors hover:text-foreground text-[11px] font-medium" data-testid="link-footer-terms">
                   Terms
                 </Link>
-                <Link href="/privacy" className="transition-colors hover:text-foreground text-[11px]" data-testid="link-footer-privacy">
+                <Link href="/privacy" className="transition-colors hover:text-foreground text-[11px] font-medium" data-testid="link-footer-privacy">
                   Privacy
                 </Link>
               </div>

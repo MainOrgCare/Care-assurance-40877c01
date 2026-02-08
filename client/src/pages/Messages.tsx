@@ -140,7 +140,7 @@ export default function Messages() {
       case "urgent":
         return <Badge variant="destructive" className="text-xs">Urgent</Badge>;
       case "high":
-        return <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800">High</Badge>;
+        return <Badge variant="warning" className="text-xs">High</Badge>;
       default:
         return null;
     }
@@ -177,7 +177,7 @@ export default function Messages() {
             <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
             Refresh
           </Button>
-          <Button variant={showArchived ? "default" : "outline"} size="sm" onClick={() => setShowArchived(!showArchived)}>
+          <Button variant={showArchived ? "default" : "outline"} size="sm" onClick={() => setShowArchived(!showArchived)} className="transition-all duration-200">
             <Archive className="h-4 w-4 mr-2" />
             {showArchived ? "Hide Archived" : "Show Archived"}
           </Button>
@@ -201,9 +201,11 @@ export default function Messages() {
               </div>
             ) : messages.length === 0 ? (
               <div className="p-12 text-center text-muted-foreground">
-                <Mail className="h-8 w-8 mx-auto mb-3 text-muted-foreground/25" />
-                <p className="text-sm font-medium">No messages yet</p>
-                <p className="text-xs mt-1 text-muted-foreground/60">Ask Compli-ee to send you a message.</p>
+                <div className="h-14 w-14 mx-auto mb-4 rounded-2xl bg-muted/40 flex items-center justify-center">
+                  <Mail className="h-6 w-6 text-muted-foreground/30" />
+                </div>
+                <p className="text-sm font-semibold text-foreground/80">Inbox empty</p>
+                <p className="text-xs mt-1.5 text-muted-foreground/60 max-w-[200px] mx-auto">Ask Compli-ee to send you a message to get started.</p>
               </div>
             ) : (
               <div className="divide-y divide-border/55">
@@ -307,8 +309,11 @@ export default function Messages() {
           ) : (
             <div className="flex h-[clamp(380px,62vh,760px)] items-center justify-center text-muted-foreground">
               <div className="text-center">
-                <Mail className="h-8 w-8 mx-auto mb-3 text-muted-foreground/20" />
-                <p className="text-sm font-medium">Select a message to read</p>
+                <div className="h-16 w-16 mx-auto mb-4 rounded-2xl bg-muted/30 flex items-center justify-center">
+                  <Inbox className="h-7 w-7 text-muted-foreground/25" />
+                </div>
+                <p className="text-sm font-semibold text-foreground/70">No message selected</p>
+                <p className="text-xs mt-1 text-muted-foreground/50">Choose a message from the inbox to view details</p>
               </div>
             </div>
           )}

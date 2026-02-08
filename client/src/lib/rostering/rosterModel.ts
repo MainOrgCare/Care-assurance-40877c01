@@ -63,6 +63,7 @@ export const buildWorkerTimelineEntries = (
   selectedCallKeys?: Set<string>
 ): TimelineEntry[] => {
   if (!roster) return [];
+  const duplicateCounts = new Map<string, number>();
   return roster.callGroups
     .filter((group) => {
       if (selectedCallKeys && selectedCallKeys.size > 0 && !selectedCallKeys.has(group.key)) {
@@ -71,31 +72,39 @@ export const buildWorkerTimelineEntries = (
       // Must have a requirement start time
       if (group.requirementStartMinutes === null) return false;
       // Filter by template week/day if key provided
-      if (templateSelectionKey && group.templatedWeekdayKeys) {
+      if (templateSelectionKey) {
+        if (!group.templatedWeekdayKeys) return false;
         return group.templatedWeekdayKeys.has(templateSelectionKey);
       }
       return true;
     })
-    .map((group) => ({
-      id: group.key,
-      title: group.serviceUserName || group.callTypeLabel,
-      startMinutes: group.requirementStartMinutes as number,
-      durationMinutes: group.durationMinutes ?? fallbackDurationMinutes,
-      serviceUserName: group.serviceUserName,
-      serviceUserKey: group.serviceUserKey,
-      callTypeLabel: group.callTypeLabel,
-      isTimeCritical: group.isTimeCritical,
-      isDoubleUp: templateSelectionKey
-        ? Boolean(group.doubleUpWeekdayKeys?.has(templateSelectionKey))
-        : false,
-      isTemplated: templateSelectionKey
-        ? Boolean(group.templatedWeekdayKeys?.has(templateSelectionKey))
-        : false,
-      requiredStartMinutes: group.requirementStartMinutes ?? null,
-      address: group.serviceUserAddress ?? null,
-      latitude: group.serviceUserLatitude ?? null,
-      longitude: group.serviceUserLongitude ?? null,
-    }));
+    .map((group) => {
+      // Prefix with worker key so IDs are globally unique across lanes.
+      const baseId = `${roster.key}::${group.key}`;
+      const duplicateIndex = duplicateCounts.get(baseId) ?? 0;
+      duplicateCounts.set(baseId, duplicateIndex + 1);
+      const entryId = duplicateIndex === 0 ? baseId : `${baseId}::dup${duplicateIndex + 1}`;
+      return {
+        id: entryId,
+        title: group.serviceUserName || group.callTypeLabel,
+        startMinutes: group.requirementStartMinutes as number,
+        durationMinutes: group.durationMinutes ?? fallbackDurationMinutes,
+        serviceUserName: group.serviceUserName,
+        serviceUserKey: group.serviceUserKey,
+        callTypeLabel: group.callTypeLabel,
+        isTimeCritical: group.isTimeCritical,
+        isDoubleUp: templateSelectionKey
+          ? Boolean(group.doubleUpWeekdayKeys?.has(templateSelectionKey))
+          : false,
+        isTemplated: templateSelectionKey
+          ? Boolean(group.templatedWeekdayKeys?.has(templateSelectionKey))
+          : false,
+        requiredStartMinutes: group.requirementStartMinutes ?? null,
+        address: group.serviceUserAddress ?? null,
+        latitude: group.serviceUserLatitude ?? null,
+        longitude: group.serviceUserLongitude ?? null,
+      };
+    });
 };
 
 export const buildWorkerSummaries = (rosters: CareWorkerRosterShape[]): WorkerSummary[] => {

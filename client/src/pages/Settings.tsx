@@ -138,13 +138,13 @@ export default function Settings() {
 
   return (
     <div className="page-shell max-w-3xl mx-auto">
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4 mb-8">
         <Button
           variant="ghost"
           size="icon-sm"
           onClick={() => setLocation("/dashboard")}
           data-testid="button-back"
-          className="text-muted-foreground"
+          className="text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
