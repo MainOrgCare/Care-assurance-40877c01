@@ -55,6 +55,8 @@ import {
   type InsertRosteringWorkerConstraint,
   type RosteringSavedState,
   type InsertRosteringSavedState,
+  type RosteringScheduleTemplate,
+  type InsertRosteringScheduleTemplate,
   // New extracted data types
   type AnalyzedServiceUser,
   type InsertAnalyzedServiceUser,
@@ -95,6 +97,7 @@ import {
   rosteringWorkerTemplates,
   rosteringWorkerConstraints,
   rosteringSavedStates,
+  rosteringScheduleTemplates,
   // New extracted data tables
   analyzedServiceUsers,
   analyzedCareWorkers,
@@ -324,6 +327,12 @@ export interface IStorage {
   setActiveRosteringSavedState(id: string, workbookId: string): Promise<RosteringSavedState | undefined>;
   deleteRosteringSavedState(id: string): Promise<void>;
   deleteRosteringSavedStatesByWorkbook(workbookId: string): Promise<number>;
+
+  // Schedule Template Library
+  getScheduleTemplates(workbookId: string): Promise<RosteringScheduleTemplate[]>;
+  createScheduleTemplate(template: InsertRosteringScheduleTemplate): Promise<RosteringScheduleTemplate>;
+  deleteScheduleTemplate(id: string): Promise<void>;
+  incrementScheduleTemplateUsage(id: string): Promise<void>;
 
   // =========================================================================
   // EXTRACTED DATA - Service Users, Care Workers, Calls, Orders, Templates
@@ -1758,6 +1767,34 @@ export class DatabaseStorage implements IStorage {
       .where(eq(rosteringSavedStates.workbookId, workbookId))
       .returning({ id: rosteringSavedStates.id });
     return deleted.length;
+  }
+
+  // Schedule Template Library
+  async getScheduleTemplates(workbookId: string): Promise<RosteringScheduleTemplate[]> {
+    return await this.db
+      .select()
+      .from(rosteringScheduleTemplates)
+      .where(eq(rosteringScheduleTemplates.workbookId, workbookId))
+      .orderBy(desc(rosteringScheduleTemplates.updatedAt));
+  }
+
+  async createScheduleTemplate(template: InsertRosteringScheduleTemplate): Promise<RosteringScheduleTemplate> {
+    const [result] = await this.db
+      .insert(rosteringScheduleTemplates)
+      .values(template)
+      .returning();
+    return result;
+  }
+
+  async deleteScheduleTemplate(id: string): Promise<void> {
+    await this.db.delete(rosteringScheduleTemplates).where(eq(rosteringScheduleTemplates.id, id));
+  }
+
+  async incrementScheduleTemplateUsage(id: string): Promise<void> {
+    await this.db
+      .update(rosteringScheduleTemplates)
+      .set({ usageCount: sql`${rosteringScheduleTemplates.usageCount} + 1`, updatedAt: new Date() })
+      .where(eq(rosteringScheduleTemplates.id, id));
   }
 
   // =========================================================================

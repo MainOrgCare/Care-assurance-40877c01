@@ -54,6 +54,7 @@ const ALL_WIDGETS: WidgetConfig[] = [
   { id: "staff_checks", label: "Staff Checks", icon: Users },
   { id: "compliance_data", label: "Compliance Data", icon: ClipboardList },
   { id: "recent_alerts", label: "Recent Alerts", icon: AlertCircle },
+  { id: "activity_feed", label: "Activity Feed", icon: Clock },
 ];
 
 const DEFAULT_WIDGETS = ["compliance_score", "audits_completed", "active_alerts", "plans_updated", "compliance_data", "recent_alerts"];
@@ -187,6 +188,28 @@ export default function Dashboard() {
     },
   });
 
+  interface ActivityItem {
+    id: string;
+    type: "audit" | "alert" | "care_plan" | "system";
+    title: string;
+    description: string;
+    timestamp: string;
+    severity?: "info" | "warning" | "critical";
+    actor?: string;
+  }
+
+  const { data: activityData } = useQuery<ActivityItem[]>({
+    queryKey: ["/api/dashboard/activity"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/activity?limit=15", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch activity");
+      return res.json();
+    },
+    refetchInterval: 120000,
+    staleTime: 30000,
+    enabled: activeWidgets.includes("activity_feed"),
+  });
+
   useEffect(() => {
     if (widgetPrefs?.widgets && widgetPrefs.widgets.length > 0) {
       const savedWidgets = widgetPrefs.widgets;
@@ -240,8 +263,8 @@ export default function Dashboard() {
   const isWidgetActive = useCallback((id: string) => activeWidgets.includes(id), [activeWidgets]);
   
   const sortedActiveWidgets = useMemo(() => widgetOrder.filter(id => activeWidgets.includes(id)), [widgetOrder, activeWidgets]);
-  const smallWidgets = useMemo(() => sortedActiveWidgets.filter(id => !["compliance_data", "recent_alerts"].includes(id)), [sortedActiveWidgets]);
-  const largeWidgets = useMemo(() => sortedActiveWidgets.filter(id => ["compliance_data", "recent_alerts"].includes(id)), [sortedActiveWidgets]);
+  const smallWidgets = useMemo(() => sortedActiveWidgets.filter(id => !["compliance_data", "recent_alerts", "activity_feed"].includes(id)), [sortedActiveWidgets]);
+  const largeWidgets = useMemo(() => sortedActiveWidgets.filter(id => ["compliance_data", "recent_alerts", "activity_feed"].includes(id)), [sortedActiveWidgets]);
 
   const renderSmallWidget = (widgetId: string) => {
     switch (widgetId) {
@@ -651,6 +674,61 @@ export default function Dashboard() {
                   <div className="flex flex-col items-center justify-center h-48 text-muted-foreground space-y-2">
                     <CheckCircle2 className="h-8 w-8 text-muted-foreground/50" />
                     <p className="text-sm">No alerts in the last 24 hours</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {largeWidgets.includes("activity_feed") && (
+            <Card className="lg:col-span-full shadow-sm" data-testid="widget-activity-feed">
+              <CardHeader className="border-b border-border/40 pb-4 mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-7 w-7 rounded-md bg-violet-500/10 flex items-center justify-center text-violet-600">
+                    <Clock className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold">Activity Feed</CardTitle>
+                    <CardDescription className="text-xs">Live stream of system operations and events.</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="px-3">
+                {!activityData || activityData.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-32 text-muted-foreground space-y-2">
+                    <Clock className="h-8 w-8 text-muted-foreground/50" />
+                    <p className="text-sm">No recent activity</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                    {activityData.map((item) => (
+                      <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg border border-border/40 bg-muted/15 hover:bg-muted/25 transition-colors">
+                        <div className={cn(
+                          "h-8 w-8 rounded-md flex items-center justify-center border border-border/50 shrink-0",
+                          item.type === "alert" ? "bg-destructive/10" :
+                          item.type === "audit" ? "bg-primary/10" :
+                          "bg-muted"
+                        )}>
+                          {item.type === "alert" ? (
+                            <AlertCircle className="h-4 w-4 text-destructive" />
+                          ) : item.type === "audit" ? (
+                            <FileText className="h-4 w-4 text-primary" />
+                          ) : (
+                            <Activity className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-0.5">
+                            <p className="text-sm font-semibold truncate text-foreground">{item.title}</p>
+                            <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">{formatTimeAgo(item.timestamp)}</span>
+                          </div>
+                          <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">{item.description}</p>
+                          {item.actor && (
+                            <p className="text-[10px] font-medium text-primary mt-1">{item.actor}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>

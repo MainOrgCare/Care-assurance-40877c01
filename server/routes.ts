@@ -5234,6 +5234,63 @@ export async function registerRoutes(
     }
   });
 
+  // Get recent activity feed for dashboard
+  app.get("/api/dashboard/activity", requireAuth, async (req: any, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+      // Aggregate recent activity across audits, care plans, and alerts
+      const [audits, alerts] = await Promise.all([
+        storage.getAllAudits(),
+        storage.getRecentAlerts24h(),
+      ]);
+
+      type ActivityItem = {
+        id: string;
+        type: "audit" | "alert" | "care_plan" | "system";
+        title: string;
+        description: string;
+        timestamp: string;
+        severity?: "info" | "warning" | "critical";
+        actor?: string;
+      };
+
+      const activities: ActivityItem[] = [];
+
+      // Add recent audits
+      for (const audit of (audits || []).slice(0, 10)) {
+        activities.push({
+          id: `audit-${audit.id}`,
+          type: "audit",
+          title: "Audit Completed",
+          description: `${(audit as any).auditType || "EMAR"} audit processed${(audit as any).careWorkerName ? ` for ${(audit as any).careWorkerName}` : ""}`,
+          timestamp: ((audit as any).createdAt instanceof Date ? (audit as any).createdAt.toISOString() : (audit as any).createdAt) || new Date().toISOString(),
+          severity: "info",
+          actor: (audit as any).careWorkerName || undefined,
+        });
+      }
+
+      // Add alerts
+      for (const alert of (alerts || []).slice(0, 10)) {
+        activities.push({
+          id: `alert-${alert.id}`,
+          type: "alert",
+          title: "Compliance Alert",
+          description: alert.message,
+          timestamp: alert.createdAt instanceof Date ? alert.createdAt.toISOString() : String(alert.createdAt),
+          severity: "warning",
+          actor: alert.careWorkerName,
+        });
+      }
+
+      // Sort by timestamp descending
+      activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      return res.json(activities.slice(0, limit));
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get user's dashboard widget preferences
   app.get("/api/dashboard/widgets", requireAuth, async (req: any, res) => {
     try {
@@ -16130,8 +16187,16 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
       const toneInstructions: Record<string, string> = {
         professional: `Write in a formal, professional tone. Use proper business language, be courteous and respectful. Structure with proper greeting, clear paragraphs, and professional closing. Avoid casual language or contractions.`,
         direct: `Write in a clear, concise, and to-the-point style. Get straight to the business matter. Be brief but not rude. Use short sentences and clear action items. Minimize pleasantries but remain polite.`,
-        empathetic: `Write in a warm, understanding, and supportive tone. Show genuine care for the recipient's situation. Use friendly language while remaining professional. Acknowledge their efforts and offer help. Be encouraging and positive.`
+        empathetic: `Write in a warm, understanding, and supportive tone. Show genuine care for the recipient's situation. Use friendly language while remaining professional. Acknowledge their efforts and offer help. Be encouraging and positive.`,
+        formal: `Write in a highly formal, official tone suitable for regulatory correspondence, board communications, or legal matters. Use complete sentences, avoid abbreviations, and maintain a ceremonial register. Include proper salutations and formal closings.`,
+        urgent: `Write with a sense of urgency and importance. Use clear, action-oriented language. Highlight time-sensitive elements. Be direct about deadlines and required actions. Use bold formatting cues like 'URGENT:' or 'ACTION REQUIRED:' where appropriate. Maintain professionalism despite the urgency.`
       };
+
+      const { generateSubject } = req.body;
+
+      const subjectInstruction = generateSubject !== false
+        ? `\n9. Start the email with a "Subject: [appropriate subject line]" on the first line, followed by a blank line, then the email body.`
+        : "";
 
       const systemPrompt = `You are an expert email writer for UK care facilities. Your task is to take rough notes, bullet points, or draft text and transform it into a polished, well-structured email.
 
@@ -16146,7 +16211,7 @@ RULES:
 5. Keep it concise but complete
 6. If the input mentions specific people, dates, or details, include them
 7. Format with proper paragraphs for readability
-8. Use [Recipient Name] and [Your Name] as placeholders
+8. Use [Recipient Name] and [Your Name] as placeholders${subjectInstruction}
 
 Return ONLY the email text, nothing else.`;
 
@@ -18720,6 +18785,52 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete worker constraint:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // === Schedule Template Library ===
+
+  app.get("/api/admin/rostering/workbooks/:id/template-library", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const templates = await storage.getScheduleTemplates(req.params.id);
+      return res.json(templates);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch schedule templates:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/rostering/workbooks/:id/template-library", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const { name, description, category, weekDay, weekNumber, scheduleState, metadata } = req.body;
+      const template = await storage.createScheduleTemplate({
+        workbookId: req.params.id,
+        name: name || `Template ${new Date().toLocaleDateString()}`,
+        description,
+        category: category || "custom",
+        weekDay,
+        weekNumber,
+        scheduleState: scheduleState || {},
+        metadata: metadata || {},
+        usageCount: 0,
+        createdBy: req.user?.id ?? null,
+        createdByUsername: req.user?.username ?? null,
+      });
+      console.log(`[Rostering] Created schedule template: ${template.name}`);
+      return res.status(201).json(template);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to create schedule template:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/rostering/workbooks/:id/template-library/:templateId", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteScheduleTemplate(req.params.templateId);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete schedule template:", error);
       return res.status(500).json({ message: error.message });
     }
   });

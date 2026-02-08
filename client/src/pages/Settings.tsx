@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -7,9 +7,10 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useSettings, FontSize, AppTheme } from "@/context/SettingsContext";
 import { useAuth } from "@/context/AuthContext";
-import { Type, Layout as LayoutIcon, Bell, ArrowLeft, KeyRound, Loader2, SwatchBook } from "lucide-react";
+import { Type, Layout as LayoutIcon, Bell, ArrowLeft, KeyRound, Loader2, SwatchBook, Download, Keyboard, Database, FileText, Shield, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -94,6 +95,7 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword) {
@@ -359,6 +361,152 @@ export default function Settings() {
                 onCheckedChange={setShowCopyConfirmation}
                 data-testid="switch-copy-confirmation"
               />
+            </div>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Download className="h-4 w-4 text-primary" />
+              Data Export
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Export your data for reporting, backup, or compliance purposes.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Button
+                variant="outline"
+                className="justify-start h-auto p-4"
+                disabled={exporting}
+                onClick={async () => {
+                  setExporting(true);
+                  try {
+                    const res = await fetch("/api/audits", { credentials: "include" });
+                    if (!res.ok) throw new Error("Failed to fetch audits");
+                    const audits = await res.json();
+                    const csv = "ID,Type,Date,Status\n" + (audits || []).map((a: any) =>
+                      `"${a.id}","${a.auditType || 'EMAR'}","${new Date(a.createdAt).toLocaleDateString('en-GB')}","${a.status || 'completed'}"`
+                    ).join("\n");
+                    const blob = new Blob([csv], { type: "text/csv" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = `audits-export-${new Date().toISOString().split("T")[0]}.csv`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                    toast({ title: "Exported", description: "Audit data exported successfully." });
+                  } catch (e: any) {
+                    toast({ title: "Error", description: e.message, variant: "destructive" });
+                  } finally {
+                    setExporting(false);
+                  }
+                }}
+                data-testid="button-export-audits"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <FileText className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-foreground">Export Audits</p>
+                    <p className="text-xs text-muted-foreground">Download audit history as CSV</p>
+                  </div>
+                </div>
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-start h-auto p-4"
+                disabled={exporting}
+                onClick={async () => {
+                  setExporting(true);
+                  try {
+                    const res = await fetch("/api/discrepancies", { credentials: "include" });
+                    if (!res.ok) throw new Error("Failed to fetch discrepancies");
+                    const discs = await res.json();
+                    const csv = "ID,Care Worker,Type,Issue,Date\n" + (discs || []).map((d: any) =>
+                      `"${d.id}","${d.careWorkerName || ''}","${d.discrepancyType || ''}","${(d.issue || '').replace(/"/g, '""')}","${new Date(d.createdAt).toLocaleDateString('en-GB')}"`
+                    ).join("\n");
+                    const blob = new Blob([csv], { type: "text/csv" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = `discrepancies-export-${new Date().toISOString().split("T")[0]}.csv`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                    toast({ title: "Exported", description: "Discrepancy data exported successfully." });
+                  } catch (e: any) {
+                    toast({ title: "Error", description: e.message, variant: "destructive" });
+                  } finally {
+                    setExporting(false);
+                  }
+                }}
+                data-testid="button-export-discrepancies"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
+                    <Shield className="h-4 w-4 text-destructive" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-foreground">Export Discrepancies</p>
+                    <p className="text-xs text-muted-foreground">Download compliance issues as CSV</p>
+                  </div>
+                </div>
+              </Button>
+            </div>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Keyboard className="h-4 w-4 text-primary" />
+              Keyboard Shortcuts
+            </div>
+            <div className="space-y-2">
+              {[
+                { keys: ["Ctrl", "K"], description: "Open command palette" },
+                { keys: ["Ctrl", "B"], description: "Toggle sidebar" },
+                { keys: ["Ctrl", "/"], description: "Open keyboard shortcuts" },
+                { keys: ["Esc"], description: "Close dialog / modal" },
+              ].map((shortcut, i) => (
+                <div key={i} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/35 p-3">
+                  <span className="text-sm text-foreground">{shortcut.description}</span>
+                  <div className="flex items-center gap-1">
+                    {shortcut.keys.map((key, ki) => (
+                      <span key={ki}>
+                        <kbd className="px-2 py-1 text-[10px] font-bold uppercase tracking-widest bg-background border border-border rounded-md text-muted-foreground shadow-xs">{key}</kbd>
+                        {ki < shortcut.keys.length - 1 && <span className="text-muted-foreground mx-0.5">+</span>}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Database className="h-4 w-4 text-primary" />
+              Session Information
+            </div>
+            <div className="rounded-xl border border-border/70 bg-muted/35 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Logged in as</span>
+                <Badge variant="outline" className="font-semibold">{user?.username || "Unknown"}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Role</span>
+                <Badge variant="outline" className="font-semibold capitalize">{user?.role || "user"}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Account Type</span>
+                <Badge variant="outline" className={cn("font-semibold", user?.isDemo ? "border-amber-500/30 text-amber-600" : "border-success/30 text-success")}>
+                  {user?.isDemo ? "Demo" : "Production"}
+                </Badge>
+              </div>
             </div>
           </section>
         </CardContent>

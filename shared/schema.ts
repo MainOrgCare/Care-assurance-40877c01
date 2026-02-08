@@ -1001,6 +1001,40 @@ export const insertRosteringSavedStateSchema = createInsertSchema(rosteringSaved
 export type InsertRosteringSavedState = z.infer<typeof insertRosteringSavedStateSchema>;
 export type RosteringSavedState = typeof rosteringSavedStates.$inferSelect;
 
+// Schedule Template Library (reusable schedule templates per workbook)
+export const rosteringScheduleTemplates = pgTable(
+  "rostering_schedule_templates",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    workbookId: varchar("workbook_id").notNull().references(() => workbookUploads.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    category: text("category").notNull().default("custom"), // optimized | baseline | seasonal | custom
+    weekDay: text("week_day").notNull(), // monday, tuesday, etc.
+    weekNumber: text("week_number").notNull(), // week_a, week_b, etc.
+    scheduleState: jsonb("schedule_state").notNull().default({}), // The roster state snapshot
+    rating: integer("rating"), // 1-5 stars
+    usageCount: integer("usage_count").notNull().default(0),
+    metadata: jsonb("metadata").default({}), // totalWorkers, totalCalls, etc.
+    createdBy: varchar("created_by").references(() => users.id),
+    createdByUsername: text("created_by_username"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    workbookIdx: index("rostering_schedule_templates_workbook_idx").on(table.workbookId),
+  })
+);
+
+export const insertRosteringScheduleTemplateSchema = createInsertSchema(rosteringScheduleTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertRosteringScheduleTemplate = z.infer<typeof insertRosteringScheduleTemplateSchema>;
+export type RosteringScheduleTemplate = typeof rosteringScheduleTemplates.$inferSelect;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // UK GDPR COMPLIANCE TABLES
 // ═══════════════════════════════════════════════════════════════════════════
