@@ -142,7 +142,7 @@ export default function BillingTool() {
           <AlertCircle size={40} className="text-muted-foreground" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-foreground">Access Restricted</h2>
+          <h2 className="text-2xl font-semibold text-foreground">Access Restricted</h2>
           <p className="text-muted-foreground max-w-md">
             The Billing Tool is restricted to Administrators only.
           </p>

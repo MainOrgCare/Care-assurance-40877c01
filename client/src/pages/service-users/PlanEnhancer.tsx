@@ -1190,7 +1190,7 @@ export default function PlanEnhancer() {
           <Sparkles size={48} className="text-muted-foreground" />
         </div>
         <div className="max-w-md space-y-2">
-          <h2 className="text-2xl font-bold text-foreground" data-testid="text-no-data-title">No Data Available</h2>
+          <h2 className="text-2xl font-semibold text-foreground" data-testid="text-no-data-title">No Data Available</h2>
           <p className="text-muted-foreground">
             Please upload documents to generate the care plan template.
           </p>
@@ -1221,7 +1221,7 @@ export default function PlanEnhancer() {
             <div className="flex flex-col items-start gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-2 text-xs text-muted-foreground glass-card">
               <div className="flex items-center gap-3">
                 <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
-                <span className="font-semibold tracking-tight">Show full names (admin view)</span>
+                <span className="font-medium tracking-tight">Show full names (admin view)</span>
               </div>
               <span className="text-[10px] text-muted-foreground/60 font-medium">Internal review only. Copies use initials.</span>
             </div>
@@ -1311,7 +1311,7 @@ export default function PlanEnhancer() {
                   <FileText size={16} />
                 </div>
                 <div>
-                  <p className="font-bold text-emerald-500 tracking-tight">Legacy Plan</p>
+                  <p className="font-semibold text-emerald-500 tracking-tight">Legacy Plan</p>
                   <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.carePlan.name}</p>
                 </div>
               </div>
@@ -1322,7 +1322,7 @@ export default function PlanEnhancer() {
                   <FileText size={16} />
                 </div>
                 <div>
-                  <p className="font-bold text-foreground tracking-tight">Social Work</p>
+                  <p className="font-semibold text-foreground tracking-tight">Social Work</p>
                   <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.socialWork.name}</p>
                 </div>
               </div>
@@ -1333,7 +1333,7 @@ export default function PlanEnhancer() {
                   <FileText size={16} />
                 </div>
                 <div>
-                  <p className="font-bold text-foreground tracking-tight">Assessment</p>
+                  <p className="font-semibold text-foreground tracking-tight">Assessment</p>
                   <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.initialAssessment.name}</p>
                 </div>
               </div>
@@ -1344,7 +1344,7 @@ export default function PlanEnhancer() {
                   <FileText size={16} />
                 </div>
                 <div>
-                  <p className="font-bold text-foreground tracking-tight">Moving & Handling</p>
+                  <p className="font-semibold text-foreground tracking-tight">Moving & Handling</p>
                   <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.movingHandling.name}</p>
                 </div>
               </div>
@@ -1355,7 +1355,7 @@ export default function PlanEnhancer() {
                   <FileText size={16} />
                 </div>
                 <div>
-                  <p className="font-bold text-foreground tracking-tight">Additional Docs</p>
+                  <p className="font-semibold text-foreground tracking-tight">Additional Docs</p>
                   <p className="text-[10px] text-muted-foreground font-medium">
                     {serviceUserData.additionalDocuments.length} file{serviceUserData.additionalDocuments.length === 1 ? "" : "s"}
                   </p>
@@ -1368,7 +1368,7 @@ export default function PlanEnhancer() {
                   <FileText size={16} />
                 </div>
                 <div>
-                  <p className="font-bold text-foreground tracking-tight">Additional Notes</p>
+                  <p className="font-semibold text-foreground tracking-tight">Additional Notes</p>
                   <p className="text-[10px] text-muted-foreground font-medium">
                     {serviceUserData.additionalNotes.trim().length.toLocaleString()} chars
                   </p>
@@ -1417,7 +1417,7 @@ export default function PlanEnhancer() {
                           style={{ width: `${preAnalysis.qualityScore}%` }}
                         />
                       </div>
-                      <span className="text-[10px] font-bold">{preAnalysis.qualityScore}%</span>
+                      <span className="text-[10px] font-semibold">{preAnalysis.qualityScore}%</span>
                     </div>
                   </div>
                   
@@ -1493,7 +1493,7 @@ export default function PlanEnhancer() {
           <Button 
             onClick={() => enhanceMutation.mutate()}
             disabled={enhanceMutation.isPending || isAnyParsing()}
-            className="w-full mt-2 h-12 rounded-xl font-bold tracking-tight shadow-glow bg-gradient-to-r from-violet-600 to-indigo-600 border-0"
+            className="w-full mt-2 h-12 rounded-xl font-medium tracking-tight shadow-glow bg-gradient-to-r from-violet-600 to-indigo-600 border-0"
             data-testid="button-enhance-plan"
           >
             {enhanceMutation.isPending ? (
@@ -1514,7 +1514,7 @@ export default function PlanEnhancer() {
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-3">
                   <div className="h-2 w-2 rounded-full bg-primary animate-ping" />
-                  <span className="text-xs font-bold uppercase tracking-widest text-primary">{progressStatus}</span>
+                  <span className="text-xs font-semibold uppercase tracking-widest text-primary">{progressStatus}</span>
                 </div>
                 <span className="text-sm font-black text-primary">{Math.round(progress)}%</span>
               </div>
@@ -1523,7 +1523,7 @@ export default function PlanEnhancer() {
           )}
           
           {isAnyParsing() && (
-            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest text-center mt-2 animate-pulse">
+            <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-widest text-center mt-2 animate-pulse">
               System busy: extracting document context...
             </p>
           )}
@@ -1587,11 +1587,11 @@ export default function PlanEnhancer() {
               </Button>
               <Tabs value={viewMode} onValueChange={(v: string) => setViewMode(v as "enhanced" | "comparison")} className="bg-muted/20 p-1 rounded-xl border border-border/40">
                 <TabsList className="bg-transparent border-0 h-9 p-0">
-                  <TabsTrigger value="enhanced" className="rounded-lg font-bold text-[10px] uppercase gap-2 h-7" data-testid="tab-enhanced-view">
+                  <TabsTrigger value="enhanced" className="rounded-lg font-semibold text-[10px] uppercase gap-2 h-7" data-testid="tab-enhanced-view">
                     <FileText size={12} />
                     Enhanced
                   </TabsTrigger>
-                  <TabsTrigger value="comparison" className="rounded-lg font-bold text-[10px] uppercase gap-2 h-7" data-testid="tab-comparison-view">
+                  <TabsTrigger value="comparison" className="rounded-lg font-semibold text-[10px] uppercase gap-2 h-7" data-testid="tab-comparison-view">
                     <Columns size={12} />
                     Comparison
                   </TabsTrigger>
@@ -1621,7 +1621,7 @@ export default function PlanEnhancer() {
           {viewMode === "comparison" && originalContent && (
             <Card className="glass-card overflow-hidden border-primary/20">
               <CardHeader className="border-b border-border/40 pb-6 bg-primary/5">
-                <CardTitle className="text-base font-bold flex items-center gap-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-3">
                   <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Columns size={16} className="text-primary" />
                   </div>

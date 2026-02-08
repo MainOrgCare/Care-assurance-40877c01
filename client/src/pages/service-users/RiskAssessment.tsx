@@ -1169,7 +1169,7 @@ export default function RiskAssessment() {
           <ShieldAlert size={48} className="text-muted-foreground" />
         </div>
         <div className="max-w-md space-y-2">
-          <h2 className="text-2xl font-bold text-foreground">No Documents Uploaded</h2>
+          <h2 className="text-2xl font-semibold text-foreground">No Documents Uploaded</h2>
           <p className="text-muted-foreground">
             Please upload documents (Initial Assessment, Social Work docs, or Care Plan) to generate risk assessments.
           </p>
@@ -1189,7 +1189,7 @@ export default function RiskAssessment() {
       <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6 animate-in fade-in duration-500">
         <Loader2 size={48} className="text-blue-500 animate-spin" />
         <div className="max-w-md space-y-2">
-          <h2 className="text-2xl font-bold text-foreground">Processing Documents</h2>
+          <h2 className="text-2xl font-semibold text-foreground">Processing Documents</h2>
           <p className="text-muted-foreground">
             Please wait while we extract information from your uploaded documents...
           </p>
@@ -1208,7 +1208,7 @@ export default function RiskAssessment() {
             Synthesizing clinical documentation to identify risk vectors and mandatory assessment frameworks.
           </p>
           {isAdmin && (
-            <div className="mt-4 inline-flex items-center gap-3 rounded-xl border border-border/40 bg-muted/20 px-4 py-2 text-xs font-bold text-muted-foreground">
+            <div className="mt-4 inline-flex items-center gap-3 rounded-xl border border-border/40 bg-muted/20 px-4 py-2 text-xs font-semibold text-muted-foreground">
               <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
               <span className="uppercase tracking-tighter">Extended Identity Access (Admin Only)</span>
             </div>
@@ -1337,7 +1337,7 @@ export default function RiskAssessment() {
             Consensus recommendations for <span className="text-foreground font-black tracking-tight">{serviceUserDisplayName}</span> based on multi-document neural analysis.
           </p>
           {isAdmin && (
-            <div className="mt-4 inline-flex items-center gap-3 rounded-xl border border-border/40 bg-muted/20 px-4 py-2 text-xs font-bold text-muted-foreground">
+            <div className="mt-4 inline-flex items-center gap-3 rounded-xl border border-border/40 bg-muted/20 px-4 py-2 text-xs font-semibold text-muted-foreground">
               <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
               <span className="uppercase tracking-tighter">Extended Identity Access (Admin Only)</span>
             </div>
@@ -1672,7 +1672,7 @@ export default function RiskAssessment() {
       <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6 animate-in fade-in duration-500">
         <Loader2 size={48} className="text-blue-500 animate-spin" />
         <div className="max-w-md space-y-2">
-          <h2 className="text-2xl font-bold text-foreground">Generating Risk Assessments</h2>
+          <h2 className="text-2xl font-semibold text-foreground">Generating Risk Assessments</h2>
           <p className="text-muted-foreground">
             Creating {selectedAssessments.size} risk assessment{selectedAssessments.size !== 1 ? "s" : ""}. This may take a moment...
           </p>
@@ -1726,7 +1726,7 @@ export default function RiskAssessment() {
               </Badge>
             )}
             {totalPlaceholders > 0 && (
-              <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-bold">
+              <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-semibold">
                 <Edit3 size={12} className="mr-1" />
                 {totalPlaceholders} placeholder{totalPlaceholders !== 1 ? 's' : ''} to fill
               </Badge>

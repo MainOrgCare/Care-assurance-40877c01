@@ -190,7 +190,7 @@ export default function ROICalculator() {
               <div className="mx-auto w-10 h-10 rounded-full flex items-center justify-center mb-3 bg-primary/10 text-primary">
                 <metric.icon className="h-5 w-5" />
               </div>
-              <div className="text-2xl font-bold text-foreground">{metric.value}</div>
+              <div className="text-2xl font-semibold text-foreground">{metric.value}</div>
               <div className="text-sm font-medium text-foreground">{metric.label}</div>
               <div className="text-xs mt-1 text-muted-foreground">{metric.description}</div>
             </CardContent>
@@ -201,7 +201,7 @@ export default function ROICalculator() {
       {/* Core Features */}
       <section data-testid="feature-benefits-section">
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-heading font-semibold mb-3 text-foreground">
+          <h2 className="text-3xl font-heading font-bold mb-3 text-foreground">
             Powerful Tools for Modern Care
           </h2>
           <p className="max-w-2xl mx-auto text-muted-foreground">
@@ -264,7 +264,7 @@ export default function ROICalculator() {
                 <div className="text-sm font-medium mb-3 text-muted-foreground">{task.name}</div>
                 <div className="flex items-center justify-center gap-2 mb-3">
                   <div>
-                    <div className="text-xl font-bold text-foreground">
+                    <div className="text-xl font-semibold text-foreground">
                       {task.manualMinutes >= 60 
                         ? `${Math.floor(task.manualMinutes / 60)}h ${task.manualMinutes % 60 > 0 ? `${task.manualMinutes % 60}m` : ''}`
                         : `${task.manualMinutes}m`
@@ -274,7 +274,7 @@ export default function ROICalculator() {
                   </div>
                   <ArrowRight className="h-4 w-4 shrink-0 text-emerald-500" />
                   <div>
-                    <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{task.appSeconds}s</div>
+                    <div className="text-xl font-semibold text-emerald-600 dark:text-emerald-400">{task.appSeconds}s</div>
                     <div className="text-xs text-muted-foreground">automated</div>
                   </div>
                 </div>
@@ -288,7 +288,7 @@ export default function ROICalculator() {
       {/* Comparison Section */}
       <section data-testid="comparison-section">
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-heading font-semibold mb-3 text-foreground">
+          <h2 className="text-3xl font-heading font-bold mb-3 text-foreground">
             The Difference is Clear
           </h2>
           <p className="text-muted-foreground">
@@ -347,7 +347,7 @@ export default function ROICalculator() {
           <div className="mx-auto w-14 h-14 rounded-full flex items-center justify-center mb-4 bg-primary/10">
             <Shield className="h-7 w-7 text-primary" />
           </div>
-          <h2 className="text-3xl font-heading font-semibold mb-3 text-foreground">
+          <h2 className="text-3xl font-heading font-bold mb-3 text-foreground">
             Security You Can Trust
           </h2>
           <p className="max-w-2xl mx-auto text-muted-foreground">

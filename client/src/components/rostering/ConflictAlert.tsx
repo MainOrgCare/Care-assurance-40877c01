@@ -72,7 +72,7 @@ export const ConflictAlert: React.FC<ConflictAlertProps> = ({
         <div className="flex items-center gap-2">
           <p className={`text-sm font-semibold ${config.color}`}>{title}</p>
           {count !== undefined && count > 0 && (
-            <span className={`rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold ${config.color}`}>
+            <span className={`rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold ${config.color}`}>
               {count}
             </span>
           )}

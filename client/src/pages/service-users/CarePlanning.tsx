@@ -547,7 +547,7 @@ export default function CarePlanning() {
           <FileText size={48} className="text-muted-foreground" />
         </div>
         <div className="max-w-md space-y-2">
-          <h2 className="text-2xl font-bold text-foreground" data-testid="text-no-data-title">No Data Available</h2>
+          <h2 className="text-2xl font-semibold text-foreground" data-testid="text-no-data-title">No Data Available</h2>
           <p className="text-muted-foreground">
             Please upload Social Work documents or an Initial Assessment to generate a Care Plan.
           </p>
@@ -578,13 +578,13 @@ export default function CarePlanning() {
             <div className="flex flex-col items-start gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-2 text-xs text-muted-foreground glass-card">
               <div className="flex items-center gap-3">
                 <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
-                <span className="font-semibold tracking-tight">Show full names (admin view)</span>
+                <span className="font-medium tracking-tight">Show full names (admin view)</span>
               </div>
               <span className="text-[10px] text-muted-foreground/60 font-medium">Copies and saves use initials only.</span>
             </div>
           )}
           {carePlan && (
-            <Button variant="outline" onClick={copyAllPlan} className="gap-2.5 rounded-xl border-border/60 font-bold tracking-tight shadow-sm" data-testid="button-copy-all">
+            <Button variant="outline" onClick={copyAllPlan} className="gap-2.5 rounded-xl border-border/60 font-medium tracking-tight shadow-sm" data-testid="button-copy-all">
               <Copy size={16} /> Copy Full Plan
             </Button>
           )}
@@ -611,14 +611,14 @@ export default function CarePlanning() {
                 )}
               </div>
               <div>
-                <p className="font-bold tracking-tight">Social Work</p>
+                <p className="font-medium tracking-tight">Social Work</p>
                 <p className="text-xs text-muted-foreground font-medium">{serviceUserData.socialWork.name}</p>
               </div>
               {serviceUserData.socialWork.parseError && (
-                <span className="text-xs text-destructive font-bold ml-auto bg-destructive/10 px-2 py-1 rounded-lg">Parsing failed</span>
+                <span className="text-xs text-destructive font-semibold ml-auto bg-destructive/10 px-2 py-1 rounded-lg">Parsing failed</span>
               )}
               {serviceUserData.socialWork.content && !serviceUserData.socialWork.parseError && (
-                <span className="text-xs font-bold text-muted-foreground ml-auto bg-muted/40 px-2.5 py-1 rounded-lg tracking-tighter">
+                <span className="text-xs font-semibold text-muted-foreground ml-auto bg-muted/40 px-2.5 py-1 rounded-lg tracking-tighter">
                   {serviceUserData.socialWork.content.length.toLocaleString()} CHR
                 </span>
               )}
@@ -634,14 +634,14 @@ export default function CarePlanning() {
                 )}
               </div>
               <div>
-                <p className="font-bold tracking-tight">Initial Assessment</p>
+                <p className="font-medium tracking-tight">Initial Assessment</p>
                 <p className="text-xs text-muted-foreground font-medium">{serviceUserData.initialAssessment.name}</p>
               </div>
               {serviceUserData.initialAssessment.parseError && (
-                <span className="text-xs text-destructive font-bold ml-auto bg-destructive/10 px-2 py-1 rounded-lg">Parsing failed</span>
+                <span className="text-xs text-destructive font-semibold ml-auto bg-destructive/10 px-2 py-1 rounded-lg">Parsing failed</span>
               )}
               {serviceUserData.initialAssessment.content && !serviceUserData.initialAssessment.parseError && (
-                <span className="text-xs font-bold text-muted-foreground ml-auto bg-muted/40 px-2.5 py-1 rounded-lg tracking-tighter">
+                <span className="text-xs font-semibold text-muted-foreground ml-auto bg-muted/40 px-2.5 py-1 rounded-lg tracking-tighter">
                   {serviceUserData.initialAssessment.content.length.toLocaleString()} CHR
                 </span>
               )}
@@ -649,7 +649,7 @@ export default function CarePlanning() {
           )}
           {parseErrors.length > 0 && (
             <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-xs text-destructive/80">
-              <div className="flex items-center gap-2 text-destructive font-bold uppercase tracking-wider mb-2">
+              <div className="flex items-center gap-2 text-destructive font-semibold uppercase tracking-wider mb-2">
                 <AlertTriangle size={14} />
                 Parsing issues detected
               </div>
@@ -670,7 +670,7 @@ export default function CarePlanning() {
               onClick={fetchCallTypes}
               disabled={loadingCallTypes || isAnyParsing()}
               variant="outline"
-              className="w-full mt-2 gap-2.5 h-11 rounded-xl font-bold tracking-tight border-primary/30 hover:bg-primary/5"
+              className="w-full mt-2 gap-2.5 h-11 rounded-xl font-medium tracking-tight border-primary/30 hover:bg-primary/5"
             >
               {loadingCallTypes ? (
                 <>
@@ -689,7 +689,7 @@ export default function CarePlanning() {
           {availableCallTypes.length > 0 && (
             <div className="space-y-3 mt-2 p-4 rounded-xl bg-primary/5 border border-primary/20">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-widest text-primary">Select Call Type:</span>
+                <span className="text-xs font-semibold uppercase tracking-widest text-primary">Select Call Type:</span>
                 <Badge variant="outline" className="text-[10px]">
                   {carePlansByTypeRaw.size}/{availableCallTypes.length} Generated
                 </Badge>
@@ -713,7 +713,7 @@ export default function CarePlanning() {
                       )}
                     >
                       <div className="flex items-center justify-between w-full mb-1">
-                        <span className="font-bold text-sm">{callType}</span>
+                        <span className="font-semibold text-sm">{callType}</span>
                         {hasGenerated && (
                           <CheckCircle2 size={14} className="text-success" />
                         )}
@@ -736,7 +736,7 @@ export default function CarePlanning() {
           <Button 
             onClick={() => generateMutation.mutate()}
             disabled={generateMutation.isPending || isAnyParsing() || !selectedCallType}
-            className="w-full mt-2 gap-2.5 h-12 rounded-xl font-bold tracking-tight shadow-glow"
+            className="w-full mt-2 gap-2.5 h-12 rounded-xl font-medium tracking-tight shadow-glow"
             data-testid="button-generate-care-plan"
           >
             {generateMutation.isPending ? (
@@ -762,7 +762,7 @@ export default function CarePlanning() {
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-3">
                   <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                  <span className="text-xs font-bold uppercase tracking-widest text-primary">{progressStatus}</span>
+                  <span className="text-xs font-semibold uppercase tracking-widest text-primary">{progressStatus}</span>
                 </div>
                 <span className="text-sm font-black text-primary">{Math.round(progress)}%</span>
               </div>
@@ -771,7 +771,7 @@ export default function CarePlanning() {
           )}
           
           {isAnyParsing() && (
-            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest text-center mt-2 animate-pulse">
+            <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-widest text-center mt-2 animate-pulse">
               System busy: parsing baseline documents...
             </p>
           )}
@@ -784,7 +784,7 @@ export default function CarePlanning() {
             <h3 className="text-xl font-black tracking-tight text-foreground" data-testid="text-care-plan-title">
               {carePlan.callType ? `${carePlan.callType} Care Plan` : "Operational Plan"}: {carePlan.serviceUserInitials}
             </h3>
-            <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest bg-muted/40 px-3 py-1 rounded-full border border-border/40">
+            <div className="flex items-center gap-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest bg-muted/40 px-3 py-1 rounded-full border border-border/40">
               <Clock size={12} className="text-primary" />
               TIMESTAMP: {carePlan.generatedDate}
             </div>
@@ -795,7 +795,7 @@ export default function CarePlanning() {
             <Card className="glass-card overflow-hidden">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-sm font-bold text-muted-foreground">Generated Plans:</span>
+                  <span className="text-sm font-semibold text-muted-foreground">Generated Plans:</span>
                   <Badge variant="outline">{carePlansByTypeRaw.size} available</Badge>
                 </div>
                 <ToggleGroup
@@ -808,7 +808,7 @@ export default function CarePlanning() {
                     <ToggleGroupItem
                       key={callType}
                       value={callType}
-                      className="font-bold"
+                      className="font-semibold"
                     >
                       {callType}
                     </ToggleGroupItem>
@@ -826,7 +826,7 @@ export default function CarePlanning() {
                   <div>
                     <CardTitle className="text-lg flex items-center gap-2">
                       {carePlan.callType && (
-                        <Badge variant="outline" className="font-bold">{carePlan.callType}</Badge>
+                        <Badge variant="outline" className="font-semibold">{carePlan.callType}</Badge>
                       )}
                       Person-Centred Care Plan
                     </CardTitle>
@@ -837,7 +837,7 @@ export default function CarePlanning() {
                   <div className="flex items-center gap-2">
                     {carePlan.content && countPlaceholders(carePlan.content) > 0 && (
                       <>
-                        <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-bold">
+                        <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-semibold">
                           <Edit3 size={12} className="mr-1" />
                           {countPlaceholders(carePlan.content)} fields to complete
                         </Badge>
@@ -863,7 +863,7 @@ export default function CarePlanning() {
                           description: `${carePlan.callType} care plan template copied`,
                         });
                       }}
-                      className="gap-2.5 rounded-xl border-border/60 font-bold tracking-tight shadow-sm"
+                      className="gap-2.5 rounded-xl border-border/60 font-medium tracking-tight shadow-sm"
                     >
                       <Copy size={16} /> Copy Raw
                     </Button>
@@ -903,10 +903,10 @@ export default function CarePlanning() {
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="rounded-lg font-bold">TOTAL {sectionStats.total}</Badge>
-                  <Badge className="rounded-lg font-bold bg-destructive/15 text-destructive border-destructive/20">HIGH {sectionStats.high}</Badge>
-                  <Badge className="rounded-lg font-bold bg-amber-500/15 text-amber-500 border-amber-500/20">MED {sectionStats.medium}</Badge>
-                  <Badge className="rounded-lg font-bold bg-success/15 text-success border-success/20">LOW {sectionStats.low}</Badge>
+                  <Badge variant="outline" className="rounded-lg font-semibold">TOTAL {sectionStats.total}</Badge>
+                  <Badge className="rounded-lg font-semibold bg-destructive/15 text-destructive border-destructive/20">HIGH {sectionStats.high}</Badge>
+                  <Badge className="rounded-lg font-semibold bg-amber-500/15 text-amber-500 border-amber-500/20">MED {sectionStats.medium}</Badge>
+                  <Badge className="rounded-lg font-semibold bg-success/15 text-success border-success/20">LOW {sectionStats.low}</Badge>
                 </div>
               </div>
             </CardHeader>
@@ -933,16 +933,16 @@ export default function CarePlanning() {
                     size="sm"
                     className="justify-start sm:justify-end"
                   >
-                    <ToggleGroupItem value="all" className="rounded-lg font-bold text-[10px]">ALL</ToggleGroupItem>
-                    <ToggleGroupItem value="high" className="rounded-lg font-bold text-[10px]">HIGH</ToggleGroupItem>
-                    <ToggleGroupItem value="medium" className="rounded-lg font-bold text-[10px]">MED</ToggleGroupItem>
-                    <ToggleGroupItem value="low" className="rounded-lg font-bold text-[10px]">LOW</ToggleGroupItem>
+                    <ToggleGroupItem value="all" className="rounded-lg font-medium text-[10px]">ALL</ToggleGroupItem>
+                    <ToggleGroupItem value="high" className="rounded-lg font-medium text-[10px]">HIGH</ToggleGroupItem>
+                    <ToggleGroupItem value="medium" className="rounded-lg font-medium text-[10px]">MED</ToggleGroupItem>
+                    <ToggleGroupItem value="low" className="rounded-lg font-medium text-[10px]">LOW</ToggleGroupItem>
                   </ToggleGroup>
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-border/40">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Sequence</span>
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-1">Sequence</span>
                   <ToggleGroup
                     type="single"
                     value={sortMode}
@@ -952,8 +952,8 @@ export default function CarePlanning() {
                     variant="outline"
                     size="sm"
                   >
-                    <ToggleGroupItem value="default" className="rounded-lg font-bold text-[10px]">LOGICAL</ToggleGroupItem>
-                    <ToggleGroupItem value="priority" className="rounded-lg font-bold text-[10px]">CRITICAL FIRST</ToggleGroupItem>
+                    <ToggleGroupItem value="default" className="rounded-lg font-medium text-[10px]">LOGICAL</ToggleGroupItem>
+                    <ToggleGroupItem value="priority" className="rounded-lg font-medium text-[10px]">CRITICAL FIRST</ToggleGroupItem>
                   </ToggleGroup>
                   {hasActiveFilters && (
                     <Button
@@ -964,7 +964,7 @@ export default function CarePlanning() {
                         setPriorityFilter("all");
                         setSortMode("default");
                       }}
-                      className="text-[10px] font-bold text-primary uppercase tracking-widest"
+                      className="text-[10px] font-semibold text-primary uppercase tracking-widest"
                     >
                       Reset Directives
                     </Button>
@@ -981,7 +981,7 @@ export default function CarePlanning() {
                         return next;
                       });
                     }}
-                    className="rounded-lg font-bold text-[10px] uppercase border-border/60"
+                    className="rounded-lg font-medium text-[10px] uppercase border-border/60"
                   >
                     Expand All
                   </Button>
@@ -995,7 +995,7 @@ export default function CarePlanning() {
                         return next;
                       });
                     }}
-                    className="rounded-lg font-bold text-[10px] uppercase text-muted-foreground"
+                    className="rounded-lg font-medium text-[10px] uppercase text-muted-foreground"
                   >
                     Collapse All
                   </Button>
@@ -1006,9 +1006,9 @@ export default function CarePlanning() {
                 {visibleSections.length === 0 ? (
               <div className="py-20 text-center glass-card rounded-2xl border-dashed">
                 <div className="h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-6">
-                  <Search size={24} className="text-muted-foreground/40" />
+                  <Search size={24} className="text-muted-foreground/60" />
                 </div>
-                <p className="text-lg font-bold text-foreground mb-1">No vectors found</p>
+                <p className="text-lg font-semibold text-foreground mb-1">No vectors found</p>
                 <p className="text-sm text-muted-foreground font-medium max-w-xs mx-auto">
                   Adjust your search parameters or priority filters to find directives.
                 </p>
@@ -1020,7 +1020,7 @@ export default function CarePlanning() {
                       setPriorityFilter("all");
                       setSortMode("default");
                     }}
-                    className="mt-4 font-bold tracking-tight text-primary uppercase text-xs"
+                    className="mt-4 font-medium tracking-tight text-primary uppercase text-xs"
                   >
                     Clear Search Directives
                   </Button>
@@ -1056,7 +1056,7 @@ export default function CarePlanning() {
                           )}
                         </div>
                         <div>
-                          <CardTitle className="text-base font-bold tracking-tight group-hover:text-primary transition-colors">{section.title}</CardTitle>
+                          <CardTitle className="text-base font-medium tracking-tight group-hover:text-primary transition-colors">{section.title}</CardTitle>
                           <span className={cn(
                             "text-[10px] font-black uppercase tracking-widest",
                             section.priority === 'high' ? 'text-destructive' :

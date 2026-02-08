@@ -3292,31 +3292,31 @@ export default function RosteringStudio({
                 <Card className="border-border/60 bg-background/70 shadow-soft">
                   <CardContent className="pt-4">
                     <p className="text-xs uppercase text-muted-foreground">Care Workers</p>
-                    <p className="text-2xl font-bold">{overviewStats.totalWorkers}</p>
+                    <p className="text-2xl font-semibold">{overviewStats.totalWorkers}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-border/60 bg-background/70 shadow-soft">
                   <CardContent className="pt-4">
                     <p className="text-xs uppercase text-muted-foreground">Service Users</p>
-                    <p className="text-2xl font-bold">{overviewStats.totalServiceUsers}</p>
+                    <p className="text-2xl font-semibold">{overviewStats.totalServiceUsers}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-border/60 bg-background/70 shadow-soft">
                   <CardContent className="pt-4">
                     <p className="text-xs uppercase text-muted-foreground">Call Groups</p>
-                    <p className="text-2xl font-bold">{overviewStats.totalCallGroups}</p>
+                    <p className="text-2xl font-semibold">{overviewStats.totalCallGroups}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-border/60 bg-background/70 shadow-soft">
                   <CardContent className="pt-4">
                     <p className="text-xs uppercase text-muted-foreground">Total Calls</p>
-                    <p className="text-2xl font-bold">{overviewStats.totalCalls}</p>
+                    <p className="text-2xl font-semibold">{overviewStats.totalCalls}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-border/60 bg-background/70 shadow-soft">
                   <CardContent className="pt-4">
                     <p className="text-xs uppercase text-muted-foreground">Total Hours</p>
-                    <p className="text-2xl font-bold">{overviewStats.totalHours}</p>
+                    <p className="text-2xl font-semibold">{overviewStats.totalHours}</p>
                     <p className="text-[10px] text-muted-foreground">{utilizationStats.avgHours}h avg · {utilizationStats.avgCalls} calls avg</p>
                   </CardContent>
                 </Card>
@@ -3565,7 +3565,7 @@ export default function RosteringStudio({
                       {rosterState.present.selectedEntryIds.size > 1 && (
                         <div className="mt-3 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-sm">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-semibold text-sm">
                               {rosterState.present.selectedEntryIds.size}
                             </div>
                             <div>

@@ -31,7 +31,7 @@ import {
   Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, Suspense, memo, useCallback, useRef, useMemo, lazy } from "react";
+import { useState, useEffect, Suspense, memo, useCallback, useRef, useMemo, lazy, Fragment } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useSession } from "@/context/SessionContext";
 import { useTemporaryDataTimer } from "@/context/TemporaryDataContext";
@@ -243,19 +243,19 @@ const SidebarContent = memo(function SidebarContent({
 
   const navLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-3 rounded-lg text-[13px] font-medium transition-all duration-150 group cursor-pointer",
+      "flex items-center gap-3 rounded-xl text-[0.835rem] font-semibold tracking-[0.005em] transition-all duration-200 group cursor-pointer",
       isCollapsed ? "px-2.5 py-2.5 justify-center gap-0" : "px-3 py-2",
       isActive
-        ? "bg-white/10 text-white"
-        : "text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-white/[0.06]"
+        ? "bg-sidebar-accent text-sidebar-foreground shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
+        : "text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.06]"
     ), [isCollapsed]);
 
   const subNavLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-3 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150",
+      "flex items-center gap-3 px-3 py-1.5 rounded-lg text-[0.79rem] font-medium transition-all duration-150",
       isActive
-        ? "bg-white/10 text-white"
-        : "text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-white/[0.05]"
+        ? "bg-sidebar-accent text-sidebar-foreground"
+        : "text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.05]"
     ), []);
 
   const labelClass = cn(
@@ -272,15 +272,15 @@ const SidebarContent = memo(function SidebarContent({
             onClick={handleSecretClick}
             className={cn("flex items-center gap-3 cursor-pointer group", isCollapsed && "justify-center")}
           >
-            <div className="relative h-9 w-9 rounded-lg flex items-center justify-center bg-white/10 border border-white/10">
-              <ShieldCheck className="h-[18px] w-[18px] text-white" />
+            <div className="relative h-10 w-10 rounded-xl flex items-center justify-center bg-sidebar-accent border border-sidebar-border">
+              <ShieldCheck className="h-[18px] w-[18px] text-sidebar-foreground" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
-              <h1 className="font-heading text-[15px] leading-none tracking-tight">
-                <span className="font-semibold text-white">Care</span><span className="font-normal text-white/60">Assurance</span>
+              <h1 className="font-heading text-[16px] leading-none tracking-[-0.02em]">
+                <span className="font-bold text-sidebar-foreground">Care</span><span className="font-normal text-sidebar-foreground/60">Assurance</span>
               </h1>
-              <span className="text-[10px] mt-1 font-medium uppercase tracking-[0.08em] text-white/40">Operations Platform</span>
+              <span className="text-[10px] mt-1 font-semibold uppercase tracking-[0.11em] text-sidebar-foreground/48">Operations Platform</span>
             </div>
             )}
           </div>
@@ -288,7 +288,7 @@ const SidebarContent = memo(function SidebarContent({
       </div>
 
       {/* Divider */}
-      <div className={cn("mx-5 h-px bg-white/8", isCollapsed && "mx-3")} />
+      <div className={cn("mx-5 h-px bg-sidebar-border", isCollapsed && "mx-3")} />
 
       <nav aria-label="Main navigation" className={cn("flex-1 space-y-0.5 py-3 overflow-y-auto overscroll-contain", isCollapsed ? "px-2" : "px-3")}>
         
@@ -320,7 +320,7 @@ const SidebarContent = memo(function SidebarContent({
         {/* Section Label */}
         {!isCollapsed && (
           <div className="px-3 pt-4 pb-1">
-            <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-white/30">Modules</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-sidebar-foreground/40">Modules</span>
           </div>
         )}
 
@@ -334,7 +334,7 @@ const SidebarContent = memo(function SidebarContent({
            <CollapsibleTrigger
             title={isCollapsed ? "Service Users" : undefined}
             className={cn(
-            "flex items-center justify-between w-full px-3 py-2 text-[13px] font-medium rounded-lg transition-all group hover:bg-white/[0.06]",
+            "flex items-center justify-between w-full px-3 py-2 text-[0.835rem] font-semibold rounded-xl transition-all group hover:bg-sidebar-foreground/[0.06]",
             isCollapsed && "justify-center px-2.5"
            )}>
             <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
@@ -380,7 +380,7 @@ const SidebarContent = memo(function SidebarContent({
            <CollapsibleTrigger
             title={isCollapsed ? "Care Workers" : undefined}
             className={cn(
-            "flex items-center justify-between w-full px-3 py-2 text-[13px] font-medium rounded-lg transition-all group hover:bg-white/[0.06]",
+            "flex items-center justify-between w-full px-3 py-2 text-[0.835rem] font-semibold rounded-xl transition-all group hover:bg-sidebar-foreground/[0.06]",
             isCollapsed && "justify-center px-2.5"
            )}>
             <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
@@ -420,7 +420,7 @@ const SidebarContent = memo(function SidebarContent({
             <CollapsibleTrigger
               title={isCollapsed ? "Admin" : undefined}
               className={cn(
-              "flex items-center justify-between w-full px-3 py-2 text-[13px] font-medium rounded-lg transition-all group hover:bg-white/[0.06]",
+              "flex items-center justify-between w-full px-3 py-2 text-[0.835rem] font-semibold rounded-xl transition-all group hover:bg-sidebar-foreground/[0.06]",
               isCollapsed && "justify-center px-2.5"
             )}>
               <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
@@ -461,11 +461,11 @@ const SidebarContent = memo(function SidebarContent({
       </nav>
 
       {/* Footer Actions */}
-      <div className={cn("px-3 pb-5 space-y-0.5 mt-auto border-t border-white/8 pt-3", isCollapsed && "px-2")}>
+      <div className={cn("px-3 pb-5 space-y-0.5 mt-auto border-t border-sidebar-border pt-3", isCollapsed && "px-2")}>
         <Link
           href="/settings"
           className={cn(
-            "w-full flex items-center gap-3 rounded-lg text-[13px] font-medium transition-all text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-white/[0.06]",
+            "w-full flex items-center gap-3 rounded-xl text-[0.835rem] font-semibold transition-all text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.06]",
             isCollapsed ? "justify-center px-2.5 py-2.5 gap-0" : "px-3 py-2"
           )}
           data-testid="button-settings"
@@ -476,7 +476,7 @@ const SidebarContent = memo(function SidebarContent({
         </Link>
         <button
           className={cn(
-            "w-full flex items-center gap-3 rounded-lg text-[13px] font-medium transition-all text-red-400/80 hover:text-red-400 hover:bg-red-500/10",
+            "w-full flex items-center gap-3 rounded-xl text-[0.835rem] font-semibold transition-all text-red-400/80 hover:text-red-400 hover:bg-red-500/10",
             isCollapsed ? "justify-center px-2.5 py-2.5 gap-0" : "px-3 py-2"
           )}
           onClick={logout}
@@ -498,7 +498,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     location === "/rostering-unified" || location === "/care-worker-rotas";
   const shouldPollUnread = !isFullBleed && location !== "/messages";
   const [clickCount, setClickCount] = useState(0);
-  const { user, logout } = useAuth();
+  const { user, logout, refetchUser } = useAuth();
   const { isConnected } = useSession();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -510,6 +510,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
   const autoCollapseRef = useRef(false);
+  const authRecoveryInFlightRef = useRef(false);
+
+  const handleUnauthorized = useCallback(() => {
+    if (authRecoveryInFlightRef.current) return;
+    authRecoveryInFlightRef.current = true;
+    void refetchUser().finally(() => {
+      authRecoveryInFlightRef.current = false;
+    });
+  }, [refetchUser]);
 
   // Scroll to top on route change
   useScrollToTop();
@@ -596,6 +605,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           credentials: 'include',
           signal: controller.signal,
         });
+        if (res.status === 401) {
+          if (!isDisposed) {
+            setUnreadMessageCount(0);
+          }
+          handleUnauthorized();
+          return;
+        }
         if (res.ok) {
           const data = await res.json();
           if (!isDisposed) {
@@ -625,7 +641,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [user?.id, shouldPollUnread]);
+  }, [user?.id, shouldPollUnread, handleUnauthorized]);
 
   // Ctrl+/ for chat assistant (kept separately since it needs typing-context check
   // and the global shortcuts hook doesn't handle Ctrl+/ to avoid conflict)
@@ -674,6 +690,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           credentials: "include",
           signal: controller.signal,
         });
+        if (res.status === 401) {
+          if (!disposed) {
+            setPlatformControls(null);
+          }
+          handleUnauthorized();
+          return;
+        }
         if (!res.ok) return;
         const data = await res.json();
         if (!disposed) {
@@ -701,7 +724,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [user?.id]);
+  }, [user?.id, handleUnauthorized]);
+
+  useEffect(() => {
+    if (user) return;
+    setUnreadMessageCount(0);
+    setPlatformControls(null);
+  }, [user]);
 
   // Show Compli-ee intro after user has accepted terms
   useEffect(() => {
@@ -834,7 +863,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </div>
       {/* Desktop Sidebar */}
       <aside className={cn(
-        "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-white/[0.06] bg-sidebar transition-all duration-200",
+        "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-sidebar-border bg-sidebar transition-all duration-200",
         isSidebarCollapsed ? "w-[72px]" : "w-[260px]"
       )}>
         <SidebarContent
@@ -851,7 +880,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/50 bg-background/95 px-4 backdrop-blur-sm md:px-6">
+          <header className="workspace-header sticky top-0 z-30 flex h-[3.75rem] items-center justify-between border-b border-border/50 bg-background/95 px-4 backdrop-blur-sm md:px-6">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -888,22 +917,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
               <div className="hidden lg:flex items-center gap-3 min-w-0 ml-2">
                 <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-muted-foreground">{pageMeta.section}</p>
-                  <h2 className="text-sm font-semibold text-foreground truncate">{pageMeta.title}</h2>
+                  <p className="text-[10px] uppercase tracking-[0.14em] font-semibold text-muted-foreground">{pageMeta.section}</p>
+                  <h2 className="text-[0.96rem] font-semibold tracking-[-0.01em] text-foreground truncate">{pageMeta.title}</h2>
                 </div>
                 {breadcrumbs.length > 0 && (
                   <div className="hidden xl:block border-l border-border/50 pl-3 ml-1">
                     <Breadcrumb>
                       <BreadcrumbList>
                         {breadcrumbs.map((crumb, i) => (
-                          <BreadcrumbItem key={i}>
+                          <Fragment key={i}>
                             {i > 0 && <BreadcrumbSeparator />}
-                            {i === breadcrumbs.length - 1 ? (
-                              <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-                            ) : (
-                              <BreadcrumbLink href={crumb.href || "#"}>{crumb.label}</BreadcrumbLink>
-                            )}
-                          </BreadcrumbItem>
+                            <BreadcrumbItem>
+                              {i === breadcrumbs.length - 1 ? (
+                                <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                              ) : (
+                                <BreadcrumbLink href={crumb.href || "#"}>{crumb.label}</BreadcrumbLink>
+                              )}
+                            </BreadcrumbItem>
+                          </Fragment>
                         ))}
                       </BreadcrumbList>
                     </Breadcrumb>
@@ -912,11 +943,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-card/90 px-2 py-1.5">
+            <div className="flex items-center gap-2.5 rounded-xl border border-border/60 bg-card/92 px-2.5 py-1.5 shadow-[0_12px_24px_-22px_rgba(15,23,42,0.45)]">
               {/* Command Palette Trigger */}
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}
-                className="hidden md:flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors cursor-pointer"
+                className="hidden md:flex items-center gap-2 rounded-lg border border-border/60 bg-muted/45 px-3 py-1.5 text-[0.76rem] font-semibold text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors cursor-pointer"
                 title="Command Palette (Ctrl+K)"
               >
                 <Search className="h-3.5 w-3.5" />
@@ -937,7 +968,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 >
                   <Inbox className={cn("h-4 w-4", unreadMessageCount > 0 ? "text-emerald-700" : "text-muted-foreground")} />
                   {unreadMessageCount > 0 && (
-                    <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-semibold flex items-center justify-center">
                       {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
                     </span>
                   )}
@@ -947,15 +978,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {/* Compli-ee Help Button */}
               <div className="flex items-center gap-2">
                 <ComplieeIdleButton onClick={openChatAssistant} />
-                <div className="hidden xl:flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground">
+                <div className="hidden xl:flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/45 px-2 py-1 text-[10px] font-semibold text-muted-foreground">
                   <span>Open</span>
                   <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] leading-none text-foreground">Ctrl + /</kbd>
                 </div>
               </div>
               
-              <div className="group flex cursor-pointer items-center gap-2.5 rounded-lg border border-border/40 bg-muted/30 py-1 pl-3 pr-1 transition-all hover:border-border/60">
+              <div className="group flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/50 bg-muted/34 py-1.5 pl-3 pr-1.5 transition-all hover:border-primary/25 hover:bg-muted/46">
                 <div className="text-right hidden sm:block">
-                  <p className="text-xs font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
+                  <p className="text-xs font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
                     {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username}
                   </p>
                   <div className="flex items-center justify-end gap-1.5">
@@ -963,12 +994,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       "h-1.5 w-1.5 rounded-full",
                       isConnected ? "bg-emerald-500" : "bg-red-500"
                     )} />
-                    <p className="text-[9px] font-black uppercase tracking-tighter leading-tight text-muted-foreground/60">
+                    <p className="text-[10px] font-semibold uppercase tracking-[-0.01em] leading-tight text-muted-foreground">
                       {user?.role} · {isConnected ? "online" : "offline"}
                     </p>
                   </div>
                 </div>
-                <div className="relative h-7 w-7 rounded-lg flex items-center justify-center font-bold uppercase text-[10px] bg-primary text-primary-foreground">
+                <div className="relative h-8 w-8 rounded-lg flex items-center justify-center font-semibold uppercase text-[10px] bg-primary text-primary-foreground">
                   {user?.firstName ? user.firstName.substring(0, 1) : user?.username?.substring(0, 1) || "?"}
                   {user?.lastName ? user.lastName.substring(0, 1) : ""}
                   <div className={cn(
@@ -1070,7 +1101,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             ) : (
               <>
                 <div className="mb-5 sm:mb-6">
-                  <p className="text-[11px] uppercase tracking-[0.12em] font-semibold text-muted-foreground">{pageMeta.section}</p>
+                  <p className="text-[11px] uppercase tracking-[0.12em] font-medium text-muted-foreground">{pageMeta.section}</p>
                   <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground mt-1">{pageMeta.title}</h1>
                   <p className="text-sm text-muted-foreground mt-2 max-w-3xl">{pageMeta.subtitle}</p>
                 </div>
@@ -1100,7 +1131,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
               <div className="flex items-center gap-3 font-medium">
                 <span>{new Date().getFullYear()} CareAssurance</span>
-                <span className="hidden sm:inline text-muted-foreground/40">·</span>
+                <span className="hidden sm:inline text-muted-foreground/60">·</span>
                 <span className="hidden sm:inline">Precision tools for high-trust care teams</span>
               </div>
               <div className="flex items-center gap-4">

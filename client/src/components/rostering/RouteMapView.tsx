@@ -221,7 +221,7 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ entries, showTravelL
               >
                 <Popup>
                   <div className="text-xs min-w-[160px]">
-                    <div className="font-bold text-slate-900 text-sm">{index + 1}. {entry.title}</div>
+                    <div className="font-semibold text-slate-900 text-sm">{index + 1}. {entry.title}</div>
                     {entry.serviceUserName && <div className="text-slate-700 mt-1">{entry.serviceUserName}</div>}
                     {entry.address && <div className="text-slate-500">{entry.address}</div>}
                     <div className="mt-2 flex items-center gap-2 text-slate-600">

@@ -13,7 +13,7 @@ export default function TermsConditions() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold text-foreground">CareAssurance</h1>
+          <h1 className="text-2xl font-semibold text-foreground">CareAssurance</h1>
         </div>
 
         <Card className="bg-card/95 border-border/75">
@@ -34,7 +34,7 @@ export default function TermsConditions() {
               <div className="flex items-start gap-3">
                 <Shield className="h-6 w-6 flex-shrink-0 mt-0.5 text-primary" />
                 <div>
-                  <p className="mb-2 text-base font-bold text-primary">ABOUT THESE TERMS</p>
+                  <p className="mb-2 text-base font-semibold text-primary">ABOUT THESE TERMS</p>
                   <p className="text-sm text-foreground/85">
                     These Terms govern access to and use of CareAssurance (the "Service"), proprietary software owned and operated by <strong>Lewis Barron</strong> (the "Owner/Operator").
                     The Service is intended for organisational use in care/compliance workflows and does not replace professional judgement.

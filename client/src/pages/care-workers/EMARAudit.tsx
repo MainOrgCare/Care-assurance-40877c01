@@ -2563,7 +2563,7 @@ ${generatedProtocol.additionalComments}`;
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
                 <Brain className="h-24 w-24" />
               </div>
-              <p className="text-sm font-bold text-foreground mb-4 uppercase tracking-widest flex items-center gap-2">
+              <p className="text-sm font-semibold text-foreground mb-4 uppercase tracking-widest flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
                 Audit Protocol
               </p>
@@ -2610,7 +2610,7 @@ ${generatedProtocol.additionalComments}`;
                     <Upload className="h-8 w-8" />
                   </div>
                   <div className="space-y-1">
-                    <span className="text-base font-bold text-foreground block">
+                    <span className="text-base font-semibold text-foreground block">
                       {isDragActive ? "Drop documentation now" : "Transmit EMAR Records"}
                     </span>
                     <span className="text-sm text-muted-foreground font-medium">
@@ -2618,8 +2618,8 @@ ${generatedProtocol.additionalComments}`;
                     </span>
                   </div>
                   <div className="flex items-center gap-4 mt-2">
-                    <Badge variant="outline" className="bg-background/50 border-border/40 font-bold uppercase tracking-tighter text-[10px]">PDF Documents Only</Badge>
-                    <Badge variant="outline" className="bg-background/50 border-border/40 font-bold uppercase tracking-tighter text-[10px]">Max {MAX_EMAR_UPLOAD_MB}MB Per Stream</Badge>
+                    <Badge variant="outline" className="bg-background/50 border-border/40 font-semibold uppercase tracking-tighter text-[10px]">PDF Documents Only</Badge>
+                    <Badge variant="outline" className="bg-background/50 border-border/40 font-semibold uppercase tracking-tighter text-[10px]">Max {MAX_EMAR_UPLOAD_MB}MB Per Stream</Badge>
                   </div>
                 </Label>
               </div>
@@ -2870,7 +2870,7 @@ ${generatedProtocol.additionalComments}`;
             <div className="flex items-center gap-4 bg-muted/20 border border-border/40 p-4 rounded-2xl">
               <span className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-2">Active Stream:</span>
               <Select value={activeRecordId ?? ""} onValueChange={(value) => loadRecordById(value)}>
-                <SelectTrigger className="w-full sm:w-80 bg-background border-border/60 rounded-xl font-bold">
+                <SelectTrigger className="w-full sm:w-80 bg-background border-border/60 rounded-xl font-semibold">
                   <SelectValue placeholder="Select an EMAR file" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-border/60">
@@ -2902,7 +2902,7 @@ ${generatedProtocol.additionalComments}`;
                   return (
                     <div key={idx} className="bg-card rounded-lg p-4 space-y-3" data-testid={`carer-mapping-${idx}`}>
                       <div className="flex items-center gap-3">
-                        <span className="px-3 py-1 bg-primary/10 text-primary rounded font-mono font-bold">
+                        <span className="px-3 py-1 bg-primary/10 text-primary rounded font-mono font-semibold">
                           {mapping.initials}
                         </span>
                         <span className="text-muted-foreground">→</span>
@@ -2977,7 +2977,7 @@ ${generatedProtocol.additionalComments}`;
                           </div>
                           {mapping.fullName && (
                             <div className="text-sm text-teal-400">
-                              Will be saved as: <span className="font-bold">{mapping.fullName}</span>
+                              Will be saved as: <span className="font-semibold">{mapping.fullName}</span>
                             </div>
                           )}
                         </div>
@@ -3164,14 +3164,14 @@ ${generatedProtocol.additionalComments}`;
                   </div>
                   <div>
                     <h3 className="text-xl font-black tracking-tight text-foreground">Operational Audit Log</h3>
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Metadata Vector: {result.extractionMethod || 'Neural'}</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Metadata Vector: {result.extractionMethod || 'Neural'}</p>
                   </div>
                 </div>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={downloadPDF}
-                  className="rounded-xl border-border/60 font-bold bg-background/50 gap-2 shadow-xs hover:shadow-sm transition-all"
+                  className="rounded-xl border-border/60 font-semibold bg-background/50 gap-2 shadow-xs hover:shadow-sm transition-all"
                   data-testid="button-download-pdf"
                 >
                   <Download size={15} />
@@ -3181,7 +3181,7 @@ ${generatedProtocol.additionalComments}`;
                   size="sm"
                   variant="outline"
                   onClick={sendEmarToExtension}
-                  className="rounded-xl border-border/60 font-bold bg-background/50 gap-2 shadow-xs hover:shadow-sm transition-all"
+                  className="rounded-xl border-border/60 font-semibold bg-background/50 gap-2 shadow-xs hover:shadow-sm transition-all"
                   data-testid="button-send-emar-extension"
                 >
                   <Activity size={15} />
@@ -3236,7 +3236,7 @@ ${generatedProtocol.additionalComments}`;
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge variant="outline" className="h-8 px-4 rounded-xl border-border/40 font-bold text-foreground bg-background/50">
+                  <Badge variant="outline" className="h-8 px-4 rounded-xl border-border/40 font-semibold text-foreground bg-background/50">
                     {getAllDiscrepancies().length} Incidents
                   </Badge>
                   <CopyButton text={hasAnyDiscrepancies() ? "Yes" : "No"} label="discrepancies-answer" />
@@ -3254,7 +3254,7 @@ ${generatedProtocol.additionalComments}`;
                   </div>
                   <div>
                     <CardTitle className="text-lg">Incident Inventory</CardTitle>
-                    <CardDescription className="font-bold text-destructive/80 uppercase tracking-tighter text-xs">
+                    <CardDescription className="font-semibold text-destructive/80 uppercase tracking-tighter text-xs">
                       {getAllDiscrepancies().length} TOTAL DISCREPANCIES · {getGroupedDiscrepancies.length} STAFF MEMBERS
                     </CardDescription>
                   </div>
@@ -3266,7 +3266,7 @@ ${generatedProtocol.additionalComments}`;
                       variant={editMode ? "default" : "outline"}
                       onClick={() => setEditMode(!editMode)}
                       className={cn(
-                        "rounded-xl font-bold tracking-tight gap-2 transition-all",
+                        "rounded-xl font-medium tracking-tight gap-2 transition-all",
                         editMode ? "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20" : "border-border/60"
                       )}
                       data-testid="button-toggle-edit-mode"
@@ -3297,11 +3297,11 @@ ${generatedProtocol.additionalComments}`;
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-destructive/5 border-b border-border/40">
-                        <TableHead className="w-48 font-bold text-foreground">Care Worker Name</TableHead>
-                        <TableHead className="w-32 font-bold text-foreground">Dates</TableHead>
-                        <TableHead className="font-bold text-foreground">Details of Non-Conformance</TableHead>
-                        <TableHead className="w-24 text-center font-bold text-foreground">No. of Occurrences</TableHead>
-                        <TableHead className="w-56 font-bold text-foreground">Actions Taken</TableHead>
+                        <TableHead className="w-48 font-semibold text-foreground">Care Worker Name</TableHead>
+                        <TableHead className="w-32 font-semibold text-foreground">Dates</TableHead>
+                        <TableHead className="font-semibold text-foreground">Details of Non-Conformance</TableHead>
+                        <TableHead className="w-24 text-center font-semibold text-foreground">No. of Occurrences</TableHead>
+                        <TableHead className="w-56 font-semibold text-foreground">Actions Taken</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -3397,7 +3397,7 @@ ${generatedProtocol.additionalComments}`;
                             
                             {/* Number of Occurrences */}
                             <TableCell className="align-top py-3 text-center">
-                              <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-red-500/20 text-red-400 font-bold">
+                              <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-red-500/20 text-red-400 font-semibold">
                                 {group.totalCount}
                               </span>
                             </TableCell>
@@ -3528,7 +3528,7 @@ ${generatedProtocol.additionalComments}`;
                     </div>
                     <div>
                       <CardTitle className="text-lg">Governance Review: Exceptions</CardTitle>
-                      <CardDescription className="font-bold text-amber-600/80 uppercase tracking-tighter text-xs">
+                      <CardDescription className="font-semibold text-amber-600/80 uppercase tracking-tighter text-xs">
                         {totalRefusalCount} ENTRIES REQUIRING OPERATIONAL JUSTIFICATION
                       </CardDescription>
                     </div>
@@ -3574,7 +3574,7 @@ ${generatedProtocol.additionalComments}`;
                                   {codeGroup.code}
                                 </div>
                                 <div className="text-left">
-                                  <p className="text-sm font-bold text-foreground leading-none mb-1">{codeGroup.displayName}</p>
+                                  <p className="text-sm font-semibold text-foreground leading-none mb-1">{codeGroup.displayName}</p>
                                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{codeGroup.count} VECTORS</p>
                                 </div>
                                 {allCodeReviewed ? (
@@ -3606,9 +3606,9 @@ ${generatedProtocol.additionalComments}`;
                                         <div className="space-y-1">
                                            <p className="text-sm font-black text-foreground leading-none">{item.careWorkerName}</p>
                                            <div className="flex items-center gap-2">
-                                              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">{item.date}</span>
+                                              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-tighter">{item.date}</span>
                                               {item.timeSlot && <span className="h-1 w-1 rounded-full bg-border" />}
-                                              {item.timeSlot && <span className="text-[10px] font-bold text-primary uppercase tracking-tighter">{item.timeSlot}</span>}
+                                              {item.timeSlot && <span className="text-[10px] font-semibold text-primary uppercase tracking-tighter">{item.timeSlot}</span>}
                                            </div>
                                         </div>
                                         <div className="h-8 w-[1px] bg-border/40 mx-2" />
@@ -3619,7 +3619,7 @@ ${generatedProtocol.additionalComments}`;
                                           size="sm"
                                           variant={isAcceptable ? "default" : "outline"}
                                           className={cn(
-                                            "h-9 px-4 rounded-lg font-bold text-[10px] uppercase tracking-widest transition-all",
+                                            "h-9 px-4 rounded-lg font-semibold text-[10px] uppercase tracking-widest transition-all",
                                             isAcceptable ? "bg-success hover:bg-success/90 text-white" : "border-success/30 text-success hover:bg-success/10"
                                           )}
                                           onClick={() => handleRefusalDecision(item.key, 'acceptable')}
@@ -3632,7 +3632,7 @@ ${generatedProtocol.additionalComments}`;
                                           size="sm"
                                           variant={isEscalate ? "destructive" : "outline"}
                                           className={cn(
-                                            "h-9 px-4 rounded-lg font-bold text-[10px] uppercase tracking-widest transition-all",
+                                            "h-9 px-4 rounded-lg font-semibold text-[10px] uppercase tracking-widest transition-all",
                                             isEscalate ? "bg-destructive hover:bg-destructive/90 text-white" : "border-destructive/30 text-destructive hover:bg-destructive/10"
                                           )}
                                           onClick={() => handleRefusalDecision(item.key, 'escalate')}
@@ -3669,7 +3669,7 @@ ${generatedProtocol.additionalComments}`;
                       <Button
                         onClick={handleSubmitRefusalReview}
                         disabled={getRefusalReviewStats.reviewed === 0}
-                        className="h-11 px-8 rounded-xl font-bold tracking-tight shadow-glow group"
+                        className="h-11 px-8 rounded-xl font-medium tracking-tight shadow-glow group"
                         data-testid="button-submit-refusal-review"
                       >
                         {getRefusalReviewStats.toEscalate > 0 && (
@@ -3693,7 +3693,7 @@ ${generatedProtocol.additionalComments}`;
                 </div>
                 <div>
                    <CardTitle className="text-lg">Clinical Governance: PRN Protocols</CardTitle>
-                   <CardDescription className="text-xs font-bold uppercase tracking-widest text-amber-600/70">PRN medication compliance verification</CardDescription>
+                   <CardDescription className="text-xs font-semibold uppercase tracking-widest text-amber-600/70">PRN medication compliance verification</CardDescription>
                 </div>
               </div>
 	              <CopyButton 
@@ -3725,7 +3725,7 @@ ${generatedProtocol.additionalComments}`;
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-4">MAPPED ASSETS</p>
 	                    <div className="flex flex-wrap gap-2.5">
 	                      {result.prnMedications.medications.map((med, idx) => (
-	                        <span key={idx} className="px-4 py-1.5 bg-background border border-border/60 text-foreground font-bold rounded-xl text-[11px] shadow-xs">
+	                        <span key={idx} className="px-4 py-1.5 bg-background border border-border/60 text-foreground font-semibold rounded-xl text-[11px] shadow-xs">
 	                          {getMedicationDisplayName(typeof med === 'string' ? med : med.name)}
 	                        </span>
 	                      ))}
@@ -3879,7 +3879,7 @@ ${generatedProtocol.additionalComments}`;
                   </div>
                   <div>
                     <CardTitle className="text-lg">Back-Office Interventions</CardTitle>
-                    <CardDescription className="font-bold text-blue-600/80 uppercase tracking-tighter text-xs">
+                    <CardDescription className="font-semibold text-blue-600/80 uppercase tracking-tighter text-xs">
                       {result.officeClosedEntries.length} MANUAL ENTRIES DETECTED
                     </CardDescription>
                   </div>
@@ -3895,7 +3895,7 @@ ${generatedProtocol.additionalComments}`;
 	                />
               </CardHeader>
               <CardContent className="space-y-4 pt-6">
-                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1" data-testid="text-office-closed-description">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-1" data-testid="text-office-closed-description">
                   Administrative overrides (red box codes without initials). These are excluded from temporal gap metrics.
                 </p>
                 <div className="rounded-2xl border border-border/40 overflow-hidden bg-muted/10">
@@ -3913,7 +3913,7 @@ ${generatedProtocol.additionalComments}`;
                     <TableBody>
                       {result.officeClosedEntries.map((entry, idx) => (
                         <TableRow key={idx} data-testid={`row-office-closed-${idx}`} className="border-border/20 hover:bg-muted/20 transition-colors">
-	                          <TableCell className="font-bold text-xs" data-testid={`cell-medication-${idx}`}>{getMedicationDisplayName(entry.medication)}</TableCell>
+	                          <TableCell className="font-semibold text-xs" data-testid={`cell-medication-${idx}`}>{getMedicationDisplayName(entry.medication)}</TableCell>
                           <TableCell className="text-xs font-medium text-muted-foreground" data-testid={`cell-date-${idx}`}>{entry.date}</TableCell>
                           <TableCell className="text-xs font-medium text-muted-foreground" data-testid={`cell-timeslot-${idx}`}>{entry.timeSlot}</TableCell>
                           <TableCell data-testid={`cell-code-${idx}`}>
@@ -3959,13 +3959,13 @@ ${generatedProtocol.additionalComments}`;
               <CopyableBox label="Audit Finalization Sequence" value={formatDate(new Date())} className="glass-card border-border/40 bg-muted/10 shadow-xs" />
             </div>
             <div className="flex gap-4 w-full sm:w-auto">
-              <Button variant="outline" onClick={removeActiveRecord} className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-bold tracking-tight border-border/60 hover:bg-muted/40 transition-all" data-testid="button-start-new-emar">
+              <Button variant="outline" onClick={removeActiveRecord} className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-medium tracking-tight border-border/60 hover:bg-muted/40 transition-all" data-testid="button-start-new-emar">
                 RESET PIPELINE
               </Button>
               <Button
                 onClick={saveAudit}
                 disabled={loading}
-                className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-bold tracking-tight shadow-glow bg-gradient-to-r from-primary to-blue-600 border-0"
+                className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-medium tracking-tight shadow-glow bg-gradient-to-r from-primary to-blue-600 border-0"
                 data-testid="button-save-emar-audit"
               >
                 {loading ? "SAVING..." : "COMMIT AUDIT"}

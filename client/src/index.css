@@ -11,95 +11,96 @@
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
 
-  /* Light Theme - Refined Corporate Palette */
-  --color-primary: hsl(215 65% 34%);
+  /* Light Theme - Editorial tech palette */
+  --color-primary: hsl(206 88% 37%);
   --color-primary-foreground: hsl(0 0% 100%);
 
-  --color-secondary: hsl(210 28% 26%);
+  --color-secondary: hsl(172 71% 30%);
   --color-secondary-foreground: hsl(0 0% 100%);
 
-  --color-background: hsl(216 20% 96.5%);
-  --color-foreground: hsl(220 30% 14%);
+  --color-background: hsl(203 36% 97.3%);
+  --color-foreground: hsl(217 36% 13%);
   
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(220 30% 14%);
+  --color-card: hsl(0 0% 100% / 0.94);
+  --color-card-foreground: hsl(217 36% 13%);
   
-  --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(220 30% 14%);
+  --color-popover: hsl(0 0% 100% / 0.98);
+  --color-popover-foreground: hsl(217 36% 13%);
 
-  --color-muted: hsl(216 18% 93%);
-  --color-muted-foreground: hsl(216 12% 42%);
+  --color-muted: hsl(204 28% 92.2%);
+  --color-muted-foreground: hsl(216 15% 37%);
 
-  --color-accent: hsl(215 65% 34% / 0.08);
-  --color-accent-foreground: hsl(220 30% 14%);
+  --color-accent: hsl(206 88% 37% / 0.1);
+  --color-accent-foreground: hsl(217 36% 13%);
 
   /* Status Colors - Corporate-grade tones */
   --color-destructive: hsl(0 72% 51%);
   --color-destructive-foreground: hsl(0 0% 100%);
 
-  --color-warning: hsl(38 92% 50%);
-  --color-warning-foreground: hsl(48 96% 89%);
+  --color-warning: hsl(36 90% 47%);
+  --color-warning-foreground: hsl(35 100% 96%);
 
-  --color-success: hsl(152 60% 36%);
+  --color-success: hsl(154 63% 34%);
   --color-success-foreground: hsl(0 0% 100%);
 
-  /* Borders - Refined gray */
-  --color-border: hsl(216 16% 84%);
-  --color-input: hsl(216 16% 84%);
-  --color-ring: hsl(215 65% 34%);
-  --color-primary-border: hsl(215 65% 30% / 0.28);
-  --color-secondary-border: hsl(210 28% 22% / 0.28);
+  /* Borders - neutral-cool */
+  --color-border: hsl(206 21% 82%);
+  --color-input: hsl(206 21% 82%);
+  --color-ring: hsl(206 88% 37%);
+  --color-primary-border: hsl(206 88% 33% / 0.3);
+  --color-secondary-border: hsl(172 71% 26% / 0.3);
   --color-destructive-border: hsl(0 72% 45% / 0.25);
-  --button-outline: hsl(216 16% 80%);
-  --badge-outline: hsl(216 16% 80%);
+  --button-outline: hsl(206 20% 78%);
+  --badge-outline: hsl(206 20% 78%);
 
-  /* Chart Colors - Corporate spectrum */
-  --color-chart-1: hsl(215 65% 34%);
-  --color-chart-2: hsl(200 55% 38%);
+  /* Chart colors */
+  --color-chart-1: hsl(206 88% 37%);
+  --color-chart-2: hsl(186 70% 33%);
   --color-chart-3: hsl(0 60% 48%);
-  --color-chart-4: hsl(224 42% 40%);
-  --color-chart-5: hsl(35 50% 42%);
+  --color-chart-4: hsl(224 56% 39%);
+  --color-chart-5: hsl(34 58% 41%);
 
-  --color-sidebar: hsl(220 22% 16%);
-  --color-sidebar-foreground: hsl(216 20% 88%);
-  --color-sidebar-primary: hsl(215 65% 50%);
+  --color-sidebar: hsl(214 36% 11%);
+  --color-sidebar-foreground: hsl(210 30% 91%);
+  --color-sidebar-primary: hsl(198 86% 49%);
   --color-sidebar-primary-foreground: hsl(0 0% 100%);
-  --color-sidebar-accent: hsl(220 18% 22%);
-  --color-sidebar-accent-foreground: hsl(216 20% 92%);
-  --color-sidebar-border: hsl(220 16% 24%);
-  --color-sidebar-ring: hsl(215 65% 50%);
+  --color-sidebar-accent: hsl(214 30% 16%);
+  --color-sidebar-accent-foreground: hsl(210 30% 95%);
+  --color-sidebar-border: hsl(214 27% 22%);
+  --color-sidebar-ring: hsl(198 86% 49%);
 
-  /* Typography - Corporate font stack */
-  --font-sans: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-  --font-heading: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  /* Typography */
+  --font-sans: "Manrope", "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-heading: "Sora", "Manrope", "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   
-  /* Border radius - slightly tighter for corporate feel */
-  --radius: 0.625rem;
+  /* Border radius */
+  --radius: 0.8rem;
 
-  /* Shadows - Subtle corporate depth */
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-soft: 0 4px 12px -4px rgba(15, 23, 42, 0.12);
-  --shadow-medium: 0 8px 24px -8px rgba(15, 23, 42, 0.16);
-  --shadow-strong: 0 16px 48px -16px rgba(15, 23, 42, 0.22);
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0 10px 22px -18px rgba(15, 23, 42, 0.34), 0 2px 6px rgba(15, 23, 42, 0.08);
+  --shadow-soft: 0 18px 40px -26px rgba(15, 23, 42, 0.38);
+  --shadow-medium: 0 26px 58px -34px rgba(15, 23, 42, 0.42);
+  --shadow-strong: 0 44px 92px -50px rgba(2, 6, 23, 0.52);
   --shadow-glow: 0 0 0 rgba(0, 0, 0, 0);
-  --motion-fast: 150ms;
-  --motion-standard: 200ms;
-  --motion-slow: 300ms;
-  --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --motion-fast: 170ms;
+  --motion-standard: 230ms;
+  --motion-slow: 340ms;
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
   
-  /* Surface effects - Cleaner corporate surfaces */
-  --surface-highlight: hsl(215 65% 34% / 0.05);
-  --surface-glow: hsl(200 55% 38% / 0.04);
+  /* Surface effects */
+  --surface-highlight: hsl(206 88% 37% / 0.06);
+  --surface-glow: hsl(186 70% 33% / 0.06);
   --glass-reflection: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, transparent 50%);
-  --surface-card-highlight: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0) 60%);
-  --surface-card-glow: none;
-  --surface-shell-border: hsl(216 16% 82% / 0.7);
-  --surface-shell-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 4px 16px rgba(15, 23, 42, 0.08);
-  --surface-noise-opacity: 0;
-  --app-bg-layer-1: none;
-  --app-bg-layer-2: none;
-  --app-bg-layer-3: linear-gradient(180deg, hsl(216 20% 97%), hsl(216 18% 95.5%));
+  --surface-card-highlight: linear-gradient(165deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.12) 48%, rgba(14, 116, 144, 0.06) 100%);
+  --surface-card-glow: radial-gradient(130% 150% at 108% -12%, hsl(198 86% 49% / 0.1), transparent 62%);
+  --surface-shell-border: hsl(206 22% 80% / 0.64);
+  --surface-shell-shadow: 0 16px 36px -26px rgba(15, 23, 42, 0.34);
+  --surface-noise-opacity: 0.03;
+  --app-bg-layer-1: radial-gradient(88rem 52rem at -14% -20%, hsl(198 86% 88% / 0.4), transparent 56%);
+  --app-bg-layer-2: radial-gradient(72rem 44rem at 114% -18%, hsl(180 60% 88% / 0.24), transparent 58%);
+  --app-bg-layer-3: linear-gradient(180deg, hsl(203 44% 98.4%), hsl(205 34% 95.2%));
 }
 
 @layer base {
@@ -116,21 +117,43 @@
     min-width: 0;
   }
   ::selection {
-    background-color: hsl(215 65% 34% / 0.2);
-    color: hsl(220 30% 14%);
+    background-color: hsl(206 88% 37% / 0.18);
+    color: hsl(217 36% 13%);
   }
   body {
     @apply font-sans antialiased text-foreground;
     background-color: var(--color-background);
-    background-image: var(--app-bg-layer-3);
+    background-image: var(--app-bg-layer-1), var(--app-bg-layer-2), var(--app-bg-layer-3);
     min-height: 100vh;
     overflow-x: hidden;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+    font-optical-sizing: auto;
     position: relative;
     isolation: isolate;
-    font-size: 14px;
-    line-height: 1.6;
-    letter-spacing: -0.006em;
+    font-size: clamp(0.9375rem, 0.17vw + 0.89rem, 1rem);
+    line-height: 1.64;
+    letter-spacing: -0.004em;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -22vh -18vw auto;
+    z-index: -2;
+    height: 46vh;
+    pointer-events: none;
+    background:
+      radial-gradient(48% 60% at 18% 8%, hsl(206 88% 44% / 0.13), transparent 72%),
+      radial-gradient(36% 55% at 72% 10%, hsl(172 71% 40% / 0.1), transparent 72%);
+  }
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      linear-gradient(132deg, transparent 0%, hsl(186 60% 46% / 0.04) 42%, transparent 76%);
+    opacity: 0.45;
   }
   #root {
     min-height: 100vh;
@@ -143,24 +166,25 @@
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading font-semibold tracking-tight;
     text-wrap: balance;
-    letter-spacing: -0.015em;
+    line-height: 1.15;
+    letter-spacing: -0.024em;
     color: var(--color-foreground);
   }
   h1 {
-    @apply text-3xl md:text-4xl;
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    @apply text-3xl md:text-[2.7rem];
+    font-weight: 750;
+    letter-spacing: -0.03em;
   }
   h2 {
-    @apply text-2xl md:text-[1.75rem];
-    letter-spacing: -0.018em;
+    @apply text-2xl md:text-[2.1rem];
+    letter-spacing: -0.028em;
   }
   h3 {
-    @apply text-lg md:text-xl;
+    @apply text-xl md:text-[1.52rem];
   }
   p {
     text-wrap: pretty;
-    line-height: 1.6;
+    line-height: 1.68;
   }
   a {
     @apply transition-colors duration-150;
@@ -178,38 +202,50 @@
     isolation: isolate;
     width: 100%;
     overflow: hidden;
-    border-radius: 0.75rem;
-    border: 1px solid var(--color-border);
-    background-color: var(--color-card);
+    border-radius: 1rem;
+    border: 1px solid color-mix(in oklab, var(--color-border) 78%, white);
+    background: linear-gradient(165deg, hsl(0 0% 100% / 0.94), hsl(203 32% 98% / 0.84));
+    backdrop-filter: blur(10px);
     box-shadow: var(--shadow-sm);
-    transition: border-color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard);
+    transition: border-color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
+  }
+  .app-surface::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: var(--surface-card-highlight);
+    opacity: 0.68;
   }
   .app-surface:hover {
-    border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
+    border-color: color-mix(in oklab, var(--color-primary) 24%, var(--color-border));
     box-shadow: var(--shadow-medium);
+    transform: translateY(-1px);
   }
 
-  /* Corporate card shell */
+  /* Card shell */
   .glass-card,
   .glass-card-interactive {
     position: relative;
     overflow: hidden;
-    border-radius: 0.75rem;
-    border: 1px solid var(--color-border);
-    background-color: var(--color-card);
+    border-radius: 0.95rem;
+    border: 1px solid color-mix(in oklab, var(--color-border) 78%, white);
+    background: linear-gradient(165deg, hsl(0 0% 100% / 0.95), hsl(204 30% 98% / 0.86));
+    backdrop-filter: blur(8px);
     box-shadow: var(--shadow-sm);
     transition: transform var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard);
   }
   .glass-card:hover,
   .glass-card-interactive:hover {
-    border-color: color-mix(in oklab, var(--color-primary) 15%, var(--color-border));
-    box-shadow: var(--shadow-soft);
+    border-color: color-mix(in oklab, var(--color-primary) 20%, var(--color-border));
+    box-shadow: var(--shadow-medium);
+    transform: translateY(-1px);
   }
   .glass-card-interactive {
     cursor: pointer;
   }
   .glass-card-interactive:active {
-    transform: translateY(0);
+    transform: translateY(1px);
   }
 
   /* Corporate pill badges */
@@ -235,9 +271,9 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    background-color: hsl(215 65% 34% / 0.08);
+    background-color: hsl(206 88% 37% / 0.1);
     color: var(--color-primary);
-    border: 1px solid hsl(215 65% 34% / 0.16);
+    border: 1px solid hsl(206 88% 37% / 0.2);
   }
 
   .pill-secondary {
@@ -250,9 +286,9 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    background-color: hsl(210 28% 26% / 0.08);
+    background-color: hsl(172 71% 30% / 0.11);
     color: var(--color-secondary);
-    border: 1px solid hsl(210 28% 26% / 0.16);
+    border: 1px solid hsl(172 71% 30% / 0.24);
   }
 
   .pill-success {
@@ -303,8 +339,8 @@
     height: 2.25rem;
     width: 2.25rem;
     border-radius: 0.5rem;
-    background-color: hsl(215 65% 34% / 0.08);
-    border: 1px solid hsl(215 65% 34% / 0.12);
+    background-color: hsl(206 88% 37% / 0.1);
+    border: 1px solid hsl(206 88% 37% / 0.2);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -324,11 +360,11 @@
   .stat-card {
     position: relative;
     overflow: hidden;
-    border-radius: 0.75rem;
-    border: 1px solid var(--color-border);
-    background-color: var(--color-card);
+    border-radius: 0.95rem;
+    border: 1px solid color-mix(in oklab, var(--color-border) 80%, white);
+    background: linear-gradient(170deg, hsl(0 0% 100% / 0.94), hsl(203 32% 98% / 0.84));
     padding: 1.25rem;
-    box-shadow: var(--shadow-xs);
+    box-shadow: var(--shadow-sm);
     transition: transform var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard);
   }
   .stat-card:hover {
@@ -360,7 +396,7 @@
   }
   .input-enhanced:focus {
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px hsl(215 65% 34% / 0.08);
+    box-shadow: 0 0 0 3px hsl(206 88% 37% / 0.1);
   }
 
   /* Status Badge Components */
@@ -394,24 +430,25 @@
     z-index: 1;
   }
   .workspace-sidebar {
-    background-color: var(--color-sidebar);
+    background:
+      linear-gradient(180deg, color-mix(in oklab, var(--color-sidebar) 96%, hsl(214 52% 14%)), var(--color-sidebar));
     border-color: var(--color-sidebar-border);
-    box-shadow: 1px 0 0 var(--color-sidebar-border);
+    box-shadow: inset -1px 0 0 var(--color-sidebar-border), 22px 0 42px -42px rgba(2, 6, 23, 0.85);
   }
   .workspace-header {
     border-color: var(--color-border);
-    background-color: hsl(0 0% 100% / 0.97);
-    backdrop-filter: blur(8px);
+    background-color: hsl(0 0% 100% / 0.84);
+    backdrop-filter: blur(14px);
   }
   .workspace-card {
     position: relative;
     border-color: var(--color-border);
-    background-color: var(--color-card);
+    background: linear-gradient(170deg, hsl(0 0% 100% / 0.96), hsl(203 36% 98% / 0.88));
     box-shadow: var(--shadow-sm);
   }
   .workspace-footer {
     border-color: var(--color-border);
-    background-color: hsl(0 0% 100% / 0.97);
+    background-color: hsl(0 0% 100% / 0.9);
   }
 }
 
@@ -490,15 +527,16 @@ html.theme-light body {
   }
   .page-title {
     font-family: var(--font-heading);
-    font-size: 1.5rem;
+    font-size: clamp(1.5rem, 0.85vw + 1.24rem, 2.1rem);
     font-weight: 700;
     color: var(--color-foreground);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.028em;
+    line-height: 1.14;
   }
   .page-subtitle {
-    font-size: 0.8125rem;
+    font-size: clamp(0.83rem, 0.22vw + 0.78rem, 0.95rem);
     color: var(--color-muted-foreground);
-    line-height: 1.5;
+    line-height: 1.58;
   }
 
   /* Glass panel variant - clean corporate */
@@ -584,19 +622,19 @@ html.theme-light body {
     height: 0.5rem;
     width: 0.5rem;
     border-radius: 9999px;
-    background-color: hsl(152 60% 36%);
+    background-color: var(--color-success);
   }
   .status-dot-warning {
     height: 0.5rem;
     width: 0.5rem;
     border-radius: 9999px;
-    background-color: hsl(38 92% 50%);
+    background-color: var(--color-warning);
   }
   .status-dot-danger {
     height: 0.5rem;
     width: 0.5rem;
     border-radius: 9999px;
-    background-color: hsl(0 72% 51%);
+    background-color: var(--color-destructive);
   }
 
   /* Keep hover scaling subtle to maintain responsive feel */
@@ -627,7 +665,7 @@ html.theme-light body {
 
   /* Premium gradient - corporate blue */
   .premium-gradient {
-    background: linear-gradient(135deg, hsl(215 65% 34%) 0%, hsl(215 55% 42%) 50%, hsl(200 55% 38%) 100%);
+    background: linear-gradient(135deg, hsl(206 88% 37%) 0%, hsl(201 82% 40%) 52%, hsl(172 71% 34%) 100%);
   }
 
   /* Magnetic hover - subtle */
@@ -641,7 +679,7 @@ html.theme-light body {
   /* Focus glow ring */
   .focus-glow:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px hsl(215 65% 34% / 0.15);
+    box-shadow: 0 0 0 2px hsl(206 88% 37% / 0.16);
   }
 
   /* Enterprise Table Utilities */
@@ -772,14 +810,15 @@ html.theme-ocean .theme-preview {
 }
 
 html.theme-light .theme-preview {
-  --preview-bg-1: hsl(220, 20%, 97%);
+  --preview-bg-1: hsl(203, 36%, 97%);
   --preview-bg-2: hsl(0, 0%, 100%);
-  --preview-accent-1: hsl(220, 85%, 50%);
-  --preview-accent-2: hsl(160, 60%, 38%);
+  --preview-accent-1: hsl(206, 88%, 43%);
+  --preview-accent-2: hsl(172, 71%, 36%);
 }
 
-/* Glass effect variables per theme */
-:root, html.theme-dark {
+/* Glass effect variables per dark theme */
+html.theme-dark,
+.dark {
   --glass-border: rgba(255, 255, 255, 0.1);
   --glass-border-subtle: rgba(255, 255, 255, 0.05);
   --glass-shadow: var(--shadow-medium);
@@ -949,61 +988,61 @@ html.theme-ocean {
 /* Theme: Light - Clean professional light mode matching homepage */
 html.theme-light {
   color-scheme: light;
-  --color-primary: hsl(217 72% 40%);
+  --color-primary: hsl(206 88% 37%);
   --color-primary-foreground: hsl(0 0% 100%);
-  --color-secondary: hsl(211 32% 30%);
+  --color-secondary: hsl(172 71% 30%);
   --color-secondary-foreground: hsl(0 0% 100%);
-  --color-background: hsl(214 26% 96%);
-  --color-foreground: hsl(220 36% 13%);
-  --color-card: hsl(0 0% 100% / 0.97);
-  --color-card-foreground: hsl(220 36% 13%);
+  --color-background: hsl(203 38% 97%);
+  --color-foreground: hsl(217 36% 13%);
+  --color-card: hsl(0 0% 100% / 0.95);
+  --color-card-foreground: hsl(217 36% 13%);
   --color-popover: hsl(0 0% 100% / 0.98);
-  --color-popover-foreground: hsl(220 36% 13%);
-  --color-muted: hsl(214 24% 92%);
-  --color-muted-foreground: hsl(216 15% 36%);
-  --color-accent: hsl(217 72% 40% / 0.1);
-  --color-accent-foreground: hsl(220 36% 13%);
+  --color-popover-foreground: hsl(217 36% 13%);
+  --color-muted: hsl(205 26% 92%);
+  --color-muted-foreground: hsl(216 15% 37%);
+  --color-accent: hsl(206 88% 37% / 0.1);
+  --color-accent-foreground: hsl(217 36% 13%);
   --color-destructive: hsl(0 72% 50%);
   --color-destructive-foreground: hsl(0 0% 100%);
-  --color-success: hsl(142 76% 36%);
+  --color-success: hsl(154 63% 34%);
   --color-success-foreground: hsl(0 0% 100%);
-  --color-border: hsl(216 20% 82%);
-  --color-input: hsl(216 20% 82%);
-  --color-ring: hsl(217 72% 40%);
-  --color-primary-border: hsl(217 72% 34% / 0.32);
-  --color-secondary-border: hsl(211 32% 26% / 0.32);
+  --color-border: hsl(206 21% 81%);
+  --color-input: hsl(206 21% 81%);
+  --color-ring: hsl(206 88% 37%);
+  --color-primary-border: hsl(206 88% 33% / 0.32);
+  --color-secondary-border: hsl(172 71% 25% / 0.32);
   --color-destructive-border: hsl(0 72% 45% / 0.45);
-  --button-outline: hsl(216 20% 78%);
-  --badge-outline: hsl(216 20% 78%);
-  --color-sidebar: hsl(214 24% 93%);
-  --color-sidebar-foreground: hsl(220 36% 13%);
-  --color-sidebar-primary: hsl(217 72% 40%);
+  --button-outline: hsl(206 20% 77%);
+  --badge-outline: hsl(206 20% 77%);
+  --color-sidebar: hsl(0 0% 100% / 0.88);
+  --color-sidebar-foreground: hsl(218 30% 19%);
+  --color-sidebar-primary: hsl(206 88% 37%);
   --color-sidebar-primary-foreground: hsl(0 0% 100%);
-  --color-sidebar-accent: hsl(214 20% 88%);
-  --color-sidebar-accent-foreground: hsl(220 36% 13%);
-  --color-sidebar-border: hsl(216 20% 81%);
-  --color-sidebar-ring: hsl(217 72% 40%);
-  --color-chart-1: hsl(217 72% 40%);
-  --color-chart-2: hsl(205 67% 42%);
+  --color-sidebar-accent: hsl(205 30% 92.6%);
+  --color-sidebar-accent-foreground: hsl(218 30% 19%);
+  --color-sidebar-border: hsl(206 22% 81%);
+  --color-sidebar-ring: hsl(206 88% 37%);
+  --color-chart-1: hsl(206 88% 37%);
+  --color-chart-2: hsl(186 70% 33%);
   --color-chart-3: hsl(0 72% 50%);
   --color-chart-4: hsl(35 58% 44%);
-  --color-chart-5: hsl(224 46% 44%);
+  --color-chart-5: hsl(224 56% 39%);
   --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-sm: 0 3px 10px -6px rgba(15, 23, 42, 0.14);
-  --shadow-soft: 0 12px 28px -20px rgba(15, 23, 42, 0.26);
-  --shadow-medium: 0 18px 44px -24px rgba(15, 23, 42, 0.35);
-  --shadow-strong: 0 28px 64px -32px rgba(15, 23, 42, 0.42);
+  --shadow-sm: 0 10px 22px -18px rgba(15, 23, 42, 0.34), 0 2px 6px rgba(15, 23, 42, 0.08);
+  --shadow-soft: 0 18px 40px -26px rgba(15, 23, 42, 0.38);
+  --shadow-medium: 0 26px 58px -34px rgba(15, 23, 42, 0.42);
+  --shadow-strong: 0 44px 92px -50px rgba(2, 6, 23, 0.52);
   --shadow-glow: 0 0 0 rgba(0, 0, 0, 0);
-  --surface-highlight: hsl(217 72% 40% / 0.07);
-  --surface-glow: hsl(205 67% 42% / 0.06);
-  --surface-shell-border: rgba(148, 163, 184, 0.4);
-  --surface-card-highlight: linear-gradient(165deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.14) 48%, rgba(30, 64, 175, 0.03) 100%);
-  --surface-card-glow: radial-gradient(120% 120% at 105% -8%, hsl(217 72% 40% / 0.08), transparent 62%);
-  --surface-shell-shadow: 0 18px 42px -34px rgba(15, 23, 42, 0.38);
-  --surface-noise-opacity: 0.016;
-  --app-bg-layer-1: radial-gradient(90rem 50rem at -14% -18%, hsl(216 86% 89% / 0.42), transparent 56%);
-  --app-bg-layer-2: radial-gradient(66rem 42rem at 110% -14%, hsl(210 60% 84% / 0.26), transparent 58%);
-  --app-bg-layer-3: linear-gradient(180deg, hsl(214 30% 98%), hsl(213 26% 95%));
+  --surface-highlight: hsl(206 88% 37% / 0.07);
+  --surface-glow: hsl(186 70% 33% / 0.06);
+  --surface-shell-border: rgba(148, 163, 184, 0.36);
+  --surface-card-highlight: linear-gradient(165deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.12) 48%, rgba(14, 116, 144, 0.06) 100%);
+  --surface-card-glow: radial-gradient(130% 150% at 108% -12%, hsl(198 86% 49% / 0.1), transparent 62%);
+  --surface-shell-shadow: 0 16px 36px -26px rgba(15, 23, 42, 0.34);
+  --surface-noise-opacity: 0.03;
+  --app-bg-layer-1: radial-gradient(88rem 52rem at -14% -20%, hsl(198 86% 88% / 0.4), transparent 56%);
+  --app-bg-layer-2: radial-gradient(72rem 44rem at 114% -18%, hsl(180 60% 88% / 0.24), transparent 58%);
+  --app-bg-layer-3: linear-gradient(180deg, hsl(203 44% 98.4%), hsl(205 34% 95.2%));
 }
 
 /* Font size adjustments */
@@ -1195,37 +1234,46 @@ html.theme-light .border-white\/5 {
   border-color: var(--color-border) !important;
 }
 
-/* Button text should stay white on colored buttons */
+/* Button/badge text should stay white on colored backgrounds */
 html.theme-light button.bg-gradient-to-r .text-white,
 html.theme-light .bg-gradient-to-r.text-white,
 html.theme-light [class*="bg-blue-"] .text-white,
+html.theme-light [class*="bg-blue-"].text-white,
 html.theme-light [class*="bg-teal-"] .text-white,
+html.theme-light [class*="bg-teal-"].text-white,
 html.theme-light [class*="bg-green-"] .text-white,
+html.theme-light [class*="bg-green-"].text-white,
+html.theme-light [class*="bg-emerald-"] .text-white,
+html.theme-light [class*="bg-emerald-"].text-white,
 html.theme-light [class*="bg-red-"] .text-white,
+html.theme-light [class*="bg-red-"].text-white,
 html.theme-light [class*="bg-amber-"] .text-white,
+html.theme-light [class*="bg-amber-"].text-white,
 html.theme-light [class*="bg-indigo-"] .text-white,
-html.theme-light [class*="bg-purple-"] .text-white {
+html.theme-light [class*="bg-indigo-"].text-white,
+html.theme-light [class*="bg-purple-"] .text-white,
+html.theme-light [class*="bg-purple-"].text-white {
   color: white !important;
 }
 
 /* Gradient button backgrounds - keep them vibrant */
 html.theme-light .from-blue-600,
 html.theme-light .from-blue-500 {
-  --tw-gradient-from: hsl(220 85% 50%);
+  --tw-gradient-from: hsl(206 88% 43%);
 }
 
 html.theme-light .to-teal-500,
 html.theme-light .to-teal-400 {
-  --tw-gradient-to: hsl(168 76% 42%);
+  --tw-gradient-to: hsl(172 71% 37%);
 }
 
 /* Accent blur circles in login - make them subtle for light mode */
 html.theme-light .bg-blue-600\/10 {
-  background-color: hsl(220 85% 50% / 0.05) !important;
+  background-color: hsl(206 88% 43% / 0.06) !important;
 }
 
 html.theme-light .bg-violet-500\/10 {
-  background-color: hsl(280 60% 55% / 0.05) !important;
+  background-color: hsl(172 71% 37% / 0.06) !important;
 }
 
 /* Light theme glass card */
@@ -1237,7 +1285,7 @@ html.theme-light .glass-card {
 }
 
 html.theme-light .glass-card:hover {
-  border-color: rgba(30, 64, 175, 0.3);
+  border-color: hsl(206 88% 43% / 0.28);
   box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.28);
 }
 
@@ -1251,9 +1299,9 @@ html.theme-light .app-surface {
 
 /* Light theme sidebar styling */
 html.theme-light .workspace-sidebar {
-  background-color: #ffffff !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 251, 255, 0.9)) !important;
   border-color: rgba(148, 163, 184, 0.3) !important;
-  box-shadow: 1px 0 0 rgba(148, 163, 184, 0.18), 16px 0 32px -30px rgba(15, 23, 42, 0.24) !important;
+  box-shadow: inset -1px 0 0 rgba(148, 163, 184, 0.18), 16px 0 32px -30px rgba(15, 23, 42, 0.24) !important;
 }
 
 /* Light theme header */
@@ -1270,15 +1318,15 @@ html.theme-light .workspace-footer {
 
 /* Light theme pill badges */
 html.theme-light .pill-primary {
-  background-color: rgba(59, 130, 246, 0.1);
-  border-color: rgba(59, 130, 246, 0.2);
-  color: hsl(220 85% 45%);
+  background-color: hsl(206 88% 43% / 0.11);
+  border-color: hsl(206 88% 43% / 0.24);
+  color: hsl(206 88% 36%);
 }
 
 html.theme-light .pill-secondary {
-  background-color: rgba(52, 211, 153, 0.1);
-  border-color: rgba(52, 211, 153, 0.2);
-  color: hsl(160 60% 35%);
+  background-color: hsl(172 71% 37% / 0.12);
+  border-color: hsl(172 71% 37% / 0.24);
+  color: hsl(172 71% 29%);
 }
 
 html.theme-light .pill-success {
@@ -1301,7 +1349,7 @@ html.theme-light .stat-card {
 }
 
 html.theme-light .stat-card-value {
-  background: linear-gradient(135deg, hsl(220 85% 50%), hsl(220 85% 40%));
+  background: linear-gradient(135deg, hsl(206 88% 43%), hsl(186 70% 33%));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1309,7 +1357,7 @@ html.theme-light .stat-card-value {
 
 /* Light theme gradient text */
 html.theme-light .gradient-text {
-  background: linear-gradient(135deg, hsl(220 85% 50%), hsl(220 85% 40%), hsl(160 60% 38%));
+  background: linear-gradient(135deg, hsl(206 88% 43%), hsl(201 78% 38%), hsl(172 71% 34%));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

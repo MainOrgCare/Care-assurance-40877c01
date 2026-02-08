@@ -113,14 +113,14 @@ export default function Performance() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 text-muted-foreground animate-pulse">
           <BookOpen className="h-12 w-12 mb-4 opacity-20" />
-          <p className="font-bold tracking-widest text-xs uppercase">Synthesizing performance data...</p>
+          <p className="font-semibold tracking-widest text-xs uppercase">Synthesizing performance data...</p>
         </div>
       ) : careWorkers.length === 0 ? (
         <Card className="glass-card animate-slide-up stagger-2 mt-6">
           <CardContent className="py-24">
             <div className="text-center space-y-4">
               <div className="h-20 w-20 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-6">
-                <FileText className="h-10 w-10 text-muted-foreground/40" />
+                <FileText className="h-10 w-10 text-muted-foreground/60" />
               </div>
               <h3 className="text-xl font-black tracking-tight text-foreground">Operational Data Missing</h3>
               <p className="text-sm font-medium text-muted-foreground max-w-md mx-auto leading-relaxed">
@@ -144,8 +144,8 @@ export default function Performance() {
             <CardContent className="pt-6">
               {topPerformers.length === 0 ? (
                 <div className="text-center py-12 bg-muted/10 rounded-2xl border border-dashed border-border/60">
-                  <Users className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">No candidates identified</p>
+                  <Users className="mx-auto h-10 w-10 text-muted-foreground/50 mb-3" />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">No candidates identified</p>
                 </div>
               ) : (
                 <ul className="space-y-2">
@@ -155,7 +155,7 @@ export default function Performance() {
                       className="flex justify-between items-center p-4 bg-muted/20 hover:bg-muted/30 border border-border/40 rounded-xl transition-colors group"
                       data-testid={`performer-${worker.name.replace(/\s/g, '-')}`}
                     >
-                      <span className="text-sm font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">{worker.name}</span>
+                      <span className="text-sm font-medium tracking-tight text-foreground group-hover:text-primary transition-colors">{worker.name}</span>
                       <div className="flex items-center gap-3">
                         <span className="text-[10px] font-black text-muted-foreground uppercase tracking-tighter">{worker.auditCount} AUDITS</span>
                         <Badge className="bg-success/15 text-success border-success/20 rounded-lg font-black text-[10px]">
@@ -183,7 +183,7 @@ export default function Performance() {
               {trainingRecommendations.length === 0 ? (
                 <div className="text-center py-12 bg-muted/10 rounded-2xl border border-dashed border-border/60">
                   <CheckCircle2 className="mx-auto h-10 w-10 text-success/30 mb-3" />
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">No gaps detected</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">No gaps detected</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -198,8 +198,8 @@ export default function Performance() {
                           <BookOpen className="h-4 w-4 text-primary" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-foreground text-sm tracking-tight mb-1">{rec.topic}</h4>
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                          <h4 className="font-semibold text-foreground text-sm tracking-tight mb-1">{rec.topic}</h4>
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                             Assigned: {rec.assignedTo.join(", ")}
                           </p>
                           <div className="flex items-center gap-2 text-xs font-medium text-primary">

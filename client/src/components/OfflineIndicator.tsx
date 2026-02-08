@@ -41,7 +41,7 @@ export function OfflineIndicator() {
   return (
     <div
       className={cn(
-        "fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur-sm transition-all duration-300",
+        "fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-normal shadow-lg backdrop-blur-sm transition-all duration-300",
         isOffline
           ? "border border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300"
           : "border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"

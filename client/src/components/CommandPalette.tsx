@@ -157,7 +157,7 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
       <CommandList>
         <CommandEmpty>
           <div className="flex flex-col items-center gap-2 py-4">
-            <Search className="h-8 w-8 text-muted-foreground/40" />
+            <Search className="h-8 w-8 text-muted-foreground/60" />
             <p className="text-sm text-muted-foreground">No results found</p>
             <p className="text-xs text-muted-foreground/60">Try a different search term</p>
           </div>
@@ -198,7 +198,7 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
                 >
                   <Clock className="mr-2 h-4 w-4 text-muted-foreground/60" />
                   <span>{page.label}</span>
-                  <span className="ml-auto text-[10px] text-muted-foreground/40">
+                  <span className="ml-auto text-[10px] text-muted-foreground/60">
                     {formatTimeAgo(page.visitedAt)}
                   </span>
                 </CommandItem>

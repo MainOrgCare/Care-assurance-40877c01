@@ -108,7 +108,7 @@ export default function Compliance() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{auditList.length}</div>
+            <div className="text-2xl font-semibold text-foreground">{auditList.length}</div>
             <p className="text-xs text-muted-foreground">
               {emarAudits.length} EMAR, {visitAudits.length} Visit
             </p>
@@ -121,7 +121,7 @@ export default function Compliance() {
             <AlertTriangle className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{totalDiscrepancies}</div>
+            <div className="text-2xl font-semibold text-foreground">{totalDiscrepancies}</div>
             <p className="text-xs text-muted-foreground">
               Across all audits
             </p>
@@ -134,7 +134,7 @@ export default function Compliance() {
             <AlertTriangle className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{totalWarnings}</div>
+            <div className="text-2xl font-semibold text-foreground">{totalWarnings}</div>
             <p className="text-xs text-muted-foreground">
               Items requiring attention
             </p>
@@ -147,7 +147,7 @@ export default function Compliance() {
             <CheckCircle className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">
+            <div className="text-2xl font-semibold text-foreground">
               {auditList.length > 0 ? Math.round(100 - (totalDiscrepancies / Math.max(auditList.length, 1) * 10)) : 100}%
             </div>
             <p className="text-xs text-muted-foreground">

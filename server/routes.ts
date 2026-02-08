@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import express from "express";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -23,7 +24,7 @@ import { careWorkerRotaPayloadSchema, computeRotaSourceHash, rotaWeekdayEnum } f
 import multer from "multer";
 import mammoth from "mammoth";
 import { scanFile, computeFileHash, getCachedScan } from "./services/fileScan";
-import * as XLSX from "xlsx";
+import { SafeXLSX, RawXLSX } from "./utils/safe-xlsx";
 import { convertPdfToImages } from "./services/pdfToImages";
 import { analyzeBillingRows } from "./services/billingAnalyzer";
 import { extractSupportPlanDataFromText, compareSupportPlanToServiceOrders, type ServiceOrderComparisonInput } from "./services/supportPlanCompare";
@@ -12350,7 +12351,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       return `${day}/${month}@${hours}:${minutes}`.trim();
     }
     if (typeof value === "number" && Number.isFinite(value)) {
-      const parsed = (XLSX as any).SSF?.parse_date_code?.(value);
+      const parsed = (RawXLSX as any).SSF?.parse_date_code?.(value);
       if (parsed) {
         const day = String(parsed.d ?? parsed.D ?? "").padStart(2, "0");
         const month = String(parsed.m ?? parsed.M ?? "").padStart(2, "0");
@@ -12420,7 +12421,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
 
     let workbook;
     try {
-      workbook = XLSX.read(raw, { type: "string", cellDates: true });
+      workbook = SafeXLSX.read(raw, { type: "string", cellDates: true });
     } catch {
       const truncated = raw.slice(0, VISIT_MAX_TOKENS * VISIT_CHARS_PER_TOKEN);
       return { text: truncated, method: "raw-truncate", truncated: true };
@@ -12428,7 +12429,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
 
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    const data: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
+    const data: any[][] = SafeXLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
 
     if (!data.length) {
       const truncated = raw.slice(0, VISIT_MAX_TOKENS * VISIT_CHARS_PER_TOKEN);
@@ -17192,18 +17193,18 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       if (isCSV) {
         // Parse CSV file - convert buffer to string and parse
         const csvString = req.file.buffer.toString('utf-8');
-        workbook = XLSX.read(csvString, { type: "string", cellDates: true });
+        workbook = SafeXLSX.read(csvString, { type: "string", cellDates: true });
         console.log(`[Reconciliation] Parsed CSV file, converting to Excel format`);
       } else {
         // Read the Excel file with date parsing enabled
-        workbook = XLSX.read(req.file.buffer, { type: "buffer", cellDates: true });
+        workbook = SafeXLSX.read(req.file.buffer, { type: "buffer", cellDates: true });
       }
       
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
 
       // Convert to array of arrays for easier manipulation
-      const data: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      const data: any[][] = SafeXLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
       if (data.length === 0) {
         return res.status(400).json({ message: "Excel file is empty" });
@@ -17286,14 +17287,14 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       }
 
       // Create new workbook with processed data
-      const newWorkbook = XLSX.utils.book_new();
-      const newWorksheet = XLSX.utils.aoa_to_sheet(processedData, { cellDates: true });
+      const newWorkbook = SafeXLSX.utils.book_new();
+      const newWorksheet = SafeXLSX.utils.aoa_to_sheet(processedData, { cellDates: true });
       
       // Apply date format to cells that contain Date objects
-      const range = XLSX.utils.decode_range(newWorksheet['!ref'] || 'A1');
+      const range = SafeXLSX.utils.decode_range(newWorksheet['!ref'] || 'A1');
       for (let R = range.s.r; R <= range.e.r; R++) {
         for (let C = range.s.c; C <= range.e.c; C++) {
-          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          const cellAddress = SafeXLSX.utils.encode_cell({ r: R, c: C });
           const cell = newWorksheet[cellAddress];
           if (cell && cell.t === 'd') {
             // Format as date with time: DD/MM/YYYY HH:MM:SS
@@ -17302,10 +17303,10 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         }
       }
       
-      XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, "Reconciled");
+      SafeXLSX.utils.book_append_sheet(newWorkbook, newWorksheet, "Reconciled");
 
       // Generate Excel buffer
-      const excelBuffer = XLSX.write(newWorkbook, { type: "buffer", bookType: "xlsx" });
+      const excelBuffer = SafeXLSX.write(newWorkbook, { type: "buffer", bookType: "xlsx" });
 
       // Set response headers for file download
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -17574,7 +17575,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     return Math.round(value);
   };
 
-  app.post("/api/admin/rostering/workbook-uploads/ingest", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+  app.post("/api/admin/rostering/workbook-uploads/ingest", express.json({ limit: '100mb' }), requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
     try {
       const payload = workbookIngestSchema.parse(req.body);
 

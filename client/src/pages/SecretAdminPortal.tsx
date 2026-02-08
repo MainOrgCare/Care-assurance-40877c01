@@ -277,7 +277,7 @@ function AICostSection() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats ? formatCost(totalCost) : "$0.00"}</div>
+            <div className="text-2xl font-semibold text-green-600">{stats ? formatCost(totalCost) : "$0.00"}</div>
             <p className="text-xs text-muted-foreground">All time AI costs</p>
           </CardContent>
         </Card>
@@ -289,7 +289,7 @@ function AICostSection() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{totalCalls}</div>
+            <div className="text-2xl font-semibold text-blue-600">{totalCalls}</div>
             <p className="text-xs text-muted-foreground">Total AI requests</p>
           </CardContent>
         </Card>
@@ -301,7 +301,7 @@ function AICostSection() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-violet-600">{stats ? Object.keys(stats.byFeature).length : 0}</div>
+            <div className="text-2xl font-semibold text-violet-600">{stats ? Object.keys(stats.byFeature).length : 0}</div>
             <p className="text-xs text-muted-foreground">Unique AI features</p>
           </CardContent>
         </Card>
@@ -313,7 +313,7 @@ function AICostSection() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-600">{formatCost(avgCostPerCall)}</div>
+            <div className="text-2xl font-semibold text-amber-600">{formatCost(avgCostPerCall)}</div>
             <p className="text-xs text-muted-foreground">{avgTokensPerCall.toFixed(0)} tokens per call</p>
           </CardContent>
         </Card>
@@ -1038,15 +1038,15 @@ function AIOptimizationSection() {
           </div>
           <div className="grid grid-cols-3 gap-2 text-xs">
             <div className="bg-white/50 rounded p-2 text-center">
-              <div className="font-bold text-foreground">{cacheStats.hitRate}</div>
+              <div className="font-semibold text-foreground">{cacheStats.hitRate}</div>
               <div className="text-muted-foreground">Hit Rate</div>
             </div>
             <div className="bg-white/50 rounded p-2 text-center">
-              <div className="font-bold text-foreground">{cacheStats.tokensSaved.toLocaleString()}</div>
+              <div className="font-semibold text-foreground">{cacheStats.tokensSaved.toLocaleString()}</div>
               <div className="text-muted-foreground">Tokens Saved</div>
             </div>
             <div className="bg-white/50 rounded p-2 text-center">
-              <div className="font-bold text-emerald-600">{cacheStats.estimatedCostSaved}</div>
+              <div className="font-semibold text-emerald-600">{cacheStats.estimatedCostSaved}</div>
               <div className="text-muted-foreground">Cost Saved</div>
             </div>
           </div>
@@ -1080,7 +1080,7 @@ function AIOptimizationSection() {
           </div>
           <div className="flex items-center justify-between pt-2 border-t border-emerald-500/20">
             <span className="text-muted-foreground font-medium">Estimated Total Savings:</span>
-            <span className="font-bold text-emerald-600">
+            <span className="font-semibold text-emerald-600">
               ~{((useCache ? 30 : 0) + (useRulesFirst ? 40 : 0) + (liteMode ? 15 : 0))}%
             </span>
           </div>
@@ -2641,7 +2641,7 @@ function ContactMessagesSection() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-400">{messages.length}</div>
+            <div className="text-2xl font-semibold text-blue-400">{messages.length}</div>
             <p className="text-xs text-muted-foreground">Contact form submissions</p>
           </CardContent>
         </Card>
@@ -2653,7 +2653,7 @@ function ContactMessagesSection() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-400">{unreadCount}</div>
+            <div className="text-2xl font-semibold text-amber-400">{unreadCount}</div>
             <p className="text-xs text-muted-foreground">Awaiting review</p>
           </CardContent>
         </Card>
@@ -3253,7 +3253,7 @@ function OperationsCommandCenter({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{health?.sessions.total ?? 0}</div>
+            <div className="text-2xl font-semibold text-foreground">{health?.sessions.total ?? 0}</div>
             <p className="text-xs text-muted-foreground">{health?.sessions.nonAdmin ?? 0} non-admin active</p>
           </CardContent>
         </Card>
@@ -3265,7 +3265,7 @@ function OperationsCommandCenter({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">
+            <div className="text-2xl font-semibold text-foreground">
               {(health?.alerts.unreadAdminAlerts ?? 0) + (health?.alerts.unreadContactMessages ?? 0)}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -3281,7 +3281,7 @@ function OperationsCommandCenter({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">
+            <div className="text-2xl font-semibold text-foreground">
               {health ? formatUptime(health.runtime.uptimeSeconds) : "0m"}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -3297,7 +3297,7 @@ function OperationsCommandCenter({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{health?.memory.rssMb ?? 0} MB</div>
+            <div className="text-2xl font-semibold text-foreground">{health?.memory.rssMb ?? 0} MB</div>
             <p className="text-xs text-muted-foreground">
               Heap {health?.memory.heapUsedMb ?? 0}/{health?.memory.heapTotalMb ?? 0} MB
             </p>
@@ -4175,7 +4175,7 @@ export default function SecretAdminPortal() {
                       {adminAlerts.map((alert) => (
                         <div key={alert.id} className="flex items-center justify-between p-3 bg-amber-950/40 rounded border border-amber-900/30" data-testid={`alert-${alert.id}`}>
                           <div>
-                            <p className="text-foreground font-bold" data-testid={`alert-name-${alert.careWorkerId}`}>{alert.careWorkerName}</p>
+                            <p className="text-foreground font-semibold" data-testid={`alert-name-${alert.careWorkerId}`}>{alert.careWorkerName}</p>
                             <p className="text-xs text-amber-300" data-testid={`alert-message-${alert.id}`}>{alert.discrepancyCount}x {alert.discrepancyType} Discrepancies</p>
                           </div>
                           <Button 
@@ -4210,7 +4210,7 @@ export default function SecretAdminPortal() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold text-foreground">{stat.value}</div>
+                      <div className="text-2xl font-semibold text-foreground">{stat.value}</div>
                       <p className="text-xs text-muted-foreground">{stat.sub}</p>
                     </CardContent>
                   </Card>
@@ -4365,7 +4365,7 @@ export default function SecretAdminPortal() {
                       {pendingUsers.map((u) => (
                         <div key={u.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
                           <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-foreground">
+                            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-foreground">
                               {u.username.substring(0,2).toUpperCase()}
                             </div>
                             <div>
@@ -4621,15 +4621,15 @@ export default function SecretAdminPortal() {
                 <div className="space-y-3">
                    <div className="flex items-center justify-between p-2 rounded bg-muted/50 border border-border">
                       <span className="text-xs text-muted-foreground">Total Users</span>
-                      <span className="text-sm font-bold text-foreground">{users.length}</span>
+                      <span className="text-sm font-semibold text-foreground">{users.length}</span>
                    </div>
                    <div className="flex items-center justify-between p-2 rounded bg-muted/50 border border-border">
                       <span className="text-xs text-muted-foreground">Admins</span>
-                      <span className="text-sm font-bold text-blue-500">{users.filter(u => u.role === 'admin').length}</span>
+                      <span className="text-sm font-semibold text-blue-500">{users.filter(u => u.role === 'admin').length}</span>
                    </div>
                    <div className="flex items-center justify-between p-2 rounded bg-muted/50 border border-border">
                       <span className="text-xs text-muted-foreground">Staff</span>
-                      <span className="text-sm font-bold text-foreground">{users.filter(u => u.role === 'staff').length}</span>
+                      <span className="text-sm font-semibold text-foreground">{users.filter(u => u.role === 'staff').length}</span>
                    </div>
                 </div>
              </CardContent>

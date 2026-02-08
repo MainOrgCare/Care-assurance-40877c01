@@ -37,7 +37,7 @@ export const OptimizationScore: React.FC<OptimizationScoreProps> = ({
           <div
             className={`flex h-12 w-12 items-center justify-center rounded-xl border-2 ${colors.bg} ${colors.border}`}
           >
-            <span className={`text-xl font-bold ${colors.text}`}>{metrics.grade}</span>
+            <span className={`text-xl font-semibold ${colors.text}`}>{metrics.grade}</span>
           </div>
           <div>
             <p className="text-sm font-semibold">Route Efficiency</p>
@@ -45,7 +45,7 @@ export const OptimizationScore: React.FC<OptimizationScoreProps> = ({
           </div>
         </div>
         <div className="text-right">
-          <p className="text-2xl font-bold">{metrics.efficiency}%</p>
+          <p className="text-2xl font-semibold">{metrics.efficiency}%</p>
           <p className="text-xs text-muted-foreground">Score</p>
         </div>
       </div>
@@ -114,7 +114,7 @@ export const OptimizationScoreCompact: React.FC<{ metrics: OptimizationMetrics }
   return (
     <div className="inline-flex items-center gap-2">
       <span
-        className={`flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${colors.bg} ${colors.text}`}
+        className={`flex h-6 w-6 items-center justify-center rounded-md text-xs font-semibold ${colors.bg} ${colors.text}`}
       >
         {metrics.grade}
       </span>

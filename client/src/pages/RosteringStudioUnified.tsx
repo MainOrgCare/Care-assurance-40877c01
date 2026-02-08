@@ -1416,7 +1416,7 @@ export default function RosteringStudioUnified({
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Badge variant="secondary" className="text-[11px] font-bold px-3 py-1 shadow-sm bg-primary/90 text-primary-foreground">
+            <Badge variant="secondary" className="text-[11px] font-semibold px-3 py-1 shadow-sm bg-primary/90 text-primary-foreground">
               {getTemplateWeekLabel(selectedTemplateWeek)} • {selectedTemplateDay}
             </Badge>
             <Button
@@ -1558,8 +1558,8 @@ export default function RosteringStudioUnified({
                     <div className="flex items-center justify-between border-b bg-gradient-to-r from-primary/5 to-transparent px-3 py-1.5 shadow-sm">
                       <div className="flex items-center gap-1.5">
                         <Users className="h-3.5 w-3.5 text-primary" />
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-foreground">Workers</span>
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 h-5 font-bold bg-primary/10 text-primary border-primary/20">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground">Workers</span>
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 h-5 font-semibold bg-primary/10 text-primary border-primary/20">
                           {filteredWorkers.length}/{careWorkerRosters.length}
                         </Badge>
                       </div>
@@ -1651,7 +1651,7 @@ export default function RosteringStudioUnified({
                     <div className="flex items-center justify-between bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-3 py-1 border-b shrink-0 shadow-sm">
                       <div className="flex items-center gap-2">
                         <Timer className="h-4 w-4 text-primary" />
-                        <span className="text-[11px] font-bold uppercase tracking-wide">Timeline</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Timeline</span>
                         <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-primary/10 text-primary border-primary/20">
                           {showAllWorkers ? `${timelineLanes.length}` : selectedCareWorkerKey ? "1" : "—"}
                         </Badge>
@@ -1807,7 +1807,7 @@ export default function RosteringStudioUnified({
                     <div className="h-full min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-blue-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <MapIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wide">Map</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Map</span>
                         <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20">
                           {routeEntriesSorted.length}
                         </Badge>
@@ -1829,7 +1829,7 @@ export default function RosteringStudioUnified({
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-purple-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <Clock className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wide">Call Times</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Call Times</span>
                         <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20">
                           {callTimesForEditor.length}
                         </Badge>
@@ -1860,7 +1860,7 @@ export default function RosteringStudioUnified({
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-amber-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <UserCog className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wide">Constraints</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Constraints</span>
                         <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20">
                           {constraintsForEditor.length}
                         </Badge>
@@ -1895,7 +1895,7 @@ export default function RosteringStudioUnified({
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-green-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <BarChart3 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wide">Workload</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Workload</span>
                       </div>
                       <div className="flex-1 min-h-0 p-0.5 overflow-auto">
                         <WorkloadHeatmap
@@ -1923,7 +1923,7 @@ export default function RosteringStudioUnified({
                     <div className="flex-1 min-w-0 min-h-0 border-r flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-orange-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <Sliders className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wide">Optimization</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Optimization</span>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
                         <div className="p-0.5">
@@ -1951,7 +1951,7 @@ export default function RosteringStudioUnified({
                     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-slate-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <Database className="h-4 w-4 text-slate-600 dark:text-slate-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wide">Database</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Database</span>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
                         <div className="p-0.5">
@@ -1972,7 +1972,7 @@ export default function RosteringStudioUnified({
                     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-transparent px-3 py-1 border-b shadow-sm">
                         <Brain className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wide">AI Schedule Analysis</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">AI Schedule Analysis</span>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
                         <div className="p-0.5">
@@ -2015,7 +2015,7 @@ export default function RosteringStudioUnified({
                     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-cyan-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <GitCompare className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wide">Schedule Comparison</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Schedule Comparison</span>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
                         <div className="p-0.5">
@@ -2043,7 +2043,7 @@ export default function RosteringStudioUnified({
                     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-emerald-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <Calculator className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wide">Cost Analysis</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Cost Analysis</span>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
                         <div className="p-0.5">
@@ -2070,7 +2070,7 @@ export default function RosteringStudioUnified({
                     <div className="flex-1 min-w-0 min-h-0 flex flex-col">
                       <div className="flex items-center gap-2 bg-gradient-to-r from-rose-500/10 to-transparent px-3 py-1 border-b shadow-sm">
                         <BookTemplate className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-                        <span className="text-[11px] font-bold uppercase tracking-wide">Template Library</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Template Library</span>
                       </div>
                       <ScrollArea className="flex-1 min-h-0">
                         <div className="p-0.5">
@@ -2107,7 +2107,7 @@ export default function RosteringStudioUnified({
                    !panelVisibility.aiAnalysis && !panelVisibility.comparison && !panelVisibility.costs && !panelVisibility.templates && (
                     <ResizablePanel defaultSize={100} className="min-h-0">
                     <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs gap-3">
-                      <Layers className="h-12 w-12 text-muted-foreground/30" />
+                      <Layers className="h-12 w-12 text-muted-foreground/50" />
                       <div className="text-center space-y-1">
                         <p className="font-medium text-sm">No panels visible</p>
                         <p className="text-[10px]">Use <kbd className="px-1.5 py-0.5 bg-muted rounded text-[9px] font-mono">View</kbd> menu to show panels</p>
@@ -2130,20 +2130,20 @@ export default function RosteringStudioUnified({
                     <div className="border-b bg-gradient-to-r from-primary/5 to-transparent px-3 py-1.5 shadow-sm">
                       <div className="flex items-center gap-1.5">
                         <Eye className="h-3.5 w-3.5  text-primary" />
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-foreground">Details</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground">Details</span>
                       </div>
                     </div>
                     <ScrollArea className="flex-1 min-h-0">
                       <div className="p-2 space-y-2.5">
                         {/* Selected Visit Details */}
                         <div className="rounded-lg border bg-gradient-to-br from-primary/5 to-transparent p-2 shadow-sm">
-                          <p className="text-[9px] uppercase tracking-wide text-primary/70 font-bold mb-1.5 flex items-center gap-1">
+                          <p className="text-[9px] uppercase tracking-wide text-primary/70 font-semibold mb-1.5 flex items-center gap-1">
                             <Clock4 className="h-3 w-3" />
                             Selected Visit
                           </p>
                           {selectedTimelineEntry ? (
                             <div className="space-y-1.5">
-                              <p className="text-[12px] font-bold leading-tight">{selectedTimelineEntry.title}</p>
+                              <p className="text-[12px] font-semibold leading-tight">{selectedTimelineEntry.title}</p>
                               <div className="flex items-center gap-1.5 text-[9px]">
                                 <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 h-5 font-semibold border-primary/30 bg-primary/5">
                                   {formatMinutesToTime(selectedTimelineEntry.startMinutes)}

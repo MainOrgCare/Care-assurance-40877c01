@@ -483,7 +483,7 @@ The AI will automatically extract:
                   data-testid="input-file-upload"
                 />
               </div>
-              <Button onClick={processAudit} disabled={loading || !documentContent} className="h-12 px-8 rounded-xl font-bold tracking-tight shadow-glow group" data-testid="button-analyze">
+              <Button onClick={processAudit} disabled={loading || !documentContent} className="h-12 px-8 rounded-xl font-medium tracking-tight shadow-glow group" data-testid="button-analyze">
                 {loading ? (
                   <>
                     <Loader2 className="mr-2.5 h-4.5 w-4.5 animate-spin" />
@@ -503,7 +503,7 @@ The AI will automatically extract:
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-3">
                     <div className="h-2 w-2 rounded-full bg-primary animate-ping" />
-                    <span className="text-xs font-bold uppercase tracking-widest text-primary">{progressStatus}</span>
+                    <span className="text-xs font-semibold uppercase tracking-widest text-primary">{progressStatus}</span>
                   </div>
                   <span className="text-sm font-black text-primary">{Math.round(progress)}%</span>
                 </div>
@@ -555,7 +555,7 @@ The AI will automatically extract:
                   <TableBody className="bg-muted/5">
                     {result.careCalls.map((call, idx) => (
                       <TableRow key={idx} data-testid={`row-care-call-${idx}`} className="hover:bg-muted/10 transition-colors border-border/30">
-                        <TableCell className="text-foreground font-bold tracking-tight">{call.careWorkerName}</TableCell>
+                        <TableCell className="text-foreground font-medium tracking-tight">{call.careWorkerName}</TableCell>
                         <TableCell className="text-muted-foreground font-medium text-xs">{call.date}</TableCell>
                         <TableCell className="text-center">
                           {call.locationOK ? (
@@ -569,7 +569,7 @@ The AI will automatically extract:
                           )}
                         </TableCell>
                         <TableCell className="text-muted-foreground font-medium text-xs">{call.expectedTime}</TableCell>
-                        <TableCell className={cn("font-bold text-xs", call.percentageStayed >= 70 ? "text-success" : "text-destructive")}>
+                        <TableCell className={cn("font-semibold text-xs", call.percentageStayed >= 70 ? "text-success" : "text-destructive")}>
                           {call.actualTime} <span className="text-[10px] opacity-70">({call.percentageStayed}%)</span>
                         </TableCell>
                         <TableCell className="text-center">
@@ -585,7 +585,7 @@ The AI will automatically extract:
                         </TableCell>
                         <TableCell className="text-xs">
                           {call.comment === "NA" ? (
-                            <span className="text-muted-foreground/40 font-medium italic">NO LOGS</span>
+                            <span className="text-muted-foreground/60 font-medium italic">NO LOGS</span>
                           ) : (
                             <span className="text-foreground font-semibold">{call.comment}</span>
                           )}
@@ -611,7 +611,7 @@ The AI will automatically extract:
                         </div>
                         <div>
                           <p className="text-xl font-black tracking-tight text-destructive">INCIDENTS DETECTED</p>
-                          <p className="text-xs font-bold text-muted-foreground">Action required for compliance restoration.</p>
+                          <p className="text-xs font-semibold text-muted-foreground">Action required for compliance restoration.</p>
                         </div>
                       </div>
                     ) : (
@@ -621,7 +621,7 @@ The AI will automatically extract:
                         </div>
                         <div>
                           <p className="text-xl font-black tracking-tight text-success">TOTAL COMPLIANCE</p>
-                          <p className="text-xs font-bold text-muted-foreground">No operational drift detected in this window.</p>
+                          <p className="text-xs font-semibold text-muted-foreground">No operational drift detected in this window.</p>
                         </div>
                       </div>
                     )}
@@ -660,15 +660,15 @@ The AI will automatically extract:
                       <Table>
                         <TableHeader className="bg-destructive/10">
                           <TableRow className="border-destructive/20">
-                            <TableHead className="w-24 text-destructive/80 font-bold uppercase text-[10px] tracking-widest">Date</TableHead>
-                            <TableHead className="text-destructive/80 font-bold uppercase text-[10px] tracking-widest">Incident Details</TableHead>
-                            <TableHead className="text-destructive/80 font-bold uppercase text-[10px] tracking-widest">Mitigation Directives</TableHead>
+                            <TableHead className="w-24 text-destructive/80 font-semibold uppercase text-[10px] tracking-widest">Date</TableHead>
+                            <TableHead className="text-destructive/80 font-semibold uppercase text-[10px] tracking-widest">Incident Details</TableHead>
+                            <TableHead className="text-destructive/80 font-semibold uppercase text-[10px] tracking-widest">Mitigation Directives</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody className="bg-background/40">
                           {discrepancies.map((disc, idx) => (
                             <TableRow key={idx} data-testid={`row-discrepancy-${carerIdx}-${idx}`} className="border-destructive/10 hover:bg-destructive/5 transition-colors">
-                              <TableCell className="text-muted-foreground font-bold text-xs">{disc.date}</TableCell>
+                              <TableCell className="text-muted-foreground font-semibold text-xs">{disc.date}</TableCell>
                               <TableCell className="text-foreground font-semibold text-xs leading-relaxed">{disc.issue}</TableCell>
                               <TableCell>
                                 <div className="flex flex-wrap gap-1.5">
@@ -724,13 +724,13 @@ The AI will automatically extract:
               <CopyableBox label="Audit Finalization Date" value={formatDate(new Date())} className="glass-card border-border/40" />
             </div>
             <div className="flex gap-4 w-full sm:w-auto">
-              <Button variant="outline" onClick={() => { setAnalyzed(false); setResult(null); }} className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-bold tracking-tight border-border/60" data-testid="button-start-new-visit">
+              <Button variant="outline" onClick={() => { setAnalyzed(false); setResult(null); }} className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-medium tracking-tight border-border/60" data-testid="button-start-new-visit">
                 RESET AUDIT
               </Button>
               <Button
                 onClick={saveAudit}
                 disabled={loading}
-                className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-bold tracking-tight shadow-glow"
+                className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-medium tracking-tight shadow-glow"
                 data-testid="button-save-visit-audit"
               >
                 {loading ? "SAVING..." : "COMMIT AUDIT"}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type * as React from "react";
-import * as XLSX from "xlsx";
+import { SafeXLSX, RawXLSX, type WorkBook } from "@/lib/safe-xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Link } from "wouter";
@@ -1294,15 +1294,15 @@ export default function TestingFeatures() {
 
       try {
         const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
-        let workbook: XLSX.WorkBook;
+        let workbook: WorkBook;
         let fileSourceHash: string | null = null;
 
         if (isCsv) {
           const text = await file.text();
           fileSourceHash = await createHash(text);
-          workbook = XLSX.read(text, { type: "string" });
+          workbook = SafeXLSX.read(text, { type: "string" });
 
-          const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+          const buffer = SafeXLSX.write(workbook, { bookType: "xlsx", type: "array" });
           setConvertedBlob(
             new Blob([buffer], {
               type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1311,7 +1311,7 @@ export default function TestingFeatures() {
         } else {
           const data = await file.arrayBuffer();
           fileSourceHash = await createHash(data);
-          workbook = XLSX.read(data, { type: "array" });
+          workbook = SafeXLSX.read(data, { type: "array" });
           setConvertedBlob(null);
         }
 
@@ -1320,7 +1320,7 @@ export default function TestingFeatures() {
         }
 
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: "" });
+        const rows = SafeXLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: "" });
 
         setSourceHash(fileSourceHash);
         setFileMeta({
@@ -4119,10 +4119,10 @@ export default function TestingFeatures() {
       Issues: row.issues.join(" | "),
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Filtered Rows");
-    const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    const worksheet = SafeXLSX.utils.json_to_sheet(exportRows);
+    const workbook = SafeXLSX.utils.book_new();
+    SafeXLSX.utils.book_append_sheet(workbook, worksheet, "Filtered Rows");
+    const buffer = SafeXLSX.write(workbook, { bookType: "xlsx", type: "array" });
     const blob = new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
@@ -5240,7 +5240,7 @@ export default function TestingFeatures() {
               <UploadCloud className="h-4 w-4" />
               <span className="text-xs font-semibold uppercase tracking-[0.2em]">Workbook Lab</span>
             </div>
-            <h2 className="text-2xl font-heading font-semibold text-foreground">Workbook command center</h2>
+            <h2 className="text-2xl font-heading font-bold text-foreground">Workbook command center</h2>
             <p className="text-sm text-muted-foreground">
               Load raw files, monitor batch progress, and validate the pipeline before sharing results.
             </p>
@@ -5416,7 +5416,7 @@ export default function TestingFeatures() {
               <SlidersHorizontal className="h-4 w-4" />
               <span className="text-xs font-semibold uppercase tracking-[0.2em]">KPI</span>
             </div>
-            <h2 className="text-2xl font-heading font-semibold text-foreground">Performance snapshot</h2>
+            <h2 className="text-2xl font-heading font-bold text-foreground">Performance snapshot</h2>
             <p className="text-sm text-muted-foreground">Totals, trends, and alert volume at a glance.</p>
           </div>
           <Badge variant="outline" className="bg-background/70 text-xs">
@@ -5509,7 +5509,7 @@ export default function TestingFeatures() {
               <Search className="h-4 w-4" />
               <span className="text-xs font-semibold uppercase tracking-[0.2em]">Insights</span>
             </div>
-            <h2 className="text-2xl font-heading font-semibold text-foreground">Deep diagnostics</h2>
+            <h2 className="text-2xl font-heading font-bold text-foreground">Deep diagnostics</h2>
             <p className="text-sm text-muted-foreground">Root-cause signals and confidence checks once data is loaded.</p>
           </div>
           <Badge variant="outline" className="bg-background/70 text-xs">
@@ -5537,7 +5537,7 @@ export default function TestingFeatures() {
                 <div className="text-right">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Overall Index</p>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-5xl font-bold text-foreground">{healthSummary.score}</span>
+                    <span className="text-5xl font-semibold text-foreground">{healthSummary.score}</span>
                     <span className="text-lg text-muted-foreground">/100</span>
                   </div>
                 </div>
@@ -7946,7 +7946,7 @@ function QualityDimensionCard({
           {icon}
           <span className="text-xs uppercase tracking-wide">{title}</span>
         </div>
-        <span className={`text-2xl font-bold ${gradeColor}`}>{grade}</span>
+        <span className={`text-2xl font-semibold ${gradeColor}`}>{grade}</span>
       </div>
       <div className="mt-3">
         <div className="flex items-baseline gap-2">
@@ -8009,7 +8009,7 @@ function RateMetric({
           <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
         </div>
         <div className="text-right">
-          <span className={`text-2xl font-bold ${toneTextMap[tone]}`}>{value}%</span>
+          <span className={`text-2xl font-semibold ${toneTextMap[tone]}`}>{value}%</span>
           <p className="text-[10px] text-muted-foreground">Target: {target}%</p>
         </div>
       </div>
@@ -8528,7 +8528,7 @@ function computeDurationFromTimes(startMinutes: number | null, endMinutes: numbe
 }
 
 function excelSerialToMinutes(value: number): number | null {
-  const parser = (XLSX as any).SSF?.parse_date_code;
+  const parser = (RawXLSX as any).SSF?.parse_date_code;
   if (typeof parser !== "function") return null;
   const parts = parser(value);
   if (!parts) return null;
@@ -8743,7 +8743,7 @@ function deriveDateParts(raw: any): { label: string | null; key: string | null }
 function parseDateValue(value: any): Date | null {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number" && Number.isFinite(value)) {
-    const parser = (XLSX as any).SSF?.parse_date_code;
+    const parser = (RawXLSX as any).SSF?.parse_date_code;
     if (typeof parser === "function") {
       const parts = parser(value);
       if (parts && typeof parts.y === "number" && typeof parts.m === "number" && typeof parts.d === "number") {

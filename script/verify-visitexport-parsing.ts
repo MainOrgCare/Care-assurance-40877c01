@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import * as XLSX from "xlsx";
+import { SafeXLSX } from "../server/utils/safe-xlsx";
 
 const PLANNED_TIME_KEYWORDS = [
   "planned start date and time",
@@ -229,9 +229,9 @@ function main() {
   }
 
   const csvText = fs.readFileSync(csvPath, "utf8");
-  const workbook = XLSX.read(csvText, { type: "string" });
+  const workbook = SafeXLSX.read(csvText, { type: "string" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: "" });
+  const rows = SafeXLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: "" });
 
   let missingName = 0;
   let missingPlanned = 0;

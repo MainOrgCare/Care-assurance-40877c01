@@ -229,7 +229,7 @@ export const AdminDatabasePanel: React.FC = () => {
                 <item.icon className="h-4 w-4 text-white" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{item.value}</p>
+                <p className="text-2xl font-semibold">{item.value}</p>
                 <p className="text-xs text-muted-foreground">{item.label}</p>
               </div>
             </div>

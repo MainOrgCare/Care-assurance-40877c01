@@ -1,34 +1,37 @@
 .homepage-theme {
-  --color-background: #f8f9fb;
-  --color-foreground: #0f1b2d;
-  --color-muted: #e8ecf2;
-  --color-muted-foreground: #4b5e74;
+  --color-background: #f4f9ff;
+  --color-foreground: #0f1f33;
+  --color-muted: #e5edf7;
+  --color-muted-foreground: #48607a;
   --color-card: #ffffff;
-  --color-card-foreground: #0f172a;
+  --color-card-foreground: #0f1f33;
   --color-popover: #ffffff;
-  --color-popover-foreground: #0f172a;
-  --color-border: #d1d9e4;
-  --color-input: #d1d9e4;
-  --color-ring: #1d4f91;
-  --color-primary: #1d4f91;
+  --color-popover-foreground: #0f1f33;
+  --color-border: #cdd8e6;
+  --color-input: #cdd8e6;
+  --color-ring: #0f72ba;
+  --color-primary: #0f72ba;
   --color-primary-foreground: #ffffff;
-  --color-secondary: #21324b;
+  --color-secondary: #0f8f87;
   --color-secondary-foreground: #ffffff;
-  --color-accent: rgba(59, 130, 246, 0.08);
-  --color-accent-foreground: #2563eb;
-  --color-success: #16a34a;
+  --color-accent: rgba(15, 114, 186, 0.1);
+  --color-accent-foreground: #0f72ba;
+  --color-success: #0e8f5d;
   --color-success-foreground: #ffffff;
-  color: #0f172a;
-  font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  background-color: #f8f9fb;
+  color: #0f1f33;
+  font-family: var(--font-sans, "Manrope", "Segoe UI", "Helvetica Neue", Arial, sans-serif);
+  background-color: #f4f9ff;
   background-image:
-    radial-gradient(980px 640px at 8% -12%, rgba(29, 79, 145, 0.04), transparent 60%),
-    linear-gradient(180deg, #f8f9fb, #f3f5f9);
+    radial-gradient(980px 640px at 8% -12%, rgba(15, 114, 186, 0.1), transparent 60%),
+    radial-gradient(920px 620px at 94% 6%, rgba(15, 143, 135, 0.08), transparent 62%),
+    linear-gradient(180deg, #f4f9ff, #eef5fc);
 }
 
 .homepage-theme .home-pattern {
-  background-image: radial-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px);
-  background-size: 28px 28px;
+  background-image:
+    linear-gradient(rgba(15, 31, 51, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 31, 51, 0.045) 1px, transparent 1px);
+  background-size: 34px 34px;
 }
 
 .homepage-theme .home-header {
@@ -36,102 +39,110 @@
   top: 0;
   z-index: 40;
   border-bottom: 1px solid transparent;
-  transition: background-color 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, backdrop-filter 0.22s ease;
+  transition: background-color 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease, backdrop-filter 0.24s ease;
 }
 
 .homepage-theme .home-header.is-scrolled {
-  background: rgba(248, 249, 251, 0.92);
-  border-bottom: 1px solid rgba(209, 217, 228, 0.6);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
-  backdrop-filter: blur(8px);
+  background: rgba(244, 249, 255, 0.86);
+  border-bottom: 1px solid rgba(205, 216, 230, 0.72);
+  box-shadow: 0 10px 24px -24px rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(16px);
 }
 
 .homepage-theme .home-brand-mark {
-  background-image: linear-gradient(140deg, #1d4f91 0%, #2f5f9f 100%);
+  background-image: linear-gradient(140deg, #0f72ba 0%, #0e8f88 100%);
   color: #ffffff;
 }
 
 .homepage-theme .home-brand-copy {
-  color: #0f172a;
+  color: #0f1f33;
+}
+
+.homepage-theme .home-brand-copy > div:first-child {
+  font-family: var(--font-heading, "Sora", "Manrope", "Segoe UI", sans-serif);
+  letter-spacing: -0.02em;
 }
 
 .homepage-theme .home-brand-copy > div:last-child {
-  color: #64748b;
+  color: #5f748c;
+  letter-spacing: 0.08em;
 }
 
 .homepage-theme .home-nav-link {
   border: 1px solid transparent;
-  border-radius: 8px;
-  color: #64748b;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  padding: 0.4rem 0.8rem;
-  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+  border-radius: 999px;
+  color: #5a6f86;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.42rem 0.88rem;
+  transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 
 .homepage-theme .home-nav-link:hover {
-  color: #0f172a;
-  background: rgba(226, 232, 240, 0.5);
+  color: #0f1f33;
+  background: rgba(226, 236, 246, 0.68);
+  border-color: rgba(160, 177, 198, 0.32);
 }
 
 .homepage-theme .home-nav-link.is-active {
-  color: #1d4f91;
-  border-color: rgba(29, 79, 145, 0.2);
-  background: rgba(29, 79, 145, 0.06);
+  color: #0f72ba;
+  border-color: rgba(15, 114, 186, 0.28);
+  background: rgba(15, 114, 186, 0.1);
 }
 
 .homepage-theme .home-nav-toggle {
-  border-radius: 10px;
-  border-color: #dbe4f2;
-  color: #334155;
+  border-radius: 12px;
+  border-color: #d0dceb;
+  color: #31465e;
 }
 
 .homepage-theme .home-mobile-menu {
-  border: 1px solid #dbe4f2;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 4px 16px -8px rgba(15, 23, 42, 0.15);
-  backdrop-filter: blur(8px);
+  border: 1px solid #d0dceb;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 34px -24px rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(14px);
 }
 
 .homepage-theme .home-mobile-link {
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  border-radius: 8px;
-  padding: 0.5rem 0.7rem;
+  border-radius: 10px;
+  padding: 0.56rem 0.76rem;
   text-align: left;
-  color: #475569;
-  font-size: 0.85rem;
-  font-weight: 600;
-  transition: all 0.15s ease;
+  color: #435b75;
+  font-size: 0.86rem;
+  font-weight: 700;
+  transition: all 0.18s ease;
 }
 
 .homepage-theme .home-mobile-link:hover,
 .homepage-theme .home-mobile-link.is-active {
-  border-color: rgba(29, 79, 145, 0.22);
-  background: rgba(29, 79, 145, 0.1);
-  color: #1d4f91;
+  border-color: rgba(15, 114, 186, 0.26);
+  background: rgba(15, 114, 186, 0.1);
+  color: #0f72ba;
 }
 
 .homepage-theme .home-card {
-  border: 1px solid #dbe4f2;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  border: 1px solid #cfdbe8;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.96), rgba(245, 250, 255, 0.88));
+  border-radius: 16px;
+  box-shadow: 0 18px 38px -30px rgba(15, 23, 42, 0.55), 0 2px 8px rgba(15, 23, 42, 0.06);
+  transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
 }
 
 .homepage-theme .home-card:hover {
-  border-color: #c8d5e6;
-  box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.1);
+  border-color: #b4c7dc;
+  box-shadow: 0 26px 48px -34px rgba(15, 23, 42, 0.58), 0 2px 8px rgba(15, 23, 42, 0.06);
+  transform: translateY(-1px);
 }
 
 .homepage-theme .home-card-soft {
-  border: 1px solid #e2e8f0;
-  background-color: #f5f7fa;
-  border-radius: 10px;
+  border: 1px solid #d7e2ef;
+  background: linear-gradient(180deg, rgba(250, 253, 255, 0.92), rgba(240, 247, 252, 0.76));
+  border-radius: 12px;
 }
 
 .homepage-theme .home-pill {
@@ -139,77 +150,77 @@
   align-items: center;
   gap: 0.4rem;
   border-radius: 999px;
-  border: 1px solid rgba(29, 79, 145, 0.2);
-  padding: 0.35rem 0.75rem;
-  font-size: 0.7rem;
-  font-weight: 700;
+  border: 1px solid rgba(15, 114, 186, 0.25);
+  padding: 0.35rem 0.8rem;
+  font-size: 0.68rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #1d4f91;
-  background-color: rgba(29, 79, 145, 0.08);
+  letter-spacing: 0.08em;
+  color: #0f72ba;
+  background-color: rgba(15, 114, 186, 0.1);
 }
 
 .homepage-theme .home-text-heading {
-  color: #0f172a;
+  color: #0f1f33;
 }
 
 .homepage-theme .home-text-body {
-  color: #475569;
+  color: #3f5872;
 }
 
 .homepage-theme .home-text-soft {
-  color: #64748b;
+  color: #62798f;
 }
 
 .homepage-theme .home-icon-chip {
-  background-color: rgba(29, 79, 145, 0.1);
-  border: 1px solid rgba(29, 79, 145, 0.2);
-  color: #1d4f91;
+  background-color: rgba(15, 114, 186, 0.12);
+  border: 1px solid rgba(15, 114, 186, 0.24);
+  color: #0f72ba;
 }
 
 .homepage-theme .home-eyebrow {
   display: inline-block;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #1d4f91;
+  letter-spacing: 0.16em;
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: #0f72ba;
 }
 
 .homepage-theme .home-cta {
-  border-radius: 8px;
-  background-color: #1d4f91;
+  border-radius: 12px;
+  background-image: linear-gradient(140deg, #0f72ba, #0e8f88);
   color: #ffffff;
   border: none;
-  font-weight: 600;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-  transition: all 0.15s ease;
+  font-weight: 700;
+  box-shadow: 0 18px 30px -20px rgba(15, 114, 186, 0.62);
+  transition: all 0.18s ease;
 }
 
 .homepage-theme .home-cta:hover {
-  background-color: #2a5da0;
-  box-shadow: 0 2px 6px rgba(29, 79, 145, 0.2);
+  box-shadow: 0 20px 34px -18px rgba(15, 114, 186, 0.66);
+  transform: translateY(-1px);
 }
 
 .homepage-theme .home-outline {
-  border-radius: 8px;
-  border: 1px solid #dbe4f2;
-  color: #0f172a;
-  background-color: #ffffff;
-  font-weight: 600;
-  transition: all 0.15s ease;
+  border-radius: 12px;
+  border: 1px solid #cdd9e8;
+  color: #0f1f33;
+  background-color: rgba(255, 255, 255, 0.86);
+  font-weight: 700;
+  transition: all 0.18s ease;
 }
 
 .homepage-theme .home-outline:hover {
-  background-color: #f8f9fb;
-  border-color: #c4d0e4;
+  background-color: rgba(248, 252, 255, 0.95);
+  border-color: #b8cadf;
 }
 
 .homepage-theme .home-signal {
   display: flex;
   align-items: flex-start;
   gap: 1rem;
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1px solid transparent;
   padding: 1rem;
 }
@@ -221,52 +232,55 @@
   flex-shrink: 0;
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: 0.75rem;
+  border-radius: 0.8rem;
 }
 
 .homepage-theme .home-signal-success {
-  border-color: #bbf7d0;
-  background-color: #f0fdf4;
+  border-color: #bae9d2;
+  background-color: #edf9f3;
 }
 
 .homepage-theme .home-signal-success .home-signal-icon {
-  background-color: #dcfce7;
-  color: #16a34a;
+  background-color: #d8f1e4;
+  color: #0e8f5d;
 }
 
 .homepage-theme .home-signal-info {
-  border-color: #bfdbfe;
-  background-color: #eff6ff;
+  border-color: #bfdff4;
+  background-color: #edf6fd;
 }
 
 .homepage-theme .home-signal-info .home-signal-icon {
-  background-color: #dbeafe;
-  color: #2563eb;
+  background-color: #dbeefb;
+  color: #0f72ba;
 }
 
 .homepage-theme .home-signal-title {
-  color: #0f172a;
+  color: #0f1f33;
   font-weight: 700;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
 }
 
 .homepage-theme .home-signal-detail {
   margin-top: 0.25rem;
-  color: #64748b;
-  font-size: 0.75rem;
+  color: #62798f;
+  font-size: 0.76rem;
 }
 
 .homepage-theme .home-mini-stat p:first-child {
-  color: #64748b;
+  color: #62798f;
 }
 
 .homepage-theme .home-mini-stat p:last-child {
-  color: #0f172a;
+  color: #0f1f33;
 }
 
 .homepage-theme .home-band {
-  background-color: #1e293b;
-  background-image: linear-gradient(130deg, #1e293b, #0f172a);
+  background-color: #11213a;
+  background-image:
+    radial-gradient(820px 380px at 12% 10%, rgba(36, 147, 219, 0.22), transparent 66%),
+    radial-gradient(740px 360px at 88% 0%, rgba(25, 170, 149, 0.2), transparent 68%),
+    linear-gradient(130deg, #11213a, #0b1526);
 }
 
 .homepage-theme .home-band h1,
@@ -284,18 +298,18 @@
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   padding: 0.4rem 1rem;
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 0.68rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.85);
-  background-color: rgba(255, 255, 255, 0.1);
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(255, 255, 255, 0.12);
 }
 
 .homepage-theme .home-section-surface {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(241, 245, 249, 0.58));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(236, 244, 251, 0.6));
 }
 
 .homepage-theme .home-workflow-grid {
@@ -303,13 +317,13 @@
 }
 
 .homepage-theme .home-workflow-card {
-  background: #f8f9fb;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  background: linear-gradient(180deg, rgba(250, 253, 255, 0.92), rgba(241, 248, 253, 0.78));
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .homepage-theme .home-workflow-card:hover {
-  box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.08);
-  border-color: #cfdced;
+  box-shadow: 0 16px 30px -22px rgba(15, 23, 42, 0.4);
+  border-color: #c2d6ea;
 }
 
 @media (min-width: 768px) {
@@ -320,7 +334,7 @@
     left: 14%;
     right: 14%;
     height: 1px;
-    background: linear-gradient(90deg, rgba(148, 163, 184, 0.25), rgba(59, 130, 246, 0.28), rgba(148, 163, 184, 0.25));
+    background: linear-gradient(90deg, rgba(148, 163, 184, 0.22), rgba(15, 114, 186, 0.33), rgba(148, 163, 184, 0.22));
     z-index: 0;
   }
 
@@ -340,29 +354,29 @@
 .homepage-theme h1,
 .homepage-theme h2,
 .homepage-theme h3 {
-  font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-heading, "Sora", "Manrope", "Segoe UI", sans-serif);
   font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
-  color: #0f172a !important;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+  color: #0f1f33 !important;
 }
 
 .homepage-theme p {
-  line-height: 1.7;
-  color: #475569;
+  line-height: 1.72;
+  color: #3f5872;
 }
 
 .homepage-theme .text-foreground {
-  color: #0f172a !important;
+  color: #0f1f33 !important;
 }
 
 .homepage-theme .text-muted-foreground {
-  color: #64748b !important;
+  color: #62798f !important;
 }
 
 @media (max-width: 768px) {
   .homepage-theme {
-    background-image: none;
+    background-image: linear-gradient(180deg, #f4f9ff, #eef5fc);
   }
 
   .homepage-theme .home-pattern {
@@ -370,20 +384,20 @@
   }
 
   .homepage-theme .home-card {
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
-    border-radius: 10px;
+    box-shadow: 0 10px 24px -20px rgba(0, 0, 0, 0.2);
+    border-radius: 13px;
   }
 
   .homepage-theme .home-card-soft {
-    border-radius: 8px;
+    border-radius: 10px;
   }
 
   .homepage-theme h1 {
-    font-size: 1.85rem !important;
+    font-size: 1.95rem !important;
   }
 
   .homepage-theme h2 {
-    font-size: 1.6rem !important;
+    font-size: 1.68rem !important;
   }
 
   .homepage-theme .home-cta,

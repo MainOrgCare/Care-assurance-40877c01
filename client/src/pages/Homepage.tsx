@@ -363,7 +363,7 @@ export default function Homepage() {
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div className="home-brand-copy">
-              <div className="text-base font-bold">CareAssurance</div>
+              <div className="text-base font-semibold">CareAssurance</div>
               <div className="text-[11px] tracking-wide font-medium">Compliance Platform</div>
             </div>
           </div>
@@ -512,7 +512,7 @@ export default function Homepage() {
                       <stat.icon className="h-4 w-4 text-slate-700" />
                       {stat.label}
                     </div>
-                    <div className="home-text-heading mt-2 text-xl font-bold">{stat.value}</div>
+                    <div className="home-text-heading mt-2 text-xl font-semibold">{stat.value}</div>
                     <div className="home-text-soft text-xs font-medium mt-0.5">{stat.detail}</div>
                   </div>
                 ))}
@@ -683,7 +683,7 @@ export default function Homepage() {
                   className={`relative p-6 rounded-xl border border-border home-workflow-card ${index > 0 ? "home-workflow-step" : ""}`}
                 >
                   <div className="flex items-center gap-4 mb-4">
-                    <span className="text-4xl font-bold text-muted-foreground/40">
+                    <span className="text-4xl font-semibold text-muted-foreground/60">
                       {step.step}
                     </span>
                     <step.icon className="h-8 w-8 text-primary" />
@@ -713,7 +713,7 @@ export default function Homepage() {
                 <Label className="text-base font-semibold home-text-heading">Number of Service Users</Label>
                 <div className="flex items-center gap-2">
                   <Users className="h-5 w-5 text-primary" />
-                  <span className="text-2xl font-bold home-text-heading" data-testid="text-service-users-count">
+                  <span className="text-2xl font-semibold home-text-heading" data-testid="text-service-users-count">
                     {serviceUsers}
                   </span>
                 </div>
@@ -738,28 +738,28 @@ export default function Homepage() {
               <div className="mt-8 grid gap-4 md:grid-cols-4">
                 <div className="home-card-soft p-4">
                   <p className="text-xs font-medium home-text-soft">Manual time</p>
-                  <p className="text-2xl font-bold home-text-heading" data-testid="text-manual-hours">
+                  <p className="text-2xl font-semibold home-text-heading" data-testid="text-manual-hours">
                     {roi.manualHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
                   <p className="text-xs font-medium home-text-soft">per year</p>
                 </div>
                 <div className="home-card-soft p-4">
                   <p className="text-xs font-medium home-text-soft">With CareAssurance</p>
-                  <p className="text-2xl font-bold home-text-heading" data-testid="text-ai-hours">
+                  <p className="text-2xl font-semibold home-text-heading" data-testid="text-ai-hours">
                     {roi.aiHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
                   <p className="text-xs font-medium home-text-soft">per year</p>
                 </div>
                 <div className="home-card-soft p-4">
                   <p className="text-xs font-medium home-text-soft">Time saved</p>
-                  <p className="text-2xl font-bold text-green-600" data-testid="text-hours-saved">
+                  <p className="text-2xl font-semibold text-green-600" data-testid="text-hours-saved">
                     {roi.hoursSaved.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
                   <p className="text-xs font-medium home-text-soft">per year</p>
                 </div>
                 <div className="home-card-soft p-4">
                   <p className="text-xs font-medium home-text-soft">Money saved</p>
-                  <p className="text-2xl font-bold text-green-600" data-testid="text-money-saved">
+                  <p className="text-2xl font-semibold text-green-600" data-testid="text-money-saved">
                     £{roi.moneySaved.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
                   <p className="text-xs font-medium home-text-soft">per year at £14.50/hr*</p>
@@ -769,7 +769,7 @@ export default function Homepage() {
               <div className="mt-6">
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium home-text-soft">Efficiency gain</span>
-                  <span className="font-bold text-green-600">{savingsPercent}% faster</span>
+                  <span className="font-semibold text-green-600">{savingsPercent}% faster</span>
                 </div>
                 <div className="mt-3 h-2.5 rounded-full overflow-hidden bg-muted">
                   <div

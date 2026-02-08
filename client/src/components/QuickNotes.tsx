@@ -80,7 +80,7 @@ export function QuickNotes() {
       >
         <StickyNote className="h-4 w-4" />
         {notes.length > 0 && (
-          <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-amber-500 text-white text-[9px] font-semibold flex items-center justify-center">
             {notes.length}
           </span>
         )}
@@ -97,7 +97,7 @@ export function QuickNotes() {
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border/50 px-3 py-2">
-        <div className="flex items-center gap-2 text-sm font-medium">
+        <div className="flex items-center gap-2 text-sm font-normal text-foreground">
           <StickyNote className="h-3.5 w-3.5 text-amber-500" />
           Quick Notes
           {notes.length > 0 && (

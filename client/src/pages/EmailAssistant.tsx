@@ -101,9 +101,9 @@ export default function EmailAssistant() {
                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground whitespace-nowrap">Tone Selection:</Label>
                <Tabs defaultValue="professional" value={tone} onValueChange={setTone} className="w-full">
                 <TabsList className="w-full grid grid-cols-3 bg-background/50 border border-border/60 rounded-xl p-1 h-10">
-                  <TabsTrigger value="professional" className="rounded-lg font-bold text-[10px] uppercase">Professional</TabsTrigger>
-                  <TabsTrigger value="direct" className="rounded-lg font-bold text-[10px] uppercase">Direct</TabsTrigger>
-                  <TabsTrigger value="empathetic" className="rounded-lg font-bold text-[10px] uppercase">Empathetic</TabsTrigger>
+                  <TabsTrigger value="professional" className="rounded-lg font-medium text-[10px] uppercase">Professional</TabsTrigger>
+                  <TabsTrigger value="direct" className="rounded-lg font-medium text-[10px] uppercase">Direct</TabsTrigger>
+                  <TabsTrigger value="empathetic" className="rounded-lg font-medium text-[10px] uppercase">Empathetic</TabsTrigger>
                 </TabsList>
               </Tabs>
              </div>
@@ -152,7 +152,7 @@ export default function EmailAssistant() {
             <CardFooter className="p-5 flex gap-4 bg-background border-t border-border/40">
               <Button 
                 onClick={handleRewrite} 
-                className="flex-1 h-12 rounded-xl font-bold tracking-tight shadow-glow group"
+                className="flex-1 h-12 rounded-xl font-medium tracking-tight shadow-glow group"
                 disabled={isProcessing}
               >
                 {outputText ? (
@@ -162,7 +162,7 @@ export default function EmailAssistant() {
                 )}
               </Button>
               {outputText && (
-                <Button variant="outline" onClick={copyToClipboard} className="h-12 px-6 rounded-xl border-border/60 font-bold tracking-tight hover:bg-muted/50 transition-all">
+                <Button variant="outline" onClick={copyToClipboard} className="h-12 px-6 rounded-xl border-border/60 font-medium tracking-tight hover:bg-muted/50 transition-all">
                   <Copy className="mr-2.5 h-4 w-4" /> Copy
                 </Button>
               )}

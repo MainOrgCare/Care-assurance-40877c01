@@ -233,7 +233,7 @@ export default function ComplieeIntro({ onComplete, onAskHelp }: ComplieeIntroPr
             )}
           >
             <p className="text-sm text-gray-700 mb-3 font-medium">
-              👋 Hi there! I'm <span className="text-indigo-600 font-bold">Compli-ee</span>!
+              👋 Hi there! I'm <span className="text-indigo-600 font-semibold">Compli-ee</span>!
               <br />
               <span className="text-gray-600">Would you like a quick tour of the platform?</span>
             </p>

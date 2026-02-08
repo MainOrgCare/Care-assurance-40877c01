@@ -162,7 +162,7 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
                     <CardContent>
                       <div className="flex items-center gap-2">
                         {getScoreIcon(comparison.improvementScore)}
-                        <span className={`text-3xl font-bold ${getScoreColor(comparison.improvementScore)}`}>
+                        <span className={`text-3xl font-semibold ${getScoreColor(comparison.improvementScore)}`}>
                           {comparison.improvementScore > 0 ? "+" : ""}{comparison.improvementScore}
                         </span>
                       </div>

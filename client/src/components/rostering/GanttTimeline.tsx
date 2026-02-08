@@ -496,7 +496,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
       {showHeader && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
           <div>
-            <p className="text-sm font-semibold tracking-tight">Timeline</p>
+            <p className="text-sm font-medium tracking-tight">Timeline</p>
             <p className="text-xs text-muted-foreground">
               {formatTimeLabel(startMinutes)} — {formatTimeLabel(endMinutes)} · Snap: {snapMinutes}m
             </p>
@@ -631,7 +631,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                   <div className="flex items-center gap-1.5 pt-1.5">
                     {activeEntry.isTimeCritical && <AlertTriangle className="h-3 w-3" />}
                     {activeEntry.isDoubleUp && (
-                      <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-white/20 text-[10px] font-bold">2</span>
+                      <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-white/20 text-[10px] font-semibold">2</span>
                     )}
                     <span className="truncate">{activeEntry.title}</span>
                   </div>
@@ -975,11 +975,11 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
             {/* Double-up badge */}
             {entry.isDoubleUp && (
               <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-blue-600 border border-background shadow-sm flex items-center justify-center">
-                <span className="text-[9px] font-bold text-white">2</span>
+                <span className="text-[9px] font-semibold text-white">2</span>
               </div>
             )}
             <div className="flex h-full w-full items-center justify-center">
-              <span className="text-[9px] sm:text-[10px] font-bold tracking-wide">
+              <span className="text-[9px] sm:text-[10px] font-semibold tracking-wide">
                 {initials || "?"}
               </span>
             </div>

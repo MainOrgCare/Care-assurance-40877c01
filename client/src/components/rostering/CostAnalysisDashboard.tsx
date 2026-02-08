@@ -128,7 +128,7 @@ export default function CostAnalysisDashboard({ workers }: CostAnalysisProp) {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-green-600">
+                    <div className="text-2xl font-semibold text-green-600">
                       {formatCurrency(totals.totalCost)}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -145,7 +145,7 @@ export default function CostAnalysisDashboard({ workers }: CostAnalysisProp) {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">
+                    <div className="text-2xl font-semibold">
                       {formatCurrency(totals.regularPay + totals.overtimePay)}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
@@ -163,7 +163,7 @@ export default function CostAnalysisDashboard({ workers }: CostAnalysisProp) {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">
+                    <div className="text-2xl font-semibold">
                       {formatCurrency(totals.travelCost)}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -180,7 +180,7 @@ export default function CostAnalysisDashboard({ workers }: CostAnalysisProp) {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">
+                    <div className="text-2xl font-semibold">
                       {formatCurrency(totals.totalCost / workers.length)}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">

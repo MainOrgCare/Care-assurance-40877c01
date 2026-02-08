@@ -17,7 +17,7 @@ export default function UploadDisclaimer() {
           <div className="flex items-center gap-2 shrink-0">
             <Clock className="text-amber-600 dark:text-amber-300" size={18} />
             {timeLeft !== null && (
-              <span className="px-2 py-1 bg-amber-500/15 text-amber-700 dark:text-amber-200 rounded font-mono tabular-nums text-sm font-bold">
+              <span className="px-2 py-1 bg-amber-500/15 text-amber-700 dark:text-amber-200 rounded font-mono tabular-nums text-sm font-semibold">
                 {formatTime(timeLeft)}
               </span>
             )}

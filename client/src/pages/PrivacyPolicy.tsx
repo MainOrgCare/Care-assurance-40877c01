@@ -13,7 +13,7 @@ export default function PrivacyPolicy() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold text-foreground">CareAssurance</h1>
+          <h1 className="text-2xl font-semibold text-foreground">CareAssurance</h1>
         </div>
 
         <Card className="bg-card/95 border-border/75">
@@ -29,7 +29,7 @@ export default function PrivacyPolicy() {
               <div className="flex items-start gap-3">
                 <Shield className="h-6 w-6 flex-shrink-0 mt-0.5 text-primary" />
                 <div>
-                  <p className="mb-2 text-base font-bold text-primary">SUMMARY</p>
+                  <p className="mb-2 text-base font-semibold text-primary">SUMMARY</p>
                   <p className="text-sm text-foreground/85">
                     This Privacy Policy explains how CareAssurance handles personal data when you use the platform. It is written for UK users and aligns with the UK GDPR and the Data Protection Act 2018.
                   </p>
@@ -41,7 +41,7 @@ export default function PrivacyPolicy() {
               <div className="flex items-start gap-3">
                 <Lock className="h-6 w-6 flex-shrink-0 mt-0.5 text-secondary" />
                 <div>
-                  <p className="mb-2 text-base font-bold text-secondary">IMPORTANT NOTE</p>
+                  <p className="mb-2 text-base font-semibold text-secondary">IMPORTANT NOTE</p>
                   <p className="text-sm text-foreground/85">
                     If you use CareAssurance on behalf of a care provider or organisation, that organisation is usually the <strong>Data Controller</strong> for the personal data inside uploaded documents, and CareAssurance operates as a <strong>Data Processor</strong>.
                   </p>

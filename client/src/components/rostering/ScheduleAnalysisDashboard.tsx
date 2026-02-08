@@ -182,7 +182,7 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
                       <CardTitle className="text-sm font-medium">Overall Score</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className={`text-3xl font-bold ${getScoreColor(analysis.overallScore)}`}>
+                      <div className={`text-3xl font-semibold ${getScoreColor(analysis.overallScore)}`}>
                         {analysis.overallScore}/100
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -231,7 +231,7 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">
+                      <div className="text-2xl font-semibold">
                         {analysis.predictive.burnoutRisk.filter(w => w.riskScore >= 50).length}
                       </div>
                       <p className="text-xs text-muted-foreground">

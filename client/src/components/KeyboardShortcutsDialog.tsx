@@ -58,7 +58,7 @@ export default function KeyboardShortcutsDialog({
         <div className="space-y-5 mt-2 max-h-[60vh] overflow-y-auto pr-1">
           {SHORTCUT_GROUPS.map((group) => (
             <div key={group.title}>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
                 {group.title}
               </h3>
               <div className="space-y-1">
@@ -78,7 +78,7 @@ export default function KeyboardShortcutsDialog({
                               +
                             </span>
                           )}
-                          <kbd className="inline-flex items-center justify-center rounded border border-border bg-muted/60 px-2 py-0.5 font-mono text-[11px] font-medium text-foreground min-w-[1.75rem] text-center shadow-[0_1px_0_0] shadow-border/50">
+                          <kbd className="inline-flex items-center justify-center rounded border border-border bg-muted/60 px-2 py-0.5 font-mono text-[11px] font-normal text-foreground min-w-[1.75rem] text-center shadow-[0_1px_0_0] shadow-border/50">
                             {key}
                           </kbd>
                         </span>

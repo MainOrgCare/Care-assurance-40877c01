@@ -255,7 +255,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-compliance-score">
+              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-compliance-score">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ? "100%" : "-"}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5 flex items-center gap-1.5">
@@ -275,7 +275,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-audits-completed">
+              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-audits-completed">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ?? 0}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
@@ -295,7 +295,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className={cn("text-3xl font-bold tracking-tight", stats?.activeAlerts ? "text-destructive" : "text-foreground")} data-testid="text-active-alerts">
+              <div className={cn("text-3xl font-semibold tracking-tight", stats?.activeAlerts ? "text-destructive" : "text-foreground")} data-testid="text-active-alerts">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.activeAlerts ?? 0}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">
@@ -314,7 +314,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-plans-updated">
+              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-plans-updated">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.plansUpdated ?? 0}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">Recently synchronized plans</p>
@@ -331,7 +331,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-medication-audits-widget">
+              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-medication-audits-widget">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
@@ -348,7 +348,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-care-plan-reviews-widget">
+              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-care-plan-reviews-widget">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
@@ -365,7 +365,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-risk-assessments-widget">
+              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-risk-assessments-widget">
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
@@ -382,7 +382,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-staff-checks-widget">0</div>
+              <div className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-staff-checks-widget">0</div>
               <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
             </CardContent>
           </Card>
@@ -587,25 +587,25 @@ export default function Dashboard() {
                  <div className="grid grid-cols-2 gap-y-8 gap-x-6">
                     <div className="space-y-1 pl-3 border-l-2 border-blue-500/25">
                        <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Medication Audits</p>
-                       <p className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-medication-audits">
+                       <p className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-medication-audits">
                          {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
                        </p>
                     </div>
                     <div className="space-y-1 pl-3 border-l-2 border-indigo-500/25">
                        <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Care Plan Reviews</p>
-                       <p className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-care-plan-reviews">
+                       <p className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-care-plan-reviews">
                          {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
                        </p>
                     </div>
                     <div className="space-y-1 pl-3 border-l-2 border-amber-500/25">
                        <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Risk Assessments</p>
-                       <p className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-risk-assessments">
+                       <p className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-risk-assessments">
                          {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
                        </p>
                     </div>
                     <div className="space-y-1 pl-3 border-l-2 border-emerald-500/25">
                        <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Staff Checks</p>
-                       <p className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-staff-checks">0</p>
+                       <p className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-staff-checks">0</p>
                     </div>
                  </div>
               </CardContent>
@@ -649,7 +649,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-48 text-muted-foreground space-y-2">
-                    <CheckCircle2 className="h-8 w-8 text-muted-foreground/30" />
+                    <CheckCircle2 className="h-8 w-8 text-muted-foreground/50" />
                     <p className="text-sm">No alerts in the last 24 hours</p>
                   </div>
                 )}
@@ -662,7 +662,7 @@ export default function Dashboard() {
       {activeWidgets.length === 0 && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-14">
-            <Settings className="h-10 w-10 text-muted-foreground/30 mb-4" />
+            <Settings className="h-10 w-10 text-muted-foreground/50 mb-4" />
             <p className="text-lg font-semibold text-foreground mb-1">Dashboard Empty</p>
             <p className="text-sm text-muted-foreground mb-6 text-center max-w-xs">Add widgets to customize your dashboard view.</p>
             <Button variant="outline" onClick={() => setSettingsOpen(true)} className="font-medium">
@@ -693,7 +693,7 @@ export default function Dashboard() {
                 <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50">
                   <Clock className="h-4 w-4 text-foreground" />
                 </div>
-                <span className="text-2xl font-bold tracking-tight text-foreground">90%</span>
+                <span className="text-2xl font-semibold tracking-tight text-foreground">90%</span>
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground mb-0.5">Time Recovery</p>
@@ -705,7 +705,7 @@ export default function Dashboard() {
                 <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50">
                   <CheckCircle2 className="h-4 w-4 text-foreground" />
                 </div>
-                <span className="text-2xl font-bold tracking-tight text-foreground">3-Pass</span>
+                <span className="text-2xl font-semibold tracking-tight text-foreground">3-Pass</span>
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground mb-0.5">Deep Analysis</p>
@@ -717,7 +717,7 @@ export default function Dashboard() {
                 <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50">
                   <Shield className="h-4 w-4 text-foreground" />
                 </div>
-                <span className="text-2xl font-bold tracking-tight text-foreground">Live</span>
+                <span className="text-2xl font-semibold tracking-tight text-foreground">Live</span>
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground mb-0.5">Active Guard</p>
@@ -729,7 +729,7 @@ export default function Dashboard() {
                 <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50">
                   <Brain className="h-4 w-4 text-foreground" />
                 </div>
-                <span className="text-2xl font-bold tracking-tight text-foreground">Expert</span>
+                <span className="text-2xl font-semibold tracking-tight text-foreground">Expert</span>
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground mb-0.5">Contextual AI</p>
