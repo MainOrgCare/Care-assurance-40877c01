@@ -166,18 +166,18 @@ export default function ROICalculator() {
   }
 
   return (
-    <div className="space-y-16 max-w-7xl mx-auto animate-in fade-in duration-500 pb-12" data-testid="features-benefits-page">
+    <div className="page-shell max-w-7xl mx-auto" data-testid="features-benefits-page">
       {/* Hero Header */}
       <div className="text-center space-y-6 py-8">
         <Badge variant="secondary" className="gap-1 mb-4">
           <Brain className="h-3 w-3" />
           AI-Powered Care Administration
         </Badge>
-        <h1 className="text-4xl md:text-5xl font-heading font-bold leading-tight" style={{ color: '#0f172a' }} data-testid="page-title">
+        <h1 className="text-4xl md:text-5xl font-heading font-bold leading-tight text-foreground" data-testid="page-title">
           Less Paperwork.<br />
-          <span style={{ color: '#64748b' }}>More Care.</span>
+          <span className="text-muted-foreground">More Care.</span>
         </h1>
-        <p className="text-lg max-w-2xl mx-auto" style={{ color: '#64748b' }} data-testid="page-subtitle">
+        <p className="text-lg max-w-2xl mx-auto text-muted-foreground" data-testid="page-subtitle">
           CareAssurance handles the administrative burden so your team can focus on what matters most: providing exceptional care to those who need it.
         </p>
       </div>
@@ -185,14 +185,14 @@ export default function ROICalculator() {
       {/* Impact Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {IMPACT_METRICS.map((metric) => (
-          <Card key={metric.label} className="text-center" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }} data-testid={`metric-${metric.label.toLowerCase().replace(/\s+/g, '-')}`}>
+          <Card key={metric.label} className="text-center glass-card" data-testid={`metric-${metric.label.toLowerCase().replace(/\s+/g, '-')}`}>
             <CardContent className="pt-6 pb-4">
-              <div className="mx-auto w-10 h-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
+              <div className="mx-auto w-10 h-10 rounded-full flex items-center justify-center mb-3 bg-primary/10 text-primary">
                 <metric.icon className="h-5 w-5" />
               </div>
-              <div className="text-2xl font-bold" style={{ color: '#0f172a' }}>{metric.value}</div>
-              <div className="text-sm font-medium" style={{ color: '#0f172a' }}>{metric.label}</div>
-              <div className="text-xs mt-1" style={{ color: '#64748b' }}>{metric.description}</div>
+              <div className="text-2xl font-bold text-foreground">{metric.value}</div>
+              <div className="text-sm font-medium text-foreground">{metric.label}</div>
+              <div className="text-xs mt-1 text-muted-foreground">{metric.description}</div>
             </CardContent>
           </Card>
         ))}
@@ -201,10 +201,10 @@ export default function ROICalculator() {
       {/* Core Features */}
       <section data-testid="feature-benefits-section">
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-heading font-semibold mb-3" style={{ color: '#0f172a' }}>
+          <h2 className="text-3xl font-heading font-semibold mb-3 text-foreground">
             Powerful Tools for Modern Care
           </h2>
-          <p className="max-w-2xl mx-auto" style={{ color: '#64748b' }}>
+          <p className="max-w-2xl mx-auto text-muted-foreground">
             Each feature is designed to eliminate hours of manual work while improving accuracy and consistency.
           </p>
         </div>
@@ -212,8 +212,7 @@ export default function ROICalculator() {
           {CORE_FEATURES.map((feature, index) => (
             <Card 
               key={feature.title} 
-              className="overflow-visible"
-              style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}
+              className="overflow-visible glass-card"
               data-testid={`feature-card-${feature.title.toLowerCase().replace(/\s+/g, '-')}`}
             >
               <CardContent className="p-6">
@@ -223,20 +222,20 @@ export default function ROICalculator() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
-                      <h3 className="text-xl font-semibold" style={{ color: '#0f172a' }}>{feature.title}</h3>
-                      <Badge variant="outline" className="w-fit text-xs gap-1" style={{ borderColor: '#e2e8f0', color: '#64748b' }}>
+                      <h3 className="text-xl font-semibold text-foreground">{feature.title}</h3>
+                      <Badge variant="outline" className="w-fit text-xs gap-1">
                         <Clock className="h-3 w-3" />
                         {feature.timeSaving}
                       </Badge>
-                      <Badge variant="secondary" className="w-fit text-xs gap-1" style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)', color: '#16a34a' }}>
+                      <Badge variant="secondary" className="w-fit text-xs gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
                         {feature.costPence}p per use
                       </Badge>
                     </div>
-                    <p className="text-sm mb-1" style={{ color: '#64748b' }}>{feature.subtitle}</p>
-                    <p className="mb-4" style={{ color: '#64748b' }}>{feature.description}</p>
+                    <p className="text-sm mb-1 text-muted-foreground">{feature.subtitle}</p>
+                    <p className="mb-4 text-muted-foreground">{feature.description}</p>
                     <div className="flex flex-wrap gap-2">
                       {feature.highlights.map((highlight) => (
-                        <Badge key={highlight} variant="secondary" className="text-xs" style={{ backgroundColor: '#f1f5f9', color: '#334155' }}>
+                        <Badge key={highlight} variant="secondary" className="text-xs">
                           {highlight}
                         </Badge>
                       ))}
@@ -250,36 +249,36 @@ export default function ROICalculator() {
       </section>
 
       {/* Time Savings Summary */}
-      <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }} data-testid="time-savings-summary">
+      <Card className="glass-card" data-testid="time-savings-summary">
         <CardHeader className="text-center">
-          <CardTitle className="flex items-center justify-center gap-2 text-2xl" style={{ color: '#0f172a' }}>
-            <TrendingUp className="h-6 w-6" style={{ color: '#22c55e' }} />
+          <CardTitle className="flex items-center justify-center gap-2 text-2xl text-foreground">
+            <TrendingUp className="h-6 w-6 text-emerald-500" />
             Time Savings at a Glance
           </CardTitle>
-          <CardDescription style={{ color: '#64748b' }}>See how much time you save on every task</CardDescription>
+          <CardDescription>See how much time you save on every task</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {TASK_DATA.map((task) => (
-              <div key={task.name} className="text-center p-5 rounded-xl" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <div className="text-sm font-medium mb-3" style={{ color: '#64748b' }}>{task.name}</div>
+              <div key={task.name} className="text-center p-5 rounded-xl bg-muted/30 border border-border">
+                <div className="text-sm font-medium mb-3 text-muted-foreground">{task.name}</div>
                 <div className="flex items-center justify-center gap-2 mb-3">
                   <div>
-                    <div className="text-xl font-bold" style={{ color: '#0f172a' }}>
+                    <div className="text-xl font-bold text-foreground">
                       {task.manualMinutes >= 60 
                         ? `${Math.floor(task.manualMinutes / 60)}h ${task.manualMinutes % 60 > 0 ? `${task.manualMinutes % 60}m` : ''}`
                         : `${task.manualMinutes}m`
                       }
                     </div>
-                    <div className="text-xs" style={{ color: '#64748b' }}>manual</div>
+                    <div className="text-xs text-muted-foreground">manual</div>
                   </div>
-                  <ArrowRight className="h-4 w-4 shrink-0" style={{ color: '#22c55e' }} />
+                  <ArrowRight className="h-4 w-4 shrink-0 text-emerald-500" />
                   <div>
-                    <div className="text-xl font-bold" style={{ color: '#16a34a' }}>{task.appSeconds}s</div>
-                    <div className="text-xs" style={{ color: '#64748b' }}>automated</div>
+                    <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{task.appSeconds}s</div>
+                    <div className="text-xs text-muted-foreground">automated</div>
                   </div>
                 </div>
-                <div className="text-sm font-semibold" style={{ color: '#16a34a' }}>{task.costPence}p per use</div>
+                <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{task.costPence}p per use</div>
               </div>
             ))}
           </div>
@@ -289,51 +288,51 @@ export default function ROICalculator() {
       {/* Comparison Section */}
       <section data-testid="comparison-section">
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-heading font-semibold mb-3" style={{ color: '#0f172a' }}>
+          <h2 className="text-3xl font-heading font-semibold mb-3 text-foreground">
             The Difference is Clear
           </h2>
-          <p style={{ color: '#64748b' }}>
+          <p className="text-muted-foreground">
             See how CareAssurance transforms daily operations
           </p>
         </div>
         <div className="grid gap-6 md:grid-cols-2">
-          <Card style={{ backgroundColor: '#ffffff', border: '1px solid rgba(239, 68, 68, 0.2)' }} data-testid="manual-process-card">
+          <Card className="glass-card border-red-500/20" data-testid="manual-process-card">
             <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2" style={{ color: '#ef4444' }}>
+              <CardTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
                 <XCircle className="h-5 w-5" />
                 Without CareAssurance
               </CardTitle>
-              <CardDescription style={{ color: '#64748b' }}>The daily reality of manual administration</CardDescription>
+              <CardDescription>The daily reality of manual administration</CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="space-y-4">
                 {COMPARISON_DATA.manual.map((item, index) => (
                   <li key={index} className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
-                      <item.icon className="h-4 w-4" style={{ color: '#ef4444' }} />
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-red-500/10">
+                      <item.icon className="h-4 w-4 text-red-600 dark:text-red-400" />
                     </div>
-                    <span className="text-sm pt-1" style={{ color: '#64748b' }}>{item.text}</span>
+                    <span className="text-sm pt-1 text-muted-foreground">{item.text}</span>
                   </li>
                 ))}
               </ul>
             </CardContent>
           </Card>
-          <Card style={{ backgroundColor: '#ffffff', border: '1px solid rgba(34, 197, 94, 0.2)' }} data-testid="careassurance-card">
+          <Card className="glass-card border-emerald-500/20" data-testid="careassurance-card">
             <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2" style={{ color: '#16a34a' }}>
+              <CardTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                 <CheckCircle className="h-5 w-5" />
                 With CareAssurance
               </CardTitle>
-              <CardDescription style={{ color: '#64748b' }}>How your day could look instead</CardDescription>
+              <CardDescription>How your day could look instead</CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="space-y-4">
                 {COMPARISON_DATA.careassurance.map((item, index) => (
                   <li key={index} className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)' }}>
-                      <item.icon className="h-4 w-4" style={{ color: '#16a34a' }} />
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-emerald-500/10">
+                      <item.icon className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     </div>
-                    <span className="text-sm pt-1" style={{ color: '#64748b' }}>{item.text}</span>
+                    <span className="text-sm pt-1 text-muted-foreground">{item.text}</span>
                   </li>
                 ))}
               </ul>
@@ -345,32 +344,32 @@ export default function ROICalculator() {
       {/* Security Section */}
       <section data-testid="safety-security-section">
         <div className="text-center mb-10">
-          <div className="mx-auto w-14 h-14 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}>
-            <Shield className="h-7 w-7" style={{ color: '#3b82f6' }} />
+          <div className="mx-auto w-14 h-14 rounded-full flex items-center justify-center mb-4 bg-primary/10">
+            <Shield className="h-7 w-7 text-primary" />
           </div>
-          <h2 className="text-3xl font-heading font-semibold mb-3" style={{ color: '#0f172a' }}>
+          <h2 className="text-3xl font-heading font-semibold mb-3 text-foreground">
             Security You Can Trust
           </h2>
-          <p className="max-w-2xl mx-auto" style={{ color: '#64748b' }}>
+          <p className="max-w-2xl mx-auto text-muted-foreground">
             Your data never leaves your control. We've built CareAssurance with privacy at its core.
           </p>
         </div>
         <div className="grid gap-6 lg:grid-cols-3">
           {SECURITY_CATEGORIES.map((category) => (
-            <Card key={category.title} style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }} data-testid={`security-category-${category.title.toLowerCase().replace(/\s+/g, '-')}`}>
+            <Card key={category.title} className="glass-card" data-testid={`security-category-${category.title.toLowerCase().replace(/\s+/g, '-')}`}>
               <CardHeader>
-                <CardTitle className="text-lg" style={{ color: '#0f172a' }}>{category.title}</CardTitle>
-                <CardDescription style={{ color: '#64748b' }}>{category.description}</CardDescription>
+                <CardTitle className="text-lg text-foreground">{category.title}</CardTitle>
+                <CardDescription>{category.description}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {category.features.map((feature) => (
                   <div key={feature.title} className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}>
-                      <feature.icon className="h-4 w-4" style={{ color: '#3b82f6' }} />
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-primary/10">
+                      <feature.icon className="h-4 w-4 text-primary" />
                     </div>
                     <div>
-                      <div className="font-medium text-sm" style={{ color: '#0f172a' }}>{feature.title}</div>
-                      <div className="text-xs" style={{ color: '#64748b' }}>{feature.description}</div>
+                      <div className="font-medium text-sm text-foreground">{feature.title}</div>
+                      <div className="text-xs text-muted-foreground">{feature.description}</div>
                     </div>
                   </div>
                 ))}

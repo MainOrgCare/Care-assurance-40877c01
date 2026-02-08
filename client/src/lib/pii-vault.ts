@@ -318,7 +318,6 @@ export function processVaultResponse<T = any>(responseData: any, allowSensitive:
   if (allowSensitive && hasVault && vault && rawWithTokens) {
     // Restore PII locally using vault
     const restored = vault.restore(rawWithTokens);
-    console.log(`[processVaultResponse] Restored ${vault.getStats().total} PII tokens locally`);
     return {
       scrubbed: result,
       raw: restored as T,

@@ -236,9 +236,13 @@ function updateConnectionUI(connected, user = null) {
   }
   
   if (connectStatus) {
-    connectStatus.innerHTML = connected
-      ? `<span style="color: var(--color-success);">✓ Connected as ${user?.username || "user"}</span>`
-      : `<span>Not connected</span>`;
+    if (connected) {
+      connectStatus.className = 'status-box success';
+      connectStatus.innerHTML = `<span>\u2713 Connected as ${user?.username || "user"}</span>`;
+    } else {
+      connectStatus.className = 'status-box';
+      connectStatus.innerHTML = `<span>Not connected</span>`;
+    }
   }
   
   if (connectBtn) {
@@ -327,14 +331,15 @@ async function connectToCareAssurance() {
     
     // Show help text
     if (connectStatus) {
+      connectStatus.className = 'status-box';
       connectStatus.innerHTML = `
-        <div style="color: var(--color-error); font-size: 11px;">
-          <p style="margin-bottom: 8px;">${errorMsg}</p>
-          <p style="margin-bottom: 4px;"><strong>Steps to connect:</strong></p>
-          <ol style="padding-left: 16px; margin: 0; font-size: 10px;">
+        <div style="font-size: 11px; line-height: 1.5;">
+          <p style="margin-bottom: 6px; color: var(--color-error);">${errorMsg}</p>
+          <p style="margin-bottom: 4px; font-weight: 600;">Steps to connect:</p>
+          <ol style="padding-left: 16px; margin: 0; font-size: 10px; color: var(--color-muted-foreground);">
             <li>Open careassurance.uk in a browser tab</li>
             <li>Log in to your account</li>
-            <li>Click Connect again in this extension</li>
+            <li>Click Connect again</li>
           </ol>
         </div>
       `;
@@ -651,10 +656,13 @@ async function refreshPayloadStatus() {
   if (payloadStatus) {
     let statusHTML = '';
     if (payload?.formType === "initialAssessment") {
-      statusHTML = '<span style="color: var(--color-success);">✓ Care Plan ready for Initial Assessment</span>';
+      payloadStatus.className = 'status-box success';
+      statusHTML = '<span>\u2713 Care Plan ready for Initial Assessment</span>';
     } else if (payload?.formType === "acp" && payload?.assessments?.length) {
-      statusHTML = `<span style="color: var(--color-success);">✓ ${payload.assessments.length} assessment(s) ready</span>`;
+      payloadStatus.className = 'status-box success';
+      statusHTML = `<span>\u2713 ${payload.assessments.length} assessment(s) ready</span>`;
     } else {
+      payloadStatus.className = 'status-box';
       statusHTML = '<span>No data loaded</span>';
     }
     
@@ -663,18 +671,18 @@ async function refreshPayloadStatus() {
       const missingCount = verificationFields.filter(f => f.reason === 'missing').length;
       const ambiguousCount = verificationFields.filter(f => f.reason === 'ambiguous').length;
       statusHTML += `
-        <div style="margin-top: 8px; padding: 8px; background: #fff3cd; border-radius: 4px; border: 1px solid #ffc107;">
-          <div style="font-size: 11px; color: #856404; margin-bottom: 6px;">
-            <strong>⚠️ ${verificationFields.length} field(s) need verification</strong>
+        <div class="verification-panel">
+          <div class="verification-header">
+            <strong>${verificationFields.length} field(s) need verification</strong>
           </div>
-          <div style="font-size: 10px; color: #856404; margin-bottom: 8px;">
-            ${missingCount > 0 ? `${missingCount} missing info` : ''}
-            ${missingCount > 0 && ambiguousCount > 0 ? ' • ' : ''}
+          <div class="verification-detail">
+            ${missingCount > 0 ? `${missingCount} missing` : ''}
+            ${missingCount > 0 && ambiguousCount > 0 ? ' \u2022 ' : ''}
             ${ambiguousCount > 0 ? `${ambiguousCount} ambiguous` : ''}
           </div>
-          <div style="display: flex; gap: 4px;">
-            <button id="nav-prev-field" class="btn btn-small" style="flex: 1; font-size: 10px; padding: 4px 8px;">← Prev</button>
-            <button id="nav-next-field" class="btn btn-small btn-primary" style="flex: 1; font-size: 10px; padding: 4px 8px;">Next →</button>
+          <div class="verification-nav">
+            <button id="nav-prev-field" class="btn btn-sm btn-secondary">\u2190 Prev</button>
+            <button id="nav-next-field" class="btn btn-sm btn-primary">Next \u2192</button>
           </div>
         </div>
       `;
@@ -792,15 +800,37 @@ clearLogsButton?.addEventListener("click", async () => {
 
 function showError(message) {
   if (errorBanner) {
-    errorBanner.textContent = message;
+    const messageEl = document.getElementById('error-message');
+    if (messageEl) messageEl.textContent = message;
+    else errorBanner.textContent = message;
     errorBanner.hidden = false;
-    setTimeout(() => { errorBanner.hidden = true; }, 5000);
+    // Auto-dismiss after 8 seconds but user can dismiss earlier
+    clearTimeout(errorBanner._dismissTimer);
+    errorBanner._dismissTimer = setTimeout(() => { errorBanner.hidden = true; }, 8000);
   }
 }
 
 function showSuccess(message) {
+  // Show toast notification
+  const existing = document.querySelector('.toast-success');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = 'toast-success';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+  // Also update progress status
   if (progressStatus) progressStatus.textContent = message;
 }
+
+// Error dismiss button
+const errorDismissBtn = document.getElementById('error-dismiss');
+errorDismissBtn?.addEventListener('click', () => {
+  if (errorBanner) {
+    errorBanner.hidden = true;
+    clearTimeout(errorBanner._dismissTimer);
+  }
+});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INITIALIZATION

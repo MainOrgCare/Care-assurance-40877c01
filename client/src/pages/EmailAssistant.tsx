@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, Sparkles, Copy, RefreshCw, Send, Check } from "lucide-react";
+import { Mail, Sparkles, Copy, RefreshCw, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -174,25 +174,4 @@ export default function EmailAssistant() {
   );
 }
 
-// Helper icon
-function ArrowRightLeft({ className }: { className?: string }) {
-  return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" 
-      height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      className={className}
-    >
-      <path d="m16 3 4 4-4 4"/>
-      <path d="M20 7H4"/>
-      <path d="m8 21-4-4 4-4"/>
-      <path d="M4 17h16"/>
-    </svg>
-  )
-}
+

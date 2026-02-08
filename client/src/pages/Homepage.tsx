@@ -610,11 +610,11 @@ export default function Homepage() {
         <section id="compliance" className="home-band">
           <div className="max-w-6xl mx-auto px-4 py-16">
             <motion.div {...reveal()} className="text-center">
-              <p className="home-eyebrow" style={{ color: 'rgba(255,255,255,0.7)' }}>Compliance foundations</p>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: '#ffffff' }}>
+              <p className="home-eyebrow text-white/70">Compliance foundations</p>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight">
                 Evidence you can stand behind.
               </h2>
-              <p className="mt-4 max-w-2xl mx-auto leading-relaxed" style={{ color: 'rgba(255,255,255,0.8)' }}>
+              <p className="mt-4 max-w-2xl mx-auto leading-relaxed">
                 Built for regulated care environments with clear governance controls and consistent reporting.
               </p>
             </motion.div>
@@ -624,8 +624,8 @@ export default function Homepage() {
                   <div className="h-11 w-11 rounded-xl bg-white/10 flex items-center justify-center">
                     <item.icon className="h-5 w-5 text-white" />
                   </div>
-                  <h3 className="mt-4 text-lg font-semibold" style={{ color: '#ffffff' }}>{item.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.75)' }}>{item.description}</p>
+                  <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-white/75">{item.description}</p>
                 </motion.div>
               ))}
             </div>
@@ -640,10 +640,10 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Platform highlights</span>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: 'hsl(220, 25%, 10%)' }}>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight home-text-heading">
                 Every workflow your compliance team needs.
               </h2>
-              <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed" style={{ color: 'hsl(220, 10%, 35%)' }}>
+              <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed home-text-soft">
                 Designed for UK care operations, from medication audits to staff performance monitoring.
               </p>
             </motion.div>
@@ -651,13 +651,13 @@ export default function Homepage() {
               {PRIMARY_FEATURES.map((feature) => (
                 <motion.div key={feature.title} {...reveal(0.05)} className="home-card p-6">
                   <div className="flex items-center justify-between">
-                    <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}>
-                      <feature.icon className="h-5 w-5" style={{ color: '#3b82f6' }} />
+                    <div className="h-10 w-10 rounded-xl flex items-center justify-center home-icon-chip">
+                      <feature.icon className="h-5 w-5" />
                     </div>
                     <span className="home-pill">{feature.tag}</span>
                   </div>
-                  <h3 className="mt-4 text-lg font-semibold" style={{ color: '#0f172a' }}>{feature.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed" style={{ color: '#475569' }}>{feature.description}</p>
+                  <h3 className="mt-4 text-lg font-semibold home-text-heading">{feature.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed home-text-body">{feature.description}</p>
                 </motion.div>
               ))}
             </div>
@@ -668,10 +668,10 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">How it works</span>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: '#0f172a' }}>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight home-text-heading">
                 Three steps to audit-ready compliance.
               </h2>
-              <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed" style={{ color: '#64748b' }}>
+              <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed home-text-soft">
                 No complex setup. Upload your existing documents and get actionable insights within minutes.
               </p>
             </motion.div>
@@ -680,20 +680,16 @@ export default function Homepage() {
                 <motion.div
                   key={step.step}
                   {...reveal(0.1)}
-                  className={`relative p-6 rounded-xl border home-workflow-card ${index > 0 ? "home-workflow-step" : ""}`}
-                  style={{ borderColor: '#e2e8f0' }}
+                  className={`relative p-6 rounded-xl border border-border home-workflow-card ${index > 0 ? "home-workflow-step" : ""}`}
                 >
                   <div className="flex items-center gap-4 mb-4">
-                    <span 
-                      className="text-4xl font-bold"
-                      style={{ color: '#cbd5e1' }}
-                    >
+                    <span className="text-4xl font-bold text-muted-foreground/40">
                       {step.step}
                     </span>
-                    <step.icon className="h-8 w-8" style={{ color: '#3b82f6' }} />
+                    <step.icon className="h-8 w-8 text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold mb-2" style={{ color: '#0f172a' }}>{step.title}</h3>
-                  <p className="text-sm leading-relaxed" style={{ color: '#64748b' }}>{step.description}</p>
+                  <h3 className="text-lg font-semibold mb-2 home-text-heading">{step.title}</h3>
+                  <p className="text-sm leading-relaxed home-text-soft">{step.description}</p>
                 </motion.div>
               ))}
             </div>
@@ -704,20 +700,20 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Savings estimator</span>
-              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: 'hsl(220, 25%, 10%)' }}>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight home-text-heading">
                 Model time savings in minutes.
               </h2>
-              <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed" style={{ color: 'hsl(220, 10%, 35%)' }}>
+              <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed home-text-soft">
                 Estimate the annual hours recovered when audits and plans are streamlined.
               </p>
             </motion.div>
 
             <motion.div {...reveal(0.1)} className="home-card p-6 sm:p-8 mt-10">
               <div className="flex items-center justify-between mb-4">
-                <Label className="text-base font-semibold" style={{ color: '#0f172a' }}>Number of Service Users</Label>
+                <Label className="text-base font-semibold home-text-heading">Number of Service Users</Label>
                 <div className="flex items-center gap-2">
-                  <Users className="h-5 w-5" style={{ color: '#3b82f6' }} />
-                  <span className="text-2xl font-bold" style={{ color: '#0f172a' }} data-testid="text-service-users-count">
+                  <Users className="h-5 w-5 text-primary" />
+                  <span className="text-2xl font-bold home-text-heading" data-testid="text-service-users-count">
                     {serviceUsers}
                   </span>
                 </div>
@@ -731,7 +727,7 @@ export default function Homepage() {
                 className="w-full"
                 data-testid="slider-service-users"
               />
-              <div className="flex justify-between text-xs mt-2" style={{ color: '#64748b' }}>
+              <div className="flex justify-between text-xs mt-2 home-text-soft">
                 <span>1</span>
                 <span>50</span>
                 <span>100</span>
@@ -741,47 +737,47 @@ export default function Homepage() {
 
               <div className="mt-8 grid gap-4 md:grid-cols-4">
                 <div className="home-card-soft p-4">
-                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>Manual time</p>
-                  <p className="text-2xl font-bold" style={{ color: '#0f172a' }} data-testid="text-manual-hours">
+                  <p className="text-xs font-medium home-text-soft">Manual time</p>
+                  <p className="text-2xl font-bold home-text-heading" data-testid="text-manual-hours">
                     {roi.manualHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
-                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>per year</p>
+                  <p className="text-xs font-medium home-text-soft">per year</p>
                 </div>
                 <div className="home-card-soft p-4">
-                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>With CareAssurance</p>
-                  <p className="text-2xl font-bold" style={{ color: '#0f172a' }} data-testid="text-ai-hours">
+                  <p className="text-xs font-medium home-text-soft">With CareAssurance</p>
+                  <p className="text-2xl font-bold home-text-heading" data-testid="text-ai-hours">
                     {roi.aiHours.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
-                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>per year</p>
+                  <p className="text-xs font-medium home-text-soft">per year</p>
                 </div>
                 <div className="home-card-soft p-4">
-                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>Time saved</p>
-                  <p className="text-2xl font-bold" style={{ color: '#16a34a' }} data-testid="text-hours-saved">
+                  <p className="text-xs font-medium home-text-soft">Time saved</p>
+                  <p className="text-2xl font-bold text-green-600" data-testid="text-hours-saved">
                     {roi.hoursSaved.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
-                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>per year</p>
+                  <p className="text-xs font-medium home-text-soft">per year</p>
                 </div>
                 <div className="home-card-soft p-4">
-                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>Money saved</p>
-                  <p className="text-2xl font-bold" style={{ color: '#16a34a' }} data-testid="text-money-saved">
+                  <p className="text-xs font-medium home-text-soft">Money saved</p>
+                  <p className="text-2xl font-bold text-green-600" data-testid="text-money-saved">
                     £{roi.moneySaved.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
-                  <p className="text-xs font-medium" style={{ color: '#64748b' }}>per year at £14.50/hr*</p>
+                  <p className="text-xs font-medium home-text-soft">per year at £14.50/hr*</p>
                 </div>
               </div>
 
               <div className="mt-6">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium" style={{ color: '#64748b' }}>Efficiency gain</span>
-                  <span className="font-bold" style={{ color: '#16a34a' }}>{savingsPercent}% faster</span>
+                  <span className="font-medium home-text-soft">Efficiency gain</span>
+                  <span className="font-bold text-green-600">{savingsPercent}% faster</span>
                 </div>
-                <div className="mt-3 h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: '#e2e8f0' }}>
+                <div className="mt-3 h-2.5 rounded-full overflow-hidden bg-muted">
                   <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${savingsPercent}%`, background: 'linear-gradient(90deg, #3b82f6, #16a34a)' }}
+                    className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-blue-500 to-green-600"
+                    style={{ width: `${savingsPercent}%` }}
                   />
                 </div>
-                <p className="mt-3 text-xs" style={{ color: '#64748b' }}>
+                <p className="mt-3 text-xs home-text-soft">
                   *Estimates are based on typical task durations and may vary.
                 </p>
               </div>
@@ -795,23 +791,23 @@ export default function Homepage() {
               <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
                 <div>
                   <span className="home-eyebrow">Contact</span>
-                  <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight" style={{ color: 'hsl(220, 25%, 10%)' }}>
+                  <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight home-text-heading">
                     Speak with the CareAssurance team.
                   </h2>
-                  <p className="mt-4 text-base leading-relaxed" style={{ color: 'hsl(220, 10%, 35%)' }}>
+                  <p className="mt-4 text-base leading-relaxed home-text-soft">
                     Share your compliance priorities and we will respond with a tailored walkthrough.
                   </p>
-                  <div className="mt-6 space-y-3 text-sm" style={{ color: '#334155' }}>
+                  <div className="mt-6 space-y-3 text-sm home-text-body">
                     <div className="flex items-center gap-3">
-                      <Mail className="h-4 w-4" style={{ color: '#3b82f6' }} />
+                      <Mail className="h-4 w-4 text-primary" />
                       Private response within 1 business day.
                     </div>
                     <div className="flex items-center gap-3">
-                      <MessageSquare className="h-4 w-4" style={{ color: '#3b82f6' }} />
+                      <MessageSquare className="h-4 w-4 text-primary" />
                       Share audit goals, EMAR challenges, or care plan needs.
                     </div>
                     <div className="flex items-center gap-3">
-                      <Building2 className="h-4 w-4" style={{ color: '#3b82f6' }} />
+                      <Building2 className="h-4 w-4 text-primary" />
                       UK-based support for care facilities.
                     </div>
                   </div>
@@ -820,11 +816,11 @@ export default function Homepage() {
                 <div>
                   {contactSuccess ? (
                     <div className="home-card-soft p-6">
-                      <div className="flex items-center gap-2" style={{ color: '#0f172a' }}>
-                        <CheckCircle2 className="h-5 w-5" style={{ color: '#16a34a' }} />
+                      <div className="flex items-center gap-2 home-text-heading">
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
                         <span className="font-semibold">Message sent</span>
                       </div>
-                      <p className="mt-2 text-sm" style={{ color: '#64748b' }}>
+                      <p className="mt-2 text-sm home-text-soft">
                         Thank you for getting in touch. We will respond within 1 business day.
                       </p>
                       <Button variant="outline" className="home-outline mt-4 w-full" onClick={() => setContactSuccess(false)}>
@@ -835,18 +831,18 @@ export default function Homepage() {
                     <form onSubmit={handleContactSubmit} className="space-y-4">
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor="contact-name" className="text-sm" style={{ color: '#0f172a' }}>Name *</Label>
+                          <Label htmlFor="contact-name" className="text-sm home-text-heading">Name *</Label>
                           <Input
                             id="contact-name"
                             placeholder="Your name"
                             value={contactName}
                             onChange={(e) => setContactName(e.target.value)}
                             required
-                            style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}
+                            className="bg-muted/50 text-foreground"
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="contact-email" className="text-sm" style={{ color: '#0f172a' }}>Email *</Label>
+                          <Label htmlFor="contact-email" className="text-sm home-text-heading">Email *</Label>
                           <Input
                             id="contact-email"
                             type="email"
@@ -854,22 +850,22 @@ export default function Homepage() {
                             value={contactEmail}
                             onChange={(e) => setContactEmail(e.target.value)}
                             required
-                            style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}
+                            className="bg-muted/50 text-foreground"
                           />
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="contact-org" className="text-sm" style={{ color: '#0f172a' }}>Organisation</Label>
+                        <Label htmlFor="contact-org" className="text-sm home-text-heading">Organisation</Label>
                         <Input
                           id="contact-org"
                           placeholder="Your care facility or company"
                           value={contactOrg}
                           onChange={(e) => setContactOrg(e.target.value)}
-                          style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}
+                          className="bg-muted/50 text-foreground"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="contact-message" className="text-sm" style={{ color: '#0f172a' }}>Message *</Label>
+                        <Label htmlFor="contact-message" className="text-sm home-text-heading">Message *</Label>
                         <Textarea
                           id="contact-message"
                           placeholder="Tell us what you are looking for..."
@@ -877,7 +873,7 @@ export default function Homepage() {
                           onChange={(e) => setContactMessage(e.target.value)}
                           required
                           rows={4}
-                          style={{ backgroundColor: '#f8fafc', color: '#0f172a', resize: 'none' }}
+                          className="bg-muted/50 text-foreground resize-none"
                         />
                       </div>
                       {contactError && (
@@ -901,11 +897,11 @@ export default function Homepage() {
                     </form>
                   ) : (
                     <div className="home-card-soft p-6">
-                      <div className="flex items-center gap-2" style={{ color: '#0f172a' }}>
-                        <ClipboardCheck className="h-4 w-4" style={{ color: '#3b82f6' }} />
+                      <div className="flex items-center gap-2 home-text-heading">
+                        <ClipboardCheck className="h-4 w-4 text-primary" />
                         <span className="text-sm font-semibold">Contact form disabled</span>
                       </div>
-                      <p className="mt-2 text-sm" style={{ color: '#64748b' }}>
+                      <p className="mt-2 text-sm home-text-soft">
                         This site currently does not accept messages via email. If you already have access, please sign in.
                       </p>
                       <Button className="home-cta mt-4 w-full" onClick={openLoginFromCTA}>
@@ -921,29 +917,29 @@ export default function Homepage() {
         </section>
       </main>
 
-      <footer className="relative z-10" style={{ borderTop: '1px solid #e2e8f0' }}>
+      <footer className="relative z-10 border-t border-border">
         <div className="max-w-6xl mx-auto px-4 py-10 flex flex-col md:flex-row items-center justify-between gap-6 text-sm">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
+            <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center bg-blue-500">
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div>
-              <span className="font-semibold" style={{ color: '#0f172a' }}>CareAssurance</span>
-              <span className="ml-2" style={{ color: '#64748b' }}>careassurance.uk</span>
+              <span className="font-semibold home-text-heading">CareAssurance</span>
+              <span className="ml-2 home-text-soft">careassurance.uk</span>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-6" style={{ color: '#64748b' }}>
+          <div className="flex flex-wrap items-center gap-6 home-text-soft">
             <button
               type="button"
-              className="bg-transparent p-0 font-medium hover:text-[#0f172a] transition-colors"
+              className="bg-transparent p-0 font-medium hover:text-foreground transition-colors"
               onClick={() => scrollToSection("contact")}
             >
               Contact
             </button>
-            <Link href="/terms" className="font-medium hover:text-[#0f172a] transition-colors">
+            <Link href="/terms" className="font-medium hover:text-foreground transition-colors">
               Terms & Conditions
             </Link>
-            <Link href="/privacy" className="font-medium hover:text-[#0f172a] transition-colors">
+            <Link href="/privacy" className="font-medium hover:text-foreground transition-colors">
               Privacy Policy
             </Link>
           </div>

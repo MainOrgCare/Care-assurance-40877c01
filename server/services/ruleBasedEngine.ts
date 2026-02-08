@@ -272,49 +272,191 @@ export function extractCommonFields(text: string): Record<string, string> {
   const fields: Record<string, string> = {};
   const normalized = text.toLowerCase();
   
+  // Helper to check if any term is present
+  const has = (terms: string[]) => terms.some(t => normalized.includes(t));
+  
   // Memory level detection
-  if (normalized.includes("good memory") || normalized.includes("remembers well")) {
+  if (has(["good memory", "remembers well", "memory is good", "intact memory", "no memory issues"])) {
     fields.memory = "Good";
-  } else if (normalized.includes("poor memory") || normalized.includes("forgets often")) {
+  } else if (has(["poor memory", "forgets often", "significant memory loss", "severe memory", "no short term memory"])) {
     fields.memory = "Poor";
-  } else if (normalized.includes("fair memory") || normalized.includes("sometimes forgets")) {
+  } else if (has(["fair memory", "sometimes forgets", "mild memory", "occasional memory", "forgetful"])) {
     fields.memory = "Fair";
   }
   
   // Mood detection
-  if (normalized.includes("stable mood") || normalized.includes("happy") || normalized.includes("content")) {
+  if (has(["stable mood", "happy", "content", "bright mood", "good spirits", "cheerful"])) {
     fields.moods = "Stable";
-  } else if (normalized.includes("variable mood") || normalized.includes("mood swings")) {
+  } else if (has(["variable mood", "mood swings", "mood can change", "fluctuating mood"])) {
     fields.moods = "Variable";
-  } else if (normalized.includes("low mood") || normalized.includes("depressed") || normalized.includes("anxious")) {
+  } else if (has(["low mood", "depressed", "anxious", "tearful", "withdrawn", "flat mood"])) {
     fields.moods = "Low";
   }
   
   // Orientation detection
-  if (normalized.includes("fully oriented") || normalized.includes("knows time and place")) {
+  if (has(["fully oriented", "knows time and place", "oriented to time", "well oriented", "oriented x3"])) {
     fields.orientation = "Good";
-  } else if (normalized.includes("disorientated") || normalized.includes("confused")) {
+  } else if (has(["disorientated", "disorientated to time", "severely confused", "does not know where"])) {
     fields.orientation = "Disorientated";
-  } else if (normalized.includes("sometimes confused") || normalized.includes("occasionally confused")) {
+  } else if (has(["sometimes confused", "occasionally confused", "confused at times", "mild confusion", "gets confused"])) {
     fields.orientation = "Confused at times";
   }
   
   // Sleep pattern detection
-  if (normalized.includes("sleeps well") || normalized.includes("good sleep")) {
+  if (has(["sleeps well", "good sleep", "sleeps through", "no sleep issues", "restful sleep"])) {
     fields.sleepPattern = "Good";
-  } else if (normalized.includes("disturbed sleep") || normalized.includes("wakes frequently")) {
+  } else if (has(["disturbed sleep", "wakes frequently", "wakes during", "night waking", "restless at night"])) {
     fields.sleepPattern = "Disturbed";
-  } else if (normalized.includes("poor sleep") || normalized.includes("insomnia")) {
+  } else if (has(["poor sleep", "insomnia", "rarely sleeps", "very little sleep", "chronic sleep"])) {
     fields.sleepPattern = "Poor";
   }
   
   // Mobility detection
-  if (normalized.includes("fully mobile") || normalized.includes("walks independently") || normalized.includes("no mobility issues")) {
+  if (has(["fully mobile", "walks independently", "no mobility issues", "mobile unaided", "independent mobility"])) {
     fields.mobility = "Independent";
-  } else if (normalized.includes("uses frame") || normalized.includes("zimmer") || normalized.includes("rollator") || normalized.includes("walking stick")) {
+  } else if (has(["uses frame", "zimmer", "rollator", "walking stick", "walking aid", "crutch", "walks with aid"])) {
     fields.mobility = "With aid";
-  } else if (normalized.includes("wheelchair") || normalized.includes("non-ambulant") || normalized.includes("bedridden")) {
+  } else if (has(["wheelchair", "non-ambulant", "bedridden", "bed bound", "immobile", "unable to walk"])) {
     fields.mobility = "Unable";
+  }
+  
+  // Speech detection
+  if (has(["clear speech", "speaks clearly", "good speech", "communicates well", "articulate"])) {
+    fields.speech = "Good";
+  } else if (has(["communication device", "uses device", "lightwriter", "picture board", "communication aid"])) {
+    fields.speech = "Uses device";
+  } else if (has(["impaired speech", "speech difficulty", "slurred", "aphasia", "dysarthria", "non-verbal", "limited speech", "difficulty speaking"])) {
+    fields.speech = "Impaired";
+  }
+  
+  // Hearing detection
+  if (has(["good hearing", "hearing is good", "hears well", "no hearing issues", "hearing normal"])) {
+    fields.hearing = "Good";
+  } else if (has(["hearing aid", "wears aids", "uses hearing", "bilateral hearing aids", "requires hearing"])) {
+    fields.hearing = "Impaired/Uses aids";
+  } else if (has(["hearing impaired", "hard of hearing", "deaf", "hearing loss", "poor hearing", "partially deaf"])) {
+    fields.hearing = "Impaired";
+  }
+  
+  // Eyesight detection
+  if (has(["good eyesight", "good vision", "sees well", "eyesight is good", "vision normal", "no vision issues"])) {
+    fields.eyesight = "Good";
+  } else if (has(["wears glasses", "uses glasses", "spectacles", "contact lenses", "reading glasses", "varifocal"])) {
+    fields.eyesight = "Impaired/Uses glasses";
+  } else if (has(["poor vision", "vision impaired", "partially sighted", "blind", "registered blind", "cataract", "macular", "glaucoma", "poor eyesight"])) {
+    fields.eyesight = "Impaired";
+  }
+  
+  // Breathlessness detection
+  if (has(["no breathlessness", "breathing normal", "no respiratory", "lungs clear"])) {
+    fields.breathlessness = "None";
+  } else if (has(["breathless at rest", "severe breathlessness", "oxygen dependent", "continuous oxygen", "breathless on talking"])) {
+    fields.breathlessness = "Severe";
+  } else if (has(["moderate breathlessness", "breathless on exertion", "breathless walking", "gets breathless", "short of breath"])) {
+    fields.breathlessness = "Moderate";
+  } else if (has(["mild breathlessness", "occasionally breathless", "slight breathlessness", "breathless on stairs"])) {
+    fields.breathlessness = "Mild";
+  }
+  
+  // Urinary incontinence detection
+  if (has(["continent", "no incontinence", "uses toilet independently", "no urinary issues"])) {
+    fields.urinaryIncontinence = "None";
+  } else if (has(["frequent incontinence", "incontinent of urine", "catheter", "urinary catheter", "always wears pad"])) {
+    fields.urinaryIncontinence = "Frequent";
+  } else if (has(["occasional incontinence", "sometimes wet", "urgency", "stress incontinence", "wears pad", "night pad"])) {
+    fields.urinaryIncontinence = "Occasional";
+  }
+  
+  // Faecal incontinence detection
+  if (has(["faecal incontinence", "bowel incontinence", "incontinent of faeces", "soiling", "stoma", "colostomy"])) {
+    fields.faecalIncontinence = has(["frequent", "regular", "daily", "stoma", "colostomy"]) ? "Frequent" : "Occasional";
+  } else if (has(["bowels regular", "no bowel issues", "continent of faeces"])) {
+    fields.faecalIncontinence = "None";
+  }
+  
+  // Behaviours detection
+  if (has(["aggressive", "violent behaviour", "physical aggression", "challenging behaviour", "frequently agitated"])) {
+    fields.behaviours = "Frequent concerns";
+  } else if (has(["occasional agitation", "sometimes agitated", "can become anxious", "occasional distress", "wandering"])) {
+    fields.behaviours = "Occasional";
+  } else if (has(["no behavioural", "no concerns", "calm", "cooperative", "pleasant"])) {
+    fields.behaviours = "None";
+  }
+  
+  // Weight bearing detection
+  if (has(["full weight bearing", "fwb", "bears weight fully", "stands independently"])) {
+    fields.weightBearing = "Full";
+  } else if (has(["partial weight bearing", "pwb", "some weight bearing", "assisted weight bearing"])) {
+    fields.weightBearing = "Partial";
+  } else if (has(["non weight bearing", "nwb", "no weight bearing", "unable to bear weight", "hoisted"])) {
+    fields.weightBearing = "None";
+  }
+  
+  // Stairs detection
+  if (has(["manages stairs independently", "stairs unaided", "uses stairs alone"])) {
+    fields.stairs = "Independent";
+  } else if (has(["stairs with support", "needs help on stairs", "one step at a time", "stairlift", "rail on stairs"])) {
+    fields.stairs = "With support";
+  } else if (has(["unable to manage stairs", "cannot do stairs", "no stairs", "ground floor only", "bungalow"])) {
+    fields.stairs = "Unable";
+  }
+  
+  // Sit to stand detection
+  if (has(["stands independently", "sit to stand independent", "gets up without help"])) {
+    fields.sitToStand = "Independent";
+  } else if (has(["needs help to stand", "assist to stand", "stand aid", "sara steady", "help getting up", "needs pulling up"])) {
+    fields.sitToStand = "Needs help";
+  }
+  
+  // Washing detection
+  if (has(["washes independently", "independent with washing", "manages own wash"])) {
+    fields.washing = "Independent";
+  } else if (has(["needs assistance with wash", "help with washing", "strip wash", "assist with shower", "wash support"])) {
+    fields.washing = "Needs assistance";
+  }
+  
+  // Dressing detection
+  if (has(["dresses independently", "independent with dressing", "manages own clothing"])) {
+    fields.dressing = "Independent";
+  } else if (has(["needs help dressing", "help with dressing", "assist with clothing", "cannot dress", "dressing support"])) {
+    fields.dressing = "Needs help";
+  }
+  
+  // Can be left alone detection
+  if (has(["can be left alone", "safe to leave", "lives alone", "on own safely", "independent at home"])) {
+    fields.canBeLeftAlone = "Yes";
+  } else if (has(["cannot be left alone", "not safe alone", "supervision required", "24 hour care", "constant supervision"])) {
+    fields.canBeLeftAlone = "No";
+  }
+  
+  // Prone to falls detection
+  if (has(["history of falls", "falls frequently", "fallen recently", "prone to falls", "unsteady", "fall risk", "recurrent falls", "multiple falls"])) {
+    fields.proneToFalls = "Yes";
+  } else if (has(["no falls", "no history of falls", "steady on feet", "no fall risk"])) {
+    fields.proneToFalls = "No";
+  }
+  
+  // Property type detection
+  if (has(["bungalow"])) {
+    fields.propertyType = "Bungalow";
+  } else if (has(["flat", "apartment", "maisonette"])) {
+    fields.propertyType = "Flat";
+  } else if (has(["house", "semi-detached", "detached", "terraced"])) {
+    fields.propertyType = "House";
+  }
+  
+  // Key safe detection
+  if (has(["key safe", "keysafe", "key box", "keybox"])) {
+    fields.meansOfAccess = "Key safe";
+  } else if (has(["key held", "key held by", "spare key"])) {
+    fields.meansOfAccess = "Key held";
+  }
+  
+  // Smoking detection
+  if (has(["non-smoker", "non smoker", "does not smoke", "never smoked", "ex-smoker", "ex smoker", "gave up smoking"])) {
+    fields.smokingStatus = "Non-smoker";
+  } else if (has(["smoker", "smokes", "cigarette", "tobacco", "rolls own"])) {
+    fields.smokingStatus = "Smoker";
   }
   
   return fields;

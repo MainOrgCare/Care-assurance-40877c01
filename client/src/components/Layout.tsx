@@ -271,29 +271,29 @@ const SidebarContent = memo(function SidebarContent({
       {/* Divider */}
       <div className={cn("mx-5 h-px bg-white/8", isCollapsed && "mx-3")} />
 
-      <nav className={cn("flex-1 space-y-0.5 py-3 overflow-y-auto overscroll-contain", isCollapsed ? "px-2" : "px-3")}>
+      <nav aria-label="Main navigation" className={cn("flex-1 space-y-0.5 py-3 overflow-y-auto overscroll-contain", isCollapsed ? "px-2" : "px-3")}>
         
         {/* Dashboard */}
-        <Link href="/dashboard" className={navLinkClass(location === "/dashboard")} title={isCollapsed ? "Dashboard" : undefined}>
+        <Link href="/dashboard" className={navLinkClass(location === "/dashboard")} title={isCollapsed ? "Dashboard" : undefined} aria-current={location === "/dashboard" ? "page" : undefined}>
             <LayoutDashboard size={16} />
             <span className={labelClass}>Dashboard</span>
             {!isCollapsed && location === "/dashboard" && <ArrowUpRight size={12} className="ml-auto opacity-50" />}
         </Link>
 
         {/* Messages */}
-        <Link href="/messages" className={navLinkClass(location === "/messages")} title={isCollapsed ? "Messages" : undefined}>
+        <Link href="/messages" className={navLinkClass(location === "/messages")} title={isCollapsed ? "Messages" : undefined} aria-current={location === "/messages" ? "page" : undefined}>
           <Inbox size={16} />
           <span className={labelClass}>Messages</span>
         </Link>
 
         {/* Email Assistant */}
-        <Link href="/email-assistant" className={navLinkClass(location === "/email-assistant")} title={isCollapsed ? "Email Assistant" : undefined}>
+        <Link href="/email-assistant" className={navLinkClass(location === "/email-assistant")} title={isCollapsed ? "Email Assistant" : undefined} aria-current={location === "/email-assistant" ? "page" : undefined}>
           <Mail size={16} />
           <span className={labelClass}>Email Assistant</span>
         </Link>
 
         {/* Compliance */}
-        <Link href="/compliance" className={navLinkClass(location === "/compliance")} title={isCollapsed ? "Compliance" : undefined}>
+        <Link href="/compliance" className={navLinkClass(location === "/compliance")} title={isCollapsed ? "Compliance" : undefined} aria-current={location === "/compliance" ? "page" : undefined}>
           <CheckCircle size={16} />
           <span className={labelClass}>Compliance</span>
         </Link>
@@ -727,16 +727,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { className: string; iconClassName: string }
   > = {
     info: {
-      className: "border-blue-200 bg-blue-50 text-blue-900",
-      iconClassName: "text-blue-600",
+      className: "border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300",
+      iconClassName: "text-blue-600 dark:text-blue-400",
     },
     warning: {
-      className: "border-amber-200 bg-amber-50 text-amber-900",
-      iconClassName: "text-amber-600",
+      className: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+      iconClassName: "text-amber-600 dark:text-amber-400",
     },
     critical: {
-      className: "border-red-200 bg-red-50 text-red-900",
-      iconClassName: "text-red-600",
+      className: "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300",
+      iconClassName: "text-red-600 dark:text-red-400",
     },
   };
 

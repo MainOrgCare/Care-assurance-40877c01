@@ -281,7 +281,7 @@ export default function Messages() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleDelete(selectedMessage.id)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete

@@ -17,7 +17,7 @@ import { z } from "zod";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser } from "@shared/schema";
 import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { getCacheStats, clearCache } from "./services/aiCache";
-import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseAI } from "./services/ruleBasedEngine";
+import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseAI, extractMedicationInfo, extractPersonalCareNeeds, extractContinenceInfo, extractNutritionInfo, extractEnvironmentInfo } from "./services/ruleBasedEngine";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
 import { careWorkerRotaPayloadSchema, computeRotaSourceHash, rotaWeekdayEnum } from "./services/careWorkerRota";
 import multer from "multer";
@@ -3010,6 +3010,31 @@ const buildRuleBasedPlanEnhancementPayload = (rawContent: string) => {
   const riskLevel = normalizeRiskRating(analyzeRiskLevel(rawContent).level);
   const profile = buildRuleBasedRiskAnalysisPayload(rawContent, false);
   const evidenceFinder = buildDocumentEvidenceFinder(rawContent);
+  const extractedFields = extractCommonFields(rawContent);
+  const lower = (rawContent || "").toLowerCase();
+  
+  // Use the richer extraction functions for more detailed data
+  const personalCareData = extractPersonalCareNeeds(rawContent);
+  const continenceData = extractContinenceInfo(rawContent);
+  const nutritionData = extractNutritionInfo(rawContent);
+  const environmentData = extractEnvironmentInfo(rawContent);
+  const medicationData = extractMedicationInfo(rawContent);
+  
+  // Helper to find contextual snippets for specific topics
+  const findContext = (terms: string[], max = 3) => evidenceFinder.findAllSnippets(terms, max);
+  
+  // Helper to check if content mentions any of the given terms
+  const mentions = (terms: string[]) => terms.some(t => lower.includes(t.toLowerCase()));
+  
+  // Helper to build narrative from snippets or return default
+  const buildNarrative = (terms: string[], fallback: string, max = 4) => {
+    const snippets = findContext(terms, max);
+    if (snippets.length > 0) {
+      return toFirstPerson(snippets.join(". ") + ".");
+    }
+    return fallback;
+  };
+
   const keyLifeSnippets = evidenceFinder.findAllSnippets(
     ["family", "preference", "routine", "support", "mobility", "medication", "nutrition", "safety"],
     6
@@ -3018,24 +3043,191 @@ const buildRuleBasedPlanEnhancementPayload = (rawContent: string) => {
     ? keyLifeSnippets
     : ["My uploaded documents include current care information that should be reviewed with me and my representatives."];
 
-  const equipmentRows = profile.equipment.slice(0, 4).map((item) => ({
+  // Combine equipment from profile and environment extraction for comprehensive list
+  const allEquipment = new Set([...profile.equipment, ...(environmentData.equipment || [])]);
+  const equipmentRows = [...allEquipment].slice(0, 8).map((item: string) => ({
     name: item,
     fitForPurpose: "Yes",
-    supplier: "Documented provider",
-    nextService: "Check maintenance schedule",
+    supplier: "To be confirmed",
+    nextService: "To be confirmed",
   }));
+  
+  // If no equipment extracted but mobility support is needed, add common items
+  if (equipmentRows.length === 0 && profile.careActivities.includes("Mobility and transfers")) {
+    equipmentRows.push({
+      name: "Mobility aid - to be confirmed at initial visit",
+      fitForPurpose: "To be confirmed",
+      supplier: "To be confirmed",
+      nextService: "To be confirmed",
+    });
+  }
 
   const verificationQuestions: string[] = [];
   if (!profile.medicalConditions.length) verificationQuestions.push("Please confirm my diagnosed medical conditions and current treatment plan.");
   if (!profile.careActivities.length) verificationQuestions.push("Please confirm the exact daily care tasks and time-critical routines I need.");
   if (!profile.equipment.length) verificationQuestions.push("Please confirm what moving/handling or safety equipment is currently in place.");
+  
+  // Additional targeted verification questions based on what's missing
+  const nameSnippets = findContext(["name", "born", "age", "date of birth"], 2);
+  if (nameSnippets.length === 0) verificationQuestions.push("What is your full name and date of birth?");
+  
+  const familySnippets = findContext(["family", "wife", "husband", "daughter", "son", "children", "partner", "spouse", "next of kin"], 2);
+  if (familySnippets.length === 0) verificationQuestions.push("Who are your family members or next of kin, and how often do they visit?");
+  
+  const hobbiesSnippets = findContext(["hobby", "hobbies", "interest", "enjoy", "like to", "favourite", "favorite", "music", "garden", "read", "television", "tv"], 3);
+  if (hobbiesSnippets.length === 0) verificationQuestions.push("What are your hobbies, interests and things you enjoy doing?");
+  
+  const routineSnippets = findContext(["morning", "evening", "wake", "bed time", "bedtime", "routine", "schedule"], 3);
+  if (routineSnippets.length === 0) verificationQuestions.push("What is your preferred daily routine - what time do you like to wake up, have meals, and go to bed?");
+  
+  const nutritionSnippets = findContext(["diet", "food", "meal", "eat", "drink", "allergy", "allergies", "vegetarian", "diabetic diet", "thickened", "nutrition"], 3);
+  if (nutritionSnippets.length === 0) verificationQuestions.push("What are your food preferences, allergies, and dietary requirements?");
+  
+  if (!mentions(["key safe", "keysafe", "key box", "door entry"])) verificationQuestions.push("How do carers access your property? Is there a key safe, and if so where is it located?");
+  if (!mentions(["smoke alarm", "fire alarm", "fire"])) verificationQuestions.push("Where are your smoke alarms and carbon monoxide detectors located? Are they working?");
+  if (!mentions(["gp", "doctor", "surgery", "general practitioner"])) verificationQuestions.push("Who is your GP and which surgery are you registered with?");
+
+  // Extract specific data for risk sections
+  const hasDiabetes = mentions(["diabet", "insulin", "blood glucose", "metformin", "hypogly"]);
+  const hasDementia = mentions(["dementia", "alzheimer", "cognitive impairment"]);
+  const hasArthritis = mentions(["arthritis", "joint pain", "osteoarthritis", "rheumatoid"]);
+  const hasRespiratory = mentions(["copd", "asthma", "breathless", "oxygen", "inhaler"]);
+  const hasCardiac = mentions(["heart", "cardiac", "angina", "hypertension", "blood pressure"]);
+  const hasMentalHealth = mentions(["depress", "anxiety", "mental health", "low mood"]);
+  const hasEpilepsy = mentions(["epilep", "seizure"]);
+  const hasFallsRisk = mentions(["fall", "unsteady", "balance", "trip"]);
+  const hasSkinRisk = mentions(["pressure", "ulcer", "wound", "skin tear", "skin integrity"]);
+  const hasIncontinence = mentions(["incontinence", "continence", "pad", "catheter"]);
+  const hasHearingIssue = mentions(["hearing", "hearing aid", "deaf"]);
+  const hasVisionIssue = mentions(["vision", "eyesight", "glasses", "blind", "cataract", "partially sighted"]);
+  const hasSpeechIssue = mentions(["speech", "aphasia", "non-verbal", "communication difficulty"]);
+  const hasSwallowIssue = mentions(["choking", "dysphagia", "aspiration", "thickened"]);
+  const usesWheelchair = mentions(["wheelchair"]);
+  const usesWalkingAid = mentions(["walking frame", "zimmer", "rollator", "walking stick", "crutch"]);
+  const usesHoist = mentions(["hoist"]);
+  const hasStairs = mentions(["stairs", "steps", "upstairs"]);
+  const livesAlone = mentions(["lives alone", "live alone", "on my own", "by myself"]);
+  const hasSmokeAlarm = mentions(["smoke alarm", "fire alarm"]);
+  const hasKeySafe = mentions(["key safe", "keysafe", "key box"]);
+  const smokes = mentions(["smok", "cigarette", "tobacco"]);
+
+  // Build health overview narrative
+  const conditionsList = profile.medicalConditions;
+  const healthNarrative = conditionsList.length > 0
+    ? toFirstPerson(`I have the following documented health conditions: ${conditionsList.join(", ")}. ` +
+        (hasDiabetes ? "My diabetes requires careful dietary management and monitoring. " : "") +
+        (hasArthritis ? "My arthritis affects my mobility and ability to carry out daily tasks. " : "") +
+        (hasRespiratory ? "My respiratory condition affects my breathing and energy levels. " : "") +
+        (hasCardiac ? "My heart condition requires monitoring and appropriate medication management. " : "") +
+        (hasMentalHealth ? "My mental health needs are an important part of my overall care. " : "") +
+        (hasEpilepsy ? "My epilepsy/seizures require careful monitoring and a clear emergency response plan. " : "") +
+        "Care workers should be aware of these conditions and report any changes to the office.")
+    : "My medical conditions have not been specified in the documents provided. Please confirm my diagnosed conditions and how they affect my daily life.";
+
+  // Build medication narrative - use extracted medication data when available
+  const medSnippets = findContext(["medication", "medicine", "tablet", "dosette", "blister pack", "prescription", "mg", "twice daily", "once daily", "three times"], 5);
+  const extractedMedNames = medicationData.map(m => m.name).filter(Boolean);
+  const medicationNarrative = extractedMedNames.length > 0
+    ? toFirstPerson(`My current medications include: ${extractedMedNames.join(", ")}. ` +
+        (medicationData.some(m => m.isControlled) ? "Some of my medications are controlled drugs and must be handled according to the controlled drug policy. " : "") +
+        (medicationData.some(m => m.needsMonitoring) ? "Some of my medications require regular monitoring (e.g., blood tests). " : "") +
+        (medSnippets.length > 0 ? medSnippets.slice(0, 2).join(". ") + ". " : "") +
+        "Care workers should follow my MAR chart and report any missed or refused medications to the office immediately.")
+    : medSnippets.length > 0
+      ? toFirstPerson(`My medication details from the documents: ${medSnippets.join(". ")}. Care workers should follow my MAR chart and report any missed or refused medications to the office immediately.`)
+      : profile.careActivities.includes("Medication support")
+        ? "I require medication support. My specific medications, dosages and timings should be confirmed from my MAR chart and documented here."
+        : "My medication requirements have not been specified in the documents provided. Please confirm whether I need medication support and provide details of my current medications.";
+
+  // Build personal care narrative - use extracted personal care data
+  const careSnippets = findContext(["wash", "bathing", "shower", "dressing", "toilet", "personal care", "morning routine", "evening routine", "teeth", "denture", "shave"], 5);
+  const personalCareExtracted = Object.entries(personalCareData)
+    .filter(([key, val]) => val && !key.includes("Level"))
+    .map(([key, val]) => `${key}: ${val}`);
+  const personalCareNarrative = careSnippets.length > 0
+    ? toFirstPerson(`My personal care needs based on the documents: ${careSnippets.join(". ")}. ` +
+        (personalCareExtracted.length > 0 ? `Specifically: ${personalCareExtracted.join(", ")}. ` : "") +
+        (hasArthritis || usesWalkingAid ? "Due to my mobility limitations, I need extra time and support with tasks that involve bending, reaching or standing for long periods. " : "") +
+        "My dignity and preferences should always be respected during personal care.")
+    : personalCareExtracted.length > 0
+      ? toFirstPerson(`My personal care needs include: ${personalCareExtracted.join(", ")}. My exact routines and preferences should be confirmed at my initial visit. My dignity and preferences should always be respected during personal care.`)
+      : profile.careActivities.includes("Personal care support")
+        ? "I require support with personal care. My specific routine, preferences and level of independence should be confirmed at my initial visit and documented here."
+        : "My personal care needs have not been specified in the documents provided. Please confirm what support I need with washing, dressing and toileting.";
+
+  // Build mobility narrative
+  const mobilitySnippets = findContext(["mobility", "walking", "transfer", "hoist", "stand aid", "wheelchair", "frame", "stairs", "balance", "weight bearing"], 5);
+  const mobilityNarrative = mobilitySnippets.length > 0
+    ? toFirstPerson(`My mobility details from the documents: ${mobilitySnippets.join(". ")}. ` +
+        (profile.equipment.length > 0 ? `I use the following equipment: ${profile.equipment.join(", ")}. ` : "") +
+        "Care workers should follow my moving and handling plan and never rush me during transfers.")
+    : profile.careActivities.includes("Mobility and transfers")
+      ? `I require mobility and transfer support. ${profile.equipment.length > 0 ? `I currently use: ${profile.equipment.join(", ")}. ` : ""}My specific moving and handling requirements should be confirmed and documented here.`
+      : "My mobility needs have not been specified in the documents provided. Please confirm my mobility level and any equipment I use.";
+
+  // Build nutrition narrative - use extracted nutrition data
+  const nutritionExtracted: string[] = [];
+  if (nutritionData.feedingMethod) nutritionExtracted.push(`Feeding method: ${nutritionData.feedingMethod}`);
+  if (nutritionData.allergies) nutritionExtracted.push(`Allergies: ${nutritionData.allergies}`);
+  if (nutritionData.modified) nutritionExtracted.push(`Diet modification: ${nutritionData.modified}`);
+  if (nutritionData.fluids) nutritionExtracted.push(`Fluids: ${nutritionData.fluids}`);
+  if (nutritionData.mustScore) nutritionExtracted.push(`MUST score: ${nutritionData.mustScore}`);
+  
+  const nutritionNarrative = nutritionSnippets.length > 0 || nutritionExtracted.length > 0
+    ? toFirstPerson(
+        (nutritionSnippets.length > 0 ? `My nutritional needs from the documents: ${nutritionSnippets.join(". ")}. ` : "") +
+        (nutritionExtracted.length > 0 ? `Key nutrition information: ${nutritionExtracted.join(". ")}. ` : "") +
+        (hasDiabetes ? "Due to my diabetes, I need to follow a diabetic-friendly diet and avoid excessive sugar. " : "") +
+        (hasSwallowIssue ? "I have swallowing difficulties and may require modified texture food or thickened fluids. " : "") +
+        "My food preferences and any allergies should be clearly documented.")
+    : "My dietary requirements, preferences and allergies have not been specified in the documents provided. Please confirm my nutritional needs.";
+
+  // Determine categorical fields from evidence - prefer extractedFields from ruleBasedEngine, fall back to keyword detection
+  const speechStatus = extractedFields.speech || (hasSpeechIssue ? "Impaired" : (findContext(["speech", "speak", "talk", "verbal"], 1).length > 0 ? "Good" : "Not assessed - to be confirmed at initial visit"));
+  const hearingStatus = extractedFields.hearing || (hasHearingIssue ? "Impaired/Uses aids" : (findContext(["hearing", "hears well"], 1).length > 0 ? "Good" : "Not assessed - to be confirmed at initial visit"));
+  const eyesightStatus = extractedFields.eyesight || (hasVisionIssue ? "Impaired/Uses glasses" : (findContext(["eyesight", "vision", "sees well"], 1).length > 0 ? "Good" : "Not assessed - to be confirmed at initial visit"));
+  const breathlessnessStatus = extractedFields.breathlessness || (hasRespiratory ? "Moderate" : "Not assessed - to be confirmed at initial visit");
+  const urinaryStatus = extractedFields.urinaryIncontinence || (hasIncontinence ? "Occasional" : "Not specified in documents provided");
+  const faecalStatus = extractedFields.faecalIncontinence || (hasIncontinence && mentions(["faecal", "bowel incontinence", "soiling"]) ? "Occasional" : "Not specified in documents provided");
+  const memoryStatus = extractedFields.memory || (hasDementia ? "Poor" : "Not assessed - to be confirmed at initial visit");
+  const moodStatus = extractedFields.moods || (hasMentalHealth ? "Variable" : "Not assessed - to be confirmed at initial visit");
+  const orientationStatus = extractedFields.orientation || (hasDementia ? "Confused at times" : "Not assessed - to be confirmed at initial visit");
+  const sleepStatus = extractedFields.sleepPattern || "Not assessed - to be confirmed at initial visit";
+  const mobilityWalking = extractedFields.mobility || (usesWalkingAid ? "With aid" : (usesWheelchair ? "Unable" : "Not assessed - to be confirmed at initial visit"));
+  const behavioursStatus = extractedFields.behaviours || (hasDementia || mentions(["behaviour", "agitation", "aggression", "wandering"]) ? "Occasional" : "No concerns documented");
+
+  // Determine weight bearing from mobility evidence
+  const weightBearing = extractedFields.weightBearing || (usesHoist ? "None" : (usesWalkingAid ? "Partial" : (usesWheelchair ? "None" : "Not assessed - to be confirmed at initial visit")));
+  
+  // Additional fields from extractedFields
+  const stairsStatus = extractedFields.stairs || (hasStairs ? (usesWalkingAid || usesWheelchair ? "With support" : "Not specified - to be confirmed") : "Not applicable - no stairs documented");
+  const sitToStandStatus = extractedFields.sitToStand || ((usesWalkingAid || usesHoist || hasArthritis) ? "Needs help" : "Not assessed - to be confirmed at initial visit");
+  const washingStatus = extractedFields.washing || (profile.careActivities.includes("Personal care support") ? "Needs assistance" : "Not assessed - to be confirmed at initial visit");
+  const dressingStatus = extractedFields.dressing || (profile.careActivities.includes("Personal care support") ? "Needs help" : "Not assessed - to be confirmed at initial visit");
+  const canBeLeftAloneStatus = extractedFields.canBeLeftAlone || (livesAlone ? "Yes - lives alone" : (hasDementia ? "No - to be confirmed, cognitive impairment documented" : "To be confirmed at initial visit"));
+  const proneToFallsStatus = extractedFields.proneToFalls || (hasFallsRisk ? "Yes" : "Not specified in documents provided - assess at initial visit");
+  const propertyTypeStatus = extractedFields.propertyType || "Not specified - confirm property type at initial visit";
+  const meansOfAccessStatus = extractedFields.meansOfAccess || (hasKeySafe ? "Key safe" : "Not specified in documents provided - confirm access arrangements");
+  const smokingStatusField = extractedFields.smokingStatus || (smokes ? "Smoker" : "Not specified");
 
   return {
     verificationQuestions,
     thisIsMe: {
-      whoAmI: toFirstPerson(`My name is [Name]. I want my carers to understand my background, my preferences and what matters most to me. ${highlights[0]}`),
-      hobbiesInterests: toFirstPerson(`I value meaningful activity and conversation. ${highlights.slice(1, 3).join(" ") || "My team should record my interests and use them in visit planning."}`),
-      whatMakesGoodDay: toFirstPerson(`A good day for me is when care is on time, respectful and consistent with my routines. ${highlights.slice(3, 5).join(" ")}`),
+      whoAmI: toFirstPerson(`My name is [Name]. ${nameSnippets.length > 0 ? nameSnippets.join(". ") + ". " : ""}` +
+        (familySnippets.length > 0 ? familySnippets.join(". ") + ". " : "") +
+        `${highlights[0]} ` +
+        "I want my carers to understand my background, my preferences and what matters most to me. " +
+        "The details of my life story should be discussed with me and my family to ensure this section reflects who I am as a person."),
+      hobbiesInterests: toFirstPerson(
+        hobbiesSnippets.length > 0
+          ? `My interests and hobbies include: ${hobbiesSnippets.join(". ")}. My carers should try to incorporate these into my daily routine where possible.`
+          : `My hobbies and interests have not been specified in the documents provided. My carers should ask me about what I enjoy and record my preferences here. ${highlights.slice(1, 3).join(" ") || ""}`
+      ),
+      whatMakesGoodDay: toFirstPerson(
+        routineSnippets.length > 0
+          ? `A good day for me includes: ${routineSnippets.join(". ")}. It is important that my routine is followed and that carers are patient and respectful. ${highlights.slice(3, 5).join(" ")}`
+          : `A good day for me is when care is on time, respectful and consistent with my routines. My specific preferences for what makes a good day should be discussed with me and recorded here. ${highlights.slice(3, 5).join(" ")}`
+      ),
     },
     goalSetting: {
       goals: [
@@ -3045,93 +3237,314 @@ const buildRuleBasedPlanEnhancementPayload = (rawContent: string) => {
           potentialBarriers: "Changes in mobility, health fluctuations or missed communication between visits.",
           timeFrame: "Review at each care plan update",
         },
+        ...(hasFallsRisk ? [{
+          goal: "Reduce risk of falls",
+          howToAchieve: "Use prescribed mobility aids, keep pathways clear and follow moving and handling guidance.",
+          potentialBarriers: "Rushing, not using aids, environmental hazards or changes in health.",
+          timeFrame: "Ongoing - review every 3 months",
+        }] : []),
+        ...(hasDiabetes ? [{
+          goal: "Maintain stable blood sugar levels",
+          howToAchieve: "Follow dietary guidance, take medication as prescribed and report symptoms of high or low blood sugar.",
+          potentialBarriers: "Dietary changes, missed medication or illness.",
+          timeFrame: "Ongoing - review every 3 months",
+        }] : []),
       ],
-      internetSupport: "Discuss if digital support or reminders would improve my independence.",
-      assistiveTechnology: profile.equipment.length > 0 ? `Current equipment includes ${profile.equipment.slice(0, 3).join(", ")}.` : "Assess whether assistive technology would improve safety and independence.",
+      internetSupport: "Not specified in documents provided - to be confirmed at initial visit.",
+      assistiveTechnology: profile.equipment.length > 0 ? `Current equipment includes ${profile.equipment.join(", ")}.` : "Not specified in documents provided - to be confirmed at initial visit.",
     },
     advanceDecisions: {
-      advanceDecisionInPlace: "Verify from latest records",
-      dnrDetails: "Confirm any DNACPR or advance decision details with authorised documentation.",
-      lastingPOA: "Verify from records",
-      poaType: "Confirm Health and Welfare / Property and Finance status",
-      poaContact: "Record authorised contact details",
+      advanceDecisionInPlace: findContext(["advance decision", "advance directive", "living will"], 1).length > 0 ? "Yes - see details" : "Not specified in documents provided",
+      dnrDetails: findContext(["dnr", "dnacpr", "do not resuscitate", "do not attempt"], 1).length > 0 
+        ? buildNarrative(["dnr", "dnacpr", "do not resuscitate"], "DNACPR details to be confirmed from authorised documentation.")
+        : "Not specified in documents provided - confirm whether any DNACPR or advance decision is in place.",
+      lastingPOA: findContext(["power of attorney", "poa", "lasting power"], 1).length > 0 ? "Yes" : "Not specified in documents provided",
+      poaType: findContext(["health and welfare", "property and finance", "both poa"], 1).length > 0
+        ? buildNarrative(["health and welfare", "property and finance"], "To be confirmed")
+        : "Not specified in documents provided",
+      poaContact: buildNarrative(["power of attorney", "poa contact", "attorney"], "Not specified in documents provided - record authorised contact details."),
     },
     myCarePlan: {
-      capacityAndSafeguarding: "Record my decision-making capacity, safeguarding concerns and agreed escalation process.",
-      healthAndWellbeing: profile.medicalConditions.length ? `My key health conditions include ${profile.medicalConditions.slice(0, 4).join(", ")}.` : "Record my current health conditions and monitoring needs.",
-      triggerPoints: "Escalate if I show acute decline, new confusion, reduced intake, medication concerns or safety incidents.",
-      medicationRequirements: profile.careActivities.includes("Medication support") ? "Follow my MAR chart, check time-critical medicines and escalate omissions immediately." : "Confirm if I need medication prompting or administration support.",
-      nutrition: profile.careActivities.includes("Nutrition and hydration support") ? "Support me with meals and drinks according to my documented preferences and risks." : "Confirm my dietary requirements, allergies and hydration targets.",
-      personalCareNeeds: profile.careActivities.includes("Personal care support") ? "Support my washing, dressing and toileting needs with dignity and privacy." : "Confirm my personal care routines and preferred approach.",
-      mobilityAndEquipment: profile.careActivities.includes("Mobility and transfers") ? `Use agreed moving and handling techniques and equipment (${profile.equipment.slice(0, 3).join(", ") || "as documented"}).` : "Confirm my mobility level and required equipment.",
-      houseworkAndSocial: "Record domestic tasks, social preferences and wellbeing activities needed to maintain quality of life.",
-      financialArrangements: "Record relevant support boundaries and safeguarding controls for financial matters if applicable.",
+      capacityAndSafeguarding: buildNarrative(
+        ["capacity", "mental capacity", "safeguarding", "best interest", "decision making", "consent"],
+        hasDementia 
+          ? "I have a cognitive impairment documented in my records. My mental capacity should be assessed for specific decisions and any safeguarding concerns should be escalated to the office immediately. A formal capacity assessment should be completed and documented here."
+          : "My mental capacity and safeguarding status should be assessed and documented here. I should be assumed to have capacity unless a formal assessment indicates otherwise. Any safeguarding concerns should be reported to the office immediately."
+      ),
+      healthAndWellbeing: healthNarrative,
+      triggerPoints: toFirstPerson(
+        "Signs that my health may be changing and should be reported to the office include: " +
+        (hasDiabetes ? "signs of high or low blood sugar (shaking, sweating, confusion, excessive thirst), " : "") +
+        (hasRespiratory ? "increased breathlessness or difficulty breathing, " : "") +
+        (hasCardiac ? "chest pain, unusual swelling in legs/ankles, sudden breathlessness, " : "") +
+        (hasEpilepsy ? "seizure activity or unusual symptoms before a seizure, " : "") +
+        (hasMentalHealth ? "significant changes in mood, withdrawal or signs of distress, " : "") +
+        "any new pain or discomfort, reduced food or fluid intake, changes in skin condition, increased falls or unsteadiness, " +
+        "new confusion or disorientation, signs of infection (fever, redness, swelling). " +
+        "If in any doubt, contact the office. In an emergency, call 999."
+      ),
+      medicationRequirements: medicationNarrative,
+      nutrition: nutritionNarrative,
+      personalCareNeeds: personalCareNarrative,
+      mobilityAndEquipment: mobilityNarrative,
+      houseworkAndSocial: buildNarrative(
+        ["housework", "cleaning", "laundry", "shopping", "social", "activities", "visitors", "isolation", "loneliness"],
+        livesAlone
+          ? "I live alone. My housework, shopping and social needs should be confirmed and documented here. Living alone may increase my risk of social isolation - my carers should be aware of this and encourage social interaction."
+          : "My housework support needs and social activities have not been specified in the documents provided. Please confirm what domestic support I need and any social activities that are important to me."
+      ),
+      financialArrangements: buildNarrative(
+        ["finance", "financial", "money", "pension", "benefit", "bank"],
+        "My financial arrangements have not been specified in the documents provided. Any relevant support boundaries and safeguarding controls should be documented here."
+      ),
     },
     riskSection1Health: {
-      healthOverview: profile.medicalConditions.join(", ") || "To be confirmed",
-      communicationNeeds: profile.communicationNeeds.join(", ") || "To be confirmed",
+      speech: speechStatus,
+      speechDetails: hasSpeechIssue
+        ? buildNarrative(["speech", "aphasia", "communication", "non-verbal"], "Speech difficulties documented - details to be confirmed at initial visit.")
+        : "Not specified in documents provided - to be confirmed at initial visit.",
+      hearing: hearingStatus,
+      hearingDetails: hasHearingIssue
+        ? buildNarrative(["hearing", "hearing aid", "deaf"], "Hearing difficulties documented - details to be confirmed at initial visit.")
+        : "Not specified in documents provided - to be confirmed at initial visit.",
+      eyesight: eyesightStatus,
+      eyesightDetails: hasVisionIssue
+        ? buildNarrative(["vision", "eyesight", "glasses", "cataract", "blind"], "Vision difficulties documented - details to be confirmed at initial visit.")
+        : "Not specified in documents provided - to be confirmed at initial visit.",
+      breathlessness: breathlessnessStatus,
+      breathlessnessDetails: hasRespiratory
+        ? buildNarrative(["breathless", "copd", "asthma", "oxygen", "inhaler"], "Respiratory condition documented - breathing difficulties to be assessed in detail at initial visit.")
+        : "Not specified in documents provided.",
+      urinaryIncontinence: urinaryStatus,
+      urinaryDetails: continenceData.bladder 
+        ? toFirstPerson(`My bladder continence: ${continenceData.bladder}. ` + (continenceData.bladderRisk === "High" ? "This requires careful management and monitoring." : "Care workers should be aware and support my dignity."))
+        : hasIncontinence
+          ? buildNarrative(["urinary", "incontinence", "continence", "pad", "catheter", "toilet"], "Continence needs documented - specific details to be confirmed at initial visit.")
+          : "Not specified in documents provided.",
+      faecalIncontinence: faecalStatus,
+      faecalDetails: continenceData.bowel
+        ? toFirstPerson(`My bowel continence: ${continenceData.bowel}. ` + (continenceData.bowelRisk === "High" ? "This requires careful management and monitoring." : "Care workers should be aware and provide appropriate support."))
+        : hasIncontinence && mentions(["faecal", "bowel"])
+          ? buildNarrative(["faecal", "bowel", "soiling"], "Bowel continence needs documented - details to be confirmed.")
+          : "Not specified in documents provided.",
+      memory: memoryStatus,
+      moods: moodStatus,
+      orientation: orientationStatus,
+      sleepPattern: sleepStatus,
+      behaviours: behavioursStatus,
+      understandsInfo: hasDementia ? "Partially" : "Assumed Yes - to be confirmed",
+      retainsInfo: hasDementia ? "Partially" : "Assumed Yes - to be confirmed",
+      weighsDecision: hasDementia ? "Partially" : "Assumed Yes - to be confirmed",
+      communicatesDecision: hasDementia ? "Partially" : (hasSpeechIssue ? "Partially" : "Assumed Yes - to be confirmed"),
+      capacityDetails: buildNarrative(
+        ["capacity", "mental capacity", "decision", "consent"],
+        hasDementia
+          ? "Cognitive impairment identified in documents. A formal mental capacity assessment should be completed for significant decisions. Day-to-day capacity should be assessed on a decision-specific basis."
+          : "Assumed to have full capacity. No concerns documented. To be confirmed at initial visit."
+      ),
       riskLevel,
-      riskPrevention: "Observe changes, document clearly and escalate to senior staff or health professionals when needed.",
+      riskPrevention: toFirstPerson(
+        "My health risks are managed by: " +
+        (conditionsList.length > 0 ? `monitoring my documented conditions (${conditionsList.slice(0, 3).join(", ")}), ` : "") +
+        "observing for changes and reporting to the office, following my care plan and medication guidance, " +
+        "and escalating to GP or 999 in an emergency."
+      ),
     },
     riskSection2Medication: {
-      medicationSupport: profile.careActivities.includes("Medication support") ? "Required" : "Confirm requirement",
+      prescriptionOrdering: buildNarrative(["prescription", "ordering", "pharmacy", "chemist", "dispensing"], "Not specified in documents provided - to be confirmed."),
+      dosageSystem: medicationData.some(m => m.storage === "blister") ? "Blister pack" 
+        : medicationData.some(m => m.storage === "dosette") ? "Dosette box"
+        : mentions(["blister pack", "blister"]) ? "Blister pack" 
+        : (mentions(["dosette"]) ? "Dosette box" 
+        : (mentions(["original packaging"]) ? "Original packaging" 
+        : "Not specified in documents provided")),
+      systemMaintainer: buildNarrative(["pharmacy", "chemist", "dispensing"], "Not specified in documents provided - to be confirmed."),
+      medicationStorage: buildNarrative(["medication storage", "medicines kept", "stored"], "Not specified in documents provided - to be confirmed at initial visit."),
+      currentInvestigations: buildNarrative(["investigation", "hospital", "referral", "appointment", "specialist", "consultant"], "No current investigations documented."),
+      surplusMedication: "Not specified in documents provided",
+      medicationConcerns: nutritionData.allergies && nutritionData.allergies !== "NKDA - No known drug allergies"
+        ? `Drug allergies documented: ${nutritionData.allergies}. Ensure no contraindicated medications are given.`
+        : buildNarrative(["medication concern", "side effect", "adverse", "reaction", "allergy"], "No medication concerns documented."),
+      homeopathicMeds: buildNarrative(["herbal", "homeopathic", "over the counter", "otc", "supplement"], "Not specified in documents provided."),
+      prnMedication: mentions(["prn", "as required", "when needed", "pain relief"]) ? "Yes - see details" : "Not specified in documents provided",
+      covertMedication: mentions(["covert"]) ? "Yes - follow covert medication protocol" : "No",
+      pickingUpTablets: hasArthritis ? "Yes - difficulty due to arthritis affecting hands" : "Not specified",
+      openingBoxes: hasArthritis ? "Yes - difficulty due to arthritis affecting hands" : "Not specified",
+      pouringLiquids: hasArthritis ? "Yes - possible difficulty" : "Not specified",
+      usingDosageSystem: hasDementia ? "Yes - may need prompting due to cognitive impairment" : "Not specified",
+      applyingCreams: (hasArthritis || usesWalkingAid) ? "Yes - difficulty reaching some areas" : "Not specified",
+      swallowingTablets: hasSwallowIssue ? "Yes - swallowing difficulties documented" : "Not specified",
+      understandingInstructions: hasDementia ? "Yes - may need repeated, simple instructions" : "Not specified",
+      managingInhalers: hasRespiratory ? "To be confirmed - assess inhaler technique" : "Not applicable",
+      instillingDrops: hasVisionIssue ? "To be confirmed - may have difficulty with eye drops" : "Not specified",
+      controlledDrugs: medicationData.some(m => m.isControlled)
+        ? `Controlled drugs in use: ${medicationData.filter(m => m.isControlled).map(m => m.name || "unknown").join(", ")}. Follow controlled drug policy for storage, administration and recording.`
+        : buildNarrative(["controlled drug", "cd", "morphine", "oxycodone", "fentanyl"], "No controlled drugs documented."),
+      warfarin: medicationData.some(m => m.name?.includes("warfarin"))
+        ? "Warfarin in use - INR monitoring required. Follow anticoagulant protocol."
+        : mentions(["warfarin"]) ? buildNarrative(["warfarin", "inr", "anticoagulant"], "Warfarin documented - INR monitoring required.") : "Not applicable",
+      skinIntegrity: hasSkinRisk || hasDiabetes ? "Yes - at risk" : "Not specified in documents provided",
+      skinDetails: (hasSkinRisk || hasDiabetes)
+        ? buildNarrative(["skin", "pressure", "wound", "ulcer", "integrity"], 
+            hasDiabetes ? "At risk of skin breakdown due to diabetes. Feet and lower legs should be checked for any skin changes. Any concerns should be reported to the district nurse."
+            : "Skin integrity risk documented. Any skin changes, redness or breakdown should be reported to the district nurse immediately.")
+        : "No skin integrity concerns documented.",
       riskLevel,
-      riskPrevention: "Use MAR documentation and report omissions, refusals or side effects promptly.",
+      riskPrevention: "Follow MAR chart precisely. Report missed, refused or late medications to the office immediately. Check for side effects and any medication changes. Ensure medication is stored safely.",
     },
     riskSection3Nutrition: {
-      nutritionSupport: profile.careActivities.includes("Nutrition and hydration support") ? "Required" : "Confirm requirement",
-      dietaryRisks: profile.concerns.filter((item) => /nutrition|choking|aspiration/i.test(item)).join(", ") || "To be confirmed",
+      mealAssistance: profile.careActivities.includes("Nutrition and hydration support") ? "Yes" : "Not specified in documents provided",
+      normalDiet: nutritionData.feedingMethod || (hasDiabetes ? "Diabetic diet" : (hasSwallowIssue ? "Modified texture - to be confirmed" : "Normal diet - confirm preferences at initial visit")),
+      specialDietary: nutritionData.modified || buildNarrative(["dietary", "diabetic diet", "low salt", "low sugar", "renal diet", "gluten free", "halal", "kosher"], hasDiabetes ? "Diabetic diet - low sugar" : "Not specified in documents provided."),
+      foodAllergies: nutritionData.allergies || buildNarrative(["allergy", "allergic", "intolerance", "anaphylaxis"], "No allergies documented - to be confirmed at initial visit."),
+      softDiet: nutritionData.modified?.includes("texture") ? "Yes - modified texture diet" : (hasSwallowIssue ? "Yes - due to swallowing difficulties" : "No"),
+      foodIntolerances: buildNarrative(["intolerance", "lactose", "gluten", "coeliac"], "Not specified in documents provided."),
+      tubeFeed: nutritionData.feedingMethod?.includes("PEG") ? "Yes - PEG feeding in place" : (mentions(["peg", "tube feed", "enteral"]) ? "Yes - follow enteral feeding protocol" : "No"),
+      supplementaryFoods: nutritionData.fluids || buildNarrative(["thickener", "supplement", "fortisip", "ensure", "complan"], hasSwallowIssue ? "Thickened fluids may be required - confirm with SALT team." : "Not specified in documents provided."),
+      foodLikes: buildNarrative(["likes to eat", "enjoys", "favourite food", "prefers"], "Not specified in documents provided - ask me about my food preferences."),
+      foodDislikes: buildNarrative(["dislikes", "does not eat", "avoid", "won't eat"], "Not specified in documents provided - ask me about foods I do not like."),
+      portionSize: "Not specified in documents provided - to be confirmed.",
+      mainMealTime: buildNarrative(["meal time", "dinner time", "lunch time", "breakfast"], "Not specified in documents provided - ask about my preferred meal times."),
+      fluidIntake: buildNarrative(["fluid", "drink", "water", "tea", "coffee", "hydration"], "Not specified in documents provided - encourage regular fluid intake and record preferences."),
       riskLevel,
-      riskPrevention: "Follow documented meal and fluid guidance, monitor intake and escalate concerns.",
+      riskPrevention: toFirstPerson(
+        "My nutritional risks are managed by: " +
+        (hasDiabetes ? "following my diabetic diet plan, " : "") +
+        (hasSwallowIssue ? "following SALT recommendations for modified texture food/fluids, " : "") +
+        "monitoring my food and fluid intake, reporting any significant changes in appetite or weight, " +
+        "and ensuring my preferences and allergies are clearly documented."
+      ),
     },
     riskSection4Equipment: {
-      equipment: equipmentRows,
-      remedialAction: "Ensure equipment checks are documented and faults escalated immediately.",
+      equipment: equipmentRows.length > 0 ? equipmentRows : [{
+        name: "No equipment documented - to be confirmed at initial visit",
+        fitForPurpose: "N/A",
+        supplier: "N/A",
+        nextService: "N/A",
+      }],
+      remedialAction: "All equipment should be checked before each use. Any faults or concerns should be reported to the office immediately and the equipment should not be used until it has been inspected.",
       riskLevel,
-      riskPrevention: "Use only approved equipment and follow moving and handling guidance.",
+      riskPrevention: "Use only approved equipment. Follow moving and handling guidance. Report any equipment faults immediately. Ensure servicing is up to date.",
     },
     riskSection5Mobility: {
-      mobilitySupport: profile.careActivities.includes("Mobility and transfers") ? "Required" : "Confirm requirement",
-      fallsHistory: profile.concerns.filter((item) => /fall/i.test(item)).join(", ") || "No explicit falls history extracted",
+      weightBearing: weightBearing,
+      weightBearingDetails: buildNarrative(["weight bearing", "weight bear", "non weight"], "Not specified in documents provided - to be confirmed at initial visit."),
+      walking: mobilityWalking,
+      walkingDetails: buildNarrative(["walking", "walks", "ambulate", "mobilise"], "Not specified - to be confirmed at initial visit."),
+      stairs: stairsStatus,
+      stairsDetails: hasStairs
+        ? buildNarrative(["stairs", "steps", "stairlift"], "Stairs present in property - ability to manage stairs to be confirmed at initial visit.")
+        : "No stairs documented in property.",
+      sitToStand: sitToStandStatus,
+      sitToStandDetails: buildNarrative(["sit to stand", "standing", "getting up", "transfer from chair"], "Not specified - to be confirmed at initial visit."),
+      washing: washingStatus,
+      washingDetails: buildNarrative(["wash", "bathing", "shower", "sink wash", "strip wash"], "Not specified - to be confirmed at initial visit."),
+      dressing: dressingStatus,
+      dressingDetails: buildNarrative(["dress", "clothing", "undress", "get dressed"], "Not specified - to be confirmed at initial visit."),
+      oralCare: "Not assessed - to be confirmed at initial visit",
+      oralCareDetails: buildNarrative(["teeth", "dental", "denture", "oral care", "mouth care"], "Not specified - to be confirmed at initial visit."),
+      bathShower: buildNarrative(["bath", "shower", "strip wash", "bath board", "shower chair"], "Preference not specified - to be confirmed at initial visit."),
+      toiletCommode: buildNarrative(["toilet", "commode", "toileting", "bathroom"], hasIncontinence ? "Continence support documented - toilet/commode needs to be confirmed." : "Not specified - to be confirmed at initial visit."),
+      wheelchair: usesWheelchair ? "Yes - wheelchair in use" : "No wheelchair documented",
+      transfers: buildNarrative(["transfer", "hoist", "stand aid", "slide sheet", "banana board"], usesHoist ? "Hoist transfers documented. Follow moving and handling care plan." : "Transfer method to be confirmed at initial visit."),
+      moveInBed: buildNarrative(["bed mobility", "repositioning", "turning", "move in bed"], "Not specified - to be confirmed at initial visit."),
+      inOutOfBed: buildNarrative(["get into bed", "get out of bed", "bed transfer", "profiling bed"], "Not specified - to be confirmed at initial visit."),
+      canBeLeftAlone: canBeLeftAloneStatus,
+      proneToFalls: proneToFallsStatus,
       riskLevel,
-      riskPrevention: "Maintain clear walkways, use aids correctly and apply falls prevention controls.",
+      riskPrevention: toFirstPerson(
+        "My mobility risks are managed by: " +
+        (usesWalkingAid ? "using my walking aid at all times, " : "") +
+        (usesHoist ? "using the hoist for transfers with two carers, " : "") +
+        (hasFallsRisk ? "following my falls prevention plan, " : "") +
+        "keeping pathways clear, ensuring good lighting, allowing me time to move at my own pace, " +
+        "and reporting any falls or near-misses to the office."
+      ),
     },
     riskSection6Appliances: {
-      applianceSafety: "Confirm domestic appliances are safe before leaving the property.",
-      handRails: profile.environmentalFactors.includes("Stairs or step access") ? "Check presence and condition of handrails/rails." : "Not specified",
-      riskLevel,
-      riskPrevention: "Report hazards and arrange maintenance for unsafe appliances.",
+      cooker: "Not assessed - to be confirmed at initial visit",
+      microwave: "Not assessed - to be confirmed at initial visit",
+      iron: "Not assessed - to be confirmed at initial visit",
+      kettle: "Not assessed - to be confirmed at initial visit",
+      toaster: "Not assessed - to be confirmed at initial visit",
+      tumbleDryer: "Not assessed - to be confirmed at initial visit",
+      floorCoverings: buildNarrative(["carpet", "rug", "floor", "trip hazard", "uneven"], "Not assessed - check for trip hazards at initial visit."),
+      handRails: hasStairs ? "Check presence and condition at initial visit" : "Not specified",
+      electricBlanket: "Not assessed - to be confirmed at initial visit",
+      bed: buildNarrative(["bed", "profiling bed", "hospital bed", "mattress"], "Not assessed - to be confirmed at initial visit."),
+      washingMachine: "Not assessed - to be confirmed at initial visit",
+      centralHeating: "Not assessed - to be confirmed at initial visit",
+      actionsRequired: "All appliances should be visually checked during the first visit. Any hazards should be reported to the office. " +
+        (hasDementia ? "Due to cognitive impairment, extra attention should be paid to safe use of cooker and other heat-producing appliances." : ""),
     },
     riskSection7Fire: {
-      smokingPolicy: profile.environmentalFactors.includes("Fire safety considerations") ? "Fire safety controls required and must be reviewed each visit." : "Confirm fire safety arrangements.",
-      actionsAndSafety: "Ensure alarms, exits and ignition risks are addressed per care plan.",
-      riskLevel,
+      atRisk: (hasDementia || smokes || mentions(["oxygen"]) || environmentData.smoker) ? "Yes" : "To be confirmed at initial visit",
+      riskReason: hasDementia ? "Cognitive impairment may affect ability to respond to fire alarm"
+        : (smokes || environmentData.smoker) ? "Smoking materials present fire risk"
+        : mentions(["oxygen"]) ? "Oxygen in use increases fire risk"
+        : "To be assessed at initial visit",
+      ragRating: (hasDementia || smokes || mentions(["oxygen"]) || environmentData.smoker) ? "Amber" : "To be confirmed",
+      plugSockets: "Not assessed - check for overloaded sockets at initial visit",
+      electricCables: "Not assessed - check for trailing cables at initial visit",
+      smokingPolicy: smokingStatusField === "Smoker" ? "Smoking policy must be explained and documented" : "Not applicable - non-smoker or not specified",
+      smokeAlarmLocation: environmentData.smokeAlarm 
+        ? `Smoke alarm present (${environmentData.smokeAlarm}). Confirm location and test at initial visit.`
+        : hasSmokeAlarm ? buildNarrative(["smoke alarm", "fire alarm"], "Location documented - confirm working at initial visit.") : "Not specified - confirm location and test at initial visit",
+      smokeAlarmWorking: environmentData.smokeAlarm === "Safe" ? "Yes - confirmed" : "To be confirmed at initial visit",
+      coDetectorLocation: buildNarrative(["co detector", "carbon monoxide", "co alarm"], "Not specified - confirm if CO detector is present."),
+      coDetectorWorking: "To be confirmed at initial visit",
+      canEvacuate: (usesWheelchair || usesHoist) ? "No - will need assistance to evacuate"
+        : (usesWalkingAid || hasArthritis) ? "May need assistance - mobility limitations"
+        : "To be confirmed at initial visit",
+      actionsAndSafety: toFirstPerson(
+        "Fire safety measures for my property: " +
+        "Smoke alarms should be tested and confirmed working. " +
+        (smokes ? "I should not smoke when oxygen is in use or when alone if there are concerns about safe smoking. " : "") +
+        (hasDementia ? "Due to my cognitive impairment, extra checks should be made on appliances and heat sources. " : "") +
+        "An evacuation plan should be documented, including how I would exit the property in an emergency. " +
+        "Care workers should know the location of smoke alarms, fire exits and fire blanket/extinguisher if present."
+      ),
     },
     riskSection8COSHH: {
-      cleaningProducts: "Use approved products only and store safely.",
-      riddorExplained: "Confirm incident reporting process with care staff.",
-      riskLevel,
+      cleaningStorage: "Not specified in documents provided - confirm where cleaning materials are stored at initial visit. They should be stored safely and out of reach if there are any concerns.",
+      riddorExplained: "To be confirmed at initial visit",
     },
     riskSection9External: {
-      externalAccess: profile.environmentalFactors.join(", ") || "To be confirmed",
-      handrails: profile.environmentalFactors.includes("Stairs or step access") ? "Required/verify" : "Not specified",
+      access: buildNarrative(["access", "entrance", "front door", "pathway", "drive", "garden"], "Property access details to be confirmed at initial visit."),
+      clearPathways: mentions(["clear path", "pathway"]) ? "Yes" : "To be confirmed at initial visit",
+      handrails: hasStairs ? "Check for external handrails at initial visit" : "Not specified",
+      entranceSteps: buildNarrative(["steps", "step", "ramp", "level access"], "To be confirmed at initial visit."),
+      lighting: buildNarrative(["lighting", "external light", "porch light", "sensor light"], "Not specified - check external lighting at initial visit."),
+      ramps: buildNarrative(["ramp"], "No ramps documented."),
+      personalSecurity: buildNarrative(["security", "alarm", "cctv", "chain"], livesAlone ? "Lives alone - personal security should be reviewed at initial visit." : "Not specified."),
+      parking: buildNarrative(["parking", "driveway", "car park"], "Not specified - confirm parking arrangements for carers."),
+      actionsRequired: "External access and safety should be fully assessed at the initial visit. Report any hazards to the office.",
       riskLevel,
+      riskPrevention: "Ensure pathways are clear and well-lit. Report any external hazards. Take care in wet or icy conditions.",
     },
     riskSection10Security: {
-      homeSecurity: profile.environmentalFactors.includes("Key safe or controlled access") ? "Controlled access in place" : "Verify security controls",
-      stopTap: "Confirm and document location",
+      meansOfAccess: meansOfAccessStatus,
+      propertyType: propertyTypeStatus,
+      enterUsing: environmentData.access === "Ring/knock" 
+        ? "Ring doorbell / knock"
+        : buildNarrative(["front door", "side door", "back door"], "Not specified - confirm entry point at initial visit."),
+      keysafeConsent: meansOfAccessStatus.includes("Key safe") ? "Yes" : "To be confirmed",
+      gasShutOff: "Not specified - confirm and document location at initial visit",
+      stopTap: "Not specified - confirm and document location at initial visit",
+      fuseBox: "Not specified - confirm and document location at initial visit",
       riskLevel,
+      riskPrevention: "Ensure property is secured when leaving. Document locations of gas shut-off, stop tap and fuse box. Report any security concerns to the office.",
     },
     section11Bands: {
-      personalCare: profile.careActivities.includes("Personal care support") ? "Yes" : "No/confirm",
-      mentalHealth: profile.medicalConditions.some((item) => /mental/i.test(item)) ? "Yes" : "No/confirm",
-      physicalDisability: profile.careActivities.includes("Mobility and transfers") ? "Yes" : "No/confirm",
-      dementia: profile.medicalConditions.some((item) => /dementia|cognitive/i.test(item)) ? "Yes" : "No/confirm",
-      eatingDisorder: "No/confirm",
-      sensoryImpairment: profile.communicationNeeds.some((item) => /hearing|vision/i.test(item)) ? "Yes" : "No/confirm",
-      detainedMHA: "No/confirm",
-      drugAlcoholMisuse: "No/confirm",
-      learningDifficulties: "No/confirm",
+      personalCare: profile.careActivities.includes("Personal care support") ? "Yes" : "No",
+      mentalHealth: profile.medicalConditions.some((item) => /mental/i.test(item)) || hasMentalHealth ? "Yes" : "No",
+      physicalDisability: profile.careActivities.includes("Mobility and transfers") || hasArthritis ? "Yes" : "No",
+      dementia: hasDementia ? "Yes" : "No",
+      eatingDisorder: mentions(["eating disorder", "anorexia", "bulimia"]) ? "Yes" : "No",
+      sensoryImpairment: hasHearingIssue || hasVisionIssue ? "Yes" : "No",
+      detainedMHA: mentions(["section", "detained", "mental health act"]) ? "Yes" : "No",
+      drugAlcoholMisuse: mentions(["alcohol", "drug misuse", "substance misuse", "addiction"]) ? "Yes" : "No",
+      learningDifficulties: mentions(["learning difficult", "learning disabilit", "intellectual disabilit"]) ? "Yes" : "No",
     },
     generationMode: "rule-based",
   };
@@ -14673,10 +15086,12 @@ ${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.versio
 ${policyContext}
 
 ════════════════════════════════════════════════════════════════════════════════
-🎯 YOUR MISSION: Create an EXCEPTIONALLY DETAILED, DEEPLY PERSON-CENTRED Care Plan
+🎯 YOUR MISSION: Create a COMPREHENSIVE, EVIDENCE-BASED Care Plan from Available Documents
 ════════════════════════════════════════════════════════════════════════════════
 
-You are creating a comprehensive, evidence-based care plan that will guide care workers in delivering outstanding, individualized care. This document must paint a complete picture of the person - their life story, their health journey, their preferences, fears, hopes, and exactly how they want their care delivered.
+You are creating a care plan that will guide care workers in delivering outstanding, individualized care. This document must use EVERY piece of available information to paint the most complete picture possible of the person - while NEVER fabricating details that aren't in the documents.
+
+YOUR PRIMARY GOAL: Maximise the number of completed fields using ONLY the provided documents. Complete every field possible. For fields where no information exists, use professional defaults and flag for verification.
 
 Analyze ALL uploaded documents with extreme thoroughness:
 - Existing Care Plans - extract every detail
@@ -14687,7 +15102,9 @@ Analyze ALL uploaded documents with extreme thoroughness:
 - Professional assessments - every recommendation
 - GP letters, hospital discharge summaries, specialist reports
 
-Use EVERY piece of information. DO NOT SUMMARISE - EXPAND. If a document mentions a condition, explain what that condition is, how it manifests for THIS person, and what care workers need to do differently because of it.
+Use EVERY piece of information. If a document mentions a condition, explain what that condition is, how it manifests for THIS person (based on what's documented), and what care workers need to do differently because of it.
+
+CRITICAL: When documents are sparse, you must still complete ALL fields. Use cross-referencing, reasonable inference from documented facts, and professional defaults. Flag gaps with verificationQuestions. NEVER leave fields empty. NEVER invent details.
 
 ${privacyDirective}
 Keep place names, locations, and healthcare facility names as written. Do not redact places.
@@ -14779,60 +15196,104 @@ DON'TS (MATCH THE EXAMPLES):
 - Do not use medical jargon where plain English is available.
 - Do not over-formalize. Avoid legalistic phrasing unless it is already in the documents.
 
-📏 WORD COUNT REQUIREMENTS - SUBSTANTIALLY INCREASED MINIMUMS:
-- **thisIsMe.whoAmI**: MINIMUM 600 words (full life story - see format below)
-- **thisIsMe.hobbiesInterests**: MINIMUM 300 words (detailed with specific examples)
-- **thisIsMe.whatMakesGoodDay**: MINIMUM 200 words (very specific preferences)
-- **myCarePlan.capacityAndSafeguarding**: MINIMUM 400 words (comprehensive capacity assessment)
-- **myCarePlan.healthAndWellbeing**: MINIMUM 800 words (EVERY condition and its impact)
-- **myCarePlan.personalCareNeeds**: MINIMUM 600 words (complete minute-by-minute routine)
-- **myCarePlan.medicationRequirements**: MINIMUM 500 words (every medication in detail)
-- **myCarePlan.nutrition**: MINIMUM 400 words (complete dietary profile)
-- **myCarePlan.mobilityAndEquipment**: MINIMUM 400 words (detailed mobility assessment)
-- **Risk section narrative fields**: MINIMUM 150-200 words each
-- **All "Details" fields**: MINIMUM 75-150 words with specific information
+📏 ADAPTIVE WORD COUNT - PROPORTIONAL TO AVAILABLE EVIDENCE:
+Detail level MUST match the depth of information available. ACCURACY ALWAYS OVERRIDES LENGTH.
 
-🚫 ABSOLUTELY FORBIDDEN - NEVER INCLUDE:
-- "Needs user input" or "[to be confirmed]" or "[insert X]" anywhere in text
+When documents provide RICH detail on a topic → write comprehensively:
+- **thisIsMe.whoAmI**: Up to 600 words if life story details are available
+- **myCarePlan.healthAndWellbeing**: Up to 800 words if multiple conditions are documented
+- **myCarePlan.personalCareNeeds**: Up to 600 words if care routines are documented
+- **myCarePlan.medicationRequirements**: Up to 500 words if medications are listed
+
+When documents provide LIMITED detail → write concisely and accurately:
+- State what IS known from the documents
+- State clearly what information is missing: "This information has not been provided in the documents supplied."
+- Add a verificationQuestion for the missing information
+- NEVER pad with invented details to reach a word count
+
+When documents provide NO detail on a topic → use a smart default:
+- For narrative fields: "This information has not been provided in the documents supplied. [Specific question about what is needed]."
+- For categorical fields (Yes/No, Good/Impaired, etc.): "Not specified in documents provided"
+- For risk levels: Infer from related available information, or default to "Medium" with explanation
+- Add a verificationQuestion requesting the specific missing information
+
+GOLDEN RULE: It is better to write 50 accurate words than 500 words containing a single fabricated detail.
+
+🚫 ZERO FABRICATION POLICY - ABSOLUTE & NON-NEGOTIABLE:
+NEVER invent, assume, or fabricate ANY of the following:
+- Medical diagnoses, conditions, symptoms, or prognoses not in documents
+- Medication names, dosages, frequencies, or side effects not in documents
+- Names of people (family, GPs, nurses, carers) not in documents
+- Dates, ages, timeframes, or durations not in documents
+- Personal history, childhood memories, work history, or life events not in documents
+- Specific preferences, routines, or habits not in documents
+- Equipment brands, models, or specifications not in documents
+- Addresses, locations, or facility names not in documents
+
+INSTEAD when information is absent:
+- State: "This has not been documented" or "Details to be confirmed at initial visit"
+- Use conditional phrasing: "If applicable..." or "Any concerns should be reported to the office"
+- Add a verificationQuestion to capture the missing information
+
+OTHER FORBIDDEN PATTERNS:
 - Generic phrases: "support is provided", "as needed", "appropriate care"
 - Vague terms: "various conditions", "some assistance", "occasional help"
 - Clinical distance: "the service user", "the client", "the individual"
-- Invented medical details not in documents (diagnoses, medications, dates)
-- Assumed family relationships not explicitly stated
-- Fabricated names of healthcare professionals
 
-✅ QUALITY REQUIREMENTS - EXEMPLARY STANDARDS:
+🔗 CROSS-REFERENCING INTELLIGENCE:
+Use information from ANY section to intelligently populate RELATED sections:
+- If mobility issues are documented → populate falls risk, equipment, fire evacuation, external access
+- If diabetes is documented → populate nutrition (dietary restrictions), medication, skin integrity, foot care
+- If cognitive issues are documented → populate capacity fields, medication difficulties, can be left alone, fire risk
+- If incontinence is mentioned → populate personal care needs, skin integrity, equipment
+- If hearing/vision issues are mentioned → populate communication fields, sensory impairment band, appliance safety
+- If a condition is mentioned ANYWHERE in the documents, reference it in ALL relevant sections
+
+📋 SMART DEFAULTS FOR CATEGORICAL/BINARY FIELDS:
+For Yes/No and categorical fields where information is NOT in documents, use these defaults:
+- Speech/Hearing/Eyesight: "Not assessed - to be confirmed at initial visit"
+- Incontinence fields: "Not specified in documents provided"
+- Capacity fields (understands/retains/weighs/communicates): "Assumed Yes unless indicated otherwise - to be confirmed"
+- Appliance safety fields: "Not assessed - to be confirmed at initial visit"
+- Fire safety fields: "To be confirmed at initial visit"
+- Section 11 bands: "No" unless evidence suggests otherwise
+- Equipment fitForPurpose: "Yes" if equipment is documented as in use
+- Can be left alone: "To be confirmed - assess at initial visit"
+- Prone to falls: Cross-reference mobility section; if mobility issues exist, flag as potential risk
+
+✅ QUALITY REQUIREMENTS - ACCURACY-FIRST STANDARDS:
 
 1. **100% EVIDENCE-BASED**: Every single statement MUST be traceable to document sources
    ✓ "I was diagnosed with Type 2 diabetes in 2019 according to my GP records. I take Metformin 500mg twice daily with breakfast and dinner."
-   ✗ "I have diabetes" (no detail)
-   ✗ "I was diagnosed around five years ago" (invented timeframe)
+   ✗ "I have diabetes" (too vague - expand with available details)
+   ✗ "I was diagnosed around five years ago" (invented timeframe - only use dates from documents)
 
-2. **MEDICAL CONDITIONS - HOW THEY AFFECT ME**:
-   For EVERY health condition, explain:
+2. **ACCURACY OVER LENGTH**: 
+   - If documents provide rich detail → write comprehensively using ALL of it
+   - If documents provide sparse detail → write concisely using ONLY what is available
+   - NEVER pad sparse sections with invented biographical details, assumed routines, or generic filler
+   - A short, accurate section is ALWAYS better than a long, fabricated one
+
+3. **MEDICAL CONDITIONS - HOW THEY AFFECT ME** (only for conditions DOCUMENTED):
+   For EVERY health condition mentioned in the documents, explain:
    - What the condition is (in simple terms)
-   - How it affects MY daily life specifically
-   - What symptoms or difficulties it causes for ME
+   - How it affects MY daily life specifically (if documented)
    - What care workers need to do differently because of it
-   - Warning signs to watch for
+   - Warning signs to watch for (standard clinical knowledge is acceptable here)
+   - Escalation: who to contact if concerned
    
    ✓ "I have osteoarthritis in both knees and my right hip. This means my joints are stiff and painful, especially in the morning and in cold weather. I find it very difficult to bend down - I cannot pick things up from the floor or put on my own socks. Walking is painful after about 10 minutes and I need to rest. My right hip gives me sharp pain if I twist. Care workers need to allow me extra time for transfers and never rush me. If my joints are particularly swollen or I have increased pain, this should be reported to my GP."
-   ✗ "I have arthritis in several joints"
+   ✗ "I have arthritis in several joints" (too vague)
+   NOTE: Standard care implications for a documented condition (e.g., "diabetes requires foot checks") are acceptable general knowledge, NOT fabrication
 
-3. **DEEPLY PERSON-CENTRED**: This is MY life, MY voice, MY story
-   ✓ "I absolutely love listening to Frank Sinatra - it reminds me of dancing with my late husband George at the Tower Ballroom in Blackpool in the 1960s. If I'm feeling low, putting on 'My Way' always lifts my spirits. I prefer CDs to the radio as I like to choose the songs."
-   ✗ "Music is enjoyed"
+4. **DEEPLY PERSON-CENTRED**: This is MY life, MY voice, MY story
+   ✓ Use details FROM THE DOCUMENTS to write naturally in first person
+   ✗ Do NOT invent personal anecdotes, memories, or preferences not in documents
 
-4. **ACTIONABLE & SPECIFIC**: Care workers must know EXACTLY what to do
-   ✓ "To help me wash, first fill the sink with warm water - I like it quite hot but test with your elbow. Put my flannel and Imperial Leather soap ready. I can wash my face, neck and arms myself if you pass me the flannel. I need help washing my back, under my arms and my feet as I cannot reach. Please dry me thoroughly especially between my toes because of my diabetes. Apply Aveeno cream to my legs afterwards as my skin gets very dry."
-   ✗ "Help with washing as needed"
-
-5. **COMPREHENSIVE & THOROUGH**: Cover EVERY aspect in detail
-   - Health: EVERY diagnosis, symptom, treatment, specialist, what to watch for
-   - Medication: EVERY drug, dose, timing, purpose, side effects, difficulties
-   - Personal care: COMPLETE routine from eyes opening to sleeping
-   - Mobility: EVERY transfer, equipment, limitation, techniques that work
-   - Social: EVERY relationship, visitor, activity, outing
+5. **ACTIONABLE & SPECIFIC**: Care workers must know EXACTLY what to do
+   ✓ Use documented care routines and equipment to write specific instructions
+   ✗ Do NOT invent specific times, brand names, or techniques not in documents
+   ✓ When specifics are missing: "My exact routine should be confirmed at my initial visit. Key areas to discuss include..."
 
 ════════════════════════════════════════════════════════════════════════════════
 📋 "THIS IS ME" MANDATORY FORMAT - LIFE STORY STRUCTURE
@@ -14854,10 +15315,15 @@ Then continue with a flowing life story covering:
 This must read as a genuine life story, not a list. It should make care workers understand WHO I am as a person, not just my care needs.
 
 ════════════════════════════════════════════════════════════════════════════════
-📚 SECTION-BY-SECTION EXEMPLARY EXAMPLES - FOLLOW THESE STANDARDS
+📚 SECTION-BY-SECTION STYLE EXAMPLES - FOLLOW THE FORMAT, NOT THE CONTENT
 ════════════════════════════════════════════════════════════════════════════════
 
-🟢 EXEMPLARY "whoAmI" - LIFE STORY FORMAT (600+ words):
+⚠️ CRITICAL: These examples show the WRITING STYLE and STRUCTURE to follow.
+DO NOT copy their content. DO NOT invent similar biographical details.
+Use ONLY information from the actual documents provided.
+If documents provide less detail than these examples, your output should be shorter but accurate.
+
+🟢 STYLE EXAMPLE "whoAmI" - shows the flowing life story FORMAT (use only documented facts):
 "My name is Harold Thompson. I was born in Manchester in 1945 and grew up in a terraced house on Oldham Street with my parents Albert and Doris and my three siblings - older brother Frank, younger sisters Betty and Jean. My father worked long hours in the cotton mills at Mather & Platt and my mother was a seamstress who took in work from the neighbours. We didn't have much money but we were a close family and I have fond memories of Sunday dinners when we'd all squeeze around the kitchen table.
 
 I left school at 15 as was common then and started apprenticing as an electrician at Bolton Electrical Services. I absolutely loved the work - there was something satisfying about solving problems and making things work safely. I qualified in 1964 and worked my way up to foreman over the years. I spent 45 years in electrical contracting, mainly industrial work at factories and mills around Greater Manchester. I was proud of never having an accident on my watch and training dozens of young apprentices over the years. I had to retire at 60 when my arthritis got too bad to climb ladders and work on my knees anymore. That was hard - my work meant everything to me.
@@ -14872,7 +15338,7 @@ My Catholic faith remains very important to me. I was brought up Catholic, atten
 
 Having care workers come into my home was difficult to accept at first. I'm a proud man and value my privacy. But I've come to appreciate the help now that I understand it helps me stay in my own home rather than going into residential care. What I need from my carers is patience - I don't like being rushed - and respect for my dignity. Please don't talk to me like I'm a child or assume I can't understand things. My body may be failing but my mind is still sharp."
 
-🟢 EXEMPLARY "healthAndWellbeing" - CONDITION-BY-CONDITION (800+ words):
+🟢 STYLE EXAMPLE "healthAndWellbeing" - shows condition-by-condition FORMAT (use only documented conditions):
 "I have several health conditions that together significantly affect my daily life and require careful management.
 
 TYPE 2 DIABETES: I was diagnosed with Type 2 diabetes 12 years ago following routine blood tests. Diabetes is a condition where my body doesn't use insulin properly so my blood sugar levels can become too high if not managed. This affects me daily because I have to be very careful about what I eat, particularly sugary foods and large portions of carbohydrates. I test my blood sugar every morning before breakfast using my Accu-Chek monitor - my target is 4-7 mmol/L before food. If it goes above 10 I feel tired and thirsty. If it drops below 4 I feel shaky, sweaty and confused - care workers should give me sugary drink or glucose tablets if this happens and stay with me. I take Metformin 500mg twice daily with breakfast and dinner to help control my sugar. I see the diabetes nurse at Green Lane Surgery every three months and have annual eye checks at Bradford Royal for diabetic retinopathy. The diabetes also means I'm at high risk of foot problems and poor wound healing, so any cuts, blisters or skin changes must be reported immediately to the district nurse. My feet are checked weekly by District Nurse Sarah Collins.
@@ -14889,7 +15355,7 @@ CATARACTS: I have cataracts in both eyes causing blurred, cloudy vision. I wear 
 
 SLEEP DISTURBANCE: Due to the prostate issues and general discomfort I get poor quality sleep, averaging only 4-5 hours per night. I feel tired during the day and sometimes doze in my chair after lunch. I don't take sleeping tablets as they made me confused."
 
-🟢 EXEMPLARY "personalCareNeeds" - COMPLETE ROUTINE (600+ words):
+🟢 STYLE EXAMPLE "personalCareNeeds" - shows routine FORMAT (use only documented care needs):
 "I can manage some of my personal care independently but need regular support due to my arthritis and mobility limitations. Here is my complete daily routine:
 
 MORNING ROUTINE (7:30am-9:00am):
@@ -14918,32 +15384,45 @@ CONTINENCE:
 During the day my continence is generally good but I get urgency so respond quickly if I say I need the toilet. I wear TENA Level 2 pads at night only as I sometimes don't wake in time. I find this embarrassing to discuss but the pads give me peace of mind. Supplies delivered monthly by Continence Service."
 
 ════════════════════════════════════════════════════════════════════════════════
-🎯 SECTION COMPLETION REQUIREMENTS
+🎯 SECTION COMPLETION REQUIREMENTS - MAXIMISE OUTPUT FROM AVAILABLE DATA
 ════════════════════════════════════════════════════════════════════════════════
 
-Generate content for EVERY SINGLE section and field. No exceptions.
+Generate content for EVERY SINGLE section and field. No exceptions. No blank fields.
 
-IF information is clearly stated in documents:
-→ Write comprehensive, detailed content using that information
-→ Expand with context and implications for care
-→ Include specific details (times, names, frequencies, amounts)
+PRIORITY STRATEGY FOR MAXIMUM COMPLETION:
 
-IF information is partially available:
-→ Use what's available and build reasonable inferences
-→ Mark uncertainties with "This needs confirming" within the text
-→ Add a verificationQuestion for the user to confirm
+1. DIRECT EVIDENCE (highest priority):
+   → If information is clearly stated in documents, use it verbatim with context
+   → Include specific details: times, names, frequencies, amounts, equipment names
+   → Expand with care worker implications: what they need to do, watch for, escalate
 
-IF information is completely missing:
-→ Write: "This information is not specified in the documents provided. Please provide details about [specific question]." 
-→ Add a verificationQuestion requesting this information
-→ DO NOT leave blank
-→ DO NOT invent names, dates, or specific medical details
+2. CROSS-REFERENCED EVIDENCE (second priority):
+   → If a fact appears in one section's documents, apply it to ALL relevant sections
+   → E.g., "uses zimmer frame" in mobility docs → also populate equipment section, falls risk, fire evacuation
+   → E.g., "diabetes" in medical docs → also populate nutrition (diet), medication, skin integrity, foot care
+   → E.g., "lives alone" → populate can be left alone, security, fire risk, social needs
 
-For verificationQuestions:
-→ Ask specific, actionable questions
-→ Good: "What time do you prefer to wake up in the morning?"
-→ Bad: "Please provide more information"
-→ If everything is well-documented, return empty array: []
+3. REASONABLE INFERENCE FROM EVIDENCE (third priority):
+   → If documents say "needs help with washing" → can reasonably infer personal care support band = "Yes"
+   → If documents say "uses walking frame" → can reasonably infer mobility = "With aid", weight bearing = "Partial"
+   → Mark with "Based on documented care needs..." to show the inference source
+   → ONLY infer from documented facts, never from assumptions
+
+4. PROFESSIONAL DEFAULT (fourth priority):
+   → For categorical fields with no evidence either way, use professional defaults:
+     - "Not specified in documents provided - to be confirmed at initial visit"
+     - "No concerns documented" (for risk fields where nothing negative is mentioned)
+   → For narrative fields: state what is missing and ask for it via verificationQuestion
+   → NEVER leave a field empty or null
+
+5. VERIFICATION QUESTIONS (always include when data gaps exist):
+   → Ask specific, actionable questions for EVERY major gap
+   → Good: "What time do you prefer to wake up in the morning?"
+   → Good: "Do you wear glasses or hearing aids?"
+   → Good: "Where is your key safe located and what is the code?"
+   → Bad: "Please provide more information"
+   → If everything is well-documented, return empty array: []
+   → Group related questions: "Regarding your morning routine: what time do you wake up, do you wash at the sink or shower, and do you have any preferences for water temperature?"
 
 ════════════════════════════════════════════════════════════════════════════════
 📊 OUTPUT FORMAT - EXACT JSON STRUCTURE REQUIRED
@@ -15175,7 +15654,7 @@ For verificationQuestions:
         model: getRiskAssessmentGenerationModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Analyze ALL documents with EXTREME thoroughness and generate an EXCEPTIONALLY DETAILED care plan.
+          { role: "user", content: `Analyze ALL documents with EXTREME thoroughness and generate a COMPREHENSIVE, EVIDENCE-BASED care plan.
 
 ═══════════════════════════════════════════════════════
 DOCUMENTS TO ANALYZE - EXTRACT EVERY DETAIL
@@ -15189,27 +15668,30 @@ YOUR CRITICAL REQUIREMENTS
 
 1. Read EVERY document section with extreme attention to detail
 2. Extract EVERY piece of information - names, dates, conditions, medications, preferences
-3. Generate COMPREHENSIVE content that substantially EXCEEDS minimum word counts
-4. For EVERY health condition: explain what it is AND how it affects this person specifically
+3. Generate content PROPORTIONAL to available evidence - if documents are detailed, write comprehensively; if sparse, write concisely but accurately
+4. For EVERY health condition found in documents: explain what it is AND how it affects this person specifically
 5. Write in FIRST PERSON throughout ("I", "my", "me")
-6. Use SPECIFIC details: exact times, equipment brand names, precise routines
-7. NEVER include placeholders like "needs user input" or "[to be confirmed]"
-8. If information is missing, write a complete sentence explaining what's needed
+6. Use SPECIFIC details FROM THE DOCUMENTS ONLY: exact times, equipment names, precise routines as documented
+7. NEVER invent details not in the documents - no fabricated names, dates, diagnoses, medications, or personal history
+8. For ANY field where information is missing from documents, write: "This information has not been provided in the documents supplied."
+9. For YES/NO categorical fields with no evidence: "Not specified in documents provided" or "To be confirmed at initial visit"
 
-MANDATORY WORD COUNT REQUIREMENTS - THESE ARE MINIMUMS, AIM HIGHER:
-- thisIsMe.whoAmI: MINIMUM 600 words (MUST start "My name is [Name]. I was born in...")
-- thisIsMe.hobbiesInterests: MINIMUM 300 words (specific examples)
-- thisIsMe.whatMakesGoodDay: MINIMUM 200 words (detailed preferences)
-- healthAndWellbeing: MINIMUM 800 words (EVERY condition explained with impact)
-- personalCareNeeds: MINIMUM 600 words (complete daily routine minute-by-minute)
-- medicationRequirements: MINIMUM 500 words (every medication in detail)
-- nutrition: MINIMUM 400 words (complete dietary profile)
-- mobilityAndEquipment: MINIMUM 400 words (comprehensive mobility assessment)
-- capacityAndSafeguarding: MINIMUM 400 words (thorough capacity assessment)
+CROSS-REFERENCING - MAXIMISE COMPLETION:
+- If diabetes is documented → also populate nutrition (diabetic diet), skin integrity (foot care), medication
+- If mobility issues are documented → also populate falls risk, equipment, fire evacuation, mobility aids
+- If cognitive issues are documented → also populate capacity fields, can be left alone, medication difficulties, fire risk
+- If a condition appears ANYWHERE in the documents, reference it in ALL related sections
+
+ADAPTIVE DETAIL LEVEL - ACCURACY OVER LENGTH:
+- Write AS MUCH as the documents support - but NEVER more
+- 50 accurate words > 500 words with fabrication
+- Complete EVERY field - no blanks, no nulls
+- Add verificationQuestions for EVERY significant gap in the documents
 
 EVIDENCE-BASED ONLY:
 - Only include information that appears in the documents
-- Never invent medical details, diagnoses, or dates
+- Never invent medical details, diagnoses, dates, or personal history
+- Standard care implications for documented conditions are acceptable (e.g., "diabetes requires foot checks")
 - If unsure, add to verificationQuestions
 
 Return ONLY valid JSON matching the exact schema. Begin now.` }

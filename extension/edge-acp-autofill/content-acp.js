@@ -81,14 +81,14 @@ const initOverlay = () => {
   container.style.pointerEvents = "none";
 
   const panel = document.createElement("div");
-  panel.style.background = "rgba(255, 255, 255, 0.96)";
-  panel.style.border = "1px solid rgba(226, 232, 240, 0.9)";
-  panel.style.borderRadius = "12px";
-  panel.style.boxShadow = "0 16px 28px rgba(15, 23, 42, 0.12)";
+  panel.style.background = "rgba(255, 255, 255, 0.97)";
+  panel.style.border = "1px solid hsl(214, 25%, 89%)";
+  panel.style.borderRadius = "8px";
+  panel.style.boxShadow = "0 6px 16px rgba(15, 23, 42, 0.1)";
   panel.style.padding = "10px 12px";
   panel.style.minWidth = "220px";
-  panel.style.maxWidth = "320px";
-  panel.style.backdropFilter = "blur(10px)";
+  panel.style.maxWidth = "300px";
+  panel.style.backdropFilter = "blur(8px)";
 
   const header = document.createElement("div");
   header.style.display = "flex";
@@ -98,17 +98,17 @@ const initOverlay = () => {
 
   const icon = document.createElement("div");
   icon.textContent = "CA";
-  icon.style.width = "26px";
-  icon.style.height = "26px";
-  icon.style.borderRadius = "50%";
-  icon.style.background = "linear-gradient(135deg, #1f6feb, #2eb88a)";
+  icon.style.width = "24px";
+  icon.style.height = "24px";
+  icon.style.borderRadius = "6px";
+  icon.style.background = "hsl(215, 55%, 30%)";
   icon.style.color = "#ffffff";
   icon.style.display = "flex";
   icon.style.alignItems = "center";
   icon.style.justifyContent = "center";
-  icon.style.fontSize = "12px";
+  icon.style.fontSize = "10px";
   icon.style.fontWeight = "600";
-  icon.style.letterSpacing = "0.4px";
+  icon.style.letterSpacing = "0.3px";
 
   const title = document.createElement("div");
   title.textContent = "Risk Assessment";
@@ -120,15 +120,15 @@ const initOverlay = () => {
   minimizeButton.type = "button";
   minimizeButton.textContent = "–";
   minimizeButton.style.marginLeft = "auto";
-  minimizeButton.style.width = "24px";
-  minimizeButton.style.height = "24px";
-  minimizeButton.style.borderRadius = "6px";
-  minimizeButton.style.border = "1px solid rgba(226, 232, 240, 0.9)";
-  minimizeButton.style.background = "#f8fafc";
+  minimizeButton.style.width = "22px";
+  minimizeButton.style.height = "22px";
+  minimizeButton.style.borderRadius = "4px";
+  minimizeButton.style.border = "1px solid hsl(214, 25%, 89%)";
+  minimizeButton.style.background = "hsl(210, 15%, 97%)";
   minimizeButton.style.color = "#475569";
   minimizeButton.style.cursor = "pointer";
-  minimizeButton.style.fontSize = "16px";
-  minimizeButton.style.lineHeight = "18px";
+  minimizeButton.style.fontSize = "14px";
+  minimizeButton.style.lineHeight = "16px";
   minimizeButton.style.padding = "0";
   minimizeButton.style.pointerEvents = "auto";
 
@@ -148,14 +148,14 @@ const initOverlay = () => {
   const logsBox = document.createElement("div");
   logsBox.style.marginTop = "6px";
   logsBox.style.padding = "6px 8px";
-  logsBox.style.borderRadius = "8px";
-  logsBox.style.background = "#f3f6fb";
-  logsBox.style.border = "1px solid rgba(226, 232, 240, 0.9)";
+  logsBox.style.borderRadius = "6px";
+  logsBox.style.background = "hsl(210, 15%, 95%)";
+  logsBox.style.border = "1px solid hsl(214, 25%, 89%)";
   logsBox.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, monospace";
-  logsBox.style.fontSize = "11px";
+  logsBox.style.fontSize = "10px";
   logsBox.style.color = "#64748b";
   logsBox.style.whiteSpace = "pre-line";
-  logsBox.style.maxHeight = "90px";
+  logsBox.style.maxHeight = "80px";
   logsBox.style.overflow = "hidden";
   logsBox.textContent = "No actions yet.";
 
@@ -174,7 +174,7 @@ const initOverlay = () => {
   minimizeButton.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    setOverlayCollapsed(true);
+    setOverlayCollapsed(!overlayCollapsed);
   });
 };
 
@@ -214,19 +214,31 @@ const setOverlayCollapsed = (collapsed) => {
   overlayCollapsed = collapsed;
   if (!overlayElements) return;
   if (collapsed) {
-    overlayElements.panel.style.minWidth = "160px";
-    overlayElements.panel.style.maxWidth = "200px";
+    overlayElements.panel.style.minWidth = "auto";
+    overlayElements.panel.style.maxWidth = "auto";
+    overlayElements.panel.style.cursor = "pointer";
     overlayElements.logsBox.style.display = "none";
     overlayElements.logsLabel.style.display = "none";
     overlayElements.progress.style.display = "none";
-    overlayElements.title.textContent = "ACP Autofill";
+    overlayElements.title.textContent = "CA";
+    overlayElements.minimizeButton.textContent = "+";
+    overlayElements.minimizeButton.title = "Expand";
+    // Click panel to expand
+    overlayElements.panel.onclick = (e) => {
+      if (e.target === overlayElements.minimizeButton) return;
+      setOverlayCollapsed(false);
+    };
   } else {
     overlayElements.panel.style.minWidth = "220px";
-    overlayElements.panel.style.maxWidth = "320px";
+    overlayElements.panel.style.maxWidth = "300px";
+    overlayElements.panel.style.cursor = "default";
     overlayElements.logsBox.style.display = "block";
     overlayElements.logsLabel.style.display = "block";
     overlayElements.progress.style.display = "block";
     overlayElements.title.textContent = "Risk Assessment";
+    overlayElements.minimizeButton.textContent = "\u2013";
+    overlayElements.minimizeButton.title = "Minimize";
+    overlayElements.panel.onclick = null;
     refreshOverlay();
   }
 };

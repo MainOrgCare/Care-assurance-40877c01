@@ -315,7 +315,13 @@ export default function PlanEnhancer() {
         lower.includes("not specified") ||
         lower.includes("not provided") ||
         lower.includes("unknown") ||
-        lower.includes("not available")
+        lower.includes("not available") ||
+        lower.includes("to be confirmed") ||
+        lower.includes("not assessed") ||
+        lower.includes("not documented") ||
+        lower.includes("has not been provided") ||
+        lower.includes("has not been specified") ||
+        lower.includes("has not been documented")
       );
     };
 
@@ -355,6 +361,10 @@ export default function PlanEnhancer() {
       displayResult.myCarePlan?.healthAndWellbeing,
       displayResult.myCarePlan?.triggerPoints,
       displayResult.myCarePlan?.personalCareNeeds,
+      displayResult.riskSection1Health?.speech,
+      displayResult.riskSection1Health?.hearing,
+      displayResult.riskSection1Health?.eyesight,
+      displayResult.riskSection1Health?.memory,
     ])) {
       topics.add("Health, wellbeing and daily care");
     }
@@ -362,8 +372,11 @@ export default function PlanEnhancer() {
     if (missingAny([
       displayResult.myCarePlan?.mobilityAndEquipment,
       displayResult.riskSection5Mobility?.walking,
+      displayResult.riskSection5Mobility?.weightBearing,
       displayResult.riskSection5Mobility?.transfers,
       displayResult.riskSection5Mobility?.moveInBed,
+      displayResult.riskSection5Mobility?.canBeLeftAlone,
+      displayResult.riskSection5Mobility?.proneToFalls,
     ])) {
       topics.add("Mobility, transfers and equipment");
     }
@@ -373,6 +386,8 @@ export default function PlanEnhancer() {
       displayResult.riskSection2Medication?.medicationStorage,
       displayResult.riskSection2Medication?.dosageSystem,
       displayResult.riskSection2Medication?.prnMedication,
+      displayResult.riskSection2Medication?.controlledDrugs,
+      displayResult.riskSection2Medication?.skinIntegrity,
     ])) {
       topics.add("Medication management and support");
     }
@@ -393,6 +408,15 @@ export default function PlanEnhancer() {
       displayResult.riskSection7Fire?.canEvacuate,
     ])) {
       topics.add("Home safety and fire precautions");
+    }
+
+    if (missingAny([
+      displayResult.riskSection1Health?.urinaryIncontinence,
+      displayResult.riskSection1Health?.faecalIncontinence,
+      displayResult.riskSection1Health?.sleepPattern,
+      displayResult.riskSection1Health?.behaviours,
+    ])) {
+      topics.add("Continence, sleep and behaviour");
     }
 
     if (missingAny([
@@ -434,9 +458,20 @@ export default function PlanEnhancer() {
           lower.includes('information not provided') ||
           lower.includes('not provided') ||
           lower.includes('no information') ||
+          lower.includes('not specified in documents') ||
+          lower.includes('has not been provided') ||
+          lower.includes('has not been documented') ||
           lower === 'n/a' || lower === 'na' ||
           lower === 'unknown' || lower === '') {
         missing++;
+        return;
+      }
+      
+      // Check for needs-confirmation fields
+      if (lower.includes('to be confirmed') ||
+          lower.includes('not assessed') ||
+          lower.includes('not documented')) {
+        ambiguous++;
         return;
       }
       
@@ -1732,7 +1767,7 @@ export default function PlanEnhancer() {
               <FieldRow label="Communicates Decision" value={displayResult.riskSection1Health?.communicatesDecision || ""} copyValue={copyResult?.riskSection1Health?.communicatesDecision || ""} />
               <TextBlock label="Capacity Details" value={displayResult.riskSection1Health?.capacityDetails || ""} copyValue={copyResult?.riskSection1Health?.capacityDetails || ""} />
             </div>
-            <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection1Health?.riskLevel || ""} copyValue={copyResult?.riskSection1Health?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection1Health?.riskPrevention || ""} copyValue={copyResult?.riskSection1Health?.riskPrevention || ""} />
             </div>
@@ -1768,7 +1803,7 @@ export default function PlanEnhancer() {
             <FieldRow label="Warfarin" value={displayResult.riskSection2Medication?.warfarin || ""} copyValue={copyResult?.riskSection2Medication?.warfarin || ""} />
             <FieldRow label="Skin Integrity Risk" value={displayResult.riskSection2Medication?.skinIntegrity || ""} copyValue={copyResult?.riskSection2Medication?.skinIntegrity || ""} />
             <TextBlock label="Skin Details" value={displayResult.riskSection2Medication?.skinDetails || ""} copyValue={copyResult?.riskSection2Medication?.skinDetails || ""} />
-            <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection2Medication?.riskLevel || ""} copyValue={copyResult?.riskSection2Medication?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection2Medication?.riskPrevention || ""} copyValue={copyResult?.riskSection2Medication?.riskPrevention || ""} />
             </div>
@@ -1789,7 +1824,7 @@ export default function PlanEnhancer() {
             <FieldRow label="Portion Size" value={displayResult.riskSection3Nutrition?.portionSize || ""} copyValue={copyResult?.riskSection3Nutrition?.portionSize || ""} />
             <FieldRow label="Preferred Main Meal Time" value={displayResult.riskSection3Nutrition?.mainMealTime || ""} copyValue={copyResult?.riskSection3Nutrition?.mainMealTime || ""} />
             <FieldRow label="Fluid Intake" value={displayResult.riskSection3Nutrition?.fluidIntake || ""} copyValue={copyResult?.riskSection3Nutrition?.fluidIntake || ""} />
-            <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection3Nutrition?.riskLevel || ""} copyValue={copyResult?.riskSection3Nutrition?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection3Nutrition?.riskPrevention || ""} copyValue={copyResult?.riskSection3Nutrition?.riskPrevention || ""} />
             </div>
@@ -1806,7 +1841,7 @@ export default function PlanEnhancer() {
               </div>
             ))}
             <TextBlock label="Remedial Action" value={displayResult.riskSection4Equipment?.remedialAction || ""} copyValue={copyResult?.riskSection4Equipment?.remedialAction || ""} />
-            <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection4Equipment?.riskLevel || ""} copyValue={copyResult?.riskSection4Equipment?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection4Equipment?.riskPrevention || ""} copyValue={copyResult?.riskSection4Equipment?.riskPrevention || ""} />
             </div>
@@ -1842,7 +1877,7 @@ export default function PlanEnhancer() {
             <FieldRow label="In/Out of Bed" value={displayResult.riskSection5Mobility?.inOutOfBed || ""} copyValue={copyResult?.riskSection5Mobility?.inOutOfBed || ""} />
             <FieldRow label="Can Be Left Alone" value={displayResult.riskSection5Mobility?.canBeLeftAlone || ""} copyValue={copyResult?.riskSection5Mobility?.canBeLeftAlone || ""} />
             <FieldRow label="Prone to Falls" value={displayResult.riskSection5Mobility?.proneToFalls || ""} copyValue={copyResult?.riskSection5Mobility?.proneToFalls || ""} />
-            <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection5Mobility?.riskLevel || ""} copyValue={copyResult?.riskSection5Mobility?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection5Mobility?.riskPrevention || ""} copyValue={copyResult?.riskSection5Mobility?.riskPrevention || ""} />
             </div>
@@ -1900,7 +1935,7 @@ export default function PlanEnhancer() {
             <FieldRow label="Personal Security" value={displayResult.riskSection9External?.personalSecurity || ""} copyValue={copyResult?.riskSection9External?.personalSecurity || ""} />
             <FieldRow label="Parking" value={displayResult.riskSection9External?.parking || ""} copyValue={copyResult?.riskSection9External?.parking || ""} />
             <TextBlock label="Actions Required" value={displayResult.riskSection9External?.actionsRequired || ""} copyValue={copyResult?.riskSection9External?.actionsRequired || ""} />
-            <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection9External?.riskLevel || ""} copyValue={copyResult?.riskSection9External?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection9External?.riskPrevention || ""} copyValue={copyResult?.riskSection9External?.riskPrevention || ""} />
             </div>
@@ -1915,7 +1950,7 @@ export default function PlanEnhancer() {
             <FieldRow label="Gas Shut Off Location" value={displayResult.riskSection10Security?.gasShutOff || ""} copyValue={copyResult?.riskSection10Security?.gasShutOff || ""} />
             <FieldRow label="Stop Tap/Mains Location" value={displayResult.riskSection10Security?.stopTap || ""} copyValue={copyResult?.riskSection10Security?.stopTap || ""} />
             <FieldRow label="Fuse Box Location" value={displayResult.riskSection10Security?.fuseBox || ""} copyValue={copyResult?.riskSection10Security?.fuseBox || ""} />
-            <div className="mt-4 p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection10Security?.riskLevel || ""} copyValue={copyResult?.riskSection10Security?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection10Security?.riskPrevention || ""} copyValue={copyResult?.riskSection10Security?.riskPrevention || ""} />
             </div>

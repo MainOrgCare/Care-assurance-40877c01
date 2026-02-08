@@ -61,8 +61,8 @@ export default function Compliance() {
   }, 0);
 
   const auditTypeData = [
-    { name: "EMAR Audits", value: emarAudits.length, color: "#3b82f6" },
-    { name: "Visit Audits", value: visitAudits.length, color: "#10b981" },
+    { name: "EMAR Audits", value: emarAudits.length, color: "hsl(var(--primary))" },
+    { name: "Visit Audits", value: visitAudits.length, color: "hsl(142, 71%, 45%)" },
   ];
 
   const monthlyData = getMonthlyAuditData(auditList);
@@ -141,22 +141,26 @@ export default function Compliance() {
           </CardHeader>
           <CardContent>
             {monthlyData.length > 0 ? (
+              <div role="img" aria-label="Bar chart showing monthly audit activity over time">
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="month" className="text-xs" tick={{ fill: '#64748b' }} />
-                  <YAxis className="text-xs" tick={{ fill: '#64748b' }} />
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="month" className="text-xs" tick={{ fill: 'currentColor', className: 'fill-muted-foreground' }} />
+                  <YAxis className="text-xs" tick={{ fill: 'currentColor', className: 'fill-muted-foreground' }} />
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: '#ffffff', 
-                      border: '1px solid #e2e8f0',
+                      backgroundColor: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
                       borderRadius: '8px',
-                      color: '#0f172a'
+                      color: 'hsl(var(--foreground))'
                     }}
+                    labelStyle={{ color: 'hsl(var(--foreground))' }}
+                    itemStyle={{ color: 'hsl(var(--muted-foreground))' }}
                   />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+              </div>
             ) : <div className="flex items-center justify-center h-[250px] text-muted-foreground">No audit data available</div>}
           </CardContent>
         </Card>
@@ -168,6 +172,7 @@ export default function Compliance() {
           </CardHeader>
           <CardContent>
             {auditList.length > 0 ? (
+              <div role="img" aria-label="Pie chart showing breakdown of EMAR vs Visit audits">
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie
@@ -184,9 +189,10 @@ export default function Compliance() {
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px' }} />
+                  <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))' }} />
                 </PieChart>
               </ResponsiveContainer>
+              </div>
             ) : <div className="flex items-center justify-center h-[250px] text-muted-foreground">No audit data available</div>}
           </CardContent>
         </Card>

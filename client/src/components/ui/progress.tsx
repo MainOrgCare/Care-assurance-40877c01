@@ -20,7 +20,7 @@ const Progress = React.forwardRef<
   >
     <ProgressPrimitive.Indicator
       className={cn(
-        "relative h-full w-full flex-1 rounded-full bg-[linear-gradient(90deg,hsl(213_84%_43%),hsl(194_85%_36%))] shadow-[0_10px_16px_-10px_rgba(14,116,144,0.75)]",
+        "relative h-full w-full flex-1 rounded-full bg-primary shadow-[0_10px_16px_-10px_hsl(var(--primary)/0.45)]",
         "transition-[transform,box-shadow] duration-500 ease-out will-change-transform",
         "before:absolute before:inset-0 before:content-[''] before:-translate-x-full before:bg-gradient-to-r before:from-white/0 before:via-white/35 before:to-white/0 before:animate-[shimmer_1.8s_ease-in-out_infinite] motion-reduce:before:animate-none",
         "group-data-[state=complete]:shadow-[0_12px_20px_-10px_rgba(37,99,235,0.72)]"

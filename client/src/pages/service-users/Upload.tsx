@@ -253,13 +253,14 @@ export default function ServiceUserUpload() {
 
         {/* Box 3: Care Plan */}
         <Card 
-          className={`relative overflow-hidden transition-all duration-300 ${
+          className={cn(
+            "relative overflow-hidden transition-all duration-500 group",
             serviceUserData.carePlan 
-              ? 'border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_30px_rgba(16,185,129,0.1)]' 
+              ? 'border-success/40 bg-success/5 shadow-glow' 
               : dragOver === 'carePlan'
-                ? 'border-amber-500/50 bg-amber-500/5 border-dashed border-2 scale-[1.02]'
+                ? 'border-amber-500/50 bg-amber-500/5 border-dashed border-2 scale-[1.03]'
                 : 'border-dashed border-2 border-border/60 hover:border-amber-500/40 hover:bg-muted/30'
-          }`}
+          )}
           onDrop={(e) => handleDrop("carePlan", e)}
           onDragOver={(e) => handleDragOver("carePlan", e)}
           onDragLeave={handleDragLeave}
@@ -320,13 +321,14 @@ export default function ServiceUserUpload() {
 
         {/* Box 4: Moving & Handling */}
         <Card
-          className={`relative overflow-hidden transition-all duration-300 ${
+          className={cn(
+            "relative overflow-hidden transition-all duration-500 group",
             serviceUserData.movingHandling
-              ? "border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_30px_rgba(16,185,129,0.1)]"
+              ? "border-success/40 bg-success/5 shadow-glow"
               : dragOver === "movingHandling"
-                ? "border-sky-500/50 bg-sky-500/5 border-dashed border-2 scale-[1.02]"
+                ? "border-sky-500/50 bg-sky-500/5 border-dashed border-2 scale-[1.03]"
                 : "border-dashed border-2 border-border/60 hover:border-sky-500/40 hover:bg-muted/30"
-          }`}
+          )}
           onDrop={(e) => handleDrop("movingHandling", e)}
           onDragOver={(e) => handleDragOver("movingHandling", e)}
           onDragLeave={handleDragLeave}
@@ -405,13 +407,14 @@ export default function ServiceUserUpload() {
 
         {/* Box 5: Additional Documents */}
         <Card
-          className={`relative overflow-hidden transition-all duration-300 ${
+          className={cn(
+            "relative overflow-hidden transition-all duration-500 group",
             (serviceUserData.additionalDocuments || []).length > 0
-              ? "border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_30px_rgba(16,185,129,0.1)]"
+              ? "border-success/40 bg-success/5 shadow-glow"
               : dragOver === "additionalDocuments"
-                ? "border-indigo-500/50 bg-indigo-500/5 border-dashed border-2 scale-[1.02]"
+                ? "border-indigo-500/50 bg-indigo-500/5 border-dashed border-2 scale-[1.03]"
                 : "border-dashed border-2 border-border/60 hover:border-indigo-500/40 hover:bg-muted/30"
-          }`}
+          )}
           onDrop={(e) => handleDrop("additionalDocuments", e)}
           onDragOver={(e) => handleDragOver("additionalDocuments", e)}
           onDragLeave={handleDragLeave}

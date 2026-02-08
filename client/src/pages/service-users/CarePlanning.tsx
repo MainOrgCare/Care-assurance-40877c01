@@ -382,7 +382,6 @@ export default function CarePlanning() {
       return { raw: resultRaw, scrubbed: resultScrubbed || resultRaw };
     },
     onSuccess: ({ raw, scrubbed }: CarePlanMutationResult) => {
-      console.log("[CarePlan] onSuccess - callType:", selectedCallType, "format:", raw.content ? "simplified" : "legacy");
       setProgress(100);
       setProgressStatus("Complete!");
       setTimeout(() => {

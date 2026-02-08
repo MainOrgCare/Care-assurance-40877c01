@@ -33,6 +33,21 @@ const setLastError = async (error) => {
   await setStored({ [STORAGE_KEYS.lastError]: message });
 };
 
+/** Update the extension badge to show autofill progress */
+const updateBadge = (current, total) => {
+  if (total > 0) {
+    chrome.action.setBadgeText({ text: `${current}/${total}` });
+    chrome.action.setBadgeBackgroundColor({ color: "#335299" });
+  } else {
+    chrome.action.setBadgeText({ text: "" });
+  }
+};
+
+/** Clear badge when autofill completes or stops */
+const clearBadge = () => {
+  chrome.action.setBadgeText({ text: "" });
+};
+
 const startAutofill = async (caseId, serviceDataGroupId) => {
   const { caAcpPayload } = await getStored([STORAGE_KEYS.payload]);
   if (!caAcpPayload) {
@@ -46,16 +61,18 @@ const startAutofill = async (caseId, serviceDataGroupId) => {
     throw new Error("No initial assessment data stored yet.");
   }
 
+  const total = formType === "acp" ? caAcpPayload.assessments.length : 1;
   await setStored({
     [STORAGE_KEYS.caseInfo]: { caseId, serviceDataGroupId },
     [STORAGE_KEYS.queueState]: {
       currentIndex: 0,
-      total: formType === "acp" ? caAcpPayload.assessments.length : 1,
+      total,
       formType,
       batchId: `${Date.now()}`,
     },
   });
   await clearLastError();
+  updateBadge(1, total);
 };
 
 const openNextForm = async () => {
@@ -77,6 +94,7 @@ const openNextForm = async () => {
       [STORAGE_KEYS.signatureData]: null,
       [STORAGE_KEYS.signatureBatchId]: null,
     });
+    clearBadge();
     return;
   }
   const nextIndex = caAcpQueueState.currentIndex + 1;
@@ -88,6 +106,7 @@ const openNextForm = async () => {
       [STORAGE_KEYS.signatureData]: null,
       [STORAGE_KEYS.signatureBatchId]: null,
     });
+    clearBadge();
     return;
   }
 
@@ -97,6 +116,7 @@ const openNextForm = async () => {
       currentIndex: nextIndex,
     },
   });
+  updateBadge(nextIndex + 1, caAcpQueueState.total);
 
   const url = buildFormUrl(formType, caAcpCaseInfo.caseId, caAcpCaseInfo.serviceDataGroupId, caAcpPayload);
   await reuseOrCreateTab(url);
@@ -106,6 +126,7 @@ const stopAutofill = async () => {
   await setStored({
     [STORAGE_KEYS.queueState]: null,
   });
+  clearBadge();
 };
 
 let activeAutofillTabId = null;

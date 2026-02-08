@@ -558,7 +558,6 @@ export default function RiskAssessment() {
           const vault = new ClientPIIVault(vaultExport);
           resultRaw = vault.restore(rawWithTokens);
           resultVaultExport = vaultExport;
-          console.log(`[Analyze] PII Vault restored ${vault.getStats().total} tokens locally`);
         } else {
           resultRaw = payload;
         }
@@ -821,7 +820,6 @@ export default function RiskAssessment() {
           if (vaultExport && rawWithTokens) {
             const vault = new ClientPIIVault(vaultExport);
             resultRaw = vault.restore(rawWithTokens);
-            console.log(`[Generate ${assessmentName}] PII Vault restored ${vault.getStats().total} tokens locally`);
           } else {
             resultRaw = payload;
           }
@@ -1310,10 +1308,10 @@ export default function RiskAssessment() {
             </Button>
 
             {isAnalyzing && (
-              <div className="space-y-3 p-4 bg-blue-950/20 border border-blue-900/30 rounded-lg" data-testid="progress-container">
+              <div className="space-y-3 p-4 bg-primary/5 border border-primary/20 rounded-lg" data-testid="progress-container">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Loader2 size={16} className="animate-spin text-blue-400" />
+                    <Loader2 size={16} className="animate-spin text-primary" />
                     <span className="text-sm text-muted-foreground">{progressStatus}</span>
                   </div>
                   <span className="text-sm font-medium text-foreground">{Math.round(progress)}%</span>
@@ -1373,7 +1371,7 @@ export default function RiskAssessment() {
         )}
 
         {/* Service User Info */}
-        <Card className="bg-card border-border">
+        <Card className="glass-card">
           <CardHeader>
             <CardTitle>Service User Information</CardTitle>
           </CardHeader>
@@ -1406,7 +1404,7 @@ export default function RiskAssessment() {
         </Card>
 
         {(analysis.documentSummary || analysis.concerns.length > 0) && (
-          <Card className="bg-card border-border">
+          <Card className="glass-card">
             <CardHeader>
               <CardTitle>Document Summary</CardTitle>
               <CardDescription>
@@ -1437,7 +1435,7 @@ export default function RiskAssessment() {
         )}
 
         {/* Assessment Selection */}
-        <Card className="bg-card border-border">
+        <Card className="glass-card">
           <CardHeader className="space-y-3">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -1477,7 +1475,7 @@ export default function RiskAssessment() {
                 </Button>
               )}
             </div>
-            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-300">
               Assessments without supporting evidence are not auto-listed. Add them manually below if needed.
             </div>
           </CardHeader>
@@ -1680,10 +1678,10 @@ export default function RiskAssessment() {
           </p>
         </div>
         {isGenerating && (
-          <div className="w-full max-w-md space-y-3 p-4 bg-blue-950/20 border border-blue-900/30 rounded-lg" data-testid="progress-container">
+          <div className="w-full max-w-md space-y-3 p-4 bg-primary/5 border border-primary/20 rounded-lg" data-testid="progress-container">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Loader2 size={16} className="animate-spin text-blue-400" />
+                <Loader2 size={16} className="animate-spin text-primary" />
                 <span className="text-sm text-muted-foreground">{progressStatus}</span>
               </div>
               <span className="text-sm font-medium text-foreground">{Math.round(progress)}%</span>
@@ -1798,7 +1796,7 @@ export default function RiskAssessment() {
         )}
 
         {generatedAssessments.map((assessment, idx) => (
-          <Card key={idx} className={`bg-card border-border print:bg-white print:text-black ${isAdmin && selectedForAcp.has(idx) ? 'ring-2 ring-primary/50' : ''}`}>
+          <Card key={idx} className={`glass-card print:bg-white print:text-black ${isAdmin && selectedForAcp.has(idx) ? 'ring-2 ring-primary/50' : ''}`}>
             <CardHeader className="border-b border-border">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">

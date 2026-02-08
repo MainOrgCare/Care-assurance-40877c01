@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo, memo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Copy, FileText, Check, X, AlertTriangle, Loader2, TableIcon, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, UserPlus, Users, Sparkles, RefreshCw, Pencil, Undo2, Save, Download, Brain, Activity, Clock, Pill } from "lucide-react";
+import { Upload, Copy, FileText, Check, X, AlertTriangle, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, UserPlus, Users, Sparkles, RefreshCw, Pencil, Undo2, Save, Download, Brain, Activity, Clock, Pill } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import UploadDisclaimer from "@/components/UploadDisclaimer";
+import TableCopyButton from "@/components/TableCopyButton";
 import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -406,34 +407,6 @@ const CopyButton = memo(function CopyButton({ text, label }: { text: string; lab
   return (
     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCopy} data-testid={`button-copy-${label?.toLowerCase().replace(/\s/g, '-') || 'text'}`}>
       {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
-    </Button>
-  );
-});
-
-const TableCopyButton = memo(function TableCopyButton({ text, label }: { text: string; label?: string }) {
-  const { toast } = useToast();
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    toast({ 
-      title: "Table Copied", 
-      description: "Formatted for pasting into Access forms. Use Ctrl+V to paste." 
-    });
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <Button 
-      variant="outline" 
-      size="sm" 
-      className="h-7 gap-1.5 text-xs bg-teal-500/10 border-teal-500/30 text-teal-400 hover:bg-teal-500/20" 
-      onClick={handleCopy} 
-      data-testid={`button-copy-table-${label?.toLowerCase().replace(/\s/g, '-') || 'text'}`}
-    >
-      {copied ? <Check size={12} /> : <TableIcon size={12} />}
-      Copy as Table
     </Button>
   );
 });

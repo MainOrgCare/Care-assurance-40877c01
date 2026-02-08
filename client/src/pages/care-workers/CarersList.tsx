@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, ChevronRight, Search, Users, FileText } from "lucide-react";
+import { AlertTriangle, ChevronRight, Search, Users, FileText, Loader2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 
 interface CareWorkerDiscrepancy {
   date: string;
@@ -24,37 +24,16 @@ interface CareWorkerFromAudits {
 }
 
 export default function CarersList() {
-  const { toast } = useToast();
-  const [careWorkers, setCareWorkers] = useState<CareWorkerFromAudits[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      
+  const { data: careWorkers = [], isLoading: loading } = useQuery<CareWorkerFromAudits[]>({
+    queryKey: ["/api/audits/care-workers"],
+    queryFn: async () => {
       const res = await fetch("/api/audits/care-workers", { credentials: "include" });
-
-      if (!res.ok) {
-        throw new Error("Failed to fetch data");
-      }
-
-      const workers: CareWorkerFromAudits[] = await res.json();
-      setCareWorkers(workers);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to load care workers",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (!res.ok) throw new Error("Failed to fetch data");
+      return res.json();
+    },
+  });
 
   const workersWithDiscrepancies = careWorkers.filter(w => w.discrepancyCount > 0);
   const allWorkers = careWorkers;
@@ -120,7 +99,10 @@ export default function CarersList() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+            <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Loading care workers...
+            </div>
           ) : filteredWorkersWithDiscrepancies.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               {searchQuery ? "No staff found matching your search." : (
@@ -145,7 +127,7 @@ export default function CarersList() {
                 {filteredWorkersWithDiscrepancies.map((worker) => (
                   <TableRow 
                     key={worker.name} 
-                    className="hover:bg-white/5 cursor-pointer group"
+                    className="hover:bg-muted/50 cursor-pointer group"
                     data-testid={`row-worker-${worker.name.replace(/\s/g, '-')}`}
                   >
                     <TableCell className="font-medium text-foreground" data-testid={`text-worker-name-${worker.name.replace(/\s/g, '-')}`}>
@@ -199,8 +181,7 @@ export default function CarersList() {
                               {worker.discrepancies.map((disc, idx) => (
                                 <div 
                                   key={idx} 
-                                  className="p-3 rounded text-sm"
-                                  style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}
+                                  className="p-3 rounded-lg text-sm bg-muted/40 border border-border/60"
                                   data-testid={`card-discrepancy-${idx}`}
                                 >
                                   <div className="flex justify-between text-muted-foreground text-xs mb-1">
@@ -235,7 +216,10 @@ export default function CarersList() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+            <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Loading care workers...
+            </div>
           ) : filteredAllWorkers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               {searchQuery ? "No care workers found matching your search." : (
@@ -259,7 +243,7 @@ export default function CarersList() {
                 {filteredAllWorkers.map((worker) => (
                   <TableRow 
                     key={worker.name} 
-                    className="hover:bg-white/5"
+                    className="hover:bg-muted/50"
                     data-testid={`row-all-worker-${worker.name.replace(/\s/g, '-')}`}
                   >
                     <TableCell className="font-medium text-foreground" data-testid={`text-all-worker-name-${worker.name.replace(/\s/g, '-')}`}>
@@ -271,7 +255,7 @@ export default function CarersList() {
                     <TableCell>
                       <Badge 
                         variant={worker.discrepancyCount === 0 ? "default" : "secondary"}
-                        className={worker.discrepancyCount === 0 ? "bg-green-900/50 text-green-300 border-green-700" : ""}
+                        className={worker.discrepancyCount === 0 ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" : ""}
                         data-testid={`badge-worker-status-${worker.name.replace(/\s/g, '-')}`}
                       >
                         {worker.discrepancyCount === 0 ? "Compliant" : `${worker.discrepancyCount} issues`}

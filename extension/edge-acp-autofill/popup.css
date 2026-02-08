@@ -1,23 +1,24 @@
 :root {
   /* Colors matching Care Assurance website */
-  --color-primary: hsl(215, 45%, 40%);
+  --color-primary: hsl(215, 50%, 35%);
   --color-primary-foreground: hsl(0, 0%, 100%);
   --color-secondary: hsl(215, 12%, 55%);
-  --color-background: hsl(210, 20%, 98%);
+  --color-background: hsl(210, 15%, 97%);
   --color-foreground: hsl(222, 47%, 11%);
   --color-card: hsl(0, 0%, 100%);
-  --color-muted: hsl(210, 20%, 95%);
+  --color-muted: hsl(210, 15%, 95%);
   --color-muted-foreground: hsl(215, 15%, 42%);
-  --color-border: hsl(214, 32%, 91%);
-  --color-success: hsl(142, 76%, 36%);
-  --color-success-light: hsl(142, 76%, 96%);
+  --color-border: hsl(214, 25%, 89%);
+  --color-success: hsl(142, 60%, 36%);
+  --color-success-light: hsl(142, 60%, 96%);
   --color-warning: hsl(38, 92%, 50%);
-  --color-error: hsl(0, 84%, 60%);
+  --color-error: hsl(0, 72%, 51%);
   --color-error-light: hsl(0, 86%, 97%);
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --radius: 12px;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 6px 12px -3px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --radius: 8px;
+  --radius-sm: 6px;
   --popup-width: 450px;
   --popup-height: 600px;
   --header-height: 76px;
@@ -57,10 +58,10 @@ html, body {
 /* ===== HEADER ===== */
 .popup-header {
   height: var(--header-height);
-  background: linear-gradient(135deg, var(--color-primary) 0%, hsl(215, 50%, 50%) 100%);
+  background: linear-gradient(135deg, hsl(215, 55%, 30%) 0%, hsl(215, 50%, 42%) 100%);
   color: var(--color-primary-foreground);
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex: 0 0 auto;
 }
 
@@ -71,10 +72,10 @@ html, body {
 }
 
 .header-icon {
-  width: 40px;
-  height: 40px;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
+  width: 38px;
+  height: 38px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -82,9 +83,9 @@ html, body {
 }
 
 .header-title {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   margin: 0;
 }
 
@@ -107,15 +108,15 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 12px 16px;
-  font-size: 13px;
+  gap: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--color-muted-foreground);
   background: transparent;
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   position: relative;
 }
 
@@ -163,13 +164,13 @@ html, body {
   max-height: calc(var(--popup-height) - var(--header-height) - var(--tab-height) - var(--footer-height));
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 20px;
+  padding: 16px;
   display: block;
   flex: 0 0 auto;
 }
 
 .popup-content > * {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .popup-content > *:last-child {
@@ -178,16 +179,16 @@ html, body {
 
 /* Custom scrollbar */
 .popup-content::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 .popup-content::-webkit-scrollbar-track {
-  background: var(--color-muted);
+  background: transparent;
 }
 
 .popup-content::-webkit-scrollbar-thumb {
   background: var(--color-border);
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 .popup-content::-webkit-scrollbar-thumb:hover {
@@ -204,8 +205,11 @@ html, body {
 }
 
 .card-header {
-  padding: 16px 20px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .card-title {
@@ -223,10 +227,10 @@ html, body {
 }
 
 .card-content {
-  padding: 20px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 /* ===== ALERTS ===== */
@@ -254,7 +258,24 @@ html, body {
 .alert-error {
   background: var(--color-error-light);
   color: var(--color-error);
-  border: 1px solid hsl(0, 84%, 90%);
+  border: 1px solid hsl(0, 72%, 88%);
+}
+
+.alert-error .error-dismiss-btn {
+  background: none;
+  border: none;
+  color: var(--color-error);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  margin-left: auto;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.alert-error .error-dismiss-btn:hover {
+  opacity: 1;
 }
 
 /* ===== FILE UPLOAD ===== */
@@ -288,12 +309,12 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 14px 10px;
-  border: 2px solid var(--color-border);
-  border-radius: 10px;
+  gap: 6px;
+  padding: 12px 10px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
   background: var(--color-card);
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   text-align: center;
 }
 
@@ -305,7 +326,7 @@ html, body {
 .document-type-option input[type="radio"]:checked + .document-type-card {
   border-color: var(--color-primary);
   background: hsl(215, 45%, 96%);
-  box-shadow: 0 0 0 3px rgba(66, 99, 235, 0.15);
+  box-shadow: 0 0 0 2px rgba(51, 82, 153, 0.12);
 }
 
 .doc-icon {
@@ -560,14 +581,14 @@ html, body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--color-primary) 0%, hsl(215, 50%, 50%) 100%);
+  background: var(--color-primary);
   color: var(--color-primary-foreground);
-  box-shadow: 0 4px 12px rgba(66, 99, 235, 0.3);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(66, 99, 235, 0.4);
+  background: hsl(215, 50%, 30%);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-secondary {
@@ -628,7 +649,7 @@ html, body {
 .status-box.success {
   background: var(--color-success-light);
   color: var(--color-success);
-  border: 1px solid hsl(142, 76%, 85%);
+  border: 1px solid hsl(142, 60%, 82%);
 }
 
 .progress-container {
@@ -647,7 +668,7 @@ html, body {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--color-primary), hsl(215, 50%, 60%));
+  background: var(--color-primary);
   border-radius: 999px;
   transition: width 0.3s ease;
   width: 0%;
@@ -787,11 +808,11 @@ html, body {
 
 .assessment-item {
   background: var(--color-card);
-  border: 2px solid var(--color-border);
-  border-radius: 8px;
-  padding: 12px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .assessment-item:hover {
@@ -872,13 +893,13 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: 12px 16px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-foreground);
   background: var(--color-muted);
-  transition: background 0.2s ease;
+  transition: background 0.15s ease;
 }
 
 .collapsible-header:hover {
@@ -915,9 +936,9 @@ html, body {
 /* ===== FOOTER ===== */
 .popup-footer {
   height: var(--footer-height);
-  padding: 12px 20px;
+  padding: 12px 16px;
   border-top: 1px solid var(--color-border);
-  background: var(--color-muted);
+  background: var(--color-card);
   flex: 0 0 auto;
 }
 
@@ -942,7 +963,7 @@ html, body {
 .connection-badge.connected {
   background: var(--color-success-light);
   color: var(--color-success);
-  border: 1px solid hsl(142, 76%, 85%);
+  border: 1px solid hsl(142, 60%, 82%);
 }
 
 .connection-badge.disconnected {
@@ -984,15 +1005,15 @@ html, body {
 }
 
 .user-avatar {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, var(--color-primary), hsl(215, 50%, 60%));
+  width: 34px;
+  height: 34px;
+  background: var(--color-primary);
   color: white;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   flex-shrink: 0;
 }
@@ -1138,6 +1159,98 @@ html, body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 12px;
+}
+
+/* ===== FORM ROW ===== */
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-group.half {
+  flex: 1;
+}
+
+.options-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.action-buttons .btn {
+  flex: 1;
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 14px;
+  transition: color 0.15s;
+}
+
+.btn-icon:hover {
+  color: var(--color-error);
+}
+
+/* ===== SUCCESS TOAST ===== */
+.toast-success {
+  position: fixed;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-success);
+  color: white;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: var(--shadow-md);
+  z-index: 1000;
+  animation: toastIn 0.2s ease;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ===== VERIFICATION PANEL ===== */
+.verification-panel {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: hsl(45, 100%, 96%);
+  border-radius: var(--radius-sm);
+  border: 1px solid hsl(45, 70%, 75%);
+}
+
+.verification-header {
+  font-size: 11px;
+  color: hsl(45, 70%, 28%);
+  margin-bottom: 4px;
+}
+
+.verification-detail {
+  font-size: 10px;
+  color: hsl(45, 50%, 40%);
+  margin-bottom: 8px;
+}
+
+.verification-nav {
+  display: flex;
+  gap: 6px;
 }
 
 /* ===== UTILITIES ===== */

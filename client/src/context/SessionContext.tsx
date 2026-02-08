@@ -46,7 +46,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const socket = new WebSocket(wsUrl);
     
     socket.onopen = () => {
-      console.log("Session WebSocket connected");
       setIsConnected(true);
     };
     
@@ -88,7 +87,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
     
     socket.onclose = () => {
-      console.log("Session WebSocket disconnected");
       setIsConnected(false);
     };
     

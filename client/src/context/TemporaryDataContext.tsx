@@ -99,7 +99,6 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     setServiceUserData({});
     setTimeLeft(null);
     demoDataLoadedRef.current = false;
-    console.log("Secure Wipe: Service User Data Cleared from Memory.");
   }, [resetUploadTracking]);
 
   const readServerErrorMessage = useCallback(async (response: Response): Promise<string | null> => {
@@ -377,7 +376,6 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
       additionalNotes: "",
     });
     startTimer();
-    console.log("Demo Mode: Sample data loaded.");
   }, [startTimer, resetUploadTracking]);
 
   const setAdditionalNotes = useCallback((notes: string) => {

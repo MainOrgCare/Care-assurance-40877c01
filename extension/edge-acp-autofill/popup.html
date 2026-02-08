@@ -15,8 +15,8 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
           </div>
           <div>
-            <h1 class="header-title">ACP Autofill</h1>
-            <p class="header-subtitle">v0.3.0 - Direct Integration</p>
+            <h1 class="header-title">Care Assurance</h1>
+            <p class="header-subtitle">ACP Autofill v0.3.3</p>
           </div>
           <div id="connection-badge" class="connection-badge disconnected">
             <span class="connection-dot"></span>
@@ -45,14 +45,17 @@
       <div class="popup-content">
         
         <!-- Error Banner -->
-        <div id="error-banner" class="alert alert-error" hidden></div>
+        <div id="error-banner" class="alert alert-error" hidden>
+          <span id="error-message"></span>
+          <button id="error-dismiss" class="error-dismiss-btn" title="Dismiss">✕</button>
+        </div>
 
         <!-- ========== TAB 1: CONNECT ========== -->
         <div id="tab-content-connect" class="tab-content active">
           
           <section class="card">
             <div class="card-header">
-              <h2 class="card-title">🔗 Care Assurance</h2>
+              <h2 class="card-title">Connection</h2>
               <p class="card-description">Connect to fetch service users and assessments</p>
             </div>
             <div class="card-content">
@@ -67,7 +70,7 @@
 
           <section id="recent-section" class="card" hidden>
             <div class="card-header">
-              <h2 class="card-title">⚡ Quick Access</h2>
+              <h2 class="card-title">Quick Access</h2>
             </div>
             <div class="card-content">
               <div id="recent-list" class="recent-list"></div>
@@ -76,7 +79,7 @@
 
           <section id="search-section" class="card" hidden>
             <div class="card-header">
-              <h2 class="card-title">🔍 Service Users</h2>
+              <h2 class="card-title">Service Users</h2>
             </div>
             <div class="card-content">
               <input id="service-user-search" type="text" class="form-input" placeholder="Search by name..." />
@@ -86,7 +89,7 @@
 
           <section id="selected-user-section" class="card" hidden>
             <div class="card-header">
-              <h2 class="card-title">👤 Selected</h2>
+              <h2 class="card-title">Selected User</h2>
             </div>
             <div class="card-content">
               <div id="selected-user-info" class="selected-user-info"></div>
@@ -103,32 +106,32 @@
           
           <section class="card">
             <div class="card-header">
-              <h2 class="card-title">📄 Document Type</h2>
+              <h2 class="card-title">Document Type</h2>
             </div>
             <div class="card-content">
               <div class="document-type-grid">
                 <label class="document-type-option">
                   <input type="radio" name="document-type" value="socialWork" />
                   <div class="document-type-card">
-                    <span class="doc-label">📋 Social Work</span>
+                    <span class="doc-label">Social Work</span>
                   </div>
                 </label>
                 <label class="document-type-option">
                   <input type="radio" name="document-type" value="carePlan" />
                   <div class="document-type-card">
-                    <span class="doc-label">📝 Care Plan</span>
+                    <span class="doc-label">Care Plan</span>
                   </div>
                 </label>
                 <label class="document-type-option">
                   <input type="radio" name="document-type" value="movingHandling" />
                   <div class="document-type-card">
-                    <span class="doc-label">🚶 M&H</span>
+                    <span class="doc-label">Moving & Handling</span>
                   </div>
                 </label>
                 <label class="document-type-option">
                   <input type="radio" name="document-type" value="otherDocuments" checked />
                   <div class="document-type-card">
-                    <span class="doc-label">📁 Other</span>
+                    <span class="doc-label">Other Documents</span>
                   </div>
                 </label>
               </div>
@@ -137,7 +140,7 @@
 
           <section class="card">
             <div class="card-header">
-              <h2 class="card-title">📤 Upload Files</h2>
+              <h2 class="card-title">Upload Files</h2>
             </div>
             <div class="card-content">
               <div class="file-upload-area">
@@ -166,7 +169,7 @@
 
           <section id="uploaded-docs-summary" class="card" hidden>
             <div class="card-header">
-              <h2 class="card-title">✓ Uploaded</h2>
+              <h2 class="card-title">Uploaded Documents</h2>
               <button id="clear-uploads" class="btn-icon" title="Clear all">✕</button>
             </div>
             <div class="card-content">
@@ -180,7 +183,7 @@
 
           <section class="card">
             <div class="card-header">
-              <h2 class="card-title">📦 Payload Status</h2>
+              <h2 class="card-title">Payload Status</h2>
             </div>
             <div class="card-content">
               <div id="payload-status" class="status-box">
@@ -207,7 +210,7 @@
 
           <section class="card">
             <div class="card-header">
-              <h2 class="card-title">🔧 ACP Settings</h2>
+              <h2 class="card-title">ACP Settings</h2>
             </div>
             <div class="card-content">
               <div class="form-row">
@@ -254,7 +257,7 @@
 
           <details class="card collapsible">
             <summary class="collapsible-header">
-              <span>📝 Signature & Logs</span>
+              <span>Signature & Logs</span>
               <span class="chevron">▼</span>
             </summary>
             <div class="card-content">
@@ -273,7 +276,7 @@
       </div>
 
       <footer class="popup-footer">
-        <p class="footer-text">Care Assurance v0.3.0</p>
+        <p class="footer-text">Care Assurance Extension v0.3.3</p>
       </footer>
     </main>
     <script src="constants.js"></script>

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Upload, FileSpreadsheet, ArrowRightLeft, CheckCircle2, Download, Lock, Info, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 export default function CallReconciliation() {
   const { user } = useAuth();
@@ -22,7 +23,9 @@ export default function CallReconciliation() {
           <h2 className="text-2xl font-bold text-foreground">Access Restricted</h2>
           <p className="text-muted-foreground max-w-md">The Call Reconciliation tool contains sensitive operational data and is restricted to Administrators only.</p>
         </div>
-        <Button variant="outline" className="border-border hover:bg-muted text-muted-foreground">Return to Dashboard</Button>
+        <Link href="/">
+          <Button variant="outline" className="border-border hover:bg-muted text-muted-foreground">Return to Dashboard</Button>
+        </Link>
       </div>
     );
   }
@@ -135,6 +138,7 @@ export default function CallReconciliation() {
                    className="absolute inset-0 opacity-0 cursor-pointer"
                    onChange={(e) => handleFileChange(e.target.files?.[0])}
                    data-testid="input-file-upload"
+                   aria-label="Upload spreadsheet file"
                  />
                </div>
              </CardContent>

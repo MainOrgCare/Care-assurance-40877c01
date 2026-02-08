@@ -95,7 +95,7 @@ export default function SystemLogs() {
         </Button>
       </div>
 
-      <Card className="bg-card border-border">
+      <Card className="glass-card">
         <CardHeader>
           <CardTitle>Filters</CardTitle>
           <CardDescription>Search across action, target, user, or alert text. Results update as you type.</CardDescription>
@@ -107,6 +107,7 @@ export default function SystemLogs() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search logs..."
+              aria-label="Search system logs"
               className="pl-9"
             />
           </div>
@@ -125,7 +126,7 @@ export default function SystemLogs() {
         </CardContent>
       </Card>
 
-      <Card className="bg-card border-border">
+      <Card className="glass-card">
         <CardHeader>
           <CardTitle>Activity Log</CardTitle>
           <CardDescription>
@@ -205,6 +206,7 @@ export default function SystemLogs() {
                   onClick={() => goToPage(1)}
                   disabled={page === 1 || loading}
                   title="First page"
+                  aria-label="First page"
                 >
                   <ChevronsLeft className="h-4 w-4" />
                 </Button>
@@ -214,6 +216,7 @@ export default function SystemLogs() {
                   onClick={() => goToPage(page - 1)}
                   disabled={page === 1 || loading}
                   title="Previous page"
+                  aria-label="Previous page"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -224,6 +227,7 @@ export default function SystemLogs() {
                   onClick={() => goToPage(page + 1)}
                   disabled={page === totalPages || loading}
                   title="Next page"
+                  aria-label="Next page"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -233,6 +237,7 @@ export default function SystemLogs() {
                   onClick={() => goToPage(totalPages)}
                   disabled={page === totalPages || loading}
                   title="Last page"
+                  aria-label="Last page"
                 >
                   <ChevronsRight className="h-4 w-4" />
                 </Button>

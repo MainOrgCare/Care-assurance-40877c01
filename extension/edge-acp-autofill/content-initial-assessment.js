@@ -337,24 +337,25 @@ const checkValueStatus = (value) => {
 const highlightField = (field, reason) => {
   if (!field) return;
   
-  // Apply yellow highlight with border
-  field.style.backgroundColor = '#fff3cd';
-  field.style.border = '2px solid #ffc107';
-  field.style.boxShadow = '0 0 5px rgba(255, 193, 7, 0.5)';
+  // Apply subtle yellow highlight
+  field.style.backgroundColor = '#fefce8';
+  field.style.border = '1.5px solid hsl(45, 70%, 55%)';
+  field.style.boxShadow = '0 0 0 2px hsla(45, 70%, 55%, 0.15)';
+  field.setAttribute('data-ca-verification', reason);
   
   // Add title tooltip explaining why
   const tooltipText = reason === 'missing' 
-    ? 'Information not provided - requires verification' 
-    : 'Ambiguous answer - requires verification';
+    ? 'Information not provided \u2013 requires verification' 
+    : 'Ambiguous answer \u2013 requires verification';
   field.title = tooltipText;
   
-  // Try to find parent container and highlight that too for visibility
+  // Highlight parent container for visibility
   const container = field.closest('.form-group') || field.closest('td') || field.parentElement;
   if (container && container !== field) {
-    container.style.backgroundColor = '#fff3cd';
+    container.style.backgroundColor = '#fefce8';
   }
   
-  logAction(`Highlighted field for ${reason}: ${field.name || field.id}`);
+  logAction(`Needs verification (${reason}): ${field.name || field.id}`);
 };
 
 /**
@@ -365,24 +366,25 @@ const highlightRadioGroup = (fieldName, reason) => {
   radios.forEach(radio => {
     const label = radio.closest('label') || radio.parentElement;
     if (label) {
-      label.style.backgroundColor = '#fff3cd';
-      label.style.border = '2px solid #ffc107';
+      label.style.backgroundColor = '#fefce8';
+      label.style.border = '1.5px solid hsl(45, 70%, 55%)';
       label.style.padding = '2px 4px';
       label.style.borderRadius = '4px';
+      label.setAttribute('data-ca-verification', reason);
     }
   });
   
-  // Also try to highlight the container
+  // Also highlight container
   if (radios.length > 0) {
     const container = radios[0].closest('.form-group') || radios[0].closest('td');
     if (container) {
-      container.style.backgroundColor = '#fff3cd';
+      container.style.backgroundColor = '#fefce8';
       container.title = reason === 'missing' 
-        ? 'Information not provided - requires verification' 
-        : 'Ambiguous answer (both yes/no indicated) - requires verification';
+        ? 'Information not provided \u2013 requires verification' 
+        : 'Ambiguous answer \u2013 requires verification';
     }
   }
-  logAction(`Highlighted radio group for ${reason}: ${fieldName}`);
+  logAction(`Needs verification (${reason}): ${fieldName}`);
 };
 
 const logAction = (message) => {
@@ -1131,19 +1133,20 @@ const showVerificationSummary = (fields) => {
         box-shadow: 0 0 10px rgba(255, 193, 7, 0.8) !important;
       }
       .ca-nav-btn {
-        padding: 6px 12px;
-        border: 1px solid #ffc107;
-        border-radius: 4px;
-        background: #fff;
-        color: #856404;
+        padding: 5px 10px;
+        border: 1px solid hsl(214, 25%, 89%);
+        border-radius: 6px;
+        background: hsl(210, 15%, 97%);
+        color: hsl(222, 47%, 11%);
         cursor: pointer;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 500;
-        transition: all 0.2s;
+        transition: all 0.15s;
       }
       .ca-nav-btn:hover {
-        background: #ffc107;
-        color: #000;
+        background: hsl(215, 50%, 35%);
+        color: #fff;
+        border-color: hsl(215, 50%, 35%);
       }
       .ca-nav-btn:disabled {
         opacity: 0.5;
@@ -1163,45 +1166,45 @@ const showVerificationSummary = (fields) => {
   summary.id = 'ca-verification-summary';
   summary.style.cssText = `
     position: fixed;
-    top: 20px;
-    right: 20px;
-    background: #fff3cd;
-    border: 2px solid #ffc107;
+    top: 16px;
+    right: 16px;
+    background: #fff;
+    border: 1px solid hsl(214, 25%, 89%);
     border-radius: 8px;
-    padding: 16px 20px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    padding: 16px 18px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.1);
     z-index: 10000;
-    font-family: Arial, sans-serif;
-    max-width: 380px;
-    min-width: 300px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    max-width: 360px;
+    min-width: 280px;
   `;
   
   summary.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
-      <strong style="color: #856404; font-size: 14px;">⚠️ Verification Required</strong>
+      <strong style="color: hsl(222, 47%, 11%); font-size: 13px;">Verification Required</strong>
       <div>
-        <button id="ca-minimize-summary" style="background: none; border: none; cursor: pointer; font-size: 14px; color: #856404; margin-right: 8px;" title="Minimize">_</button>
-        <button id="ca-close-summary" style="background: none; border: none; cursor: pointer; font-size: 18px; color: #856404;" title="Close">×</button>
+        <button id="ca-minimize-summary" style="background: none; border: none; cursor: pointer; font-size: 13px; color: hsl(215, 15%, 42%); margin-right: 6px;" title="Minimize">_</button>
+        <button id="ca-close-summary" style="background: none; border: none; cursor: pointer; font-size: 16px; color: hsl(215, 15%, 42%);" title="Close">\u00d7</button>
       </div>
     </div>
-    <div id="ca-summary-content" style="color: #856404; font-size: 13px; line-height: 1.5;">
-      <p style="margin: 0 0 8px 0;">${fields.length} field(s) need manual review:</p>
-      <ul style="margin: 0; padding-left: 18px; margin-bottom: 12px;">
-        ${missingCount > 0 ? `<li>${missingCount} with "Information not provided"</li>` : ''}
-        ${ambiguousCount > 0 ? `<li>${ambiguousCount} yes/no fields with ambiguous answers</li>` : ''}
+    <div id="ca-summary-content" style="color: hsl(222, 47%, 11%); font-size: 12px; line-height: 1.5;">
+      <p style="margin: 0 0 8px 0; color: hsl(45, 70%, 28%);">${fields.length} field(s) need manual review:</p>
+      <ul style="margin: 0; padding-left: 16px; margin-bottom: 10px; color: hsl(215, 15%, 42%); font-size: 11px;">
+        ${missingCount > 0 ? `<li>${missingCount} with missing information</li>` : ''}
+        ${ambiguousCount > 0 ? `<li>${ambiguousCount} with ambiguous answers</li>` : ''}
       </ul>
       
-      <div style="display: flex; gap: 8px; justify-content: center; align-items: center; margin: 12px 0;">
-        <button id="ca-nav-prev" class="ca-nav-btn" title="Previous field (Ctrl+Shift+P)">← Prev</button>
-        <span id="ca-nav-counter" style="font-size: 12px; min-width: 60px; text-align: center;">- / ${fields.length}</span>
-        <button id="ca-nav-next" class="ca-nav-btn" title="Next field (Ctrl+Shift+N)">Next →</button>
+      <div style="display: flex; gap: 6px; justify-content: center; align-items: center; margin: 10px 0;">
+        <button id="ca-nav-prev" class="ca-nav-btn" title="Previous field">\u2190 Prev</button>
+        <span id="ca-nav-counter" style="font-size: 11px; min-width: 50px; text-align: center; color: hsl(215, 15%, 42%);">- / ${fields.length}</span>
+        <button id="ca-nav-next" class="ca-nav-btn" title="Next field">Next \u2192</button>
       </div>
       
-      <p id="ca-current-field" style="margin: 8px 0 0 0; font-size: 11px; text-align: center; font-style: italic;">Click Next to start navigating</p>
+      <p id="ca-current-field" style="margin: 6px 0 0 0; font-size: 10px; text-align: center; font-style: italic; color: hsl(215, 15%, 42%);">Click Next to start navigating</p>
       
-      <p style="margin: 10px 0 0 0; font-size: 11px; text-align: center; color: #665200;">
-        Shortcuts: <kbd style="background: #fff; padding: 1px 4px; border-radius: 3px; border: 1px solid #ccc;">Ctrl+Shift+N</kbd> Next &nbsp;
-        <kbd style="background: #fff; padding: 1px 4px; border-radius: 3px; border: 1px solid #ccc;">Ctrl+Shift+P</kbd> Prev
+      <p style="margin: 8px 0 0 0; font-size: 10px; text-align: center; color: hsl(215, 15%, 55%);">
+        <kbd style="background: hsl(210, 15%, 95%); padding: 1px 4px; border-radius: 3px; border: 1px solid hsl(214, 25%, 89%); font-size: 9px;">Ctrl+Shift+N</kbd> Next
+        <kbd style="background: hsl(210, 15%, 95%); padding: 1px 4px; border-radius: 3px; border: 1px solid hsl(214, 25%, 89%); font-size: 9px; margin-left: 4px;">Ctrl+Shift+P</kbd> Prev
       </p>
     </div>
   `;
