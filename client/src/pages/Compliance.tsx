@@ -1,8 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, FileText, AlertTriangle, CheckCircle, Clock, BarChart3 } from "lucide-react";
+import { Loader2, FileText, AlertTriangle, CheckCircle, Clock, BarChart3, Download } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { Button } from "@/components/ui/button";
+import { useDataExport } from "@/hooks/useDataExport";
 
 interface Audit {
   id: string;
@@ -46,6 +48,7 @@ export default function Compliance() {
   }
 
   const auditList: Audit[] = audits ?? [];
+  const { exportCSV } = useDataExport();
   
   const emarAudits = auditList.filter((a: Audit) => a.auditType === "EMAR");
   const visitAudits = auditList.filter((a: Audit) => a.auditType === "Visit");
@@ -69,9 +72,33 @@ export default function Compliance() {
 
   return (
     <div className="page-shell max-w-7xl mx-auto" data-testid="compliance-page">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-heading font-bold text-foreground">Compliance Overview</h2>
-        <p className="text-muted-foreground">View audit history, discrepancies, and compliance metrics across all service users.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-3xl font-heading font-bold text-foreground">Compliance Overview</h2>
+          <p className="text-muted-foreground">View audit history, discrepancies, and compliance metrics across all service users.</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={auditList.length === 0}
+          onClick={() =>
+            exportCSV(
+              auditList as unknown as Record<string, unknown>[],
+              [
+                { header: "Service User", accessor: "serviceUserName" },
+                { header: "Auditor", accessor: "auditor" },
+                { header: "Audit Type", accessor: "auditType" },
+                { header: "Period Start", accessor: "periodStart" },
+                { header: "Period End", accessor: "periodEnd" },
+                { header: "Created At", accessor: "createdAt" },
+              ],
+              `compliance-report-${new Date().toISOString().slice(0, 10)}`,
+            )
+          }
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Export Report
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

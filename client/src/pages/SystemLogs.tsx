@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Terminal, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react";
+import { Terminal, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, Download } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useDataExport } from "@/hooks/useDataExport";
 
 interface SystemLogEntry {
   id: string;
@@ -77,6 +78,24 @@ export default function SystemLogs() {
     setPage(Math.max(1, Math.min(newPage, totalPages)));
   }, [totalPages]);
 
+  const { exportCSV } = useDataExport();
+
+  const handleExportLogs = useCallback(() => {
+    exportCSV(
+      logs as unknown as Record<string, unknown>[],
+      [
+        { header: "Timestamp", accessor: "createdAt" },
+        { header: "Event Type", accessor: "eventType" },
+        { header: "Username", accessor: "username" },
+        { header: "Service User", accessor: "serviceUserInitials" },
+        { header: "Action", accessor: (row) => (row.details as any)?.action ?? "" },
+        { header: "Target", accessor: (row) => (row.details as any)?.target ?? "" },
+        { header: "Status", accessor: (row) => (row.details as any)?.status ?? "" },
+      ],
+      `system-logs-${new Date().toISOString().slice(0, 10)}`,
+    );
+  }, [logs, exportCSV]);
+
   return (
     <div className="page-shell space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -89,10 +108,16 @@ export default function SystemLogs() {
             Full system activity log. Filter by action, target, or status.
           </p>
         </div>
-        <Button variant="outline" onClick={fetchLogs} disabled={loading}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportLogs} disabled={logs.length === 0}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button variant="outline" onClick={fetchLogs} disabled={loading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <Card className="glass-card">

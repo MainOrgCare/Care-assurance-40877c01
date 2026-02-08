@@ -4,9 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, ChevronRight, Search, Users, FileText, Loader2 } from "lucide-react";
+import { AlertTriangle, ChevronRight, Search, Users, FileText, Loader2, Download } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useQuery } from "@tanstack/react-query";
+import { useDataExport } from "@/hooks/useDataExport";
 
 interface CareWorkerDiscrepancy {
   date: string;
@@ -25,6 +26,7 @@ interface CareWorkerFromAudits {
 
 export default function CarersList() {
   const [searchQuery, setSearchQuery] = useState("");
+  const { exportCSV } = useDataExport();
 
   const { data: careWorkers = [], isLoading: loading } = useQuery<CareWorkerFromAudits[]>({
     queryKey: ["/api/audits/care-workers"],
@@ -77,7 +79,28 @@ export default function CarersList() {
             Performance data extracted from saved audits.
           </p>
         </div>
-        <div className="relative w-full md:w-[300px]">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={careWorkers.length === 0}
+            onClick={() =>
+              exportCSV(
+                careWorkers as unknown as Record<string, unknown>[],
+                [
+                  { header: "Name", accessor: "name" },
+                  { header: "Audit Count", accessor: "auditCount" },
+                  { header: "Discrepancy Count", accessor: "discrepancyCount" },
+                  { header: "Last Seen", accessor: "lastSeen" },
+                ],
+                `care-workers-${new Date().toISOString().slice(0, 10)}`,
+              )
+            }
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export
+          </Button>
+          <div className="relative w-full md:w-[300px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
           <Input 
             placeholder="Search by name..."
@@ -86,6 +109,7 @@ export default function CarersList() {
             className="pl-10 bg-card border-border"
             data-testid="input-search-carers"
           />
+          </div>
         </div>
       </div>
 

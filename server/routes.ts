@@ -19729,5 +19729,34 @@ I have also sent that reminder to your Messages inbox.`
     }
   });
 
+  // ==========================================================================
+  // Client Error Logging
+  // ==========================================================================
+  app.post("/api/log-client-error", requireAuth, async (req, res) => {
+    try {
+      const { message, stack, componentStack, url, timestamp } = req.body || {};
+      const truncate = (s: string | undefined, max: number) =>
+        typeof s === "string" ? s.slice(0, max) : "";
+
+      storage.createSystemLog({
+        eventType: "CLIENT_ERROR",
+        userId: req.user?.id?.toString(),
+        username: req.user?.username,
+        details: {
+          url: truncate(url, 500),
+          message: truncate(message, 500),
+          stack: truncate(stack, 2000),
+          componentStack: truncate(componentStack, 1000),
+          reportedAt: timestamp,
+        },
+      });
+
+      return res.json({ logged: true });
+    } catch {
+      // Error logging must never fail visibly
+      return res.json({ logged: false });
+    }
+  });
+
   return httpServer;
 }

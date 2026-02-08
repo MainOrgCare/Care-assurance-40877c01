@@ -28,6 +28,7 @@ import {
   Inbox,
   AlertTriangle,
   Megaphone,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, Suspense, memo, useCallback, useRef, useMemo, lazy } from "react";
@@ -38,7 +39,25 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import ComplieeIdleButton from "@/components/ComplieeIdleButton";
+import CommandPalette from "@/components/CommandPalette";
+import KeyboardShortcutsDialog from "@/components/KeyboardShortcutsDialog";
+import { PageTransition } from "@/components/PageTransition";
+import { ScrollToTopButton } from "@/components/ScrollToTopButton";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { QuickNotes } from "@/components/QuickNotes";
+import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
+import { useScrollToTop } from "@/hooks/useScrollToTop";
+import { useRecentPages } from "@/hooks/useRecentPages";
+import { useSessionTimer } from "@/hooks/useSessionTimer";
 
 type PageMeta = {
   section: string;
@@ -488,7 +507,73 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [showComplieeIntro, setShowComplieeIntro] = useState(false);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [platformControls, setPlatformControls] = useState<PlatformBannerControls | null>(null);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
   const autoCollapseRef = useRef(false);
+
+  // Scroll to top on route change
+  useScrollToTop();
+
+  // Track recently visited pages (persisted to localStorage)
+  useRecentPages();
+
+  // Session duration timer
+  const sessionDuration = useSessionTimer();
+
+  // Global keyboard shortcuts (G+D, G+M, Ctrl+K, etc.)
+  useGlobalShortcuts({
+    onToggleCommandPalette: useCallback(() => setIsCommandPaletteOpen((v) => !v), []),
+    onToggleChatAssistant: useCallback(() => {
+      setIsChatOpen((current) => {
+        if (!current) setHasOpenedChat(true);
+        return !current;
+      });
+    }, []),
+  });
+
+  // Build breadcrumb trail from current route
+  const breadcrumbs = useMemo(() => {
+    const crumbs: Array<{ label: string; href?: string }> = [];
+    if (location === "/dashboard") {
+      crumbs.push({ label: "Dashboard" });
+    } else if (location === "/messages") {
+      crumbs.push({ label: "Messages" });
+    } else if (location === "/email-assistant") {
+      crumbs.push({ label: "Email Assistant" });
+    } else if (location === "/compliance") {
+      crumbs.push({ label: "Compliance" });
+    } else if (location === "/settings") {
+      crumbs.push({ label: "Settings" });
+    } else if (location.startsWith("/service-users")) {
+      crumbs.push({ label: "Service Users", href: "/service-users/upload" });
+      if (location === "/service-users/upload") crumbs.push({ label: "Data Upload" });
+      else if (location === "/service-users/care-planning") crumbs.push({ label: "Care Planning" });
+      else if (location === "/service-users/risk-assessment") crumbs.push({ label: "Risk Assessment" });
+      else if (location === "/service-users/plan-enhancer") crumbs.push({ label: "Plan Enhancer" });
+    } else if (location.startsWith("/care-workers")) {
+      crumbs.push({ label: "Care Workers", href: "/care-workers/list" });
+      if (location === "/care-workers/list") crumbs.push({ label: "Carers" });
+      else if (location === "/care-workers/emar-audit") crumbs.push({ label: "EMAR Audit" });
+      else if (location === "/care-workers/visit-audit") crumbs.push({ label: "Visit Audit" });
+      else if (location === "/care-workers/performance") crumbs.push({ label: "Performance" });
+    } else if (location.startsWith("/rostering")) {
+      crumbs.push({ label: "Rostering Studio" });
+    } else if (location === "/call-reconciliation") {
+      crumbs.push({ label: "Call Reconciliation" });
+    } else if (location === "/shadow-admin-portal") {
+      crumbs.push({ label: "Admin", href: "/shadow-admin-portal" });
+      crumbs.push({ label: "Administrator Controls" });
+    } else if (location === "/system-logs") {
+      crumbs.push({ label: "Admin", href: "/shadow-admin-portal" });
+      crumbs.push({ label: "System Logs" });
+    } else if (location === "/billing-tool") {
+      crumbs.push({ label: "Admin", href: "/shadow-admin-portal" });
+      crumbs.push({ label: "Billing Tool" });
+    } else if (location === "/roi-calculator") {
+      crumbs.push({ label: "Features & Benefits" });
+    }
+    return crumbs;
+  }, [location]);
 
   const openChatAssistant = useCallback(() => {
     setHasOpenedChat(true);
@@ -542,6 +627,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
   }, [user?.id, shouldPollUnread]);
 
+  // Ctrl+/ for chat assistant (kept separately since it needs typing-context check
+  // and the global shortcuts hook doesn't handle Ctrl+/ to avoid conflict)
   useEffect(() => {
     if (!user) return;
 
@@ -799,13 +886,44 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="sr-only">Toggle sidebar</span>
               </Button>
 
-              <div className="hidden lg:block min-w-0 ml-2">
-                <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-muted-foreground">{pageMeta.section}</p>
-                <h2 className="text-sm font-semibold text-foreground truncate">{pageMeta.title}</h2>
+              <div className="hidden lg:flex items-center gap-3 min-w-0 ml-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-muted-foreground">{pageMeta.section}</p>
+                  <h2 className="text-sm font-semibold text-foreground truncate">{pageMeta.title}</h2>
+                </div>
+                {breadcrumbs.length > 0 && (
+                  <div className="hidden xl:block border-l border-border/50 pl-3 ml-1">
+                    <Breadcrumb>
+                      <BreadcrumbList>
+                        {breadcrumbs.map((crumb, i) => (
+                          <BreadcrumbItem key={i}>
+                            {i > 0 && <BreadcrumbSeparator />}
+                            {i === breadcrumbs.length - 1 ? (
+                              <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                            ) : (
+                              <BreadcrumbLink href={crumb.href || "#"}>{crumb.label}</BreadcrumbLink>
+                            )}
+                          </BreadcrumbItem>
+                        ))}
+                      </BreadcrumbList>
+                    </Breadcrumb>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-card/90 px-2 py-1.5">
+              {/* Command Palette Trigger */}
+              <button
+                onClick={() => setIsCommandPaletteOpen(true)}
+                className="hidden md:flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors cursor-pointer"
+                title="Command Palette (Ctrl+K)"
+              >
+                <Search className="h-3.5 w-3.5" />
+                <span className="hidden lg:inline">Search...</span>
+                <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] leading-none text-foreground">⌘K</kbd>
+              </button>
+
               {/* Messages Button */}
               <Link href="/messages">
                 <button
@@ -945,9 +1063,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <div className="mt-6 h-32 w-full bg-muted/30 rounded-xl" />
                 </div>
               }>
-                <div className="flex-1 min-h-0 flex flex-col">
+                <PageTransition>
                   {children}
-                </div>
+                </PageTransition>
               </Suspense>
             ) : (
               <>
@@ -965,9 +1083,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <div className="mt-6 h-32 w-full bg-muted/30 rounded-xl" />
                   </div>
                 }>
-                  <div className="flex-1 min-h-0 flex flex-col">
+                  <PageTransition>
                     {children}
-                  </div>
+                  </PageTransition>
                 </Suspense>
               </>
             )}
@@ -980,12 +1098,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {!isSingleScreenRoute && (
           <footer className="workspace-footer flex-shrink-0 border-t border-border/40 bg-background/95 px-4 py-2.5">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5 font-medium">
+              <div className="flex items-center gap-3 font-medium">
                 <span>{new Date().getFullYear()} CareAssurance</span>
-                <span className="hidden sm:inline text-muted-foreground">·</span>
+                <span className="hidden sm:inline text-muted-foreground/40">·</span>
                 <span className="hidden sm:inline">Precision tools for high-trust care teams</span>
               </div>
               <div className="flex items-center gap-4">
+                <div className="hidden md:flex items-center gap-1.5 text-[10px] text-muted-foreground/50">
+                  <span className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    isConnected ? "bg-emerald-500" : "bg-red-500"
+                  )} />
+                  <span>{isConnected ? "Connected" : "Disconnected"}</span>
+                  <span className="mx-1">·</span>
+                  <span>Session: {sessionDuration}</span>
+                </div>
+                <div className="hidden sm:block h-3 w-px bg-border/50" />
                 <Link href="/terms" className="transition-colors hover:text-foreground" data-testid="link-footer-terms">
                   Terms & Conditions
                 </Link>
@@ -997,6 +1125,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </footer>
         )}
       </div>
+
+      {/* Quick Notes widget */}
+      <QuickNotes />
+
+      {/* Offline indicator */}
+      <OfflineIndicator />
+
+      {/* Scroll to top floating button */}
+      {!isSingleScreenRoute && <ScrollToTopButton />}
+
+      {/* Command Palette (Ctrl+K) */}
+      <CommandPalette
+        open={isCommandPaletteOpen}
+        onOpenChange={setIsCommandPaletteOpen}
+        onOpenKeyboardShortcuts={() => setIsKeyboardShortcutsOpen(true)}
+      />
+
+      {/* Keyboard Shortcuts Help */}
+      <KeyboardShortcutsDialog
+        open={isKeyboardShortcutsOpen}
+        onOpenChange={setIsKeyboardShortcutsOpen}
+      />
 
       {/* Compli-ee Chat Assistant */}
       {hasOpenedChat && (
