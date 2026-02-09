@@ -128,6 +128,7 @@ export default function RiskAssessment() {
   const [customAssessments, setCustomAssessments] = useState<RecommendedAssessment[]>([]);
   const [isRefreshingIdentity, setIsRefreshingIdentity] = useState(false);
   const [selectedForAcp, setSelectedForAcp] = useState<Set<number>>(new Set());
+  const [cachedDocumentContent, setCachedDocumentContent] = useState<string | null>(null);
 
   // Throttle progress updates to reduce re-renders during SSE streaming
   const lastProgressUpdateRef = useRef<number>(0);
@@ -469,14 +470,21 @@ export default function RiskAssessment() {
     }
   }, [hasAllParsed, step]);
 
+  // Clear cached document content when documents change
+  useEffect(() => {
+    setCachedDocumentContent(null);
+  }, [serviceUserData]);
+
   useEffect(() => {
     const hasFullName = Boolean(analysisRaw?.serviceUser?.fullName?.trim());
     if (!showSensitive || hasFullName || isRefreshingIdentity || !hasAllParsed) return;
     const refreshSensitiveIdentity = async () => {
       setIsRefreshingIdentity(true);
       try {
-        const documentContent = getAllDocumentContent();
+        // Use cached document content if available
+        const documentContent = cachedDocumentContent || getAllDocumentContent();
         if (!documentContent) return;
+        
         const response = await fetch("/api/ai/analyze-risks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -484,20 +492,35 @@ export default function RiskAssessment() {
           body: JSON.stringify({ documentContent, allowSensitive: true }),
         });
         if (!response.ok) return;
+        
         let resultRaw: RiskAnalysis | null = null;
         let resultScrubbed: RiskAnalysis | null = null;
+        let resultVaultExport: VaultExport | null = null;
 
         await consumeJsonSseStream(response, ({ eventType, data }) => {
           if (eventType !== "result") return;
           if (!data || typeof data !== "object") return;
-          const payload = data as RiskAnalysis & { scrubbedResult?: RiskAnalysis };
-          resultRaw = payload;
-          resultScrubbed = payload.scrubbedResult || payload;
+          
+          const payload = data as any;
+          const vaultExport = payload?.vaultExport as VaultExport | undefined;
+          const rawWithTokens = payload?.rawWithTokens;
+
+          if (vaultExport && rawWithTokens) {
+            const vault = new ClientPIIVault(vaultExport);
+            resultRaw = vault.restore(rawWithTokens);
+            resultVaultExport = vaultExport;
+          } else {
+            resultRaw = payload;
+          }
+
+          const { vaultExport: _ve, rawWithTokens: _rwt, ...scrubbedData } = payload;
+          resultScrubbed = scrubbedData;
         });
 
         if (resultRaw) {
           setAnalysisRaw(resultRaw);
           setAnalysisScrubbed(resultScrubbed || resultRaw);
+          setAnalysisVaultExport(resultVaultExport);
         }
       } catch (error) {
         console.error("Sensitive identity refresh failed:", error);
@@ -506,7 +529,7 @@ export default function RiskAssessment() {
       }
     };
     refreshSensitiveIdentity();
-  }, [showSensitive, analysisRaw, isRefreshingIdentity, hasAllParsed, getAllDocumentContent]);
+  }, [showSensitive, analysisRaw, isRefreshingIdentity, hasAllParsed, getAllDocumentContent, cachedDocumentContent]);
 
   const analyzeDocuments = async () => {
     setIsAnalyzing(true);
@@ -518,6 +541,10 @@ export default function RiskAssessment() {
       if (!documentContent) {
         throw new Error("No document content available");
       }
+      
+      // Cache document content for reuse when toggling sensitive view
+      setCachedDocumentContent(documentContent);
+      
       setAnalysisRaw(null);
       setAnalysisScrubbed(null);
 
@@ -699,7 +726,14 @@ export default function RiskAssessment() {
     setProgress(0);
     setProgressStatus("Starting generation...");
     
-    const documentContent = getAllDocumentContent();
+    // Use cached document content if available to avoid re-reading
+    const documentContent = cachedDocumentContent || getAllDocumentContent();
+    
+    // Cache for future use
+    if (!cachedDocumentContent && documentContent) {
+      setCachedDocumentContent(documentContent);
+    }
+    
     const assessmentsArray = Array.from(selectedAssessments);
     const total = assessmentsArray.length;
     const errors: string[] = [];
