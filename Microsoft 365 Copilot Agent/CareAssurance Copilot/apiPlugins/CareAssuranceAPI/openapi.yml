@@ -263,6 +263,14 @@ components:
                 type: string
             summary:
               type: string
+            missingSectionsWarning:
+              type: string
+              description: Warning if any mandatory sections were not generated
+            scopeOfPracticeWarnings:
+              type: array
+              items:
+                type: string
+              description: Warnings about tasks outside care worker scope of practice
         callType:
           type: string
         model:
@@ -297,6 +305,14 @@ components:
                 type: string
             enhancementSummary:
               type: string
+            missingSectionsWarning:
+              type: string
+              description: Warning if any mandatory sections were not generated
+            scopeOfPracticeWarnings:
+              type: array
+              items:
+                type: string
+              description: Warnings about tasks outside care worker scope of practice
         model:
           type: string
 
@@ -332,12 +348,39 @@ components:
                 type: string
               recommendation:
                 type: string
+              bnfReference:
+                type: string
+                description: BNF reference section if applicable
+              source:
+                type: string
+                description: Source of interaction data (ai or rule_based_safety_check)
+        anticholinergicBurden:
+          type: object
+          description: Cumulative anticholinergic burden assessment
+          properties:
+            score:
+              type: integer
+            contributors:
+              type: array
+              items:
+                type: string
+            risk:
+              type: string
+              enum: [low, moderate, high]
+            note:
+              type: string
         summary:
           type: string
         totalMedicationsChecked:
           type: integer
         interactionsFound:
           type: integer
+        source:
+          type: string
+          description: Overall data source (e.g. rule_based_fallback when AI unavailable)
+        disclaimer:
+          type: string
+          description: Safety disclaimer about AI-generated interaction checks
         model:
           type: string
 
