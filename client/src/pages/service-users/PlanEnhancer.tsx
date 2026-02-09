@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText, Download, Edit3, Send, Zap, Info } from "lucide-react";
+import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText, Download, Edit3, Send, Zap, Info, AlertTriangle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
@@ -1548,6 +1548,41 @@ export default function PlanEnhancer() {
 
       {displayResult && (
         <div className="space-y-6 animate-slide-up">
+            {/* Truncation / quality warning banner */}
+            {(displayResult as any)?._truncated && (
+              <Card className="glass-card border-destructive/40 bg-destructive/10">
+                <CardContent className="py-4 space-y-2">
+                  <p className="text-sm font-semibold text-destructive flex items-center gap-2">
+                    <AlertTriangle size={16} />
+                    Incomplete Output Warning
+                  </p>
+                  <p className="text-sm text-destructive/80">
+                    {(displayResult as any)?._truncationWarning || "The AI response may be incomplete. Some sections could be missing or cut short."}
+                  </p>
+                  {(displayResult as any)?._missingSections?.length > 0 && (
+                    <p className="text-xs text-destructive/70">
+                      Missing sections: {(displayResult as any)._missingSections.join(", ")}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Try regenerating with shorter input documents, or provide updates in the update box to focus the output.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            {(displayResult as any)?._qualityScore != null && (displayResult as any)._qualityScore < 50 && !(displayResult as any)?._truncated && (
+              <Card className="glass-card border-amber-500/30 bg-amber-500/10">
+                <CardContent className="py-4">
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                    <AlertTriangle size={16} />
+                    Low Quality Score: {(displayResult as any)._qualityScore}/100
+                  </p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    Several sections did not meet minimum word count thresholds. Consider providing more detailed input documents.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-4 px-1">
               <h3 className="text-xl font-black tracking-tight text-foreground flex items-center gap-3">
                 <div className="h-8 w-8 rounded-lg bg-success/15 flex items-center justify-center text-success">

@@ -15772,16 +15772,32 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
         ],
         temperature: 0,
         seed: 42,
-        max_completion_tokens: 32000,
+        max_completion_tokens: 64000,
         response_format: { type: "json_object" },
       }, "plan_enhancer", aiUserContext);
 
       clearInterval(progressInterval);
+
+      // ── Check for token-limit truncation ──
+      const finishReason = response.choices[0]?.finish_reason;
+      const contentLength = response.choices[0]?.message?.content?.length || 0;
+      console.log(`[PlanEnhancer] finish_reason=${finishReason}, content_length=${contentLength}`);
+
+      if (finishReason === "length") {
+        console.warn('[PlanEnhancer] ⚠️  AI response was TRUNCATED (finish_reason=length). Output will be incomplete.');
+        console.warn(`[PlanEnhancer] Content length: ${contentLength} chars. Consider reducing prompt size or increasing max_completion_tokens.`);
+      }
+
       sendProgress(75, "Processing results...", "processing");
 
       const content = response.choices[0]?.message?.content || "";
       const result = parseJsonFromContent(content);
       if (result) {
+        // Flag truncation on the result so the client can show a warning
+        if (finishReason === "length") {
+          result._truncated = true;
+          result._truncationWarning = "The AI response was truncated due to token limits. Some sections may be incomplete or missing. Try with shorter input documents or contact an administrator.";
+        }
         // Quality validation and metrics
         console.log('[PlanEnhancer] ═══════════════════════════════════════════════════');
         console.log('[PlanEnhancer] QUALITY VALIDATION REPORT');
@@ -15878,6 +15894,24 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
         console.log(`[PlanEnhancer] Sections Meeting Standards: ${passedSections}/${totalSections}`);
         console.log(`[PlanEnhancer] Total Words Generated: ${Object.values(qualityMetrics.wordCounts).reduce((a, b) => a + b, 0)}`);
         console.log('[PlanEnhancer] ═══════════════════════════════════════════════════');
+
+        // Attach quality warnings to result so client can display them
+        if (qualityMetrics.warnings.length > 0) {
+          result._qualityWarnings = qualityMetrics.warnings;
+        }
+        result._qualityScore = qualityScore;
+
+        // Check for critical missing top-level sections (sign of severe truncation)
+        const criticalSections = ['thisIsMe', 'myCarePlan', 'goalSetting', 'riskSection1Health', 'riskSection2Medication'];
+        const missingSections = criticalSections.filter(s => !result[s] || (typeof result[s] === 'object' && Object.keys(result[s]).length === 0));
+        if (missingSections.length > 0) {
+          console.error(`[PlanEnhancer] ❌ CRITICAL: Missing top-level sections: ${missingSections.join(', ')}`);
+          result._missingSections = missingSections;
+          if (!result._truncated) {
+            result._truncated = true;
+            result._truncationWarning = `The following sections are missing from the AI output: ${missingSections.join(', ')}. The AI may have been truncated or failed to generate a complete plan.`;
+          }
+        }
         
         // Template-Only AI: Convert tokens to readable placeholders (no PII in output)
         // Output is GDPR-exempt as it contains no personal data
@@ -15907,8 +15941,15 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       } else {
+        console.error(`[PlanEnhancer] Failed to parse AI response. finish_reason=${finishReason}, content_length=${contentLength}`);
+        console.error(`[PlanEnhancer] Raw content (first 500 chars): ${content.substring(0, 500)}`);
         piiVault.clear(); // Clear vault on error too
-        sendEvent('error', { message: "Failed to parse AI response" });
+        const parseErrorMsg = finishReason === "length"
+          ? "AI response was truncated and could not be parsed. The input documents may be too large. Please try with fewer or shorter documents."
+          : contentLength === 0
+            ? "AI returned an empty response. The service may be temporarily unavailable. Please try again."
+            : "Failed to parse AI response. Please try again or contact an administrator.";
+        sendEvent('error', { message: parseErrorMsg });
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       }
