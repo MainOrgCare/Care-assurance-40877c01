@@ -15,6 +15,7 @@ configuration:
     useModelKnowledge: true
     isFileAnalysisEnabled: true
     isSemanticSearchEnabled: true
+    contentModeration: High
     optInUseLatestModels: true
 
   recognizer:
