@@ -177,6 +177,7 @@ const additionalNotes = document.getElementById("additional-notes");
 const proceedWithSelection = document.getElementById("proceed-with-selection");
 const caseIdInput = document.getElementById("case-id");
 const serviceDataGroupInput = document.getElementById("service-data-group-id");
+const autoDetectIdsButton = document.getElementById("auto-detect-ids");
 const autoSubmitToggle = document.getElementById("auto-submit");
 const dryRunToggle = document.getElementById("dry-run");
 const interactionModeSelect = document.getElementById("interaction-mode");
@@ -747,6 +748,48 @@ async function navigateToVerificationField(direction) {
   }
 }
 
+// Auto-detect case ID and service data group from active tab URL
+async function autoDetectIds() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.url) {
+      showError("Cannot access current tab URL");
+      return { detected: false };
+    }
+    
+    const url = new URL(tab.url);
+    const caseId = url.searchParams.get("caseId");
+    const serviceDataGroupId = url.searchParams.get("serviceDataGroupId");
+    
+    if (caseId && serviceDataGroupId) {
+      if (caseIdInput) caseIdInput.value = caseId;
+      if (serviceDataGroupInput) serviceDataGroupInput.value = serviceDataGroupId;
+      
+      // Also save to storage
+      await setStorage({
+        [STORAGE_KEYS.caseInfo]: { caseId, serviceDataGroupId }
+      });
+      
+      showSuccess(`Detected: Case ID ${caseId}, Service Data Group ${serviceDataGroupId}`);
+      return { detected: true, caseId, serviceDataGroupId };
+    } else if (caseId || serviceDataGroupId) {
+      if (caseId && caseIdInput) caseIdInput.value = caseId;
+      if (serviceDataGroupId && serviceDataGroupInput) serviceDataGroupInput.value = serviceDataGroupId;
+      showSuccess(`Partial detection: ${caseId ? 'Case ID' : 'Service Data Group'} found`);
+      return { detected: true, partial: true, caseId, serviceDataGroupId };
+    } else {
+      showError("No case ID or service data group found in URL. Make sure you're on an Additional Risk Assessments page.");
+      return { detected: false };
+    }
+  } catch (error) {
+    console.error("Auto-detect error:", error);
+    showError("Failed to detect IDs from page URL");
+    return { detected: false };
+  }
+}
+
+autoDetectIdsButton?.addEventListener("click", autoDetectIds);
+
 startButton?.addEventListener("click", async () => {
   const caseId = caseIdInput?.value.trim();
   const serviceDataGroupId = serviceDataGroupInput?.value.trim();
@@ -795,23 +838,20 @@ clearLogsButton?.addEventListener("click", async () => {
   if (logStatus) logStatus.textContent = "No actions.";
 });
 
-signatureInput?.addEventListener("change", () => {
+signatureInput?.addEventListener("change", async () => {
   const file = signatureInput.files?.[0];
   if (signatureFilename) {
     signatureFilename.textContent = file ? file.name : "";
   }
-});
-
-uploadSignatureButton?.addEventListener("click", async () => {
-  const file = signatureInput?.files?.[0];
-  if (!file) {
-    showError("Please select a signature image file first");
-    return;
-  }
-
+  
+  // Auto-upload when file is selected
+  if (!file) return;
+  
   // Validate file type
   if (!file.type.startsWith("image/")) {
     showError("Please select an image file (PNG, JPG, etc.)");
+    if (signatureInput) signatureInput.value = "";
+    if (signatureFilename) signatureFilename.textContent = "";
     return;
   }
 
@@ -819,6 +859,8 @@ uploadSignatureButton?.addEventListener("click", async () => {
   const maxSize = 5 * 1024 * 1024;
   if (file.size > maxSize) {
     showError("Signature file is too large. Maximum size is 5MB");
+    if (signatureInput) signatureInput.value = "";
+    if (signatureFilename) signatureFilename.textContent = "";
     return;
   }
 
@@ -851,13 +893,20 @@ uploadSignatureButton?.addEventListener("click", async () => {
 
     showSuccess("Signature uploaded successfully!");
     
-    // Clear file input and filename display
+    // Clear file input
     if (signatureInput) signatureInput.value = "";
     if (signatureFilename) signatureFilename.textContent = "";
   } catch (error) {
     console.error("Signature upload error:", error);
     showError("Failed to upload signature. Please try again.");
+    if (signatureInput) signatureInput.value = "";
+    if (signatureFilename) signatureFilename.textContent = "";
   }
+});
+
+// Upload signature button opens file picker
+uploadSignatureButton?.addEventListener("click", () => {
+  signatureInput?.click();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -947,6 +996,37 @@ async function refreshSignatureStatus() {
   const stored = await loadStorage(['caAcpServerUrl']);
   if (stored.caAcpServerUrl) {
     CARE_ASSURANCE_URL = stored.caAcpServerUrl;
+  }
+  
+  // Auto-detect case ID and service data group from URL if on risk assessment page
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.url) {
+      const url = new URL(tab.url);
+      // Check if on Additional Risk Assessments form
+      if (url.pathname.includes('new_case_form') || url.pathname.includes('edit_case_form')) {
+        const caseId = url.searchParams.get('caseId');
+        const serviceDataGroupId = url.searchParams.get('serviceDataGroupId');
+        
+        // Only auto-populate if both exist and fields are empty
+        if (caseId && serviceDataGroupId) {
+          const hasExistingValues = caseIdInput?.value || serviceDataGroupInput?.value;
+          if (!hasExistingValues) {
+            if (caseIdInput) caseIdInput.value = caseId;
+            if (serviceDataGroupInput) serviceDataGroupInput.value = serviceDataGroupId;
+            
+            // Save to storage
+            await setStorage({
+              [STORAGE_KEYS.caseInfo]: { caseId, serviceDataGroupId }
+            });
+            
+            console.log('[Popup] Auto-detected from URL:', { caseId, serviceDataGroupId });
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.log('[Popup] Auto-detect on init failed:', error);
   }
   
   // Try quick connection check using API proxy
