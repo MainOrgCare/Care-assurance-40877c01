@@ -190,6 +190,7 @@ const errorBanner = document.getElementById("error-banner");
 const signatureInput = document.getElementById("signature-file");
 const uploadSignatureButton = document.getElementById("upload-signature");
 const signatureStatus = document.getElementById("signature-status");
+const signatureFilename = document.getElementById("signature-filename");
 const logStatus = document.getElementById("log-status");
 const logList = document.getElementById("log-list");
 const clearLogsButton = document.getElementById("clear-logs");
@@ -794,6 +795,71 @@ clearLogsButton?.addEventListener("click", async () => {
   if (logStatus) logStatus.textContent = "No actions.";
 });
 
+signatureInput?.addEventListener("change", () => {
+  const file = signatureInput.files?.[0];
+  if (signatureFilename) {
+    signatureFilename.textContent = file ? file.name : "";
+  }
+});
+
+uploadSignatureButton?.addEventListener("click", async () => {
+  const file = signatureInput?.files?.[0];
+  if (!file) {
+    showError("Please select a signature image file first");
+    return;
+  }
+
+  // Validate file type
+  if (!file.type.startsWith("image/")) {
+    showError("Please select an image file (PNG, JPG, etc.)");
+    return;
+  }
+
+  // Validate file size (max 5MB)
+  const maxSize = 5 * 1024 * 1024;
+  if (file.size > maxSize) {
+    showError("Signature file is too large. Maximum size is 5MB");
+    return;
+  }
+
+  try {
+    // Convert file to data URL
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    // Get current batch ID if exists
+    const stored = await loadStorage([STORAGE_KEYS.queueState]);
+    const batchId = stored?.caAcpQueueState?.batchId || null;
+
+    // Store signature data
+    await setStorage({
+      [STORAGE_KEYS.signatureData]: {
+        dataUrl,
+        fileName: file.name,
+        mimeType: file.type,
+        uploadedAt: new Date().toISOString()
+      },
+      [STORAGE_KEYS.signatureBatchId]: batchId
+    });
+
+    // Update UI
+    await refreshSignatureStatus();
+
+    showSuccess("Signature uploaded successfully!");
+    
+    // Clear file input and filename display
+    if (signatureInput) signatureInput.value = "";
+    if (signatureFilename) signatureFilename.textContent = "";
+  } catch (error) {
+    console.error("Signature upload error:", error);
+    showError("Failed to upload signature. Please try again.");
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // UTILITIES
 // ═══════════════════════════════════════════════════════════════════════════
@@ -833,11 +899,49 @@ errorDismissBtn?.addEventListener('click', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// SIGNATURE STATUS
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function refreshSignatureStatus() {
+  const data = await loadStorage([STORAGE_KEYS.signatureData]);
+  const signatureData = data.caAcpSignatureData;
+  
+  if (signatureStatus) {
+    if (signatureData?.dataUrl) {
+      signatureStatus.className = 'status-box success';
+      const uploadDate = signatureData.uploadedAt 
+        ? new Date(signatureData.uploadedAt).toLocaleString() 
+        : '';
+      signatureStatus.innerHTML = `
+        <span>✓ ${signatureData.fileName || 'Signature uploaded'}</span>
+        ${uploadDate ? `<small style="display: block; opacity: 0.7; font-size: 10px;">${uploadDate}</small>` : ''}
+        <button id="clear-signature-btn" class="btn btn-ghost btn-sm" style="margin-top: 4px;">Clear Signature</button>
+      `;
+      
+      // Add event listener for clear button
+      const clearBtn = document.getElementById('clear-signature-btn');
+      clearBtn?.addEventListener('click', async () => {
+        await setStorage({
+          [STORAGE_KEYS.signatureData]: null,
+          [STORAGE_KEYS.signatureBatchId]: null
+        });
+        await refreshSignatureStatus();
+        showSuccess("Signature cleared");
+      });
+    } else {
+      signatureStatus.className = 'status-box';
+      signatureStatus.innerHTML = '<span>No signature uploaded</span>';
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // INITIALIZATION
 // ═══════════════════════════════════════════════════════════════════════════
 
 (async function init() {
   await refreshPayloadStatus();
+  await refreshSignatureStatus();
   
   // Load saved server URL
   const stored = await loadStorage(['caAcpServerUrl']);
