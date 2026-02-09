@@ -1113,7 +1113,9 @@ class PIIVault {
    * Check if a string is a vault token
    */
   isToken(str: string): boolean {
-    return str.startsWith(`{{${this.prefix}_`) && str.endsWith('}}');
+    const escapedPrefix = this.escapeRegex(this.prefix);
+    const pattern = new RegExp(`^\\{\\{${escapedPrefix}_[A-Z_]+_\\d+\\}\\}$`);
+    return pattern.test(str);
   }
   
   /**
@@ -1296,7 +1298,8 @@ class PIIVault {
     let restored = data;
     
     // Find all tokens and replace with originals
-    const tokenPattern = new RegExp(`\\{\\{${this.prefix}_[A-Z_]+_\\d+\\}\\}`, 'g');
+    const escapedPrefix = this.escapeRegex(this.prefix);
+    const tokenPattern = new RegExp(`\\{\\{${escapedPrefix}_[A-Z_]+_\\d+\\}\\}`, 'g');
     restored = restored.replace(tokenPattern, (token) => {
       const original = this.get(token);
       return original !== undefined ? original : token;
@@ -1326,12 +1329,20 @@ class PIIVault {
   }
   
   /**
+   * Escape special regex characters in a string
+   */
+  private escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+  
+  /**
    * Convert tokens to human-readable placeholders (not original values)
    * Returns GDPR-compliant template output with no personal data
    * Example: {{PII_xyz_NAME_1}} → [Name], {{PII_xyz_NHS_NUM_2}} → [NHS Number]
    */
   toPlaceholdersString(data: string): string {
-    const tokenPattern = new RegExp(`\\{\\{${this.prefix}_([A-Z_]+)_\\d+\\}\\}`, 'g');
+    const escapedPrefix = this.escapeRegex(this.prefix);
+    const tokenPattern = new RegExp(`\\{\\{${escapedPrefix}_([A-Z_]+)_\\d+\\}\\}`, 'g');
     return data.replace(tokenPattern, (token, category) => {
       const placeholders: Record<string, string> = {
         'NHS_NUM': '[NHS Number]',

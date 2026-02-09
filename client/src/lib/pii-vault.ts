@@ -71,6 +71,13 @@ export class ClientPIIVault {
     this.prefix = vaultExport.prefix;
     this.mapping = vaultExport.mapping;
   }
+  
+  /**
+   * Escape special regex characters in a string
+   */
+  private escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
 
   /**
    * Get the original value for a token
@@ -90,7 +97,9 @@ export class ClientPIIVault {
    * Check if a string is a vault token
    */
   isToken(str: string): boolean {
-    return str.startsWith(`{{${this.prefix}_`) && str.endsWith('}}');
+    const escapedPrefix = this.escapeRegex(this.prefix);
+    const pattern = new RegExp(`^\\{\\{${escapedPrefix}_[A-Z_]+_\\d+\\}\\}$`);
+    return pattern.test(str);
   }
 
   /**
@@ -119,7 +128,8 @@ export class ClientPIIVault {
     
     // Find all tokens matching this vault's prefix and replace with originals
     try {
-      const tokenPattern = new RegExp(`\\{\\{${this.prefix}_[A-Z_]+_\\d+\\}\\}`, 'g');
+      const escapedPrefix = this.escapeRegex(this.prefix);
+      const tokenPattern = new RegExp(`\\{\\{${escapedPrefix}_[A-Z_]+_\\d+\\}\\}`, 'g');
       restored = restored.replace(tokenPattern, (token) => {
         const original = this.get(token);
         return original !== undefined ? original : token;
@@ -171,7 +181,8 @@ export class ClientPIIVault {
   toPlaceholdersString(data: string): string {
     if (!data) return data;
     
-    const tokenPattern = new RegExp(`\\{\\{${this.prefix}_([A-Z_]+)_\\d+\\}\\}`, 'g');
+    const escapedPrefix = this.escapeRegex(this.prefix);
+    const tokenPattern = new RegExp(`\\{\\{${escapedPrefix}_([A-Z_]+)_\\d+\\}\\}`, 'g');
     return data.replace(tokenPattern, (_token, category) => {
       return CATEGORY_PLACEHOLDERS[category as PIICategory] || '[Redacted]';
     });
