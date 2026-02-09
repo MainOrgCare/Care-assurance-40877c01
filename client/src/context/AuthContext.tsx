@@ -62,6 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const fetchSystemLogs = useCallback(async () => {
+    // Only fetch if we know user is admin — avoids 401 noise in the console
+    // when sessions have expired or for non-admin users.
+    if (!user || user.role !== "admin") return;
     try {
       const response = await fetch("/api/system-logs", {
         credentials: "include",
@@ -71,10 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const logs = Array.isArray(payload) ? payload : Array.isArray(payload?.logs) ? payload.logs : [];
         setAuditLogs(logs.map(mapSystemLog));
       }
+      // Silently ignore 401/403 — session may have expired
     } catch (error) {
+      // Network errors only — suppress expected auth failures
       console.error("Failed to fetch system logs:", error);
     }
-  }, []);
+  }, [user]);
 
   const checkSession = useCallback(async () => {
     try {

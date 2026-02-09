@@ -265,12 +265,22 @@ const forwardProxyRequest = async (request, sendResponse) => {
 };
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  // Wrap sendResponse so a disconnected port (MV3 service-worker lifecycle) is silently caught
+  const safeSendResponse = (data) => {
+    try {
+      sendResponse(data);
+    } catch (e) {
+      // Port closed — content script / popup is no longer listening
+      console.warn("[CA Extension] sendResponse failed (port disconnected):", e?.message);
+    }
+  };
+
   if (message?.type === MESSAGE_TYPES.storePayload) {
     setStored({ [STORAGE_KEYS.payload]: message.payload })
       .then(clearLastError)
-      .then(() => sendResponse({ ok: true }))
+      .then(() => safeSendResponse({ ok: true }))
       .catch((error) => {
-        setLastError(error).then(() => sendResponse({ ok: false, error: error.message }));
+        setLastError(error).then(() => safeSendResponse({ ok: false, error: error.message }));
       });
     return true;
   }
@@ -282,20 +292,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const formType = caAcpPayload?.formType || "acp";
         const url = buildFormUrl(formType, message.caseId, message.serviceDataGroupId, caAcpPayload);
         await reuseOrCreateTab(url);
-        sendResponse({ ok: true });
+        safeSendResponse({ ok: true });
       })
       .catch(async (error) => {
         await setLastError(error);
-        sendResponse({ ok: false, error: error.message });
+        safeSendResponse({ ok: false, error: error.message });
       });
     return true;
   }
 
   if (message?.type === MESSAGE_TYPES.stepComplete) {
     openNextForm()
-      .then(() => sendResponse({ ok: true }))
+      .then(() => safeSendResponse({ ok: true }))
       .catch((error) => {
-        setLastError(error).then(() => sendResponse({ ok: false, error: error.message }));
+        setLastError(error).then(() => safeSendResponse({ ok: false, error: error.message }));
       });
     return true;
   }
@@ -306,18 +316,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       const logs = Array.isArray(caAcpLogs) ? caAcpLogs : [];
       logs.push(entry);
       const capped = logs.slice(-200);
-      setStored({ [STORAGE_KEYS.logs]: capped }).then(() => sendResponse({ ok: true }));
+      setStored({ [STORAGE_KEYS.logs]: capped }).then(() => safeSendResponse({ ok: true }));
     });
     return true;
   }
 
   if (message?.type === MESSAGE_TYPES.stopAutofill) {
-    stopAutofill().then(() => sendResponse({ ok: true }));
+    stopAutofill().then(() => safeSendResponse({ ok: true }));
     return true;
   }
 
   if (message?.type === MESSAGE_TYPES.clearError) {
-    clearLastError().then(() => sendResponse({ ok: true }));
+    clearLastError().then(() => safeSendResponse({ ok: true }));
     return true;
   }
 
@@ -340,10 +350,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       (response) => {
         if (!response?.ok) {
           const proxyError = new Error(response?.error || "Analysis failed");
-          setLastError(proxyError).then(() => sendResponse(response));
+          setLastError(proxyError).then(() => safeSendResponse(response));
           return;
         }
-        sendResponse({ ...response, result: response.data || response.result });
+        safeSendResponse({ ...response, result: response.data || response.result });
       }
     );
     return true; // Keep message channel open for async response
@@ -359,7 +369,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   
   // Handle API proxy requests from popup
   if (message?.type === API_PROXY_TYPE) {
-    forwardProxyRequest(message, sendResponse);
+    forwardProxyRequest(message, safeSendResponse);
     return true; // Keep message channel open
   }
 

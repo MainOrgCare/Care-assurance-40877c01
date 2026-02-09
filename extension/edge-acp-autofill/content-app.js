@@ -224,18 +224,24 @@ window.addEventListener("message", (event) => {
     return;
   }
 
-  chrome.runtime.sendMessage(
-    { type: STORE_PAYLOAD_TYPE, payload: normalizedPayload },
-    (response) => {
-      if (chrome.runtime.lastError) {
-        sendAck(requestId, false, chrome.runtime.lastError.message);
-        return;
+  try {
+    chrome.runtime.sendMessage(
+      { type: STORE_PAYLOAD_TYPE, payload: normalizedPayload },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn("[CA Extension Content] Port disconnected:", chrome.runtime.lastError.message);
+          sendAck(requestId, false, "Extension background service restarting — please try again.");
+          return;
+        }
+        if (!response?.ok) {
+          sendAck(requestId, false, response?.error || "Failed to store payload.");
+          return;
+        }
+        sendAck(requestId, true);
       }
-      if (!response?.ok) {
-        sendAck(requestId, false, response?.error || "Failed to store payload.");
-        return;
-      }
-      sendAck(requestId, true);
-    }
-  );
+    );
+  } catch (e) {
+    console.warn("[CA Extension Content] sendMessage failed (disconnected port):", e?.message);
+    sendAck(requestId, false, "Extension background service restarting — please try again.");
+  }
 });
