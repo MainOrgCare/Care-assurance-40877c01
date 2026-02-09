@@ -33,6 +33,9 @@ components:
           type: string
         message:
           type: string
+        retryAfterSeconds:
+          type: integer
+          description: Seconds to wait before retrying (present on 429 rate limit responses)
 
     EmailRewriteRequest:
       type: object
@@ -81,6 +84,9 @@ components:
           properties:
             medicationName:
               type: string
+            genericName:
+              type: string
+              description: Generic/chemical name of the medication
             dose:
               type: string
             route:
@@ -91,14 +97,32 @@ components:
               type: string
             minimumTimeBetweenDoses:
               type: string
+            onsetOfAction:
+              type: string
+              description: Expected time for medication to take effect
             specialInstructions:
               type: string
             reasonsForAdministration:
               type: string
             predictableSideEffects:
               type: string
+            contraindications:
+              type: string
+              description: Conditions where the medication should not be used
+            cautionsInElderly:
+              type: string
+              description: Specific cautions for elderly patients
+            commonInteractions:
+              type: string
+              description: Common drug interactions to be aware of
+            whenToEscalate:
+              type: string
+              description: Circumstances requiring escalation to GP or pharmacist
             additionalComments:
               type: string
+            disclaimer:
+              type: string
+              description: Safety disclaimer about AI-generated protocol
         model:
           type: string
 
@@ -141,6 +165,12 @@ components:
               type: string
         model:
           type: string
+        rawAnalysis:
+          type: string
+          description: Raw AI response text when JSON parsing partially fails
+        parseWarning:
+          type: string
+          description: Warning message when structured parsing was incomplete
 
     RiskAnalysisRequest:
       type: object
@@ -179,6 +209,12 @@ components:
               type: string
         model:
           type: string
+        rawAnalysis:
+          type: string
+          description: Raw AI response text when JSON parsing partially fails
+        parseWarning:
+          type: string
+          description: Warning message when structured parsing was incomplete
 
     RiskAssessmentRequest:
       type: object
@@ -229,6 +265,12 @@ components:
           type: string
         model:
           type: string
+        rawAssessment:
+          type: string
+          description: Raw AI response text when JSON parsing partially fails
+        parseWarning:
+          type: string
+          description: Warning message when structured parsing was incomplete
 
     CarePlanRequest:
       type: object
@@ -257,6 +299,19 @@ components:
               type: array
               items:
                 type: object
+                properties:
+                  title:
+                    type: string
+                  priority:
+                    type: string
+                    enum: [high, medium, low]
+                  content:
+                    type: string
+                  keyActions:
+                    type: array
+                    items:
+                      type: string
+                    description: Key care actions for this section
             verificationQuestions:
               type: array
               items:
@@ -275,6 +330,12 @@ components:
           type: string
         model:
           type: string
+        rawCarePlan:
+          type: string
+          description: Raw AI response text when JSON parsing partially fails
+        parseWarning:
+          type: string
+          description: Warning message when structured parsing was incomplete
 
     PlanEnhanceRequest:
       type: object
@@ -299,15 +360,35 @@ components:
               type: array
               items:
                 type: object
+                properties:
+                  title:
+                    type: string
+                  priority:
+                    type: string
+                    enum: [high, medium, low]
+                  content:
+                    type: string
+                  improvements:
+                    type: array
+                    items:
+                      type: string
+                    description: List of improvements made to this section
+                  keyActions:
+                    type: array
+                    items:
+                      type: string
+                    description: Key care actions for this section
             verificationQuestions:
               type: array
               items:
                 type: string
             enhancementSummary:
               type: string
-            missingSectionsWarning:
-              type: string
-              description: Warning if any mandatory sections were not generated
+            sourceDocuments:
+              type: array
+              items:
+                type: string
+              description: List of source documents used for enhancement
             scopeOfPracticeWarnings:
               type: array
               items:
@@ -315,6 +396,12 @@ components:
               description: Warnings about tasks outside care worker scope of practice
         model:
           type: string
+        rawPlan:
+          type: string
+          description: Raw AI response text when JSON parsing partially fails
+        parseWarning:
+          type: string
+          description: Warning message when structured parsing was incomplete
 
     DrugInteractionRequest:
       type: object
@@ -461,6 +548,12 @@ components:
                 type: string
               status:
                 type: string
+              phone:
+                type: string
+                description: Contact phone number (if available)
+              email:
+                type: string
+                description: Contact email address (if available)
         total:
           type: integer
 
@@ -533,6 +626,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StatusResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: API key not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/copilot/rewrite-email:
     post:
@@ -557,6 +662,18 @@ paths:
                 $ref: "#/components/schemas/EmailRewriteResponse"
         "400":
           description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: AI features disabled or API not configured
           content:
             application/json:
               schema:
@@ -589,6 +706,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: AI features disabled or API not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/copilot/analyze-visit:
     post:
@@ -613,6 +742,24 @@ paths:
                 $ref: "#/components/schemas/VisitAuditResponse"
         "400":
           description: Missing document content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Input document too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: AI features disabled or API not configured
           content:
             application/json:
               schema:
@@ -646,6 +793,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "413":
+          description: Input document too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: AI features disabled or API not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/copilot/generate-risk-assessment:
     post:
@@ -670,6 +835,18 @@ paths:
                 $ref: "#/components/schemas/RiskAssessmentResponse"
         "400":
           description: Missing category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: AI features disabled or API not configured
           content:
             application/json:
               schema:
@@ -702,6 +879,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "413":
+          description: Input document too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: AI features disabled or API not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/copilot/enhance-plan:
     post:
@@ -730,6 +925,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: AI features disabled or API not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/copilot/check-drug-interactions:
     post:
@@ -753,6 +960,18 @@ paths:
                 $ref: "#/components/schemas/DrugInteractionResponse"
         "400":
           description: Insufficient medications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: AI features disabled or API not configured
           content:
             application/json:
               schema:
@@ -785,6 +1004,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: AI features disabled or API not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/copilot/dashboard:
     get:
@@ -798,6 +1029,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DashboardResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/copilot/care-workers:
     get:
@@ -811,6 +1054,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CareWorkersResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/copilot/audits:
     get:
@@ -831,6 +1086,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuditsResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/copilot/discrepancies:
     get:
@@ -851,3 +1118,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DiscrepanciesResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
