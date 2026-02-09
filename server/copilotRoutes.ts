@@ -70,9 +70,32 @@ const COPILOT_USER_CONTEXT: AiUserContext = {
 const getLowCostModel = () => "gpt-4o-mini";
 const getAccurateModel = () => getPreferredModel();
 
-/** Estimate token count from text */
+/** Estimate token count from text (≈3.5 chars per token for English) */
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 3.5);
+}
+
+/** Maximum input tokens allowed per request to prevent cost overruns */
+const MAX_INPUT_TOKENS = 100_000;
+
+/** Validate input size and return error response if too large */
+function validateInputSize(text: string, res: Response, fieldName = "input"): boolean {
+  const tokens = estimateTokens(text);
+  if (tokens > MAX_INPUT_TOKENS) {
+    res.status(413).json({
+      error: "Input too large",
+      message: `${fieldName} is approximately ${tokens.toLocaleString()} tokens (max ${MAX_INPUT_TOKENS.toLocaleString()}). Please reduce the input size.`,
+    });
+    return false;
+  }
+  return true;
+}
+
+/** Validate and clamp enum values from AI output */
+function clampEnum<T extends string>(value: string | undefined, allowed: T[], fallback: T): T {
+  if (!value) return fallback;
+  const lower = value.toLowerCase().trim() as T;
+  return allowed.includes(lower) ? lower : fallback;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -192,22 +215,36 @@ Return ONLY the email text, nothing else.`;
         return;
       }
 
-      const systemPrompt = `You are an expert UK care facility medication protocol writer. Generate a comprehensive PRN (Pro Re Nata / "as needed") medication protocol for use in a care home setting.
+      const systemPrompt = `You are an expert UK care facility medication protocol writer following BNF (British National Formulary) guidelines. Generate a comprehensive PRN (Pro Re Nata / "as needed") medication protocol for use in a care home setting.
 
-The protocol must follow UK care standards and regulations.
+The protocol must follow UK care standards and regulations (CQC 2024, NICE guidelines).
+
+SAFETY REQUIREMENTS:
+- Doses MUST align with current BNF adult dosing recommendations
+- Include contraindications and cautions specific to elderly patients
+- Note common interactions with other medications frequently used in care settings
+- Flag if the medication requires monitoring (e.g. paracetamol hepatotoxicity risk, NSAID renal function)
+- Include what to do if the medication is ineffective after the specified timeframe
 
 IMPORTANT: Return the response as a JSON object with this exact structure:
 {
   "medicationName": "Name of the medication",
-  "dose": "Recommended dosage",
+  "genericName": "Generic/INN name if branded name given",
+  "dose": "Recommended dosage with specific amounts",
   "route": "Route of administration",
   "frequency": "How often it can be given",
-  "maxDoseIn24Hours": "Maximum allowed in 24 hours",
+  "maxDoseIn24Hours": "Maximum allowed in 24 hours (with BNF reference)",
   "minimumTimeBetweenDoses": "Minimum gap between doses",
-  "specialInstructions": "Special instructions for administration",
+  "onsetOfAction": "Expected time for the medication to take effect",
+  "specialInstructions": "Special instructions for administration (with food, positioning, etc.)",
   "reasonsForAdministration": "Symptoms/reasons when this medication should be given",
+  "contraindications": "Conditions where this medication should NOT be given",
+  "cautionsInElderly": "Specific cautions for elderly patients",
+  "commonInteractions": "Medications commonly used in care homes that interact with this drug",
   "predictableSideEffects": "Common side effects to monitor for",
-  "additionalComments": "Other relevant information for care workers"
+  "whenToEscalate": "When to contact GP, pharmacist or emergency services",
+  "additionalComments": "Other relevant information for care workers",
+  "disclaimer": "This protocol is AI-generated and must be reviewed and approved by the prescribing GP or pharmacist before use"
 }
 
 Use UK English spelling. Be specific and clinically accurate.`;
@@ -222,7 +259,7 @@ Use UK English spelling. Be specific and clinically accurate.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_completion_tokens: 1500,
+        max_completion_tokens: 2500,
         temperature: 0,
         seed: 42,
         response_format: { type: "json_object" },
@@ -234,6 +271,11 @@ Use UK English spelling. Be specific and clinically accurate.`;
       if (!protocol) {
         res.status(500).json({ error: "Parse failed", message: "Could not parse the generated protocol" });
         return;
+      }
+
+      // Always enforce disclaimer
+      if (!protocol.disclaimer) {
+        protocol.disclaimer = "This protocol is AI-generated and must be reviewed and approved by the prescribing GP or pharmacist before use.";
       }
 
       res.json({ protocol, model: getAccurateModel() });
@@ -254,6 +296,8 @@ Use UK English spelling. Be specific and clinically accurate.`;
         res.status(400).json({ error: "Missing required field", message: "documentContent (string) is required" });
         return;
       }
+
+      if (!validateInputSize(documentContent, res, "documentContent")) return;
 
       if (!isAIEnabled()) {
         res.status(503).json({ error: "AI disabled", message: getAIDisabledMessage() });
@@ -335,6 +379,7 @@ Respond ONLY with valid JSON:
         max_completion_tokens: 8000,
         temperature: 0,
         seed: 42,
+        response_format: { type: "json_object" },
       }, "copilot_visit_audit", COPILOT_USER_CONTEXT);
 
       const content = response.choices[0]?.message?.content || "";
@@ -366,6 +411,8 @@ Respond ONLY with valid JSON:
         res.status(400).json({ error: "Missing required field", message: "documentContent (string) is required" });
         return;
       }
+
+      if (!validateInputSize(documentContent, res, "documentContent")) return;
 
       if (!isAIEnabled()) {
         res.status(503).json({ error: "AI disabled", message: getAIDisabledMessage() });
@@ -441,6 +488,7 @@ Respond with valid JSON:
         max_completion_tokens: 8000,
         temperature: 0,
         seed: 42,
+        response_format: { type: "json_object" },
       }, "copilot_risk_analysis", COPILOT_USER_CONTEXT);
 
       const content = response.choices[0]?.message?.content || "";
@@ -534,7 +582,7 @@ Respond with valid JSON:
 }`;
 
       const response = await createChatCompletionWithLogging({
-        model: "gpt-5.2",
+        model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Generate a "${category}" risk assessment.${riskProfileContext}${documentContext}` },
@@ -542,6 +590,7 @@ Respond with valid JSON:
         max_completion_tokens: 6000,
         temperature: 0,
         seed: 42,
+        response_format: { type: "json_object" },
       }, "copilot_risk_assessment", COPILOT_USER_CONTEXT);
 
       const content = response.choices[0]?.message?.content || "";
@@ -555,7 +604,22 @@ Respond with valid JSON:
         return;
       }
 
-      res.json({ assessment, category, model: "gpt-5.2" });
+      // Validate enum values in hazards
+      const LIKELIHOOD_ENUM = ["rare", "unlikely", "possible", "likely", "almost_certain"] as const;
+      const IMPACT_ENUM = ["negligible", "minor", "moderate", "major", "catastrophic"] as const;
+      const RISK_RATING_ENUM = ["low", "medium", "high", "very_high"] as const;
+      if (Array.isArray(assessment.hazards)) {
+        for (const hazard of assessment.hazards) {
+          hazard.likelihood = clampEnum(hazard.likelihood, [...LIKELIHOOD_ENUM], "possible");
+          hazard.impact = clampEnum(hazard.impact, [...IMPACT_ENUM], "moderate");
+          hazard.riskRating = clampEnum(hazard.riskRating, [...RISK_RATING_ENUM], "medium");
+        }
+      }
+      if (assessment.overallRiskRating) {
+        assessment.overallRiskRating = clampEnum(assessment.overallRiskRating, [...RISK_RATING_ENUM], "medium");
+      }
+
+      res.json({ assessment, category, model: getAccurateModel() });
     } catch (error: any) {
       console.error("[Copilot] Risk assessment generation error:", error);
       res.status(500).json({ error: "Risk assessment generation failed", message: error.message });
@@ -573,6 +637,8 @@ Respond with valid JSON:
         res.status(400).json({ error: "Missing required field", message: "documentContent (string) is required" });
         return;
       }
+
+      if (!validateInputSize(documentContent, res, "documentContent")) return;
 
       if (!isAIEnabled()) {
         res.status(503).json({ error: "AI disabled", message: getAIDisabledMessage() });
@@ -655,6 +721,7 @@ Respond with valid JSON:
         max_completion_tokens: 12000,
         temperature: 0,
         seed: 42,
+        response_format: { type: "json_object" },
       }, "copilot_care_plan", COPILOT_USER_CONTEXT);
 
       const content = response.choices[0]?.message?.content || "";
@@ -666,6 +733,22 @@ Respond with valid JSON:
           parseWarning: "Could not parse structured JSON. Raw care plan text returned.",
         });
         return;
+      }
+
+      // Validate mandatory sections are present
+      if (Array.isArray(carePlan.sections)) {
+        const presentTitles = new Set(carePlan.sections.map((s: any) => s.title?.toLowerCase()));
+        const missingSections = mandatorySections.filter(
+          s => !presentTitles.has(s.toLowerCase())
+        );
+        if (missingSections.length > 0) {
+          carePlan.missingSectionsWarning = `The following mandatory sections were not generated: ${missingSections.join(", ")}`;
+        }
+        // Validate section priorities
+        const PRIORITY_ENUM = ["high", "medium", "low"] as const;
+        for (const section of carePlan.sections) {
+          section.priority = clampEnum(section.priority, [...PRIORITY_ENUM], "medium");
+        }
       }
 
       res.json({ carePlan, callType: callTypeLabel, model: getAccurateModel() });
@@ -768,6 +851,7 @@ Respond with valid JSON:
         max_completion_tokens: 12000,
         temperature: 0,
         seed: 42,
+        response_format: { type: "json_object" },
       }, "copilot_plan_enhance", COPILOT_USER_CONTEXT);
 
       const content = response.choices[0]?.message?.content || "";
@@ -808,38 +892,123 @@ Respond with valid JSON:
         return;
       }
 
-      const medList = medications.map((m: any) => typeof m === "string" ? m : m.name || m.medicationName).join(", ");
+      const medNames = medications.map((m: any) => (typeof m === "string" ? m : m.name || m.medicationName).toLowerCase().trim());
+      const medList = medNames.join(", ");
 
-      const systemPrompt = `You are a UK pharmacist. Check for dangerous drug interactions in this medication list. Focus on:
-1. Serious drug-drug interactions
-2. Duplicate therapy
-3. Dose concerns when combinations are used
-4. UK BNF guidelines
+      // ── Rule-based safety net: catch critical interactions even if AI misses them ──
+      const RULE_BASED_INTERACTIONS: Array<{
+        drugs: string[][];
+        severity: "severe" | "critical";
+        interaction: string;
+        clinicalSignificance: string;
+        recommendation: string;
+      }> = [
+        { drugs: [["warfarin", "coumadin"], ["aspirin", "ibuprofen", "naproxen", "diclofenac", "indomethacin", "piroxicam", "meloxicam", "celecoxib"]], severity: "critical", interaction: "Anticoagulant + NSAID: greatly increased bleeding risk", clinicalSignificance: "Combined use can cause life-threatening GI haemorrhage or intracranial bleeding", recommendation: "Avoid combination. If unavoidable, add PPI gastroprotection and monitor INR closely" },
+        { drugs: [["methotrexate"], ["aspirin", "ibuprofen", "naproxen", "diclofenac", "indomethacin", "piroxicam", "meloxicam"]], severity: "critical", interaction: "Methotrexate + NSAID: reduced methotrexate clearance", clinicalSignificance: "NSAIDs reduce renal clearance of methotrexate, risking fatal toxicity (pancytopenia, renal failure)", recommendation: "Avoid NSAIDs with methotrexate. Use paracetamol for analgesia if needed" },
+        { drugs: [["lithium"], ["lisinopril", "enalapril", "ramipril", "perindopril", "captopril", "losartan", "candesartan", "valsartan", "irbesartan", "ibuprofen", "naproxen", "diclofenac"]], severity: "severe", interaction: "Lithium clearance reduced by ACE inhibitors/ARBs/NSAIDs", clinicalSignificance: "Elevated lithium levels can cause toxicity: tremor, confusion, seizures, cardiac arrhythmia", recommendation: "Monitor lithium levels frequently. Reduce lithium dose if combination necessary" },
+        { drugs: [["citalopram", "escitalopram", "fluoxetine", "sertraline", "paroxetine", "venlafaxine", "duloxetine"], ["phenelzine", "tranylcypromine", "isocarboxazid", "moclobemide", "selegiline", "rasagiline"]], severity: "critical", interaction: "SSRI/SNRI + MAOI: serotonin syndrome risk", clinicalSignificance: "Potentially fatal hyperthermia, rigidity, myoclonus and autonomic instability", recommendation: "Absolutely contraindicated. Ensure 2-week washout (5 weeks for fluoxetine) between agents" },
+        { drugs: [["citalopram", "escitalopram", "fluoxetine", "sertraline", "paroxetine", "venlafaxine", "duloxetine"], ["tramadol"]], severity: "severe", interaction: "SSRI/SNRI + tramadol: serotonin syndrome risk", clinicalSignificance: "Tramadol has serotonergic activity; combination raises serotonin syndrome risk", recommendation: "Use alternative analgesia if possible. Monitor for agitation, clonus, hyperthermia" },
+        { drugs: [["morphine", "oxycodone", "fentanyl", "codeine", "tramadol", "buprenorphine"], ["diazepam", "lorazepam", "temazepam", "nitrazepam", "zopiclone", "zolpidem"]], severity: "critical", interaction: "Opioid + benzodiazepine/Z-drug: respiratory depression", clinicalSignificance: "Combined CNS depression can cause fatal respiratory arrest, especially in elderly", recommendation: "Avoid combination where possible. If essential, use lowest doses and monitor respiratory rate" },
+        { drugs: [["digoxin"], ["amiodarone"]], severity: "severe", interaction: "Amiodarone increases digoxin levels", clinicalSignificance: "Digoxin toxicity: nausea, visual disturbances, arrhythmias", recommendation: "Halve digoxin dose when starting amiodarone. Monitor digoxin levels and ECG" },
+        { drugs: [["digoxin"], ["verapamil"]], severity: "severe", interaction: "Verapamil increases digoxin levels and combined AV block risk", clinicalSignificance: "Risk of symptomatic bradycardia and heart block", recommendation: "Reduce digoxin dose by 25-50%. Monitor heart rate and digoxin levels" },
+        { drugs: [["simvastatin", "atorvastatin", "lovastatin"], ["clarithromycin", "erythromycin", "itraconazole", "ketoconazole"]], severity: "severe", interaction: "Statin + CYP3A4 inhibitor: increased statin levels", clinicalSignificance: "Risk of rhabdomyolysis (muscle breakdown) and acute kidney injury", recommendation: "Suspend statin during short courses. Consider pravastatin or rosuvastatin as alternatives" },
+        { drugs: [["spironolactone", "eplerenone", "amiloride"], ["lisinopril", "enalapril", "ramipril", "perindopril", "captopril"]], severity: "severe", interaction: "K-sparing diuretic + ACE inhibitor: hyperkalaemia risk", clinicalSignificance: "Life-threatening hyperkalaemia causing cardiac arrhythmias", recommendation: "Monitor potassium within 1 week of starting. Avoid if eGFR < 30" },
+        { drugs: [["citalopram", "escitalopram", "amiodarone", "sotalol", "domperidone", "methadone", "haloperidol", "chlorpromazine"], ["citalopram", "escitalopram", "amiodarone", "sotalol", "domperidone", "methadone", "haloperidol", "chlorpromazine"]], severity: "severe", interaction: "Multiple QT-prolonging drugs: risk of torsades de pointes", clinicalSignificance: "Additive QT prolongation can trigger fatal ventricular arrhythmia", recommendation: "Avoid combining QT-prolonging drugs. If essential, obtain baseline ECG and monitor QTc" },
+        { drugs: [["warfarin", "coumadin"], ["clarithromycin", "erythromycin", "fluconazole", "metronidazole", "co-trimoxazole", "ciprofloxacin"]], severity: "severe", interaction: "Warfarin + antibiotic: enhanced anticoagulant effect", clinicalSignificance: "Certain antibiotics inhibit warfarin metabolism or disrupt vitamin K gut flora, raising INR and bleed risk", recommendation: "Check INR within 3-5 days of starting antibiotic. Consider dose reduction. Use paracetamol over NSAIDs for pain" },
+      ];
 
-Return JSON array:
+      // Detect rule-based interactions
+      interface RuleInteraction {
+        drug1: string;
+        drug2: string;
+        severity: string;
+        interaction: string;
+        clinicalSignificance: string;
+        recommendation: string;
+        source: string;
+      }
+      const ruleBasedHits: RuleInteraction[] = [];
+      for (const rule of RULE_BASED_INTERACTIONS) {
+        const [groupA, groupB] = rule.drugs;
+        const matchesA = medNames.filter(m => groupA.some(d => m.includes(d)));
+        const matchesB = medNames.filter(m => groupB.some(d => m.includes(d)));
+        // For QT-prolonging drugs, need 2+ matches from the SAME group
+        if (groupA === groupB) {
+          const combined = medNames.filter(m => groupA.some(d => m.includes(d)));
+          if (combined.length >= 2) {
+            ruleBasedHits.push({
+              drug1: combined[0], drug2: combined[1],
+              severity: rule.severity, interaction: rule.interaction,
+              clinicalSignificance: rule.clinicalSignificance,
+              recommendation: rule.recommendation, source: "rule_based_safety_check",
+            });
+          }
+        } else {
+          for (const a of matchesA) {
+            for (const b of matchesB) {
+              if (a !== b) {
+                ruleBasedHits.push({
+                  drug1: a, drug2: b,
+                  severity: rule.severity, interaction: rule.interaction,
+                  clinicalSignificance: rule.clinicalSignificance,
+                  recommendation: rule.recommendation, source: "rule_based_safety_check",
+                });
+              }
+            }
+          }
+        }
+      }
+
+      const systemPrompt = `You are a senior UK clinical pharmacist following current BNF (British National Formulary) guidelines. Perform a thorough drug interaction check on the provided medication list.
+
+CHECK FOR ALL OF THE FOLLOWING:
+1. Pharmacokinetic interactions (CYP450 inhibition/induction, protein binding displacement, renal clearance changes)
+2. Pharmacodynamic interactions (additive CNS depression, serotonergic effects, QT prolongation, bleeding risk, hyperkalaemia, hypotension)
+3. Duplicate therapy (same drug class prescribed twice)
+4. Dose-dependent risks when specific combinations are used
+5. Elderly-specific risks (falls, sedation, anticholinergic burden)
+6. UK-specific guidance from BNF and NICE
+
+SEVERITY SCALE:
+- mild: Theoretical or minor clinical impact. Monitor only.
+- moderate: Clinically significant. May need dose adjustment or additional monitoring.
+- severe: Potentially dangerous. Close monitoring essential. Consider alternatives.
+- critical: Potentially life-threatening. Avoid combination or use only with specialist supervision.
+
+IMPORTANT SAFETY DISCLAIMER: This check is advisory only and does not replace clinical pharmacist review. Always verify interactions against current BNF and consult the prescriber for any concerns.
+
+Return JSON:
 {
   "interactions": [
     {
       "drug1": "First medication",
       "drug2": "Second medication",
       "severity": "mild|moderate|severe|critical",
-      "interaction": "Description of the interaction",
-      "clinicalSignificance": "What this means for the patient",
-      "recommendation": "What action to take"
+      "interaction": "Description of the interaction mechanism",
+      "clinicalSignificance": "What this means for the patient in practical terms",
+      "recommendation": "Specific action: monitor what, adjust what, avoid what",
+      "bnfReference": "Reference section if applicable"
     }
   ],
-  "summary": "Overall assessment of the medication regimen",
+  "anticholinergicBurden": {
+    "score": 0,
+    "contributors": ["drug1 (score)", "drug2 (score)"],
+    "risk": "low|moderate|high",
+    "note": "Assessment of cumulative anticholinergic load"
+  },
+  "summary": "Overall assessment of the medication regimen safety",
   "totalMedicationsChecked": number,
-  "interactionsFound": number
+  "interactionsFound": number,
+  "disclaimer": "This AI-generated interaction check is advisory only. All identified interactions should be verified against the current BNF and discussed with the prescribing clinician."
 }`;
 
       const response = await createChatCompletionWithLogging({
         model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Check for drug interactions: ${medList}` },
+          { role: "user", content: `Check for ALL drug interactions in this medication list: ${medList}` },
         ],
-        max_completion_tokens: 4000,
+        max_completion_tokens: 6000,
         temperature: 0,
         seed: 42,
         response_format: { type: "json_object" },
@@ -849,8 +1018,48 @@ Return JSON array:
       const result = parseJsonFromContent(content);
 
       if (!result) {
+        // If AI fails, still return rule-based results as a safety net
+        if (ruleBasedHits.length > 0) {
+          res.json({
+            interactions: ruleBasedHits,
+            summary: "AI analysis unavailable. Showing rule-based safety checks only. Consult a pharmacist for comprehensive review.",
+            totalMedicationsChecked: medNames.length,
+            interactionsFound: ruleBasedHits.length,
+            source: "rule_based_fallback",
+            disclaimer: "This rule-based check is not comprehensive. Always verify with a qualified pharmacist.",
+            model: getAccurateModel(),
+          });
+          return;
+        }
         res.status(500).json({ error: "Parse failed", message: "Could not parse drug interaction results" });
         return;
+      }
+
+      // Merge rule-based hits that AI may have missed
+      if (ruleBasedHits.length > 0 && Array.isArray(result.interactions)) {
+        const aiPairs = new Set(result.interactions.map((i: any) =>
+          [i.drug1?.toLowerCase(), i.drug2?.toLowerCase()].sort().join("|")
+        ));
+        for (const rb of ruleBasedHits) {
+          const pairKey = [rb.drug1, rb.drug2].sort().join("|");
+          if (!aiPairs.has(pairKey)) {
+            result.interactions.push(rb);
+            result.interactionsFound = (result.interactionsFound || 0) + 1;
+          }
+        }
+      }
+
+      // Validate severity values
+      const SEVERITY_ENUM = ["mild", "moderate", "severe", "critical"] as const;
+      if (Array.isArray(result.interactions)) {
+        for (const interaction of result.interactions) {
+          interaction.severity = clampEnum(interaction.severity, [...SEVERITY_ENUM], "moderate");
+        }
+      }
+
+      // Ensure disclaimer always present
+      if (!result.disclaimer) {
+        result.disclaimer = "This AI-generated interaction check is advisory only. All identified interactions should be verified against the current BNF and discussed with the prescribing clinician.";
       }
 
       res.json({ ...result, model: getAccurateModel() });
@@ -1018,20 +1227,24 @@ Return JSON array:
       }
 
       const systemPrompt = `You are Compli-ee, the CareAssurance AI assistant. You help UK care facility managers and staff with:
-- Care compliance questions (CQC standards, regulations)
-- EMAR and medication management guidance
-- Care planning assistance
-- Risk assessment advice
-- Staff management questions
-- Policy interpretation
+- Care compliance questions (CQC 2024 standards, Health and Social Care Act 2008 regulations)
+- EMAR and medication management guidance (BNF references where applicable)
+- Care planning assistance (12 mandatory sections, person-centred approach)
+- Risk assessment advice (NHS England 12 principles, likelihood/impact matrices)
+- Staff management questions (supervision, training, DBS, competency frameworks)
+- Policy interpretation (safeguarding, MCA/DoLS, infection control, GDPR/DPA 2018)
+- Domiciliary care compliance (visit scheduling, geographic check-in, duration thresholds)
 
-RULES:
-- Use UK English
-- Reference CQC 2024 standards where relevant
+RESPONSE FORMAT:
+- Use UK English throughout
+- Structure responses with clear headings and bullet points where appropriate
+- Reference specific CQC Key Lines of Enquiry (KLOEs) and fundamental standards (Regulations 9-20A) when relevant
+- Cite regulation numbers where applicable (e.g. "Regulation 12: Safe care and treatment")
 - Stay within care worker scope of practice
-- Never provide medical advice - always recommend consulting healthcare professionals
-- Be helpful, professional and concise
-- Privacy is paramount - never ask for or reference personal identifiable information`;
+- Never provide medical diagnosis or prescribing advice — always recommend consulting healthcare professionals
+- For medication questions, remind users to check the current BNF and consult their pharmacist
+- Privacy is paramount — never ask for or store personally identifiable information
+- If unsure about current guidance, say so explicitly rather than guessing`;
 
       const contextPrompt = context ? `\nContext: ${context}\n` : "";
 
@@ -1041,7 +1254,7 @@ RULES:
           { role: "system", content: systemPrompt },
           { role: "user", content: `${contextPrompt}${message}` },
         ],
-        max_completion_tokens: 2000,
+        max_completion_tokens: 3000,
         temperature: 0.3,
       }, "copilot_chat", COPILOT_USER_CONTEXT);
 
