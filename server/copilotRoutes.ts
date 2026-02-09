@@ -57,6 +57,61 @@ function requireCopilotAuth(req: Request, res: Response, next: NextFunction): vo
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// RATE LIMITING — sliding window per API key
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Per-key rate limit: max requests within a rolling window */
+const RATE_LIMIT_WINDOW_MS = 60_000;   // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 30;    // 30 requests per minute per key
+
+/** Sliding window tracker: key → list of request timestamps */
+const rateLimitBuckets = new Map<string, number[]>();
+
+/** Clean stale buckets every 5 minutes to prevent memory leaks */
+setInterval(() => {
+  const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS * 2;
+  for (const [key, timestamps] of rateLimitBuckets) {
+    const active = timestamps.filter(t => t > cutoff);
+    if (active.length === 0) rateLimitBuckets.delete(key);
+    else rateLimitBuckets.set(key, active);
+  }
+}, 5 * 60_000);
+
+function requireRateLimit(req: Request, res: Response, next: NextFunction): void {
+  const apiKey =
+    (req.headers["x-copilot-key"] as string) ||
+    (req.headers.authorization?.startsWith("Bearer ")
+      ? req.headers.authorization.slice(7)
+      : "anon");
+
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  let timestamps = rateLimitBuckets.get(apiKey) || [];
+  timestamps = timestamps.filter(t => t > windowStart);
+
+  if (timestamps.length >= RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfterMs = timestamps[0] + RATE_LIMIT_WINDOW_MS - now;
+    const retryAfterSec = Math.ceil(retryAfterMs / 1000);
+    res.set("Retry-After", String(retryAfterSec));
+    res.status(429).json({
+      error: "Too Many Requests",
+      message: `Rate limit exceeded. Max ${RATE_LIMIT_MAX_REQUESTS} requests per minute. Retry after ${retryAfterSec}s.`,
+      retryAfterSeconds: retryAfterSec,
+    });
+    return;
+  }
+
+  timestamps.push(now);
+  rateLimitBuckets.set(apiKey, timestamps);
+
+  // Set rate limit headers for the client
+  res.set("X-RateLimit-Limit", String(RATE_LIMIT_MAX_REQUESTS));
+  res.set("X-RateLimit-Remaining", String(RATE_LIMIT_MAX_REQUESTS - timestamps.length));
+
+  next();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -99,12 +154,45 @@ function clampEnum<T extends string>(value: string | undefined, allowed: T[], fa
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// SCOPE-OF-PRACTICE POST-GENERATION VALIDATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Care workers in the UK CANNOT perform certain clinical tasks.
+ * This validator scans generated content for out-of-scope actions and flags them.
+ * Ref: Skills for Care scope of practice; CQC Regulation 12 (Safe care and treatment).
+ */
+const OUT_OF_SCOPE_PATTERNS: Array<{ pattern: RegExp; warning: string }> = [
+  { pattern: /\b(check|take|monitor|record)\s+(blood\s*pressure|bp|vitals?|vital\s*signs?|pulse|heart\s*rate|spo2|oxygen\s*saturation|temperature\s*reading)\b/i, warning: "Monitoring vital signs (BP, SpO2, pulse, temperature) requires a qualified nurse or HCA with delegation" },
+  { pattern: /\b(assess|evaluate|examine)\s+(wound|pressure\s*sore|ulcer|skin\s*break|decubitus)\b/i, warning: "Wound assessment is a registered nurse responsibility; care workers can observe and report changes" },
+  { pattern: /\b(change|adjust|alter|modify|increase|decrease|titrate)\s+(medication|dose|dosage|prescription|drug)\b/i, warning: "Medication changes require prescriber authorisation; care workers administer as prescribed only" },
+  { pattern: /\b(diagnos|clinical\s*assessment|clinical\s*judgment|medical\s*opinion)\b/i, warning: "Clinical diagnosis and medical assessment is outside care worker scope; escalate to registered professional" },
+  { pattern: /\b(insert|remove|change)\s+(catheter|cannula|peg\s*tube|ng\s*tube|naso|tracheostomy)\b/i, warning: "Invasive device management is a registered nurse task" },
+  { pattern: /\b(suction|trach\s*care|stoma\s*care|wound\s*packing|debrid)\b/i, warning: "Clinical procedures like suctioning, stoma/wound care require trained nursing staff" },
+  { pattern: /\b(administer|give|inject)\s+(insulin|injection|iv|intravenous|subcutaneous|intramuscular)\b/i, warning: "Injections require specific delegation and competency sign-off from a registered nurse" },
+];
+
+/**
+ * Scan text or JSON content and return any scope-of-practice warnings.
+ */
+function checkScopeOfPractice(content: unknown): string[] {
+  const text = typeof content === "string" ? content : JSON.stringify(content);
+  const warnings: string[] = [];
+  for (const { pattern, warning } of OUT_OF_SCOPE_PATTERNS) {
+    if (pattern.test(text)) {
+      warnings.push(warning);
+    }
+  }
+  return warnings;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // REGISTER ALL COPILOT ROUTES
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function registerCopilotRoutes(app: Express): void {
-  // All copilot routes require API key authentication
-  app.use("/api/copilot", requireCopilotAuth);
+  // All copilot routes require API key authentication + rate limiting
+  app.use("/api/copilot", requireCopilotAuth, requireRateLimit);
 
   // ─────────────────────────────────────────────────────────────────────
   // 1. AI STATUS CHECK
@@ -751,6 +839,12 @@ Respond with valid JSON:
         }
       }
 
+      // Post-generation scope-of-practice validation
+      const scopeWarnings = checkScopeOfPractice(carePlan);
+      if (scopeWarnings.length > 0) {
+        carePlan.scopeOfPracticeWarnings = scopeWarnings;
+      }
+
       res.json({ carePlan, callType: callTypeLabel, model: getAccurateModel() });
     } catch (error: any) {
       console.error("[Copilot] Care plan generation error:", error);
@@ -863,6 +957,12 @@ Respond with valid JSON:
           parseWarning: "Could not parse structured JSON. Raw enhanced plan text returned.",
         });
         return;
+      }
+
+      // Post-generation scope-of-practice validation
+      const scopeWarnings = checkScopeOfPractice(enhancedPlan);
+      if (scopeWarnings.length > 0) {
+        enhancedPlan.scopeOfPracticeWarnings = scopeWarnings;
       }
 
       res.json({ enhancedPlan, model: getAccurateModel() });

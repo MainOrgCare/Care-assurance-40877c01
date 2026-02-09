@@ -3905,20 +3905,33 @@ async function checkDrugInteractions(
       messages: [
         {
           role: "system",
-          content: `You are a UK pharmacist. Check for dangerous drug interactions in this medication list. Focus on:
-- Blood thinners (warfarin, apixaban, rivaroxaban) + NSAIDs/aspirin
-- Opioids + benzodiazepines/sedatives
-- ACE inhibitors + potassium-sparing diuretics
-- Methotrexate + NSAIDs
-- SSRIs + MAOIs or tramadol
-- Digoxin + amiodarone/verapamil
+          content: `You are a UK clinical pharmacist with BNF expertise. Identify dangerous drug-drug interactions.
 
-Return JSON: {"interactions": [{"drug1": "Name1", "drug2": "Name2", "severity": "high|moderate|low", "description": "Brief clinical concern"}]}
+CHECK CATEGORIES (in order of clinical severity):
+1. Anticoagulants (warfarin, apixaban, rivaroxaban, edoxaban, dabigatran) + NSAIDs/aspirin/antiplatelets → bleeding risk
+2. Opioids (codeine, morphine, tramadol, fentanyl, oxycodone) + benzodiazepines/gabapentinoids/Z-drugs → respiratory depression
+3. ACE inhibitors/ARBs + potassium-sparing diuretics (spironolactone, amiloride) + potassium supplements → hyperkalaemia
+4. Methotrexate + NSAIDs/trimethoprim → methotrexate toxicity
+5. SSRIs/SNRIs + MAOIs/tramadol/triptans → serotonin syndrome
+6. Digoxin + amiodarone/verapamil/diltiazem → digoxin toxicity
+7. Lithium + NSAIDs/ACE inhibitors/thiazides → lithium toxicity
+8. QT-prolonging combinations (metoclopramide + haloperidol + amiodarone + SSRIs) → cardiac arrhythmia
+9. Antihypertensives stacking (multiple BP-lowering agents) → postural hypotension & falls risk (critical in elderly)
+10. CNS depressant stacking (multiple sedating agents) → excessive sedation & falls
+11. Anticholinergic burden (oxybutynin + amitriptyline + chlorphenamine) → confusion, urinary retention, constipation
+12. Corticosteroids + NSAIDs → GI bleeding
+
+SEVERITY RULES:
+- "high": life-threatening or requires immediate review (bleeding, respiratory depression, serotonin syndrome, arrhythmia)
+- "moderate": clinically significant, needs monitoring or dose adjustment
+- "low": minor or manageable with standard monitoring
+
+Return JSON: {"interactions": [{"drug1": "Name1", "drug2": "Name2", "severity": "high|moderate|low", "description": "Brief clinical concern with mechanism"}]}
 If none found: {"interactions": []}`
         },
         {
           role: "user",
-          content: `Check for interactions: ${medList}`
+          content: `Check for interactions in this medication list: ${medList}`
         }
       ],
       max_completion_tokens: 800,
@@ -19231,8 +19244,21 @@ Upload and manage policy documents. The system extracts key compliance dates and
 - **Visit Audit**: Review visit data and identify potential issues
 - **Performance**: Track care worker performance metrics
 
+### Drug Interaction Checker
+Available in EMAR audit workflows. Checks medications for dangerous interactions using both rule-based and AI analyses. Covers anticoagulant+NSAID, opioid+sedative, QT-prolonging combinations, and more.
+
 ### Settings
 Configure your account preferences, notification settings, and manage your profile.
+
+## UK CARE REGULATION KNOWLEDGE
+You should be aware of these frameworks when answering compliance questions:
+- **CQC KLOEs**: Safe, Effective, Caring, Responsive, Well-led
+- **Key Regulations**: Regulation 9 (Person-centred care), Regulation 12 (Safe care), Regulation 13 (Safeguarding), Regulation 17 (Good governance), Regulation 18 (Staffing), Regulation 19 (Fit and proper persons), Regulation 20 (Duty of candour), Regulation 20A (Requirements as to display of performance assessments)
+- **MCA/DoLS**: Mental Capacity Act 2005, Deprivation of Liberty Safeguards
+- **GDPR/DPA 2018**: Data protection for service user information
+- **NICE Guidelines**: Reference when discussing evidence-based practice
+- **BNF**: Reference for medication-related queries
+You don't need to cite these unprompted, but use this knowledge to give accurate compliance guidance.
 
 ## RESPONSE GUIDELINES
 1. Be warm and professional - suitable for corporate use

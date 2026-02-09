@@ -1,4 +1,5 @@
-import { createChatCompletionWithLogging, type AiUserContext } from "./aiClient";
+import { createChatCompletionWithLogging, getPreferredModel, type AiUserContext } from "./aiClient";
+import { parseJsonFromContent } from "../utils/jsonParser";
 import type { ParsedEMAR } from "../emarGridParser";
 
 interface EmarAgentResult {
@@ -25,7 +26,8 @@ type TableStructureInfo = {
   detectedDatesOnSameLine?: number;
 };
 
-const AGENT_MODEL = "gpt-5.2"; // Most thorough for detecting all EMAR discrepancies
+// Use admin-configured model instead of hardcoding — respects AI settings panel
+const getAgentModel = (): string => getPreferredModel();
 const MIN_TEXT_CHARS = 180000;
 const MAX_TEXT_CHARS_CAP = 360000;
 const MIN_EXPECTED_ENTRIES = 600;
@@ -76,42 +78,9 @@ const adjustExpectedEntries = (
   return clampNumber(Math.max(baseMax, gridEstimate), MIN_EXPECTED_ENTRIES, MAX_EXPECTED_ENTRIES_CAP);
 };
 
-const extractJsonObject = (content: string): string | null => {
-  if (!content) return null;
-  const start = content.indexOf("{");
-  if (start === -1) return null;
-  let depth = 0;
-  let inString = false;
-  for (let i = start; i < content.length; i++) {
-    const char = content[i];
-    if (char === "\"" && content[i - 1] !== "\\") {
-      inString = !inString;
-    }
-    if (!inString) {
-      if (char === "{") depth += 1;
-      if (char === "}") {
-        depth -= 1;
-        if (depth === 0) return content.slice(start, i + 1);
-      }
-    }
-  }
-  return null;
-};
-
-const parseJsonFromContent = (content: string): any | null => {
-  const jsonText = extractJsonObject(content);
-  if (!jsonText) return null;
-  try {
-    return JSON.parse(jsonText);
-  } catch {
-    const cleaned = jsonText.replace(/,\s*([}\]])/g, "$1");
-    try {
-      return JSON.parse(cleaned);
-    } catch {
-      return null;
-    }
-  }
-};
+// extractJsonObject and parseJsonFromContent are now imported from ../utils/jsonParser
+// (removed duplicated implementations that lacked the shared version's
+//  truncated-JSON recovery, markdown-fence stripping, and smart-quote handling)
 
 const inferGenericNameFromMedicationLabel = (name: string): string => {
   if (!name) return "";
@@ -972,7 +941,7 @@ export const emarAgent = {
     const runMetadataPass = async (passIndex: number) => {
       const response = await createChatCompletionWithLogging(
         {
-          model: AGENT_MODEL,
+          model: getAgentModel(),
           messages: [
             { role: "system", content: metadataPrompt },
             { role: "user", content: `Extract metadata from this EMAR document:\n\n${rawText}` },
@@ -1122,7 +1091,7 @@ export const emarAgent = {
 
           const response = await createChatCompletionWithLogging(
             {
-              model: AGENT_MODEL,
+              model: getAgentModel(),
               messages: [
                 { role: "system", content: prompt },
                 { role: "user", content: `Extract entries from this EMAR document:\n\n${rawText}` },
@@ -1252,7 +1221,7 @@ export const emarAgent = {
       },
       consensusStatus: "triple_pass_consensus",
       validationPassed: entries.length > 0,
-      model: AGENT_MODEL,
+      model: getAgentModel(),
     };
   }
 };

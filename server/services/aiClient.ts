@@ -48,6 +48,7 @@ const createAIDisabledError = (): Error => {
 // Admin-configurable preferred AI provider (github uses PAT_AI_KEY)
 let preferredProvider: AiProvider = "github";
 let settingsLoaded = false;
+let settingsLoadPromise: Promise<void> | null = null;
 let aiEnabled: boolean = AI_ENABLED_BY_ENV;
 
 // Admin-configurable preferred AI model (defaults to gpt-4.1-mini)
@@ -68,70 +69,83 @@ const LOCAL_LLM_URL = rawLocalLLMUrl.startsWith("http") ? rawLocalLLMUrl : `http
 const LOCAL_LLM_MODEL = process.env.LOCAL_LLM_MODEL || "qwen2.5-64k";
 
 // Load settings from database (called once on first AI request)
+// Uses a promise-based mutex so concurrent callers share a single DB read.
 async function ensureSettingsLoaded(): Promise<void> {
   if (settingsLoaded) return;
-  
-  try {
-    const savedProvider = await storage.getAppSetting("ai_provider");
-    if (savedProvider && (savedProvider === "openai" || savedProvider === "github" || savedProvider === "local")) {
-      preferredProvider = savedProvider as AiProvider;
-      if (preferredProvider === "local" && !LOCAL_LLM_ENABLED) {
-        const fallbackProvider = getFallbackProviderWhenLocalDisabled();
-        preferredProvider = fallbackProvider;
-        console.log(`[AI Config] Local LLM disabled by environment; using ${fallbackProvider} provider`);
-      } else {
-        console.log(`[AI Config] Loaded provider from DB: ${preferredProvider}`);
-      }
-    }
 
-    const savedAIEnabled = await storage.getAppSetting("ai_enabled");
-    if (!AI_ENV_LOCKED_DISABLED && savedAIEnabled !== null) {
-      aiEnabled = savedAIEnabled === "true";
-      console.log(`[AI Config] Loaded AI enabled flag from DB: ${aiEnabled}`);
-    } else if (AI_ENV_LOCKED_DISABLED) {
-      aiEnabled = false;
-      console.log("[AI Config] AI disabled by environment policy (AI_ENABLED is not true)");
-    }
-    
-    const savedModel = await storage.getAppSetting("ai_model");
-    if (savedModel) {
-      const validModels = AVAILABLE_MODELS.map(m => m.id);
-      if (validModels.includes(savedModel as AvailableModel)) {
-        preferredModel = savedModel as AvailableModel;
-        console.log(`[AI Config] Loaded model from DB: ${preferredModel}`);
-      }
-    }
-    
-    const savedEmarAgent = await storage.getAppSetting("emar_agent");
-    if (savedEmarAgent !== null) {
-      useEmarAgent = aiEnabled && savedEmarAgent === "true";
-      console.log(`[AI Config] Loaded EMAR agent from DB: ${useEmarAgent}`);
-    }
-    
-    // Load optimization settings
-    const savedCache = await storage.getAppSetting("ai_cache");
-    if (savedCache !== null) {
-      useAICache = savedCache === "true";
-      console.log(`[AI Config] Loaded cache setting from DB: ${useAICache}`);
-    }
-    
-    const savedRules = await storage.getAppSetting("ai_rules_first");
-    if (savedRules !== null) {
-      useRulesFirst = savedRules === "true";
-      console.log(`[AI Config] Loaded rules-first setting from DB: ${useRulesFirst}`);
-    }
-    
-    const savedLite = await storage.getAppSetting("ai_lite_mode");
-    if (savedLite !== null) {
-      aiLiteMode = savedLite === "true";
-      console.log(`[AI Config] Loaded lite mode from DB: ${aiLiteMode}`);
-    }
-    
-    settingsLoaded = true;
-  } catch (error) {
-    console.warn("[AI Config] Could not load settings from DB, using defaults:", error);
-    settingsLoaded = true; // Don't retry on error
+  // If a load is already in-flight, wait for it
+  if (settingsLoadPromise) {
+    await settingsLoadPromise;
+    return;
   }
+
+  settingsLoadPromise = (async () => {
+    try {
+      const savedProvider = await storage.getAppSetting("ai_provider");
+      if (savedProvider && (savedProvider === "openai" || savedProvider === "github" || savedProvider === "local")) {
+        preferredProvider = savedProvider as AiProvider;
+        if (preferredProvider === "local" && !LOCAL_LLM_ENABLED) {
+          const fallbackProvider = getFallbackProviderWhenLocalDisabled();
+          preferredProvider = fallbackProvider;
+          console.log(`[AI Config] Local LLM disabled by environment; using ${fallbackProvider} provider`);
+        } else {
+          console.log(`[AI Config] Loaded provider from DB: ${preferredProvider}`);
+        }
+      }
+
+      const savedAIEnabled = await storage.getAppSetting("ai_enabled");
+      if (!AI_ENV_LOCKED_DISABLED && savedAIEnabled !== null) {
+        aiEnabled = savedAIEnabled === "true";
+        console.log(`[AI Config] Loaded AI enabled flag from DB: ${aiEnabled}`);
+      } else if (AI_ENV_LOCKED_DISABLED) {
+        aiEnabled = false;
+        console.log("[AI Config] AI disabled by environment policy (AI_ENABLED is not true)");
+      }
+      
+      const savedModel = await storage.getAppSetting("ai_model");
+      if (savedModel) {
+        const validModels = AVAILABLE_MODELS.map(m => m.id);
+        if (validModels.includes(savedModel as AvailableModel)) {
+          preferredModel = savedModel as AvailableModel;
+          console.log(`[AI Config] Loaded model from DB: ${preferredModel}`);
+        }
+      }
+      
+      const savedEmarAgent = await storage.getAppSetting("emar_agent");
+      if (savedEmarAgent !== null) {
+        useEmarAgent = aiEnabled && savedEmarAgent === "true";
+        console.log(`[AI Config] Loaded EMAR agent from DB: ${useEmarAgent}`);
+      }
+      
+      // Load optimization settings
+      const savedCache = await storage.getAppSetting("ai_cache");
+      if (savedCache !== null) {
+        useAICache = savedCache === "true";
+        console.log(`[AI Config] Loaded cache setting from DB: ${useAICache}`);
+      }
+      
+      const savedRules = await storage.getAppSetting("ai_rules_first");
+      if (savedRules !== null) {
+        useRulesFirst = savedRules === "true";
+        console.log(`[AI Config] Loaded rules-first setting from DB: ${useRulesFirst}`);
+      }
+      
+      const savedLite = await storage.getAppSetting("ai_lite_mode");
+      if (savedLite !== null) {
+        aiLiteMode = savedLite === "true";
+        console.log(`[AI Config] Loaded lite mode from DB: ${aiLiteMode}`);
+      }
+      
+      settingsLoaded = true;
+    } catch (error) {
+      console.warn("[AI Config] Could not load settings from DB, using defaults:", error);
+      // Do NOT set settingsLoaded=true on error — retry on next request
+    } finally {
+      settingsLoadPromise = null;
+    }
+  })();
+
+  await settingsLoadPromise;
 }
 
 export function getPreferredProvider(): AiProvider {
@@ -411,6 +425,9 @@ function mapModelForGitHub(model: string): string {
 const MAX_RETRIES = 5;
 const INITIAL_RETRY_DELAY_MS = 5000; // Start with 5 seconds
 
+// Per-request overall timeout (prevents indefinitely hanging calls)
+const AI_CALL_TIMEOUT_MS = 120_000; // 2 minutes
+
 // Sleep utility for retry delays
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -491,7 +508,17 @@ async function createChatCompletionWithProvider(
             options: { num_ctx: 65536 }
           }
         : { ...params, model };
-      const completion = await client.chat.completions.create(finalParams);
+
+      // Wrap in overall timeout to prevent indefinite hangs
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(
+          `AI request timed out after ${AI_CALL_TIMEOUT_MS / 1000}s (model: ${model}, provider: ${provider})`
+        )), AI_CALL_TIMEOUT_MS);
+      });
+      const completion = await Promise.race([
+        client.chat.completions.create(finalParams),
+        timeoutPromise,
+      ]);
       return { completion, provider };
     } catch (error: any) {
       lastError = error;
