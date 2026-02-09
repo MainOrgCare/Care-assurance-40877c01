@@ -1,6 +1,6 @@
 ﻿displayName: CareAssurance Copilot
 schemaName: cr6a5_agent3
-accessControlPolicy: GroupMembership
+accessControlPolicy: AnyMultiTenant
 authenticationMode: Integrated
 authenticationTrigger: Always
 configuration:
@@ -21,5 +21,7 @@ configuration:
   recognizer:
     kind: GenerativeAIRecognizer
 
+authenticationConfiguration: {}
+publishedOn: 2026-02-08T20:48:43.0000000Z
 template: default-2.1.0
 language: 2057

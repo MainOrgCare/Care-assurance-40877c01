@@ -539,7 +539,8 @@ components:
             type: object
             properties:
               id:
-                type: integer
+                type: string
+                description: Care worker identifier
               name:
                 type: string
               initials:
@@ -566,7 +567,8 @@ components:
             type: object
             properties:
               id:
-                type: integer
+                type: string
+                description: Audit identifier
               type:
                 type: string
               serviceUserInitials:
@@ -593,7 +595,8 @@ components:
             type: object
             properties:
               id:
-                type: integer
+                type: string
+                description: Discrepancy identifier
               careWorkerName:
                 type: string
               serviceUserInitials:

@@ -160,10 +160,6 @@ actions:
 gptCapabilities:
   webBrowsing: true
 
-aISettings:
-  model:
-    modelNameHint: GPT5Reasoning
-
 knowledgeSources:
   - kind: SharePoint
     displayName: Care Policies and Procedures

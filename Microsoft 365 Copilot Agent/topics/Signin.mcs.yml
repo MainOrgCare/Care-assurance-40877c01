@@ -11,7 +11,7 @@ beginDialog:
       id: conditionGroup_auth
       conditions:
         - id: conditionItem_authenticated
-          condition: =System.User.IsAuthenticated = true
+          condition: =!IsBlank(System.User.DisplayName)
           actions:
             - kind: SendActivity
               id: sendMessage_authenticated
