@@ -1,0 +1,19 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "CareAssurance",
+  "name_for_model": "CareAssurance",
+  "description_for_human": "Perform AI-powered care compliance functions: EMAR audits, care plans, risk assessments, visit audits, drug interaction checks, email rewriting, and platform data access.",
+  "description_for_model": "CareAssurance plugin enables executing AI-powered care compliance functions for UK care facilities. Use this when the user asks to: audit visit logs, generate care plans, analyze risks, create risk assessments, check drug interactions, rewrite emails, generate PRN protocols, or view platform data (dashboard, care workers, audits, discrepancies). All operations follow CQC 2024 standards and UK care regulations.",
+  "auth": {
+    "type": "service_http",
+    "authorization_type": "api_key",
+    "verification_tokens": {}
+  },
+  "api": {
+    "type": "openapi",
+    "url": "openapi.yml"
+  },
+  "logo_url": "https://care-assurance.onrender.com/logo.png",
+  "contact_email": "support@careassurance.co.uk",
+  "legal_info_url": "https://care-assurance.onrender.com/privacy"
+}

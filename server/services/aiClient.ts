@@ -426,7 +426,9 @@ const MAX_RETRIES = 5;
 const INITIAL_RETRY_DELAY_MS = 5000; // Start with 5 seconds
 
 // Per-request overall timeout (prevents indefinitely hanging calls)
-const AI_CALL_TIMEOUT_MS = 120_000; // 2 minutes
+// Plan Enhancer sends ~5K-word system prompt + documents and requests up to 32K output tokens,
+// which regularly exceeds 2 minutes. 5 minutes covers large generations with retries.
+const AI_CALL_TIMEOUT_MS = 300_000; // 5 minutes
 
 // Sleep utility for retry delays
 function sleep(ms: number): Promise<void> {

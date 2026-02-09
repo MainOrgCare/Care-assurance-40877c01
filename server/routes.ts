@@ -15702,11 +15702,12 @@ PRIORITY STRATEGY FOR MAXIMUM COMPLETION:
 
       sendProgress(25, "Generating enhanced plan...", "ai_generation");
 
-      // Simulated progress during AI call
+      // Simulated progress during AI call — covers up to ~5 minutes of AI processing
       let simulatedProgress = 25;
       progressInterval = setInterval(() => {
         if (simulatedProgress < 70) {
-          simulatedProgress += 5;
+          // Slow, steady increments (~45 ticks × 6s = 4.5 min to reach 70)
+          simulatedProgress += 1;
           const messages = [
             "Analyzing document content...",
             "Generating personal profile...",
@@ -15714,12 +15715,14 @@ PRIORITY STRATEGY FOR MAXIMUM COMPLETION:
             "Writing health assessments...",
             "Building risk evaluations...",
             "Compiling care requirements...",
+            "Cross-referencing sections...",
+            "Applying quality standards...",
             "Finalizing plan content...",
           ];
-          const msgIndex = Math.floor((simulatedProgress - 25) / 7) % messages.length;
+          const msgIndex = Math.floor((simulatedProgress - 25) / 5) % messages.length;
           sendProgress(simulatedProgress, messages[msgIndex], "ai_generation");
         }
-      }, 3000);
+      }, 6000);
 
       const response = await createChatCompletionWithLogging({
         model: getRiskAssessmentGenerationModel(),

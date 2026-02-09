@@ -541,16 +541,32 @@ export default function PlanEnhancer() {
       setProgress(0);
       setProgressStatus("Preparing documents...");
 
-      const response = await fetch("/api/ai/enhance-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ 
-          documentContent: combinedSupporting,
-          existingPlanContent: carePlanContent,
-          allowSensitive: isAdmin && allowSensitive
-        }),
-      });
+      // 6-minute client timeout — must exceed server-side AI timeout (5 min) to
+      // avoid aborting while the server is still generating the plan.
+      const controller = new AbortController();
+      const clientTimeout = setTimeout(() => controller.abort(), 360_000);
+
+      let response: Response;
+      try {
+        response = await fetch("/api/ai/enhance-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          signal: controller.signal,
+          body: JSON.stringify({ 
+            documentContent: combinedSupporting,
+            existingPlanContent: carePlanContent,
+            allowSensitive: isAdmin && allowSensitive
+          }),
+        });
+      } catch (err: any) {
+        clearTimeout(clientTimeout);
+        if (err.name === "AbortError") {
+          throw new Error("The AI service took too long to respond. Please try again — shorter documents may help.");
+        }
+        throw err;
+      }
+      clearTimeout(clientTimeout);
 
       if (!response.ok) {
         const errorText = await response.text();
