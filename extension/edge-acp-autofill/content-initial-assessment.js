@@ -607,6 +607,73 @@ const setCheckboxValue = async (fieldName, values) => {
 };
 
 /**
+ * Fill a single-row assessment table with a select value and details textarea
+ * Many sections (communication, hearing, eyesight, mobility items, etc.)
+ * use a table with one row: [Label | Select | Details Textarea]
+ */
+const fillAssessmentTable = async (tableId, selectValue, detailsValue) => {
+  // Try both ID variants
+  const table = document.querySelector(`#${tableId}_Table`) || document.querySelector(`#${tableId}`);
+  if (!table) {
+    logAction(`Assessment table not found: ${tableId}`);
+    return false;
+  }
+  
+  const row = table.querySelector("tbody tr");
+  if (!row) {
+    logAction(`No row found in assessment table: ${tableId}`);
+    return false;
+  }
+  
+  let filled = false;
+  
+  // Set select value (usually in the 2nd column)
+  if (selectValue) {
+    const select = row.querySelector("select");
+    if (select) {
+      if (DRY_RUN) {
+        select.style.outline = "2px solid #1ea97a";
+      } else {
+        const targetValue = String(selectValue).trim().toLowerCase();
+        for (const option of select.options) {
+          const optValue = (option.value || "").trim().toLowerCase();
+          const optText = (option.textContent || "").trim().toLowerCase();
+          if (optValue === targetValue || optText === targetValue ||
+              optValue.includes(targetValue) || optText.includes(targetValue)) {
+            select.value = option.value;
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            select.dispatchEvent(new Event("input", { bubbles: true }));
+            filled = true;
+            break;
+          }
+        }
+        if (!filled) {
+          logAction(`No matching option for "${selectValue}" in ${tableId}`);
+        }
+      }
+    }
+  }
+  
+  // Set details/textarea value (usually in the 3rd column)
+  if (detailsValue) {
+    const textarea = row.querySelector("textarea");
+    if (textarea) {
+      if (DRY_RUN) {
+        textarea.style.outline = "2px solid #1ea97a";
+      } else {
+        textarea.value = String(detailsValue);
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+        textarea.dispatchEvent(new Event("change", { bubbles: true }));
+        textarea.dispatchEvent(new Event("blur", { bubbles: true }));
+      }
+      filled = true;
+    }
+  }
+  
+  return filled;
+};
+
+/**
  * Add rows to a table and fill data
  */
 const fillTableRows = async (tableId, rows) => {
@@ -660,11 +727,30 @@ const fillTableRows = async (tableId, rows) => {
 /**
  * Map Plan Enhancer output to Initial Assessment form fields
  * Handles the comprehensive payload from sendToInitialAssessment
+ * 
+ * The Plan Enhancer output nests fields under section objects:
+ * - planData.thisIsMe.whoAmI
+ * - planData.goalSetting.goals
+ * - planData.advanceDecisions.advanceDecisionInPlace
+ * - planData.myCarePlan.healthAndWellbeing
+ * - planData.riskSection1Health.speech
+ * - planData.riskSection2Medication.covertMedication
+ * - etc.
+ * 
+ * This mapper unwraps them into flat keys for fillInitialAssessment.
  */
 const mapPlanEnhancerToFormData = (planData) => {
   if (!planData) return {};
   
   const formData = {};
+  
+  // Helper: extract value, picking ONE value from "EXACTLY ONE OF:" or "/" separated options
+  const extractSingleValue = (val) => {
+    if (!val || typeof val !== 'string') return val;
+    // If the AI returned something like "Good" or "Yes", just use it directly
+    // Strip any "EXACTLY ONE OF:" prefix the AI might echo back
+    return val.replace(/^EXACTLY ONE OF:\s*/i, '').trim();
+  };
   
   // === This Is Me Section ===
   if (planData.thisIsMe) {
@@ -675,223 +761,299 @@ const mapPlanEnhancerToFormData = (planData) => {
   }
   
   // === Goal Setting ===
-  if (planData.goals && Array.isArray(planData.goals)) {
-    formData.goals = planData.goals.map((g) => ({
+  const gs = planData.goalSetting || {};
+  if (gs.goals && Array.isArray(gs.goals)) {
+    formData.goals = gs.goals.map((g) => ({
       goal: g.goal || "",
       howToAchieve: g.howToAchieve || "",
       barriers: g.potentialBarriers || "",
       timeFrame: g.timeFrame || "",
     }));
   }
-  if (planData.internetSupport) {
-    formData.internetSupport = planData.internetSupport.toLowerCase().includes("yes") ? "Yes" : "No";
+  if (gs.internetSupport) {
+    const isVal = extractSingleValue(gs.internetSupport);
+    formData.internetSupport = isVal.toLowerCase().includes("yes") ? "Yes" : "No";
+    // Also set support required details
+    if (isVal.toLowerCase().includes("yes") && isVal.length > 5) {
+      formData.supportRequired = isVal;
+    }
   }
-  if (planData.assistiveTechnology) {
-    formData.assistiveTechExamples = planData.assistiveTechnology;
+  if (gs.assistiveTechnology) {
+    formData.assistiveTechExamples = gs.assistiveTechnology;
+    // Set awareness based on whether tech is in use
+    const atVal = gs.assistiveTechnology.toLowerCase();
+    formData.assistiveTechAwareness = (atVal.includes("yes") || atVal.includes("aware") || atVal.includes("uses") || atVal.includes("in place")) ? "Yes" : "No";
   }
   
   // === Advance Decisions ===
-  if (planData.advanceDecisionInSitu) {
-    formData.advanceDecisionInSitu = planData.advanceDecisionInSitu.toLowerCase().includes("yes") ? "Yes" : "No";
+  const ad = planData.advanceDecisions || {};
+  if (ad.advanceDecisionInPlace) {
+    formData.advanceDecisionInSitu = extractSingleValue(ad.advanceDecisionInPlace).toLowerCase().includes("yes") ? "Yes" : "No";
   }
-  if (planData.dnrLocation) formData.dnrLocation = planData.dnrLocation;
-  if (planData.lpaInPlace) {
-    formData.lpaInPlace = planData.lpaInPlace.toLowerCase().includes("yes") ? "Yes" : "No";
+  if (ad.dnrDetails) formData.dnrLocation = ad.dnrDetails;
+  if (ad.lastingPOA) {
+    formData.lpaInPlace = extractSingleValue(ad.lastingPOA).toLowerCase().includes("yes") ? "Yes" : "No";
   }
-  if (planData.lpaContactInfo) formData.lpaContactInfo = planData.lpaContactInfo;
+  if (ad.poaType) {
+    // poaType can be "Health", "Finance", "Both", or specific options
+    // Map to the multi-select values
+    const poaVal = ad.poaType.toLowerCase();
+    const poaOptions = [];
+    if (poaVal.includes("health") || poaVal.includes("both")) poaOptions.push("HEALTH AND WELFARE");
+    if (poaVal.includes("finance") || poaVal.includes("financial") || poaVal.includes("property") || poaVal.includes("both")) poaOptions.push("PROPERTY AND FINANCIAL AFFAIRS");
+    if (poaVal.includes("enduring")) poaOptions.push("ENDURING POWER OF ATTORNEY");
+    if (poaVal.includes("court") || poaVal.includes("deputy")) poaOptions.push("COURT OF PROTECTION APPOINTED DEPUTY/S");
+    if (poaOptions.length > 0) formData.poaOptions = poaOptions;
+  }
+  if (ad.poaContact) formData.lpaContactInfo = ad.poaContact;
   
   // === My Care Plan Section ===
-  if (planData.capacityDecisionMaking) formData.capacityDecisionMaking = planData.capacityDecisionMaking;
-  if (planData.healthAndWellbeing) formData.healthAndWellbeing = planData.healthAndWellbeing;
-  if (planData.triggerPoints) formData.triggerPoints = planData.triggerPoints;
-  if (planData.medicationRequirements) formData.medicationRequirements = planData.medicationRequirements;
-  if (planData.nutrition) formData.nutrition = planData.nutrition;
-  if (planData.personalCareNeeds) formData.personalCareNeeds = planData.personalCareNeeds;
-  if (planData.mobilityAndEquipment) formData.mobilityAndEquipment = planData.mobilityAndEquipment;
-  if (planData.houseworkShopping) formData.houseworkShopping = planData.houseworkShopping;
-  if (planData.financialArrangements) formData.financialArrangements = planData.financialArrangements;
+  const cp = planData.myCarePlan || {};
+  if (cp.capacityAndSafeguarding) formData.capacityDecisionMaking = cp.capacityAndSafeguarding;
+  if (cp.healthAndWellbeing) formData.healthAndWellbeing = cp.healthAndWellbeing;
+  if (cp.triggerPoints) formData.triggerPoints = cp.triggerPoints;
+  if (cp.medicationRequirements) formData.medicationRequirements = cp.medicationRequirements;
+  if (cp.nutrition) formData.nutrition = cp.nutrition;
+  if (cp.personalCareNeeds) formData.personalCareNeeds = cp.personalCareNeeds;
+  if (cp.mobilityAndEquipment) formData.mobilityAndEquipment = cp.mobilityAndEquipment;
+  if (cp.houseworkAndSocial) formData.houseworkShopping = cp.houseworkAndSocial;
+  if (cp.financialArrangements) formData.financialArrangements = cp.financialArrangements;
   
   // === Risk Section 1: Mental and Physical Health ===
+  const r1 = planData.riskSection1Health || {};
   // Communication fields
-  if (planData.speech) formData.speech = planData.speech;
-  if (planData.speechDetails) formData.speechDetails = planData.speechDetails;
-  if (planData.hearing) formData.hearing = planData.hearing;
-  if (planData.hearingDetails) formData.hearingDetails = planData.hearingDetails;
-  if (planData.eyesight) formData.eyesight = planData.eyesight;
-  if (planData.eyesightDetails) formData.eyesightDetails = planData.eyesightDetails;
+  if (r1.speech) formData.speech = extractSingleValue(r1.speech);
+  if (r1.speechDetails) formData.speechDetails = r1.speechDetails;
+  if (r1.hearing) formData.hearing = extractSingleValue(r1.hearing);
+  if (r1.hearingDetails) formData.hearingDetails = r1.hearingDetails;
+  if (r1.eyesight) formData.eyesight = extractSingleValue(r1.eyesight);
+  if (r1.eyesightDetails) formData.eyesightDetails = r1.eyesightDetails;
   // General health
-  if (planData.breathlessness) formData.breathlessness = planData.breathlessness;
-  if (planData.breathlessnessDetails) formData.breathlessnessDetails = planData.breathlessnessDetails;
-  if (planData.urinaryIncontinence) formData.urinaryIncontinence = planData.urinaryIncontinence;
-  if (planData.urinaryDetails) formData.urinaryDetails = planData.urinaryDetails;
-  if (planData.faecalIncontinence) formData.faecalIncontinence = planData.faecalIncontinence;
-  if (planData.faecalDetails) formData.faecalDetails = planData.faecalDetails;
+  if (r1.breathlessness) formData.breathlessness = extractSingleValue(r1.breathlessness);
+  if (r1.breathlessnessDetails) formData.breathlessnessDetails = r1.breathlessnessDetails;
+  if (r1.urinaryIncontinence) formData.urinaryIncontinence = extractSingleValue(r1.urinaryIncontinence);
+  if (r1.urinaryDetails) formData.urinaryDetails = r1.urinaryDetails;
+  if (r1.faecalIncontinence) formData.faecalIncontinence = extractSingleValue(r1.faecalIncontinence);
+  if (r1.faecalDetails) formData.faecalDetails = r1.faecalDetails;
   // Mental health assessment
-  if (planData.memory) formData.memory = planData.memory.replace(/\s+/g, "");
-  if (planData.moods) formData.moods = planData.moods.replace(/\s+/g, "");
-  if (planData.orientation) formData.orientation = planData.orientation.replace(/\s+/g, "");
-  if (planData.sleepPattern) formData.sleepPattern = planData.sleepPattern.replace(/\s+/g, "");
-  if (planData.behaviours) formData.behaviours = planData.behaviours.replace(/\s+/g, "");
+  if (r1.memory) formData.memory = extractSingleValue(r1.memory);
+  if (r1.moods) formData.moods = extractSingleValue(r1.moods);
+  if (r1.orientation) formData.orientation = extractSingleValue(r1.orientation);
+  if (r1.sleepPattern) formData.sleepPattern = extractSingleValue(r1.sleepPattern);
+  if (r1.behaviours) formData.behaviours = extractSingleValue(r1.behaviours);
   // Mental capacity assessment
-  if (planData.understandsInfo) formData.understandsInfo = planData.understandsInfo;
-  if (planData.retainsInfo) formData.retainsInfo = planData.retainsInfo;
-  if (planData.contemplatesProsAndCons) formData.contemplatesProsAndCons = planData.contemplatesProsAndCons;
-  if (planData.communicatesDecision) formData.communicatesDecision = planData.communicatesDecision;
-  if (planData.capacityDetails) formData.actionsComments = planData.capacityDetails;
+  if (r1.understandsInfo) formData.understandsInfo = extractSingleValue(r1.understandsInfo);
+  if (r1.retainsInfo) formData.retainsInfo = extractSingleValue(r1.retainsInfo);
+  if (r1.weighsDecision) formData.contemplatesProsAndCons = extractSingleValue(r1.weighsDecision);
+  if (r1.communicatesDecision) formData.communicatesDecision = extractSingleValue(r1.communicatesDecision);
+  if (r1.capacityDetails) formData.actionsComments = r1.capacityDetails;
+  // Risk level
+  if (r1.riskLevel) formData.healthRiskLevel = extractSingleValue(r1.riskLevel);
+  if (r1.riskPrevention) formData.healthRiskPrevention = r1.riskPrevention;
   
   // === Risk Section 2: Medication ===
-  if (planData.prescriptionOrdering) formData.orderCollectPrescriptions = planData.prescriptionOrdering;
-  if (planData.dosageSystem) formData.dosageSystem = planData.dosageSystem;
-  if (planData.systemMaintainer) formData.systemMaintainer = planData.systemMaintainer;
-  if (planData.medicationStorage) formData.medicationStorage = planData.medicationStorage;
-  if (planData.currentInvestigations) formData.currentInvestigations = planData.currentInvestigations;
-  if (planData.surplusMedication) formData.surplusOutOfDate = planData.surplusMedication;
-  if (planData.medicationConcerns) formData.medicationConcerns = planData.medicationConcerns;
-  if (planData.homeopathicMeds) formData.herbalMedicines = planData.homeopathicMeds;
-  if (planData.prnMedication) formData.takingPRN = planData.prnMedication;
-  if (planData.covertMedication) formData.covertMedication = planData.covertMedication;
-  // Medication difficulties
-  if (planData.pickingUpTablets) formData.pickingUpTablets = planData.pickingUpTablets;
-  if (planData.openingBoxes) formData.openingBoxes = planData.openingBoxes;
-  if (planData.pouringLiquids) formData.openingLiquids = planData.pouringLiquids;
-  if (planData.usingDosageSystem) formData.usingDosageSystem = planData.usingDosageSystem;
-  if (planData.applyingCreams) formData.applyingCreams = planData.applyingCreams;
-  if (planData.swallowingTablets) formData.swallowingTablets = planData.swallowingTablets;
-  if (planData.understandingInstructions) formData.understandingInstructions = planData.understandingInstructions;
-  if (planData.managingInhalers) formData.managingInhalers = planData.managingInhalers;
-  if (planData.instillingDrops) formData.instillingDrops = planData.instillingDrops;
-  // Skin integrity
-  if (planData.skinIntegrityRisk) {
-    formData.skinIntegrityRisk = planData.skinIntegrityRisk.toLowerCase().includes("yes") ? "Yes" : "No";
+  const r2 = planData.riskSection2Medication || {};
+  if (r2.prescriptionOrdering) formData.orderCollectPrescriptions = r2.prescriptionOrdering;
+  if (r2.dosageSystem) formData.dosageSystem = r2.dosageSystem;
+  if (r2.systemMaintainer) formData.systemMaintainer = r2.systemMaintainer;
+  if (r2.medicationStorage) formData.medicationStorage = r2.medicationStorage;
+  if (r2.currentInvestigations) formData.currentInvestigations = r2.currentInvestigations;
+  if (r2.surplusMedication) formData.surplusOutOfDate = r2.surplusMedication;
+  if (r2.medicationConcerns) formData.medicationConcerns = r2.medicationConcerns;
+  if (r2.homeopathicMeds) formData.herbalMedicines = r2.homeopathicMeds;
+  if (r2.prnMedication) formData.takingPRN = extractSingleValue(r2.prnMedication);
+  if (r2.covertMedication) formData.covertMedication = extractSingleValue(r2.covertMedication);
+  // Medication difficulties - ensure single value YES/NO/N/A
+  if (r2.pickingUpTablets) formData.pickingUpTablets = extractSingleValue(r2.pickingUpTablets);
+  if (r2.openingBoxes) formData.openingBoxes = extractSingleValue(r2.openingBoxes);
+  if (r2.pouringLiquids) formData.openingLiquids = extractSingleValue(r2.pouringLiquids);
+  if (r2.usingDosageSystem) formData.usingDosageSystem = extractSingleValue(r2.usingDosageSystem);
+  if (r2.applyingCreams) formData.applyingCreams = extractSingleValue(r2.applyingCreams);
+  if (r2.swallowingTablets) formData.swallowingTablets = extractSingleValue(r2.swallowingTablets);
+  if (r2.understandingInstructions) formData.understandingInstructions = extractSingleValue(r2.understandingInstructions);
+  if (r2.managingInhalers) formData.managingInhalers = extractSingleValue(r2.managingInhalers);
+  if (r2.instillingDrops) formData.instillingDrops = extractSingleValue(r2.instillingDrops);
+  // Skin integrity (lives under medication section in the form)
+  if (r2.skinIntegrity) {
+    formData.skinIntegrityRisk = extractSingleValue(r2.skinIntegrity).toLowerCase().includes("yes") ? "Yes" : "No";
   }
-  if (planData.skinIntegrityDetails) formData.skinIntegrityDetails = planData.skinIntegrityDetails;
+  if (r2.skinDetails) formData.skinIntegrityDetails = r2.skinDetails;
+  if (r2.pictureConsent) {
+    formData.pictureConsent = extractSingleValue(r2.pictureConsent).toLowerCase().includes("yes") ? "Yes" : "No";
+  }
+  if (r2.bodyMapCompleted) {
+    formData.bodyMapCompleted = extractSingleValue(r2.bodyMapCompleted).toLowerCase().includes("yes") ? "Yes" : "No";
+  }
   
   // === Risk Section 3: Nutrition ===
-  if (planData.mealAssistance) {
-    formData.mealAssistance = planData.mealAssistance.toLowerCase().includes("yes") ? "Yes" : "No";
+  const r3 = planData.riskSection3Nutrition || {};
+  if (r3.mealAssistance) {
+    formData.mealAssistance = extractSingleValue(r3.mealAssistance).toLowerCase().includes("yes") ? "Yes" : "No";
   }
-  if (planData.normalDiet) formData.normalDiet = planData.normalDiet;
-  if (planData.specialDietary) formData.specialDietary = planData.specialDietary;
-  if (planData.foodAllergies) formData.foodAllergies = planData.foodAllergies;
-  if (planData.softDiet) formData.softDiet = planData.softDiet;
-  if (planData.foodIntolerances) formData.foodIntolerances = planData.foodIntolerances;
-  if (planData.tubeFeed) formData.tubeFeed = planData.tubeFeed;
-  if (planData.supplementaryFoods) formData.supplementaryFoods = planData.supplementaryFoods;
+  if (r3.normalDiet) formData.normalDiet = extractSingleValue(r3.normalDiet);
+  if (r3.normalDietDetails) formData.normalDietDetails = r3.normalDietDetails;
+  if (r3.specialDietary) formData.specialDietary = extractSingleValue(r3.specialDietary);
+  if (r3.specialDietaryDetails) formData.specialDietaryDetails = r3.specialDietaryDetails;
+  if (r3.foodAllergies) formData.foodAllergies = extractSingleValue(r3.foodAllergies);
+  if (r3.foodAllergiesDetails) formData.foodAllergiesDetails = r3.foodAllergiesDetails;
+  if (r3.softDiet) formData.softDiet = extractSingleValue(r3.softDiet);
+  if (r3.softDietDetails) formData.softDietDetails = r3.softDietDetails;
+  if (r3.foodIntolerances) formData.foodIntolerances = extractSingleValue(r3.foodIntolerances);
+  if (r3.foodIntolerancesDetails) formData.foodIntolerancesDetails = r3.foodIntolerancesDetails;
+  if (r3.tubeFeed) formData.tubeFeed = extractSingleValue(r3.tubeFeed);
+  if (r3.tubeFeedDetails) formData.tubeFeedDetails = r3.tubeFeedDetails;
+  if (r3.supplementaryFoods) formData.supplementaryFoods = extractSingleValue(r3.supplementaryFoods);
+  if (r3.supplementaryFoodsDetails) formData.supplementaryFoodsDetails = r3.supplementaryFoodsDetails;
   // Combine food likes/dislikes
   const foodPrefs = [];
-  if (planData.foodLikes) foodPrefs.push(`Foods I like: ${planData.foodLikes}`);
-  if (planData.foodDislikes) foodPrefs.push(`Foods I dislike: ${planData.foodDislikes}`);
+  if (r3.foodLikes) foodPrefs.push(`Foods I like: ${r3.foodLikes}`);
+  if (r3.foodDislikes) foodPrefs.push(`Foods I dislike: ${r3.foodDislikes}`);
   if (foodPrefs.length > 0) formData.foodLikesDislikes = foodPrefs.join("\n\n");
-  if (planData.portionSize) formData.portionSizes = planData.portionSize;
-  if (planData.mainMealTime) formData.mainMealTime = planData.mainMealTime;
-  if (planData.fluidIntake) formData.fluidIntake = planData.fluidIntake;
+  if (r3.portionSize) formData.portionSizes = r3.portionSize;
+  if (r3.mainMealTime) formData.mainMealTime = r3.mainMealTime;
+  if (r3.fluidIntake) formData.fluidIntake = r3.fluidIntake;
   
   // === Risk Section 4: Equipment ===
-  if (planData.equipment && Array.isArray(planData.equipment)) {
-    formData.equipment = planData.equipment.map((eq) => ({
+  const r4 = planData.riskSection4Equipment || {};
+  if (r4.equipment && Array.isArray(r4.equipment)) {
+    formData.equipment = r4.equipment.map((eq) => ({
       name: eq.name || "",
-      fitForPurpose: eq.fitForPurpose || "",
+      fitForPurpose: extractSingleValue(eq.fitForPurpose) || "",
       supplier: eq.supplier || "",
       nextService: eq.nextService || "",
     }));
   }
-  if (planData.equipmentRemedialAction) formData.remedialAction = planData.equipmentRemedialAction;
+  if (r4.remedialAction) formData.remedialAction = r4.remedialAction;
   
   // === Risk Section 5: Mobility ===
-  if (planData.weightBearing) formData.weightBearing = planData.weightBearing;
-  if (planData.weightBearingDetails) formData.weightBearingDetails = planData.weightBearingDetails;
-  if (planData.walking) formData.walking = planData.walking;
-  if (planData.walkingDetails) formData.walkingDetails = planData.walkingDetails;
-  if (planData.stairs) formData.stairs = planData.stairs;
-  if (planData.stairsDetails) formData.stairsDetails = planData.stairsDetails;
-  if (planData.sitToStand) formData.sitToStand = planData.sitToStand;
-  if (planData.sitToStandDetails) formData.sitToStandDetails = planData.sitToStandDetails;
-  if (planData.washing) formData.washing = planData.washing;
-  if (planData.washingDetails) formData.washingDetails = planData.washingDetails;
-  if (planData.dressing) formData.dressing = planData.dressing;
-  if (planData.dressingDetails) formData.dressingDetails = planData.dressingDetails;
-  if (planData.oralCare) formData.oralCare = planData.oralCare;
-  if (planData.oralCareDetails) formData.oralCareDetails = planData.oralCareDetails;
-  if (planData.bathShower) formData.bathShower = planData.bathShower;
-  if (planData.toiletCommode) formData.toiletCommode = planData.toiletCommode;
-  if (planData.wheelchair) formData.wheelchair = planData.wheelchair;
-  if (planData.transfers) formData.transfers = planData.transfers;
-  if (planData.moveInBed) formData.moveInBed = planData.moveInBed;
-  if (planData.inOutOfBed) formData.inOutOfBed = planData.inOutOfBed;
-  if (planData.canBeLeftAlone) formData.canBeLeftAlone = planData.canBeLeftAlone;
-  if (planData.proneToFalls) formData.proneToFalls = planData.proneToFalls;
+  const r5 = planData.riskSection5Mobility || {};
+  if (r5.weightBearing) formData.weightBearing = extractSingleValue(r5.weightBearing);
+  if (r5.weightBearingDetails) formData.weightBearingDetails = r5.weightBearingDetails;
+  if (r5.walking) formData.walking = extractSingleValue(r5.walking);
+  if (r5.walkingDetails) formData.walkingDetails = r5.walkingDetails;
+  if (r5.stairs) formData.stairs = extractSingleValue(r5.stairs);
+  if (r5.stairsDetails) formData.stairsDetails = r5.stairsDetails;
+  if (r5.sitToStand) formData.sitToStand = extractSingleValue(r5.sitToStand);
+  if (r5.sitToStandDetails) formData.sitToStandDetails = r5.sitToStandDetails;
+  if (r5.washing) formData.washing = extractSingleValue(r5.washing);
+  if (r5.washingDetails) formData.washingDetails = r5.washingDetails;
+  if (r5.dressing) formData.dressing = extractSingleValue(r5.dressing);
+  if (r5.dressingDetails) formData.dressingDetails = r5.dressingDetails;
+  if (r5.oralCare) formData.oralCare = extractSingleValue(r5.oralCare);
+  if (r5.oralCareDetails) formData.oralCareDetails = r5.oralCareDetails;
+  if (r5.bathShower) formData.bathShower = extractSingleValue(r5.bathShower);
+  if (r5.bathShowerDetails) formData.bathShowerDetails = r5.bathShowerDetails;
+  if (r5.toiletCommode) formData.toiletCommode = extractSingleValue(r5.toiletCommode);
+  if (r5.toiletCommodeDetails) formData.toiletCommodeDetails = r5.toiletCommodeDetails;
+  if (r5.wheelchair) formData.wheelchair = extractSingleValue(r5.wheelchair);
+  if (r5.wheelchairDetails) formData.wheelchairDetails = r5.wheelchairDetails;
+  if (r5.transfers) formData.transfers = extractSingleValue(r5.transfers);
+  if (r5.transfersDetails) formData.transfersDetails = r5.transfersDetails;
+  if (r5.moveInBed) formData.moveInBed = extractSingleValue(r5.moveInBed);
+  if (r5.moveInBedDetails) formData.moveInBedDetails = r5.moveInBedDetails;
+  if (r5.inOutOfBed) formData.inOutOfBed = extractSingleValue(r5.inOutOfBed);
+  if (r5.inOutOfBedDetails) formData.inOutOfBedDetails = r5.inOutOfBedDetails;
+  if (r5.chairToWheelchair) formData.chairToWheelchair = extractSingleValue(r5.chairToWheelchair);
+  if (r5.chairToWheelchairDetails) formData.chairToWheelchairDetails = r5.chairToWheelchairDetails;
+  if (r5.inOutOfCar) formData.inOutOfCar = extractSingleValue(r5.inOutOfCar);
+  if (r5.inOutOfCarDetails) formData.inOutOfCarDetails = r5.inOutOfCarDetails;
+  if (r5.otherTransfers) formData.otherTransfers = extractSingleValue(r5.otherTransfers);
+  if (r5.otherTransfersDetails) formData.otherTransfersDetails = r5.otherTransfersDetails;
+  if (r5.communityAccess) formData.communityAccess = extractSingleValue(r5.communityAccess);
+  if (r5.communityAccessDetails) formData.communityAccessDetails = r5.communityAccessDetails;
+  if (r5.specialistEquipment) formData.specialistEquipment = extractSingleValue(r5.specialistEquipment);
+  if (r5.specialistEquipmentDetails) formData.specialistEquipmentDetails = r5.specialistEquipmentDetails;
+  if (r5.canBeLeftAlone) formData.canBeLeftAlone = extractSingleValue(r5.canBeLeftAlone);
+  if (r5.canBeLeftAloneDetails) formData.canBeLeftAloneDetails = r5.canBeLeftAloneDetails;
+  if (r5.proneToFalls) formData.proneToFalls = extractSingleValue(r5.proneToFalls);
+  if (r5.proneToFallsDetails) formData.proneToFallsDetails = r5.proneToFallsDetails;
   
   // === Risk Section 6: Appliances ===
-  if (planData.cooker) formData.cooker = planData.cooker;
-  if (planData.microwave) formData.microwave = planData.microwave;
-  if (planData.iron) formData.iron = planData.iron;
-  if (planData.kettle) formData.kettle = planData.kettle;
-  if (planData.toaster) formData.toaster = planData.toaster;
-  if (planData.tumbleDryer) formData.tumbleDryer = planData.tumbleDryer;
-  if (planData.floorCoverings) formData.floorCoverings = planData.floorCoverings;
-  if (planData.handGrabRails) formData.handGrabRails = planData.handGrabRails;
-  if (planData.electricBlanket) formData.electricBlanket = planData.electricBlanket;
-  if (planData.bed) formData.bed = planData.bed;
-  if (planData.washingMachine) formData.washingMachine = planData.washingMachine;
-  if (planData.centralHeating) formData.centralHeating = planData.centralHeating;
-  if (planData.appliancesActions) formData.appliancesActions = planData.appliancesActions;
+  const r6 = planData.riskSection6Appliances || {};
+  if (r6.cooker) formData.cooker = extractSingleValue(r6.cooker);
+  if (r6.microwave) formData.microwave = extractSingleValue(r6.microwave);
+  if (r6.iron) formData.iron = extractSingleValue(r6.iron);
+  if (r6.kettle) formData.kettle = extractSingleValue(r6.kettle);
+  if (r6.toaster) formData.toaster = extractSingleValue(r6.toaster);
+  if (r6.tumbleDryer) formData.tumbleDryer = extractSingleValue(r6.tumbleDryer);
+  if (r6.floorCoverings) formData.floorCoverings = extractSingleValue(r6.floorCoverings);
+  if (r6.handRails) formData.handGrabRails = extractSingleValue(r6.handRails);
+  if (r6.electricBlanket) formData.electricBlanket = extractSingleValue(r6.electricBlanket);
+  if (r6.bed) formData.bed = extractSingleValue(r6.bed);
+  if (r6.washingMachine) formData.washingMachine = extractSingleValue(r6.washingMachine);
+  if (r6.centralHeating) formData.centralHeating = extractSingleValue(r6.centralHeating);
+  if (r6.actionsRequired) formData.appliancesActions = r6.actionsRequired;
   
   // === Risk Section 7: Fire Safety ===
-  if (planData.atRiskOfFire) {
-    formData.atRiskOfFire = planData.atRiskOfFire.toLowerCase().includes("yes") ? "Yes" : "No";
+  const r7 = planData.riskSection7Fire || {};
+  if (r7.atRisk) {
+    formData.atRiskOfFire = extractSingleValue(r7.atRisk).toLowerCase().includes("yes") ? "Yes" : "No";
   }
-  if (planData.fireRiskReason) formData.fireRiskReason = planData.fireRiskReason;
-  if (planData.ragRating) formData.ragRating = planData.ragRating;
-  if (planData.plugSockets) formData.plugSockets = planData.plugSockets;
-  if (planData.electricCables) formData.electricCables = planData.electricCables;
-  if (planData.smokingPolicy) {
-    formData.smokingPolicy = planData.smokingPolicy.toLowerCase().includes("yes") ? "Yes" : "No";
+  // riskReasons is an array for multi-select
+  if (r7.riskReasons && Array.isArray(r7.riskReasons)) {
+    formData.fireRiskReason = r7.riskReasons;
+  } else if (r7.riskReason) {
+    // Legacy: single string, split by comma
+    formData.fireRiskReason = r7.riskReason.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
   }
-  if (planData.smokeAlarmLocation) formData.smokeAlarmLocation = planData.smokeAlarmLocation;
-  if (planData.smokeAlarmWorking) {
-    formData.smokeAlarmWorking = planData.smokeAlarmWorking.toLowerCase().includes("yes") ? "Yes" : "No";
+  if (r7.ragRating) formData.ragRating = extractSingleValue(r7.ragRating);
+  if (r7.plugSockets) formData.plugSockets = extractSingleValue(r7.plugSockets);
+  if (r7.electricCables) formData.electricCables = extractSingleValue(r7.electricCables);
+  if (r7.smokingPolicy) {
+    formData.smokingPolicy = extractSingleValue(r7.smokingPolicy).toLowerCase().includes("yes") ? "Yes" : "No";
   }
-  if (planData.coDetectorLocation) formData.coDetectorLocation = planData.coDetectorLocation;
-  if (planData.coDetectorWorking) {
-    formData.coDetectorWorking = planData.coDetectorWorking.toLowerCase().includes("yes") ? "Yes" : "No";
+  if (r7.smokeAlarmLocation) formData.smokeAlarmLocation = r7.smokeAlarmLocation;
+  if (r7.smokeAlarmWorking) {
+    formData.smokeAlarmWorking = extractSingleValue(r7.smokeAlarmWorking).toLowerCase().includes("yes") ? "Yes" : "No";
   }
-  if (planData.canEvacuate) formData.canEvacuate = planData.canEvacuate;
-  if (planData.fireActionsDetails) formData.fireActionsDetails = planData.fireActionsDetails;
+  if (r7.coDetectorLocation) formData.coDetectorLocation = r7.coDetectorLocation;
+  if (r7.coDetectorWorking) {
+    formData.coDetectorWorking = extractSingleValue(r7.coDetectorWorking).toLowerCase().includes("yes") ? "Yes" : "No";
+  }
+  if (r7.actionsTaken) formData.fireActionsTaken = extractSingleValue(r7.actionsTaken);
+  if (r7.actionsDetails) formData.fireActionsDetails = r7.actionsDetails;
+  // Legacy field name support
+  if (r7.actionsAndSafety && !r7.actionsDetails) formData.fireActionsDetails = r7.actionsAndSafety;
+  if (r7.canEvacuate) formData.canEvacuate = r7.canEvacuate;
   
   // === Risk Section 8: COSHH ===
-  if (planData.cleaningMaterialsStorage) formData.cleaningMaterialsStorage = planData.cleaningMaterialsStorage;
+  const r8 = planData.riskSection8COSHH || {};
+  if (r8.cleaningStorage) formData.cleaningMaterialsStorage = r8.cleaningStorage;
   
   // === Risk Section 9: External Access ===
-  if (planData.access) formData.access = planData.access;
-  if (planData.clearPathways) formData.clearPathways = planData.clearPathways;
-  if (planData.handrails) formData.handrails = planData.handrails;
-  if (planData.entranceSteps) formData.entranceSteps = planData.entranceSteps;
-  if (planData.lighting) formData.lighting = planData.lighting;
-  if (planData.ramps) formData.ramps = planData.ramps;
-  if (planData.personalSecurity) formData.personalSecurity = planData.personalSecurity;
-  if (planData.parking) formData.parking = planData.parking;
-  if (planData.externalActionsRequired) formData.externalActions = planData.externalActionsRequired;
+  const r9 = planData.riskSection9External || {};
+  if (r9.access) formData.access = extractSingleValue(r9.access);
+  if (r9.clearPathways) formData.clearPathways = extractSingleValue(r9.clearPathways);
+  if (r9.handrails) formData.handrails = extractSingleValue(r9.handrails);
+  if (r9.entranceSteps) formData.entranceSteps = extractSingleValue(r9.entranceSteps);
+  if (r9.lighting) formData.lighting = extractSingleValue(r9.lighting);
+  if (r9.ramps) formData.ramps = extractSingleValue(r9.ramps);
+  if (r9.personalSecurity) formData.personalSecurity = extractSingleValue(r9.personalSecurity);
+  if (r9.parking) formData.parking = extractSingleValue(r9.parking);
+  if (r9.actionsRequired) formData.externalActions = r9.actionsRequired;
   
   // === Risk Section 10: Security ===
-  if (planData.meansOfAccess) formData.meansOfAccess = planData.meansOfAccess;
-  if (planData.propertyType) formData.propertyType = planData.propertyType;
-  if (planData.enterUsing) formData.enterUsing = planData.enterUsing;
-  if (planData.keysafeConsent) {
-    formData.keysafeConsent = planData.keysafeConsent.toLowerCase().includes("yes") ? "Yes" : "No";
+  const r10 = planData.riskSection10Security || {};
+  if (r10.meansOfAccess) formData.meansOfAccess = extractSingleValue(r10.meansOfAccess);
+  if (r10.propertyType) formData.propertyType = extractSingleValue(r10.propertyType);
+  if (r10.enterUsing) formData.enterUsing = extractSingleValue(r10.enterUsing);
+  if (r10.keysafeConsent) {
+    formData.keysafeConsent = extractSingleValue(r10.keysafeConsent).toLowerCase().includes("yes") ? "Yes" : "No";
   }
-  if (planData.gasShutOffLocation) formData.gasShutOffLocation = planData.gasShutOffLocation;
-  if (planData.stopTapLocation) formData.stopTapLocation = planData.stopTapLocation;
-  if (planData.fuseBoxLocation) formData.fuseBoxLocation = planData.fuseBoxLocation;
+  if (r10.gasShutOff) formData.gasShutOffLocation = r10.gasShutOff;
+  if (r10.stopTap) formData.stopTapLocation = r10.stopTap;
+  if (r10.fuseBox) formData.fuseBoxLocation = r10.fuseBox;
   
   // === Section 11: Service User Bands ===
+  const s11 = planData.section11Bands || {};
   const bandFields = [
     "personalCare", "mentalHealth", "physicalDisability", "dementia",
     "eatingDisorder", "sensoryImpairment", "detainedMHA", "drugAlcoholMisuse",
     "learningDifficulties"
   ];
   for (const field of bandFields) {
-    if (planData[field]) {
-      formData[field] = planData[field].toLowerCase().includes("yes") ? "Yes" : "No";
+    if (s11[field]) {
+      formData[field] = extractSingleValue(s11[field]).toLowerCase().includes("yes") ? "Yes" : "No";
     }
   }
   
@@ -993,22 +1155,139 @@ const fillInitialAssessment = async (data, metadata = {}) => {
   logAction("Care plan section complete");
   
   // Mental and Physical Health Section
+  // Communication, Hearing, Eyesight tables (select + details)
+  if (data.speech || data.speechDetails) {
+    await fillAssessmentTable(IA_FIELD_MAPPINGS.mentalPhysicalHealth.communicationTable, data.speech, data.speechDetails);
+  }
+  if (data.hearing || data.hearingDetails) {
+    await fillAssessmentTable(IA_FIELD_MAPPINGS.mentalPhysicalHealth.hearingTable, data.hearing, data.hearingDetails);
+  }
+  if (data.eyesight || data.eyesightDetails) {
+    await fillAssessmentTable(IA_FIELD_MAPPINGS.mentalPhysicalHealth.eyesightTable, data.eyesight, data.eyesightDetails);
+  }
+  // General Health tables
+  if (data.breathlessness || data.breathlessnessDetails) {
+    await fillAssessmentTable(IA_FIELD_MAPPINGS.mentalPhysicalHealth.generalHealthTable, data.breathlessness, data.breathlessnessDetails);
+  }
+  if (data.urinaryIncontinence || data.urinaryDetails) {
+    await fillAssessmentTable(IA_FIELD_MAPPINGS.mentalPhysicalHealth.urinaryIncontinenceTable, data.urinaryIncontinence, data.urinaryDetails);
+  }
+  if (data.faecalIncontinence || data.faecalDetails) {
+    await fillAssessmentTable(IA_FIELD_MAPPINGS.mentalPhysicalHealth.faecalIncontinenceTable, data.faecalIncontinence, data.faecalDetails);
+  }
+  // Mental health dropdowns (direct select fields)
   if (data.memory) await setSelectValue(IA_FIELD_MAPPINGS.mentalPhysicalHealth.memory, data.memory);
   if (data.moods) await setSelectValue(IA_FIELD_MAPPINGS.mentalPhysicalHealth.moods, data.moods);
   if (data.orientation) await setSelectValue(IA_FIELD_MAPPINGS.mentalPhysicalHealth.orientation, data.orientation);
   if (data.sleepPattern) await setSelectValue(IA_FIELD_MAPPINGS.mentalPhysicalHealth.sleepPattern, data.sleepPattern);
   if (data.behaviours) await setSelectValue(IA_FIELD_MAPPINGS.mentalPhysicalHealth.behaviours, data.behaviours);
+  // Mental capacity radios
   if (data.understandsInfo) await setRadioValue(IA_FIELD_MAPPINGS.mentalPhysicalHealth.understandsInfo, data.understandsInfo);
   if (data.retainsInfo) await setRadioValue(IA_FIELD_MAPPINGS.mentalPhysicalHealth.retainsInfo, data.retainsInfo);
   if (data.contemplatesProsAndCons) await setRadioValue(IA_FIELD_MAPPINGS.mentalPhysicalHealth.contemplatesProsAndCons, data.contemplatesProsAndCons);
   if (data.communicatesDecision) await setRadioValue(IA_FIELD_MAPPINGS.mentalPhysicalHealth.communicatesDecision, data.communicatesDecision);
   if (data.actionsComments) await setTextValue(IA_FIELD_MAPPINGS.mentalPhysicalHealth.actionsComments, data.actionsComments);
   
+  logAction("Mental and physical health section complete");
+  
+  // Medication Section
+  if (data.orderCollectPrescriptions) await setTextValue(IA_FIELD_MAPPINGS.medication.orderCollectPrescriptions, data.orderCollectPrescriptions);
+  if (data.dosageSystem) await setTextValue(IA_FIELD_MAPPINGS.medication.dosageSystem, data.dosageSystem);
+  if (data.systemMaintainer) await setTextValue(IA_FIELD_MAPPINGS.medication.systemMaintainer, data.systemMaintainer);
+  if (data.medicationStorage) await setTextValue(IA_FIELD_MAPPINGS.medication.medicationStorage, data.medicationStorage);
+  if (data.currentInvestigations) await setTextValue(IA_FIELD_MAPPINGS.medication.currentInvestigations, data.currentInvestigations);
+  if (data.surplusOutOfDate) await setTextValue(IA_FIELD_MAPPINGS.medication.surplusOutOfDate, data.surplusOutOfDate);
+  if (data.medicationConcerns) await setTextValue(IA_FIELD_MAPPINGS.medication.medicationConcerns, data.medicationConcerns);
+  if (data.herbalMedicines) await setTextValue(IA_FIELD_MAPPINGS.medication.herbalMedicines, data.herbalMedicines);
+  if (data.takingPRN) await setRadioValue(IA_FIELD_MAPPINGS.medication.takingPRN, data.takingPRN);
+  if (data.covertMedication) await setRadioValue(IA_FIELD_MAPPINGS.medication.covertMedication, data.covertMedication);
+  // Medication difficulties (radio YES/NO/N/A)
+  if (data.pickingUpTablets) await setRadioValue(IA_FIELD_MAPPINGS.medication.pickingUpTablets, data.pickingUpTablets);
+  if (data.openingBoxes) await setRadioValue(IA_FIELD_MAPPINGS.medication.openingBoxes, data.openingBoxes);
+  if (data.openingLiquids) await setRadioValue(IA_FIELD_MAPPINGS.medication.openingLiquids, data.openingLiquids);
+  if (data.usingDosageSystem) await setRadioValue(IA_FIELD_MAPPINGS.medication.usingDosageSystem, data.usingDosageSystem);
+  if (data.applyingCreams) await setRadioValue(IA_FIELD_MAPPINGS.medication.applyingCreams, data.applyingCreams);
+  if (data.swallowingTablets) await setRadioValue(IA_FIELD_MAPPINGS.medication.swallowingTablets, data.swallowingTablets);
+  if (data.understandingInstructions) await setRadioValue(IA_FIELD_MAPPINGS.medication.understandingInstructions, data.understandingInstructions);
+  if (data.managingInhalers) await setRadioValue(IA_FIELD_MAPPINGS.medication.managingInhalers, data.managingInhalers);
+  if (data.instillingDrops) await setRadioValue(IA_FIELD_MAPPINGS.medication.instillingDrops, data.instillingDrops);
+  
+  logAction("Medication section complete");
+  
   // Skin Integrity
   if (data.skinIntegrityRisk) await setRadioValue(IA_FIELD_MAPPINGS.skinIntegrity.atRisk, data.skinIntegrityRisk);
   if (data.skinIntegrityDetails) await setTextValue(IA_FIELD_MAPPINGS.skinIntegrity.actionsDetails, data.skinIntegrityDetails);
   if (data.pictureConsent) await setRadioValue(IA_FIELD_MAPPINGS.skinIntegrity.pictureConsent, data.pictureConsent);
   if (data.bodyMapCompleted) await setRadioValue(IA_FIELD_MAPPINGS.skinIntegrity.bodyMapCompleted, data.bodyMapCompleted);
+  
+  // Nutrition Section (assessment tables with Yes/No select + details textarea)
+  if (data.mealAssistance) await setRadioValue(IA_FIELD_MAPPINGS.nutrition.mealAssistance, data.mealAssistance);
+  if (data.normalDiet || data.normalDietDetails) {
+    await fillAssessmentTable(IA_FIELD_MAPPINGS.nutrition.normalDietTable, data.normalDiet, data.normalDietDetails);
+  }
+  if (data.specialDietary || data.specialDietaryDetails) {
+    await fillAssessmentTable(IA_FIELD_MAPPINGS.nutrition.specialDietaryTable, data.specialDietary, data.specialDietaryDetails);
+  }
+  if (data.foodAllergies || data.foodAllergiesDetails) {
+    await fillAssessmentTable(IA_FIELD_MAPPINGS.nutrition.foodAllergiesTable, data.foodAllergies, data.foodAllergiesDetails);
+  }
+  if (data.softDiet || data.softDietDetails) {
+    await fillAssessmentTable(IA_FIELD_MAPPINGS.nutrition.softDietTable, data.softDiet, data.softDietDetails);
+  }
+  if (data.foodIntolerances || data.foodIntolerancesDetails) {
+    await fillAssessmentTable(IA_FIELD_MAPPINGS.nutrition.foodIntoleranceTable, data.foodIntolerances, data.foodIntolerancesDetails);
+  }
+  if (data.tubeFeed || data.tubeFeedDetails) {
+    await fillAssessmentTable(IA_FIELD_MAPPINGS.nutrition.tubeFeedTable, data.tubeFeed, data.tubeFeedDetails);
+  }
+  if (data.supplementaryFoods || data.supplementaryFoodsDetails) {
+    await fillAssessmentTable(IA_FIELD_MAPPINGS.nutrition.supplementaryTable, data.supplementaryFoods, data.supplementaryFoodsDetails);
+  }
+  if (data.foodLikesDislikes) await setTextValue(IA_FIELD_MAPPINGS.nutrition.foodLikesDislikes, data.foodLikesDislikes);
+  if (data.portionSizes) await setTextValue(IA_FIELD_MAPPINGS.nutrition.portionSizes, data.portionSizes);
+  if (data.mainMealTime) await setTextValue(IA_FIELD_MAPPINGS.nutrition.mainMealTime, data.mainMealTime);
+  if (data.fluidIntake) await setTextValue(IA_FIELD_MAPPINGS.nutrition.fluidIntake, data.fluidIntake);
+  
+  logAction("Nutrition section complete");
+  
+  // Equipment Section
+  if (data.equipment && Array.isArray(data.equipment)) {
+    await fillTableRows(IA_FIELD_MAPPINGS.equipment.equipmentTable, data.equipment);
+  }
+  if (data.remedialAction) await setTextValue(IA_FIELD_MAPPINGS.equipment.remedialAction, data.remedialAction);
+  
+  logAction("Equipment section complete");
+  
+  // Mobility Section (each assessment is a separate table with select + details)
+  const mobilityTableFills = [
+    ["weightBearing", "weightBearingDetails", "weightBareTable"],
+    ["walking", "walkingDetails", "walkingTable"],
+    ["stairs", "stairsDetails", "stairsStepsTable"],
+    ["sitToStand", "sitToStandDetails", "sitToStandTable"],
+    ["washing", "washingDetails", "washingTable"],
+    ["dressing", "dressingDetails", "dressingTable"],
+    ["oralCare", "oralCareDetails", "oralCareTable"],
+    ["bathShower", "bathShowerDetails", "bathShowerTable"],
+    ["toiletCommode", "toiletCommodeDetails", "toiletCommodeTable"],
+    ["wheelchair", "wheelchairDetails", "wheelchairTable"],
+    ["transfers", "transfersDetails", "transfersTable"],
+    ["moveInBed", "moveInBedDetails", "moveInBedTable"],
+    ["inOutOfBed", "inOutOfBedDetails", "inOutOfBedTable"],
+    ["chairToWheelchair", "chairToWheelchairDetails", "chairToWheelchairTable"],
+    ["inOutOfCar", "inOutOfCarDetails", "inOutOfCarTable"],
+    ["otherTransfers", "otherTransfersDetails", "otherTransfersTable"],
+    ["communityAccess", "communityAccessDetails", "communityAccessTable"],
+    ["specialistEquipment", "specialistEquipmentDetails", "specialistEquipmentTable"],
+    ["canBeLeftAlone", "canBeLeftAloneDetails", "leftAloneTable"],
+    ["proneToFalls", "proneToFallsDetails", "proneToFallsTable"],
+  ];
+  for (const [valueKey, detailsKey, tableKey] of mobilityTableFills) {
+    if (data[valueKey] || data[detailsKey]) {
+      await fillAssessmentTable(IA_FIELD_MAPPINGS.mobility[tableKey], data[valueKey], data[detailsKey]);
+    }
+  }
+  
+  logAction("Mobility section complete");
   
   logAction("Health sections complete");
   
@@ -1046,6 +1325,26 @@ const fillInitialAssessment = async (data, metadata = {}) => {
   
   // COSHH Section
   if (data.cleaningMaterialsStorage) await setTextValue(IA_FIELD_MAPPINGS.coshh.cleaningMaterialsStorage, data.cleaningMaterialsStorage);
+  
+  // External Safety Section (each item is a table with location select + assessment select)
+  const externalTableFills = [
+    ["access", "accessTable"],
+    ["clearPathways", "pathwaysTable"],
+    ["handrails", "externalRailsTable"],
+    ["entranceSteps", "entranceStepsTable"],
+    ["lighting", "lightingTable"],
+    ["ramps", "rampsTable"],
+    ["personalSecurity", "personalSecurityTable"],
+    ["parking", "parkingTable"],
+  ];
+  for (const [dataKey, tableKey] of externalTableFills) {
+    if (data[dataKey]) {
+      await fillAssessmentTable(IA_FIELD_MAPPINGS.externalSafety[tableKey], data[dataKey], null);
+    }
+  }
+  if (data.externalActions) await setTextValue(IA_FIELD_MAPPINGS.externalSafety.externalActions, data.externalActions);
+  
+  logAction("External safety section complete");
   
   // Security/Access Section
   if (data.keysafeConsent) await setRadioValue(IA_FIELD_MAPPINGS.securityAccess.keysafeConsent, data.keysafeConsent);

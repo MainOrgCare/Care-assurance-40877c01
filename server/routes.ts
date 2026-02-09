@@ -35,6 +35,7 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
 import { extractFromRawCalls, getExpiryDate, type RawCallRecord } from "./services/serviceOrderBuilder";
 import { getPgPoolConfig } from "./utils/pgPoolConfig";
+import { validatePlanEnhancerResponse, autoCorrectPlanEnhancerResponse, generateValidationReport } from "./utils/planEnhancerValidator";
 // Vision-based extraction for improved EMAR accuracy
 
 const execFileAsync = promisify(execFile);
@@ -15529,29 +15530,29 @@ PRIORITY STRATEGY FOR MAXIMUM COMPLETION:
     "financialArrangements": "Finance management details"
   },
   "riskSection1Health": {
-    "speech": "Good/Impaired/Uses device",
-    "speechDetails": "Details of speech",
-    "hearing": "Good/Impaired/Uses aids",
-    "hearingDetails": "Hearing details",
-    "eyesight": "Good/Impaired/Uses glasses",
-    "eyesightDetails": "Eyesight details",
-    "breathlessness": "None/Mild/Moderate/Severe",
-    "breathlessnessDetails": "Breathing details",
-    "urinaryIncontinence": "None/Occasional/Frequent",
-    "urinaryDetails": "Continence details",
-    "faecalIncontinence": "None/Occasional/Frequent",
-    "faecalDetails": "Details",
-    "memory": "Good/Fair/Poor",
-    "moods": "Stable/Variable/Low",
-    "orientation": "Good/Confused at times/Disorientated",
-    "sleepPattern": "Good/Disturbed/Poor",
-    "behaviours": "None/Occasional/Frequent concerns",
-    "understandsInfo": "Yes/Partially/No",
-    "retainsInfo": "Yes/Partially/No",
-    "weighsDecision": "Yes/Partially/No",
-    "communicatesDecision": "Yes/Partially/No",
+    "speech": "EXACTLY ONE OF: Good / Fair / Very Poor / Severe Loss",
+    "speechDetails": "Details of speech and any devices used",
+    "hearing": "EXACTLY ONE OF: Good / Fair / Very Poor / Severe Loss",
+    "hearingDetails": "Hearing details and any aids used",
+    "eyesight": "EXACTLY ONE OF: Good / Fair / Very Poor / Severe Loss",
+    "eyesightDetails": "Eyesight details and any glasses/aids used",
+    "breathlessness": "EXACTLY ONE OF: Independent / Use of Resources",
+    "breathlessnessDetails": "Breathing details and resources used",
+    "urinaryIncontinence": "EXACTLY ONE OF: Independent / Use of Resources",
+    "urinaryDetails": "Continence details and resources used",
+    "faecalIncontinence": "EXACTLY ONE OF: Independent / Use of Resources",
+    "faecalDetails": "Details and resources used",
+    "memory": "EXACTLY ONE OF: Good / Forgetful / Very Poor / Severe Loss",
+    "moods": "EXACTLY ONE OF: Stable / Anxious / Depressed / Unstable",
+    "orientation": "EXACTLY ONE OF: Full / Not always / Unaware / Disoriented",
+    "sleepPattern": "EXACTLY ONE OF: Good / Fair / Wakes often / Sleeps little",
+    "behaviours": "EXACTLY ONE OF: Good / Uncooperative / Unpredictable / Aggressive",
+    "understandsInfo": "EXACTLY ONE OF: Yes / Partially / No",
+    "retainsInfo": "EXACTLY ONE OF: Yes / Partially / No",
+    "weighsDecision": "EXACTLY ONE OF: Yes / Partially / No",
+    "communicatesDecision": "EXACTLY ONE OF: Yes / Partially / No",
     "capacityDetails": "Capacity assessment details",
-    "riskLevel": "Low/Medium/High",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
     "riskPrevention": "Prevention measures"
   },
   "riskSection2Medication": {
@@ -15563,128 +15564,164 @@ PRIORITY STRATEGY FOR MAXIMUM COMPLETION:
     "surplusMedication": "Yes/No surplus",
     "medicationConcerns": "Any concerns",
     "homeopathicMeds": "Herbal/OTC medications",
-    "prnMedication": "Yes/No and details",
-    "covertMedication": "Yes/No",
-    "pickingUpTablets": "Yes/No difficulty",
-    "openingBoxes": "Yes/No difficulty",
-    "pouringLiquids": "Yes/No difficulty",
-    "usingDosageSystem": "Yes/No difficulty",
-    "applyingCreams": "Yes/No difficulty",
-    "swallowingTablets": "Yes/No difficulty",
-    "understandingInstructions": "Yes/No difficulty",
-    "managingInhalers": "Yes/No difficulty",
-    "instillingDrops": "Yes/No difficulty",
+    "prnMedication": "EXACTLY ONE OF: Yes / No / N/A",
+    "covertMedication": "EXACTLY ONE OF: Yes / No",
+    "pickingUpTablets": "EXACTLY ONE OF: YES / NO / N/A",
+    "openingBoxes": "EXACTLY ONE OF: YES / NO / N/A",
+    "pouringLiquids": "EXACTLY ONE OF: YES / NO / N/A",
+    "usingDosageSystem": "EXACTLY ONE OF: YES / NO / N/A",
+    "applyingCreams": "EXACTLY ONE OF: YES / NO / N/A",
+    "swallowingTablets": "EXACTLY ONE OF: YES / NO / N/A",
+    "understandingInstructions": "EXACTLY ONE OF: YES / NO / N/A",
+    "managingInhalers": "EXACTLY ONE OF: YES / NO / N/A",
+    "instillingDrops": "EXACTLY ONE OF: YES / NO / N/A",
     "controlledDrugs": "Details if any",
     "warfarin": "Details if applicable",
-    "skinIntegrity": "Yes/No at risk",
-    "skinDetails": "Skin concerns",
-    "riskLevel": "Low/Medium/High",
+    "skinIntegrity": "EXACTLY ONE OF: Yes / No",
+    "skinDetails": "Skin concerns and actions taken",
+    "pictureConsent": "EXACTLY ONE OF: Yes / No",
+    "bodyMapCompleted": "EXACTLY ONE OF: Yes / No",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
     "riskPrevention": "Prevention measures"
   },
   "riskSection3Nutrition": {
-    "mealAssistance": "Yes/No",
-    "normalDiet": "Normal diet details",
-    "specialDietary": "Special requirements",
-    "foodAllergies": "Allergies",
-    "softDiet": "Yes/No soft diet",
-    "foodIntolerances": "Intolerances",
-    "tubeFeed": "Yes/No",
-    "supplementaryFoods": "Thickeners/supplements",
+    "mealAssistance": "EXACTLY ONE OF: Yes / No",
+    "normalDiet": "EXACTLY ONE OF: Yes / No",
+    "normalDietDetails": "Normal diet details if Yes",
+    "specialDietary": "EXACTLY ONE OF: Yes / No",
+    "specialDietaryDetails": "Special requirements details if Yes",
+    "foodAllergies": "EXACTLY ONE OF: Yes / No",
+    "foodAllergiesDetails": "Allergy details if Yes",
+    "softDiet": "EXACTLY ONE OF: Yes / No",
+    "softDietDetails": "Soft diet details if Yes",
+    "foodIntolerances": "EXACTLY ONE OF: Yes / No",
+    "foodIntolerancesDetails": "Intolerance details if Yes",
+    "tubeFeed": "EXACTLY ONE OF: Yes / No",
+    "tubeFeedDetails": "Tube feed details if Yes",
+    "supplementaryFoods": "EXACTLY ONE OF: Yes / No",
+    "supplementaryFoodsDetails": "Thickeners/supplements details if Yes",
     "foodLikes": "Foods I like",
     "foodDislikes": "Foods I dislike",
     "portionSize": "Portion preferences",
     "mainMealTime": "Preferred meal time",
     "fluidIntake": "Fluid preferences",
-    "riskLevel": "Low/Medium/High",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
     "riskPrevention": "Prevention measures"
   },
   "riskSection4Equipment": {
-    "equipment": [{"name": "Equipment", "fitForPurpose": "Yes/No", "supplier": "Name", "nextService": "Date"}],
+    "equipment": [{"name": "Equipment", "fitForPurpose": "EXACTLY ONE OF: Yes / No", "supplier": "Name", "nextService": "Date"}],
     "remedialAction": "Safety measures",
-    "riskLevel": "Low/Medium/High",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
     "riskPrevention": "Prevention measures"
   },
   "riskSection5Mobility": {
-    "weightBearing": "Full/Partial/None",
+    "weightBearing": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
     "weightBearingDetails": "Details",
-    "walking": "Independent/With aid/Unable",
+    "walking": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
     "walkingDetails": "Walking details",
-    "stairs": "Independent/With support/Unable",
+    "stairs": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable / No steps/stairs",
     "stairsDetails": "Stairs details",
-    "sitToStand": "Independent/Needs help",
+    "sitToStand": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
     "sitToStandDetails": "Details",
-    "washing": "Independent/Needs assistance",
+    "washing": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
     "washingDetails": "Washing support details",
-    "dressing": "Independent/Needs help",
+    "dressing": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
     "dressingDetails": "Dressing details",
-    "oralCare": "Independent/Needs help",
+    "oralCare": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
     "oralCareDetails": "Oral care details",
-    "bathShower": "Bath/Shower preference and support",
-    "toiletCommode": "Toilet support needed",
-    "wheelchair": "Yes/No and details",
-    "transfers": "How I transfer",
-    "moveInBed": "Bed mobility",
-    "inOutOfBed": "Bed transfers",
-    "canBeLeftAlone": "Yes/No and duration",
-    "proneToFalls": "Yes/No and history",
-    "riskLevel": "Low/Medium/High",
+    "bathShower": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "bathShowerDetails": "Bath/Shower preference and support details",
+    "toiletCommode": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "toiletCommodeDetails": "Toilet support details",
+    "wheelchair": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable / N/A",
+    "wheelchairDetails": "Wheelchair details",
+    "transfers": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable / N/A",
+    "transfersDetails": "How I transfer details",
+    "moveInBed": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "moveInBedDetails": "Bed mobility details",
+    "inOutOfBed": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "inOutOfBedDetails": "Bed transfers details",
+    "chairToWheelchair": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable / N/A",
+    "chairToWheelchairDetails": "Chair to wheelchair transfer details",
+    "inOutOfCar": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "inOutOfCarDetails": "Car transfer details",
+    "otherTransfers": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable / N/A",
+    "otherTransfersDetails": "Other transfer details",
+    "communityAccess": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "communityAccessDetails": "Community access details",
+    "specialistEquipment": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable / N/A",
+    "specialistEquipmentDetails": "Specialist equipment details",
+    "canBeLeftAlone": "EXACTLY ONE OF: Always / Long Period / Short Period / Not at all",
+    "canBeLeftAloneDetails": "Details about being left alone",
+    "proneToFalls": "EXACTLY ONE OF: Never / Occasionally / Often / Frequent",
+    "proneToFallsDetails": "Falls history and details",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
     "riskPrevention": "Prevention measures"
   },
   "riskSection6Appliances": {
-    "cooker": "Safe/Concerns/N/A",
-    "microwave": "Safe/Concerns/N/A",
-    "iron": "Safe/Concerns/N/A",
-    "kettle": "Safe/Concerns/N/A",
-    "toaster": "Safe/Concerns/N/A",
-    "tumbleDryer": "Safe/Concerns/N/A",
-    "floorCoverings": "Any hazards",
-    "handRails": "In place",
-    "electricBlanket": "Safe/Concerns",
-    "bed": "Suitable/Concerns",
-    "washingMachine": "Safe/Concerns",
-    "centralHeating": "Working/Concerns",
+    "cooker": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "microwave": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "iron": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "kettle": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "toaster": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "tumbleDryer": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "floorCoverings": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "handRails": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "electricBlanket": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "bed": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "washingMachine": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "centralHeating": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
     "actionsRequired": "Actions needed"
   },
   "riskSection7Fire": {
-    "atRisk": "Yes/No",
-    "riskReason": "Reason if at risk",
-    "ragRating": "Red/Amber/Green",
-    "plugSockets": "Overload concerns",
-    "electricCables": "Cable safety",
-    "smokingPolicy": "Explained Yes/No",
-    "smokeAlarmLocation": "Location",
-    "smokeAlarmWorking": "Yes/No",
-    "coDetectorLocation": "CO detector location",
-    "coDetectorWorking": "Yes/No",
-    "canEvacuate": "Yes/No without help",
-    "actionsAndSafety": "Safety measures"
+    "atRisk": "EXACTLY ONE OF: Yes / No",
+    "riskReasons": ["ARRAY of applicable reasons from: Smoking, Cooking, Hoarding, Lighter Fuel, Open Fire, Free standing heaters, Paraffin-based emollients, Oxygen, Candles, Other"],
+    "ragRating": "EXACTLY ONE OF: Red / Amber / Green",
+    "plugSockets": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "electricCables": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "smokingPolicy": "EXACTLY ONE OF: Yes / No",
+    "smokeAlarmLocation": "Location text",
+    "smokeAlarmWorking": "EXACTLY ONE OF: Yes / No",
+    "coDetectorLocation": "CO detector location text",
+    "coDetectorWorking": "EXACTLY ONE OF: Yes / No",
+    "actionsTaken": "EXACTLY ONE OF: Referral made to Fire Service / Social Services / No Actions Required / Other",
+    "actionsDetails": "Details of actions taken and safety measures",
+    "canEvacuate": "Can evacuate without assistance details"
   },
   "riskSection8COSHH": {
     "cleaningStorage": "Where cleaning materials stored",
     "riddorExplained": "Yes/No"
   },
   "riskSection9External": {
-    "access": "Property access",
-    "clearPathways": "Yes/No",
-    "handrails": "External rails",
-    "entranceSteps": "Steps details",
-    "lighting": "External lighting",
-    "ramps": "Any ramps",
-    "personalSecurity": "Security concerns",
-    "parking": "Parking situation",
-    "actionsRequired": "Actions",
-    "riskLevel": "Low/Medium/High",
+    "access": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "accessLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "clearPathways": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "clearPathwaysLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "handrails": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "handrailsLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "entranceSteps": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "entranceStepsLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "lighting": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "lightingLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "ramps": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "rampsLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "personalSecurity": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "personalSecurityLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "parking": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "parkingLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "actionsRequired": "Actions needed",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
     "riskPrevention": "Prevention"
   },
   "riskSection10Security": {
-    "meansOfAccess": "Key safe/Key held/Other",
-    "propertyType": "House/Flat/Bungalow",
-    "enterUsing": "Front/Side/Back door",
-    "keysafeConsent": "Yes/No",
-    "gasShutOff": "Location",
-    "stopTap": "Location",
-    "fuseBox": "Location",
-    "riskLevel": "Low/Medium/High",
+    "meansOfAccess": "EXACTLY ONE OF: Key safe / Key held / Other",
+    "propertyType": "EXACTLY ONE OF: House / Flat / Bungalow / Other",
+    "enterUsing": "EXACTLY ONE OF: Front door / Side door / Back door / Other",
+    "keysafeConsent": "EXACTLY ONE OF: Yes / No",
+    "gasShutOff": "Location text",
+    "stopTap": "Location text",
+    "fuseBox": "Location text",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
     "riskPrevention": "Prevention"
   },
   "section11Bands": {
@@ -15791,8 +15828,45 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
       sendProgress(75, "Processing results...", "processing");
 
       const content = response.choices[0]?.message?.content || "";
-      const result = parseJsonFromContent(content);
+      let result = parseJsonFromContent(content);
       if (result) {
+        // Validate and auto-correct categorical field values
+        console.log('[PlanEnhancer] ───────────────────────────────────────────────────');
+        console.log('[PlanEnhancer] SCHEMA VALIDATION');
+        console.log('[PlanEnhancer] ───────────────────────────────────────────────────');
+        
+        const { corrected, corrections } = autoCorrectPlanEnhancerResponse(result);
+        if (corrections.length > 0) {
+          console.log(`[PlanEnhancer] ✅ Auto-corrected ${corrections.length} case mismatches:`);
+          corrections.forEach(fix => {
+            console.log(`[PlanEnhancer]    ${fix.path}: "${fix.original}" → "${fix.corrected}"`);
+          });
+          result = corrected;
+        } else {
+          console.log('[PlanEnhancer] ✅ No case corrections needed');
+        }
+        
+        const validation = validatePlanEnhancerResponse(result);
+        const validationReport = generateValidationReport(validation);
+        console.log(validationReport);
+        
+        if (validation.errors.length > 0) {
+          console.error(`[PlanEnhancer] ❌ ${validation.errors.length} validation errors found`);
+        }
+        if (validation.warnings.length > 0) {
+          console.warn(`[PlanEnhancer] ⚠️  ${validation.warnings.length} validation warnings`);
+        }
+        
+        console.log('[PlanEnhancer] ───────────────────────────────────────────────────');
+        
+        // Send validation progress update
+        const validationStatus = validation.isValid 
+          ? "✅ All fields validated" 
+          : validation.errors.length > 0
+            ? `⚠️ ${validation.errors.length} validation errors`
+            : `⚠️ ${validation.warnings.length} warnings`;
+        sendProgress(77, validationStatus, "processing");
+        
         // Flag truncation on the result so the client can show a warning
         if (finishReason === "length") {
           result._truncated = true;
@@ -15900,6 +15974,15 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
           result._qualityWarnings = qualityMetrics.warnings;
         }
         result._qualityScore = qualityScore;
+        
+        // Attach schema validation results to payload
+        if (validation.errors.length > 0) {
+          result._validationErrors = validation.errors.map(e => `${e.section}.${e.field}: "${e.value}" is invalid (allowed: ${e.allowedValues?.join(', ') || 'see schema'})`);
+        }
+        if (validation.warnings.length > 0) {
+          result._validationWarnings = validation.warnings.map(w => `${w.section}.${w.field}: ${w.message}`);
+        }
+        result._validationScore = validation.isValid ? 100 : Math.max(0, 100 - (validation.errors.length * 10 + validation.warnings.length * 2));
 
         // Check for critical missing top-level sections (sign of severe truncation)
         const criticalSections = ['thisIsMe', 'myCarePlan', 'goalSetting', 'riskSection1Health', 'riskSection2Medication'];
@@ -17235,13 +17318,13 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         riskSection1Health: plan.riskSection1Health || {},
         riskSection2Medication: plan.riskSection2Medication || {},
         riskSection3Nutrition: plan.riskSection3Nutrition || {},
-        riskSection4PersonalCare: plan.riskSection4PersonalCare || {},
+        riskSection4Equipment: plan.riskSection4Equipment || {},
         riskSection5Mobility: plan.riskSection5Mobility || {},
-        riskSection6Skin: plan.riskSection6Skin || {},
-        riskSection7Continence: plan.riskSection7Continence || {},
-        riskSection8Environment: plan.riskSection8Environment || {},
-        riskSection9Social: plan.riskSection9Social || {},
-        riskSection10Communication: plan.riskSection10Communication || {},
+        riskSection6Appliances: plan.riskSection6Appliances || {},
+        riskSection7Fire: plan.riskSection7Fire || {},
+        riskSection8COSHH: plan.riskSection8COSHH || {},
+        riskSection9External: plan.riskSection9External || {},
+        riskSection10Security: plan.riskSection10Security || {},
         section11Bands: plan.section11Bands || {},
         metadata: {
           generatedAt: serviceUser.updatedAt,

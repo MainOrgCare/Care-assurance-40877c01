@@ -100,7 +100,19 @@ async def main() -> None:
         existing_plan: Annotated[str, "Text of the current care plan to enhance"] = "",
         document_content: Annotated[str, "New supporting documents to incorporate"] = "",
     ) -> str:
-        """Enhance an existing care plan with new information from supporting documents. Identifies improvements, fills gaps and flags missing information with verification questions."""
+        """Enhance an existing care plan with comprehensive structured data for Initial Assessment form autofill. 
+        
+        Returns a comprehensive JSON structure with:
+        - Personal profile (This Is Me, hobbies, good day definition)
+        - Goal setting and assistive technology needs
+        - Advance decisions and DNR details
+        - Complete care plan (capacity, health conditions, medications, nutrition, personal care, mobility, finances)
+        - 10 detailed risk assessment sections (health, medication, nutrition, equipment, mobility, appliances, fire, COSHH, external access, security)
+        - Service user support bands (personal care, mental health, physical disability, dementia, etc.)
+        - Verification questions for missing information
+        
+        Each risk section includes categorical fields (using "EXACTLY ONE OF:" constraints), detailed narrative descriptions, risk levels, and prevention measures.
+        Designed to populate all fields in the UK care facility Initial Assessment form (Form ID: 1040788)."""
         payload: dict = {}
         if existing_plan:
             payload["existingPlanContent"] = existing_plan
