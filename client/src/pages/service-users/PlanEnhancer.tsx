@@ -1574,6 +1574,30 @@ export default function PlanEnhancer() {
 
       {displayResult && (
         <div className="space-y-6 animate-slide-up">
+            {/* Input truncation warning (large documents) */}
+            {(displayResult as any)?._inputTruncated && (
+              <Card className="glass-card border-amber-500/40 bg-amber-500/10">
+                <CardContent className="py-4 space-y-2">
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                    <AlertTriangle size={16} />
+                    Large Documents Detected
+                  </p>
+                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                    {(displayResult as any)?._inputTruncationWarning || "Your uploaded documents were very large and were automatically truncated to fit API limits."}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    💡 For best results with large documents:
+                  </p>
+                  <ul className="text-xs text-muted-foreground list-disc list-inside space-y-1 ml-2">
+                    <li>Split into multiple smaller PDFs (< 50 pages each)</li>
+                    <li>Upload only the most relevant documents</li>
+                    <li>Summarize lengthy sections before pasting</li>
+                    <li>Consider using OpenAI provider for higher token limits</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+            
             {/* Truncation / quality warning banner */}
             {(displayResult as any)?._truncated && (
               <Card className="glass-card border-destructive/40 bg-destructive/10">

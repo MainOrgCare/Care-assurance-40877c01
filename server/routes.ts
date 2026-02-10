@@ -15035,6 +15035,9 @@ Return ONLY valid JSON with content field.` }
   });
 
   // Enhance existing care plan - generates complete care plan template matching exact form structure
+  // Token estimation helper (rough: ~4 chars per token)
+  const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
+
   app.post("/api/ai/enhance-plan", requireAuth, async (req: any, res) => {
     let heartbeatInterval: NodeJS.Timeout | null = null;
     let progressInterval: NodeJS.Timeout | null = null;
@@ -15123,6 +15126,10 @@ Return ONLY valid JSON with content field.` }
       const vaultStats = piiVault.getStats();
       console.log(`[Enhance] PII Vault: Scrubbed ${vaultStats.total} sensitive items (${Object.entries(vaultStats.byCategory).filter(([,v]) => v > 0).map(([k,v]) => `${k}:${v}`).join(', ')})`);
       piiVault.logAudit('SCRUB', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
+      
+      // Estimate initial content tokens
+      const contentTokens = estimateTokens(contentToEnhance);
+      console.log(`[Enhance] Document content: ~${contentTokens} tokens`);
 
       if (!isAIEnabled()) {
         sendProgress(35, "Generating secure rule-based template...", "rule_based");
@@ -15160,12 +15167,25 @@ ${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.versio
 === END POLICY DOCUMENTS ===
 `;
       }
+      
+      // Estimate policy context tokens
+      const policyTokens = estimateTokens(policyContext);
+      console.log(`[Enhance] Policy context: ~${policyTokens} tokens`);
 
       const privacyDirective = allowSensitiveView
         ? "Privacy: Personal data in documents has been tokenized ({{PII_...}}). Keep tokens in output - they become [Name], [Date of Birth] etc. Never guess real values."
         : "Privacy: Data has been tokenized. Keep tokens in output for automatic placeholder conversion.";
 
-      const systemPrompt = `You are an expert care plan writer for a UK care facility following CQC 2024 standards, NHS England Person-Centred Care Planning principles, and NICE guidelines.
+      // Get current provider to determine token limits
+      const currentProvider = getProvider();
+      
+      // GitHub Models API token limits (from docs: https://docs.github.com/en/github-models)
+      // Free tier: High models (GPT-4o) = 8000 in, 4000 out
+      // Enterprise tier: 16000 in, 8000 out
+      // We'll use conservative 12000 to allow for system prompt overhead
+      const MAX_INPUT_TOKENS = currentProvider === "github" ? 12000 : 90000; // OpenAI/Local have higher limits
+      
+      const systemPromptBase = `You are an expert care plan writer for a UK care facility following CQC 2024 standards, NHS England Person-Centred Care Planning principles, and NICE guidelines.
 ${policyContext}
 
 ════════════════════════════════════════════════════════════════════════════════
@@ -15395,9 +15415,50 @@ Then continue with a flowing life story covering:
 6. WHAT DEFINES ME: My personality, values, faith/beliefs, what matters most
 7. WHY I NEED CARE: How my circumstances changed, how I feel about needing support
 
-This must read as a genuine life story, not a list. It should make care workers understand WHO I am as a person, not just my care needs.
+This must read as a genuine life story, not a list. It should make care workers understand WHO I am as a person, not just my care needs.`;
 
-════════════════════════════════════════════════════════════════════════════════
+      // Calculate total estimated tokens with base system prompt
+      const systemPromptTokens = estimateTokens(systemPromptBase);
+      const totalEstimatedTokens = systemPromptTokens + policyTokens + contentTokens;
+      
+      console.log(`[Enhance] Total estimated tokens: ${totalEstimatedTokens} (system: ${systemPromptTokens}, policy: ${policyTokens}, content: ${contentTokens})`);
+      console.log(`[Enhance] Provider: ${currentProvider}, Max input tokens: ${MAX_INPUT_TOKENS}`);
+      
+      let truncationWarning = "";
+      let finalContent = contentToEnhance;
+      let finalPolicyContext = policyContext;
+      
+      // If we exceed token limit, intelligently truncate
+      if (totalEstimatedTokens > MAX_INPUT_TOKENS) {
+        const availableTokens = MAX_INPUT_TOKENS - systemPromptTokens;
+        console.warn(`[Enhance] ⚠️ Content exceeds ${MAX_INPUT_TOKENS} token limit. Truncating intelligently...`);
+        
+        // Priority: Keep user content > policy docs
+        // Allocate 70% to content, 30% to policy context
+        const contentAllowance = Math.floor(availableTokens * 0.7);
+        const policyAllowance = Math.floor(availableTokens * 0.3);
+        
+        // Truncate content if needed (keep end, as it often has most recent/specific info)
+        if (contentTokens > contentAllowance) {
+          const contentCharsToKeep = contentAllowance * 4; // ~4 chars per token
+          finalContent = "[Content truncated due to size - showing most recent sections]\n\n" + 
+                        contentToEnhance.slice(-contentCharsToKeep);
+          console.log(`[Enhance] Truncated content from ${contentTokens} to ~${contentAllowance} tokens`);
+          truncationWarning = `⚠️ Your uploaded documents were very large (${Math.ceil(contentTokens/1000)}K tokens). Content was automatically truncated to fit within API limits. For best results, consider splitting into smaller documents or summarizing before upload.`;
+        }
+        
+        // Truncate policy context if needed
+        if (policyTokens > policyAllowance) {
+          const policyCharsToKeep = policyAllowance * 4;
+          finalPolicyContext = policyContext.slice(0, policyCharsToKeep) + "\n[Policy documents truncated due to size]\n";
+          console.log(`[Enhance] Truncated policy from ${policyTokens} to ~${policyAllowance} tokens`);
+        }
+        
+        sendProgress(15, truncationWarning ? "Large documents detected - optimizing..." : "Processing...", "preparing");
+      }
+
+      const systemPrompt = systemPromptBase + `
+${finalPolicyContext}
 📚 SECTION-BY-SECTION STYLE EXAMPLES - FOLLOW THE FORMAT, NOT THE CONTENT
 ════════════════════════════════════════════════════════════════════════════════
 
@@ -15782,7 +15843,7 @@ PRIORITY STRATEGY FOR MAXIMUM COMPLETION:
 DOCUMENTS TO ANALYZE - EXTRACT EVERY DETAIL
 ═══════════════════════════════════════════════════════
 
-${contentToEnhance}
+${finalContent}
 
 ═══════════════════════════════════════════════════════
 YOUR CRITICAL REQUIREMENTS
@@ -15882,6 +15943,13 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
         if (finishReason === "length") {
           result._truncated = true;
           result._truncationWarning = "The AI response was truncated due to token limits. Some sections may be incomplete or missing. Try with shorter input documents or contact an administrator.";
+        }
+        
+        // Add input truncation warning if documents were too large
+        if (truncationWarning) {
+          result._inputTruncated = true;
+          result._inputTruncationWarning = truncationWarning;
+          console.warn(`[PlanEnhancer] ⚠️  Input documents were truncated: ${truncationWarning}`);
         }
         // Quality validation and metrics
         console.log('[PlanEnhancer] ═══════════════════════════════════════════════════');
