@@ -15035,10 +15035,10 @@ Return ONLY valid JSON with content field.` }
   });
 
   // Enhance existing care plan - generates complete care plan template matching exact form structure
-  // Token estimation helper (rough: ~4 chars per token)
-  const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
-
   app.post("/api/ai/enhance-plan", requireAuth, async (req: any, res) => {
+    // Token estimation helper (rough: ~4 chars per token)
+    const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
+    
     let heartbeatInterval: NodeJS.Timeout | null = null;
     let progressInterval: NodeJS.Timeout | null = null;
     

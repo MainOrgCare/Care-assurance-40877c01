@@ -1660,7 +1660,7 @@ export default function PlanEnhancer() {
                     💡 For best results with large documents:
                   </p>
                   <ul className="text-xs text-muted-foreground list-disc list-inside space-y-1 ml-2">
-                    <li>Split into multiple smaller PDFs (< 50 pages each)</li>
+                    <li>Split into multiple smaller PDFs (&lt; 50 pages each)</li>
                     <li>Upload only the most relevant documents</li>
                     <li>Summarize lengthy sections before pasting</li>
                     <li>Consider using OpenAI provider for higher token limits</li>
