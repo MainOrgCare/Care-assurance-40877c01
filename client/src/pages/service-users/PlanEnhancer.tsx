@@ -529,31 +529,49 @@ export default function PlanEnhancer() {
         throw new Error("No document content available");
       }
 
-      // Check payload size before sending (prevent 413 errors)
-      const payloadSize = new Blob([
-        JSON.stringify({ 
-          documentContent: combinedSupporting,
-          existingPlanContent: carePlanContent,
-          allowSensitive: isAdmin && allowSensitive
-        })
-      ]).size;
+      // CLIENT-SIDE TOKEN LIMIT CHECK
+      // Estimate tokens (rough: ~4 chars per token) - matches server-side logic
+      const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
       
-      const maxPayloadMB = 50; // Conservative limit (well below server's 200MB but catches issues early)
-      const payloadMB = payloadSize / (1024 * 1024);
+      const supportingTokens = estimateTokens(combinedSupporting);
+      const carePlanTokens = carePlanContent ? estimateTokens(carePlanContent) : 0;
+      const totalContentTokens = supportingTokens + carePlanTokens;
       
-      if (payloadMB > maxPayloadMB) {
+      // Token limits per provider (conservative to account for system prompt overhead)
+      // GitHub Models: 8K-16K input tokens → use 10K to be safe
+      // OpenAI/Local: 90K+ → use 80K to be safe
+      const MAX_TOKENS = 10000; // Conservative limit for GitHub Models
+      
+      console.log(`[PlanEnhancer] Content size check:`, {
+        supportingTokens,
+        carePlanTokens,
+        totalContentTokens,
+        maxTokens: MAX_TOKENS,
+        provider: 'github' // TODO: detect actual provider
+      });
+      
+      if (totalContentTokens > MAX_TOKENS) {
+        const excessTokens = totalContentTokens - MAX_TOKENS;
+        const excessKB = Math.ceil((excessTokens * 4) / 1024);
+        
         throw new Error(
-          `Document content is too large (${payloadMB.toFixed(1)}MB). Maximum size is ${maxPayloadMB}MB. ` +
-          `Try: (1) Upload only the most relevant documents, (2) Split into multiple smaller files, ` +
-          `(3) Summarize lengthy sections before pasting, or (4) Use OpenAI provider which has higher limits.`
+          `Document content is too large (~${Math.ceil(totalContentTokens / 1000)}K tokens, limit is ${Math.ceil(MAX_TOKENS / 1000)}K tokens). ` +
+          `Your content exceeds the limit by ~${excessKB}KB. ` +
+          `\n\nPlease reduce content by:\n` +
+          `• Uploading only the most relevant pages/sections\n` +
+          `• Removing redundant or outdated documents\n` +
+          `• Summarizing lengthy medical histories\n` +
+          `• Splitting into multiple care plan generations\n\n` +
+          `Or switch to OpenAI provider in Secret Admin Portal for 8x higher limits.`
         );
       }
       
-      // Warn if approaching limit (40MB+)
-      if (payloadMB > 40) {
+      // Warn if approaching limit (>80% of max)
+      if (totalContentTokens > MAX_TOKENS * 0.8) {
+        const percentUsed = Math.round((totalContentTokens / MAX_TOKENS) * 100);
         console.warn(
-          `[PlanEnhancer] Large payload detected: ${payloadMB.toFixed(1)}MB. ` +
-          `This may be truncated by the server to fit AI token limits.`
+          `[PlanEnhancer] ⚠️  Content approaching token limit: ${percentUsed}% used ` +
+          `(${totalContentTokens} / ${MAX_TOKENS} tokens). Server may truncate output.`
         );
       }
 
@@ -568,6 +586,23 @@ export default function PlanEnhancer() {
 
       setProgress(0);
       setProgressStatus("Preparing documents...");
+      
+      // Log final payload info for debugging
+      const finalPayload = { 
+        documentContent: combinedSupporting,
+        existingPlanContent: carePlanContent,
+        allowSensitive: isAdmin && allowSensitive
+      };
+      const payloadJSON = JSON.stringify(finalPayload);
+      const payloadSizeMB = (new Blob([payloadJSON]).size / (1024 * 1024)).toFixed(2);
+      
+      console.log(`[PlanEnhancer] Final payload:`, {
+        payloadSizeMB: `${payloadSizeMB}MB`,
+        supportingContentLength: combinedSupporting.length,
+        carePlanContentLength: carePlanContent?.length || 0,
+        totalChars: combinedSupporting.length + (carePlanContent?.length || 0),
+        estimatedTokens: totalContentTokens,
+      });
 
       // 6-minute client timeout — must exceed server-side AI timeout (5 min) to
       // avoid aborting while the server is still generating the plan.
@@ -581,11 +616,7 @@ export default function PlanEnhancer() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           signal: controller.signal,
-          body: JSON.stringify({ 
-            documentContent: combinedSupporting,
-            existingPlanContent: carePlanContent,
-            allowSensitive: isAdmin && allowSensitive
-          }),
+          body: payloadJSON,
         });
       } catch (err: any) {
         clearTimeout(clientTimeout);
@@ -1274,7 +1305,7 @@ export default function PlanEnhancer() {
         <div className="max-w-md space-y-2">
           <h2 className="text-2xl font-semibold text-foreground" data-testid="text-no-data-title">No Data Available</h2>
           <p className="text-muted-foreground">
-            Please upload documents to generate the care plan template.
+            Please upload documents or add text notes (including care plan updates) to generate the care plan template.
           </p>
         </div>
         <Link href="/service-users/upload">

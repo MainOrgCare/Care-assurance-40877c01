@@ -191,7 +191,12 @@ export default function RiskAssessment() {
     return fallbackInitials || serviceUserDisplayName || "N.N.";
   };
 
-  const hasData = serviceUserData.initialAssessment || serviceUserData.socialWork || serviceUserData.carePlan;
+  const hasData = Boolean(
+    serviceUserData.initialAssessment ||
+    serviceUserData.socialWork ||
+    serviceUserData.carePlan ||
+    (serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim().length > 0)
+  );
   const hasAllParsed = hasData && !isAnyParsing();
   const parseErrors = [
     serviceUserData.socialWork?.parseError
@@ -767,8 +772,8 @@ export default function RiskAssessment() {
       setProgressStatus("");
       setStep("select");
       toast({
-        title: "No document text detected",
-        description: "Please upload readable documents before generating assessments.",
+        title: "Insufficient content",
+        description: "Please provide at least 50 characters of information (from uploaded documents or text notes).",
         variant: "destructive",
       });
       return;
@@ -1226,9 +1231,9 @@ export default function RiskAssessment() {
           <ShieldAlert size={48} className="text-muted-foreground" />
         </div>
         <div className="max-w-md space-y-2">
-          <h2 className="text-2xl font-semibold text-foreground">No Documents Uploaded</h2>
+          <h2 className="text-2xl font-semibold text-foreground">No Information Available</h2>
           <p className="text-muted-foreground">
-            Please upload documents (Initial Assessment, Social Work docs, or Care Plan) to generate risk assessments.
+            Please upload documents (Initial Assessment, Social Work docs, or Care Plan) or add text notes to generate risk assessments.
           </p>
         </div>
         <Link href="/service-users/upload">

@@ -147,7 +147,11 @@ export default function CarePlanning() {
   );
   const isRuleBasedCarePlan = carePlan?.generationMode === "rule-based";
 
-  const hasData = serviceUserData.socialWork || serviceUserData.initialAssessment;
+  const hasData = Boolean(
+    serviceUserData.socialWork ||
+    serviceUserData.initialAssessment ||
+    (serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim().length > 0)
+  );
   
   // Handle both new simplified format (content field) and legacy format (sections array)
   const isSimplifiedFormat = !!(carePlan?.content && !carePlan?.sections);
@@ -549,7 +553,7 @@ export default function CarePlanning() {
         <div className="max-w-md space-y-2">
           <h2 className="text-2xl font-semibold text-foreground" data-testid="text-no-data-title">No Data Available</h2>
           <p className="text-muted-foreground">
-            Please upload Social Work documents or an Initial Assessment to generate a Care Plan.
+            Please upload Social Work documents, an Initial Assessment, or add text notes to generate a Care Plan.
           </p>
         </div>
         <Link href="/service-users/upload">
