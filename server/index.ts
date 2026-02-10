@@ -209,16 +209,26 @@ app.get("/readyz", async (_req, res) => {
   }
 });
 
-// Global API rate limiting (100 requests per 15 minutes)
+// Global API rate limiting (1000 requests per 15 minutes)
+// Increased from 100 due to frequent polling endpoints (platform-controls every 60s, unread-count every 2min)
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 1000, // Limit each IP to 1000 requests per windowMs (realistic for web app with polling)
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many requests from this IP, please try again after 15 minutes',
   skip: (req) => {
     // Never rate limit health/status probes (Render health checks can be frequent)
     if (req.path === "/api/contact/status") return true;
+    
+    // Exempt frequently-polled read-only endpoints from rate limiting
+    // These endpoints are polled by the client every 20-120 seconds
+    const pollingEndpoints = [
+      "/api/messages/unread-count",  // Polled every 2 minutes
+      "/api/platform-controls",      // Polled every 60 seconds
+      "/api/users/presence",         // Admin portal presence check
+    ];
+    if (pollingEndpoints.includes(req.path)) return true;
 
     // Skip rate limiting in development for easier testing
     return process.env.NODE_ENV !== 'production';
@@ -226,7 +236,7 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 if (process.env.NODE_ENV === 'production') {
-  log('API rate limiting enabled (100 req/15min)');
+  log('API rate limiting enabled (1000 req/15min, polling endpoints exempt)');
 }
 
 // Stricter rate limiting for authentication endpoints (5 requests per 15 minutes)

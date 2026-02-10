@@ -529,6 +529,34 @@ export default function PlanEnhancer() {
         throw new Error("No document content available");
       }
 
+      // Check payload size before sending (prevent 413 errors)
+      const payloadSize = new Blob([
+        JSON.stringify({ 
+          documentContent: combinedSupporting,
+          existingPlanContent: carePlanContent,
+          allowSensitive: isAdmin && allowSensitive
+        })
+      ]).size;
+      
+      const maxPayloadMB = 50; // Conservative limit (well below server's 200MB but catches issues early)
+      const payloadMB = payloadSize / (1024 * 1024);
+      
+      if (payloadMB > maxPayloadMB) {
+        throw new Error(
+          `Document content is too large (${payloadMB.toFixed(1)}MB). Maximum size is ${maxPayloadMB}MB. ` +
+          `Try: (1) Upload only the most relevant documents, (2) Split into multiple smaller files, ` +
+          `(3) Summarize lengthy sections before pasting, or (4) Use OpenAI provider which has higher limits.`
+        );
+      }
+      
+      // Warn if approaching limit (40MB+)
+      if (payloadMB > 40) {
+        console.warn(
+          `[PlanEnhancer] Large payload detected: ${payloadMB.toFixed(1)}MB. ` +
+          `This may be truncated by the server to fit AI token limits.`
+        );
+      }
+
       // Store the original content for comparison view
       const combinedOriginal = [
         carePlanContent ? `=== Original Care Plan ===\n${carePlanContent}` : "",
@@ -574,6 +602,14 @@ export default function PlanEnhancer() {
           const error = JSON.parse(errorText);
           const errorMsg = error.message || "";
           
+          // Check for payload too large errors (413)
+          if (response.status === 413 || errorMsg.toLowerCase().includes('too large') || errorMsg.toLowerCase().includes('payload')) {
+            throw new Error(
+              "Document content is too large for the server. Try: (1) Upload smaller or fewer documents, " +
+              "(2) Summarize lengthy sections, or (3) Use OpenAI provider which has higher token limits."
+            );
+          }
+          
           // Check for GitHub Models specific errors
           if (errorMsg.includes("GitHub Models API quota") || errorMsg.includes("quota exceeded")) {
             throw new Error("GitHub Models quota exceeded. Your API token has hit its rate limit. Wait for quota to reset, use a different token, or switch to OpenAI provider in Secret Admin Portal.");
@@ -586,7 +622,11 @@ export default function PlanEnhancer() {
           }
           throw new Error(errorMsg || "Failed to generate care plan");
         } catch (e: any) {
-          if (e.message?.includes('AI service is busy') || e.message?.includes('GitHub Models')) throw e;
+          if (e.message?.includes('AI service is busy') || e.message?.includes('GitHub Models') || e.message?.includes('too large')) throw e;
+          // If 413 but couldn't parse JSON, throw generic payload error
+          if (response.status === 413) {
+            throw new Error("Document content is too large. Try uploading smaller or fewer documents.");
+          }
           throw new Error("Failed to generate care plan");
         }
       }

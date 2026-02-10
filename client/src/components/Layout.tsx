@@ -717,8 +717,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
 
     void fetchPlatformControls();
-    // Poll more frequently so emergency admin announcement/maintenance changes clear quickly.
-    const interval = window.setInterval(fetchPlatformControls, 20000);
+    // Poll every 60 seconds (increased from 20s to reduce server load while still being responsive)
+    // Emergency announcements will still clear within 1 minute
+    const interval = window.setInterval(fetchPlatformControls, 60000);
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         void fetchPlatformControls();
