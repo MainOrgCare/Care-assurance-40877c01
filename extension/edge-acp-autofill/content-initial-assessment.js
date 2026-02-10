@@ -1708,6 +1708,9 @@ const run = async () => {
   // Check if payload is for initial assessment
   if (!caAcpPayload || caAcpPayload.formType !== "initialAssessment") return;
   
+  // DEBUG: Show payload loaded from storage
+  console.log("[CA Extension DEBUG] Payload loaded from storage:", JSON.stringify(caAcpPayload, null, 2));
+  
   const processedKey = "caIAAutofillProcessed";
   if (sessionStorage.getItem(processedKey)) return;
   sessionStorage.setItem(processedKey, "1");
@@ -1723,6 +1726,15 @@ const run = async () => {
     logAction("No initial assessment data found in payload");
     return;
   }
+  
+  // DEBUG: Show extracted formData before mapping
+  console.log("[CA Extension DEBUG] FormData before mapping:", JSON.stringify(formData, null, 2));
+  console.log("[CA Extension DEBUG] Has thisIsMe property:", !!formData?.thisIsMe);
+  
+  // DEBUG: Show mapped data after Plan Enhancer transformation
+  const mappedData = formData?.thisIsMe ? mapPlanEnhancerToFormData(formData) : formData;
+  console.log("[CA Extension DEBUG] Data after mapping:", JSON.stringify(mappedData, null, 2));
+  console.log("[CA Extension DEBUG] Mapping was applied:", !!formData?.thisIsMe);
   
   await fillInitialAssessment(formData, {
     assessor: caAcpPayload.assessor,

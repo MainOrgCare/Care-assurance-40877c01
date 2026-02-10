@@ -14275,6 +14275,53 @@ Respond ONLY with valid JSON in this exact format:
       
       sendProgress(30, "Generating risk assessment...", "ai_generation");
 
+      // ════════════════════════════════════════════════════════════════════
+      // DEBUG: LOG COMPLETE AI INPUT - RISK ASSESSMENT
+      // ════════════════════════════════════════════════════════════════════
+      console.log('\n');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('📋 RISK ASSESSMENT AI INPUT - CONTENT SENT TO AI');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log(`Assessment Category: ${assessmentCategory}`);
+      console.log(`Model: ${getRiskAssessmentGenerationModel()}`);
+      console.log(`Service User: ${serviceUserInitials}`);
+      console.log(`Performed By: ${performedBy} (${performedByJobTitle})`);
+      console.log('');
+      
+      const userContent = `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
+
+${profileContext ? `Profile Context:\n${profileContext}\n\n` : ''}Documents to analyze:\n${documentContent}${evidencePack ? `\n\nKey Evidence:\n- ${evidencePack}` : ''}`;
+      
+      console.log('📊 CONTENT STATS:');
+      console.log(`   Document Content Length: ${documentContent.length.toLocaleString()} chars`);
+      console.log(`   Evidence Pack Length: ${evidencePack.length.toLocaleString()} chars`);
+      console.log(`   Total User Content: ${userContent.length.toLocaleString()} chars`);
+      console.log(`   Policy Context Length: ${policyContext.length.toLocaleString()} chars`);
+      console.log('');
+      
+      console.log('📄 DOCUMENT CONTENT PREVIEW (First 2000 characters):');
+      console.log('─────────────────────────────────────────────────────────────────');
+      console.log(documentContent.substring(0, 2000));
+      if (documentContent.length > 2000) {
+        console.log(`\n... [${(documentContent.length - 2000).toLocaleString()} more characters] ...\n`);
+      }
+      console.log('─────────────────────────────────────────────────────────────────');
+      console.log('');
+      
+      if (evidencePack) {
+        console.log('🔍 KEY EVIDENCE EXTRACTED:');
+        console.log('─────────────────────────────────────────────────────────────────');
+        console.log(evidencePack.substring(0, 1000));
+        if (evidencePack.length > 1000) {
+          console.log(`\n... [${(evidencePack.length - 1000).toLocaleString()} more characters] ...\n`);
+        }
+        console.log('─────────────────────────────────────────────────────────────────');
+        console.log('');
+      }
+      
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('\n');
+
       // Simulated progress during AI call
       let simulatedProgress = 30;
       progressInterval = setInterval(() => {
@@ -14794,6 +14841,45 @@ OUTPUT FORMAT - Return ONLY valid JSON:
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       }
+
+      // ════════════════════════════════════════════════════════════════════
+      // DEBUG: LOG COMPLETE AI INPUT - CARE PLAN GENERATION
+      // ════════════════════════════════════════════════════════════════════
+      console.log('\n');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('📋 CARE PLAN AI INPUT - CONTENT SENT TO AI');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log(`Call Type: ${callTypeLabel}`);
+      console.log(`Model: ${getAccurateModel()}`);
+      console.log(`Date: ${today}`);
+      console.log('');
+      
+      const carePlanUserContent = `Generate a comprehensive ${callTypeLabel} care plan following CQC 2024 person-centred standards.\n\n═══════════════════════════════════════════════════════════════════════════════\nSERVICE USER DOCUMENTS\n═══════════════════════════════════════════════════════════════════════════════\n${documentContent}`;
+      
+      console.log('📊 CONTENT STATS:');
+      console.log(`   Document Content Length: ${documentContent.length.toLocaleString()} chars`);
+      console.log(`   Total User Content: ${carePlanUserContent.length.toLocaleString()} chars`);
+      console.log(`   Policy Context Length: ${policyContext.length.toLocaleString()} chars`);
+      console.log(`   Number of Mandatory Sections: ${mandatorySections.length}`);
+      console.log('');
+      
+      console.log('📄 DOCUMENT CONTENT PREVIEW (First 2000 characters):');
+      console.log('─────────────────────────────────────────────────────────────────');
+      console.log(documentContent.substring(0, 2000));
+      if (documentContent.length > 2000) {
+        console.log(`\n... [${(documentContent.length - 2000).toLocaleString()} more characters] ...\n`);
+      }
+      console.log('─────────────────────────────────────────────────────────────────');
+      console.log('');
+      
+      console.log('📋 MANDATORY SECTIONS TO GENERATE:');
+      mandatorySections.forEach((section, idx) => {
+        console.log(`   ${idx + 1}. ${section.title} (${section.priority} priority)`);
+      });
+      console.log('');
+      
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('\n');
 
       // Simulated progress during AI call
       let simulatedProgress = 20;
@@ -15810,6 +15896,64 @@ PRIORITY STRATEGY FOR MAXIMUM COMPLETION:
 }`;
 
       sendProgress(25, "Generating enhanced plan...", "ai_generation");
+
+      // ════════════════════════════════════════════════════════════════════
+      // DEBUG: LOG COMPLETE AI INPUT - WHAT THE AI ACTUALLY RECEIVES
+      // ════════════════════════════════════════════════════════════════════
+      console.log('\n');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('📋 AI INPUT ANALYSIS - CONTENT SENT TO AI FOR GENERATION');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log(`Provider: ${currentProvider}`);
+      console.log(`Model: ${getRiskAssessmentGenerationModel()}`);
+      console.log(`Max Input Tokens: ${MAX_INPUT_TOKENS}`);
+      console.log('');
+      
+      // Show raw content stats before truncation
+      console.log('📊 RAW CONTENT STATS (Before Truncation):');
+      console.log(`   Total Characters: ${contentToEnhance.length.toLocaleString()}`);
+      console.log(`   Estimated Tokens: ${contentTokens.toLocaleString()}`);
+      console.log(`   Policy Tokens: ${policyTokens.toLocaleString()}`);
+      console.log(`   System Prompt Tokens: ${systemPromptTokens.toLocaleString()}`);
+      console.log(`   Total Estimated: ${totalEstimatedTokens.toLocaleString()}`);
+      console.log('');
+      
+      // Show what was actually sent after truncation
+      const finalContentTokens = estimateTokens(finalContent);
+      const finalPolicyTokens = estimateTokens(finalPolicyContext);
+      const finalSystemTokens = estimateTokens(systemPrompt);
+      console.log('📤 FINAL CONTENT SENT TO AI (After Truncation):');
+      console.log(`   Final Content Tokens: ${finalContentTokens.toLocaleString()}`);
+      console.log(`   Final Policy Tokens: ${finalPolicyTokens.toLocaleString()}`);
+      console.log(`   Final System Tokens: ${finalSystemTokens.toLocaleString()}`);
+      console.log(`   Total Input Tokens: ${(finalContentTokens + finalPolicyTokens + finalSystemTokens).toLocaleString()}`);
+      console.log(`   Truncation Applied: ${totalEstimatedTokens > MAX_INPUT_TOKENS ? 'YES ✂️' : 'NO ✅'}`);
+      console.log('');
+      
+      // Show actual content preview (first 2000 chars)
+      console.log('📄 CONTENT PREVIEW (First 2000 characters):');
+      console.log('─────────────────────────────────────────────────────────────────');
+      console.log(finalContent.substring(0, 2000));
+      if (finalContent.length > 2000) {
+        console.log(`\n... [${(finalContent.length - 2000).toLocaleString()} more characters] ...\n`);
+      }
+      console.log('─────────────────────────────────────────────────────────────────');
+      console.log('');
+      
+      // If truncated, show what was cut
+      if (totalEstimatedTokens > MAX_INPUT_TOKENS) {
+        const contentCutChars = contentToEnhance.length - finalContent.length;
+        const contentCutTokens = contentTokens - finalContentTokens;
+        console.log('✂️  TRUNCATION SUMMARY:');
+        console.log(`   Characters Removed: ${contentCutChars.toLocaleString()}`);
+        console.log(`   Tokens Removed: ${contentCutTokens.toLocaleString()}`);
+        console.log(`   Percentage Kept: ${Math.round((finalContentTokens / contentTokens) * 100)}%`);
+        console.log(`   Truncation Strategy: Keep end of content (most recent/specific info)`);
+        console.log('');
+      }
+      
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('\n');
 
       // Simulated progress during AI call — covers up to ~5 minutes of AI processing
       let simulatedProgress = 25;

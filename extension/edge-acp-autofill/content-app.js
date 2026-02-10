@@ -200,6 +200,9 @@ window.addEventListener("message", (event) => {
     sendAck(requestId, false, "Invalid payload.");
     return;
   }
+  
+  // DEBUG: Show raw payload received from webpage
+  console.log("[CA Extension DEBUG] Raw payload received:", JSON.stringify(payload, null, 2));
   const normalizedPayload = { ...payload };
   if (isEmarMessage && !normalizedPayload.formType) {
     normalizedPayload.formType = "emar";
@@ -224,6 +227,9 @@ window.addEventListener("message", (event) => {
     return;
   }
 
+  // DEBUG: Show normalized payload being sent to storage
+  console.log("[CA Extension DEBUG] Normalized payload for storage:", JSON.stringify(normalizedPayload, null, 2));
+  
   try {
     chrome.runtime.sendMessage(
       { type: STORE_PAYLOAD_TYPE, payload: normalizedPayload },

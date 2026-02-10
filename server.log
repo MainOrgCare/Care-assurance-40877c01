@@ -1,0 +1,13 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development AI_ENABLED=${AI_ENABLED:-true} tsx server/index.ts
+
+[RuleEngine] Rule-based risk assessment engine v2.0 loaded
+1:58:28 PM [express] Security headers enabled (Helmet) - CSP mode: development
+1:58:28 PM [express] Allowed CORS origins: https://careassurance.uk, https://www.careassurance.uk, http://localhost:5173, http://localhost:3000, http://localhost:5000, http://127.0.0.1:5173, http://127.0.0.1:3000, http://127.0.0.1:5000
+1:58:28 PM [express] NODE_ENV: development
+1:58:28 PM [express] CORS enabled for origin(s): https://careassurance.uk, https://www.careassurance.uk, http://localhost:5173, http://localhost:3000, http://localhost:5000, http://127.0.0.1:5173, http://127.0.0.1:3000, http://127.0.0.1:5000
+[AI Config] Loaded provider from DB: github
+[AI Config] Loaded lite mode from DB: true
+[Copilot API] Registered 14 Copilot endpoints at /api/copilot/*
+1:58:30 PM [express] serving on port 5000
