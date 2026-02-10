@@ -15881,7 +15881,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
         ],
         temperature: 0,
         seed: 42,
-        max_completion_tokens: 64000,
+        max_completion_tokens: currentProvider === "github" ? 8000 : 64000, // GitHub Models: 8K output, OpenAI/Local: 64K
         response_format: { type: "json_object" },
       }, "plan_enhancer", aiUserContext);
 

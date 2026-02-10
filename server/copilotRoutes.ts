@@ -800,13 +800,14 @@ Respond with valid JSON:
   "summary": "Brief overview of the care plan"
 }`;
 
+      const currentProvider = getPreferredProvider();
       const response = await createChatCompletionWithLogging({
         model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Generate a ${callTypeLabel} care plan from these documents:\n\n${documentContent}` },
         ],
-        max_completion_tokens: 12000,
+        max_completion_tokens: currentProvider === "github" ? 8000 : 12000,
         temperature: 0,
         seed: 42,
         response_format: { type: "json_object" },
@@ -1153,13 +1154,14 @@ Respond with valid JSON matching this comprehensive schema:
   }
 }`;
 
+      const currentProvider = getPreferredProvider();
       const response = await createChatCompletionWithLogging({
         model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Enhance/create a care plan from these documents:\n\n${combinedContent}` },
         ],
-        max_completion_tokens: 12000,
+        max_completion_tokens: currentProvider === "github" ? 8000 : 12000,
         temperature: 0,
         seed: 42,
         response_format: { type: "json_object" },
