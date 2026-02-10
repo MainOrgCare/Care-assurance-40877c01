@@ -444,6 +444,50 @@ function isRateLimitError(error: any): boolean {
          error?.error?.code === 'rate_limit_exceeded';
 }
 
+// Format GitHub Models specific errors with helpful messages
+function formatGitHubModelsError(error: any, provider: AiProvider): Error {
+  const isGitHub = provider === 'github' || (provider === 'openai' && openaiUsingPATFallback);
+  if (!isGitHub) return error;
+  
+  const status = error?.status || error?.response?.status;
+  const message = error?.message || '';
+  
+  // GitHub Models quota exceeded (429)
+  if (status === 429 || message.includes('429') || message.toLowerCase().includes('quota')) {
+    const enhancedError = new Error(
+      'GitHub Models API quota exceeded. Your Personal Access Token (PAT_AI_KEY) has hit its rate limit. ' +
+      'Options: 1) Wait for quota to reset, 2) Use a different token, or 3) Switch to OpenAI provider in Secret Admin Portal.'
+    ) as Error & { code?: string; originalError?: any };
+    enhancedError.code = 'GITHUB_QUOTA_EXCEEDED';
+    enhancedError.originalError = error;
+    return enhancedError;
+  }
+  
+  // GitHub Models permissions error (401)
+  if (status === 401 && (message.includes('models') || message.includes('permission'))) {
+    const enhancedError = new Error(
+      'GitHub Models API permission denied. Your Personal Access Token (PAT_AI_KEY) needs the "models" scope. ' +
+      'Please generate a new token with "models" permission at https://github.com/settings/tokens, or switch to OpenAI provider.'
+    ) as Error & { code?: string; originalError?: any };
+    enhancedError.code = 'GITHUB_PERMISSION_DENIED';
+    enhancedError.originalError = error;
+    return enhancedError;
+  }
+  
+  // Generic GitHub authentication error (401)
+  if (status === 401) {
+    const enhancedError = new Error(
+      'GitHub Models API authentication failed. Your PAT_AI_KEY may be invalid or expired. ' +
+      'Generate a new token at https://github.com/settings/tokens with "models" scope.'
+    ) as Error & { code?: string; originalError?: any };
+    enhancedError.code = 'GITHUB_AUTH_FAILED';
+    enhancedError.originalError = error;
+    return enhancedError;
+  }
+  
+  return error;
+}
+
 // Internal function that tracks which provider was used
 async function createChatCompletionWithProvider(
   params: OpenAI.ChatCompletionCreateParamsNonStreaming
@@ -525,22 +569,29 @@ async function createChatCompletionWithProvider(
     } catch (error: any) {
       lastError = error;
       
+      // Log the error for debugging
+      console.error(`[AI:${provider}] Error on attempt ${attempt + 1}:`, {
+        status: error?.status || error?.response?.status,
+        message: error?.message,
+        code: error?.code
+      });
+      
       if (isRateLimitError(error) && attempt < MAX_RETRIES) {
         // Extract retry-after header if available
         const retryAfter = error?.headers?.get?.('retry-after') || 
                           error?.response?.headers?.['retry-after'];
         const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
-        console.warn(`[AI] Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${MAX_RETRIES}...`);
+        console.warn(`[AI:${provider}] Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${MAX_RETRIES}...`);
         continue;
       }
       
-      // Non-retryable error or max retries exceeded
-      throw error;
+      // Non-retryable error or max retries exceeded - format and throw
+      throw formatGitHubModelsError(error, provider);
     }
   }
   
-  // Should not reach here, but throw last error just in case
-  throw lastError;
+  // Should not reach here, but throw last error with formatting just in case
+  throw formatGitHubModelsError(lastError, provider);
 }
 
 // Legacy function for backwards compatibility (returns just the completion)

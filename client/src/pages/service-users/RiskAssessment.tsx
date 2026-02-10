@@ -619,10 +619,33 @@ export default function RiskAssessment() {
       setSelectedAssessments(mandatory);
     } catch (error: any) {
       console.error("Analysis error:", error);
+      
+      // Extract error info for better user guidance
+      const errorMsg = error.message || "Could not analyze documents";
+      const isGitHubQuota = errorMsg.includes("GitHub Models API quota") || errorMsg.includes("quota exceeded");
+      const isGitHubPermission = errorMsg.includes("models") && errorMsg.includes("permission");
+      const isGitHubAuth = errorMsg.includes("GitHub Models API authentication");
+      
+      let title = "Analysis Failed";
+      let description = errorMsg;
+      let duration = 8000; // Longer for errors with actionable steps
+      
+      if (isGitHubQuota) {
+        title = "GitHub Models Quota Exceeded";
+        duration = 12000;
+      } else if (isGitHubPermission) {
+        title = "GitHub Models Permission Error";
+        duration = 12000;
+      } else if (isGitHubAuth) {
+        title = "GitHub Models Authentication Failed";
+        duration = 10000;
+      }
+      
       toast({
-        title: "Analysis Failed",
-        description: error.message || "Could not analyze documents",
+        title,
+        description,
         variant: "destructive",
+        duration,
       });
     } finally {
       setIsAnalyzing(false);

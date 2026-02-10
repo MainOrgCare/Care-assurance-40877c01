@@ -572,13 +572,21 @@ export default function PlanEnhancer() {
         const errorText = await response.text();
         try {
           const error = JSON.parse(errorText);
-          // Check for rate limit error
-          if (response.status === 429 || error.message?.includes('rate limit') || error.message?.includes('429')) {
-            throw new Error("AI service is busy. Please wait 30-60 seconds and try again.");
+          const errorMsg = error.message || "";
+          
+          // Check for GitHub Models specific errors
+          if (errorMsg.includes("GitHub Models API quota") || errorMsg.includes("quota exceeded")) {
+            throw new Error("GitHub Models quota exceeded. Your API token has hit its rate limit. Wait for quota to reset, use a different token, or switch to OpenAI provider in Secret Admin Portal.");
           }
-          throw new Error(error.message || "Failed to generate care plan");
+          if (errorMsg.includes("models") && errorMsg.includes("permission")) {
+            throw new Error("GitHub Models permission denied. Your API token needs the 'models' scope. Generate a new token at https://github.com/settings/tokens or switch to OpenAI provider.");
+          }
+          if (response.status === 429 || errorMsg.includes('rate limit') || errorMsg.includes('429')) {
+            throw new Error("AI service is busy (rate limited). Please wait 30-60 seconds and try again.");
+          }
+          throw new Error(errorMsg || "Failed to generate care plan");
         } catch (e: any) {
-          if (e.message?.includes('AI service is busy')) throw e;
+          if (e.message?.includes('AI service is busy') || e.message?.includes('GitHub Models')) throw e;
           throw new Error("Failed to generate care plan");
         }
       }
@@ -631,10 +639,28 @@ export default function PlanEnhancer() {
     onError: (error: Error) => {
       setProgress(0);
       setProgressStatus("");
+      
+      // Extract error info for better user guidance
+      const errorMsg = error.message || "Plan generation failed";
+      const isGitHubQuota = errorMsg.includes("GitHub Models") && (errorMsg.includes("quota") || errorMsg.includes("rate limit"));
+      const isGitHubPermission = errorMsg.includes("GitHub Models") && errorMsg.includes("permission");
+      
+      let title = "Generation Failed";
+      let duration = 8000;
+      
+      if (isGitHubQuota) {
+        title = "GitHub Models Quota Exceeded";
+        duration = 12000;
+      } else if (isGitHubPermission) {
+        title = "GitHub Models Permission Error";
+        duration = 12000;
+      }
+      
       toast({
-        title: "Generation Failed",
-        description: error.message,
+        title,
+        description: errorMsg,
         variant: "destructive",
+        duration,
       });
     },
   });
