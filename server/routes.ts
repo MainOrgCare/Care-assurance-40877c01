@@ -15177,7 +15177,7 @@ ${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.versio
         : "Privacy: Data has been tokenized. Keep tokens in output for automatic placeholder conversion.";
 
       // Get current provider to determine token limits
-      const currentProvider = getProvider();
+      const currentProvider = getPreferredProvider();
       
       // GitHub Models API token limits (from docs: https://docs.github.com/en/github-models)
       // Free tier: High models (GPT-4o) = 8000 in, 4000 out
