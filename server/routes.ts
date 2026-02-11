@@ -1212,8 +1212,9 @@ class PIIVault {
     });
 
     // Full name patterns (First Last or First Middle Last)
+    // Handle mixed case: "Kaylee spencer", "kaylee Spencer", "KAYLEE SPENCER", etc.
     scrubbed = scrubbed.replace(
-      /\b([A-Z][a-z]+)\s+((?:O['']|Mc|Mac)?[A-Z][a-z]+)(?:\s+((?:O['']|Mc|Mac)?[A-Z][a-z]+))?\b/g,
+      /\b([A-Z][a-z]+)\s+((?:O['']|Mc|Mac)?[A-Za-z][a-z]+)(?:\s+((?:O['']|Mc|Mac)?[A-Za-z][a-z]+))?\b/g,
       (match, first, second, third) => {
         const phrase = match.toLowerCase();
         if (CARE_PHRASE_WHITELIST.has(phrase)) return match;
@@ -1221,6 +1222,39 @@ class PIIVault {
         if (third && isClinicalOrMedicalTerm(third)) return match;
         if (COMMON_ENGLISH_WORDS.has(first.toLowerCase())) return match;
         return this.store(match, 'NAME');
+      }
+    );
+    
+    // All lowercase names (common in informal documents)
+    scrubbed = scrubbed.replace(
+      /\b([a-z]{2,})\s+([a-z]{2,})(?:\s+([a-z]{2,}))?\b/g,
+      (match, first, second, third) => {
+        // Only scrub if it looks like a name (not common phrase)
+        const phrase = match.toLowerCase();
+        if (CARE_PHRASE_WHITELIST.has(phrase)) return match;
+        if (COMMON_ENGLISH_WORDS.has(first) && COMMON_ENGLISH_WORDS.has(second)) return match;
+        if (isClinicalOrMedicalTerm(first) || isClinicalOrMedicalTerm(second)) return match;
+        if (third && isClinicalOrMedicalTerm(third)) return match;
+        
+        // Additional check: if followed by context like "- granddaughter", "- mother", likely a name
+        const contextMatch = /(mother|father|son|daughter|granddaughter|grandson|sister|brother|wife|husband|partner|friend|carer|neighbor|neighbour)/i;
+        if (contextMatch.test(match)) {
+          return this.store(match, 'NAME');
+        }
+        
+        // Check if preceded by name context
+        const precedingContext = /(present at assessment|attended by|with|seen with|accompanied by):/i;
+        const beforeMatch = scrubbed.slice(Math.max(0, scrubbed.lastIndexOf(match) - 50), scrubbed.lastIndexOf(match));
+        if (precedingContext.test(beforeMatch)) {
+          return this.store(match, 'NAME');
+        }
+        
+        // If words are longer and not common, likely names
+        if (first.length >= 4 && second.length >= 4 && !COMMON_ENGLISH_WORDS.has(first) && !COMMON_ENGLISH_WORDS.has(second)) {
+          return this.store(match, 'NAME');
+        }
+        
+        return match;
       }
     );
     
