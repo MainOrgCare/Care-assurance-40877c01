@@ -430,6 +430,7 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
   totalTokens: integer("total_tokens").notNull().default(0),
   costMicroDollars: integer("cost_micros").notNull().default(0),
   durationMs: integer("duration_ms"),
+  requestPayload: jsonb("request_payload"), // Full AI request data (messages, params, etc.)
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

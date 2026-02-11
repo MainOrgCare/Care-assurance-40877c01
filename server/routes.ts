@@ -17606,20 +17606,17 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     try {
       const logs = await storage.getAiUsageLogs({ limit: 500 });
       
-      // Transform logs to include request information
-      // Note: Currently we don't store full request bodies in the database
-      // This endpoint uses existing usage log data
+      // Return logs with actual stored request payloads
       const enrichedLogs = logs.map((log: any) => ({
         id: log.id,
         userId: log.userId,
         username: log.username,
         endpoint: `/api/${log.featureName}`,
         featureName: log.featureName,
-        requestBody: {
-          note: "Full request body logging not yet implemented",
+        requestBody: log.requestPayload || {
+          note: "Request payload not available for this log entry",
           model: log.model,
-          provider: log.provider,
-          featureName: log.featureName
+          provider: log.provider
         },
         inputTokens: log.inputTokens,
         outputTokens: log.outputTokens,

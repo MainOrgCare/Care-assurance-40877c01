@@ -665,6 +665,16 @@ export async function createChatCompletionWithLogging(
         totalTokens: 0,
         costMicroDollars: 0,
         durationMs: duration,
+        requestPayload: {
+          model: actualModel,
+          messages: params.messages,
+          temperature: params.temperature,
+          max_completion_tokens: params.max_completion_tokens || params.max_tokens,
+          response_format: params.response_format,
+          provider: preferredProvider,
+          featureName: featureName,
+          cached: true,
+        },
       }).catch(err => console.error("[AI] Failed to log cache hit:", err.message));
       
       return cachedResponse.result as OpenAI.ChatCompletion;
@@ -706,6 +716,15 @@ export async function createChatCompletionWithLogging(
       totalTokens,
       costMicroDollars,
       durationMs: duration,
+      requestPayload: {
+        model: actualModel,
+        messages: params.messages,
+        temperature: params.temperature,
+        max_completion_tokens: params.max_completion_tokens || params.max_tokens,
+        response_format: params.response_format,
+        provider: provider,
+        featureName: featureName,
+      },
     }).catch(err => console.error("[AI] Failed to log usage:", err.message));
     
     return result.completion;
@@ -726,6 +745,16 @@ export async function createChatCompletionWithLogging(
       totalTokens: 0,
       costMicroDollars: 0,
       durationMs: duration,
+      requestPayload: {
+        model: actualModel,
+        messages: params.messages,
+        temperature: params.temperature,
+        max_completion_tokens: params.max_completion_tokens || params.max_tokens,
+        response_format: params.response_format,
+        provider: provider,
+        featureName: featureName,
+        error: error.message,
+      },
     }).catch(err => console.error("[AI] Failed to log error:", err.message));
     
     throw error;
