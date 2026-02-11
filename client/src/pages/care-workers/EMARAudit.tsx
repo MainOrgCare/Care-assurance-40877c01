@@ -1222,7 +1222,7 @@ export default function EMARAudit() {
 
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("allowSensitive", isAdmin && allowSensitive ? "true" : "false");
+      formData.append("allowSensitive", "true");
 
       const response = await fetch(`/api/ai/analyze-emar`,
       {

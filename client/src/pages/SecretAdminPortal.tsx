@@ -200,6 +200,8 @@ function AIAdminLog() {
   const [searchQuery, setSearchQuery] = useState("");
   const [userFilter, setUserFilter] = useState("all");
   const [endpointFilter, setEndpointFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
 
   useEffect(() => {
     fetchAILogs();
@@ -236,7 +238,7 @@ function AIAdminLog() {
   }, [logs]);
 
   const filteredLogs = useMemo(() => {
-    return logs.filter(log => {
+    const filtered = logs.filter(log => {
       const matchesSearch = !searchQuery || 
         log.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         log.endpoint.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -245,7 +247,15 @@ function AIAdminLog() {
       const matchesEndpoint = endpointFilter === "all" || log.endpoint === endpointFilter;
       return matchesSearch && matchesUser && matchesEndpoint;
     });
+    // Reset to page 1 when filters change
+    setCurrentPage(1);
+    return filtered;
   }, [logs, searchQuery, userFilter, endpointFilter]);
+
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const displayedLogs = filteredLogs.slice(startIndex, endIndex);
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -323,8 +333,33 @@ function AIAdminLog() {
         </div>
 
         {/* Results count */}
-        <div className="text-sm text-muted-foreground">
-          Showing {filteredLogs.length} of {logs.length} requests
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Showing {startIndex + 1}-{Math.min(endIndex, filteredLogs.length)} of {filteredLogs.length} requests
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Logs */}
@@ -335,7 +370,7 @@ function AIAdminLog() {
           </div>
         ) : (
           <Accordion type="single" collapsible className="space-y-2">
-            {filteredLogs.map((log) => (
+            {displayedLogs.map((log) => (
               <AccordionItem 
                 key={log.id} 
                 value={log.id}
