@@ -212,7 +212,6 @@ export default function PlanEnhancer() {
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [allowSensitive, setAllowSensitive] = useState(false);
   const [updateNotes, setUpdateNotes] = useState("");
   
   // Pre-analysis state (rule-based, no AI cost)
@@ -292,10 +291,10 @@ export default function PlanEnhancer() {
   }, []);
 
   const isAdmin = user?.role === "admin";
-  const showSensitive = isAdmin && allowSensitive;
+  // Always use raw data with full names restored automatically via vault
   const displayResult = useMemo(
-    () => (showSensitive && resultRaw ? resultRaw : resultScrubbed),
-    [showSensitive, resultRaw, resultScrubbed]
+    () => resultRaw || resultScrubbed,
+    [resultRaw, resultScrubbed]
   );
   const copyResult = resultScrubbed || resultRaw;
   const isRuleBasedOutput = displayResult?.generationMode === "rule-based";
@@ -681,7 +680,7 @@ export default function PlanEnhancer() {
         }
         const { scrubbed, raw } = processVaultResponse<CarePlanTemplate>(
           payload,
-          isAdmin && allowSensitive
+          true // Always restore full names via vault
         );
         resultScrubbed = scrubbed;
         resultRaw = raw || scrubbed;

@@ -17601,6 +17601,42 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     }
   });
 
+  // Get detailed AI request logs (admin-only)
+  app.get("/api/admin/ai-logs", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const logs = await storage.getAiUsageLogs({ limit: 500 });
+      
+      // Transform logs to include request information
+      // Note: Currently we don't store full request bodies in the database
+      // This endpoint uses existing usage log data
+      const enrichedLogs = logs.map((log: any) => ({
+        id: log.id,
+        userId: log.userId,
+        username: log.username,
+        endpoint: `/api/${log.featureName}`,
+        featureName: log.featureName,
+        requestBody: {
+          note: "Full request body logging not yet implemented",
+          model: log.model,
+          provider: log.provider,
+          featureName: log.featureName
+        },
+        inputTokens: log.inputTokens,
+        outputTokens: log.outputTokens,
+        totalTokens: log.totalTokens,
+        costMicroDollars: log.costMicroDollars,
+        model: log.model,
+        provider: log.provider,
+        createdAt: log.createdAt
+      }));
+      
+      return res.json({ logs: enrichedLogs });
+    } catch (error: any) {
+      console.error("AI request logs fetch error:", error);
+      return res.status(500).json({ message: error.message || "Failed to fetch AI request logs" });
+    }
+  });
+
   // =====================================================================
   // CALL RECONCILIATION - Excel Processing
   // =====================================================================

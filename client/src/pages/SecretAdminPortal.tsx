@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download } from "lucide-react";
+import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download, ChevronDown } from "lucide-react";
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import AdminDatabasePanel from "@/components/rostering/AdminDatabasePanel";
 
 interface AdminAlert {
@@ -59,6 +60,22 @@ interface AiUsageStats {
   totalCost: number;
   totalCalls: number;
   byFeature: Record<string, { calls: number; cost: number; tokens: number }>;
+}
+
+interface AIRequestLog {
+  id: string;
+  userId: string | null;
+  username: string | null;
+  endpoint: string;
+  featureName: string;
+  requestBody: any;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costMicroDollars: number;
+  model: string;
+  provider: string;
+  createdAt: string;
 }
 
 interface ContactMessage {
@@ -176,6 +193,214 @@ const isValidPassword = (value: string): boolean => {
   if (!value || value.length < 8) return false;
   return /[A-Za-z]/.test(value) && /\d/.test(value);
 };
+
+function AIAdminLog() {
+  const [logs, setLogs] = useState<AIRequestLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [userFilter, setUserFilter] = useState("all");
+  const [endpointFilter, setEndpointFilter] = useState("all");
+
+  useEffect(() => {
+    fetchAILogs();
+  }, []);
+
+  const fetchAILogs = async () => {
+    try {
+      const response = await fetch("/api/admin/ai-logs", {
+        credentials: "include",
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setLogs(data.logs || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch AI logs:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const uniqueUsers = useMemo(() => {
+    const users = new Set<string>();
+    logs.forEach(log => {
+      if (log.username) users.add(log.username);
+    });
+    return Array.from(users).sort();
+  }, [logs]);
+
+  const uniqueEndpoints = useMemo(() => {
+    const endpoints = new Set<string>();
+    logs.forEach(log => endpoints.add(log.endpoint));
+    return Array.from(endpoints).sort();
+  }, [logs]);
+
+  const filteredLogs = useMemo(() => {
+    return logs.filter(log => {
+      const matchesSearch = !searchQuery || 
+        log.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        log.endpoint.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        log.featureName.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesUser = userFilter === "all" || log.username === userFilter;
+      const matchesEndpoint = endpointFilter === "all" || log.endpoint === endpointFilter;
+      return matchesSearch && matchesUser && matchesEndpoint;
+    });
+  }, [logs, searchQuery, userFilter, endpointFilter]);
+
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleString('en-GB', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
+  const formatCost = (microDollars: number) => {
+    const dollars = microDollars / 1000000;
+    return `$${dollars.toFixed(4)}`;
+  };
+
+  if (loading) {
+    return (
+      <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border shadow-sm bg-white dark:bg-card border-border">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Terminal className="h-5 w-5" />
+          AI Request Log
+        </CardTitle>
+        <CardDescription>
+          Detailed log of all AI requests with full request payloads
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-3">
+          <div className="flex-1 min-w-[200px]">
+            <Input
+              placeholder="Search logs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full"
+            />
+          </div>
+          <Select value={userFilter} onValueChange={setUserFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by user" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Users</SelectItem>
+              {uniqueUsers.map(user => (
+                <SelectItem key={user} value={user}>{user}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={endpointFilter} onValueChange={setEndpointFilter}>
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="Filter by endpoint" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Endpoints</SelectItem>
+              {uniqueEndpoints.map(endpoint => (
+                <SelectItem key={endpoint} value={endpoint}>
+                  {endpoint.replace('/api/', '')}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Results count */}
+        <div className="text-sm text-muted-foreground">
+          Showing {filteredLogs.length} of {logs.length} requests
+        </div>
+
+        {/* Logs */}
+        {filteredLogs.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <Terminal className="h-12 w-12 mx-auto mb-3 opacity-20" />
+            <p>No AI requests logged yet</p>
+          </div>
+        ) : (
+          <Accordion type="single" collapsible className="space-y-2">
+            {filteredLogs.map((log) => (
+              <AccordionItem 
+                key={log.id} 
+                value={log.id}
+                className="border rounded-lg bg-muted/30"
+              >
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <div className="flex items-center justify-between w-full pr-4">
+                    <div className="flex items-center gap-3 flex-1">
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {formatTimestamp(log.createdAt)}
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        {log.username || "Unknown User"}
+                      </Badge>
+                      <span className="text-sm font-medium text-foreground truncate max-w-[300px]">
+                        {log.endpoint.replace('/api/', '')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {log.totalTokens.toLocaleString()} tokens
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {formatCost(log.costMicroDollars)}
+                      </Badge>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-3 mt-2">
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="font-semibold text-muted-foreground">Feature:</span>
+                        <span className="ml-2">{log.featureName}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-muted-foreground">Model:</span>
+                        <span className="ml-2">{log.model} ({log.provider})</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-muted-foreground">Input Tokens:</span>
+                        <span className="ml-2">{log.inputTokens.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-muted-foreground">Output Tokens:</span>
+                        <span className="ml-2">{log.outputTokens.toLocaleString()}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="border-t pt-3">
+                      <div className="font-semibold text-sm mb-2">Request Payload:</div>
+                      <pre className="bg-muted p-3 rounded-md overflow-x-auto text-xs font-mono max-h-[400px] overflow-y-auto">
+                        {JSON.stringify(log.requestBody, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function AICostSection() {
   const [logs, setLogs] = useState<AiUsageLog[]>([]);
@@ -4220,9 +4445,9 @@ export default function SecretAdminPortal() {
                 <FileText size={14} className="mr-1.5 inline-block" />
                 Policy Documents
               </TabsTrigger>
-              <TabsTrigger value="ai-costs" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-muted-foreground">
+              <TabsTrigger value="ai" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-muted-foreground">
                 <DollarSign size={14} className="mr-1.5 inline-block" />
-                AI Costs
+                AI
               </TabsTrigger>
               <TabsTrigger value="database" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-muted-foreground">
                 <Database size={14} className="mr-1.5 inline-block" />
@@ -4723,7 +4948,8 @@ export default function SecretAdminPortal() {
               <ContactMessagesSection />
             </TabsContent>
 
-            <TabsContent value="ai-costs" className="space-y-6">
+            <TabsContent value="ai" className="space-y-6">
+              <AIAdminLog />
               <AIProviderSection />
               <AICostSection />
             </TabsContent>

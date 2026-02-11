@@ -472,7 +472,6 @@ export default function EMARAudit() {
   const [analyzed, setAnalyzed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<EmarAnalysisResult | null>(null);
-  const [allowSensitive, setAllowSensitive] = useState(false);
   const [fileReady, setFileReady] = useState(false);
   const prevContentRef = useRef("");
   
@@ -1816,11 +1815,9 @@ ${generatedProtocol.additionalComments}`;
   }, [result]);
   const serviceUserDisplay = useMemo(() => {
     if (!result) return "N.N.";
-    if (isAdmin && allowSensitive) {
-      return result.serviceUserName || serviceUserDisplayScrubbed;
-    }
-    return serviceUserDisplayScrubbed;
-  }, [result, isAdmin, allowSensitive, serviceUserDisplayScrubbed]);
+    // Always show full name - vault restoration handles this client-side
+    return result.serviceUserName || serviceUserDisplayScrubbed;
+  }, [result, serviceUserDisplayScrubbed]);
 
   const hasAnyDiscrepancies = () => {
     const allDiscrepancies = getAllDiscrepancies();
@@ -2800,12 +2797,6 @@ ${generatedProtocol.additionalComments}`;
                       Retry AI
                     </Button>
                   </div>
-                </div>
-              )}
-              {isAdmin && (
-                <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                  <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
-                  <span>Show full service user name (admin view). Saved audits use initials.</span>
                 </div>
               )}
 

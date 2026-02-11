@@ -1270,12 +1270,6 @@ export default function RiskAssessment() {
           <p className="page-subtitle max-w-2xl">
             Synthesizing clinical documentation to identify risk vectors and mandatory assessment frameworks.
           </p>
-          {isAdmin && (
-            <div className="mt-4 inline-flex items-center gap-3 rounded-xl border border-border/40 bg-muted/20 px-4 py-2 text-xs font-semibold text-muted-foreground">
-              <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
-              <span className="uppercase tracking-tighter">Extended Identity Access (Admin Only)</span>
-            </div>
-          )}
         </div>
 
         <Card className="glass-card shadow-medium animate-slide-up stagger-2">
@@ -1399,12 +1393,6 @@ export default function RiskAssessment() {
           <p className="page-subtitle max-w-2xl">
             Consensus recommendations for <span className="text-foreground font-black tracking-tight">{serviceUserDisplayName}</span> based on multi-document neural analysis.
           </p>
-          {isAdmin && (
-            <div className="mt-4 inline-flex items-center gap-3 rounded-xl border border-border/40 bg-muted/20 px-4 py-2 text-xs font-semibold text-muted-foreground">
-              <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
-              <span className="uppercase tracking-tighter">Extended Identity Access (Admin Only)</span>
-            </div>
-          )}
         </div>
 
         {parseErrors.length > 0 && (

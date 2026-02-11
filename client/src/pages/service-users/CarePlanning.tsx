@@ -121,7 +121,6 @@ export default function CarePlanning() {
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [sortMode, setSortMode] = useState<"default" | "priority">("default");
-  const [allowSensitive, setAllowSensitive] = useState(false);
 
   // Throttle progress updates to reduce re-renders during SSE streaming
   const lastProgressUpdateRef = useRef<number>(0);
@@ -135,15 +134,15 @@ export default function CarePlanning() {
   }, []);
 
   const isAdmin = user?.role === "admin";
-  const showSensitive = isAdmin && allowSensitive;
   
   // Get current care plan based on selected call type or fall back to legacy single plan
   const currentCarePlanRaw = selectedCallType ? carePlansByTypeRaw.get(selectedCallType) : carePlanRaw;
   const currentCarePlanScrubbed = selectedCallType ? carePlansByTypeScrubbed.get(selectedCallType) : carePlanScrubbed;
   
+  // Always use raw data with full names restored automatically via vault
   const carePlan = useMemo(
-    () => (showSensitive && currentCarePlanRaw ? currentCarePlanRaw : currentCarePlanScrubbed),
-    [showSensitive, currentCarePlanRaw, currentCarePlanScrubbed]
+    () => currentCarePlanRaw || currentCarePlanScrubbed,
+    [currentCarePlanRaw, currentCarePlanScrubbed]
   );
   const isRuleBasedCarePlan = carePlan?.generationMode === "rule-based";
 
@@ -373,7 +372,7 @@ export default function CarePlanning() {
 
         const { scrubbed, raw } = processVaultResponse<CarePlanResult>(
           payload,
-          isAdmin && allowSensitive
+          true // Always restore full names via vault
         );
         resultScrubbed = scrubbed;
         resultRaw = raw || scrubbed;
