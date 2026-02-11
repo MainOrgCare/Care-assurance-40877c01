@@ -309,7 +309,7 @@ export default function CarePlanning() {
         body: JSON.stringify({ 
           documentContent, 
           callType: selectedCallType,
-          allowSensitive: isAdmin && allowSensitive 
+          allowSensitive: true // Always request vault export for automatic restoration
         }),
       });
 
@@ -578,15 +578,7 @@ export default function CarePlanning() {
               Secure Rule-Based Output
             </Badge>
           )}
-          {isAdmin && (
-            <div className="flex flex-col items-start gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-2 text-xs text-muted-foreground glass-card">
-              <div className="flex items-center gap-3">
-                <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
-                <span className="font-medium tracking-tight">Show full names (admin view)</span>
-              </div>
-              <span className="text-[10px] text-muted-foreground font-medium">Copies and saves use initials only.</span>
-            </div>
-          )}
+          {/* Names are automatically restored from vault - no toggle needed */}
           {carePlan && (
             <Button variant="outline" onClick={copyAllPlan} className="gap-2.5 rounded-xl border-border/60 font-medium tracking-tight shadow-sm" data-testid="button-copy-all">
               <Copy size={16} /> Copy Full Plan

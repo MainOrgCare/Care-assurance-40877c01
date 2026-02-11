@@ -13344,16 +13344,14 @@ Return JSON - include ALL by default:
         sendProgress(15, "Running secure rule-based analysis...", "rule_based");
         const fallbackResult = buildRuleBasedRiskAnalysisPayload(documentContentForAi, allowSensitiveView);
         const templateResult = piiVault.toPlaceholders(fallbackResult);
-        let payload: any = templateResult;
-        if (allowSensitiveView) {
-          const vaultExport = piiVault.export();
-          payload = {
-            ...templateResult,
-            vaultExport,
-            rawWithTokens: fallbackResult,
-          };
-          piiVault.logAudit('RESTORE', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
-        }
+        // Always export vault for automatic name restoration
+        const vaultExport = piiVault.export();
+        const payload = {
+          ...templateResult,
+          vaultExport,
+          rawWithTokens: fallbackResult,
+        };
+        piiVault.logAudit('RESTORE', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
         sendProgress(100, "Complete!", "complete");
         sendEvent('result', payload);
         piiVault.clear();
@@ -13962,20 +13960,17 @@ Remember: Extract information ONLY from service user documents above. Templates 
       console.log(`[Risks] Template Output: ${piiVault.getStats().total} fields converted to placeholders like [Name], [NHS Number]`);
       piiVault.logAudit('SCRUB', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
       
-      // For authorized admin users with allowSensitive, include vault export for client-side restoration
-      // The client can then restore PII values locally without them being transmitted
-      let payload: any = templateResult;
-      if (allowSensitiveView) {
-        const vaultExport = piiVault.export();
-        payload = {
-          ...templateResult,
-          vaultExport,
-          // Also include the raw result with tokens for client-side restoration
-          rawWithTokens: result,
-        };
-        console.log(`[Risks] Admin mode: Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for local restoration`);
-        piiVault.logAudit('RESTORE', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
-      }
+      // Always export vault for automatic client-side name restoration
+      // The client restores PII values locally without them being retransmitted
+      const vaultExport = piiVault.export();
+      const payload = {
+        ...templateResult,
+        vaultExport,
+        // Include the raw result with tokens for client-side restoration
+        rawWithTokens: result,
+      };
+      console.log(`[Risks] Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for automatic local restoration`);
+      piiVault.logAudit('RESTORE', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
       
       setRiskAnalysisCache(cacheKey, payload);
       sendProgress(100, "Complete!", "complete");
@@ -14083,16 +14078,14 @@ Remember: Extract information ONLY from service user documents above. Templates 
           performedByJobTitle,
         });
         const templateResult = piiVault.toPlaceholders(fallbackResult);
-        let payload: any = templateResult;
-        if (allowSensitiveView) {
-          const vaultExport = piiVault.export();
-          payload = {
-            ...templateResult,
-            vaultExport,
-            rawWithTokens: fallbackResult,
-          };
-          piiVault.logAudit('RESTORE', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
-        }
+        // Always export vault for automatic name restoration
+        const vaultExport = piiVault.export();
+        const payload = {
+          ...templateResult,
+          vaultExport,
+          rawWithTokens: fallbackResult,
+        };
+        piiVault.logAudit('RESTORE', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
         sendProgress(100, "Complete!", "complete");
         sendEvent('result', payload);
         piiVault.clear();
@@ -14458,18 +14451,15 @@ Remember: Extract information ONLY from the service user documents above. Templa
         console.log(`[RiskAssessment] Template Output: ${piiVault.getStats().total} fields converted to placeholders`);
         piiVault.logAudit('SCRUB', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
         
-        // For authorized admin users with allowSensitive, include vault export for client-side restoration
-        let payload: any = templateResult;
-        if (allowSensitiveView) {
-          const vaultExport = piiVault.export();
-          payload = {
-            ...templateResult,
-            vaultExport,
-            rawWithTokens: result,
-          };
-          console.log(`[RiskAssessment] Admin mode: Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for local restoration`);
-          piiVault.logAudit('RESTORE', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
-        }
+        // Always export vault for automatic client-side name restoration
+        const vaultExport = piiVault.export();
+        const payload = {
+          ...templateResult,
+          vaultExport,
+          rawWithTokens: result,
+        };
+        console.log(`[RiskAssessment] Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for automatic local restoration`);
+        piiVault.logAudit('RESTORE', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
         
         sendProgress(100, "Complete!", "complete");
         sendEvent('result', payload);
@@ -14822,19 +14812,15 @@ OUTPUT FORMAT - Return ONLY valid JSON:
           callType: callTypeLabel,
         });
         const templateContent = piiVault.toPlaceholders(fallbackRaw.content);
-        let result: any = {
+        // Always export vault for automatic name restoration
+        const vaultExport = piiVault.export();
+        const result = {
           ...fallbackRaw,
           content: templateContent,
+          vaultExport,
+          rawWithTokens: fallbackRaw,
         };
-        if (allowSensitiveView) {
-          const vaultExport = piiVault.export();
-          result = {
-            ...result,
-            vaultExport,
-            rawWithTokens: fallbackRaw,
-          };
-          piiVault.logAudit('RESTORE', '/api/ai/generate-care-plan', aiUserContext.userId, aiUserContext.username);
-        }
+        piiVault.logAudit('RESTORE', '/api/ai/generate-care-plan', aiUserContext.userId, aiUserContext.username);
         sendProgress(100, "Complete!", "complete");
         sendEvent('result', result);
         piiVault.clear();
@@ -15073,21 +15059,20 @@ Return ONLY valid JSON with content field.` }
         };
         
         // For authorized admin users with allowSensitive, include vault export for client-side restoration
-        if (allowSensitiveView) {
-          const vaultExport = piiVault.export();
-          result = {
-            ...result,
-            vaultExport,
-            rawWithTokens: {
-              serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
-              generatedDate: today,
-              callType: callTypeLabel,
-              content: enhancedContent,
-            },
-          };
-          console.log(`[CarePlan] Admin mode: Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for local restoration`);
-          piiVault.logAudit('RESTORE', '/api/ai/generate-care-plan', aiUserContext.userId, aiUserContext.username);
-        }
+        // Always export vault for automatic client-side name restoration
+        const vaultExport = piiVault.export();
+        result = {
+          ...result,
+          vaultExport,
+          rawWithTokens: {
+            serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
+            generatedDate: today,
+            callType: callTypeLabel,
+            content: enhancedContent,
+          },
+        };
+        console.log(`[CarePlan] Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for automatic local restoration`);
+        piiVault.logAudit('RESTORE', '/api/ai/generate-care-plan', aiUserContext.userId, aiUserContext.username);
 
         sendProgress(100, "Complete!", "complete");
         sendEvent('result', result);
@@ -16225,18 +16210,15 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
         console.log(`[Enhance] Template Output: ${piiVault.getStats().total} fields converted to placeholders like [Name], [NHS Number]`);
         piiVault.logAudit('SCRUB', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
         
-        // For authorized admin users with allowSensitive, include vault export for client-side restoration
-        let payload: any = templateResult;
-        if (allowSensitiveView) {
-          const vaultExport = piiVault.export();
-          payload = {
-            ...templateResult,
-            vaultExport,
-            rawWithTokens: result,
-          };
-          console.log(`[Enhance] Admin mode: Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for local restoration`);
-          piiVault.logAudit('RESTORE', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
-        }
+        // Always export vault for automatic client-side name restoration
+        const vaultExport = piiVault.export();
+        const payload = {
+          ...templateResult,
+          vaultExport,
+          rawWithTokens: result,
+        };
+        console.log(`[Enhance] Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for automatic local restoration`);
+        piiVault.logAudit('RESTORE', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
         
         sendProgress(100, "Complete!", "complete");
         sendEvent('result', payload);

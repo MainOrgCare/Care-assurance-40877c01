@@ -123,7 +123,6 @@ export default function RiskAssessment() {
   const [assessmentFilter, setAssessmentFilter] = useState<"all" | "mandatory" | "optional">("all");
   const [sortMode, setSortMode] = useState<"default" | "mandatory">("default");
   const [copiedAssessment, setCopiedAssessment] = useState<number | null>(null);
-  const [allowSensitive, setAllowSensitive] = useState(false);
   const [customAssessmentName, setCustomAssessmentName] = useState("");
   const [customAssessments, setCustomAssessments] = useState<RecommendedAssessment[]>([]);
   const [isRefreshingIdentity, setIsRefreshingIdentity] = useState(false);
@@ -143,20 +142,20 @@ export default function RiskAssessment() {
   }, []);
 
   const isAdmin = user?.role === "admin";
-  const showSensitive = isAdmin && allowSensitive;
+  // Always use raw data with names restored automatically via vault
   const analysis = useMemo(
-    () => (showSensitive && analysisRaw ? analysisRaw : analysisScrubbed),
-    [showSensitive, analysisRaw, analysisScrubbed]
+    () => analysisRaw || analysisScrubbed,
+    [analysisRaw, analysisScrubbed]
   );
   const generatedAssessments = useMemo(
-    () => (showSensitive && generatedAssessmentsRaw.length > 0 ? generatedAssessmentsRaw : generatedAssessmentsScrubbed),
-    [showSensitive, generatedAssessmentsRaw, generatedAssessmentsScrubbed]
+    () => generatedAssessmentsRaw.length > 0 ? generatedAssessmentsRaw : generatedAssessmentsScrubbed,
+    [generatedAssessmentsRaw, generatedAssessmentsScrubbed]
   );
   const generatedAssessmentsForCopy = useMemo(() => {
-    if (showSensitive && generatedAssessmentsRaw.length > 0) return generatedAssessmentsRaw;
+    if (generatedAssessmentsRaw.length > 0) return generatedAssessmentsRaw;
     if (generatedAssessmentsScrubbed.length > 0) return generatedAssessmentsScrubbed;
     return generatedAssessmentsRaw;
-  }, [showSensitive, generatedAssessmentsRaw, generatedAssessmentsScrubbed]);
+  }, [generatedAssessmentsRaw, generatedAssessmentsScrubbed]);
   const isRuleBasedAnalysis = useMemo(
     () =>
       analysis?.generationMode === "rule-based" ||
@@ -171,12 +170,13 @@ export default function RiskAssessment() {
     [generatedAssessments, generatedAssessmentsForCopy]
   );
   const serviceUserDisplayName = useMemo(() => {
-    const fullName = showSensitive ? analysisRaw?.serviceUser?.fullName : null;
+    // Use full name if available (vault automatically restores it)
+    const fullName = analysisRaw?.serviceUser?.fullName;
     if (fullName && !/information not found/i.test(fullName)) return fullName.trim();
     const initials = analysisScrubbed?.serviceUser?.initials || analysisRaw?.serviceUser?.initials;
     return initials || "N.N.";
-  }, [showSensitive, analysisRaw, analysisScrubbed]);
-  const serviceUserLabel = useMemo(() => (showSensitive && analysisRaw?.serviceUser?.fullName ? "Service User Name" : "Service User Initials"), [showSensitive, analysisRaw]);
+  }, [analysisRaw, analysisScrubbed]);
+  const serviceUserLabel = useMemo(() => (analysisRaw?.serviceUser?.fullName ? "Service User Name" : "Service User Initials"), [analysisRaw]);
   const formatSignedBy = (assessment: GeneratedAssessment) => {
     const rawName = assessment.signedBy?.trim() || "";
     const name = rawName.replace(/\./g, " ").replace(/\s+/g, " ").trim();
@@ -185,7 +185,8 @@ export default function RiskAssessment() {
     return name || title || "Staff member";
   };
   const getServiceUserDisplay = (fallbackInitials?: string) => {
-    if (showSensitive && analysisRaw?.serviceUser?.fullName && !/information not found/i.test(analysisRaw.serviceUser.fullName)) {
+    // Automatically use restored full name if available
+    if (analysisRaw?.serviceUser?.fullName && !/information not found/i.test(analysisRaw.serviceUser.fullName)) {
       return analysisRaw.serviceUser.fullName.trim();
     }
     return fallbackInitials || serviceUserDisplayName || "N.N.";
@@ -557,7 +558,7 @@ export default function RiskAssessment() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ documentContent, allowSensitive: isAdmin && allowSensitive }),
+        body: JSON.stringify({ documentContent, allowSensitive: true }), // Always request vault export
       });
 
       if (!response.ok) {
@@ -834,7 +835,7 @@ export default function RiskAssessment() {
             serviceUserInitials: analysisScrubbed?.serviceUser.initials || analysis?.serviceUser.initials,
             performedBy: user?.username,
             performedByJobTitle: user?.jobTitle || "Care Staff",
-            allowSensitive: isAdmin && allowSensitive,
+            allowSensitive: true, // Always request vault export for automatic restoration
             assessmentEvidence: assessmentEvidence
               ? {
                   name: assessmentEvidence.name,
@@ -1793,15 +1794,7 @@ export default function RiskAssessment() {
                 {totalPlaceholders} placeholder{totalPlaceholders !== 1 ? 's' : ''} to fill
               </Badge>
             )}
-            {isAdmin && (
-              <div className="flex flex-col items-start gap-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
-                  <span>Show full names (admin view)</span>
-                </div>
-                <span className="text-[11px] text-muted-foreground/80">Copies follow the admin view setting.</span>
-              </div>
-            )}
+            {/* Names are automatically restored from vault - no toggle needed */}
             <Button variant="outline" onClick={copyAllAssessments} data-testid="button-copy-all-assessments">
               <Copy size={16} /> Copy All
             </Button>

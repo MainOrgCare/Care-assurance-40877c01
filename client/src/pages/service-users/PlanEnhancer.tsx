@@ -591,7 +591,7 @@ export default function PlanEnhancer() {
       const finalPayload = { 
         documentContent: combinedSupporting,
         existingPlanContent: carePlanContent,
-        allowSensitive: isAdmin && allowSensitive
+        allowSensitive: true // Always request vault export for automatic restoration
       };
       const payloadJSON = JSON.stringify(finalPayload);
       const payloadSizeMB = (new Blob([payloadJSON]).size / (1024 * 1024)).toFixed(2);
@@ -1150,15 +1150,7 @@ export default function PlanEnhancer() {
               Secure Rule-Based Output
             </Badge>
           )}
-          {isAdmin && (
-            <div className="flex flex-col items-start gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-2 text-xs text-muted-foreground glass-card">
-              <div className="flex items-center gap-3">
-                <Switch checked={allowSensitive} onCheckedChange={setAllowSensitive} />
-                <span className="font-medium tracking-tight">Show full names (admin view)</span>
-              </div>
-              <span className="text-[10px] text-muted-foreground font-medium">Internal review only. Copies use initials.</span>
-            </div>
-          )}
+          {/* Names are automatically restored from vault - no toggle needed */}
         </div>
       </div>
 
