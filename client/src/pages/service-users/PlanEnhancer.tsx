@@ -796,7 +796,7 @@ export default function PlanEnhancer() {
     addHeading("Plan Enhancer Export");
     addLines(`Exported: ${new Date().toLocaleDateString("en-GB")}`, { size: 10, lineHeight: 5 });
     addLines(
-      showSensitive ? "View: Sensitive admin output." : "View: Scrubbed output.",
+      "View: Full output with restored names.",
       { size: 10, lineHeight: 5, spacing: 2 }
     );
 

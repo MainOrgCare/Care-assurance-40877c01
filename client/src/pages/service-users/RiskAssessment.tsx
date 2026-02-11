@@ -483,7 +483,7 @@ export default function RiskAssessment() {
 
   useEffect(() => {
     const hasFullName = Boolean(analysisRaw?.serviceUser?.fullName?.trim());
-    if (!showSensitive || hasFullName || isRefreshingIdentity || !hasAllParsed) return;
+    if (hasFullName || isRefreshingIdentity || !hasAllParsed) return;
     const refreshSensitiveIdentity = async () => {
       setIsRefreshingIdentity(true);
       try {
@@ -535,7 +535,7 @@ export default function RiskAssessment() {
       }
     };
     refreshSensitiveIdentity();
-  }, [showSensitive, analysisRaw, isRefreshingIdentity, hasAllParsed, getAllDocumentContent, cachedDocumentContent]);
+  }, [analysisRaw, isRefreshingIdentity, hasAllParsed, getAllDocumentContent, cachedDocumentContent]);
 
   const analyzeDocuments = async () => {
     setIsAnalyzing(true);
@@ -1143,8 +1143,8 @@ export default function RiskAssessment() {
         ? window.crypto.randomUUID()
         : String(Date.now());
     const payloadInitials =
-      (showSensitive ? analysisRaw?.serviceUser?.initials : analysisScrubbed?.serviceUser?.initials) ||
       analysisRaw?.serviceUser?.initials ||
+      analysisScrubbed?.serviceUser?.initials ||
       "N.N.";
     const payload = {
       version: 1,
