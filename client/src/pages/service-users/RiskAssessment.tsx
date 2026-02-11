@@ -176,7 +176,7 @@ export default function RiskAssessment() {
     const initials = analysisScrubbed?.serviceUser?.initials || analysisRaw?.serviceUser?.initials;
     return initials || "N.N.";
   }, [analysisRaw, analysisScrubbed]);
-  const serviceUserLabel = useMemo(() => (analysisRaw?.serviceUser?.fullName ? "Service User Name" : "Service User Initials"), [analysisRaw]);
+  const serviceUserLabel = "Name";
   const formatSignedBy = (assessment: GeneratedAssessment) => {
     const rawName = assessment.signedBy?.trim() || "";
     const name = rawName.replace(/\./g, " ").replace(/\s+/g, " ").trim();
@@ -1428,7 +1428,7 @@ export default function RiskAssessment() {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div>
-              <Label className="text-muted-foreground">Service User Initials</Label>
+              <Label className="text-muted-foreground">Name</Label>
               <p className="text-foreground font-medium">{serviceUserDisplayName}</p>
             </div>
             {analysis.medicalConditions.length > 0 && (
