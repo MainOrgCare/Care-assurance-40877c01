@@ -836,7 +836,7 @@ function AIProviderSection() {
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-foreground">Use EMAR Agent</span>
                 <span className="text-xs text-muted-foreground">
-                  Advanced GPT-5.2 extraction for thorough discrepancy detection
+                  Advanced GPT-4.1-mini extraction for thorough discrepancy detection
                 </span>
               </div>
             </div>
@@ -854,7 +854,7 @@ function AIProviderSection() {
             <div className="text-xs text-muted-foreground space-y-1">
               <div className="flex items-start gap-2">
                 <Badge variant="secondary" className="bg-blue-500/20 text-blue-300 border-blue-500/30 shrink-0">
-                  {useEmarAgent ? "GPT-5.2" : "Standard"}
+                  {useEmarAgent ? "GPT-4.1-mini" : "Standard"}
                 </Badge>
                 <span className="font-medium text-foreground">
                   {useEmarAgent 

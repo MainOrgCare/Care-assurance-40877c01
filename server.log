@@ -11,3 +11,232 @@
 [AI Config] Loaded lite mode from DB: true
 [Copilot API] Registered 14 Copilot endpoints at /api/copilot/*
 1:58:30 PM [express] serving on port 5000
+2:06:37 PM [express] [31a60df2-8006-4f49-a1d9-f30d282c12a8] GET /api/auth/session 200 in 2ms :: {"authenticated":false}
+2:06:38 PM [express] [8f16dccf-d78b-4fbb-8123-e3cc84e1ea63] GET /api/contact/status 200 in 1ms :: {"enabled":true}
+2:06:43 PM [express] [43ef5dca-2221-4658-b6b1-d6d571e316ad] POST /api/auth/login 200 in 1937ms :: {"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","forcingLogout":false}
+2:06:44 PM [express] [88899ff9-6bca-4240-b57c-19be48c0e761] GET /api/system-logs 200 in 182ms :: {"logs":[{"id":"18fabb24-5c05-41a1-8bd6-db24632533e4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:44.110Z"},{"id":"73ae0a28-fa2a-4d2c-871d-4d97d32478ba","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"127.0.0.1","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:43.922Z"},{"id":"ee56da10-ec57-43ea-aa1e-89f68c6a4f74","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.961Z"},{"id":"9a706b1f-2805-4808-865b-e5033dffb528","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"159.242.68.189","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.708Z"},{"id":"7d6d92ee-d7c0-45cc-a0a7-72bbf97398d4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T09:00:14.855Z"},{"id":"0748d2d0-e606-49b2-a37d-182e14449016","eventType":"user_login","userId":"a88120ca-9... [truncated]
+2:06:44 PM [express] [fc40683c-8adb-454d-9d43-8ad8aca04e8e] POST /api/system-logs 201 in 545ms :: {"id":"18fabb24-5c05-41a1-8bd6-db24632533e4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:44.110Z"}
+2:06:44 PM [express] [7e73c588-64ab-4f75-b8ed-f6101509b8f9] GET /api/users 200 in 635ms :: [{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","termsSignatureName":"Lewis Barron","termsSignatureDate":"04/01/2026","createdAt":"2025-12-27T09:10:46.861Z"}]
+2:06:44 PM [express] [e4e912b2-4bcd-49af-adf8-f9e71db7de78] GET /api/users 200 in 161ms :: [{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","termsSignatureName":"Lewis Barron","termsSignatureDate":"04/01/2026","createdAt":"2025-12-27T09:10:46.861Z"}]
+2:06:45 PM [express] [166b1003-b1cc-42a0-83ea-11f38ca0731c] GET /api/messages/unread-count 200 in 100ms :: {"count":0}
+2:06:45 PM [express] [9e89f700-079c-47f2-8950-07b1d378e483] GET /api/dashboard/widgets 200 in 96ms :: {"widgets":["compliance_score","audits_completed","active_alerts","plans_updated","medication_audits","care_plan_reviews","risk_assessments","staff_checks","compliance_data","recent_alerts"]}
+2:06:46 PM [express] [9d87abe5-1d8b-4b81-8ff8-4ad6912ec13f] GET /api/platform-controls 200 in 776ms :: {"maintenanceMode":false,"readOnlyMode":false,"maintenanceActive":false,"readOnlyActive":false,"maintenanceMessage":"Platform maintenance in progress. Some write actions are temporarily unavailable.","maintenanceWindowStart":null,"maintenanceWindowEnd":null,"maintenanceWindowActive":false,"maintenanceWindowUpcoming":false,"announcementEnabled":false,"announcementText":"","announcementSeverity":"info","updatedAt":"2026-02-08T03:31:33.914Z"}
+2:06:46 PM [express] [9de4fe2f-0521-4389-9e87-56b34e696fd7] GET /api/dashboard/stats 200 in 717ms :: {"stats":{"auditsCompleted":0,"activeAlerts":0,"plansUpdated":0,"medicationAudits":0,"carePlanReviews":0,"riskAssessments":1},"recentAlerts":[]}
+2:06:55 PM [express] [79abc661-51f3-407c-b705-5aff830c33e3] GET /api/ai/status 200 in 126ms :: {"available":true,"aiEnabled":true,"message":null,"provider":"github","providerConfigured":true}
+2:07:27 PM [express] [5dcabb0f-dc2f-46bf-bd60-370e60891adc] GET /api/auth/session 200 in 950ms :: {"authenticated":true,"user":{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","isDemo":false}}
+2:07:27 PM [express] [107152f7-2e45-4e2c-bab2-fa484be38d62] GET /api/platform-controls 200 in 1066ms :: {"maintenanceMode":false,"readOnlyMode":false,"maintenanceActive":false,"readOnlyActive":false,"maintenanceMessage":"Platform maintenance in progress. Some write actions are temporarily unavailable.","maintenanceWindowStart":null,"maintenanceWindowEnd":null,"maintenanceWindowActive":false,"maintenanceWindowUpcoming":false,"announcementEnabled":false,"announcementText":"","announcementSeverity":"info","updatedAt":"2026-02-08T03:31:33.914Z"}
+2:07:27 PM [express] [38ca99a9-8d8f-4a51-a882-808c920a5d4f] GET /api/ai/status 200 in 119ms :: {"available":true,"aiEnabled":true,"message":null,"provider":"github","providerConfigured":true}
+2:07:27 PM [express] [1bee39ea-3603-458b-a02d-c7ea03b8f5d2] GET /api/users 200 in 100ms :: [{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","termsSignatureName":"Lewis Barron","termsSignatureDate":"04/01/2026","createdAt":"2025-12-27T09:10:46.861Z"}]
+2:07:28 PM [express] [2b6c1bfe-04c2-41d9-a58b-fa227c49937a] GET /api/ai/status 200 in 136ms :: {"available":true,"aiEnabled":true,"message":null,"provider":"github","providerConfigured":true}
+2:07:28 PM [express] [2050969a-e41e-401b-93ca-ec95c045547f] GET /api/messages/unread-count 200 in 1660ms :: {"count":0}
+2:07:28 PM [express] [e3ac0970-18bb-4ddb-a2f2-0975a16e5c0c] GET /api/system-logs 200 in 602ms :: {"logs":[{"id":"18fabb24-5c05-41a1-8bd6-db24632533e4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:44.110Z"},{"id":"73ae0a28-fa2a-4d2c-871d-4d97d32478ba","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"127.0.0.1","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:43.922Z"},{"id":"ee56da10-ec57-43ea-aa1e-89f68c6a4f74","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.961Z"},{"id":"9a706b1f-2805-4808-865b-e5033dffb528","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"159.242.68.189","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.708Z"},{"id":"7d6d92ee-d7c0-45cc-a0a7-72bbf97398d4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T09:00:14.855Z"},{"id":"0748d2d0-e606-49b2-a37d-182e14449016","eventType":"user_login","userId":"a88120ca-9... [truncated]
+2:07:28 PM [express] [74eb79cb-33a6-4370-b633-ec54f96376bd] GET /api/auth/session 200 in 918ms :: {"authenticated":true,"user":{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","isDemo":false}}
+2:07:28 PM [express] [d705c83d-aec9-475d-b3f9-a5c499e05847] GET /api/users 200 in 101ms :: [{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","termsSignatureName":"Lewis Barron","termsSignatureDate":"04/01/2026","createdAt":"2025-12-27T09:10:46.861Z"}]
+2:07:28 PM [express] [860ce722-3089-443d-8b27-217c116e347c] GET /api/ai/status 200 in 127ms :: {"available":true,"aiEnabled":true,"message":null,"provider":"github","providerConfigured":true}
+2:07:28 PM [express] [5fa91c67-2d95-4674-b33b-23ffe1b329ef] GET /api/system-logs 200 in 129ms :: {"logs":[{"id":"18fabb24-5c05-41a1-8bd6-db24632533e4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:44.110Z"},{"id":"73ae0a28-fa2a-4d2c-871d-4d97d32478ba","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"127.0.0.1","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:43.922Z"},{"id":"ee56da10-ec57-43ea-aa1e-89f68c6a4f74","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.961Z"},{"id":"9a706b1f-2805-4808-865b-e5033dffb528","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"159.242.68.189","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.708Z"},{"id":"7d6d92ee-d7c0-45cc-a0a7-72bbf97398d4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T09:00:14.855Z"},{"id":"0748d2d0-e606-49b2-a37d-182e14449016","eventType":"user_login","userId":"a88120ca-9... [truncated]
+2:07:46 PM [express] [57dbd9f2-91a9-45ce-a18d-b16c61fe4eba] GET /api/platform-controls 200 in 1057ms :: {"maintenanceMode":false,"readOnlyMode":false,"maintenanceActive":false,"readOnlyActive":false,"maintenanceMessage":"Platform maintenance in progress. Some write actions are temporarily unavailable.","maintenanceWindowStart":null,"maintenanceWindowEnd":null,"maintenanceWindowActive":false,"maintenanceWindowUpcoming":false,"announcementEnabled":false,"announcementText":"","announcementSeverity":"info","updatedAt":"2026-02-08T03:31:33.914Z"}
+2:08:41 PM [express] [beed96da-017d-48fb-98ac-1e8595895fc9] GET /api/messages/unread-count 200 in 1061ms :: {"count":0}
+2:08:41 PM [express] [87afce55-db88-447e-ade0-05d8ce9941b0] GET /api/platform-controls 200 in 1073ms :: {"maintenanceMode":false,"readOnlyMode":false,"maintenanceActive":false,"readOnlyActive":false,"maintenanceMessage":"Platform maintenance in progress. Some write actions are temporarily unavailable.","maintenanceWindowStart":null,"maintenanceWindowEnd":null,"maintenanceWindowActive":false,"maintenanceWindowUpcoming":false,"announcementEnabled":false,"announcementText":"","announcementSeverity":"info","updatedAt":"2026-02-08T03:31:33.914Z"}
+2:08:41 PM [express] [8d1ef557-3d05-4656-a1ce-54babd7e3a8d] GET /api/auth/session 200 in 1490ms :: {"authenticated":true,"user":{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","isDemo":false}}
+2:08:41 PM [express] [39844e5f-39a3-45c9-830b-e4da1ed438d3] GET /api/auth/session 200 in 79ms :: {"authenticated":true,"user":{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","isDemo":false}}
+2:08:41 PM [express] [b29785bb-2ad5-4ad0-9271-ae65412f9405] GET /api/users 200 in 100ms :: [{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","termsSignatureName":"Lewis Barron","termsSignatureDate":"04/01/2026","createdAt":"2025-12-27T09:10:46.861Z"}]
+2:08:41 PM [express] [22024c53-a977-41c5-9ad1-557e0387bfc7] GET /api/ai/status 200 in 120ms :: {"available":true,"aiEnabled":true,"message":null,"provider":"github","providerConfigured":true}
+2:08:41 PM [express] [e0b35f42-f0ab-4f3f-a465-e4235dd58ca8] GET /api/system-logs 200 in 138ms :: {"logs":[{"id":"18fabb24-5c05-41a1-8bd6-db24632533e4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:44.110Z"},{"id":"73ae0a28-fa2a-4d2c-871d-4d97d32478ba","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"127.0.0.1","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:43.922Z"},{"id":"ee56da10-ec57-43ea-aa1e-89f68c6a4f74","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.961Z"},{"id":"9a706b1f-2805-4808-865b-e5033dffb528","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"159.242.68.189","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.708Z"},{"id":"7d6d92ee-d7c0-45cc-a0a7-72bbf97398d4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T09:00:14.855Z"},{"id":"0748d2d0-e606-49b2-a37d-182e14449016","eventType":"user_login","userId":"a88120ca-9... [truncated]
+2:08:41 PM [express] [1b3c11c1-89ec-43b6-9819-c59e60a8bf17] GET /api/users 200 in 152ms :: [{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","termsSignatureName":"Lewis Barron","termsSignatureDate":"04/01/2026","createdAt":"2025-12-27T09:10:46.861Z"}]
+2:08:42 PM [express] [0c18566d-9ff8-4e8a-95a8-d8d48b1c99d3] GET /api/system-logs 200 in 117ms :: {"logs":[{"id":"18fabb24-5c05-41a1-8bd6-db24632533e4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:44.110Z"},{"id":"73ae0a28-fa2a-4d2c-871d-4d97d32478ba","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"127.0.0.1","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:43.922Z"},{"id":"ee56da10-ec57-43ea-aa1e-89f68c6a4f74","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.961Z"},{"id":"9a706b1f-2805-4808-865b-e5033dffb528","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"159.242.68.189","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.708Z"},{"id":"7d6d92ee-d7c0-45cc-a0a7-72bbf97398d4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T09:00:14.855Z"},{"id":"0748d2d0-e606-49b2-a37d-182e14449016","eventType":"user_login","userId":"a88120ca-9... [truncated]
+2:08:42 PM [express] [7724341c-d329-4826-b5ca-6b9a2e9f0cff] GET /api/ai/status 200 in 193ms :: {"available":true,"aiEnabled":true,"message":null,"provider":"github","providerConfigured":true}
+2:08:42 PM [express] [7ea5b80d-e916-492c-a2f9-7f96c64c0ee9] GET /api/auth/session 200 in 580ms :: {"authenticated":true,"user":{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","isDemo":false}}
+2:08:42 PM [express] [ff0b26d5-bcd4-42f2-9890-a203cc2a5663] GET /api/auth/session 200 in 86ms :: {"authenticated":true,"user":{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","isDemo":false}}
+2:08:42 PM [express] [775a4350-48cb-47ed-858e-5ca6568f5009] GET /api/users 200 in 96ms :: [{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","termsSignatureName":"Lewis Barron","termsSignatureDate":"04/01/2026","createdAt":"2025-12-27T09:10:46.861Z"}]
+2:08:42 PM [express] [d84fe297-3de9-4728-ba50-398360d8564d] GET /api/system-logs 200 in 127ms :: {"logs":[{"id":"18fabb24-5c05-41a1-8bd6-db24632533e4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:44.110Z"},{"id":"73ae0a28-fa2a-4d2c-871d-4d97d32478ba","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"127.0.0.1","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:43.922Z"},{"id":"ee56da10-ec57-43ea-aa1e-89f68c6a4f74","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.961Z"},{"id":"9a706b1f-2805-4808-865b-e5033dffb528","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"159.242.68.189","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.708Z"},{"id":"7d6d92ee-d7c0-45cc-a0a7-72bbf97398d4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T09:00:14.855Z"},{"id":"0748d2d0-e606-49b2-a37d-182e14449016","eventType":"user_login","userId":"a88120ca-9... [truncated]
+2:08:42 PM [express] [0a580b64-c9b0-403e-b349-45ee391701c6] GET /api/users 200 in 183ms :: [{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","termsSignatureName":"Lewis Barron","termsSignatureDate":"04/01/2026","createdAt":"2025-12-27T09:10:46.861Z"}]
+2:08:42 PM [express] [478d810a-1924-4fa5-a4aa-77ec758fe632] GET /api/system-logs 200 in 124ms :: {"logs":[{"id":"18fabb24-5c05-41a1-8bd6-db24632533e4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:44.110Z"},{"id":"73ae0a28-fa2a-4d2c-871d-4d97d32478ba","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"127.0.0.1","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:43.922Z"},{"id":"ee56da10-ec57-43ea-aa1e-89f68c6a4f74","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.961Z"},{"id":"9a706b1f-2805-4808-865b-e5033dffb528","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"159.242.68.189","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.708Z"},{"id":"7d6d92ee-d7c0-45cc-a0a7-72bbf97398d4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T09:00:14.855Z"},{"id":"0748d2d0-e606-49b2-a37d-182e14449016","eventType":"user_login","userId":"a88120ca-9... [truncated]
+2:08:43 PM [express] [3a659448-098a-4841-8da5-ae676a4f69f9] GET /api/messages 200 in 97ms :: []
+2:08:43 PM [express] [a10ef213-56ca-47f3-a60d-d50b7bc845aa] GET /api/ai/status 200 in 431ms :: {"available":true,"aiEnabled":true,"message":null,"provider":"github","providerConfigured":true}
+2:08:43 PM [express] [a992643c-f13b-4b09-8aec-c47e921a6803] GET /api/ai/status 200 in 838ms :: {"available":true,"aiEnabled":true,"message":null,"provider":"github","providerConfigured":true}
+2:08:46 PM [express] [f3ffc91d-e234-4cf8-8599-cf0e944dfb6a] GET /api/platform-controls 200 in 76ms :: {"maintenanceMode":false,"readOnlyMode":false,"maintenanceActive":false,"readOnlyActive":false,"maintenanceMessage":"Platform maintenance in progress. Some write actions are temporarily unavailable.","maintenanceWindowStart":null,"maintenanceWindowEnd":null,"maintenanceWindowActive":false,"maintenanceWindowUpcoming":false,"announcementEnabled":false,"announcementText":"","announcementSeverity":"info","updatedAt":"2026-02-08T03:31:33.914Z"}
+2:08:50 PM [express] [d1709a10-1263-47ab-8300-9a4cc7382845] GET /api/messages/unread-count 200 in 92ms :: {"count":0}
+2:08:53 PM [vite] (client) hmr update /src/index.css, /src/components/ChatAssistant.tsx
+2:08:53 PM [vite] (client) hmr update /src/components/Layout.tsx, /src/index.css
+2:08:54 PM [express] [488fb81d-9608-43b0-829b-1f69b7ea1588] GET /api/ai/status 200 in 126ms :: {"available":true,"aiEnabled":true,"message":null,"provider":"github","providerConfigured":true}
+2:08:55 PM [express] [747d0964-8f8f-46f7-b531-d752bc1d6ae6] GET /api/platform-controls 200 in 90ms :: {"maintenanceMode":false,"readOnlyMode":false,"maintenanceActive":false,"readOnlyActive":false,"maintenanceMessage":"Platform maintenance in progress. Some write actions are temporarily unavailable.","maintenanceWindowStart":null,"maintenanceWindowEnd":null,"maintenanceWindowActive":false,"maintenanceWindowUpcoming":false,"announcementEnabled":false,"announcementText":"","announcementSeverity":"info","updatedAt":"2026-02-08T03:31:33.914Z"}
+2:08:55 PM [express] [c4e9568c-8b8c-478e-bdc0-64e104514e50] GET /api/messages/unread-count 200 in 618ms :: {"count":0}
+2:08:56 PM [express] [a575f909-2605-495a-a690-3d5c4803ff1d] GET /api/auth/session 200 in 1813ms :: {"authenticated":true,"user":{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","isDemo":false}}
+2:08:56 PM [express] [96db32d8-acf3-4375-830b-e7de08ae0c87] GET /api/users 200 in 103ms :: [{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","termsSignatureName":"Lewis Barron","termsSignatureDate":"04/01/2026","createdAt":"2025-12-27T09:10:46.861Z"}]
+2:08:56 PM [express] [5cac8c32-8323-4ef9-893b-96055c0f70c3] GET /api/system-logs 200 in 124ms :: {"logs":[{"id":"18fabb24-5c05-41a1-8bd6-db24632533e4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:44.110Z"},{"id":"73ae0a28-fa2a-4d2c-871d-4d97d32478ba","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"127.0.0.1","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:43.922Z"},{"id":"ee56da10-ec57-43ea-aa1e-89f68c6a4f74","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.961Z"},{"id":"9a706b1f-2805-4808-865b-e5033dffb528","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"159.242.68.189","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.708Z"},{"id":"7d6d92ee-d7c0-45cc-a0a7-72bbf97398d4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T09:00:14.855Z"},{"id":"0748d2d0-e606-49b2-a37d-182e14449016","eventType":"user_login","userId":"a88120ca-9... [truncated]
+2:09:09 PM [express] [9871ede8-9be1-47f7-8951-0cc35dc09713] GET /api/auth/session 200 in 1425ms :: {"authenticated":true,"user":{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","isDemo":false}}
+2:09:09 PM [express] [5cf8ef90-1ac2-4d21-b3c0-67b0a5d9911f] GET /api/users 200 in 106ms :: [{"id":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","firstName":"Lewis","lastName":"Barron","role":"admin","status":"active","jobTitle":"Care Coordinator","termsAcceptedAt":"2026-01-04T21:48:16.504Z","termsVersion":"1.0","termsSignatureName":"Lewis Barron","termsSignatureDate":"04/01/2026","createdAt":"2025-12-27T09:10:46.861Z"}]
+2:09:10 PM [express] [4726caeb-75bf-44b5-9535-de5568df7682] GET /api/system-logs 200 in 1335ms :: {"logs":[{"id":"18fabb24-5c05-41a1-8bd6-db24632533e4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:44.110Z"},{"id":"73ae0a28-fa2a-4d2c-871d-4d97d32478ba","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"127.0.0.1","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T14:06:43.922Z"},{"id":"ee56da10-ec57-43ea-aa1e-89f68c6a4f74","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.961Z"},{"id":"9a706b1f-2805-4808-865b-e5033dffb528","eventType":"user_login","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"role":"admin","ipAddress":"159.242.68.189","forced_logout":false},"serviceUserInitials":null,"createdAt":"2026-02-10T10:04:03.708Z"},{"id":"7d6d92ee-d7c0-45cc-a0a7-72bbf97398d4","eventType":"action","userId":"a88120ca-90b7-446a-a1c1-769d3760c9a7","username":"Lewis.Barron","details":{"action":"Login","status":"Authorized","target":"System"},"serviceUserInitials":null,"createdAt":"2026-02-10T09:00:14.855Z"},{"id":"0748d2d0-e606-49b2-a37d-182e14449016","eventType":"user_login","userId":"a88120ca-9... [truncated]
+[Enhance SSE] Progress: 5% - Initializing...
+[Enhance SSE] Progress: 10% - Preparing documents...
+[Enhance] PII Vault: Scrubbed 61 sensitive items (NHS_NUM:1, ADDRESS:1, NAME:54, STAFF:4, CONTACT:1)
+[Enhance] Document content: ~2340 tokens
+[Enhance] Policy context: ~0 tokens
+[Enhance] Total estimated tokens: 6085 (system: 3745, policy: 0, content: 2340)
+[Enhance] Provider: github, Max input tokens: 12000
+[Enhance SSE] Progress: 25% - Generating enhanced plan...
+
+
+═══════════════════════════════════════════════════════════════════
+📋 AI INPUT ANALYSIS - CONTENT SENT TO AI FOR GENERATION
+═══════════════════════════════════════════════════════════════════
+Provider: github
+Model: gpt-5.2
+Max Input Tokens: 12000
+
+📊 RAW CONTENT STATS (Before Truncation):
+   Total Characters: 9,357
+   Estimated Tokens: 2,340
+   Policy Tokens: 0
+   System Prompt Tokens: 3,745
+   Total Estimated: 6,085
+
+📤 FINAL CONTENT SENT TO AI (After Truncation):
+   Final Content Tokens: 2,340
+   Final Policy Tokens: 0
+   Final System Tokens: 11,233
+   Total Input Tokens: 13,573
+   Truncation Applied: NO ✅
+
+📄 CONTENT PREVIEW (First 2000 characters):
+─────────────────────────────────────────────────────────────────
+=== SUPPORTING DOCUMENTS AND USER NOTES ===
+=== ADDITIONAL CONTEXT (USER ENTERED) ===
+{{PII_mlgog2ln_aq9z_NAME_3}} for Care Needs
+For: {{PII_mlgog2ln_aq9z_NAME_4}} Williamson
+(Integrated narrative + structured care‑needs overview, based on provided Fast‑Track CHC and assessment documentation)%20(1)%20(2).pdf) [{{PII_mlgog2ln_aq9z_NHS_NUM_1}}...iamson (2) | PDF], [{{PII_mlgog2ln_aq9z_NAME_5}}...1) (1) (2) | PDF]
+
+1. {{PII_mlgog2ln_aq9z_NAME_6}} assessment consolidates all relevant information from the Fast‑{{PII_mlgog2ln_aq9z_NAME_7}} documentation and accompanying clinical assessment for {{PII_mlgog2ln_aq9z_NAME_4}} Williamson, born 21 July 1936. It integrates clinical, functional, environmental, and personal‑preference factors to form a holistic initial assessment of care needs as he prepares for discharge home under an NHS {{PII_mlgog2ln_aq9z_NAME_8}}‑Track pathway.
+{{PII_mlgog2ln_aq9z_NAME_9}} has a rapidly deteriorating condition, is approaching end of life, and has clearly stated that he wants to return home as soon as possible with no further investigations or hospital‑based treatments. This assessment directly reflects the information documented by the responsible clinicians on 28 January 2026.
+
+2. {{PII_mlgog2ln_aq9z_NAME_10}}, Diagnosis and {{PII_mlgog2ln_aq9z_NAME_11}} predominant condition influencing his care needs is a large right‑sided pleural effusion with pleural thickening, occupying over 95 percent of his right lung and severely impairing his breathing. The effusion is likely a pseudochylothorax related to rheumatoid disease. He is breathless even at rest or with minimal exertion and does not wish for interventions such as drainage or further investigations.%20(1)%20(2).pdf) [{{PII_mlgog2ln_aq9z_NHS_NUM_1}}...iamson (2) | PDF], [{{PII_mlgog2ln_aq9z_NAME_5}}...1) (1) (2) | PDF]
+Additional medical conditions include:
+
+{{PII_mlgog2ln_aq9z_NAME_12}}
+{{PII_mlgog2ln_aq9z_NAME_13}} embolism (March 2023) on long‑term {{PII_mlgog2ln_aq9z_NAME_14}} weight lo
+
+... [7,357 more characters] ...
+
+─────────────────────────────────────────────────────────────────
+
+═══════════════════════════════════════════════════════════════════
+
+
+[AI:GitHub] Mapping model gpt-5.2 → gpt-4o (GitHub AI compatible)
+[AI:plan_enhancer] Starting request with gpt-4o for Lewis.Barron via github...
+[AI:GitHub] Mapping model gpt-5.2 → gpt-4o (GitHub AI compatible)
+[AI] Using github provider with model: gpt-4o
+[AI:github] Error on attempt 1: {
+  status: 401,
+  message: '401 The `models` permission is required to access this endpoint',
+  code: 'unauthorized'
+}
+[AI:plan_enhancer] Failed after 300ms: GitHub Models API permission denied. Your Personal Access Token (PAT_AI_KEY) needs the "models" scope. Please generate a new token with "models" permission at https://github.com/settings/tokens, or switch to OpenAI provider.
+Plan Enhancement Error: Error: GitHub Models API permission denied. Your Personal Access Token (PAT_AI_KEY) needs the "models" scope. Please generate a new token with "models" permission at https://github.com/settings/tokens, or switch to OpenAI provider.
+    at formatGitHubModelsError (/workspaces/Care-assurance-40877c01/server/services/aiClient.ts:468:27)
+    at createChatCompletionWithProvider (/workspaces/Care-assurance-40877c01/server/services/aiClient.ts:589:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async createChatCompletionWithLogging (/workspaces/Care-assurance-40877c01/server/services/aiClient.ts:670:20)
+    at async <anonymous> (/workspaces/Care-assurance-40877c01/server/routes.ts:15980:24) {
+  code: 'GITHUB_PERMISSION_DENIED',
+  originalError: AuthenticationError: 401 The `models` permission is required to access this endpoint
+      at Function.generate (/workspaces/Care-assurance-40877c01/node_modules/openai/src/core/error.ts:76:14)
+      at OpenAI.makeStatusError (/workspaces/Care-assurance-40877c01/node_modules/openai/src/client.ts:478:28)
+      at OpenAI.makeRequest (/workspaces/Care-assurance-40877c01/node_modules/openai/src/client.ts:728:24)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async createChatCompletionWithProvider (/workspaces/Care-assurance-40877c01/server/services/aiClient.ts:564:26)
+      at async createChatCompletionWithLogging (/workspaces/Care-assurance-40877c01/server/services/aiClient.ts:670:20)
+      at async <anonymous> (/workspaces/Care-assurance-40877c01/server/routes.ts:15980:24) {
+    status: 401,
+    headers: Headers {
+      date: 'Tue, 10 Feb 2026 14:09:19 GMT',
+      'content-type': 'application/json; charset=utf-8',
+      'transfer-encoding': 'chunked',
+      connection: 'keep-alive',
+      'x-ms-error-code': 'unauthorized',
+      'request-context': 'appId=',
+      'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+      'x-content-type-options': 'nosniff',
+      'azureml-served-by-cluster': 'vienna-uksouth-02',
+      'x-request-time': '0.258'
+    },
+    requestID: null,
+    error: {
+      code: 'unauthorized',
+      message: 'The `models` permission is required to access this endpoint',
+      details: 'The `models` permission is required to access this endpoint'
+    },
+    code: 'unauthorized',
+    param: undefined,
+    type: undefined
+  }
+}
+2:09:19 PM [express] [e580b896-c37c-42f9-9574-fdbea69d3a66] POST /api/ai/enhance-plan 200 in 704ms
+2:09:49 PM [vite] (client) hmr update /src/components/Layout.tsx, /src/index.css
+2:09:50 PM [vite] Internal server error: /workspaces/Care-assurance-40877c01/client/src/components/Layout.tsx: Identifier 'isSmallScreen' has already been declared. (519:9)
+
+  517 |     return () => window.removeEventListener('resize', checkScreenSize);
+  518 |   }, []);
+> 519 |   const [isSmallScreen, setIsSmallScreen] = useState(false);
+      |          ^
+  520 |
+  521 |   // Detect small screen size
+  522 |   useEffect(() => {
+  Plugin: vite:react-babel
+  File: /workspaces/Care-assurance-40877c01/client/src/components/Layout.tsx:519:9
+  517 |      return () => window.removeEventListener('resize', checkScreenSize);
+  518 |    }, []);
+  519 |    const [isSmallScreen, setIsSmallScreen] = useState(false);
+      |           ^
+  520 |  
+  521 |    // Detect small screen size
+      at toParseError (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parse-error.ts:95:45)
+      at raise (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/tokenizer/index.ts:1504:19)
+      at checkRedeclarationInScope (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/util/scope.ts:164:19)
+      at declareName (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/util/scope.ts:118:12)
+      at declareName (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/plugins/typescript/scope.ts:89:11)
+      at declareNameFromIdentifier (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/lval.ts:876:16)
+      at checkIdentifier (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/lval.ts:871:12)
+      at checkLVal (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/lval.ts:763:12)
+      at checkLVal (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/lval.ts:822:16)
+      at parseVarId (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:1633:10)
+      at parseVarId (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/plugins/typescript/index.ts:3700:13)
+      at parseVar (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:1582:12)
+      at parseVarStatement (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:1251:10)
+      at parseVarStatement (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/plugins/typescript/index.ts:3085:33)
+      at parseStatementContent (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:612:21)
+      at parseStatementContent (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/plugins/typescript/index.ts:3220:20)
+      at parseStatementLike (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:482:17)
+      at parseStatementListItem (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:431:17)
+      at parseBlockOrModuleBlockBody (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:1444:16)
+      at parseBlockBody (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:1417:10)
+      at parseBlock (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:1385:10)
+      at parseFunctionBody (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/expression.ts:2618:24)
+      at parseFunctionBodyAndFinish (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/expression.ts:2587:10)
+      at parseFunctionBodyAndFinish (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/plugins/typescript/index.ts:2609:20)
+      at callback (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:1695:12)
+      at withSmartMixTopicForbiddingContext (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/expression.ts:3168:14)
+      at parseFunction (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:1693:10)
+      at parseExportDefaultExpression (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:2570:19)
+      at parseExportDefaultExpression (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/plugins/typescript/index.ts:3076:20)
+      at parseExport (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:2452:25)
+      at parseExport (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/plugins/typescript/index.ts:3046:22)
+      at parseStatementContent (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:649:25)
+      at parseStatementContent (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/plugins/typescript/index.ts:3220:20)
+      at parseStatementLike (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:482:17)
+      at parseModuleItem (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:419:17)
+      at parseBlockOrModuleBlockBody (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:1443:16)
+      at parseBlockBody (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:1417:10)
+      at parseProgram (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:229:10)
+      at parseTopLevel (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/statement.ts:203:25)
+      at parse (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/parser/index.ts:83:25)
+      at parse (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/plugins/typescript/index.ts:4354:20)
+      at parse (/workspaces/Care-assurance-40877c01/node_modules/@babel/parser/src/index.ts:86:38)
+      at parser (/workspaces/Care-assurance-40877c01/node_modules/@babel/core/src/parser/index.ts:29:19)
+      at parser.next (<anonymous>)
+      at normalizeFile (/workspaces/Care-assurance-40877c01/node_modules/@babel/core/src/transformation/normalize-file.ts:50:24)
+      at normalizeFile.next (<anonymous>)
+      at run (/workspaces/Care-assurance-40877c01/node_modules/@babel/core/src/transformation/index.ts:41:36)
+      at run.next (<anonymous>)
+      at transform (/workspaces/Care-assurance-40877c01/node_modules/@babel/core/src/transform.ts:29:20)
+      at transform.next (<anonymous>)

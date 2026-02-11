@@ -122,7 +122,7 @@ const COPILOT_USER_CONTEXT: AiUserContext = {
 };
 
 /** Get model preferences */
-const getLowCostModel = () => "gpt-4o-mini";
+const getLowCostModel = () => "gpt-4.1-mini";
 const getAccurateModel = () => getPreferredModel();
 
 /** Estimate token count from text (≈3.5 chars per token for English) */

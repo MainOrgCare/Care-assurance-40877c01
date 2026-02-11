@@ -529,11 +529,11 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
   return (
     <div
       className={cn(
-        "fixed z-50 transition-all duration-250 bg-background border border-border shadow-lg overflow-hidden flex flex-col rounded-xl",
-        isOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-3 pointer-events-none",
+        "fixed z-50 transition-all duration-250 bg-background border-l border-border shadow-lg overflow-hidden flex flex-col",
+        isOpen ? "translate-x-0" : "translate-x-full",
         isMinimized
-          ? "bottom-4 right-4 w-[300px] h-14"
-          : "bottom-4 left-3 right-3 sm:left-auto sm:right-4 sm:w-[430px] h-[min(78vh,620px)]"
+          ? "bottom-4 right-4 w-[300px] h-14 rounded-xl"
+          : "top-0 right-0 w-full sm:w-[430px] h-full"
       )}
     >
       <div className="relative flex items-center justify-between px-3.5 py-3 bg-emerald-600 text-white">

@@ -121,7 +121,7 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
                 Schedule Comparison
               </CardTitle>
               <CardDescription>
-                AI-powered before/after analysis with GPT-5.2
+                AI-powered before/after analysis with GPT-4.1-mini
               </CardDescription>
             </div>
             <Button 

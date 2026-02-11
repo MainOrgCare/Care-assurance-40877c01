@@ -505,12 +505,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [hasOpenedChat, setHasOpenedChat] = useState(false);
   const [showComplieeIntro, setShowComplieeIntro] = useState(false);
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [platformControls, setPlatformControls] = useState<PlatformBannerControls | null>(null);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
   const autoCollapseRef = useRef(false);
   const authRecoveryInFlightRef = useRef(false);
+
+  // Detect small screen size for chat layout
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsSmallScreen(window.innerWidth < 640);
+    };
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   const handleUnauthorized = useCallback(() => {
     if (authRecoveryInFlightRef.current) return;
@@ -760,8 +771,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
-    "flex-1 min-h-0 flex flex-col w-full relative z-10 scroll-smooth",
-    isSingleScreenRoute ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden overscroll-y-contain scrollbar-gutter-stable"
+    "flex-1 min-h-0 flex flex-col w-full relative z-10 scroll-smooth transition-all duration-250",
+    isSingleScreenRoute ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden overscroll-y-contain scrollbar-gutter-stable",
+    isChatOpen && !isSmallScreen ? "mr-[430px]" : ""
   );
 
   useEffect(() => {

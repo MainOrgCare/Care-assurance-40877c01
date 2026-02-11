@@ -623,7 +623,7 @@ async function extractRowsFromBillingImage(
   const mimeType = file.mimetype || "image/jpeg";
   const dataUrl = `data:${mimeType};base64,${base64}`;
   const preferredModel = getPreferredModel();
-  const fallbackModel = "gpt-4o";
+  const fallbackModel = "gpt-4.1-mini";
 
   const runExtraction = async (model: string) =>
     createChatCompletionWithLogging(
@@ -2089,11 +2089,11 @@ const parseJsonFromContent = (content: string): any | null => {
   }
 };
 
-const getLowCostModel = () => "gpt-4o-mini";
+const getLowCostModel = () => "gpt-4.1-mini";
 const getAccurateModel = () => getPreferredModel();
 const getRiskAssessmentModel = () => getPreferredModel();
-const getRiskAssessmentRecommendationModel = () => "gpt-5.2"; // $1.75/$14 - most thorough for finding specific risks
-const getRiskAssessmentGenerationModel = () => "gpt-5.2"; // $1.75/$14 - most thorough for generating comprehensive care plans
+const getRiskAssessmentRecommendationModel = () => "gpt-4.1-mini"; // $0.40/$1.60 - cost-efficient via OpenAI
+const getRiskAssessmentGenerationModel = () => "gpt-4.1-mini"; // $0.40/$1.60 - cost-efficient via OpenAI
 
 const inferGenericNameFromMedicationLabel = (name: string): string => {
   if (!name) return "";

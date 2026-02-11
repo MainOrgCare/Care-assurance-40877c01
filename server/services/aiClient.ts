@@ -45,8 +45,8 @@ const createAIDisabledError = (): Error => {
   return error;
 };
 
-// Admin-configurable preferred AI provider (github uses PAT_AI_KEY)
-let preferredProvider: AiProvider = "github";
+// Admin-configurable preferred AI provider (openai uses OPENAI_API_KEY)
+let preferredProvider: AiProvider = "openai";
 let settingsLoaded = false;
 let settingsLoadPromise: Promise<void> | null = null;
 let aiEnabled: boolean = AI_ENABLED_BY_ENV;
@@ -529,6 +529,8 @@ async function createChatCompletionWithProvider(
     if (openaiUsingPATFallback) {
       model = mapModelForGitHub(model);
       console.log(`[AI:OpenAI] Using PAT_AI_KEY fallback via GitHub endpoint`);
+    } else {
+      console.log(`[AI:OpenAI] ✓ Using OpenAI directly (model: ${model}, temp: ${(params as any).temperature ?? 0})`);
     }
   }
 
@@ -545,6 +547,7 @@ async function createChatCompletionWithProvider(
       console.log(`[AI] Using ${provider} provider with model:`, model);
       // For local LLM (qwen2.5-64k custom model), temperature 0 and 64K context are baked in
       // Also pass options as fallback for API-level override
+      // For OpenAI provider, enforce gpt-4.1-mini with temperature 0 for deterministic results
       const finalParams = provider === "local" 
         ? { 
             ...params, 
@@ -552,6 +555,12 @@ async function createChatCompletionWithProvider(
             temperature: 0,
             // Ollama-specific: ensure context window size via options
             options: { num_ctx: 65536 }
+          }
+        : provider === "openai" && !openaiUsingPATFallback
+        ? { 
+            ...params, 
+            model: model || "gpt-4.1-mini",
+            temperature: params.temperature ?? 0,
           }
         : { ...params, model };
 
