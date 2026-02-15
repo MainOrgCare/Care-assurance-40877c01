@@ -254,6 +254,7 @@ export interface IStorage {
 
   // EMAR Refusal Review operations
   createRefusalReview(review: InsertEmarRefusalReview): Promise<EmarRefusalReview>;
+  getRefusalReview(id: string): Promise<EmarRefusalReview | undefined>;
   getRefusalReviewsByAudit(auditId: string): Promise<EmarRefusalReview[]>;
   updateRefusalReview(id: string, reasonAcceptable: boolean, reviewedBy: string, notes?: string): Promise<EmarRefusalReview | undefined>;
   getAllRefusalReviews(): Promise<EmarRefusalReview[]>;
@@ -1238,6 +1239,15 @@ export class DatabaseStorage implements IStorage {
       .from(emarRefusalReviews)
       .where(eq(emarRefusalReviews.auditId, auditId))
       .orderBy(desc(emarRefusalReviews.createdAt));
+  }
+
+  async getRefusalReview(id: string): Promise<EmarRefusalReview | undefined> {
+    const result = await this.db
+      .select()
+      .from(emarRefusalReviews)
+      .where(eq(emarRefusalReviews.id, id))
+      .limit(1);
+    return result[0];
   }
 
   async updateRefusalReview(id: string, reasonAcceptable: boolean, reviewedBy: string, notes?: string): Promise<EmarRefusalReview | undefined> {

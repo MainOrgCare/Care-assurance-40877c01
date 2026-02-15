@@ -81,9 +81,9 @@ export default function Compliance() {
   return (
     <div className="page-shell max-w-7xl mx-auto" data-testid="compliance-page">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1.5">
-          <h2 className="text-2xl font-heading font-bold text-foreground tracking-tight">Compliance Overview</h2>
-          <p className="text-sm text-muted-foreground max-w-xl">View audit history, discrepancies, and compliance metrics across all service users.</p>
+        <div className="flex flex-col gap-1">
+          <h2 className="page-title">Compliance Overview</h2>
+          <p className="page-subtitle">View audit history, discrepancies, and compliance metrics across all service users.</p>
         </div>
         <Button
           variant="outline"
@@ -110,69 +110,75 @@ export default function Compliance() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card data-testid="stat-total-audits" className="glass-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Audits</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+        <Card data-testid="stat-total-audits">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+            <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Total Audits</CardTitle>
+            <div className="h-8 w-8 rounded-md flex items-center justify-center bg-primary/8">
+              <FileText className="h-3.5 w-3.5 text-primary" />
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0.5">
             <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums">{auditList.length}</div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[10px] text-muted-foreground mt-1">
               {emarAudits.length} EMAR, {visitAudits.length} Visit
             </p>
           </CardContent>
         </Card>
 
-        <Card data-testid="stat-discrepancies" className="glass-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Discrepancies Found</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+        <Card data-testid="stat-discrepancies">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+            <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Discrepancies Found</CardTitle>
+            <div className="h-8 w-8 rounded-md flex items-center justify-center bg-amber-500/8">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0.5">
             <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums">{totalDiscrepancies}</div>
-            <p className="text-xs text-muted-foreground">
-              Across all audits
-            </p>
+            <p className="text-[10px] text-muted-foreground mt-1">Across all audits</p>
           </CardContent>
         </Card>
 
-        <Card data-testid="stat-warnings" className="glass-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Warnings</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
+        <Card data-testid="stat-warnings">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+            <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Warnings</CardTitle>
+            <div className="h-8 w-8 rounded-md flex items-center justify-center bg-yellow-500/8">
+              <AlertTriangle className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400" />
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0.5">
             <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums">{totalWarnings}</div>
-            <p className="text-xs text-muted-foreground">
-              Items requiring attention
-            </p>
+            <p className="text-[10px] text-muted-foreground mt-1">Items requiring attention</p>
           </CardContent>
         </Card>
 
-        <Card data-testid="stat-compliance-rate" className="glass-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Compliance Rate</CardTitle>
-            <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+        <Card data-testid="stat-compliance-rate">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+            <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Compliance Rate</CardTitle>
+            <div className="h-8 w-8 rounded-md flex items-center justify-center bg-emerald-500/8">
+              <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0.5">
             <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums">
               {auditList.length > 0 ? Math.round(100 - (totalDiscrepancies / Math.max(auditList.length, 1) * 10)) : 100}%
             </div>
-            <p className="text-xs text-muted-foreground">
-              Based on audit results
-            </p>
+            <p className="text-[10px] text-muted-foreground mt-1">Based on audit results</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              Audits by Month
-            </CardTitle>
-            <CardDescription>Monthly audit activity over time</CardDescription>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="border-b border-border/30 pb-3 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-md bg-primary/8 flex items-center justify-center">
+                <BarChart3 className="h-3 w-3 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-xs font-semibold">Audits by Month</CardTitle>
+                <CardDescription className="text-[10px]">Monthly audit activity over time</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {monthlyData.length > 0 ? (
@@ -200,10 +206,17 @@ export default function Compliance() {
           </CardContent>
         </Card>
 
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle className="text-foreground">Audit Type Distribution</CardTitle>
-            <CardDescription>Breakdown of EMAR vs Visit audits</CardDescription>
+        <Card>
+          <CardHeader className="border-b border-border/30 pb-3 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-md bg-secondary/8 flex items-center justify-center">
+                <BarChart3 className="h-3 w-3 text-secondary" />
+              </div>
+              <div>
+                <CardTitle className="text-xs font-semibold">Audit Type Distribution</CardTitle>
+                <CardDescription className="text-[10px]">Breakdown of EMAR vs Visit audits</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {auditList.length > 0 ? (
@@ -233,13 +246,17 @@ export default function Compliance() {
         </Card>
       </div>
 
-      <Card className="glass-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <Clock className="h-5 w-5 text-primary" />
-            Recent Audits
-          </CardTitle>
-          <CardDescription>Latest audit reports across all service users</CardDescription>
+      <Card>
+        <CardHeader className="border-b border-border/30 pb-3 mb-2">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded-md bg-primary/8 flex items-center justify-center">
+              <Clock className="h-3 w-3 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-xs font-semibold">Recent Audits</CardTitle>
+              <CardDescription className="text-[10px]">Latest audit reports across all service users</CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {auditList.length > 0 ? (
@@ -256,8 +273,8 @@ export default function Compliance() {
                     data-testid={`audit-row-${audit.id}`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-full flex items-center justify-center bg-primary/10">
-                        <FileText className="h-5 w-5 text-primary" />
+                      <div className="h-8 w-8 rounded-md flex items-center justify-center bg-primary/8">
+                        <FileText className="h-3.5 w-3.5 text-primary" />
                       </div>
                       <div>
                         <p className="font-medium text-foreground">{audit.serviceUserName}</p>

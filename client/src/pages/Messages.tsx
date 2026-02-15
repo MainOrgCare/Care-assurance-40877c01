@@ -155,12 +155,12 @@ export default function Messages() {
           <Button variant="ghost" size="icon-sm" onClick={() => setLocation("/dashboard")} aria-label="Back to dashboard" className="mt-0.5 text-muted-foreground">
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="h-10 w-10 rounded-xl bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
-            <Inbox className="h-5 w-5 text-primary" />
+          <div className="h-8 w-8 rounded-lg bg-primary/6 border border-primary/12 flex items-center justify-center shrink-0">
+            <Inbox className="h-4 w-4 text-primary" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="page-title text-2xl sm:text-3xl">
+              <h2 className="page-title">
                 Messages
               </h2>
               {unreadCount > 0 && (
@@ -186,13 +186,19 @@ export default function Messages() {
 
       <div className="grid gap-5 xl:grid-cols-[360px_1fr] min-h-0">
         <Card className="overflow-hidden" data-testid="messages-list">
-          <CardHeader className="py-4">
-            <CardTitle className="text-lg">Inbox</CardTitle>
-            <CardDescription>
-              {messages.length} message{messages.length !== 1 ? "s" : ""}
-            </CardDescription>
+          <CardHeader className="py-3 border-b border-border/30">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-md bg-primary/8 flex items-center justify-center">
+                <Mail className="h-3 w-3 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-xs font-semibold">Inbox</CardTitle>
+                <CardDescription className="text-[10px]">
+                  {messages.length} message{messages.length !== 1 ? "s" : ""}
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <Separator />
           <ScrollArea className="h-[clamp(380px,62vh,760px)]">
             {loading ? (
               <div className="p-8 text-center text-muted-foreground">
@@ -201,11 +207,11 @@ export default function Messages() {
               </div>
             ) : messages.length === 0 ? (
               <div className="p-12 text-center text-muted-foreground">
-                <div className="h-14 w-14 mx-auto mb-4 rounded-2xl bg-muted/40 flex items-center justify-center">
-                  <Mail className="h-6 w-6 text-muted-foreground/30" />
+                <div className="h-12 w-12 mx-auto mb-3 rounded-xl bg-muted/30 flex items-center justify-center">
+                  <Mail className="h-5 w-5 text-muted-foreground/30" />
                 </div>
-                <p className="text-sm font-semibold text-foreground/80">Inbox empty</p>
-                <p className="text-xs mt-1.5 text-muted-foreground max-w-[200px] mx-auto">Ask Compli-ee to send you a message to get started.</p>
+                <p className="text-sm font-semibold text-foreground/70">Inbox empty</p>
+                <p className="text-[10px] mt-1 text-muted-foreground max-w-[200px] mx-auto">Ask Compli-ee to send you a message to get started.</p>
               </div>
             ) : (
               <div className="divide-y divide-border/55">
@@ -309,11 +315,11 @@ export default function Messages() {
           ) : (
             <div className="flex h-[clamp(380px,62vh,760px)] items-center justify-center text-muted-foreground">
               <div className="text-center">
-                <div className="h-16 w-16 mx-auto mb-4 rounded-2xl bg-muted/30 flex items-center justify-center">
-                  <Inbox className="h-7 w-7 text-muted-foreground/25" />
+                <div className="h-12 w-12 mx-auto mb-3 rounded-xl bg-muted/25 flex items-center justify-center">
+                  <Inbox className="h-5 w-5 text-muted-foreground/25" />
                 </div>
                 <p className="text-sm font-semibold text-foreground/70">No message selected</p>
-                <p className="text-xs mt-1 text-muted-foreground">Choose a message from the inbox to view details</p>
+                <p className="text-[10px] mt-1 text-muted-foreground">Choose a message from the inbox to view details</p>
               </div>
             </div>
           )}

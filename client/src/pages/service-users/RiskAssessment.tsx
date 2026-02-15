@@ -1272,11 +1272,11 @@ export default function RiskAssessment() {
           </p>
         </div>
 
-        <Card className="glass-card shadow-medium animate-slide-up stagger-2">
+        <Card className="animate-slide-up stagger-2">
           <CardHeader className="border-b border-border/40 pb-6 mb-2">
             <CardTitle className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-xs">
-                <FileText className="h-5 w-5" />
+              <div className="h-8 w-8 rounded-lg bg-primary/8 flex items-center justify-center text-primary">
+                <FileText className="h-4 w-4" />
               </div>
               Payload Validation
             </CardTitle>
@@ -1422,7 +1422,7 @@ export default function RiskAssessment() {
         )}
 
         {/* Service User Info */}
-        <Card className="glass-card">
+        <Card>
           <CardHeader>
             <CardTitle>Service User Information</CardTitle>
           </CardHeader>
@@ -1455,7 +1455,7 @@ export default function RiskAssessment() {
         </Card>
 
         {(analysis.documentSummary || analysis.concerns.length > 0) && (
-          <Card className="glass-card">
+          <Card>
             <CardHeader>
               <CardTitle>Document Summary</CardTitle>
               <CardDescription>
@@ -1486,7 +1486,7 @@ export default function RiskAssessment() {
         )}
 
         {/* Assessment Selection */}
-        <Card className="glass-card">
+        <Card>
           <CardHeader className="space-y-3">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -1839,7 +1839,7 @@ export default function RiskAssessment() {
         )}
 
         {generatedAssessments.map((assessment, idx) => (
-          <Card key={idx} className={`glass-card print:bg-white print:text-black ${isAdmin && selectedForAcp.has(idx) ? 'ring-2 ring-primary/50' : ''}`}>
+          <Card key={idx} className={`print:bg-white print:text-black ${isAdmin && selectedForAcp.has(idx) ? 'ring-2 ring-primary/50' : ''}`}>
             <CardHeader className="border-b border-border">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">

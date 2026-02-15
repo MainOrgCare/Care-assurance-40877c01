@@ -2545,11 +2545,11 @@ ${generatedProtocol.additionalComments}`;
       </div>
 
       {!analyzed ? (
-        <Card className="glass-card shadow-medium animate-slide-up stagger-2">
+        <Card className="animate-slide-up stagger-2">
           <CardHeader className="border-b border-border/40 pb-6 mb-2">
             <CardTitle className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Upload className="h-5 w-5 text-primary" />
+              <div className="h-8 w-8 rounded-lg bg-primary/8 flex items-center justify-center">
+                <Upload className="h-4 w-4 text-primary" />
               </div>
               Intake Channel
             </CardTitle>
@@ -2603,7 +2603,7 @@ ${generatedProtocol.additionalComments}`;
                   data-testid="input-file-upload"
                 />
                 <Label htmlFor="emar-upload" className="flex flex-col items-center gap-4 text-center cursor-pointer">
-                  <div className="h-16 w-16 rounded-2xl bg-background border border-border/60 flex items-center justify-center shadow-xs group-hover:text-primary transition-all">
+                  <div className="h-14 w-14 rounded-xl bg-background border border-border/60 flex items-center justify-center group-hover:text-primary transition-all">
                     <Upload className="h-8 w-8" />
                   </div>
                   <div className="space-y-1">
@@ -2878,8 +2878,8 @@ ${generatedProtocol.additionalComments}`;
             <Card className="border-primary/30 bg-primary/5 shadow-soft animate-scale-in">
               <CardHeader className="border-b border-primary/10 pb-6 mb-2">
                 <CardTitle className="flex items-center gap-3 text-primary">
-                  <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center">
-                    <UserPlus className="h-5 w-5" />
+                  <div className="h-8 w-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                    <UserPlus className="h-4 w-4" />
                   </div>
                   Namespace Resolution
                 </CardTitle>
@@ -3146,12 +3146,12 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          <Card className="glass-card shadow-medium animate-slide-up stagger-3">
+          <Card className="animate-slide-up stagger-3">
             <CardContent className="p-8">
               <div className="flex items-center justify-between mb-8 border-b border-border/40 pb-6 flex-wrap gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                    <Activity className="h-5 w-5" />
+                  <div className="h-8 w-8 rounded-lg bg-primary/8 flex items-center justify-center text-primary">
+                    <Activity className="h-4 w-4" />
                   </div>
                   <div>
                     <h3 className="text-xl font-black tracking-tight text-foreground">Operational Audit Log</h3>
@@ -3162,7 +3162,7 @@ ${generatedProtocol.additionalComments}`;
                   size="sm"
                   variant="outline"
                   onClick={downloadPDF}
-                  className="rounded-xl border-border/60 font-semibold bg-background/50 gap-2 shadow-xs hover:shadow-sm transition-all"
+                  className="rounded-xl border-border/60 font-semibold bg-background/50 gap-2 hover:bg-muted/30 transition-all"
                   data-testid="button-download-pdf"
                 >
                   <Download size={15} />
@@ -3172,7 +3172,7 @@ ${generatedProtocol.additionalComments}`;
                   size="sm"
                   variant="outline"
                   onClick={sendEmarToExtension}
-                  className="rounded-xl border-border/60 font-semibold bg-background/50 gap-2 shadow-xs hover:shadow-sm transition-all"
+                  className="rounded-xl border-border/60 font-semibold bg-background/50 gap-2 hover:bg-muted/30 transition-all"
                   data-testid="button-send-emar-extension"
                 >
                   <Activity size={15} />
@@ -3204,7 +3204,7 @@ ${generatedProtocol.additionalComments}`;
           </Card>
 
           <Card className={cn(
-            "glass-card border-l-4 shadow-medium transition-all duration-500",
+            "border-l-4 transition-all duration-500",
             hasAnyDiscrepancies() ? "border-l-destructive bg-destructive/5" : "border-l-success bg-success/5"
           )}>
             <CardContent className="p-8">
@@ -3237,7 +3237,7 @@ ${generatedProtocol.additionalComments}`;
           </Card>
 
           {hasAnyDiscrepancies() && (
-            <Card className="glass-card shadow-medium animate-slide-up stagger-4 overflow-hidden border-destructive/20">
+            <Card className="animate-slide-up stagger-4 overflow-hidden border-destructive/20">
               <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap bg-destructive/5 border-b border-border/40 py-6">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl bg-destructive/20 flex items-center justify-center text-destructive shadow-sm">
@@ -3510,7 +3510,7 @@ ${generatedProtocol.additionalComments}`;
 
           {/* Reasons Not Administered - Unified Refusal Section */}
           {unifiedRefusals.length > 0 && (
-            <Card className="glass-card shadow-medium animate-slide-up stagger-5 border-amber-500/20 overflow-hidden">
+            <Card className="animate-slide-up stagger-5 border-amber-500/20 overflow-hidden">
               <CardHeader className="bg-amber-500/5 border-b border-border/40 py-6">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-3">
@@ -3676,7 +3676,7 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          <Card className="glass-card shadow-medium animate-slide-up stagger-6 overflow-hidden border-amber-500/10">
+          <Card className="animate-slide-up stagger-6 overflow-hidden border-amber-500/10">
             <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 py-6 bg-amber-500/5">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-600 shadow-sm">
@@ -3716,7 +3716,7 @@ ${generatedProtocol.additionalComments}`;
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-4">MAPPED ASSETS</p>
 	                    <div className="flex flex-wrap gap-2.5">
 	                      {result.prnMedications.medications.map((med, idx) => (
-	                        <span key={idx} className="px-4 py-1.5 bg-background border border-border/60 text-foreground font-semibold rounded-xl text-[11px] shadow-xs">
+	                        <span key={idx} className="px-4 py-1.5 bg-background border border-border/60 text-foreground font-semibold rounded-xl text-[11px]">
 	                          {getMedicationDisplayName(typeof med === 'string' ? med : med.name)}
 	                        </span>
 	                      ))}
@@ -3862,7 +3862,7 @@ ${generatedProtocol.additionalComments}`;
           </Card>
 
           {result.officeClosedEntries && result.officeClosedEntries.length > 0 && (
-            <Card className="glass-card shadow-medium animate-slide-up stagger-7 overflow-hidden border-blue-500/20" data-testid="card-office-closed-entries">
+            <Card className="animate-slide-up stagger-7 overflow-hidden border-blue-500/20" data-testid="card-office-closed-entries">
               <CardHeader className="bg-blue-500/5 flex flex-row items-center justify-between border-b border-border/40 py-6">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-500 shadow-sm">
@@ -3924,7 +3924,7 @@ ${generatedProtocol.additionalComments}`;
           )}
 
           <div className="grid md:grid-cols-2 gap-6 animate-slide-up stagger-8">
-            <Card className="glass-card overflow-hidden">
+            <Card className="overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-primary/5">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Consensus Intelligence</CardTitle>
                 <CopyButton text={result.themesAndTrends} label="themes" />
@@ -3934,7 +3934,7 @@ ${generatedProtocol.additionalComments}`;
               </CardContent>
             </Card>
 
-            <Card className="glass-card overflow-hidden">
+            <Card className="overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-primary/5">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Training Gaps identified</CardTitle>
                 <CopyButton text={result.gapsInKnowledge} label="gaps" />
@@ -3947,7 +3947,7 @@ ${generatedProtocol.additionalComments}`;
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-10 border-t border-border/40 animate-slide-up stagger-9">
             <div className="flex-1 w-full max-w-sm">
-              <CopyableBox label="Audit Finalization Sequence" value={formatDate(new Date())} className="glass-card border-border/40 bg-muted/10 shadow-xs" />
+              <CopyableBox label="Audit Finalization Sequence" value={formatDate(new Date())} className="border-border/40 bg-muted/10 rounded-xl" />
             </div>
             <div className="flex gap-4 w-full sm:w-auto">
               <Button variant="outline" onClick={removeActiveRecord} className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-medium tracking-tight border-border/60 hover:bg-muted/40 transition-all" data-testid="button-start-new-emar">

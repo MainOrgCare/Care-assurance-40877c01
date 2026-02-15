@@ -127,6 +127,42 @@ const { STORAGE_KEYS, MESSAGE_TYPES } = window.CA_EXTENSION_CONSTANTS || {
 const loadStorage = (keys) => new Promise((resolve) => chrome.storage.local.get(keys, resolve));
 const setStorage = (items) => new Promise((resolve) => chrome.storage.local.set(items, resolve));
 
+// GDPR: Auto-cleanup stale PII data after 2 hours
+const DATA_MAX_AGE_MS = 2 * 60 * 60 * 1000; // 2 hours
+const DATA_TIMESTAMP_KEY = "caAcpDataTimestamp";
+
+async function autoCleanupStaleData() {
+  try {
+    const stored = await loadStorage([DATA_TIMESTAMP_KEY, STORAGE_KEYS.payload]);
+    if (!stored[STORAGE_KEYS.payload]) return; // No data to clean
+
+    const storedAt = stored[DATA_TIMESTAMP_KEY];
+    if (!storedAt || (Date.now() - storedAt) > DATA_MAX_AGE_MS) {
+      console.log('[CA Extension] Auto-cleaning stale PII data (>2h old)');
+      await setStorage({
+        [STORAGE_KEYS.payload]: null,
+        [STORAGE_KEYS.caseInfo]: null,
+        [STORAGE_KEYS.queueState]: null,
+        [STORAGE_KEYS.signatureData]: null,
+        [STORAGE_KEYS.signatureBatchId]: null,
+        [STORAGE_KEYS.uploadedDocuments]: null,
+        [STORAGE_KEYS.verificationFields]: null,
+        [DATA_TIMESTAMP_KEY]: null,
+      });
+    }
+  } catch (e) {
+    console.warn('[CA Extension] Auto-cleanup check failed:', e);
+  }
+}
+
+// Wrap setStorage to auto-timestamp when payload is stored
+const setStorageWithTimestamp = async (items) => {
+  if (items[STORAGE_KEYS.payload] !== undefined && items[STORAGE_KEYS.payload] !== null) {
+    items[DATA_TIMESTAMP_KEY] = Date.now();
+  }
+  return setStorage(items);
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DOM ELEMENTS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -416,7 +452,7 @@ loadCarePlanBtn?.addEventListener("click", async () => {
     if (!res.ok) throw new Error(res.error || "Failed to load care plan");
     
     const payload = res.data;
-    await setStorage({ [STORAGE_KEYS.payload]: payload });
+    await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: payload });
     
     showSuccess("Care plan loaded! Go to Autofill tab.");
     switchTab("autofill");
@@ -441,7 +477,7 @@ loadRiskBtn?.addEventListener("click", async () => {
     if (!res.ok) throw new Error(res.error || "Failed to load risk assessment");
     
     const payload = res.data;
-    await setStorage({ [STORAGE_KEYS.payload]: payload });
+    await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: payload });
     
     showSuccess("Risk assessment loaded! Go to Autofill tab.");
     switchTab("autofill");
@@ -490,7 +526,7 @@ async function loadRecentItem(id, type) {
     if (!res.ok) throw new Error(res.error || "Failed to load");
     
     const payload = res.data;
-    await setStorage({ [STORAGE_KEYS.payload]: payload });
+    await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: payload });
     
     showSuccess("Data loaded!");
     switchTab("autofill");
@@ -633,7 +669,7 @@ proceedWithSelection?.addEventListener("click", async () => {
     }))
   };
   
-  await setStorage({ [STORAGE_KEYS.payload]: payload });
+  await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: payload });
   refreshPayloadStatus();
   if (selectionSection) selectionSection.hidden = true;
 });
@@ -823,10 +859,15 @@ stopButton?.addEventListener("click", () => {
 });
 
 clearButton?.addEventListener("click", async () => {
+  // Clear ALL sensitive data including signatures and uploaded documents
   await setStorage({
     [STORAGE_KEYS.payload]: null,
     [STORAGE_KEYS.caseInfo]: null,
-    [STORAGE_KEYS.queueState]: null
+    [STORAGE_KEYS.queueState]: null,
+    [STORAGE_KEYS.signatureData]: null,
+    [STORAGE_KEYS.signatureBatchId]: null,
+    [STORAGE_KEYS.uploadedDocuments]: null,
+    [STORAGE_KEYS.verificationFields]: null,
   });
   refreshPayloadStatus();
   if (progressStatus) progressStatus.textContent = "Cleared";
@@ -989,6 +1030,9 @@ async function refreshSignatureStatus() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 (async function init() {
+  // GDPR: Auto-clean stale data before loading state
+  await autoCleanupStaleData();
+  
   await refreshPayloadStatus();
   await refreshSignatureStatus();
   

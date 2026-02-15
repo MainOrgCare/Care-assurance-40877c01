@@ -118,7 +118,7 @@ function Router() {
 
         {/* Admin Dropdown */}
         <AdminRoute path="/shadow-admin-portal" component={SecretAdminPortal} />
-        <ProtectedRoute path="/call-reconciliation" component={CallReconciliation} />
+        <AdminRoute path="/call-reconciliation" component={CallReconciliation} />
         <ProtectedRoute path="/email-assistant" component={EmailAssistant} />
         <ProtectedRoute path="/compliance" component={Compliance} />
         <AdminRoute path="/roi-calculator" component={ROICalculator} />

@@ -133,8 +133,6 @@ export default function CarePlanning() {
     }
   }, []);
 
-  const isAdmin = user?.role === "admin";
-  
   // Get current care plan based on selected call type or fall back to legacy single plan
   const currentCarePlanRaw = selectedCallType ? carePlansByTypeRaw.get(selectedCallType) : carePlanRaw;
   const currentCarePlanScrubbed = selectedCallType ? carePlansByTypeScrubbed.get(selectedCallType) : carePlanScrubbed;
@@ -586,10 +584,10 @@ export default function CarePlanning() {
         </div>
       </div>
 
-      <Card className="glass-card animate-slide-up stagger-2 overflow-hidden">
+      <Card className="animate-slide-up stagger-2 overflow-hidden">
         <CardHeader className="border-b border-border/40 pb-6">
           <CardTitle className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10 shadow-xs">
+            <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-primary/8">
               <FileText size={18} className="text-primary" />
             </div>
             Source Documents
@@ -598,7 +596,7 @@ export default function CarePlanning() {
         <CardContent className="space-y-4 pt-6">
           {serviceUserData.socialWork && (
             <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm text-foreground flex items-center gap-3 group transition-colors hover:bg-muted/30" data-testid="text-social-work-doc">
-              <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50 shadow-xs">
+              <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50">
                 {serviceUserData.socialWork.isParsing ? (
                   <Loader2 size={16} className="animate-spin text-primary" />
                 ) : (
@@ -621,7 +619,7 @@ export default function CarePlanning() {
           )}
           {serviceUserData.initialAssessment && (
             <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm text-foreground flex items-center gap-3 group transition-colors hover:bg-muted/30" data-testid="text-initial-assessment-doc">
-              <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50 shadow-xs">
+              <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50">
                 {serviceUserData.initialAssessment.isParsing ? (
                   <Loader2 size={16} className="animate-spin text-primary" />
                 ) : (
@@ -787,7 +785,7 @@ export default function CarePlanning() {
 
           {/* Call Type Tabs - show if multiple plans generated */}
           {carePlansByTypeRaw.size > 0 && (
-            <Card className="glass-card overflow-hidden">
+            <Card className="overflow-hidden">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-sm font-semibold text-muted-foreground">Generated Plans:</span>
@@ -815,7 +813,7 @@ export default function CarePlanning() {
 
           {/* New Simplified Format Display - Single Content Block */}
           {isSimplifiedFormat && carePlan.content && (
-            <Card className="glass-card overflow-hidden">
+            <Card className="overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
@@ -888,7 +886,7 @@ export default function CarePlanning() {
 
           {/* Legacy Sections Format Display */}
           {!isSimplifiedFormat && sectionsWithIndex.length > 0 && (
-          <Card className="glass-card overflow-hidden">
+          <Card className="overflow-hidden">
             <CardHeader className="border-b border-border/40 pb-6">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -999,7 +997,7 @@ export default function CarePlanning() {
 
               <div className="grid gap-5">
                 {visibleSections.length === 0 ? (
-              <div className="py-20 text-center glass-card rounded-2xl border-dashed">
+              <div className="py-20 text-center rounded-2xl border-dashed">
                 <div className="h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-6">
                   <Search size={24} className="text-muted-foreground/60" />
                 </div>
@@ -1026,7 +1024,7 @@ export default function CarePlanning() {
                 <Card
                   key={index}
                   className={cn(
-                    "glass-card-interactive group overflow-hidden transition-all duration-500",
+                    "group overflow-hidden transition-all duration-500",
                     section.priority === 'high' ? 'border-destructive/30 shadow-destructive/5' : '',
                     expandedSections.has(index) ? 'shadow-medium' : ''
                   )}
@@ -1039,7 +1037,7 @@ export default function CarePlanning() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className={cn(
-                          "h-10 w-10 rounded-xl flex items-center justify-center border transition-all duration-500 shadow-xs",
+                          "h-10 w-10 rounded-xl flex items-center justify-center border transition-all duration-500",
                           section.priority === 'high' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
                           section.priority === 'medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
                           'bg-success/10 border-success/20 text-success'
@@ -1159,7 +1157,7 @@ export default function CarePlanning() {
 
           {/* Meta-data section - only show for legacy format with these fields */}
           {!isSimplifiedFormat && (carePlan.emergencyContacts || carePlan.gpDetails || carePlan.additionalNotes) && (
-            <Card className="glass-card overflow-hidden">
+            <Card className="overflow-hidden">
               <CardHeader className="border-b border-border/40">
                 <CardTitle className="text-base">Logistical Meta-Data</CardTitle>
               </CardHeader>

@@ -148,8 +148,8 @@ export default function Settings() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="h-10 w-10 rounded-xl bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
-          <SettingsIcon className="h-5 w-5 text-primary" />
+        <div className="h-8 w-8 rounded-lg bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
+          <SettingsIcon className="h-4 w-4 text-primary" />
         </div>
         <div>
           <h1 className="page-title">Settings</h1>
@@ -409,12 +409,12 @@ export default function Settings() {
                 data-testid="button-export-audits"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                    <FileText className="h-4 w-4 text-primary" />
+                  <div className="h-8 w-8 rounded-md bg-primary/8 flex items-center justify-center shrink-0">
+                    <FileText className="h-3.5 w-3.5 text-primary" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-semibold text-foreground">Export Audits</p>
-                    <p className="text-xs text-muted-foreground">Download audit history as CSV</p>
+                    <p className="text-[0.8125rem] font-semibold text-foreground">Export Audits</p>
+                    <p className="text-[11px] text-muted-foreground">Download audit history as CSV</p>
                   </div>
                 </div>
               </Button>
@@ -448,12 +448,12 @@ export default function Settings() {
                 data-testid="button-export-discrepancies"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
-                    <Shield className="h-4 w-4 text-destructive" />
+                  <div className="h-8 w-8 rounded-md bg-destructive/8 flex items-center justify-center shrink-0">
+                    <Shield className="h-3.5 w-3.5 text-destructive" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-semibold text-foreground">Export Discrepancies</p>
-                    <p className="text-xs text-muted-foreground">Download compliance issues as CSV</p>
+                    <p className="text-[0.8125rem] font-semibold text-foreground">Export Discrepancies</p>
+                    <p className="text-[11px] text-muted-foreground">Download compliance issues as CSV</p>
                   </div>
                 </div>
               </Button>

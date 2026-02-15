@@ -431,9 +431,11 @@ export default function EmailAssistant() {
           <div className="flex-1 overflow-y-auto space-y-1.5 py-3">
             {history.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
-                <Clock className="h-8 w-8 mx-auto mb-3 opacity-20" />
-                <p className="text-sm font-medium">No history yet</p>
-                <p className="text-xs mt-1 text-muted-foreground">Rewritten emails will appear here.</p>
+                <div className="h-12 w-12 rounded-xl bg-muted/40 flex items-center justify-center mx-auto mb-3">
+                  <Clock className="h-5 w-5 text-muted-foreground/40" />
+                </div>
+                <p className="text-[0.8125rem] font-medium">No history yet</p>
+                <p className="text-[11px] mt-1 text-muted-foreground/70">Rewritten emails will appear here.</p>
               </div>
             ) : (
               history.map(entry => (

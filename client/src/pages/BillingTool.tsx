@@ -592,8 +592,8 @@ export default function BillingTool() {
   return (
     <div className="page-shell max-w-6xl mx-auto" data-testid="billing-tool-page">
       <div className="flex items-start gap-4">
-        <div className="h-10 w-10 rounded-xl bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
-          <FileImage className="h-5 w-5 text-primary" />
+        <div className="h-8 w-8 rounded-lg bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
+          <FileImage className="h-4 w-4 text-primary" />
         </div>
         <div className="space-y-1">
           <h2 className="page-title">Billing Tool</h2>
@@ -604,7 +604,7 @@ export default function BillingTool() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-        <Card className="glass-card border-border/60">
+        <Card className="border-border/60">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileImage className="h-5 w-5 text-primary" />
@@ -708,7 +708,7 @@ export default function BillingTool() {
           </CardContent>
         </Card>
 
-        <Card className="glass-card border-border/60">
+        <Card className="border-border/60">
           <CardHeader>
             <CardTitle className="text-base">Analysis Settings</CardTitle>
             <CardDescription>
@@ -790,7 +790,7 @@ export default function BillingTool() {
 
       {analysis && (
         <div className="space-y-6">
-          <Card className="glass-card border-border/60">
+          <Card className="border-border/60">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5 text-emerald-400" />
@@ -836,7 +836,7 @@ export default function BillingTool() {
             </Button>
           </div>
 
-          <Card className="glass-card border-border/60">
+          <Card className="border-border/60">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-primary" />

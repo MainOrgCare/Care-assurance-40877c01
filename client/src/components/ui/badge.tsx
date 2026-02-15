@@ -4,26 +4,26 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "whitespace-nowrap inline-flex items-center rounded-md border px-2 py-0.5 text-[0.67rem] font-semibold uppercase tracking-[0.06em] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1",
+  "whitespace-nowrap inline-flex items-center rounded-md border px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.05em] transition-colors duration-120 focus:outline-none focus:ring-2 focus:ring-ring/20 focus:ring-offset-1",
   {
     variants: {
       variant: {
         default:
-          "border-primary/20 bg-primary/8 text-primary",
+          "border-primary/15 bg-primary/6 text-primary",
         secondary:
-          "border-secondary/20 bg-secondary/8 text-secondary",
+          "border-secondary/15 bg-secondary/6 text-secondary",
         destructive:
-          "border-destructive/20 bg-destructive/8 text-destructive dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400",
+          "border-destructive/15 bg-destructive/6 text-destructive dark:border-red-500/20 dark:bg-red-500/8 dark:text-red-400",
         success:
-          "border-emerald-600/20 bg-emerald-600/8 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-400",
+          "border-emerald-600/15 bg-emerald-600/6 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/8 dark:text-emerald-400",
         warning:
-          "border-amber-500/20 bg-amber-500/8 text-amber-700 dark:border-amber-400/25 dark:bg-amber-500/10 dark:text-amber-400",
+          "border-amber-500/15 bg-amber-500/6 text-amber-700 dark:border-amber-400/20 dark:bg-amber-500/8 dark:text-amber-400",
         outline: 
-          "text-foreground/80 border-border bg-background",
+          "text-foreground/70 border-border/60 bg-transparent",
         muted:
-          "text-muted-foreground border-border bg-muted/50",
+          "text-muted-foreground border-border/50 bg-muted/40",
         premium:
-          "border-primary/20 bg-primary/8 text-primary",
+          "border-primary/15 bg-primary/6 text-primary",
       },
     },
     defaultVariants: {

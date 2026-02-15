@@ -1,5 +1,61 @@
 import { createChatCompletionWithLogging, type AiUserContext } from "./aiClient";
 
+/**
+ * Simple reversible name anonymization for schedule analysis.
+ * Maps real worker names to pseudonyms before sending to AI,
+ * then restores them in the response. No PII leaves the server.
+ */
+class ScheduleNameVault {
+  private nameToAlias = new Map<string, string>();
+  private aliasToName = new Map<string, string>();
+  private counter = 0;
+
+  private static readonly PSEUDONYMS = [
+    "Worker A", "Worker B", "Worker C", "Worker D", "Worker E",
+    "Worker F", "Worker G", "Worker H", "Worker I", "Worker J",
+    "Worker K", "Worker L", "Worker M", "Worker N", "Worker O",
+    "Worker P", "Worker Q", "Worker R", "Worker S", "Worker T",
+    "Worker U", "Worker V", "Worker W", "Worker X", "Worker Y", "Worker Z",
+  ];
+
+  anonymize(name: string): string {
+    if (!name) return name;
+    const existing = this.nameToAlias.get(name);
+    if (existing) return existing;
+    const alias = this.counter < ScheduleNameVault.PSEUDONYMS.length
+      ? ScheduleNameVault.PSEUDONYMS[this.counter]
+      : `Worker ${this.counter + 1}`;
+    this.counter++;
+    this.nameToAlias.set(name, alias);
+    this.aliasToName.set(alias, name);
+    return alias;
+  }
+
+  restore(text: string): string {
+    let result = text;
+    // Replace longest aliases first to avoid partial matches
+    const entries = [...this.aliasToName.entries()].sort((a, b) => b[0].length - a[0].length);
+    for (const [alias, name] of entries) {
+      result = result.split(alias).join(name);
+    }
+    return result;
+  }
+
+  restoreObject<T>(data: T): T {
+    if (data === null || data === undefined) return data;
+    if (typeof data === "string") return this.restore(data) as unknown as T;
+    if (Array.isArray(data)) return data.map(item => this.restoreObject(item)) as unknown as T;
+    if (typeof data === "object") {
+      const restored: Record<string, unknown> = {};
+      for (const key of Object.keys(data as Record<string, unknown>)) {
+        restored[key] = this.restoreObject((data as Record<string, unknown>)[key]);
+      }
+      return restored as T;
+    }
+    return data;
+  }
+}
+
 export interface ScheduleAnalysisInput {
   workers: Array<{
     key: string;
@@ -64,6 +120,9 @@ export async function analyzeScheduleWithAI(
   input: ScheduleAnalysisInput,
   aiUserContext?: AiUserContext
 ): Promise<ScheduleAnalysisResult> {
+  // Anonymize worker names before sending to AI
+  const vault = new ScheduleNameVault();
+  
   const systemPrompt = `You are an expert care scheduling analyst with deep knowledge of UK care facility operations, workforce management, and compliance requirements. Your role is to analyze care worker schedules and provide actionable insights to improve efficiency, reduce burnout, and ensure quality care delivery.
 
 ANALYSIS FRAMEWORK:
@@ -90,7 +149,7 @@ FORMAT: JSON only. Be concise but specific. Include worker names and quantifiabl
   const userPrompt = `Analyze this care worker schedule for ${input.weekDay}, ${input.weekNumber}:
 
 WORKFORCE SUMMARY:
-${input.workers.map((w, i) => `${i + 1}. ${w.name}: ${w.calls} calls, ${Math.round(w.minutes / 60 * 10) / 10}h, ${w.serviceUsers} service users`).join('\n')}
+${input.workers.map((w, i) => `${i + 1}. ${vault.anonymize(w.name)}: ${w.calls} calls, ${Math.round(w.minutes / 60 * 10) / 10}h, ${w.serviceUsers} service users`).join('\n')}
 
 UTILIZATION STATS:
 - Average: ${input.utilizationStats.avgCalls} calls/worker, ${input.utilizationStats.avgHours}h/worker
@@ -102,7 +161,7 @@ ISSUES:
 - Travel gaps detected: ${input.travelGaps}
 - Constraint violations: ${input.constraintViolations.length}
 
-${input.constraintViolations.length > 0 ? `CONSTRAINT VIOLATIONS:\n${input.constraintViolations.map(v => `- ${v.workerName}: ${v.violationType} - ${v.actual} exceeds limit of ${v.limit}`).join('\n')}` : ''}
+${input.constraintViolations.length > 0 ? `CONSTRAINT VIOLATIONS:\n${input.constraintViolations.map(v => `- ${vault.anonymize(v.workerName)}: ${v.violationType} - ${v.actual} exceeds limit of ${v.limit}`).join('\n')}` : ''}
 
 Provide comprehensive analysis with actionable recommendations to optimize this schedule.`;
 
@@ -127,7 +186,9 @@ Provide comprehensive analysis with actionable recommendations to optimize this 
   }
 
   const parsed = JSON.parse(content) as ScheduleAnalysisResult;
-  return parsed;
+  
+  // Restore real worker names in the AI response
+  return vault.restoreObject(parsed);
 }
 
 export interface ScheduleComparisonInput {
@@ -174,6 +235,9 @@ export async function compareSchedulesWithAI(
   input: ScheduleComparisonInput,
   aiUserContext?: AiUserContext
 ): Promise<ScheduleComparisonResult> {
+  // Anonymize worker names before sending to AI
+  const vault = new ScheduleNameVault();
+
   const systemPrompt = `You are an expert at evaluating schedule optimizations for care facilities. Compare before/after schedules and determine if the changes improved the schedule quality.
 
 EVALUATION CRITERIA:
@@ -196,11 +260,11 @@ FORMAT: JSON only with quantifiable metrics.`;
   const userPrompt = `Compare these schedule versions:
 
 BEFORE:
-${input.beforeSchedule.workers.map(w => `- ${w.name}: ${w.calls} calls, ${Math.round(w.minutes / 60 * 10) / 10}h`).join('\n')}
+${input.beforeSchedule.workers.map(w => `- ${vault.anonymize(w.name)}: ${w.calls} calls, ${Math.round(w.minutes / 60 * 10) / 10}h`).join('\n')}
 Conflicts: ${input.beforeSchedule.conflicts}, Travel gaps: ${input.beforeSchedule.travelGaps}
 
 AFTER:
-${input.afterSchedule.workers.map(w => `- ${w.name}: ${w.calls} calls, ${Math.round(w.minutes / 60 * 10) / 10}h`).join('\n')}
+${input.afterSchedule.workers.map(w => `- ${vault.anonymize(w.name)}: ${w.calls} calls, ${Math.round(w.minutes / 60 * 10) / 10}h`).join('\n')}
 Conflicts: ${input.afterSchedule.conflicts}, Travel gaps: ${input.afterSchedule.travelGaps}
 
 CHANGES: ${input.changes.timeShifts} time shifts, ${input.changes.reassignments} reassignments, ${input.changes.deletions} deletions
@@ -227,5 +291,8 @@ Evaluate if this optimization improved the schedule.`;
     throw new Error("No response from AI comparison");
   }
 
-  return JSON.parse(content) as ScheduleComparisonResult;
+  const parsed = JSON.parse(content) as ScheduleComparisonResult;
+  
+  // Restore real worker names in the AI response
+  return vault.restoreObject(parsed);
 }

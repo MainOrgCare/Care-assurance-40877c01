@@ -123,8 +123,14 @@ const openNextForm = async () => {
 };
 
 const stopAutofill = async () => {
+  // Clear ALL PII-containing data when stopping — not just queueState
+  // This prevents sensitive care data from persisting in extension storage
   await setStored({
     [STORAGE_KEYS.queueState]: null,
+    [STORAGE_KEYS.payload]: null,
+    [STORAGE_KEYS.caseInfo]: null,
+    [STORAGE_KEYS.signatureData]: null,
+    [STORAGE_KEYS.signatureBatchId]: null,
   });
   clearBadge();
 };

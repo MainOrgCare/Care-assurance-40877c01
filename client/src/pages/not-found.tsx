@@ -16,8 +16,8 @@ export default function NotFound() {
     <div className="min-h-screen w-full flex items-center justify-center px-6 py-12 bg-background">
       <Card className="w-full max-w-md mx-auto text-center bg-card/95 border-border/75">
         <CardContent className="pt-8 pb-7 space-y-5">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/10 text-destructive ring-1 ring-destructive/25">
-            <AlertCircle className="h-7 w-7" />
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/10 text-destructive ring-1 ring-destructive/25">
+            <AlertCircle className="h-5 w-5" />
           </div>
           <div className="space-y-2">
             <h1 className="text-2xl font-heading font-bold text-foreground">Page not found</h1>

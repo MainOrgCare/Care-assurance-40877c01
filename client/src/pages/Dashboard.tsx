@@ -269,18 +269,18 @@ export default function Dashboard() {
       case "compliance_score":
         return (
           <Card key={widgetId} className="group" data-testid="widget-compliance-score">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Compliance Score</CardTitle>
-              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-success/10">
-                <CheckCircle2 className="h-4 w-4 text-success" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+              <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Compliance Score</CardTitle>
+              <div className="h-8 w-8 rounded-md flex items-center justify-center bg-success/8">
+                <CheckCircle2 className="h-3.5 w-3.5 text-success" />
               </div>
             </CardHeader>
-            <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-compliance-score">
-                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ? "100%" : "-"}
+            <CardContent className="pt-0.5">
+              <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-compliance-score">
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ? "100%" : "-"}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1.5 flex items-center gap-1.5">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-success" />
+              <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                <span className="inline-block h-1 w-1 rounded-full bg-success" />
                 {stats?.auditsCompleted ? "Based on completed audits" : "No data yet"}
               </p>
             </CardContent>
@@ -289,38 +289,38 @@ export default function Dashboard() {
       case "audits_completed":
         return (
           <Card key={widgetId} className="group" data-testid="widget-audits-completed">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Audits Completed</CardTitle>
-              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-primary/10">
-                <FileText className="h-4 w-4 text-primary" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+              <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Audits Completed</CardTitle>
+              <div className="h-8 w-8 rounded-md flex items-center justify-center bg-primary/8">
+                <FileText className="h-3.5 w-3.5 text-primary" />
               </div>
             </CardHeader>
-            <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-audits-completed">
-                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ?? 0}
+            <CardContent className="pt-0.5">
+              <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-audits-completed">
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ?? 0}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Last 24 hours</p>
             </CardContent>
           </Card>
         );
       case "active_alerts":
         return (
           <Card key={widgetId} className="group" data-testid="widget-active-alerts">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Active Alerts</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+              <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Active Alerts</CardTitle>
               <div className={cn(
-                "h-9 w-9 rounded-lg flex items-center justify-center",
-                stats?.activeAlerts ? "bg-destructive/10" : "bg-muted"
+                "h-8 w-8 rounded-md flex items-center justify-center",
+                stats?.activeAlerts ? "bg-destructive/8" : "bg-muted"
               )}>
-                <AlertCircle className={cn("h-4 w-4", stats?.activeAlerts ? "text-destructive" : "text-muted-foreground")} />
+                <AlertCircle className={cn("h-3.5 w-3.5", stats?.activeAlerts ? "text-destructive" : "text-muted-foreground")} />
               </div>
             </CardHeader>
-            <CardContent className="pt-1">
-              <div className={cn("text-3xl font-bold tracking-tight tabular-nums", stats?.activeAlerts ? "text-destructive" : "text-foreground")} data-testid="text-active-alerts">
-                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.activeAlerts ?? 0}
+            <CardContent className="pt-0.5">
+              <div className={cn("text-2xl font-bold tracking-tight tabular-nums", stats?.activeAlerts ? "text-destructive" : "text-foreground")} data-testid="text-active-alerts">
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.activeAlerts ?? 0}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1.5">
-                {stats?.activeAlerts ? "Immediate attention required" : "All systems normal"}
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {stats?.activeAlerts ? "Attention required" : "All clear"}
               </p>
             </CardContent>
           </Card>
@@ -328,83 +328,83 @@ export default function Dashboard() {
       case "plans_updated":
         return (
           <Card key={widgetId} className="group" data-testid="widget-plans-updated">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Plans Updated</CardTitle>
-              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-violet-500/10">
-                <Activity className="h-4 w-4 text-violet-600" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+              <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Plans Updated</CardTitle>
+              <div className="h-8 w-8 rounded-md flex items-center justify-center bg-violet-500/8">
+                <Activity className="h-3.5 w-3.5 text-violet-600" />
               </div>
             </CardHeader>
-            <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-plans-updated">
-                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.plansUpdated ?? 0}
+            <CardContent className="pt-0.5">
+              <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-plans-updated">
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.plansUpdated ?? 0}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1.5">Recently synchronized plans</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Recently synchronized</p>
             </CardContent>
           </Card>
         );
       case "medication_audits":
         return (
           <Card key={widgetId} className="group" data-testid="widget-medication-audits">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Medication Audits</CardTitle>
-              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-blue-500/10">
-                <Pill className="h-4 w-4 text-blue-600" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+              <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Medication Audits</CardTitle>
+              <div className="h-8 w-8 rounded-md flex items-center justify-center bg-blue-500/8">
+                <Pill className="h-3.5 w-3.5 text-blue-600" />
               </div>
             </CardHeader>
-            <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-medication-audits-widget">
-                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
+            <CardContent className="pt-0.5">
+              <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-medication-audits-widget">
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Last 24 hours</p>
             </CardContent>
           </Card>
         );
       case "care_plan_reviews":
         return (
           <Card key={widgetId} className="group" data-testid="widget-care-plan-reviews">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Care Plan Reviews</CardTitle>
-              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-cyan-500/10">
-                <FileText className="h-4 w-4 text-cyan-600" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+              <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Care Plan Reviews</CardTitle>
+              <div className="h-8 w-8 rounded-md flex items-center justify-center bg-cyan-500/8">
+                <FileText className="h-3.5 w-3.5 text-cyan-600" />
               </div>
             </CardHeader>
-            <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-care-plan-reviews-widget">
-                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
+            <CardContent className="pt-0.5">
+              <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-care-plan-reviews-widget">
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Last 24 hours</p>
             </CardContent>
           </Card>
         );
       case "risk_assessments":
         return (
           <Card key={widgetId} className="group" data-testid="widget-risk-assessments">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Risk Assessments</CardTitle>
-              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-amber-500/10">
-                <Shield className="h-4 w-4 text-amber-600" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+              <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Risk Assessments</CardTitle>
+              <div className="h-8 w-8 rounded-md flex items-center justify-center bg-amber-500/8">
+                <Shield className="h-3.5 w-3.5 text-amber-600" />
               </div>
             </CardHeader>
-            <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-risk-assessments-widget">
-                {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
+            <CardContent className="pt-0.5">
+              <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-risk-assessments-widget">
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Last 24 hours</p>
             </CardContent>
           </Card>
         );
       case "staff_checks":
         return (
           <Card key={widgetId} className="group" data-testid="widget-staff-checks">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Staff Checks</CardTitle>
-              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-indigo-500/10">
-                <Users className="h-4 w-4 text-indigo-600" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+              <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Staff Checks</CardTitle>
+              <div className="h-8 w-8 rounded-md flex items-center justify-center bg-indigo-500/8">
+                <Users className="h-3.5 w-3.5 text-indigo-600" />
               </div>
             </CardHeader>
-            <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-muted-foreground/50 tabular-nums" data-testid="text-staff-checks-widget">&mdash;</div>
-              <p className="text-[11px] text-muted-foreground mt-1.5">Coming soon</p>
+            <CardContent className="pt-0.5">
+              <div className="text-2xl font-bold tracking-tight text-muted-foreground/40 tabular-nums" data-testid="text-staff-checks-widget">&mdash;</div>
+              <p className="text-[10px] text-muted-foreground mt-1">Coming soon</p>
             </CardContent>
           </Card>
         );
@@ -442,15 +442,15 @@ export default function Dashboard() {
         </Card>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-slide-up stagger-1">
-        <div className="space-y-1.5">
-          <p className="text-[11px] font-semibold text-primary/70 tracking-wide uppercase px-0.5">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 animate-slide-up stagger-1">
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold text-primary/60 tracking-wide uppercase">
             Welcome back, {user?.firstName || user?.username || 'there'}
           </p>
           <h1 className="page-title leading-tight" data-testid="text-dashboard-title">Operations Dashboard</h1>
           <p className="page-subtitle">Unified operations overview &mdash; last 24 hours.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" data-testid="button-customize-dashboard">
@@ -575,31 +575,30 @@ export default function Dashboard() {
       )}
 
       {/* Quick Actions */}
-      <div className="space-y-3.5 animate-slide-up stagger-2">
-        <div className="flex items-center gap-2.5 px-0.5">
-          <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-amber-500/8 border border-amber-500/15 dark:bg-amber-500/10 dark:border-amber-400/20">
-            <Zap className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+      <div className="space-y-3 animate-slide-up stagger-2">
+        <div className="flex items-center gap-2 px-0.5">
+          <div className="h-6 w-6 rounded-md flex items-center justify-center bg-amber-500/8 border border-amber-500/12">
+            <Zap className="h-3 w-3 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <h2 className="text-sm font-bold tracking-tight text-foreground">Launch Center</h2>
-            <p className="text-[11px] text-muted-foreground/70">Accelerated workflows for care teams</p>
+            <h2 className="text-[0.8125rem] font-semibold tracking-tight text-foreground">Launch Center</h2>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
           {QUICK_ACTIONS.map((action, index) => (
             <Link key={index} href={action.href}>
               <Card className="group h-full" data-testid={`card-quick-action-${index}`}>
-                <CardContent className={`p-4 relative border ${action.panelTone} rounded-xl transition-colors duration-200`}>
-                  <div className={`relative h-9 w-9 rounded-lg ${action.iconTone} flex items-center justify-center mb-3`}>
-                    <action.icon className="h-4.5 w-4.5" />
+                <CardContent className={`p-3.5 relative border ${action.panelTone} rounded-xl transition-colors duration-150`}>
+                  <div className={`relative h-8 w-8 rounded-md ${action.iconTone} flex items-center justify-center mb-2.5`}>
+                    <action.icon className="h-4 w-4" />
                   </div>
                   
-                  <h3 className="font-bold text-[0.8125rem] mb-1 group-hover:text-primary transition-colors duration-200 text-foreground tracking-tight">{action.label}</h3>
-                  <p className="text-[11px] leading-relaxed text-muted-foreground/80">{action.description}</p>
+                  <h3 className="font-semibold text-xs mb-0.5 group-hover:text-primary transition-colors duration-150 text-foreground tracking-tight">{action.label}</h3>
+                  <p className="text-[10px] leading-relaxed text-muted-foreground/70">{action.description}</p>
                   
-                  <div className="flex items-center gap-1.5 mt-3 text-[10px] font-semibold text-primary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150">
+                  <div className="flex items-center gap-1 mt-2.5 text-[9px] font-semibold text-primary/70 opacity-0 group-hover:opacity-100 transition-opacity duration-120">
                     <span>Open</span>
-                    <ArrowRight className="h-3 w-3" />
+                    <ArrowRight className="h-2.5 w-2.5" />
                   </div>
                 </CardContent>
               </Card>
@@ -609,50 +608,50 @@ export default function Dashboard() {
       </div>
 
       {smallWidgets.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-3">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-3">
           {smallWidgets.map(widgetId => renderSmallWidget(widgetId))}
         </div>
       )}
 
       {largeWidgets.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 animate-slide-up stagger-4">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-7 animate-slide-up stagger-4">
           {largeWidgets.includes("compliance_data") && (
-            <Card className={cn("shadow-sm", largeWidgets.includes("recent_alerts") ? "lg:col-span-4" : "lg:col-span-7")} data-testid="widget-compliance-data">
-              <CardHeader className="border-b border-border/40 pb-4 mb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center">
-                    <TrendingUp className="h-3.5 w-3.5 text-primary" />
+            <Card className={cn(largeWidgets.includes("recent_alerts") ? "lg:col-span-4" : "lg:col-span-7")} data-testid="widget-compliance-data">
+              <CardHeader className="border-b border-border/30 pb-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-md bg-primary/8 flex items-center justify-center">
+                    <TrendingUp className="h-3 w-3 text-primary" />
                   </div>
                   <div>
-                    <CardTitle className="text-sm font-semibold">Audit Performance</CardTitle>
-                    <CardDescription className="text-xs">Current operational window.</CardDescription>
+                    <CardTitle className="text-xs font-semibold">Audit Performance</CardTitle>
+                    <CardDescription className="text-[10px]">Current operational window.</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                 <div className="grid grid-cols-2 gap-y-8 gap-x-6">
-                    <div className="space-y-1 pl-3 border-l-2 border-blue-500/25">
-                       <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Medication Audits</p>
-                       <p className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-medication-audits">
-                         {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
+                 <div className="grid grid-cols-2 gap-y-6 gap-x-5">
+                    <div className="space-y-1 pl-2.5 border-l-2 border-blue-500/20">
+                       <p className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/70">Medication Audits</p>
+                       <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums" data-testid="text-medication-audits">
+                         {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
                        </p>
                     </div>
-                    <div className="space-y-1 pl-3 border-l-2 border-indigo-500/25">
-                       <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Care Plan Reviews</p>
-                       <p className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-care-plan-reviews">
-                         {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
+                    <div className="space-y-1 pl-2.5 border-l-2 border-indigo-500/20">
+                       <p className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/70">Care Plan Reviews</p>
+                       <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums" data-testid="text-care-plan-reviews">
+                         {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
                        </p>
                     </div>
-                    <div className="space-y-1 pl-3 border-l-2 border-amber-500/25">
-                       <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Risk Assessments</p>
-                       <p className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-risk-assessments">
-                         {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
+                    <div className="space-y-1 pl-2.5 border-l-2 border-amber-500/20">
+                       <p className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/70">Risk Assessments</p>
+                       <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums" data-testid="text-risk-assessments">
+                         {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
                        </p>
                     </div>
-                    <div className="space-y-1 pl-3 border-l-2 border-emerald-500/25">
-                       <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Staff Checks</p>
-                       <p className="text-3xl font-semibold tracking-tight text-muted-foreground/50" data-testid="text-staff-checks">&mdash;</p>
-                       <p className="text-[10px] text-muted-foreground/60">Coming soon</p>
+                    <div className="space-y-1 pl-2.5 border-l-2 border-emerald-500/20">
+                       <p className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/70">Staff Checks</p>
+                       <p className="text-2xl font-semibold tracking-tight text-muted-foreground/40 tabular-nums" data-testid="text-staff-checks">&mdash;</p>
+                       <p className="text-[9px] text-muted-foreground/50">Coming soon</p>
                     </div>
                  </div>
               </CardContent>
@@ -660,15 +659,15 @@ export default function Dashboard() {
           )}
 
           {largeWidgets.includes("recent_alerts") && (
-            <Card className={cn("shadow-sm", largeWidgets.includes("compliance_data") ? "lg:col-span-3" : "lg:col-span-7")} data-testid="widget-recent-alerts">
-              <CardHeader className="border-b border-border/40 pb-4 mb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="h-7 w-7 rounded-md bg-destructive/10 flex items-center justify-center text-destructive">
-                    <AlertCircle className="h-3.5 w-3.5" />
+            <Card className={cn(largeWidgets.includes("compliance_data") ? "lg:col-span-3" : "lg:col-span-7")} data-testid="widget-recent-alerts">
+              <CardHeader className="border-b border-border/30 pb-3 mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-md bg-destructive/8 flex items-center justify-center text-destructive">
+                    <AlertCircle className="h-3 w-3" />
                   </div>
                   <div>
-                    <CardTitle className="text-sm font-semibold">Incident Feed</CardTitle>
-                    <CardDescription className="text-xs">Security and compliance logs.</CardDescription>
+                    <CardTitle className="text-xs font-semibold">Incident Feed</CardTitle>
+                    <CardDescription className="text-[10px]">Security and compliance logs.</CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -705,15 +704,15 @@ export default function Dashboard() {
           )}
 
           {largeWidgets.includes("activity_feed") && (
-            <Card className="lg:col-span-full shadow-sm" data-testid="widget-activity-feed">
-              <CardHeader className="border-b border-border/40 pb-4 mb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="h-7 w-7 rounded-md bg-violet-500/10 flex items-center justify-center text-violet-600">
-                    <Clock className="h-3.5 w-3.5" />
+            <Card className="lg:col-span-full" data-testid="widget-activity-feed">
+              <CardHeader className="border-b border-border/30 pb-3 mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-md bg-violet-500/8 flex items-center justify-center text-violet-600">
+                    <Clock className="h-3 w-3" />
                   </div>
                   <div>
-                    <CardTitle className="text-sm font-semibold">Activity Feed</CardTitle>
-                    <CardDescription className="text-xs">Live stream of system operations and events.</CardDescription>
+                    <CardTitle className="text-xs font-semibold">Activity Feed</CardTitle>
+                    <CardDescription className="text-[10px]">Live stream of system operations and events.</CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -777,80 +776,82 @@ export default function Dashboard() {
 
       {/* Platform Benefits */}
       <Card className="overflow-hidden animate-slide-up stagger-5" data-testid="card-platform-benefits">
-        <CardHeader className="pb-4 border-b border-border/40">
-          <div className="flex items-center gap-2.5">
-            <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-blue-500/10 dark:bg-blue-400/10">
-              <TrendingUp className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+        <CardHeader className="pb-3 border-b border-border/30">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded-md flex items-center justify-center bg-blue-500/8">
+              <TrendingUp className="h-3 w-3 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <CardTitle className="text-sm font-semibold">Performance Metrics</CardTitle>
-              <CardDescription className="text-xs">Efficiency indicators across care delivery.</CardDescription>
+              <CardTitle className="text-xs font-semibold">Performance Metrics</CardTitle>
+              <CardDescription className="text-[10px]">Efficiency indicators across care delivery.</CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2.5 group p-5 rounded-xl bg-muted/15 hover:bg-muted/25 transition-all duration-200 border border-border/30 hover:border-border/50">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50 shadow-xs">
-                  <Clock className="h-4 w-4 text-foreground/70" />
+        <CardContent className="pt-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="space-y-2 group p-4 rounded-lg bg-muted/10 hover:bg-muted/20 transition-all duration-150 border border-border/25 hover:border-border/40">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-md bg-background flex items-center justify-center border border-border/40">
+                  <Clock className="h-3.5 w-3.5 text-foreground/60" />
                 </div>
-                <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums">90%</span>
+                <span className="text-xl font-bold tracking-tight text-foreground tabular-nums">90%</span>
               </div>
               <div>
-                <p className="text-sm font-semibold text-foreground mb-0.5">Time Recovery</p>
-                <p className="text-xs leading-relaxed text-muted-foreground/80">Autonomous auditing recaptures hours for frontline care.</p>
+                <p className="text-xs font-semibold text-foreground mb-0.5">Time Recovery</p>
+                <p className="text-[10px] leading-relaxed text-muted-foreground/70">Autonomous auditing recaptures hours for frontline care.</p>
               </div>
             </div>
-            <div className="space-y-2.5 group p-5 rounded-xl bg-muted/15 hover:bg-muted/25 transition-all duration-200 border border-border/30 hover:border-border/50">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50 shadow-xs">
-                  <CheckCircle2 className="h-4 w-4 text-foreground/70" />
+            <div className="space-y-2 group p-4 rounded-lg bg-muted/10 hover:bg-muted/20 transition-all duration-150 border border-border/25 hover:border-border/40">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-md bg-background flex items-center justify-center border border-border/40">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-foreground/60" />
                 </div>
-                <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums">3-Pass</span>
+                <span className="text-xl font-bold tracking-tight text-foreground tabular-nums">3-Pass</span>
               </div>
               <div>
-                <p className="text-sm font-semibold text-foreground mb-0.5">Deep Analysis</p>
-                <p className="text-xs leading-relaxed text-muted-foreground/80">Layered review logic identifies discrepancies with precision.</p>
+                <p className="text-xs font-semibold text-foreground mb-0.5">Deep Analysis</p>
+                <p className="text-[10px] leading-relaxed text-muted-foreground/70">Layered review logic identifies discrepancies with precision.</p>
               </div>
             </div>
-            <div className="space-y-2.5 group p-5 rounded-xl bg-muted/15 hover:bg-muted/25 transition-all duration-200 border border-border/30 hover:border-border/50">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50 shadow-xs">
-                  <Shield className="h-4 w-4 text-foreground/70" />
+            <div className="space-y-2 group p-4 rounded-lg bg-muted/10 hover:bg-muted/20 transition-all duration-150 border border-border/25 hover:border-border/40">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-md bg-background flex items-center justify-center border border-border/40">
+                  <Shield className="h-3.5 w-3.5 text-foreground/60" />
                 </div>
-                <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums">Live</span>
+                <span className="text-xl font-bold tracking-tight text-foreground tabular-nums">Live</span>
               </div>
               <div>
-                <p className="text-sm font-semibold text-foreground mb-0.5">Active Guard</p>
-                <p className="text-xs leading-relaxed text-muted-foreground/80">Real-time telemetry of compliance and incident signals.</p>
+                <p className="text-xs font-semibold text-foreground mb-0.5">Active Guard</p>
+                <p className="text-[10px] leading-relaxed text-muted-foreground/70">Real-time telemetry of compliance and incident signals.</p>
               </div>
             </div>
-            <div className="space-y-2.5 group p-5 rounded-xl bg-muted/15 hover:bg-muted/25 transition-all duration-200 border border-border/30 hover:border-border/50">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50 shadow-xs">
-                  <Brain className="h-4 w-4 text-foreground/70" />
+            <div className="space-y-2 group p-4 rounded-lg bg-muted/10 hover:bg-muted/20 transition-all duration-150 border border-border/25 hover:border-border/40">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-md bg-background flex items-center justify-center border border-border/40">
+                  <Brain className="h-3.5 w-3.5 text-foreground/60" />
                 </div>
-                <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums">Expert</span>
+                <span className="text-xl font-bold tracking-tight text-foreground tabular-nums">Expert</span>
               </div>
               <div>
-                <p className="text-sm font-semibold text-foreground mb-0.5">Contextual AI</p>
-                <p className="text-xs leading-relaxed text-muted-foreground/80">Neural processing of complex medical and care plan data.</p>
+                <p className="text-xs font-semibold text-foreground mb-0.5">Contextual AI</p>
+                <p className="text-[10px] leading-relaxed text-muted-foreground/70">Neural processing of complex medical and care plan data.</p>
               </div>
             </div>
           </div>
-          <div className="mt-6 pt-5 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/40">
-            <p className="text-sm text-muted-foreground/80">
+          {user?.role === 'admin' && (
+          <div className="mt-5 pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/30">
+            <p className="text-xs text-muted-foreground/70">
               Calculate your organization&apos;s potential ROI from autonomous compliance.
             </p>
             <Link href="/roi-calculator">
-              <Button variant="outline" className="font-medium" data-testid="button-roi-calculator">
-                <TrendingUp className="h-4 w-4 mr-2" />
+              <Button variant="outline" size="sm" className="font-medium" data-testid="button-roi-calculator">
+                <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
                 Savings Estimator
-                <ArrowRight className="h-3.5 w-3.5 ml-2" />
+                <ArrowRight className="h-3 w-3 ml-1.5" />
               </Button>
             </Link>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

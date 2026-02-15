@@ -204,7 +204,7 @@ export default function ROICalculator() {
       {/* Impact Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {IMPACT_METRICS.map((metric) => (
-          <Card key={metric.label} className="text-center glass-card" data-testid={`metric-${metric.label.toLowerCase().replace(/\s+/g, '-')}`}>
+          <Card key={metric.label} className="text-center" data-testid={`metric-${metric.label.toLowerCase().replace(/\s+/g, '-')}`}>
             <CardContent className="pt-6 pb-4">
               <div className="mx-auto w-10 h-10 rounded-full flex items-center justify-center mb-3 bg-primary/10 text-primary">
                 <metric.icon className="h-5 w-5" />
@@ -219,7 +219,7 @@ export default function ROICalculator() {
 
       {/* Admin Extension Direct Add */}
       <section data-testid="admin-extension-direct-add-section">
-        <Card className="glass-card border-primary/20">
+        <Card className="border-primary/20">
           <CardHeader>
             <Badge variant="outline" className="w-fit gap-1">
               <Lock className="h-3 w-3" />
@@ -274,7 +274,7 @@ export default function ROICalculator() {
           {CORE_FEATURES.map((feature, index) => (
             <Card 
               key={feature.title} 
-              className="overflow-visible glass-card"
+              className="overflow-visible"
               data-testid={`feature-card-${feature.title.toLowerCase().replace(/\s+/g, '-')}`}
             >
               <CardContent className="p-6">
@@ -311,7 +311,7 @@ export default function ROICalculator() {
       </section>
 
       {/* Time Savings Summary */}
-      <Card className="glass-card" data-testid="time-savings-summary">
+      <Card data-testid="time-savings-summary">
         <CardHeader className="text-center">
           <CardTitle className="flex items-center justify-center gap-2 text-2xl text-foreground">
             <TrendingUp className="h-6 w-6 text-emerald-500" />
@@ -358,7 +358,7 @@ export default function ROICalculator() {
           </p>
         </div>
         <div className="grid gap-6 md:grid-cols-2">
-          <Card className="glass-card border-red-500/20" data-testid="manual-process-card">
+          <Card className="border-red-500/20" data-testid="manual-process-card">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
                 <XCircle className="h-5 w-5" />
@@ -379,7 +379,7 @@ export default function ROICalculator() {
               </ul>
             </CardContent>
           </Card>
-          <Card className="glass-card border-emerald-500/20" data-testid="careassurance-card">
+          <Card className="border-emerald-500/20" data-testid="careassurance-card">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                 <CheckCircle className="h-5 w-5" />
@@ -418,7 +418,7 @@ export default function ROICalculator() {
         </div>
         <div className="grid gap-6 lg:grid-cols-3">
           {SECURITY_CATEGORIES.map((category) => (
-            <Card key={category.title} className="glass-card" data-testid={`security-category-${category.title.toLowerCase().replace(/\s+/g, '-')}`}>
+            <Card key={category.title} data-testid={`security-category-${category.title.toLowerCase().replace(/\s+/g, '-')}`}>
               <CardHeader>
                 <CardTitle className="text-lg text-foreground">{category.title}</CardTitle>
                 <CardDescription>{category.description}</CardDescription>

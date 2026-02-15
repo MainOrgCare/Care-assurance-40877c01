@@ -203,14 +203,14 @@ export default function Performance() {
           <p className="font-semibold tracking-widest text-xs uppercase">Synthesizing performance data...</p>
         </div>
       ) : careWorkers.length === 0 ? (
-        <Card className="glass-card animate-slide-up stagger-2 mt-6">
+        <Card className="animate-slide-up stagger-2 mt-6">
           <CardContent className="py-24">
             <div className="text-center space-y-4">
-              <div className="h-20 w-20 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-6">
-                <FileText className="h-10 w-10 text-muted-foreground/60" />
+              <div className="h-16 w-16 rounded-xl bg-muted/30 flex items-center justify-center mx-auto mb-4">
+                <FileText className="h-7 w-7 text-muted-foreground/40" />
               </div>
-              <h3 className="text-xl font-black tracking-tight text-foreground">Operational Data Missing</h3>
-              <p className="text-sm font-medium text-muted-foreground max-w-md mx-auto leading-relaxed">
+              <h3 className="text-lg font-bold tracking-tight text-foreground">Operational Data Missing</h3>
+              <p className="text-[0.8125rem] font-medium text-muted-foreground max-w-md mx-auto leading-relaxed">
                 Staff metrics require baseline audit data. Complete EMAR or Visit audits to populate the intelligence hub.
               </p>
             </div>
@@ -267,11 +267,11 @@ export default function Performance() {
           </div>
 
           {/* Compliance Distribution Bar */}
-          <Card className="glass-card overflow-hidden">
-            <CardHeader className="border-b border-border/40 pb-4">
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b border-border/30 pb-4">
               <CardTitle className="flex items-center gap-3 text-sm">
-                <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-primary/10 shadow-xs">
-                  <BarChart3 className="h-4 w-4 text-primary" />
+                <div className="h-7 w-7 rounded-md flex items-center justify-center bg-primary/8">
+                  <BarChart3 className="h-3.5 w-3.5 text-primary" />
                 </div>
                 Compliance Distribution
               </CardTitle>
@@ -319,12 +319,12 @@ export default function Performance() {
           </Card>
 
           {/* Staff Table with Search, Filter, Sort */}
-          <Card className="glass-card overflow-hidden">
-            <CardHeader className="border-b border-border/40 pb-4">
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b border-border/30 pb-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <CardTitle className="flex items-center gap-3 text-sm">
-                  <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-teal-500/10 shadow-xs">
-                    <Users className="h-4 w-4 text-teal-500" />
+                  <div className="h-7 w-7 rounded-md flex items-center justify-center bg-teal-500/8">
+                    <Users className="h-3.5 w-3.5 text-teal-500" />
                   </div>
                   Staff Roster ({filteredAndSortedWorkers.length})
                 </CardTitle>
@@ -377,8 +377,10 @@ export default function Performance() {
               <div className="divide-y divide-border/30 max-h-[480px] overflow-y-auto">
                 {filteredAndSortedWorkers.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                    <Search className="h-8 w-8 mb-3 opacity-30" />
-                    <p className="text-sm font-medium">No staff match current filters</p>
+                    <div className="h-12 w-12 rounded-xl bg-muted/40 flex items-center justify-center mb-3">
+                      <Search className="h-5 w-5 text-muted-foreground/40" />
+                    </div>
+                    <p className="text-[0.8125rem] font-medium">No staff match current filters</p>
                   </div>
                 ) : (
                   filteredAndSortedWorkers.map(worker => {
@@ -450,21 +452,23 @@ export default function Performance() {
 
           {/* Training & Top Performers */}
           <div className="grid md:grid-cols-2 gap-6">
-            <Card className="glass-card overflow-hidden">
-              <CardHeader className="border-b border-border/40 pb-6">
+            <Card className="overflow-hidden">
+              <CardHeader className="border-b border-border/30 pb-4">
                 <CardTitle className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-amber-500/10 shadow-xs">
-                    <Trophy className="h-5 w-5 text-amber-500" />
+                  <div className="h-7 w-7 rounded-md flex items-center justify-center bg-amber-500/8">
+                    <Trophy className="h-3.5 w-3.5 text-amber-500" />
                   </div>
                   Top Performers
                 </CardTitle>
-                <CardDescription className="text-xs font-medium">Staff achieving 100% compliance across all vectors.</CardDescription>
+                <CardDescription className="text-[11px] font-medium">Staff achieving 100% compliance across all vectors.</CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
                 {stats.compliant === 0 ? (
-                  <div className="text-center py-12 bg-muted/10 rounded-2xl border border-dashed border-border/60">
-                    <Users className="mx-auto h-10 w-10 text-muted-foreground/50 mb-3" />
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">No candidates identified</p>
+                  <div className="text-center py-12 bg-muted/10 rounded-xl border border-dashed border-border/60">
+                    <div className="h-12 w-12 rounded-xl bg-muted/40 flex items-center justify-center mx-auto mb-3">
+                      <Users className="h-5 w-5 text-muted-foreground/40" />
+                    </div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">No candidates identified</p>
                   </div>
                 ) : (
                   <ul className="space-y-2 max-h-[300px] overflow-y-auto">
@@ -487,21 +491,23 @@ export default function Performance() {
               </CardContent>
             </Card>
 
-            <Card className="glass-card overflow-hidden">
-              <CardHeader className="border-b border-border/40 pb-6">
+            <Card className="overflow-hidden">
+              <CardHeader className="border-b border-border/30 pb-4">
                 <CardTitle className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10 shadow-xs">
-                    <BookOpen className="h-5 w-5 text-primary" />
+                  <div className="h-7 w-7 rounded-md flex items-center justify-center bg-primary/8">
+                    <BookOpen className="h-3.5 w-3.5 text-primary" />
                   </div>
                   Targeted Training
                 </CardTitle>
-                <CardDescription className="text-xs font-medium">Auto-generated learning pathways based on discrepancy themes.</CardDescription>
+                <CardDescription className="text-[11px] font-medium">Auto-generated learning pathways based on discrepancy themes.</CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
                 {trainingRecommendations.length === 0 ? (
-                  <div className="text-center py-12 bg-muted/10 rounded-2xl border border-dashed border-border/60">
-                    <CheckCircle2 className="mx-auto h-10 w-10 text-success/30 mb-3" />
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">No gaps detected</p>
+                  <div className="text-center py-12 bg-muted/10 rounded-xl border border-dashed border-border/60">
+                    <div className="h-12 w-12 rounded-xl bg-success/8 flex items-center justify-center mx-auto mb-3">
+                      <CheckCircle2 className="h-5 w-5 text-success/50" />
+                    </div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">No gaps detected</p>
                   </div>
                 ) : (
                   <div className="space-y-4">

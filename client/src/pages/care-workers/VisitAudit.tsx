@@ -446,11 +446,11 @@ export default function VisitAudit() {
       </div>
 
       {!analyzed ? (
-        <Card className="glass-card animate-slide-up stagger-2 mt-6">
+        <Card className="animate-slide-up stagger-2 mt-6">
           <CardHeader className="border-b border-border/40 pb-6">
             <CardTitle className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10 shadow-xs">
-                <ClipboardList className="h-5 w-5 text-primary" />
+              <div className="h-7 w-7 rounded-md flex items-center justify-center bg-primary/8">
+                <ClipboardList className="h-3.5 w-3.5 text-primary" />
               </div>
               Intelligence Intake
             </CardTitle>
@@ -520,17 +520,17 @@ The AI will automatically extract:
       ) : result && (
         <div className="space-y-6 animate-slide-up">
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <CopyableBox label="Service User" value={result.serviceUserName} className="glass-card border-border/40" />
-            <CopyableBox label="Auditor" value={auditorDisplay} className="glass-card border-border/40" />
-            <CopyableBox label="Operational Start" value={result.auditPeriodStart} className="glass-card border-border/40" />
-            <CopyableBox label="Operational End" value={result.auditPeriodEnd} className="glass-card border-border/40" />
+            <CopyableBox label="Service User" value={result.serviceUserName} className="border-border/40 rounded-xl" />
+            <CopyableBox label="Auditor" value={auditorDisplay} className="border-border/40 rounded-xl" />
+            <CopyableBox label="Operational Start" value={result.auditPeriodStart} className="border-border/40 rounded-xl" />
+            <CopyableBox label="Operational End" value={result.auditPeriodEnd} className="border-border/40 rounded-xl" />
           </div>
 
-          <Card className="glass-card overflow-hidden">
+          <Card className="overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 pb-6">
               <CardTitle className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10 shadow-xs">
-                  <ClipboardList className="h-5 w-5 text-primary" />
+                <div className="h-7 w-7 rounded-md flex items-center justify-center bg-primary/8">
+                  <ClipboardList className="h-3.5 w-3.5 text-primary" />
                 </div>
                 Operational Telemetry
               </CardTitle>
@@ -599,7 +599,7 @@ The AI will automatically extract:
             </CardContent>
           </Card>
 
-          <Card className="glass-card overflow-hidden">
+          <Card className="overflow-hidden">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -634,11 +634,11 @@ The AI will automatically extract:
           </Card>
 
           {result.hasDiscrepancies && result.discrepancies.length > 0 && (
-            <Card className="glass-card overflow-hidden">
+            <Card className="overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 pb-6">
                 <CardTitle className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-destructive/10 shadow-xs">
-                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                  <div className="h-7 w-7 rounded-md flex items-center justify-center bg-destructive/8">
+                    <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
                   </div>
                   Incident Reports
                 </CardTitle>
@@ -699,7 +699,7 @@ The AI will automatically extract:
           )}
 
           <div className="grid md:grid-cols-2 gap-6">
-            <Card className="glass-card overflow-hidden">
+            <Card className="overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Strategic Intelligence</CardTitle>
                 <CopyButton text={result.themesAndTrends} label="themes" />
@@ -709,7 +709,7 @@ The AI will automatically extract:
               </CardContent>
             </Card>
 
-            <Card className="glass-card overflow-hidden">
+            <Card className="overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Training Vectors</CardTitle>
                 <CopyButton text={result.gapsInKnowledge} label="gaps" />
@@ -722,7 +722,7 @@ The AI will automatically extract:
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-6 border-t border-border/40">
             <div className="flex-1 w-full max-w-sm">
-              <CopyableBox label="Audit Finalization Date" value={formatDate(new Date())} className="glass-card border-border/40" />
+              <CopyableBox label="Audit Finalization Date" value={formatDate(new Date())} className="border-border/40 rounded-xl" />
             </div>
             <div className="flex gap-4 w-full sm:w-auto">
               <Button variant="outline" onClick={() => { setAnalyzed(false); setResult(null); }} className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-medium tracking-tight border-border/60" data-testid="button-start-new-visit">

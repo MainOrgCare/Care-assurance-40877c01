@@ -290,7 +290,6 @@ export default function PlanEnhancer() {
     }
   }, []);
 
-  const isAdmin = user?.role === "admin";
   // Always use raw data with full names restored automatically via vault
   const displayResult = useMemo(
     () => resultRaw || resultScrubbed,
@@ -1153,7 +1152,7 @@ export default function PlanEnhancer() {
         </div>
       </div>
 
-      <Card className="glass-card animate-slide-up stagger-2 mt-6 border-primary/20">
+      <Card className="animate-slide-up stagger-2 mt-6 border-primary/20">
         <CardHeader className="border-b border-border/40 pb-3">
           <CardTitle className="text-sm">Suggested updates to add</CardTitle>
         </CardHeader>
@@ -1177,7 +1176,7 @@ export default function PlanEnhancer() {
         </CardContent>
       </Card>
 
-      <Card className="glass-card animate-slide-up stagger-2 mt-6">
+      <Card className="animate-slide-up stagger-2 mt-6">
         <CardHeader className="border-b border-border/40 pb-4">
           <CardTitle className="text-base">Update Information (Optional)</CardTitle>
         </CardHeader>
@@ -1218,10 +1217,10 @@ export default function PlanEnhancer() {
         </CardContent>
       </Card>
 
-      <Card className="glass-card animate-slide-up stagger-3 overflow-hidden mt-6">
+      <Card className="animate-slide-up stagger-3 overflow-hidden mt-6">
         <CardHeader className="border-b border-border/40 pb-6">
           <CardTitle className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10 shadow-xs">
+            <div className="h-7 w-7 rounded-md flex items-center justify-center bg-primary/8">
               <Sparkles size={18} className="text-primary" />
             </div>
             Pipeline Configuration
@@ -1242,7 +1241,7 @@ export default function PlanEnhancer() {
             )}
             {serviceUserData.socialWork && (
               <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-social-work-doc">
-                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground shadow-xs">
+                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground">
                   <FileText size={16} />
                 </div>
                 <div>
@@ -1253,7 +1252,7 @@ export default function PlanEnhancer() {
             )}
             {serviceUserData.initialAssessment && (
               <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-initial-assessment-doc">
-                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground shadow-xs">
+                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground">
                   <FileText size={16} />
                 </div>
                 <div>
@@ -1264,7 +1263,7 @@ export default function PlanEnhancer() {
             )}
             {serviceUserData.movingHandling && (
               <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-moving-handling-doc">
-                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground shadow-xs">
+                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground">
                   <FileText size={16} />
                 </div>
                 <div>
@@ -1275,7 +1274,7 @@ export default function PlanEnhancer() {
             )}
             {serviceUserData.additionalDocuments && serviceUserData.additionalDocuments.length > 0 && (
               <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-additional-docs">
-                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground shadow-xs">
+                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground">
                   <FileText size={16} />
                 </div>
                 <div>
@@ -1288,7 +1287,7 @@ export default function PlanEnhancer() {
             )}
             {serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim().length > 0 && (
               <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-additional-notes">
-                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground shadow-xs">
+                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground">
                   <FileText size={16} />
                 </div>
                 <div>
@@ -1458,7 +1457,7 @@ export default function PlanEnhancer() {
         <div className="space-y-6 animate-slide-up">
             {/* Input truncation warning (large documents) */}
             {(displayResult as any)?._inputTruncated && (
-              <Card className="glass-card border-amber-500/40 bg-amber-500/10">
+              <Card className="border-amber-500/40 bg-amber-500/10">
                 <CardContent className="py-4 space-y-2">
                   <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-2">
                     <AlertTriangle size={16} />
@@ -1482,7 +1481,7 @@ export default function PlanEnhancer() {
             
             {/* Truncation / quality warning banner */}
             {(displayResult as any)?._truncated && (
-              <Card className="glass-card border-destructive/40 bg-destructive/10">
+              <Card className="border-destructive/40 bg-destructive/10">
                 <CardContent className="py-4 space-y-2">
                   <p className="text-sm font-semibold text-destructive flex items-center gap-2">
                     <AlertTriangle size={16} />
@@ -1503,7 +1502,7 @@ export default function PlanEnhancer() {
               </Card>
             )}
             {(displayResult as any)?._qualityScore != null && (displayResult as any)._qualityScore < 50 && !(displayResult as any)?._truncated && (
-              <Card className="glass-card border-amber-500/30 bg-amber-500/10">
+              <Card className="border-amber-500/30 bg-amber-500/10">
                 <CardContent className="py-4">
                   <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-2">
                     <AlertTriangle size={16} />
@@ -1584,7 +1583,7 @@ export default function PlanEnhancer() {
             </div>
 
           {displayResult.verificationQuestions && displayResult.verificationQuestions.length > 0 && (
-            <Card className="glass-card border-amber-500/30 bg-amber-500/10">
+            <Card className="border-amber-500/30 bg-amber-500/10">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm text-amber-700 dark:text-amber-300">Verification Needed</CardTitle>
               </CardHeader>
@@ -1602,7 +1601,7 @@ export default function PlanEnhancer() {
           )}
 
           {viewMode === "comparison" && originalContent && (
-            <Card className="glass-card overflow-hidden border-primary/20">
+            <Card className="overflow-hidden border-primary/20">
               <CardHeader className="border-b border-border/40 pb-6 bg-primary/5">
                 <CardTitle className="text-base font-semibold flex items-center gap-3">
                   <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">

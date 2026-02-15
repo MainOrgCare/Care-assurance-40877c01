@@ -1170,6 +1170,7 @@ class PIIVault {
     scrubbed = scrubbed.replace(PII_PATTERNS.ukSortCode, (match) => this.store(match, 'BANK'));
     scrubbed = scrubbed.replace(PII_PATTERNS.ukBankAccount, (match) => this.store(match, 'BANK'));
     scrubbed = scrubbed.replace(PII_PATTERNS.cardNumber, (match) => this.store(match, 'CARD'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.iban, (match) => this.store(match, 'BANK'));
     
     // Government-issued identifiers
     scrubbed = scrubbed.replace(PII_PATTERNS.ukDrivingLicense, (match) => this.store(match, 'LICENSE'));
@@ -1189,6 +1190,10 @@ class PIIVault {
     
     // Year of birth patterns
     scrubbed = scrubbed.replace(PII_PATTERNS.yearOfBirth, (match) => this.store(match, 'DOB'));
+    
+    // Long-form dates (before numeric to avoid partial matches)
+    scrubbed = scrubbed.replace(PII_PATTERNS.longFormDate, (match) => this.store(match, 'DATE'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.shortMonthDate, (match) => this.store(match, 'DATE'));
     
     // ISO dates
     scrubbed = scrubbed.replace(PII_PATTERNS.isoDate, (match) => this.store(match, 'DATE'));
@@ -1541,6 +1546,15 @@ const CLINICAL_WHITELIST = new Set([
   "wilson disease", "bright disease", "dupuytren", "raynaud's", "bell's",
   "alzheimer's", "parkinson's", "huntington's", "crohn's", "addison's",
   "hodgkin's", "cushing's", "graves'", "hashimoto's", "meniere's", "paget's",
+  // Extended clinical conditions common in UK care homes
+  "sjogren", "sjogren's", "barrett", "barrett's", "behcet", "behcet's",
+  "bowen", "bowen's", "kaposi", "kaposi's", "reiter", "reiter's",
+  "tourette", "tourette's", "wegener", "wegener's", "conn", "conn's",
+  "fabry", "fabry's", "gaucher", "gaucher's", "kawasaki",
+  "ménière", "ménière's", "sjögren", "sjögren's",
+  // Assessment/care terminology that may appear as proper nouns
+  "waterlow", "barthel", "braden", "norton", "abbey", "malnutrition",
+  "must score", "news score", "falls risk", "choking risk",
 ]);
 
 // Common medication brand names that look like proper nouns
@@ -1551,6 +1565,23 @@ const MEDICATION_WHITELIST = new Set([
   "sertraline", "fluoxetine", "citalopram", "mirtazapine", "venlafaxine",
   "risperidone", "quetiapine", "olanzapine", "haloperidol", "lorazepam",
   "diazepam", "zopiclone", "insulin", "lantus", "novorapid", "humalog",
+  // Extended list for UK care home contexts
+  "aspirin", "ibuprofen", "naproxen", "amoxicillin", "cefalexin", "doxycycline",
+  "trimethoprim", "nitrofurantoin", "furosemide", "bendroflumethiazide", "bisoprolol",
+  "atorvastatin", "apixaban", "rivaroxaban", "clopidogrel", "dalteparin",
+  "donepezil", "memantine", "rivastigmine", "galantamine", "levodopa",
+  "carbidopa", "ropinirole", "pramipexole", "sinemet", "madopar",
+  "salbutamol", "beclometasone", "tiotropium", "budesonide", "montelukast",
+  "methotrexate", "hydroxychloroquine", "sulfasalazine", "prednisolone",
+  "dexamethasone", "hydrocortisone", "senna", "lactulose", "loperamide",
+  "domperidone", "cyclizine", "ondansetron", "co-codamol", "co-dydramol",
+  "co-amoxiclav", "flucloxacillin", "clarithromycin", "azithromycin",
+  "trazodone", "amitriptyline", "nortriptyline", "duloxetine", "escitalopram",
+  "clonazepam", "midazolam", "phenytoin", "carbamazepine", "sodium valproate",
+  "levetiracetam", "lamotrigine", "topiramate", "allopurinol", "colchicine",
+  "lisinopril", "enalapril", "losartan", "candesartan", "diltiazem", "nifedipine",
+  "doxazosin", "tamsulosin", "finasteride", "oxybutynin", "solifenacin",
+  "metoclopramide", "ranitidine", "lansoprazole", "esomeprazole", "pantoprazole",
 ]);
 
 // Common UK place name prefixes/suffixes that indicate addresses
@@ -1588,11 +1619,11 @@ const PII_PATTERNS = {
   // Year of birth patterns ("born 1938", "DOB: 1940", "b. 1935")
   yearOfBirth: /\b(?:born|dob|d\.o\.b|b\.)\s*:?\s*(?:19|20)\d{2}\b/gi,
   
-  // UK Sort Code: 12-34-56 or 123456
+  // UK Sort Code: 12-34-56 or 12 34 56
   ukSortCode: /\b\d{2}[\-\s]\d{2}[\-\s]\d{2}\b/g,
   
-  // UK Bank Account Number: 8 digits
-  ukBankAccount: /\b\d{8}\b/g,
+  // UK Bank Account Number: 8 digits preceded by contextual keywords to avoid false positives
+  ukBankAccount: /\b(?:account|acc|a\/c|bank)\s*(?:no|number|num|#|:)?\s*:?\s*\d{8}\b/gi,
   
   // Credit/Debit Card: 13-19 digits (with optional spaces/dashes)
   cardNumber: /\b(?:\d{4}[\s\-]?){3,4}\d{1,4}\b/g,
@@ -1600,11 +1631,20 @@ const PII_PATTERNS = {
   // UK Driving License: MORGA657054SM9IJ format (complex pattern)
   ukDrivingLicense: /\b[A-Z]{5}\d{6}[A-Z0-9]{5}\b/gi,
   
-  // UK Passport Number: 9 digits
-  ukPassport: /\b\d{9}\b/g,
+  // UK Passport Number: 9 digits preceded by contextual keyword
+  ukPassport: /\b(?:passport)\s*(?:no|number|num|#|:)?\s*:?\s*\d{9}\b/gi,
   
   // UK Vehicle Registration: AB12 CDE, AB12CDE
   ukVehicleReg: /\b[A-Z]{2}\d{2}\s?[A-Z]{3}\b/gi,
+  
+  // Long-form dates: "15 January 2025", "3rd February 2026", "January 15, 2025"
+  longFormDate: /\b(?:0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:19|20)\d{2}\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?,?\s*(?:19|20)\d{2}\b/gi,
+  
+  // Abbreviated long-form dates: "15 Jan 2025", "3rd Feb 2026"
+  shortMonthDate: /\b(?:0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(?:19|20)\d{2}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(?:0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?,?\s*(?:19|20)\d{2}\b/gi,
+  
+  // IBAN (International Bank Account Number)
+  iban: /\b[A-Z]{2}\d{2}\s?[A-Z0-9]{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{0,4}\b/gi,
   
   // IP addresses (v4)
   ipAddress: /\b(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g,
@@ -5386,8 +5426,8 @@ export async function registerRoutes(
     }
   });
 
-  // Create care worker
-  app.post("/api/care-workers", requireAuth, blockDemoWrites, async (req, res) => {
+  // Create care worker (admin only)
+  app.post("/api/care-workers", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
       const validatedData = insertCareWorkerSchema.parse(req.body);
       const worker = await storage.createCareWorker(validatedData);
@@ -6086,7 +6126,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/system-logs", requireAuth, blockDemoWrites, async (req: any, res) => {
+  app.post("/api/system-logs", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
     try {
       const { eventType, action, target, status, alert, serviceUserInitials, details } = req.body || {};
       const payload = insertSystemLogSchema.parse({
@@ -6624,6 +6664,9 @@ export async function registerRoutes(
     const emarExtractionModel = emarPrimaryModel;
     const emarValidationModel = emarPrimaryModel;
     
+    // PII Vault for reversible scrubbing - caches original values locally
+    const emarPIIVault = new PIIVault();
+    
     // Set up SSE streaming response headers (after file is validated)
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -6758,10 +6801,51 @@ export async function registerRoutes(
         });
 
         documentText = extracted.text;
+        // Extract service user name BEFORE scrubbing (stored locally only, never sent to AI)
         serviceUserFullName =
           extractServiceUserFullName(documentText) ||
           extractServiceUserFullName(gridBaseline?.rawText || "");
-        console.log(`DEBUG: Final extracted text: ${documentText.length} chars from PDF (pdfjs-dist)`);
+        
+        // Scrub PII from document text before any AI calls
+        // The emarPIIVault caches original values locally for restoration
+        documentText = emarPIIVault.scrubString(documentText);
+        // Also scrub individual page texts used for chunked AI analysis
+        if (extracted.pageTexts) {
+          extracted.pageTexts = extracted.pageTexts.map(pt => emarPIIVault.scrubString(pt));
+        }
+        // Defense-in-depth: also scrub gridBaseline fields that contain raw PII
+        // While gridBaseline data is mostly used for deterministic matching (not AI prompts),
+        // scrubbing prevents any accidental PII leakage through the processing pipeline
+        if (gridBaseline) {
+          if (gridBaseline.rawText) {
+            gridBaseline.rawText = emarPIIVault.scrubString(gridBaseline.rawText);
+          }
+          if (gridBaseline.pageTexts) {
+            gridBaseline.pageTexts = gridBaseline.pageTexts.map(pt => emarPIIVault.scrubString(pt));
+          }
+          // Scrub cell content and careWorker names (may contain PII in freetext cells)
+          if (gridBaseline.cells) {
+            gridBaseline.cells = gridBaseline.cells.map(cell => ({
+              ...cell,
+              content: typeof cell.content === 'string' ? emarPIIVault.scrubString(cell.content) : cell.content,
+              careWorker: typeof cell.careWorker === 'string' ? emarPIIVault.scrubString(cell.careWorker) : cell.careWorker,
+            }));
+          }
+          // Scrub medication instructions (names are clinical terms and whitelisted)
+          if (gridBaseline.medications) {
+            gridBaseline.medications = gridBaseline.medications.map(med => ({
+              ...med,
+              instructions: typeof med.instructions === 'string' ? emarPIIVault.scrubString(med.instructions) : med.instructions,
+            }));
+          }
+          // Note: gridBaseline.serviceUserName is only used via normalizeInitials() (safe)
+          // but scrub it for completeness
+          if (gridBaseline.serviceUserName) {
+            gridBaseline.serviceUserName = emarPIIVault.scrubString(gridBaseline.serviceUserName);
+          }
+        }
+        emarPIIVault.logAudit('SCRUB', '/api/ai/analyze-emar', aiUserContext.userId, aiUserContext.username);
+        console.log(`DEBUG: Final extracted text: ${documentText.length} chars from PDF (pdfjs-dist), PII scrubbed (${emarPIIVault.getStats().total} items)`);
       } catch (textError: any) {
         console.error("PDF text extraction failed:", textError);
         sendEvent('error', { message: "Failed to extract text from PDF: " + textError.message });
@@ -8140,8 +8224,12 @@ ${correctionExamples}
           
           // Send final result
           sendProgress(100, 'Analysis complete!', 'complete');
-          sendEvent('result', agentRawResult || agentScrubbedResult);
+          // Restore PII tokens in the result before sending to client
+          const restoredAgentResult = emarPIIVault.restore(agentRawResult || agentScrubbedResult);
+          emarPIIVault.logAudit('RESTORE', '/api/ai/analyze-emar', aiUserContext.userId, aiUserContext.username);
+          sendEvent('result', restoredAgentResult);
           if (heartbeatInterval) clearInterval(heartbeatInterval);
+          emarPIIVault.clear();
           return res.end();
           
         } catch (agentError: any) {
@@ -12359,9 +12447,13 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
 
       // Send final result and 100% progress
       sendProgress(100, "Analysis complete!", "complete");
-      sendEvent('result', rawResult || scrubbedResult);
+      // Restore PII tokens in the result before sending to client
+      const restoredStandardResult = emarPIIVault.restore(rawResult || scrubbedResult);
+      emarPIIVault.logAudit('RESTORE', '/api/ai/analyze-emar', aiUserContext.userId, aiUserContext.username);
+      sendEvent('result', restoredStandardResult);
       if (progressInterval) clearInterval(progressInterval);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
+      emarPIIVault.clear();
       return res.end();
       
       } // End of if (!agentExtractionSucceeded) block
@@ -12371,6 +12463,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       sendEvent('error', { message: error.message || "AI analysis failed" });
       if (progressInterval) clearInterval(progressInterval);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
+      emarPIIVault.clear();
       return res.end();
     }
   });
@@ -12897,6 +12990,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
   // Analyze Visit Notes with SSE streaming progress
   app.post("/api/ai/analyze-visit", requireAuth, async (req, res) => {
     const { documentContent } = req.body;
+    const visitPIIVault = new PIIVault();
     
     if (!documentContent) {
       return res.status(400).json({ message: "Document content required" });
@@ -13101,16 +13195,20 @@ Respond ONLY with valid JSON in this exact format:
         }
       }, 3000);
 
+      // Scrub PII from all chunks before sending to AI
+      const scrubbedChunks = chunks.map(chunk => visitPIIVault.scrubString(chunk));
+      visitPIIVault.logAudit('SCRUB', '/api/ai/analyze-visit', aiUserContext.userId, aiUserContext.username);
+
       const chunkResults: any[] = [];
-      for (let i = 0; i < chunks.length; i++) {
-        const label = chunks.length > 1 ? ` (${i + 1}/${chunks.length})` : "";
+      for (let i = 0; i < scrubbedChunks.length; i++) {
+        const label = scrubbedChunks.length > 1 ? ` (${i + 1}/${scrubbedChunks.length})` : "";
         sendProgress(30, `Running AI analysis${label}...`, "ai_analysis");
 
         const response = await createChatCompletionWithLogging({
           model: visitAuditModel,
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Analyze these visit logs:\n\n${chunks[i]}` }
+            { role: "user", content: `Analyze these visit logs:\n\n${scrubbedChunks[i]}` }
           ],
           max_completion_tokens: 4000,
           temperature: 0,
@@ -13153,8 +13251,8 @@ Respond ONLY with valid JSON in this exact format:
           sendProgress(55, `Validating ${validatedDiscrepancies.length} discrepancies...`, "validation_start");
           console.log(`DEBUG Visit Audit: Starting triple-check on ${validatedDiscrepancies.length} discrepancies`);
           
-          // Use more document context
-          const docContext = analysisContent.substring(0, 30000);
+          // Use more document context - scrub PII before sending to validation AI
+          const docContext = visitPIIVault.scrubString(analysisContent.substring(0, 30000));
           
           // PASS 2: Review for false positives - BE CONSERVATIVE
           const pass2Prompt = `You are a quality assurance reviewer for care visit audits. Review these detected discrepancies and filter out ONLY OBVIOUS FALSE POSITIVES.
@@ -13285,14 +13383,19 @@ Return JSON - include ALL by default:
         result.initialDiscrepancyCount = originalCount;
         
         sendProgress(100, "Analysis complete!", "complete");
-        sendEvent('result', result);
+        // Restore any PII tokens in the result before sending to client
+        const restoredResult = visitPIIVault.restore(result);
+        visitPIIVault.logAudit('RESTORE', '/api/ai/analyze-visit', aiUserContext.userId, aiUserContext.username);
+        sendEvent('result', restoredResult);
         if (heartbeatInterval) clearInterval(heartbeatInterval);
+        visitPIIVault.clear();
         return res.end();
     } catch (error: any) {
       console.error("Visit AI Error:", error);
       sendEvent('error', { message: error.message || "AI analysis failed" });
       if (progressInterval) clearInterval(progressInterval);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
+      visitPIIVault.clear();
       return res.end();
     }
   });
@@ -13420,9 +13523,19 @@ Return JSON - include ALL by default:
 
       const cachedPayload = getRiskAnalysisCache(cacheKey);
       if (cachedPayload) {
+        // Reconstruct vault from current request's scrubbed PII (vault populated at scrub step above)
+        // Cache only stores template results with placeholders — never stores real PII values
+        const vaultExport = piiVault.export();
+        const fullPayload = {
+          ...cachedPayload,
+          vaultExport,
+          rawWithTokens: cachedPayload._rawWithTokens || cachedPayload,
+        };
+        delete fullPayload._rawWithTokens; // Clean up internal field
         sendProgress(65, "Loaded cached analysis...", "cache");
         sendProgress(100, "Complete!", "complete");
-        sendEvent('result', cachedPayload);
+        sendEvent('result', fullPayload);
+        piiVault.clear();
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       }
@@ -14006,7 +14119,10 @@ Remember: Extract information ONLY from service user documents above. Templates 
       console.log(`[Risks] Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for automatic local restoration`);
       piiVault.logAudit('RESTORE', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
       
-      setRiskAnalysisCache(cacheKey, payload);
+      // Cache only the template result + raw tokens — NEVER cache vaultExport (which contains real PII)
+      // On cache hit, vault is reconstructed from the current request's scrub pass
+      const cachePayload = { ...templateResult, _rawWithTokens: result };
+      setRiskAnalysisCache(cacheKey, cachePayload);
       sendProgress(100, "Complete!", "complete");
       sendEvent('result', payload);
       
@@ -14297,7 +14413,13 @@ Respond ONLY with valid JSON in this exact format:
   "additionalNotes": "Any relevant first-person observations (leave empty string if nothing additional to add)"
 }`;
 
-      // Security audit log for PII scrubbing
+      // Pre-scrub content BEFORE AI call for accurate audit logging
+      const scrubbedDocumentContent = piiVault.scrub(documentContent);
+      const scrubbedEvidencePack = evidencePack ? piiVault.scrub(evidencePack) : "";
+      const scrubbedProfileContext = profileContext ? piiVault.scrub(profileContext) : "";
+      
+      const vaultScrubStats = piiVault.getStats();
+      console.log(`[RiskAssessment] PII Vault: Scrubbed ${vaultScrubStats.total} sensitive items (including evidence pack)`);
       piiVault.logAudit('SCRUB', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
       
       sendProgress(30, "Generating risk assessment...", "ai_generation");
@@ -14317,30 +14439,30 @@ Respond ONLY with valid JSON in this exact format:
       
       const userContent = `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
 
-${profileContext ? `Profile Context:\n${profileContext}\n\n` : ''}Documents to analyze:\n${documentContent}${evidencePack ? `\n\nKey Evidence:\n- ${evidencePack}` : ''}`;
+${scrubbedProfileContext ? `Profile Context:\n${scrubbedProfileContext}\n\n` : ''}Documents to analyze:\n${scrubbedDocumentContent}${scrubbedEvidencePack ? `\n\nKey Evidence:\n- ${scrubbedEvidencePack}` : ''}`;
       
       console.log('📊 CONTENT STATS:');
-      console.log(`   Document Content Length: ${documentContent.length.toLocaleString()} chars`);
-      console.log(`   Evidence Pack Length: ${evidencePack.length.toLocaleString()} chars`);
+      console.log(`   Document Content Length: ${scrubbedDocumentContent.length.toLocaleString()} chars (scrubbed)`);
+      console.log(`   Evidence Pack Length: ${scrubbedEvidencePack.length.toLocaleString()} chars (scrubbed)`);
       console.log(`   Total User Content: ${userContent.length.toLocaleString()} chars`);
       console.log(`   Policy Context Length: ${policyContext.length.toLocaleString()} chars`);
       console.log('');
       
-      console.log('📄 DOCUMENT CONTENT PREVIEW (First 2000 characters):');
+      console.log('📄 DOCUMENT CONTENT PREVIEW (First 2000 characters, PII-scrubbed):');
       console.log('─────────────────────────────────────────────────────────────────');
-      console.log(documentContent.substring(0, 2000));
-      if (documentContent.length > 2000) {
-        console.log(`\n... [${(documentContent.length - 2000).toLocaleString()} more characters] ...\n`);
+      console.log(scrubbedDocumentContent.substring(0, 2000));
+      if (scrubbedDocumentContent.length > 2000) {
+        console.log(`\n... [${(scrubbedDocumentContent.length - 2000).toLocaleString()} more characters] ...\n`);
       }
       console.log('─────────────────────────────────────────────────────────────────');
       console.log('');
       
-      if (evidencePack) {
-        console.log('🔍 KEY EVIDENCE EXTRACTED:');
+      if (scrubbedEvidencePack) {
+        console.log('🔍 KEY EVIDENCE EXTRACTED (PII-scrubbed):');
         console.log('─────────────────────────────────────────────────────────────────');
-        console.log(evidencePack.substring(0, 1000));
-        if (evidencePack.length > 1000) {
-          console.log(`\n... [${(evidencePack.length - 1000).toLocaleString()} more characters] ...\n`);
+        console.log(scrubbedEvidencePack.substring(0, 1000));
+        if (scrubbedEvidencePack.length > 1000) {
+          console.log(`\n... [${(scrubbedEvidencePack.length - 1000).toLocaleString()} more characters] ...\n`);
         }
         console.log('─────────────────────────────────────────────────────────────────');
         console.log('');
@@ -14383,11 +14505,11 @@ ${profileContext ? `Profile Context:\n${profileContext}\n\n` : ''}Documents to a
 7. Write detailed, thorough content for each field based ONLY on documented facts from SERVICE USER documents
 
 Evidence pack for this category (use these facts first and ensure every risk maps to them or the SERVICE USER documents):
-${evidencePack ? `- ${piiVault.scrub(evidencePack)}` : "- No evidence pack provided."}
+${scrubbedEvidencePack ? `- ${scrubbedEvidencePack}` : "- No evidence pack provided."}
 
 === REAL SERVICE USER DOCUMENTS TO ANALYZE (EXTRACT INFORMATION FROM THESE ONLY) ===
 
-${piiVault.scrub(documentContent)}
+${scrubbedDocumentContent}
 
 === END SERVICE USER DOCUMENTS ===
 
@@ -14483,7 +14605,6 @@ Remember: Extract information ONLY from the service user documents above. Templa
         // Output is GDPR-exempt as it contains no personal data
         const templateResult = piiVault.toPlaceholders(result);
         console.log(`[RiskAssessment] Template Output: ${piiVault.getStats().total} fields converted to placeholders`);
-        piiVault.logAudit('SCRUB', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
         
         // Always export vault for automatic client-side name restoration
         const vaultExport = piiVault.export();
@@ -15240,16 +15361,15 @@ Return ONLY valid JSON with content field.` }
         sendProgress(35, "Generating secure rule-based template...", "rule_based");
         const fallbackResult = buildRuleBasedPlanEnhancementPayload(contentToEnhance);
         const templateResult = piiVault.toPlaceholders(fallbackResult);
-        let payload: any = templateResult;
-        if (allowSensitiveView) {
-          const vaultExport = piiVault.export();
-          payload = {
-            ...templateResult,
-            vaultExport,
-            rawWithTokens: fallbackResult,
-          };
-          piiVault.logAudit('RESTORE', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
-        }
+        // Always export vault for automatic client-side name restoration
+        // Vault is needed by all authenticated users to restore PII that was scrubbed from AI
+        const vaultExport = piiVault.export();
+        let payload: any = {
+          ...templateResult,
+          vaultExport,
+          rawWithTokens: fallbackResult,
+        };
+        piiVault.logAudit('RESTORE', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
         sendProgress(100, "Complete!", "complete");
         sendEvent('result', payload);
         piiVault.clear();
@@ -16555,6 +16675,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
   app.post("/api/ai/rewrite-email", requireAuth, async (req: any, res) => {
     // User context for AI cost tracking
     const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
+    const piiVault = new PIIVault();
     
     try {
       const { inputText, tone } = req.body;
@@ -16594,27 +16715,37 @@ RULES:
 
 Return ONLY the email text, nothing else.`;
 
+      // Scrub PII from user input before sending to AI
+      const scrubbedInput = piiVault.scrubString(inputText);
+      piiVault.logAudit('SCRUB', '/api/ai/rewrite-email', req.user?.id, req.user?.username);
+
       const response = await createChatCompletionWithLogging({
         model: getLowCostModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: inputText }
+          { role: "user", content: scrubbedInput }
         ],
         max_completion_tokens: 1000,
         temperature: 0.2,
         seed: 42,
       }, "email_assistant", aiUserContext);
 
-      const rewrittenEmail = response.choices[0]?.message?.content;
+      const rawEmail = response.choices[0]?.message?.content;
       
-      if (!rewrittenEmail) {
+      if (!rawEmail) {
         return res.status(500).json({ message: "Failed to generate email" });
       }
+
+      // Restore PII in the AI response so the user sees original names/details
+      const rewrittenEmail = piiVault.restoreString(rawEmail);
+      piiVault.logAudit('RESTORE', '/api/ai/rewrite-email', req.user?.id, req.user?.username);
 
       return res.json({ rewrittenEmail });
     } catch (error: any) {
       console.error("Email rewrite error:", error);
       return res.status(500).json({ message: error.message || "Failed to rewrite email" });
+    } finally {
+      piiVault.clear();
     }
   });
 
@@ -16731,7 +16862,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     }
   });
 
-  // Update a refusal review
+  // Update a refusal review (only original reviewer or admin)
   app.patch("/api/refusal-reviews/:id", requireAuth, async (req, res) => {
     try {
       const { reasonAcceptable, reviewerNotes } = req.body;
@@ -16740,6 +16871,17 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       const user = await storage.getUser(req.session.userId!);
       if (!user) {
         return res.status(401).json({ message: "User not found" });
+      }
+
+      // Fetch existing review for ownership check
+      const existing = await storage.getRefusalReview(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Refusal review not found" });
+      }
+
+      // Only the original reviewer or an admin can update
+      if (existing.reviewedBy !== user.username && user.role !== "admin") {
+        return res.status(403).json({ message: "Only the original reviewer or an admin can update this review" });
       }
       
       const review = await storage.updateRefusalReview(
@@ -17719,6 +17861,22 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         return res.status(400).json({ message: "No photos uploaded" });
       }
 
+      // SECURITY NOTE: Billing images are sent to vision AI for OCR extraction.
+      // Image-based PII cannot be scrubbed with text-based methods.
+      // This endpoint is restricted to admin users only (requireAdmin middleware).
+      // All access is logged for GDPR audit trail.
+      logSecurityEvent({
+        eventType: 'AI_REQUEST',
+        endpoint: '/api/billing-tool/analyze',
+        userId: req.user?.id || null,
+        username: req.user?.username || null,
+        details: {
+          action: 'billing_image_analysis',
+          imageCount: files.length,
+          note: 'Admin-only: service order images sent to vision AI for OCR extraction',
+        },
+      });
+
       const isCurrent = String(req.body?.isCurrent || "").toLowerCase() === "true";
       const endDateInput = typeof req.body?.endDate === "string" ? req.body.endDate : null;
       const asOfDateInput = typeof req.body?.asOfDate === "string" ? req.body.asOfDate : null;
@@ -18230,10 +18388,12 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         return res.status(404).json({ message: "Recipient not found" });
       }
 
+      // Always derive senderName from session user to prevent impersonation
+      const resolvedSenderName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.username;
       const newMessage = await storage.createUserMessage({
         recipientId,
         senderId: req.user.id,
-        senderName: senderName || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.username,
+        senderName: resolvedSenderName,
         subject: subject.slice(0, 200),
         message: message.slice(0, 10000),
         priority: priority || "normal",
@@ -19908,6 +20068,7 @@ I have also sent that reminder to your Messages inbox.`
   };
 
   const handleAssistantChat = async (req: any, res: any) => {
+    const chatPIIVault = new PIIVault();
     try {
       const { messages } = req.body;
       
@@ -19940,15 +20101,19 @@ I have also sent that reminder to your Messages inbox.`
         username: req.user?.username || null 
       };
 
+      // Scrub PII from all user messages before sending to AI
+      const scrubbedMessages = recentMessages.map((m: { role: string; content: string }) => ({
+        role: m.role as "user" | "assistant",
+        content: m.role === "user" ? chatPIIVault.scrubString(m.content) : m.content,
+      }));
+      chatPIIVault.logAudit('SCRUB', '/api/ai/chat', req.user?.id, req.user?.username);
+
       const completion = await createChatCompletionWithLogging(
         {
           model: "gpt-4.1-mini",
           messages: [
             { role: "system", content: CHAT_ASSISTANT_SYSTEM_PROMPT + roleContext },
-            ...recentMessages.map((m: { role: string; content: string }) => ({
-              role: m.role as "user" | "assistant",
-              content: m.content,
-            })),
+            ...scrubbedMessages,
           ],
           tools: [{ type: "function", function: SEND_MESSAGE_FUNCTION }],
           temperature: 0.7,
@@ -19967,13 +20132,13 @@ I have also sent that reminder to your Messages inbox.`
           try {
             const args = JSON.parse(toolCall.function.arguments || "{}");
             
-            // Send the message to the user's inbox
+            // Restore PII in message content before storing in inbox
             await storage.createUserMessage({
               recipientId: req.user.id,
               senderId: null, // null = Compli-ee
               senderName: "Compli-ee",
-              subject: (args.subject || "Message from Compli-ee").slice(0, 200),
-              message: (args.message || "").slice(0, 10000),
+              subject: chatPIIVault.restoreString((args.subject || "Message from Compli-ee").slice(0, 200)),
+              message: chatPIIVault.restoreString((args.message || "").slice(0, 10000)),
               priority: args.priority || "normal",
             });
             
@@ -19985,10 +20150,7 @@ I have also sent that reminder to your Messages inbox.`
                 model: "gpt-4.1-mini",
                 messages: [
                   { role: "system", content: CHAT_ASSISTANT_SYSTEM_PROMPT + roleContext },
-                  ...recentMessages.map((m: { role: string; content: string }) => ({
-                    role: m.role as "user" | "assistant",
-                    content: m.content,
-                  })),
+                  ...scrubbedMessages,
                   assistantMessage as any,
                   { 
                     role: "tool", 
@@ -20003,7 +20165,9 @@ I have also sent that reminder to your Messages inbox.`
               aiUserContext
             );
             
-            const reply = followUp.choices[0]?.message?.content || "Done! I've sent that to your Messages inbox. 📬";
+            const rawReply = followUp.choices[0]?.message?.content || "Done! I've sent that to your Messages inbox. 📬";
+            const reply = chatPIIVault.restoreString(rawReply);
+            chatPIIVault.logAudit('RESTORE', '/api/ai/chat', req.user?.id, req.user?.username);
             return res.json({ reply, messageSent: true });
           } catch (parseError) {
             console.error("[Chat Assistant] Failed to parse function call:", parseError);
@@ -20015,7 +20179,9 @@ I have also sent that reminder to your Messages inbox.`
         }
       }
 
-      const reply = assistantMessage?.content || "I'm sorry, I couldn't generate a response.";
+      const rawReply = assistantMessage?.content || "I'm sorry, I couldn't generate a response.";
+      const reply = chatPIIVault.restoreString(rawReply);
+      chatPIIVault.logAudit('RESTORE', '/api/ai/chat', req.user?.id, req.user?.username);
 
       console.log(`[Chat Assistant] Response generated for ${req.user?.username}`);
       return res.json({ reply });
@@ -20070,6 +20236,8 @@ I have also sent that reminder to your Messages inbox.`
         console.error("[Chat Assistant] Fallback response failed:", fallbackError?.message || fallbackError);
         return res.status(500).json({ message: "Failed to generate response" });
       }
+    } finally {
+      chatPIIVault.clear();
     }
   };
 

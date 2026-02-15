@@ -113,10 +113,12 @@ export default function CarersList() {
         </div>
       </div>
 
-      <Card className="glass-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="text-amber-500 dark:text-amber-400" size={20} />
+      <Card>
+        <CardHeader className="border-b border-border/30">
+          <CardTitle className="flex items-center gap-3">
+            <div className="h-7 w-7 rounded-md bg-amber-500/8 flex items-center justify-center">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+            </div>
             Staff with Discrepancies
           </CardTitle>
           <CardDescription>Staff with recorded discrepancies from saved audits.</CardDescription>
@@ -131,16 +133,18 @@ export default function CarersList() {
             <div className="text-center py-12 text-muted-foreground">
               {searchQuery ? (
                 <div className="space-y-2">
-                  <Search className="mx-auto h-8 w-8 text-muted-foreground/30" />
-                  <p className="text-sm font-medium text-foreground/70">No staff found matching your search</p>
+                  <div className="h-12 w-12 rounded-xl bg-muted/40 flex items-center justify-center mx-auto">
+                    <Search className="h-5 w-5 text-muted-foreground/40" />
+                  </div>
+                  <p className="text-[0.8125rem] font-medium text-foreground/70">No staff found matching your search</p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="h-14 w-14 mx-auto mb-3 rounded-2xl bg-muted/40 flex items-center justify-center">
-                    <FileText className="h-6 w-6 text-muted-foreground/30" />
+                  <div className="h-12 w-12 mx-auto mb-3 rounded-xl bg-muted/40 flex items-center justify-center">
+                    <FileText className="h-5 w-5 text-muted-foreground/40" />
                   </div>
-                  <p className="text-sm font-semibold text-foreground/70">No discrepancies found</p>
-                  <p className="text-xs text-muted-foreground max-w-xs mx-auto">Complete EMAR or Visit audits to see care worker data here.</p>
+                  <p className="text-[0.8125rem] font-semibold text-foreground/70">No discrepancies found</p>
+                  <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">Complete EMAR or Visit audits to see care worker data here.</p>
                 </div>
               )}
             </div>
@@ -237,10 +241,12 @@ export default function CarersList() {
         </CardContent>
       </Card>
 
-      <Card className="glass-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="text-blue-500 dark:text-blue-400" size={20} />
+      <Card>
+        <CardHeader className="border-b border-border/30">
+          <CardTitle className="flex items-center gap-3">
+            <div className="h-7 w-7 rounded-md bg-primary/8 flex items-center justify-center">
+              <Users className="h-3.5 w-3.5 text-primary" />
+            </div>
             All Care Workers from Audits
           </CardTitle>
           <CardDescription>All care workers mentioned in saved audits.</CardDescription>
@@ -255,16 +261,18 @@ export default function CarersList() {
             <div className="text-center py-12 text-muted-foreground">
               {searchQuery ? (
                 <div className="space-y-2">
-                  <Search className="mx-auto h-8 w-8 text-muted-foreground/30" />
-                  <p className="text-sm font-medium text-foreground/70">No care workers found matching your search</p>
+                  <div className="h-12 w-12 rounded-xl bg-muted/40 flex items-center justify-center mx-auto">
+                    <Search className="h-5 w-5 text-muted-foreground/40" />
+                  </div>
+                  <p className="text-[0.8125rem] font-medium text-foreground/70">No care workers found matching your search</p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="h-14 w-14 mx-auto mb-3 rounded-2xl bg-muted/40 flex items-center justify-center">
-                    <Users className="h-6 w-6 text-muted-foreground/30" />
+                  <div className="h-12 w-12 mx-auto mb-3 rounded-xl bg-muted/40 flex items-center justify-center">
+                    <Users className="h-5 w-5 text-muted-foreground/40" />
                   </div>
-                  <p className="text-sm font-semibold text-foreground/70">No care workers found</p>
-                  <p className="text-xs text-muted-foreground max-w-xs mx-auto">Save EMAR or Visit audits to populate this list.</p>
+                  <p className="text-[0.8125rem] font-semibold text-foreground/70">No care workers found</p>
+                  <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">Save EMAR or Visit audits to populate this list.</p>
                 </div>
               )}
             </div>
