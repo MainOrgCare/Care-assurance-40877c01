@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, memo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Copy, FileText, Check, X, AlertTriangle, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, UserPlus, Users, Sparkles, RefreshCw, Pencil, Undo2, Save, Download, Brain, Activity, Clock, Pill } from "lucide-react";
+import { Upload, Copy, Check, X, AlertTriangle, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, UserPlus, Users, Sparkles, RefreshCw, Pencil, Save, Download, Brain, Activity, Clock, Pill } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import UploadDisclaimer from "@/components/UploadDisclaimer";
@@ -22,7 +22,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+
 import { cn } from "@/lib/utils";
 
 interface CareWorker {
@@ -110,10 +110,6 @@ interface GroupedRefusal {
   code?: string;
   dates: { date: string; timeSlot: string; code?: string }[];
   count: number;
-}
-
-interface RefusalReviewState {
-  [key: string]: boolean;
 }
 
 const MEDICATION_DISPLAY_STOP_WORDS = new Set([
@@ -270,12 +266,11 @@ interface EmarRecordState {
   warningsOpen: boolean;
   prnProtocolsSubmitted: boolean;
   addedDiscrepancies: Discrepancy[];
+  actionOverrides: Record<string, Partial<DiscrepancyAction>>;
   detectedInitials: string[];
   carerMappings: CarerMapping[];
   mappingsConfirmed: boolean;
-  refusalReviews: RefusalReviewState;
-  expandedRefusals: Set<string>;
-  selectedForEscalation: Set<string>;
+
   refusalDecisions: { [key: string]: 'acceptable' | 'escalate' | null };
   refusalReviewSubmitted: boolean;
   reasonsNotAdministeredOpen: string[];
@@ -484,6 +479,8 @@ export default function EMARAudit() {
   const [warningsOpen, setWarningsOpen] = useState(false);
   const [prnProtocolsSubmitted, setPrnProtocolsSubmitted] = useState(false);
   const [addedDiscrepancies, setAddedDiscrepancies] = useState<Discrepancy[]>([]);
+  // Track action overrides per care worker (applies to ALL discrepancies for that worker)
+  const [actionOverrides, setActionOverrides] = useState<Record<string, Partial<DiscrepancyAction>>>({});
   
   const [existingCarers, setExistingCarers] = useState<CareWorker[]>([]);
   const [detectedInitials, setDetectedInitials] = useState<string[]>([]);
@@ -534,9 +531,7 @@ export default function EMARAudit() {
     }
   }, []);
   
-  const [refusalReviews, setRefusalReviews] = useState<RefusalReviewState>({});
-  const [expandedRefusals, setExpandedRefusals] = useState<Set<string>>(new Set());
-  const [selectedForEscalation, setSelectedForEscalation] = useState<Set<string>>(new Set());
+
   const [refusalDecisions, setRefusalDecisions] = useState<{ [key: string]: 'acceptable' | 'escalate' | null }>({});
   const [refusalReviewSubmitted, setRefusalReviewSubmitted] = useState(false);
   const [reasonsNotAdministeredOpen, setReasonsNotAdministeredOpen] = useState<string[]>([]);
@@ -758,12 +753,10 @@ export default function EMARAudit() {
     setWarningsOpen(false);
     setPrnProtocolsSubmitted(false);
     setAddedDiscrepancies([]);
+    setActionOverrides({});
     setDetectedInitials([]);
     setCarerMappings([]);
     setMappingsConfirmed(false);
-    setRefusalReviews({});
-    setExpandedRefusals(new Set());
-    setSelectedForEscalation(new Set());
     setRefusalDecisions({});
     setRefusalReviewSubmitted(false);
     setReasonsNotAdministeredOpen([]);
@@ -791,12 +784,10 @@ export default function EMARAudit() {
     warningsOpen,
     prnProtocolsSubmitted,
     addedDiscrepancies,
+    actionOverrides,
     detectedInitials,
     carerMappings,
     mappingsConfirmed,
-    refusalReviews,
-    expandedRefusals,
-    selectedForEscalation,
     refusalDecisions,
     refusalReviewSubmitted,
     reasonsNotAdministeredOpen,
@@ -821,12 +812,10 @@ export default function EMARAudit() {
     setWarningsOpen(state.warningsOpen);
     setPrnProtocolsSubmitted(state.prnProtocolsSubmitted);
     setAddedDiscrepancies(state.addedDiscrepancies);
+    setActionOverrides(state.actionOverrides);
     setDetectedInitials(state.detectedInitials);
     setCarerMappings(state.carerMappings);
     setMappingsConfirmed(state.mappingsConfirmed);
-    setRefusalReviews(state.refusalReviews);
-    setExpandedRefusals(state.expandedRefusals);
-    setSelectedForEscalation(state.selectedForEscalation);
     setRefusalDecisions(state.refusalDecisions);
     setRefusalReviewSubmitted(state.refusalReviewSubmitted);
     setReasonsNotAdministeredOpen(state.reasonsNotAdministeredOpen);
@@ -940,12 +929,10 @@ export default function EMARAudit() {
         warningsOpen: false,
         prnProtocolsSubmitted: false,
         addedDiscrepancies: [],
+        actionOverrides: {},
         detectedInitials: [],
         carerMappings: [],
         mappingsConfirmed: false,
-        refusalReviews: {},
-        expandedRefusals: new Set(),
-        selectedForEscalation: new Set(),
         refusalDecisions: {},
         refusalReviewSubmitted: false,
         reasonsNotAdministeredOpen: [],
@@ -975,21 +962,14 @@ export default function EMARAudit() {
       // For PDFs, just store the file - we'll send it directly for image-based analysis
       const content = "PDF file ready for image analysis";
       setDocumentContent(content);
+      setFileReady(true);
       setEmarRecords(prev =>
         prev.map(record =>
-          record.id === recordId ? { ...record, documentContent: content } : record
+          record.id === recordId ? { ...record, documentContent: content, state: { ...record.state, fileReady: true } } : record
         )
       );
-      setTimeout(() => {
-        setFileReady(true);
-        setEmarRecords(prev =>
-          prev.map(record =>
-            record.id === recordId ? { ...record, state: { ...record.state, fileReady: true } } : record
-          )
-        );
-      }, 500);
       resetTimer();
-      toast({ title: "PDF Selected", description: "Click 'Analyze EMAR' to process with image recognition." });
+      toast({ title: "PDF Selected", description: "Click 'Analyze EMAR' to begin." });
     } else if (selectedFile.name.toLowerCase().endsWith(".docx")) {
       // For Word docs, still extract text first
       setLoading(true);
@@ -1196,18 +1176,7 @@ export default function EMARAudit() {
     setLoading(true);
     setProgress(0);
     setProgressStatus("Preparing document...");
-    setVerificationChecks({});
-    setMedicationLevelOverride(null);
-    setVerificationSubmitted(false);
-    setWarningsOpen(false);
-    setPrnProtocolsSubmitted(false);
-    setAddedDiscrepancies([]);
-    setDetectedInitials([]);
-    setCarerMappings([]);
-    setMappingsConfirmed(false);
-    setRefusalDecisions({});
-    setRefusalReviewSubmitted(false);
-    setReasonsNotAdministeredOpen([]);
+    resetAuditState();
     
     try {
       if (!isPdf || !file) {
@@ -1275,78 +1244,74 @@ export default function EMARAudit() {
       const decoder = new TextDecoder();
       let buffer = "";
       let receivedResult = false;
-      let currentEventType = "";
+
+      const handleSseEvent = (eventType: string, data: any): 'continue' | void => {
+        if (eventType === 'progress') {
+          throttledSetProgress(data.percent, data.status);
+        } else if (eventType === 'result') {
+          setResult(data);
+          setAnalyzed(true);
+          updateActiveRecord(record => ({ ...record, result: data, analyzed: true }));
+          const logName = formatServiceUserInitials(data?.serviceUserInitials || data?.serviceUserName);
+          logAction("EMAR Audit Completed", logName || file?.name || "EMAR", "Authorized", undefined, {
+            event: "emar_audit_completed",
+            fileName: file?.name,
+            serviceUserInitials: data?.serviceUserInitials,
+            auditPeriodStart: data?.auditPeriodStart,
+            auditPeriodEnd: data?.auditPeriodEnd,
+          });
+          receivedResult = true;
+          toast({ title: "Analysis Complete", description: "EMAR analysis processed successfully." });
+        } else if (eventType === 'warning') {
+          const message = data.message || "Warning";
+          const warningKind = String(data?.kind || "");
+          const userFacing = data?.userFacing;
+          const isAgentFallback =
+            warningKind === "agent_fallback" ||
+            userFacing === false ||
+            /agent extraction failed/i.test(message);
+
+          if (isAgentFallback) {
+            console.info("[EMAR] Agent fallback:", message);
+            return 'continue';
+          }
+          const isHighSeverity = /alert|high[-\s]severity/i.test(message);
+          toast({
+            title: "Warning",
+            description: message,
+            variant: isHighSeverity ? "destructive" : "default",
+          });
+        } else if (eventType === 'error') {
+          throw new Error(data.message || "Analysis failed");
+        }
+      };
+
+      const parseSseChunk = (chunk: string): { eventType: string; eventData: string } => {
+        const lines = chunk.split('\n');
+        let eventType = "";
+        let eventData = "";
+        for (const line of lines) {
+          if (line.startsWith('event: ')) eventType = line.slice(7);
+          else if (line.startsWith('data: ')) eventData = line.slice(6);
+        }
+        return { eventType, eventData };
+      };
 
       while (true) {
         const { done, value } = await reader.read();
-        
         if (done) break;
         
         buffer += decoder.decode(value, { stream: true });
-        
-        // SSE format: "event: type\ndata: {...}\n\n"
         const events = buffer.split('\n\n');
         buffer = events.pop() || "";
         
         for (const event of events) {
           if (!event.trim()) continue;
-          
-          const lines = event.split('\n');
-          let eventType = "";
-          let eventData = "";
-          
-          for (const line of lines) {
-            if (line.startsWith('event: ')) {
-              eventType = line.slice(7);
-            } else if (line.startsWith('data: ')) {
-              eventData = line.slice(6);
-            }
-          }
-          
+          const { eventType, eventData } = parseSseChunk(event);
           if (!eventData) continue;
           
           try {
-            const data = JSON.parse(eventData);
-            
-            if (eventType === 'progress') {
-              throttledSetProgress(data.percent, data.status);
-            } else if (eventType === 'result') {
-              setResult(data);
-              setAnalyzed(true);
-              updateActiveRecord(record => ({ ...record, result: data, analyzed: true }));
-              const logName = formatServiceUserInitials(data?.serviceUserInitials || data?.serviceUserName);
-              logAction("EMAR Audit Completed", logName || file?.name || "EMAR", "Authorized", undefined, {
-                event: "emar_audit_completed",
-                fileName: file?.name,
-                serviceUserInitials: data?.serviceUserInitials,
-                auditPeriodStart: data?.auditPeriodStart,
-                auditPeriodEnd: data?.auditPeriodEnd,
-              });
-              receivedResult = true;
-              toast({ title: "Analysis Complete", description: "EMAR analysis processed successfully." });
-            } else if (eventType === 'warning') {
-              const message = data.message || "Warning";
-              const warningKind = String((data as any)?.kind || "");
-              const userFacing = (data as any)?.userFacing;
-              const isAgentFallback =
-                warningKind === "agent_fallback" ||
-                userFacing === false ||
-                /agent extraction failed/i.test(message);
-
-              if (isAgentFallback) {
-                // Internal/expected fallback; avoid user-visible noise.
-                console.info("[EMAR] Agent fallback:", message);
-                continue;
-              }
-              const isHighSeverity = /alert|high[-\s]severity/i.test(message);
-              toast({
-                title: "Warning",
-                description: message,
-                variant: isHighSeverity ? "destructive" : "default",
-              });
-            } else if (eventType === 'error') {
-              throw new Error(data.message || "Analysis failed");
-            }
+            handleSseEvent(eventType, JSON.parse(eventData));
           } catch (parseError: any) {
             if (parseError.message && !parseError.message.includes("Unexpected token")) {
               throw parseError;
@@ -1358,57 +1323,10 @@ export default function EMARAudit() {
       
       // Handle any remaining buffer content
       if (buffer.trim()) {
-        const lines = buffer.split('\n');
-        let eventType = "";
-        let eventData = "";
-        
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7);
-          } else if (line.startsWith('data: ')) {
-            eventData = line.slice(6);
-          }
-        }
-        
+        const { eventType, eventData } = parseSseChunk(buffer);
         if (eventData) {
           try {
-            const data = JSON.parse(eventData);
-            if (eventType === 'result') {
-              setResult(data);
-              setAnalyzed(true);
-              updateActiveRecord(record => ({ ...record, result: data, analyzed: true }));
-              const logName = formatServiceUserInitials(data?.serviceUserInitials || data?.serviceUserName);
-              logAction("EMAR Audit Completed", logName || file?.name || "EMAR", "Authorized", undefined, {
-                event: "emar_audit_completed",
-                fileName: file?.name,
-                serviceUserInitials: data?.serviceUserInitials,
-                auditPeriodStart: data?.auditPeriodStart,
-                auditPeriodEnd: data?.auditPeriodEnd,
-              });
-              receivedResult = true;
-              toast({ title: "Analysis Complete", description: "EMAR analysis processed successfully." });
-            } else if (eventType === 'warning') {
-              const message = data.message || "Warning";
-              const warningKind = String((data as any)?.kind || "");
-              const userFacing = (data as any)?.userFacing;
-              const isAgentFallback =
-                warningKind === "agent_fallback" ||
-                userFacing === false ||
-                /agent extraction failed/i.test(message);
-
-              if (isAgentFallback) {
-                console.info("[EMAR] Agent fallback:", message);
-              } else {
-              const isHighSeverity = /alert|high[-\s]severity/i.test(message);
-              toast({
-                title: "Warning",
-                description: message,
-                variant: isHighSeverity ? "destructive" : "default",
-              });
-              }
-            } else if (eventType === 'error') {
-              throw new Error(data.message || "Analysis failed");
-            }
+            handleSseEvent(eventType, JSON.parse(eventData));
           } catch (e: any) {
             if (e.message && !e.message.includes("JSON")) {
               throw e;
@@ -1474,6 +1392,7 @@ export default function EMARAudit() {
           prnProtocolResults: prnProtocolChecks,
           medicationLevelOverride,
           addedDiscrepancies,
+          actionOverrides,
           refusalReviewDecisions: refusalDecisions,
           refusalReviewSubmitted,
         },
@@ -1593,6 +1512,11 @@ ${generatedProtocol.additionalComments}`;
 
   const getActionsText = (actions: DiscrepancyAction): string => {
     const parts: string[] = [];
+    // New action names
+    if (actions.notesRecorded) parts.push("Recorded in Care Workers Notes");
+    if (actions.discussedWithStaff) parts.push("Discussed with Care Worker");
+    if (actions.escalatedToManager) parts.push("Escalated to Manager");
+    // Legacy action names
     if (actions.performanceNote) parts.push("Performance Note");
     if (actions.meeting === "phone") parts.push("Phone Meeting");
     if (actions.meeting === "in_person") parts.push("In-Person Meeting");
@@ -1769,10 +1693,15 @@ ${generatedProtocol.additionalComments}`;
       allDisc = [...allDisc, ...codeDiscrepancies];
     }
     
-    return allDisc.map(d => ({
-      ...d,
-      careWorkerName: getMappedCarerName(d.careWorkerName),
-    }));
+    return allDisc.map(d => {
+      const mappedName = getMappedCarerName(d.careWorkerName);
+      const overrides = actionOverrides[mappedName];
+      return {
+        ...d,
+        careWorkerName: mappedName,
+        actions: overrides ? { ...d.actions, ...overrides } : d.actions,
+      };
+    });
   };
 
   const getAllDiscrepanciesText = () => {
@@ -1975,7 +1904,105 @@ ${generatedProtocol.additionalComments}`;
       yPos = (doc as any).lastAutoTable.finalY + 10;
     }
     
+    // PRN Protocol Status
+    if (result.prnMedications?.hasPRN && prnProtocolsSubmitted && prnProtocolChecks.length > 0) {
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(12);
+      doc.setTextColor(200, 150, 0);
+      doc.text(`PRN Protocol Review (${prnProtocolChecks.length} medications)`, 14, yPos);
+      yPos += 8;
+      
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Medication', 'Protocol Completed', 'Good Standard']],
+        body: prnProtocolChecks.map(check => [
+          getMedicationDisplayName(check.medication),
+          check.isCompleted ? 'Yes' : 'No',
+          check.isGoodStandard ? 'Yes' : 'No',
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [200, 150, 0] },
+        styles: { fontSize: 8, cellPadding: 2 },
+      });
+      yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
+    
+    // Refusal Review Summary
+    if (unifiedRefusals.length > 0 && refusalReviewSubmitted) {
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(12);
+      doc.setTextColor(200, 150, 0);
+      doc.text(`Refusal Review (${totalRefusalCount} entries)`, 14, yPos);
+      yPos += 8;
+      
+      const refusalRows = unifiedRefusals.flatMap(group =>
+        group.items.map(item => {
+          const decision = refusalDecisions[item.key];
+          return [
+            item.careWorkerName,
+            item.date,
+            getMedicationDisplayName(item.medication),
+            group.displayName,
+            decision === 'acceptable' ? 'Accepted' : decision === 'escalate' ? 'Escalated' : 'Pending',
+          ];
+        })
+      );
+      
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Care Worker', 'Date', 'Medication', 'Code', 'Decision']],
+        body: refusalRows,
+        theme: 'striped',
+        headStyles: { fillColor: [200, 150, 0] },
+        styles: { fontSize: 8, cellPadding: 2 },
+      });
+      yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
+    
+    // Themes and Trends
+    if (result.themesAndTrends) {
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(12);
+      doc.setTextColor(33, 33, 33);
+      doc.text("Themes & Trends", 14, yPos);
+      yPos += 8;
+      doc.setFontSize(10);
+      const themeLines = doc.splitTextToSize(result.themesAndTrends, pageWidth - 28);
+      doc.text(themeLines, 14, yPos);
+      yPos += themeLines.length * 5 + 8;
+    }
+    
+    // Knowledge Gaps
+    if (result.gapsInKnowledge) {
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(12);
+      doc.setTextColor(33, 33, 33);
+      doc.text("Training & Knowledge Gaps", 14, yPos);
+      yPos += 8;
+      doc.setFontSize(10);
+      const gapLines = doc.splitTextToSize(result.gapsInKnowledge, pageWidth - 28);
+      doc.text(gapLines, 14, yPos);
+      yPos += gapLines.length * 5 + 8;
+    }
+    
     const fileName = `EMAR_Audit_${serviceUserDisplay.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+    
+    // Add page numbers and footer to every page
+    const totalPages = doc.getNumberOfPages();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      // Footer line
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, pageHeight - 18, pageWidth - 14, pageHeight - 18);
+      // Page number
+      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, pageHeight - 12, { align: "right" });
+      // Footer text
+      doc.text("Care Assurance — EMAR Audit Report — Confidential", 14, pageHeight - 12);
+    }
+    
     doc.save(fileName);
     
     toast({
@@ -2140,9 +2167,6 @@ ${generatedProtocol.additionalComments}`;
     }
   };
 
-  // State for expanded care worker cards
-  const [expandedCareWorkers, setExpandedCareWorkers] = useState<Set<string>>(new Set());
-
   // Group discrepancies by care worker
   interface GroupedCareWorker {
     careWorkerName: string;
@@ -2213,7 +2237,7 @@ ${generatedProtocol.additionalComments}`;
     });
 
     return Array.from(grouped.values()).sort((a, b) => b.totalCount - a.totalCount);
-  }, [result, addedDiscrepancies, mappingsConfirmed, carerMappings, medicationLevelOverride]);
+  }, [result, addedDiscrepancies, actionOverrides, mappingsConfirmed, carerMappings, medicationLevelOverride]);
 
   const formatShortDate = (dateStr: string): string => {
     // Convert from formats like "01/12/2024" or "1 Dec 2024" to "1/12"
@@ -2230,18 +2254,6 @@ ${generatedProtocol.additionalComments}`;
       return `${day}/${monthNum}`;
     }
     return dateStr;
-  };
-
-  const toggleCareWorkerExpand = (name: string) => {
-    setExpandedCareWorkers(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(name)) {
-        newSet.delete(name);
-      } else {
-        newSet.add(name);
-      }
-      return newSet;
-    });
   };
 
   interface UnifiedRefusalItem {
@@ -2491,7 +2503,14 @@ ${generatedProtocol.additionalComments}`;
         medication: item.medication,
         medicationId: item.medicationId,
         issue: `Inadequate refusal documentation - ${item.code} code used without acceptable reason`,
-        actions: { performanceNote: true, meeting: "none", referToManager: false },
+        actions: {
+          performanceNote: false,
+          meeting: "none",
+          referToManager: false,
+          notesRecorded: true,
+          discussedWithStaff: false,
+          escalatedToManager: false,
+        },
       }));
 
       setAddedDiscrepancies(prev => [...prev, ...newDiscrepancies]);
@@ -2538,9 +2557,9 @@ ${generatedProtocol.additionalComments}`;
   return (
     <div className="page-shell max-w-6xl mx-auto">
       <div className="space-y-2 animate-slide-up stagger-1">
-        <h1 className="page-title">Autonomous EMAR Audit</h1>
+        <h1 className="page-title">EMAR Audit</h1>
         <p className="page-subtitle max-w-2xl">
-          Deploying neural extraction to audit medication administration records. Our multi-pass consensus engine identifies discrepancies with clinical precision.
+          Upload and analyse electronic medication administration records. Discrepancies, refusals and compliance issues are identified automatically.
         </p>
       </div>
 
@@ -2551,9 +2570,9 @@ ${generatedProtocol.additionalComments}`;
               <div className="h-8 w-8 rounded-lg bg-primary/8 flex items-center justify-center">
                 <Upload className="h-4 w-4 text-primary" />
               </div>
-              Intake Channel
+              Upload EMAR
             </CardTitle>
-            <CardDescription>Initialize audit by uploading structured PDF documentation.</CardDescription>
+            <CardDescription>Select a PDF to begin a new medication audit.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8 pt-6">
             <div className="bg-muted/30 border border-border/40 rounded-2xl p-6 relative overflow-hidden group">
@@ -2562,15 +2581,15 @@ ${generatedProtocol.additionalComments}`;
               </div>
               <p className="text-sm font-semibold text-foreground mb-4 uppercase tracking-widest flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
-                Audit Protocol
+                What This Audit Covers
               </p>
               <ul className="grid sm:grid-cols-2 gap-4">
                 {[
-                  "PII Scrubbing & Initials Normalization",
-                  "Automated Medication Level Discovery",
-                  "Temporal Gap Analysis (3-Pass)",
-                  "Drug Interaction Cross-Reference",
-                  "Consensus Discrepancy Verification"
+                  "Personal data protection & initials only",
+                  "Medication support level detection",
+                  "Time gap & missed dose analysis",
+                  "Drug interaction screening",
+                  "Discrepancy detection & verification"
                 ].map((item, i) => (
                   <li key={i} className="flex items-center gap-2.5 text-xs font-semibold text-muted-foreground">
                     <CheckCircle2 className="h-3.5 w-3.5 text-success/70" />
@@ -2608,15 +2627,15 @@ ${generatedProtocol.additionalComments}`;
                   </div>
                   <div className="space-y-1">
                     <span className="text-base font-semibold text-foreground block">
-                      {isDragActive ? "Drop documentation now" : "Transmit EMAR Records"}
+                      {isDragActive ? "Drop files here" : "Upload EMAR PDF"}
                     </span>
                     <span className="text-sm text-muted-foreground font-medium">
-                      Drag & drop PDF files or click to browse secure local storage
+                      Drag & drop PDF files or click to browse
                     </span>
                   </div>
                   <div className="flex items-center gap-4 mt-2">
-                    <Badge variant="outline" className="bg-background/50 border-border/40 font-semibold uppercase tracking-tighter text-[10px]">PDF Documents Only</Badge>
-                    <Badge variant="outline" className="bg-background/50 border-border/40 font-semibold uppercase tracking-tighter text-[10px]">Max {MAX_EMAR_UPLOAD_MB}MB Per Stream</Badge>
+                    <Badge variant="outline" className="bg-background/50 border-border/40 font-semibold uppercase tracking-tighter text-[10px]">PDF Only</Badge>
+                    <Badge variant="outline" className="bg-background/50 border-border/40 font-semibold uppercase tracking-tighter text-[10px]">Max {MAX_EMAR_UPLOAD_MB} MB</Badge>
                   </div>
                 </Label>
               </div>
@@ -2859,7 +2878,7 @@ ${generatedProtocol.additionalComments}`;
         <div className="space-y-10 animate-fade-in">
           {analyzedRecords.length > 1 && (
             <div className="flex items-center gap-4 bg-muted/20 border border-border/40 p-4 rounded-2xl">
-              <span className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-2">Active Stream:</span>
+              <span className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-2">Current EMAR:</span>
               <Select value={activeRecordId ?? ""} onValueChange={(value) => loadRecordById(value)}>
                 <SelectTrigger className="w-full sm:w-80 bg-background border-border/60 rounded-xl font-semibold">
                   <SelectValue placeholder="Select an EMAR file" />
@@ -2881,10 +2900,10 @@ ${generatedProtocol.additionalComments}`;
                   <div className="h-8 w-8 rounded-lg bg-primary/15 flex items-center justify-center">
                     <UserPlus className="h-4 w-4" />
                   </div>
-                  Namespace Resolution
+                  Identify Care Workers
                 </CardTitle>
                 <CardDescription className="text-primary/70 font-medium">
-                  The neural engine detected unreferenced initials. Map these to the personnel database to proceed.
+                  We found initials that haven't been matched to a care worker yet. Please map them below to continue.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 pt-6">
@@ -2940,7 +2959,7 @@ ${generatedProtocol.additionalComments}`;
                           </Select>
                         </div>
                         {mapping.fullName && !mapping.isNew && (
-                          <span className="text-green-400 font-medium">{mapping.fullName}</span>
+                          <span className="text-success font-medium">{mapping.fullName}</span>
                         )}
                       </div>
                       
@@ -2967,7 +2986,7 @@ ${generatedProtocol.additionalComments}`;
                             />
                           </div>
                           {mapping.fullName && (
-                            <div className="text-sm text-teal-400">
+                            <div className="text-sm text-primary">
                               Will be saved as: <span className="font-semibold">{mapping.fullName}</span>
                             </div>
                           )}
@@ -3135,7 +3154,7 @@ ${generatedProtocol.additionalComments}`;
                       </Button>
                     )}
                     {discrepanciesUpdated && (
-                      <Badge variant="outline" className="text-green-400 border-green-400/50">
+                      <Badge variant="outline" className="text-success border-success/50">
                         <CheckCircle2 size={14} className="mr-1" />
                         Updated
                       </Badge>
@@ -3154,8 +3173,8 @@ ${generatedProtocol.additionalComments}`;
                     <Activity className="h-4 w-4" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-black tracking-tight text-foreground">Operational Audit Log</h3>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Metadata Vector: {result.extractionMethod || 'Neural'}</p>
+                    <h3 className="text-xl font-black tracking-tight text-foreground">Audit Summary</h3>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Method: {result.extractionMethod === 'grid-parser' ? 'Grid Parser' : result.extractionMethod || 'AI Analysis'}</p>
                   </div>
                 </div>
                 <Button
@@ -3181,17 +3200,15 @@ ${generatedProtocol.additionalComments}`;
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-5">
                 <CopyableBox label="Service User" value={serviceUserDisplay} className="bg-muted/40 border border-border/40" />
-                <CopyableBox label="Care Intensity" value={getServiceUserTypeDisplay()} className="bg-muted/40 border border-border/40" />
-                <CopyableBox label="Verified By" value={auditorDisplay} className="bg-muted/40 border border-border/40" />
-                <CopyableBox label="Window Start" value={result.auditPeriodStart} className="bg-muted/40 border border-border/40" />
-                <CopyableBox label="Window End" value={result.auditPeriodEnd} className="bg-muted/40 border border-border/40" />
+                <CopyableBox label="Medication Level" value={getServiceUserTypeDisplay()} className="bg-muted/40 border border-border/40" />
+                <CopyableBox label="Auditor" value={auditorDisplay} className="bg-muted/40 border border-border/40" />
+                <CopyableBox label="Period Start" value={result.auditPeriodStart} className="bg-muted/40 border border-border/40" />
+                <CopyableBox label="Period End" value={result.auditPeriodEnd} className="bg-muted/40 border border-border/40" />
               </div>
-              {result.extractionMethod && (
-                <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span className="uppercase tracking-wider">Extraction Method:</span>
-                  <Badge variant="outline">
-                    {result.extractionMethod === "grid-parser" ? "Grid Parser" : result.extractionMethod}
-                  </Badge>
+              {(result as any).allergies && (
+                <div className="mt-4 p-3 bg-destructive/5 border border-destructive/20 rounded-lg">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Allergies</p>
+                  <p className="text-sm font-medium text-foreground">{(result as any).allergies}</p>
                 </div>
               )}
               {result.medicationLevelEvidence && (
@@ -3217,18 +3234,18 @@ ${generatedProtocol.additionalComments}`;
                     {hasAnyDiscrepancies() ? <X className="h-8 w-8" /> : <Check className="h-8 w-8" />}
                   </div>
                   <div>
-                    <p className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">Audit Consensus Status</p>
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">Audit Outcome</p>
                     <h4 className={cn(
                       "text-2xl font-black tracking-tighter",
                       hasAnyDiscrepancies() ? "text-destructive" : "text-success"
                     )}>
-                      {hasAnyDiscrepancies() ? "Critical Discrepancies Detected" : "Full Compliance Confirmed"}
+                      {hasAnyDiscrepancies() ? "Discrepancies Found" : "No Discrepancies"}
                     </h4>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <Badge variant="outline" className="h-8 px-4 rounded-xl border-border/40 font-semibold text-foreground bg-background/50">
-                    {getAllDiscrepancies().length} Incidents
+                    {getAllDiscrepancies().length} Issue{getAllDiscrepancies().length !== 1 ? 's' : ''}
                   </Badge>
                   <CopyButton text={hasAnyDiscrepancies() ? "Yes" : "No"} label="discrepancies-answer" />
                 </div>
@@ -3244,9 +3261,9 @@ ${generatedProtocol.additionalComments}`;
                     <AlertTriangle className="h-5 w-5" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">Incident Inventory</CardTitle>
+                    <CardTitle className="text-lg">Discrepancies</CardTitle>
                     <CardDescription className="font-semibold text-destructive/80 uppercase tracking-tighter text-xs">
-                      {getAllDiscrepancies().length} TOTAL DISCREPANCIES · {getGroupedDiscrepancies.length} STAFF MEMBERS
+                      {getAllDiscrepancies().length} issue{getAllDiscrepancies().length !== 1 ? 's' : ''} across {getGroupedDiscrepancies.length} care worker{getGroupedDiscrepancies.length !== 1 ? 's' : ''}
                     </CardDescription>
                   </div>
                 </div>
@@ -3263,7 +3280,7 @@ ${generatedProtocol.additionalComments}`;
                       data-testid="button-toggle-edit-mode"
                     >
                       <Pencil size={14} />
-                      {editMode ? "Lock Pipeline" : "Override Mode"}
+                      {editMode ? "Stop Editing" : "Edit Entries"}
                     </Button>
                   )}
                   {user?.role === 'admin' && corrections.size > 0 && (
@@ -3388,7 +3405,7 @@ ${generatedProtocol.additionalComments}`;
                             
                             {/* Number of Occurrences */}
                             <TableCell className="align-top py-3 text-center">
-                              <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-red-500/20 text-red-400 font-semibold">
+                              <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-destructive/20 text-destructive font-semibold">
                                 {group.totalCount}
                               </span>
                             </TableCell>
@@ -3400,14 +3417,13 @@ ${generatedProtocol.additionalComments}`;
                                   <Checkbox 
                                     checked={group.discrepancies.some(d => d.actions.notesRecorded)}
                                     onCheckedChange={(checked) => {
-                                      // Update all discrepancies in this group
-                                      setAddedDiscrepancies(prev => 
-                                        prev.map(d => 
-                                          d.careWorkerName === group.careWorkerName 
-                                            ? { ...d, actions: { ...d.actions, notesRecorded: !!checked } }
-                                            : d
-                                        )
-                                      );
+                                      setActionOverrides(prev => ({
+                                        ...prev,
+                                        [group.careWorkerName]: {
+                                          ...prev[group.careWorkerName],
+                                          notesRecorded: !!checked,
+                                        },
+                                      }));
                                     }}
                                     className="h-4 w-4"
                                   />
@@ -3417,13 +3433,13 @@ ${generatedProtocol.additionalComments}`;
                                   <Checkbox 
                                     checked={group.discrepancies.some(d => d.actions.discussedWithStaff)}
                                     onCheckedChange={(checked) => {
-                                      setAddedDiscrepancies(prev => 
-                                        prev.map(d => 
-                                          d.careWorkerName === group.careWorkerName 
-                                            ? { ...d, actions: { ...d.actions, discussedWithStaff: !!checked } }
-                                            : d
-                                        )
-                                      );
+                                      setActionOverrides(prev => ({
+                                        ...prev,
+                                        [group.careWorkerName]: {
+                                          ...prev[group.careWorkerName],
+                                          discussedWithStaff: !!checked,
+                                        },
+                                      }));
                                     }}
                                     className="h-4 w-4"
                                   />
@@ -3433,13 +3449,13 @@ ${generatedProtocol.additionalComments}`;
                                   <Checkbox 
                                     checked={group.discrepancies.some(d => d.actions.escalatedToManager)}
                                     onCheckedChange={(checked) => {
-                                      setAddedDiscrepancies(prev => 
-                                        prev.map(d => 
-                                          d.careWorkerName === group.careWorkerName 
-                                            ? { ...d, actions: { ...d.actions, escalatedToManager: !!checked } }
-                                            : d
-                                        )
-                                      );
+                                      setActionOverrides(prev => ({
+                                        ...prev,
+                                        [group.careWorkerName]: {
+                                          ...prev[group.careWorkerName],
+                                          escalatedToManager: !!checked,
+                                        },
+                                      }));
                                     }}
                                     className="h-4 w-4"
                                   />
@@ -3462,7 +3478,7 @@ ${generatedProtocol.additionalComments}`;
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-orange-400" />
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
                   Drug Interactions ({result.drugInteractions.length})
                 </CardTitle>
                 <CardDescription>
@@ -3472,14 +3488,14 @@ ${generatedProtocol.additionalComments}`;
               <CardContent className="space-y-3">
                 {result.drugInteractions.map((interaction, idx) => {
                   const severityColors = {
-                    high: 'border-red-500/50 bg-red-500/10 text-red-400',
-                    moderate: 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400',
-                    low: 'border-blue-500/50 bg-blue-500/10 text-blue-400',
+                    high: 'border-destructive/50 bg-destructive/10 text-destructive',
+                    moderate: 'border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+                    low: 'border-primary/50 bg-primary/10 text-primary',
                   };
                   const severityBadgeColors = {
-                    high: 'bg-red-500/20 text-red-400',
-                    moderate: 'bg-yellow-500/20 text-yellow-400',
-                    low: 'bg-blue-500/20 text-blue-400',
+                    high: 'bg-destructive/20 text-destructive',
+                    moderate: 'bg-amber-500/20 text-amber-700 dark:text-amber-300',
+                    low: 'bg-primary/20 text-primary',
                   };
                   
                   return (
@@ -3518,15 +3534,15 @@ ${generatedProtocol.additionalComments}`;
                       <AlertTriangle className="h-5 w-5" />
                     </div>
                     <div>
-                      <CardTitle className="text-lg">Governance Review: Exceptions</CardTitle>
+                      <CardTitle className="text-lg">Refusals & Non-Administration</CardTitle>
                       <CardDescription className="font-semibold text-amber-600/80 uppercase tracking-tighter text-xs">
-                        {totalRefusalCount} ENTRIES REQUIRING OPERATIONAL JUSTIFICATION
+                        {totalRefusalCount} {totalRefusalCount === 1 ? 'entry' : 'entries'} to review
                       </CardDescription>
                     </div>
                   </div>
                   {!refusalReviewSubmitted && (
                     <div className="flex items-center gap-3 bg-background/50 px-4 py-2 rounded-xl border border-border/60">
-                       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Pipeline Progress:</p>
+                       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Reviewed:</p>
                        <span className="text-sm font-black text-amber-500">{getRefusalReviewStats.reviewed}/{getRefusalReviewStats.total}</span>
                     </div>
                   )}
@@ -3539,9 +3555,9 @@ ${generatedProtocol.additionalComments}`;
                       <CheckCircle2 className="h-6 w-6" />
                     </div>
                     <div>
-                      <p className="text-lg font-black tracking-tight text-success uppercase">EXCEPTION REVIEW FINALIZED</p>
+                      <p className="text-lg font-black tracking-tight text-success uppercase">Review Complete</p>
                       <p className="text-sm font-medium text-muted-foreground">
-                        {getRefusalReviewStats.acceptable} instances verified. {getRefusalReviewStats.toEscalate} instances migrated to Discrepancy Log.
+                        {getRefusalReviewStats.acceptable} accepted, {getRefusalReviewStats.toEscalate} escalated to discrepancies.
                       </p>
                     </div>
                   </div>
@@ -3566,7 +3582,7 @@ ${generatedProtocol.additionalComments}`;
                                 </div>
                                 <div className="text-left">
                                   <p className="text-sm font-semibold text-foreground leading-none mb-1">{codeGroup.displayName}</p>
-                                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{codeGroup.count} VECTORS</p>
+                                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{codeGroup.count} {codeGroup.count === 1 ? 'entry' : 'entries'}</p>
                                 </div>
                                 {allCodeReviewed ? (
                                   <Badge className="bg-success/15 text-success border-success/20 rounded-lg font-black text-[10px] ml-auto mr-4">REVIEWED</Badge>
@@ -3648,12 +3664,12 @@ ${generatedProtocol.additionalComments}`;
                         {getRefusalReviewStats.pending > 0 ? (
                           <div className="flex items-center gap-2 text-amber-500 animate-pulse">
                             <Clock size={16} />
-                            <span className="text-xs font-black uppercase tracking-widest">{getRefusalReviewStats.pending} PENDING DECISION</span>
+                            <span className="text-xs font-black uppercase tracking-widest">{getRefusalReviewStats.pending} remaining</span>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 text-success">
                             <CheckCircle2 size={16} />
-                            <span className="text-xs font-black uppercase tracking-widest">READY FOR COMMIT</span>
+                            <span className="text-xs font-black uppercase tracking-widest">All reviewed</span>
                           </div>
                         )}
                       </div>
@@ -3666,8 +3682,8 @@ ${generatedProtocol.additionalComments}`;
                         {getRefusalReviewStats.toEscalate > 0 && (
                           <AlertTriangle className="h-4 w-4 mr-2.5" />
                         )}
-                        COMMIT REVIEW
-                        {getRefusalReviewStats.toEscalate > 0 && ` (${getRefusalReviewStats.toEscalate} ESCALATIONS)`}
+                        Submit Review
+                        {getRefusalReviewStats.toEscalate > 0 && ` (${getRefusalReviewStats.toEscalate} to escalate)`}
                       </Button>
                     </div>
                   </>
@@ -3683,8 +3699,8 @@ ${generatedProtocol.additionalComments}`;
                   <Pill size={20} />
                 </div>
                 <div>
-                   <CardTitle className="text-lg">Clinical Governance: PRN Protocols</CardTitle>
-                   <CardDescription className="text-xs font-semibold uppercase tracking-widest text-amber-600/70">PRN medication compliance verification</CardDescription>
+                   <CardTitle className="text-lg">PRN Protocols</CardTitle>
+                   <CardDescription className="text-xs font-semibold uppercase tracking-widest text-amber-600/70">Check PRN medication protocols are complete and to standard</CardDescription>
                 </div>
               </div>
 	              <CopyButton 
@@ -3698,7 +3714,7 @@ ${generatedProtocol.additionalComments}`;
             </CardHeader>
             <CardContent className="space-y-6 pt-6">
               <div className="flex items-center gap-6 p-4 rounded-2xl bg-muted/20 border border-border/40">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">PRN Vectors Detected:</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">PRN Medications Found:</p>
                 {result.prnMedications.hasPRN ? (
                   <div className="flex items-center gap-2 text-amber-500 font-black text-xs uppercase tracking-widest bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
                     <CheckCircle2 className="h-3.5 w-3.5" /> CONFIRMED
@@ -3713,7 +3729,7 @@ ${generatedProtocol.additionalComments}`;
               {result.prnMedications.hasPRN && (
                 <div className="space-y-6 animate-slide-up">
                   <div className="bg-muted/10 rounded-2xl p-5 border border-border/40">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-4">MAPPED ASSETS</p>
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-4">PRN Medications</p>
 	                    <div className="flex flex-wrap gap-2.5">
 	                      {result.prnMedications.medications.map((med, idx) => (
 	                        <span key={idx} className="px-4 py-1.5 bg-background border border-border/60 text-foreground font-semibold rounded-xl text-[11px]">
@@ -3725,15 +3741,15 @@ ${generatedProtocol.additionalComments}`;
 
                   {prnProtocolsSubmitted ? (
                     <div className="p-6 rounded-2xl bg-muted/20 border border-border/40 animate-scale-in">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">PROTOCOL STATUS VERIFIED</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Protocol Review Complete</p>
                       {prnProtocolChecks.every(p => p.isCompleted && p.isGoodStandard) ? (
                         <div className="flex items-center gap-3 text-success">
                           <div className="h-10 w-10 rounded-xl bg-success/20 flex items-center justify-center border border-success/20">
                              <Check className="h-6 w-6" />
                           </div>
                           <div>
-                             <p className="text-base font-black tracking-tight uppercase">ALL PROTOCOLS OPTIMIZED</p>
-                             <p className="text-xs font-medium text-muted-foreground">Compliance standard met across all identified PRN vectors.</p>
+                             <p className="text-base font-black tracking-tight uppercase">All Protocols Complete</p>
+                             <p className="text-xs font-medium text-muted-foreground">All PRN protocols are completed and to a good standard.</p>
                           </div>
                         </div>
                       ) : (
@@ -3743,8 +3759,8 @@ ${generatedProtocol.additionalComments}`;
                                 <X className="h-6 w-6" />
                              </div>
                              <div>
-                                <p className="text-base font-black tracking-tight uppercase">PROTOCOL DRIFT DETECTED</p>
-                                <p className="text-xs font-medium text-muted-foreground">Immediate remedial action required for the following assets:</p>
+                                <p className="text-base font-black tracking-tight uppercase">Protocols Need Attention</p>
+                                <p className="text-xs font-medium text-muted-foreground">The following PRN medications need protocol updates:</p>
                              </div>
                           </div>
                           <ul className="list-disc list-inside text-muted-foreground space-y-1">
@@ -3869,9 +3885,9 @@ ${generatedProtocol.additionalComments}`;
                     <Users className="h-5 w-5" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">Back-Office Interventions</CardTitle>
+                    <CardTitle className="text-lg">Office Staff Entries</CardTitle>
                     <CardDescription className="font-semibold text-blue-600/80 uppercase tracking-tighter text-xs">
-                      {result.officeClosedEntries.length} MANUAL ENTRIES DETECTED
+                      {result.officeClosedEntries.length} manual {result.officeClosedEntries.length === 1 ? 'entry' : 'entries'}
                     </CardDescription>
                   </div>
                 </div>
@@ -3887,7 +3903,7 @@ ${generatedProtocol.additionalComments}`;
               </CardHeader>
               <CardContent className="space-y-4 pt-6">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-1" data-testid="text-office-closed-description">
-                  Administrative overrides (red box codes without initials). These are excluded from temporal gap metrics.
+                  Entries closed by office staff (codes without care worker initials). These are excluded from gap analysis.
                 </p>
                 <div className="rounded-2xl border border-border/40 overflow-hidden bg-muted/10">
                   <Table data-testid="table-office-closed">
@@ -3926,7 +3942,7 @@ ${generatedProtocol.additionalComments}`;
           <div className="grid md:grid-cols-2 gap-6 animate-slide-up stagger-8">
             <Card className="overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-primary/5">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Consensus Intelligence</CardTitle>
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Themes & Trends</CardTitle>
                 <CopyButton text={result.themesAndTrends} label="themes" />
               </CardHeader>
               <CardContent className="pt-5">
@@ -3936,7 +3952,7 @@ ${generatedProtocol.additionalComments}`;
 
             <Card className="overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-primary/5">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Training Gaps identified</CardTitle>
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Training & Knowledge Gaps</CardTitle>
                 <CopyButton text={result.gapsInKnowledge} label="gaps" />
               </CardHeader>
               <CardContent className="pt-5">
@@ -3947,11 +3963,11 @@ ${generatedProtocol.additionalComments}`;
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-10 border-t border-border/40 animate-slide-up stagger-9">
             <div className="flex-1 w-full max-w-sm">
-              <CopyableBox label="Audit Finalization Sequence" value={formatDate(new Date())} className="border-border/40 bg-muted/10 rounded-xl" />
+              <CopyableBox label="Date Completed" value={formatDate(new Date())} className="border-border/40 bg-muted/10 rounded-xl" />
             </div>
             <div className="flex gap-4 w-full sm:w-auto">
               <Button variant="outline" onClick={removeActiveRecord} className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-medium tracking-tight border-border/60 hover:bg-muted/40 transition-all" data-testid="button-start-new-emar">
-                RESET PIPELINE
+                Start New Audit
               </Button>
               <Button
                 onClick={saveAudit}
@@ -3959,7 +3975,7 @@ ${generatedProtocol.additionalComments}`;
                 className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-medium tracking-tight bg-primary border-0"
                 data-testid="button-save-emar-audit"
               >
-                {loading ? "SAVING..." : "COMMIT AUDIT"}
+                {loading ? "Saving..." : "Save Audit"}
               </Button>
             </div>
           </div>
