@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.3.3
+// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.3.4
 // Streamlined with direct Care Assurance integration via content script proxy
 // ═══════════════════════════════════════════════════════════════════════════
 
