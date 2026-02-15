@@ -276,7 +276,7 @@ function AIAdminLog() {
 
   if (loading) {
     return (
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
+      <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -285,7 +285,7 @@ function AIAdminLog() {
   }
 
   return (
-    <Card className="border shadow-sm bg-white dark:bg-card border-border">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Terminal className="h-5 w-5" />
@@ -467,7 +467,7 @@ function AICostSection() {
 
   if (loading) {
     return (
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
+      <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -476,13 +476,13 @@ function AICostSection() {
   }
 
   const featureColors: Record<string, string> = {
-    "emar_metadata": "bg-blue-100 text-blue-600",
-    "emar_entries": "bg-indigo-100 text-indigo-600",
-    "emar_pass": "bg-purple-100 text-purple-600",
-    "drug_interactions": "bg-red-100 text-red-600",
-    "care_plan": "bg-green-100 text-green-600",
-    "risk_assessment": "bg-amber-100 text-amber-600",
-    "plan_enhancer": "bg-cyan-100 text-cyan-600",
+    "emar_metadata": "bg-primary/10 text-primary",
+    "emar_entries": "bg-indigo-500/10 text-indigo-500",
+    "emar_pass": "bg-purple-500/10 text-purple-500",
+    "drug_interactions": "bg-destructive/10 text-destructive",
+    "care_plan": "bg-success/10 text-success",
+    "risk_assessment": "bg-amber-500/10 text-amber-500",
+    "plan_enhancer": "bg-cyan-500/10 text-cyan-500",
   };
 
   const getFeatureColor = (feature: string): string => {
@@ -491,7 +491,7 @@ function AICostSection() {
         return color;
       }
     }
-    return "bg-gray-100 text-gray-600";
+    return "bg-muted text-muted-foreground";
   };
 
   const totalCost = stats?.totalCost ?? 0;
@@ -530,7 +530,7 @@ function AICostSection() {
   const providerBadgeClass = (value: string): string => (
     value === "openai"
       ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/10"
-      : "border-white/10 text-muted-foreground bg-slate-50"
+      : "border-white/10 text-muted-foreground bg-muted/30"
   );
 
   const filteredLogs = logs.filter((log) => {
@@ -550,31 +550,31 @@ function AICostSection() {
   return (
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-              <DollarSign size={14} className="text-green-500" /> Total Spend
+              <DollarSign size={14} className="text-success" /> Total Spend
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-green-600">{stats ? formatCost(totalCost) : "$0.00"}</div>
+            <div className="text-2xl font-semibold text-success">{stats ? formatCost(totalCost) : "$0.00"}</div>
             <p className="text-xs text-muted-foreground">All time AI costs</p>
           </CardContent>
         </Card>
         
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-              <Cpu size={14} className="text-blue-500" /> API Calls
+              <Cpu size={14} className="text-primary" /> API Calls
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-blue-600">{totalCalls}</div>
+            <div className="text-2xl font-semibold text-primary">{totalCalls}</div>
             <p className="text-xs text-muted-foreground">Total AI requests</p>
           </CardContent>
         </Card>
         
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
               <TrendingUp size={14} className="text-purple-600" /> Features Used
@@ -586,7 +586,7 @@ function AICostSection() {
           </CardContent>
         </Card>
 
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
               <Activity size={14} className="text-amber-500" /> Avg Cost / Call
@@ -600,7 +600,7 @@ function AICostSection() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
               <Cpu size={14} className="text-sky-500" /> Cost Efficiency
@@ -634,7 +634,7 @@ function AICostSection() {
           </CardContent>
         </Card>
 
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
               <TrendingUp size={14} className="text-emerald-500" /> Top Cost Driver
@@ -652,7 +652,7 @@ function AICostSection() {
                 <div className="text-xs text-muted-foreground">
                   {topFeature[1].calls} calls · {topFeature[1].tokens.toLocaleString()} tokens
                 </div>
-                <div className="h-2 rounded-full bg-slate-50 overflow-hidden">
+                <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
                   <div
                     className="h-full bg-emerald-400/70"
                     style={{ width: `${Math.max(6, Math.min(100, totalCost > 0 ? (topFeature[1].cost / totalCost) * 100 : 0))}%` }}
@@ -667,10 +667,10 @@ function AICostSection() {
       </div>
 
       {stats && Object.keys(stats.byFeature).length > 0 && (
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
-          <CardHeader className="border-b border-border bg-muted/50">
+        <Card>
+          <CardHeader className="border-b border-border/30 bg-muted/30">
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
-              <DollarSign size={18} className="text-green-400" />
+              <DollarSign size={18} className="text-success" />
               Cost Breakdown by Feature
             </CardTitle>
             <CardDescription className="text-muted-foreground text-sm">
@@ -685,7 +685,7 @@ function AICostSection() {
                 const avgTokens = data.calls > 0 ? data.tokens / data.calls : 0;
 
                 return (
-                  <div key={feature} className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
+                  <div key={feature} className="p-3 rounded-lg bg-muted/30 border border-border/40 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <Badge variant="secondary" className={getFeatureColor(feature)}>
@@ -701,9 +701,9 @@ function AICostSection() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="h-2 flex-1 rounded-full bg-slate-50 overflow-hidden">
+                      <div className="h-2 flex-1 rounded-full bg-muted/30 overflow-hidden">
                         <div
-                          className="h-full bg-white/20"
+                          className="h-full bg-background/20"
                           style={{ width: `${Math.max(6, Math.min(100, share))}%` }}
                         />
                       </div>
@@ -717,12 +717,12 @@ function AICostSection() {
         </Card>
       )}
 
-	      <Card className="border shadow-sm overflow-hidden bg-white dark:bg-card border-border">
-        <CardHeader className="border-b border-border bg-muted/50">
+	      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-border/30 bg-muted/30">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <CardTitle className="flex items-center gap-2 text-foreground text-base">
-                <Activity size={18} className="text-blue-400" />
+                <Activity size={18} className="text-primary" />
                 Recent AI Calls
               </CardTitle>
               <CardDescription className="text-muted-foreground text-sm">
@@ -757,7 +757,7 @@ function AICostSection() {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-200 hover:bg-transparent">
+                <TableRow className="border-border/40 hover:bg-transparent">
                   <TableHead className="text-muted-foreground">Time</TableHead>
                   <TableHead className="text-muted-foreground">User</TableHead>
                   <TableHead className="text-muted-foreground">Feature</TableHead>
@@ -770,7 +770,7 @@ function AICostSection() {
               </TableHeader>
               <TableBody>
                 {filteredLogs.map((log) => (
-                  <TableRow key={log.id} className="border-slate-200" data-testid={`ai-log-${log.id}`}>
+                  <TableRow key={log.id} className="border-border/40" data-testid={`ai-log-${log.id}`}>
                     <TableCell className="text-muted-foreground text-xs">
                       {new Date(log.createdAt).toLocaleString()}
                     </TableCell>
@@ -796,7 +796,7 @@ function AICostSection() {
                     <TableCell className="text-right text-foreground">
                       {log.totalTokens.toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-green-400">
+                    <TableCell className="text-right font-semibold text-success">
                       {formatCost(log.costMicroDollars)}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
@@ -928,7 +928,7 @@ function AIProviderSection() {
 
   if (loading) {
     return (
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
+      <Card>
         <CardContent className="flex items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </CardContent>
@@ -937,8 +937,8 @@ function AIProviderSection() {
   }
 
   return (
-    <Card className="border shadow-sm bg-white dark:bg-card border-border">
-      <CardHeader className="border-b border-border bg-muted/50">
+    <Card>
+      <CardHeader className="border-b border-border/30 bg-muted/30">
         <CardTitle className="flex items-center gap-2 text-foreground text-base">
           <Cpu size={18} className="text-purple-400" />
           AI Configuration
@@ -961,15 +961,15 @@ function AIProviderSection() {
                 selectedProvider === "openai" 
                   ? "border-emerald-500/50 bg-emerald-50" 
                   : hasOpenAIKey 
-                    ? "border-slate-200 bg-slate-50 hover:border-emerald-300" 
-                    : "border-slate-200 bg-slate-100 opacity-60 cursor-not-allowed"
+                    ? "border-border/40 bg-muted/30 hover:border-emerald-300" 
+                    : "border-border/40 bg-muted/40 opacity-60 cursor-not-allowed"
               }`}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  hasOpenAIKey ? "bg-emerald-500/20" : "bg-slate-200"
+                  hasOpenAIKey ? "bg-emerald-500/20" : "bg-muted/50"
                 }`}>
-                  <Cpu size={20} className={hasOpenAIKey ? "text-emerald-400" : "text-slate-400"} />
+                  <Cpu size={20} className={hasOpenAIKey ? "text-emerald-400" : "text-muted-foreground/60"} />
                 </div>
                 <div>
                   <div className="font-medium text-foreground">OpenAI</div>
@@ -984,7 +984,7 @@ function AIProviderSection() {
                   selectedProvider === "openai"
                     ? "bg-emerald-500/20 text-emerald-600"
                     : hasOpenAIKey
-                      ? "bg-slate-200 text-slate-500"
+                      ? "bg-muted/50 text-muted-foreground"
                       : "bg-yellow-100 text-yellow-600"
                 }`}
               >
@@ -1000,15 +1000,15 @@ function AIProviderSection() {
                 selectedProvider === "github" 
                   ? "border-purple-500/50 bg-purple-50" 
                   : hasPATKey 
-                    ? "border-slate-200 bg-slate-50 hover:border-purple-300" 
-                    : "border-slate-200 bg-slate-100 opacity-60 cursor-not-allowed"
+                    ? "border-border/40 bg-muted/30 hover:border-purple-300" 
+                    : "border-border/40 bg-muted/40 opacity-60 cursor-not-allowed"
               }`}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  hasPATKey ? "bg-purple-500/20" : "bg-slate-200"
+                  hasPATKey ? "bg-purple-500/20" : "bg-muted/50"
                 }`}>
-                  <Cpu size={20} className={hasPATKey ? "text-purple-400" : "text-slate-400"} />
+                  <Cpu size={20} className={hasPATKey ? "text-purple-400" : "text-muted-foreground/60"} />
                 </div>
                 <div>
                   <div className="font-medium text-foreground">GitHub AI</div>
@@ -1023,7 +1023,7 @@ function AIProviderSection() {
                   selectedProvider === "github"
                     ? "bg-purple-500/20 text-purple-600"
                     : hasPATKey
-                      ? "bg-slate-200 text-slate-500"
+                      ? "bg-muted/50 text-muted-foreground"
                       : "bg-yellow-100 text-yellow-600"
                 }`}
               >
@@ -1039,15 +1039,15 @@ function AIProviderSection() {
                 selectedProvider === "local" 
                   ? "border-sky-500/50 bg-sky-50" 
                   : hasLocalLLM 
-                    ? "border-slate-200 bg-slate-50 hover:border-sky-300" 
-                    : "border-slate-200 bg-slate-100 opacity-60 cursor-not-allowed"
+                    ? "border-border/40 bg-muted/30 hover:border-sky-300" 
+                    : "border-border/40 bg-muted/40 opacity-60 cursor-not-allowed"
               }`}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  hasLocalLLM ? "bg-sky-500/20" : "bg-slate-200"
+                  hasLocalLLM ? "bg-sky-500/20" : "bg-muted/50"
                 }`}>
-                  <Server size={20} className={hasLocalLLM ? "text-sky-400" : "text-slate-400"} />
+                  <Server size={20} className={hasLocalLLM ? "text-sky-400" : "text-muted-foreground/60"} />
                 </div>
                 <div>
                   <div className="font-medium text-foreground">Local (Qwen 2.5)</div>
@@ -1062,7 +1062,7 @@ function AIProviderSection() {
                   selectedProvider === "local"
                     ? "bg-sky-500/20 text-sky-600"
                     : hasLocalLLM
-                      ? "bg-slate-200 text-slate-500"
+                      ? "bg-muted/50 text-muted-foreground"
                       : "bg-yellow-100 text-yellow-600"
                 }`}
               >
@@ -1087,11 +1087,11 @@ function AIProviderSection() {
           )}
         </div>
 
-        <div className="border-t border-slate-200 pt-6">
+        <div className="border-t border-border/30 pt-6">
           <h4 className="text-sm font-medium text-foreground mb-3">EMAR Analysis Method</h4>
           
           {/* EMAR Agent Toggle */}
-          <div className="flex items-center justify-between p-4 rounded-lg border bg-slate-50 mb-3">
+          <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30 mb-3">
             <div className="flex items-center gap-3">
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-foreground">Use EMAR Agent</span>
@@ -1110,10 +1110,10 @@ function AIProviderSection() {
             </div>
           </div>
           
-          <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+          <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
             <div className="text-xs text-muted-foreground space-y-1">
               <div className="flex items-start gap-2">
-                <Badge variant="secondary" className="bg-blue-500/20 text-blue-300 border-blue-500/30 shrink-0">
+                <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30 shrink-0">
                   {useEmarAgent ? "GPT-4.1-mini" : "Standard"}
                 </Badge>
                 <span className="font-medium text-foreground">
@@ -1134,7 +1134,7 @@ function AIProviderSection() {
           </div>
         </div>
 
-        <div className="border-t border-slate-200 pt-6">
+        <div className="border-t border-border/30 pt-6">
           <h4 className="text-sm font-medium text-foreground mb-3">AI Model Strategy</h4>
           <div className="p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
             <div className="font-medium text-foreground mb-2">Optimized Tiered Approach</div>
@@ -1153,7 +1153,7 @@ function AIProviderSection() {
 
         <AIOptimizationSection />
 
-        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-muted-foreground">
+        <div className="p-3 bg-muted/30 rounded-lg border border-border/40 text-xs text-muted-foreground">
           <strong className="text-foreground">Note:</strong> AI models are automatically selected based on task complexity. 
           Drug interaction checks are computed on each run to avoid reusing previous responses.
           Currently using: <strong className="text-foreground">{selectedProvider === "openai" ? "OpenAI" : selectedProvider === "github" ? "GitHub AI" : "Local (Qwen 2.5)"}</strong> provider
@@ -1247,7 +1247,7 @@ function AIOptimizationSection() {
 
   if (loading) {
     return (
-      <div className="border-t border-slate-200 pt-6">
+      <div className="border-t border-border/30 pt-6">
         <div className="flex items-center justify-center py-4">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
@@ -1256,7 +1256,7 @@ function AIOptimizationSection() {
   }
 
   return (
-    <div className="border-t border-slate-200 pt-6">
+    <div className="border-t border-border/30 pt-6">
       <h4 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
         <Zap size={16} className="text-amber-400" />
         AI Optimization (Cost Reduction)
@@ -1264,7 +1264,7 @@ function AIOptimizationSection() {
       
       <div className="space-y-3">
         {/* Cache Toggle */}
-        <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50">
+        <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
           <div>
             <span className="text-sm font-medium text-foreground">Response Caching</span>
             <p className="text-xs text-muted-foreground">Cache identical AI requests (24h TTL)</p>
@@ -1277,7 +1277,7 @@ function AIOptimizationSection() {
         </div>
 
         {/* Rules-First Toggle */}
-        <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50">
+        <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
           <div>
             <span className="text-sm font-medium text-foreground">Rules-First Engine</span>
             <p className="text-xs text-muted-foreground">Use deterministic patterns before AI</p>
@@ -1290,7 +1290,7 @@ function AIOptimizationSection() {
         </div>
 
         {/* Lite Mode Toggle */}
-        <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50">
+        <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
           <div>
             <span className="text-sm font-medium text-foreground">Lite Mode</span>
             <p className="text-xs text-muted-foreground">Minimal prompts for faster/cheaper calls</p>
@@ -1311,21 +1311,21 @@ function AIOptimizationSection() {
             <button
               onClick={clearCache}
               disabled={updating}
-              className="text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
+              className="text-xs text-destructive hover:text-destructive/80 disabled:opacity-50"
             >
               Clear Cache
             </button>
           </div>
           <div className="grid grid-cols-3 gap-2 text-xs">
-            <div className="bg-white/50 rounded p-2 text-center">
+            <div className="bg-background/60 rounded p-2 text-center">
               <div className="font-semibold text-foreground">{cacheStats.hitRate}</div>
               <div className="text-muted-foreground">Hit Rate</div>
             </div>
-            <div className="bg-white/50 rounded p-2 text-center">
+            <div className="bg-background/60 rounded p-2 text-center">
               <div className="font-semibold text-foreground">{cacheStats.tokensSaved.toLocaleString()}</div>
               <div className="text-muted-foreground">Tokens Saved</div>
             </div>
-            <div className="bg-white/50 rounded p-2 text-center">
+            <div className="bg-background/60 rounded p-2 text-center">
               <div className="font-semibold text-emerald-600">{cacheStats.estimatedCostSaved}</div>
               <div className="text-muted-foreground">Cost Saved</div>
             </div>
@@ -1402,7 +1402,7 @@ function RiskAssessmentLogsSection() {
 
   if (loading) {
     return (
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
+      <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -1411,8 +1411,8 @@ function RiskAssessmentLogsSection() {
   }
 
   return (
-	    <Card className="border shadow-sm overflow-hidden bg-white dark:bg-card border-border">
-      <CardHeader className="border-b border-border bg-muted/50">
+	    <Card className="overflow-hidden">
+      <CardHeader className="border-b border-border/30 bg-muted/30">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
@@ -1439,7 +1439,7 @@ function RiskAssessmentLogsSection() {
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="border-slate-200 hover:bg-transparent">
+              <TableRow className="border-border/30 hover:bg-transparent">
                 <TableHead className="text-muted-foreground font-medium">Date</TableHead>
                 <TableHead className="text-muted-foreground font-medium">Service User</TableHead>
                 <TableHead className="text-muted-foreground font-medium">Performed By</TableHead>
@@ -1450,7 +1450,7 @@ function RiskAssessmentLogsSection() {
             </TableHeader>
             <TableBody>
               {filteredLogs.map((log) => (
-                <TableRow key={log.id} className="border-slate-200 hover:bg-slate-50 transition-colors" data-testid={`row-risk-log-${log.id}`}>
+                <TableRow key={log.id} className="border-border/30 hover:bg-muted/20 transition-colors" data-testid={`row-risk-log-${log.id}`}>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {new Date(log.createdAt).toLocaleDateString("en-GB", { 
                       day: "2-digit", 
@@ -1477,7 +1477,7 @@ function RiskAssessmentLogsSection() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge variant="secondary" className="bg-green-900/50 text-green-300 border border-green-700/50">
+                    <Badge variant="secondary" className="bg-success/20 text-success border border-success/30">
                       {log.selectedAssessments?.length || 0}
                     </Badge>
                   </TableCell>
@@ -1491,7 +1491,7 @@ function RiskAssessmentLogsSection() {
                         ))}
                       </div>
                     ) : (
-                      <span className="text-xs text-green-400">None skipped</span>
+                      <span className="text-xs text-success">None skipped</span>
                     )}
                   </TableCell>
                 </TableRow>
@@ -1507,7 +1507,7 @@ function RiskAssessmentLogsSection() {
           </Table>
         </div>
       </CardContent>
-	      <CardFooter className="border-t py-3 border-border bg-muted/50">
+	      <CardFooter className="border-t py-3 border-border/30 bg-muted/30">
         <p className="text-xs text-muted-foreground">Showing {filteredLogs.length} of {logs.length} log entries</p>
       </CardFooter>
     </Card>
@@ -1727,7 +1727,7 @@ function ActivePresenceSection() {
 
   if (loading) {
     return (
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
+      <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -1740,10 +1740,10 @@ function ActivePresenceSection() {
 
   return (
     <div className="space-y-6">
-	      <Card className="border shadow-sm overflow-hidden bg-white dark:bg-card border-border">
-        <CardHeader className="border-b border-border bg-muted/50">
+	      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-border/30 bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
-            <Activity size={18} className="text-green-400" />
+            <Activity size={18} className="text-success" />
             Online Users ({onlineUsers.length})
           </CardTitle>
           <CardDescription className="text-muted-foreground text-xs">Click on a user to see more details</CardDescription>
@@ -1766,7 +1766,7 @@ function ActivePresenceSection() {
                   onClick={() => toggleExpanded(user.id)}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-2.5 w-2.5 rounded-full bg-green-400 animate-pulse" />
+                    <div className="h-2.5 w-2.5 rounded-full bg-success animate-pulse" />
                     <div>
                       <span className="font-medium text-foreground">{user.username}</span>
                       <Badge variant="outline" className={`ml-2 text-xs ${user.role === "admin" ? "border-indigo-500/50 text-indigo-300" : "border-border text-foreground"}`}>
@@ -1811,7 +1811,7 @@ function ActivePresenceSection() {
                         <Button 
                           size="sm" 
                           variant="outline" 
-                          className="border-red-500/50 text-red-300 hover:bg-red-950"
+                          className="border-destructive/30 text-destructive hover:bg-destructive/10"
                           onClick={(e) => { e.stopPropagation(); handleKick(user.id); }}
                           data-testid={`button-kick-${user.id}`}
                         >
@@ -1850,8 +1850,8 @@ function ActivePresenceSection() {
         </CardContent>
       </Card>
 
-	      <Card className="border shadow-sm overflow-hidden bg-white dark:bg-card border-border">
-        <CardHeader className="border-b border-border bg-muted/50">
+	      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-border/30 bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
             <EyeOff size={18} className="text-muted-foreground" />
             Offline Staff ({offlineUsers.length})
@@ -1860,7 +1860,7 @@ function ActivePresenceSection() {
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="border-slate-200 hover:bg-transparent">
+              <TableRow className="border-border/30 hover:bg-transparent">
                 <TableHead className="text-muted-foreground font-medium">User</TableHead>
                 <TableHead className="text-muted-foreground font-medium">Status</TableHead>
                 <TableHead className="text-muted-foreground font-medium">Last Online</TableHead>
@@ -1868,7 +1868,7 @@ function ActivePresenceSection() {
             </TableHeader>
             <TableBody>
               {offlineUsers.slice(0, 10).map((user) => (
-                <TableRow key={user.id} className="border-slate-200 hover:bg-slate-50">
+                <TableRow key={user.id} className="border-border/30 hover:bg-muted/20">
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-2 rounded-full bg-muted-foreground" />
@@ -1879,7 +1879,7 @@ function ActivePresenceSection() {
                     {user.suspendedUntil && new Date(user.suspendedUntil) > new Date() ? (
                       <div className="flex items-center gap-2">
                         <Badge variant="destructive" className="text-xs">Suspended</Badge>
-                        <Button size="sm" variant="ghost" className="text-xs text-green-400 hover:text-green-300" onClick={() => handleReinstate(user.id)}>Reinstate</Button>
+                        <Button size="sm" variant="ghost" className="text-xs text-success hover:text-success/80" onClick={() => handleReinstate(user.id)}>Reinstate</Button>
                       </div>
                     ) : (
                       <span className="text-muted-foreground text-sm">Offline</span>
@@ -1996,7 +1996,7 @@ function BlockedIpsSection() {
 
   if (loading) {
     return (
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
+      <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -2005,10 +2005,10 @@ function BlockedIpsSection() {
   }
 
   return (
-	    <Card className="border shadow-sm overflow-hidden bg-white dark:bg-card border-border">
-      <CardHeader className="border-b border-border bg-muted/50">
+	    <Card className="overflow-hidden">
+      <CardHeader className="border-b border-border/30 bg-muted/30">
         <CardTitle className="flex items-center gap-2 text-foreground text-base">
-          <Shield size={18} className="text-red-400" />
+          <Shield size={18} className="text-destructive" />
           Blocked IP Addresses ({blockedIps.length})
         </CardTitle>
         <CardDescription className="text-muted-foreground text-xs">
@@ -2018,7 +2018,7 @@ function BlockedIpsSection() {
       <CardContent className="p-0">
         <Table>
           <TableHeader>
-            <TableRow className="border-slate-200 hover:bg-transparent">
+            <TableRow className="border-border/30 hover:bg-transparent">
               <TableHead className="text-muted-foreground font-medium">IP Address</TableHead>
               <TableHead className="text-muted-foreground font-medium">Associated User</TableHead>
               <TableHead className="text-muted-foreground font-medium">Blocked By</TableHead>
@@ -2029,7 +2029,7 @@ function BlockedIpsSection() {
           </TableHeader>
           <TableBody>
             {blockedIps.map((blocked) => (
-              <TableRow key={blocked.id} className="border-slate-200 hover:bg-slate-50" data-testid={`row-blocked-ip-${blocked.id}`}>
+              <TableRow key={blocked.id} className="border-border/30 hover:bg-muted/20" data-testid={`row-blocked-ip-${blocked.id}`}>
                 <TableCell className="font-mono text-foreground">{blocked.ipAddress}</TableCell>
                 <TableCell className="text-muted-foreground">{blocked.username || "-"}</TableCell>
                 <TableCell className="text-muted-foreground">{blocked.blockedBy}</TableCell>
@@ -2041,7 +2041,7 @@ function BlockedIpsSection() {
                   <Button 
                     size="sm" 
                     variant="outline" 
-                    className="border-green-500/50 text-green-300 hover:bg-green-950"
+                    className="border-success/30 text-success hover:bg-success/10"
                     onClick={() => handleUnblock(blocked.id)}
                     data-testid={`button-unblock-${blocked.id}`}
                   >
@@ -2090,7 +2090,7 @@ function AuditTrailSection() {
 
   if (loading) {
     return (
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
+      <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -2120,8 +2120,8 @@ function AuditTrailSection() {
       </div>
 
       {activeTab === "discrepancies" && (
-	    <Card className="border shadow-sm overflow-hidden bg-white dark:bg-card border-border">
-          <CardHeader className="border-b border-border bg-muted/50">
+	    <Card className="overflow-hidden">
+          <CardHeader className="border-b border-border/30 bg-muted/30">
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
               <AlertTriangle size={18} className="text-amber-400" />
               Care Worker Discrepancies ({data.discrepancies.length})
@@ -2131,7 +2131,7 @@ function AuditTrailSection() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-slate-200">
+                  <TableRow className="border-border/30">
                     <TableHead className="text-muted-foreground">Date</TableHead>
                     <TableHead className="text-muted-foreground">Care Worker</TableHead>
                     <TableHead className="text-muted-foreground">Type</TableHead>
@@ -2142,7 +2142,7 @@ function AuditTrailSection() {
                 </TableHeader>
                 <TableBody>
                   {data.discrepancies.filter(d => d.careWorker.name.toLowerCase().includes(search.toLowerCase()) || d.description.toLowerCase().includes(search.toLowerCase())).slice(0, 20).map((d) => (
-                    <TableRow key={d.id} className="border-slate-200 hover:bg-slate-50">
+                    <TableRow key={d.id} className="border-border/30 hover:bg-muted/20">
                       <TableCell className="text-muted-foreground text-xs font-mono">{d.date}</TableCell>
                       <TableCell className="text-foreground">{d.careWorker.name}</TableCell>
                       <TableCell><Badge variant="outline" className="text-xs">{d.type}</Badge></TableCell>
@@ -2150,7 +2150,7 @@ function AuditTrailSection() {
                       <TableCell className="text-muted-foreground text-sm">{d.action}</TableCell>
                       <TableCell>
                         {d.severity && (
-                          <Badge className={d.severity === "high" ? "bg-red-900/50 text-red-300" : d.severity === "medium" ? "bg-amber-900/50 text-amber-300" : "bg-muted text-foreground"}>
+                          <Badge className={d.severity === "high" ? "bg-destructive/20 text-destructive" : d.severity === "medium" ? "bg-amber-500/20 text-amber-500" : "bg-muted text-foreground"}>
                             {d.severity}
                           </Badge>
                         )}
@@ -2165,17 +2165,17 @@ function AuditTrailSection() {
       )}
 
       {activeTab === "suspensions" && (
-	        <Card className="border shadow-sm overflow-hidden bg-white dark:bg-card border-border">
-          <CardHeader className="border-b border-border bg-muted/50">
+	        <Card className="overflow-hidden">
+          <CardHeader className="border-b border-border/30 bg-muted/30">
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
-              <Lock size={18} className="text-red-400" />
+              <Lock size={18} className="text-destructive" />
               Suspension Logs ({data.suspensions.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-200">
+                <TableRow className="border-border/30">
                   <TableHead className="text-muted-foreground">Date</TableHead>
                   <TableHead className="text-muted-foreground">User</TableHead>
                   <TableHead className="text-muted-foreground">Admin</TableHead>
@@ -2186,7 +2186,7 @@ function AuditTrailSection() {
               </TableHeader>
               <TableBody>
                 {data.suspensions.filter(s => s.username.toLowerCase().includes(search.toLowerCase())).map((s) => (
-                  <TableRow key={s.id} className="border-slate-200 hover:bg-slate-50">
+                  <TableRow key={s.id} className="border-border/30 hover:bg-muted/20">
                     <TableCell className="text-muted-foreground text-xs font-mono">{new Date(s.startsAt).toLocaleString()}</TableCell>
                     <TableCell className="text-foreground">{s.username}</TableCell>
                     <TableCell className="text-muted-foreground">{s.adminUsername}</TableCell>
@@ -2194,7 +2194,7 @@ function AuditTrailSection() {
                     <TableCell className="text-muted-foreground text-sm">{s.reason || "-"}</TableCell>
                     <TableCell>
                       {s.reinstatedEarly ? (
-                        <Badge variant="outline" className="border-green-500/50 text-green-300">Reinstated</Badge>
+                        <Badge variant="outline" className="border-success/30 text-success">Reinstated</Badge>
                       ) : new Date(s.endsAt) > new Date() ? (
                         <Badge variant="destructive">Active</Badge>
                       ) : (
@@ -2210,17 +2210,17 @@ function AuditTrailSection() {
       )}
 
       {activeTab === "sessions" && (
-	        <Card className="border shadow-sm overflow-hidden bg-white dark:bg-card border-border">
-          <CardHeader className="border-b border-border bg-muted/50">
+	        <Card className="overflow-hidden">
+          <CardHeader className="border-b border-border/30 bg-muted/30">
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
-              <Activity size={18} className="text-blue-400" />
+              <Activity size={18} className="text-primary" />
               Session History ({data.sessionHistory.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-200">
+                <TableRow className="border-border/30">
                   <TableHead className="text-muted-foreground">Login Time</TableHead>
                   <TableHead className="text-muted-foreground">User</TableHead>
                   <TableHead className="text-muted-foreground">Logout Time</TableHead>
@@ -2230,7 +2230,7 @@ function AuditTrailSection() {
               </TableHeader>
               <TableBody>
                 {data.sessionHistory.filter(s => s.username.toLowerCase().includes(search.toLowerCase())).slice(0, 30).map((s) => (
-                  <TableRow key={s.id} className="border-slate-200 hover:bg-slate-50">
+                  <TableRow key={s.id} className="border-border/30 hover:bg-muted/20">
                     <TableCell className="text-muted-foreground text-xs font-mono">{new Date(s.loggedInAt).toLocaleString()}</TableCell>
                     <TableCell className="text-foreground">{s.username}</TableCell>
                     <TableCell className="text-muted-foreground text-xs font-mono">{s.loggedOutAt ? new Date(s.loggedOutAt).toLocaleString() : "-"}</TableCell>
@@ -2314,7 +2314,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
 
   if (loading) {
     return (
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
+      <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -2323,8 +2323,8 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
   }
 
   return (
-	    <Card className="border shadow-sm overflow-hidden bg-white dark:bg-card border-border">
-      <CardHeader className="border-b border-border bg-muted/50">
+	    <Card className="overflow-hidden">
+      <CardHeader className="border-b border-border/30 bg-muted/30">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
@@ -2379,7 +2379,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
         {logCategory === "activity" && (
           <Table>
             <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-slate-200 hover:bg-transparent">
+              <TableRow className="border-border/30 hover:bg-transparent">
                 <TableHead className="text-muted-foreground w-[100px]">Time</TableHead>
                 <TableHead className="text-muted-foreground">User</TableHead>
                 <TableHead className="text-muted-foreground">Action</TableHead>
@@ -2389,13 +2389,13 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
             </TableHeader>
             <TableBody>
               {filteredLogs.map((log) => (
-                <TableRow key={log.id} className="border-slate-200 hover:bg-slate-50 transition-colors" data-testid={`row-log-${log.id}`}>
+                <TableRow key={log.id} className="border-border/30 hover:bg-muted/20 transition-colors" data-testid={`row-log-${log.id}`}>
                   <TableCell className="font-mono text-xs text-muted-foreground">{log.time}</TableCell>
                   <TableCell className="font-medium text-foreground">{log.user}</TableCell>
                   <TableCell className="text-muted-foreground">{log.action}</TableCell>
                   <TableCell className="text-muted-foreground">{log.target || "-"}</TableCell>
                   <TableCell className="text-right">
-                    {log.status === 'Authorized' && <span className="text-xs text-green-400 bg-green-950/30 px-2 py-0.5 rounded-full border border-green-900/50">Authorized</span>}
+                    {log.status === 'Authorized' && <span className="text-xs text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/30">Authorized</span>}
                     {log.status === 'System' && <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full border border-border/50">System</span>}
                     {(log.status === 'Flagged' || log.status === 'Blocked') && (
                       <span className="text-xs text-amber-400 bg-amber-950/30 px-2 py-0.5 rounded-full border border-amber-900/50 flex items-center justify-end gap-1 ml-auto w-fit">
@@ -2415,7 +2415,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
         {logCategory === "discrepancies" && auditData && (
           <Table>
             <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-slate-200">
+              <TableRow className="border-border/30">
                 <TableHead className="text-muted-foreground">Date</TableHead>
                 <TableHead className="text-muted-foreground">Care Worker</TableHead>
                 <TableHead className="text-muted-foreground">Type</TableHead>
@@ -2426,7 +2426,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
             </TableHeader>
             <TableBody>
               {auditData.discrepancies.filter(d => d.careWorker.name.toLowerCase().includes(logSearch.toLowerCase()) || d.description.toLowerCase().includes(logSearch.toLowerCase())).slice(0, 30).map((d) => (
-                <TableRow key={d.id} className="border-slate-200 hover:bg-slate-50">
+                <TableRow key={d.id} className="border-border/30 hover:bg-muted/20">
                   <TableCell className="text-muted-foreground text-xs font-mono">{d.date}</TableCell>
                   <TableCell className="text-foreground">{d.careWorker.name}</TableCell>
                   <TableCell><Badge variant="outline" className="text-xs">{d.type}</Badge></TableCell>
@@ -2434,7 +2434,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
                   <TableCell className="text-muted-foreground text-sm">{d.action}</TableCell>
                   <TableCell>
                     {d.severity && (
-                      <Badge className={d.severity === "high" ? "bg-red-900/50 text-red-300" : d.severity === "medium" ? "bg-amber-900/50 text-amber-300" : "bg-muted text-foreground"}>
+                      <Badge className={d.severity === "high" ? "bg-destructive/20 text-destructive" : d.severity === "medium" ? "bg-amber-500/20 text-amber-500" : "bg-muted text-foreground"}>
                         {d.severity}
                       </Badge>
                     )}
@@ -2451,7 +2451,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
         {logCategory === "suspensions" && auditData && (
           <Table>
             <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-slate-200">
+              <TableRow className="border-border/30">
                 <TableHead className="text-muted-foreground">Date</TableHead>
                 <TableHead className="text-muted-foreground">User</TableHead>
                 <TableHead className="text-muted-foreground">Admin</TableHead>
@@ -2462,7 +2462,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
             </TableHeader>
             <TableBody>
               {auditData.suspensions.filter(s => s.username.toLowerCase().includes(logSearch.toLowerCase())).map((s) => (
-                <TableRow key={s.id} className="border-slate-200 hover:bg-slate-50">
+                <TableRow key={s.id} className="border-border/30 hover:bg-muted/20">
                   <TableCell className="text-muted-foreground text-xs font-mono">{new Date(s.startsAt).toLocaleString()}</TableCell>
                   <TableCell className="text-foreground">{s.username}</TableCell>
                   <TableCell className="text-muted-foreground">{s.adminUsername}</TableCell>
@@ -2470,7 +2470,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
                   <TableCell className="text-muted-foreground text-sm">{s.reason || "-"}</TableCell>
                   <TableCell>
                     {s.reinstatedEarly ? (
-                      <Badge variant="outline" className="border-green-500/50 text-green-300">Reinstated</Badge>
+                      <Badge variant="outline" className="border-success/30 text-success">Reinstated</Badge>
                     ) : new Date(s.endsAt) > new Date() ? (
                       <Badge variant="destructive">Active</Badge>
                     ) : (
@@ -2489,7 +2489,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
         {logCategory === "sessions" && auditData && (
           <Table>
             <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-slate-200">
+              <TableRow className="border-border/30">
                 <TableHead className="text-muted-foreground">Login Time</TableHead>
                 <TableHead className="text-muted-foreground">User</TableHead>
                 <TableHead className="text-muted-foreground">Logout Time</TableHead>
@@ -2499,7 +2499,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
             </TableHeader>
             <TableBody>
               {auditData.sessionHistory.filter(s => s.username.toLowerCase().includes(logSearch.toLowerCase())).slice(0, 30).map((s) => (
-                <TableRow key={s.id} className="border-slate-200 hover:bg-slate-50">
+                <TableRow key={s.id} className="border-border/30 hover:bg-muted/20">
                   <TableCell className="text-muted-foreground text-xs font-mono">{new Date(s.loggedInAt).toLocaleString()}</TableCell>
                   <TableCell className="text-foreground">{s.username}</TableCell>
                   <TableCell className="text-muted-foreground text-xs font-mono">{s.loggedOutAt ? new Date(s.loggedOutAt).toLocaleString() : "-"}</TableCell>
@@ -2517,7 +2517,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
         {logCategory === "risk" && (
           <Table>
             <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-slate-200 hover:bg-transparent">
+              <TableRow className="border-border/30 hover:bg-transparent">
                 <TableHead className="text-muted-foreground">Date</TableHead>
                 <TableHead className="text-muted-foreground">Service User</TableHead>
                 <TableHead className="text-muted-foreground">Performed By</TableHead>
@@ -2528,7 +2528,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
             </TableHeader>
             <TableBody>
               {riskLogs.filter(log => log.serviceUserName.toLowerCase().includes(logSearch.toLowerCase()) || log.performedBy.toLowerCase().includes(logSearch.toLowerCase())).map((log) => (
-                <TableRow key={log.id} className="border-slate-200 hover:bg-slate-50 transition-colors" data-testid={`row-risk-log-${log.id}`}>
+                <TableRow key={log.id} className="border-border/30 hover:bg-muted/20 transition-colors" data-testid={`row-risk-log-${log.id}`}>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {new Date(log.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </TableCell>
@@ -2545,7 +2545,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
                     <Badge variant="secondary" className="bg-muted text-foreground">{log.offeredAssessments?.length || 0}</Badge>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge variant="secondary" className="bg-green-900/50 text-green-300 border border-green-700/50">{log.selectedAssessments?.length || 0}</Badge>
+                    <Badge variant="secondary" className="bg-success/20 text-success border border-success/30">{log.selectedAssessments?.length || 0}</Badge>
                   </TableCell>
                   <TableCell>
                     {log.skippedMandatory && log.skippedMandatory.length > 0 ? (
@@ -2553,7 +2553,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
                         {log.skippedMandatory.map((item, idx) => <Badge key={idx} variant="destructive" className="text-xs">{item}</Badge>)}
                       </div>
                     ) : (
-                      <span className="text-xs text-green-400">None skipped</span>
+                      <span className="text-xs text-success">None skipped</span>
                     )}
                   </TableCell>
                 </TableRow>
@@ -2565,7 +2565,7 @@ function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatu
           </Table>
         )}
       </div>
-	      <CardFooter className="border-t py-3 border-border bg-muted/50">
+	      <CardFooter className="border-t py-3 border-border/30 bg-muted/30">
         <p className="text-xs text-muted-foreground">
           Viewing {getCategoryLabel(logCategory)} • {getCategoryCount(logCategory)} entries
         </p>
@@ -2684,7 +2684,7 @@ function PolicyDocumentsSection() {
 
   if (loading) {
     return (
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
+      <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -2694,10 +2694,10 @@ function PolicyDocumentsSection() {
 
   return (
     <div className="space-y-6">
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
-        <CardHeader className="border-b border-border bg-muted/50">
+      <Card>
+        <CardHeader className="border-b border-border/30 bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
-            <Upload size={18} className="text-blue-400" />
+            <Upload size={18} className="text-primary" />
             Upload Policy Document
           </CardTitle>
           <CardDescription className="text-muted-foreground text-sm">
@@ -2752,8 +2752,8 @@ function PolicyDocumentsSection() {
         </CardContent>
       </Card>
 
-	      <Card className="border shadow-sm overflow-hidden bg-white dark:bg-card border-border">
-        <CardHeader className="border-b border-border bg-muted/50">
+	      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-border/30 bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
             <FileText size={18} className="text-emerald-400" />
             Uploaded Policy Documents
@@ -2765,7 +2765,7 @@ function PolicyDocumentsSection() {
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="border-slate-200 hover:bg-transparent">
+              <TableRow className="border-border/30 hover:bg-transparent">
                 <TableHead className="text-muted-foreground font-medium">Name</TableHead>
                 <TableHead className="text-muted-foreground font-medium">Category</TableHead>
                 <TableHead className="text-muted-foreground font-medium">Version</TableHead>
@@ -2776,10 +2776,10 @@ function PolicyDocumentsSection() {
             </TableHeader>
             <TableBody>
               {documents.map((doc) => (
-                <TableRow key={doc.id} className="border-slate-200 hover:bg-slate-50 transition-colors" data-testid={`row-policy-${doc.id}`}>
+                <TableRow key={doc.id} className="border-border/30 hover:bg-muted/20 transition-colors" data-testid={`row-policy-${doc.id}`}>
                   <TableCell className="font-medium text-foreground">{doc.name}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="bg-blue-900/30 text-blue-300 border-blue-700/50">
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
                       {getCategoryLabel(doc.category)}
                     </Badge>
                   </TableCell>
@@ -2796,7 +2796,7 @@ function PolicyDocumentsSection() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                      className="text-destructive hover:text-destructive/80 hover:bg-destructive/10"
                       onClick={() => handleDelete(doc.id)}
                       data-testid={`button-delete-policy-${doc.id}`}
                     >
@@ -2902,7 +2902,7 @@ function ContactMessagesSection() {
 
   if (loading) {
     return (
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
+      <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -2914,19 +2914,19 @@ function ContactMessagesSection() {
     <div className="space-y-6">
       {/* Stats */}
       <div className="grid md:grid-cols-3 gap-4">
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <Mail size={14} className="text-blue-500" /> Total Messages
+              <Mail size={14} className="text-primary" /> Total Messages
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-blue-400">{messages.length}</div>
+            <div className="text-2xl font-semibold text-primary">{messages.length}</div>
             <p className="text-xs text-muted-foreground">Contact form submissions</p>
           </CardContent>
         </Card>
 
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
               <MailOpen size={14} className="text-amber-500" /> Unread
@@ -2938,7 +2938,7 @@ function ContactMessagesSection() {
           </CardContent>
         </Card>
 
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
               <Archive size={14} className="text-gray-500" /> View
@@ -2959,8 +2959,8 @@ function ContactMessagesSection() {
       </div>
 
       {/* Messages List */}
-	      <Card className="border shadow-sm overflow-hidden bg-white dark:bg-card border-border">
-        <CardHeader className="border-b border-border bg-muted/50">
+	      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-border/30 bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
             <Mail size={18} className="text-teal-400" />
             Contact Form Messages
@@ -2980,9 +2980,9 @@ function ContactMessagesSection() {
               {messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`p-4 cursor-pointer hover:bg-slate-50 transition-colors ${
-                    !msg.isRead ? "bg-blue-500/5 border-l-2 border-blue-500" : ""
-                  } ${selectedMessage?.id === msg.id ? "bg-white/10" : ""}`}
+                  className={`p-4 cursor-pointer hover:bg-muted/20 transition-colors ${
+                    !msg.isRead ? "bg-primary/5 border-l-2 border-primary" : ""
+                  } ${selectedMessage?.id === msg.id ? "bg-card/10" : ""}`}
                   onClick={() => {
                     setSelectedMessage(msg);
                     if (!msg.isRead) handleMarkRead(msg.id);
@@ -2992,7 +2992,7 @@ function ContactMessagesSection() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         {!msg.isRead && (
-                          <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                          <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                         )}
                         <span className="font-medium text-foreground">{msg.name}</span>
                         {msg.organisation && (
@@ -3001,7 +3001,7 @@ function ContactMessagesSection() {
                           </Badge>
                         )}
                         {msg.isArchived && (
-                          <Badge variant="secondary" className="text-xs bg-gray-500/20 text-gray-400">
+                          <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground">
                             Archived
                           </Badge>
                         )}
@@ -3077,7 +3077,7 @@ function ContactMessagesSection() {
 
               <div>
                 <Label className="text-xs text-muted-foreground mb-2 block">Message</Label>
-                <div className="p-4 bg-muted/20 rounded-lg border border-slate-200">
+                <div className="p-4 bg-muted/20 rounded-lg border border-border/30">
                   <p className="whitespace-pre-wrap text-foreground">{selectedMessage.message}</p>
                 </div>
               </div>
@@ -3102,7 +3102,7 @@ function ContactMessagesSection() {
             <Button
               variant="outline"
               onClick={() => selectedMessage && handleDelete(selectedMessage.id)}
-              className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+              className="border-destructive/30 text-destructive hover:bg-destructive/10"
             >
               <Trash2 size={14} className="mr-2" />
               Delete
@@ -3506,7 +3506,7 @@ function OperationsCommandCenter({
 
   if (loading) {
     return (
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
+      <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -3526,10 +3526,10 @@ function OperationsCommandCenter({
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-              <Activity size={14} className="text-blue-500" /> Active Sessions
+              <Activity size={14} className="text-primary" /> Active Sessions
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -3538,7 +3538,7 @@ function OperationsCommandCenter({
           </CardContent>
         </Card>
 
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
               <AlertTriangle size={14} className="text-amber-500" /> Incident Queue
@@ -3554,7 +3554,7 @@ function OperationsCommandCenter({
           </CardContent>
         </Card>
 
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
               <Server size={14} className="text-sky-500" /> Runtime Uptime
@@ -3570,7 +3570,7 @@ function OperationsCommandCenter({
           </CardContent>
         </Card>
 
-        <Card className="border shadow-sm bg-white dark:bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
               <Cpu size={14} className="text-purple-600" /> Memory (RSS)
@@ -3585,10 +3585,10 @@ function OperationsCommandCenter({
         </Card>
       </div>
 
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
-        <CardHeader className="border-b border-border bg-muted/50">
+      <Card>
+        <CardHeader className="border-b border-border/30 bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-base text-foreground">
-            <Power size={18} className="text-red-600" />
+            <Power size={18} className="text-destructive" />
             Platform Modes
           </CardTitle>
           <CardDescription className="text-muted-foreground text-sm">
@@ -3639,7 +3639,7 @@ function OperationsCommandCenter({
                   }}
                 />
               </div>
-              <Badge variant="outline" className={controls?.readOnlyMode ? "border-red-500/40 text-red-300" : "border-border text-muted-foreground"}>
+              <Badge variant="outline" className={controls?.readOnlyMode ? "border-destructive/30 text-destructive" : "border-border text-muted-foreground"}>
                 {controls?.readOnlyMode ? "Non-admin writes blocked" : "Writes allowed"}
               </Badge>
             </div>
@@ -3658,7 +3658,7 @@ function OperationsCommandCenter({
                     controls?.maintenanceWindowActive
                       ? "border-amber-500/40 text-amber-300"
                       : controls?.maintenanceWindowUpcoming
-                        ? "border-blue-500/40 text-blue-300"
+                        ? "border-primary/30 text-primary"
                         : "border-border text-muted-foreground"
                   }
                 >
@@ -3676,7 +3676,7 @@ function OperationsCommandCenter({
                 </Badge>
                 <Badge
                   variant="outline"
-                  className={controls?.readOnlyActive ? "border-red-500/40 text-red-300" : "border-border text-muted-foreground"}
+                  className={controls?.readOnlyActive ? "border-destructive/30 text-destructive" : "border-border text-muted-foreground"}
                 >
                   Effective Read-Only: {controls?.readOnlyActive ? "On" : "Off"}
                 </Badge>
@@ -3760,7 +3760,7 @@ function OperationsCommandCenter({
           <div className="rounded-lg border p-4 space-y-3 border-border bg-muted/50">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <Megaphone size={16} className="text-blue-500" />
+                <Megaphone size={16} className="text-primary" />
                 <p className="text-sm font-semibold text-foreground">Global Announcement</p>
               </div>
               <div className="flex items-center gap-2">
@@ -3798,7 +3798,7 @@ function OperationsCommandCenter({
                   variant="outline"
                   onClick={handleStopAnnouncement}
                   disabled={saving || !hasActiveAnnouncement}
-                  className="border-red-500/40 text-red-400 hover:bg-red-500/10"
+                  className="border-destructive/30 text-destructive hover:bg-destructive/10"
                   data-testid="button-stop-global-announcement"
                 >
                   Stop Broadcast
@@ -3822,8 +3822,8 @@ function OperationsCommandCenter({
         </CardContent>
       </Card>
 
-      <Card className="border shadow-sm bg-white dark:bg-card border-border">
-        <CardHeader className="border-b border-border bg-muted/50">
+      <Card>
+        <CardHeader className="border-b border-border/30 bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-base text-foreground">
             <AlertTriangle size={18} className="text-amber-500" />
             Incident & Session Controls
@@ -3845,7 +3845,7 @@ function OperationsCommandCenter({
             </Button>
             <Button
               variant="outline"
-              className="justify-start border-red-500/40 text-red-400 hover:bg-red-500/10"
+              className="justify-start border-destructive/30 text-destructive hover:bg-destructive/10"
               onClick={handleDisconnectNonAdminSessions}
               data-testid="button-disconnect-non-admin-sessions"
             >
@@ -3883,7 +3883,7 @@ function OperationsCommandCenter({
               {incidents.map((incident) => (
                 <div
                   key={incident.id}
-                  className="rounded border px-3 py-2 flex items-start justify-between gap-3 border-border bg-white dark:bg-card"
+                  className="rounded border px-3 py-2 flex items-start justify-between gap-3 border-border bg-card"
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-foreground truncate">{incident.action}</p>
@@ -3896,10 +3896,10 @@ function OperationsCommandCenter({
                       variant="outline"
                       className={
                         incident.severity === "critical"
-                          ? "border-red-500/40 text-red-300"
+                          ? "border-destructive/30 text-destructive"
                           : incident.severity === "warning"
                             ? "border-amber-500/40 text-amber-300"
-                            : "border-blue-500/40 text-blue-300"
+                            : "border-primary/30 text-primary"
                       }
                     >
                       {incident.severity}
@@ -4390,27 +4390,27 @@ export default function SecretAdminPortal() {
   if (!mounted) return null;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 p-2 md:p-8 bg-muted/50">
-      {/* Header - Clean light design */}
-      <div className="relative overflow-hidden rounded-2xl border p-8 shadow-sm bg-white dark:bg-card border-border">
+    <div className="space-y-8 animate-in fade-in duration-700 p-2 md:p-8">
+      {/* Header */}
+      <div className="relative overflow-hidden rounded-2xl border border-border/60 p-8 bg-card">
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-xl flex items-center justify-center shadow-sm bg-blue-500">
-              <Shield size={28} className="text-white" />
+            <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-primary">
+              <Shield size={24} className="text-primary-foreground" />
             </div>
             <div>
-              <h2 className="text-2xl font-heading font-bold tracking-tight text-foreground">Administrator Controls</h2>
+              <h2 className="text-xl font-heading font-bold tracking-tight text-foreground">Administrator Controls</h2>
               <div className="flex items-center gap-2 mt-1">
-                <Badge variant="outline" className="text-blue-500 bg-blue-50 dark:bg-blue-900/20 border-blue-500">Level 0 Access</Badge>
-                <span className="text-sm text-muted-foreground">•</span>
-                <p className="text-sm text-muted-foreground">Owner Access Only</p>
+                <Badge variant="outline" className="text-primary border-primary/30 bg-primary/8">Level 0 Access</Badge>
+                <span className="text-xs text-muted-foreground">•</span>
+                <p className="text-xs text-muted-foreground">Owner Access Only</p>
               </div>
             </div>
           </div>
           
-          <div className="flex items-center gap-3 px-4 py-2 rounded-full border bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
-            <div className="h-2 w-2 rounded-full bg-green-500" />
-            <span className="text-xs font-medium uppercase tracking-wider text-green-600">System Active</span>
+          <div className="flex items-center gap-3 px-3 py-1.5 rounded-full border border-success/30 bg-success/8">
+            <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-success">System Active</span>
           </div>
         </div>
       </div>
@@ -4424,22 +4424,22 @@ export default function SecretAdminPortal() {
           {/* Critical Tools Section */}
           <div className="grid md:grid-cols-2 gap-4">
             <Link href="/call-reconciliation">
-              <div className="group relative overflow-hidden rounded-xl border p-6 transition-all hover:shadow-md cursor-pointer bg-white dark:bg-card border-border">
+              <div className="group relative overflow-hidden rounded-xl border border-border/60 p-6 transition-all hover:shadow-md cursor-pointer bg-card">
                 <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
                   <ArrowRightLeft size={80} className="text-muted-foreground" />
                 </div>
                 <div className="relative z-10">
-                  <div className="h-10 w-10 rounded-lg flex items-center justify-center mb-4 bg-blue-100 dark:bg-blue-900/30">
-                    <ArrowRightLeft size={20} className="text-blue-500" />
+                  <div className="h-9 w-9 rounded-lg flex items-center justify-center mb-4 bg-primary/8">
+                    <ArrowRightLeft size={18} className="text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold mb-1 text-foreground">Call Reconciliation</h3>
-                  <p className="text-sm text-muted-foreground">ECM matching interface for admin use only.</p>
+                  <h3 className="text-[0.8125rem] font-semibold mb-1 text-foreground">Call Reconciliation</h3>
+                  <p className="text-xs text-muted-foreground">ECM matching interface for admin use only.</p>
                 </div>
               </div>
             </Link>
 
             <Button 
-              className="group relative overflow-hidden rounded-xl border p-6 h-auto transition-all hover:shadow-md cursor-pointer w-full text-left flex flex-col items-start bg-white dark:bg-card border-border"
+              className="group relative overflow-hidden rounded-xl border border-border/60 p-6 h-auto transition-all hover:shadow-md cursor-pointer w-full text-left flex flex-col items-start bg-card"
               onClick={handleOpenSystemLogDialog}
               data-testid="button-system-log"
               variant="ghost"
@@ -4448,47 +4448,54 @@ export default function SecretAdminPortal() {
                 <Terminal size={80} className="text-muted-foreground" />
               </div>
               <div className="relative z-10 w-full">
-                <div className="h-10 w-10 rounded-lg flex items-center justify-center mb-4 bg-purple-100 dark:bg-purple-900/30">
-                  <Terminal size={20} className="text-purple-600" />
+                <div className="h-9 w-9 rounded-lg flex items-center justify-center mb-4 bg-purple-500/8">
+                  <Terminal size={18} className="text-purple-500" />
                 </div>
-                <h3 className="text-lg font-semibold mb-1 text-foreground">System Log</h3>
-                <p className="text-sm text-muted-foreground">View audit completion records.</p>
+                <h3 className="text-[0.8125rem] font-semibold mb-1 text-foreground">System Log</h3>
+                <p className="text-xs text-muted-foreground">View audit completion records.</p>
               </div>
             </Button>
           </div>
 
           {/* Admin Tabs */}
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="border p-1 rounded-xl mb-6 flex-wrap bg-muted border-border">
-              <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-muted-foreground">Overview</TabsTrigger>
-              <TabsTrigger value="command" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-muted-foreground">
-                <Power size={14} className="mr-1.5 inline-block" />
-                Command Center
-              </TabsTrigger>
-              <TabsTrigger value="users" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm relative text-muted-foreground">
-                User Management
-                {pendingUsers.length > 0 && <span className="absolute -top-1 -right-1 h-2 w-2 bg-amber-500 rounded-full animate-pulse" />}
-              </TabsTrigger>
-              <TabsTrigger value="presence" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-muted-foreground">
-                Active Presence
-              </TabsTrigger>
-              <TabsTrigger value="messages" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-muted-foreground">
-                <Mail size={14} className="mr-1.5 inline-block" />
-                Messages
-              </TabsTrigger>
-              <TabsTrigger value="policies" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-muted-foreground">
-                <FileText size={14} className="mr-1.5 inline-block" />
-                Policy Documents
-              </TabsTrigger>
-              <TabsTrigger value="ai" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-muted-foreground">
-                <DollarSign size={14} className="mr-1.5 inline-block" />
-                AI
-              </TabsTrigger>
-              <TabsTrigger value="database" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-muted-foreground">
-                <Database size={14} className="mr-1.5 inline-block" />
-                Database
-              </TabsTrigger>
-            </TabsList>
+            <div className="overflow-x-auto -mx-2 px-2 pb-1 scrollbar-hide">
+              <TabsList className="inline-flex h-10 w-max gap-1 border p-1 rounded-xl mb-6 bg-muted/40 border-border/60">
+                <TabsTrigger value="overview" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                  <Activity className="h-3.5 w-3.5" />
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger value="command" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                  <Power className="h-3.5 w-3.5" />
+                  Command
+                </TabsTrigger>
+                <TabsTrigger value="users" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 relative data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                  <Shield className="h-3.5 w-3.5" />
+                  Users
+                  {pendingUsers.length > 0 && <span className="absolute -top-1 -right-1 h-2 w-2 bg-amber-500 rounded-full animate-pulse" />}
+                </TabsTrigger>
+                <TabsTrigger value="presence" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                  <Activity className="h-3.5 w-3.5" />
+                  Presence
+                </TabsTrigger>
+                <TabsTrigger value="messages" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                  <Mail className="h-3.5 w-3.5" />
+                  Messages
+                </TabsTrigger>
+                <TabsTrigger value="policies" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                  <FileText className="h-3.5 w-3.5" />
+                  Policies
+                </TabsTrigger>
+                <TabsTrigger value="ai" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                  <Cpu className="h-3.5 w-3.5" />
+                  AI
+                </TabsTrigger>
+                <TabsTrigger value="database" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                  <Database className="h-3.5 w-3.5" />
+                  Database
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent value="overview" className="space-y-6">
               
@@ -4527,13 +4534,15 @@ export default function SecretAdminPortal() {
                 </Card>
               )}
 
-              <Card className="border shadow-sm bg-white dark:bg-card border-border" data-testid="card-download-edge-extension">
-                <CardHeader className="border-b border-border bg-muted/50">
-                  <CardTitle className="flex items-center gap-2 text-base text-foreground">
-                    <Download size={18} className="text-muted-foreground" />
+              <Card data-testid="card-download-edge-extension">
+                <CardHeader className="border-b border-border/30">
+                  <CardTitle className="flex items-center gap-3 text-[0.8125rem]">
+                    <div className="h-7 w-7 rounded-md bg-primary/8 flex items-center justify-center">
+                      <Download className="h-3.5 w-3.5 text-primary" />
+                    </div>
                     Edge Extension Download
                   </CardTitle>
-                  <CardDescription className="text-muted-foreground">
+                  <CardDescription>
                     Download the latest ACP Autofill Edge extension package from CareAssurance.
                   </CardDescription>
                 </CardHeader>
@@ -4606,32 +4615,35 @@ export default function SecretAdminPortal() {
 
               <div className="grid md:grid-cols-3 gap-4">
                 {[
-                  { label: "Active Users", value: activeUsers.length.toString(), sub: "Currently approved", color: "#22c55e", bgColor: "#f0fdf4", icon: ShieldCheck },
-                  { label: "Pending Approvals", value: pendingUsers.length.toString(), sub: "Awaiting review", color: "#f59e0b", bgColor: "#fffbeb", icon: Clock },
-                  { label: "Total Logs", value: systemLogs.length.toString(), sub: "Session activity", color: "#3b82f6", bgColor: "#eff6ff", icon: Activity }
+                  { label: "Active Users", value: activeUsers.length.toString(), sub: "Currently approved", iconCls: "text-success", bgCls: "bg-success/10", icon: ShieldCheck },
+                  { label: "Pending Approvals", value: pendingUsers.length.toString(), sub: "Awaiting review", iconCls: "text-amber-500", bgCls: "bg-amber-500/10", icon: Clock },
+                  { label: "Total Logs", value: systemLogs.length.toString(), sub: "Session activity", iconCls: "text-primary", bgCls: "bg-primary/10", icon: Activity }
                 ].map((stat, i) => (
-                  <Card key={i} className="border shadow-sm bg-white dark:bg-card border-border">
+                  <Card key={i}>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-                        <div className="h-6 w-6 rounded flex items-center justify-center" style={{ backgroundColor: stat.bgColor }}>
-                          <stat.icon size={14} style={{ color: stat.color }} />
+                      <CardTitle className="text-[10px] font-semibold uppercase tracking-wider flex items-center gap-2.5 text-muted-foreground">
+                        <div className={`h-7 w-7 rounded-md flex items-center justify-center ${stat.bgCls}`}>
+                          <stat.icon className={`h-3.5 w-3.5 ${stat.iconCls}`} />
                         </div>
                         {stat.label}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-semibold text-foreground">{stat.value}</div>
-                      <p className="text-xs text-muted-foreground">{stat.sub}</p>
+                      <div className="text-2xl font-bold text-foreground">{stat.value}</div>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{stat.sub}</p>
                     </CardContent>
                   </Card>
                 ))}
               </div>
 
               {/* Quick User List */}
-              <Card className="border shadow-sm overflow-hidden bg-white dark:bg-card border-border">
-                <CardHeader className="border-b border-border bg-muted/50">
-                  <CardTitle className="flex items-center gap-2 text-base text-foreground">
-                    <UserPlus size={18} className="text-muted-foreground"/> Active Team Members
+              <Card className="overflow-hidden">
+                <CardHeader className="border-b border-border/30">
+                  <CardTitle className="flex items-center gap-3 text-[0.8125rem]">
+                    <div className="h-7 w-7 rounded-md bg-primary/8 flex items-center justify-center">
+                      <UserPlus className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    Active Team Members
                   </CardTitle>
                 </CardHeader>
                 <div className="max-h-[250px] overflow-auto">
@@ -4645,11 +4657,11 @@ export default function SecretAdminPortal() {
                     </TableHeader>
                     <TableBody>
                       {activeUsers.slice(0, 5).map((u) => (
-                        <TableRow key={u.id} className="hover:bg-slate-50 transition-colors border-border">
+                        <TableRow key={u.id} className="hover:bg-muted/20 transition-colors border-border">
                           <TableCell className="font-medium text-foreground">{u.username}</TableCell>
                           <TableCell className="text-muted-foreground">{u.jobTitle || "-"}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={u.role === "admin" ? "border-blue-500 text-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-border text-muted-foreground bg-muted/50"}>
+                            <Badge variant="outline" className={u.role === "admin" ? "border-primary/40 text-primary bg-primary/10" : "border-border text-muted-foreground bg-muted/50"}>
                               {u.role}
                             </Badge>
                           </TableCell>
@@ -4670,12 +4682,12 @@ export default function SecretAdminPortal() {
 
             <TabsContent value="users" className="space-y-6">
               {/* Add New User */}
-              <Card className="border shadow-sm bg-white dark:bg-card border-border">
-                <CardHeader className="border-b border-border bg-muted/50">
+              <Card>
+                <CardHeader className="border-b border-border/30">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-foreground text-base">Add New User</CardTitle>
-                      <CardDescription className="text-muted-foreground">Create a new user account with immediate access.</CardDescription>
+                      <CardTitle className="text-[0.8125rem]">Add New User</CardTitle>
+                      <CardDescription>Create a new user account with immediate access.</CardDescription>
                     </div>
                     <UserPlus className="text-muted-foreground" />
                   </div>
@@ -4752,7 +4764,7 @@ export default function SecretAdminPortal() {
                         </Select>
                       </div>
                       <div className="md:col-span-2 flex items-end">
-                        <Button type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white w-full" data-testid="button-create-user">
+                        <Button type="submit" className="w-full" data-testid="button-create-user">
                           <UserPlus size={16} className="mr-2" /> Create User
                         </Button>
                       </div>
@@ -4764,7 +4776,7 @@ export default function SecretAdminPortal() {
               {/* Pending Approvals */}
               {pendingUsers.length > 0 && (
                 <Card className="bg-amber-950/20 border-amber-900/30 backdrop-blur-sm">
-                  <CardHeader className="border-b border-amber-900/30 bg-slate-50">
+                  <CardHeader className="border-b border-amber-900/30 bg-muted/20">
                     <CardTitle className="text-amber-400 text-base flex items-center gap-2">
                       <Clock size={18} /> Pending Approvals
                       <Badge className="bg-amber-600 text-foreground ml-2">{pendingUsers.length}</Badge>
@@ -4773,7 +4785,7 @@ export default function SecretAdminPortal() {
                   <CardContent className="p-4">
                     <div className="space-y-2">
                       {pendingUsers.map((u) => (
-                        <div key={u.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <div key={u.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border border-border/30">
                           <div className="flex items-center gap-3">
                             <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-foreground">
                               {u.username.substring(0,2).toUpperCase()}
@@ -4784,10 +4796,10 @@ export default function SecretAdminPortal() {
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-950/30" onClick={() => rejectUser(u.id)} data-testid={`button-reject-${u.id}`}>
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10" onClick={() => rejectUser(u.id)} data-testid={`button-reject-${u.id}`}>
                               <X size={14} />
                             </Button>
-                            <Button size="sm" className="h-8 w-8 p-0 bg-green-600 hover:bg-green-500 text-white" onClick={() => approveUser(u.id)} data-testid={`button-approve-${u.id}`}>
+                            <Button size="sm" className="h-8 w-8 p-0 bg-success hover:bg-success/80 text-white" onClick={() => approveUser(u.id)} data-testid={`button-approve-${u.id}`}>
                               <Check size={14} />
                             </Button>
                           </div>
@@ -4799,12 +4811,12 @@ export default function SecretAdminPortal() {
               )}
 
               {/* All Users Table */}
-	      <Card className="border shadow-sm overflow-hidden bg-white dark:bg-card border-border">
-                <CardHeader className="border-b border-border bg-muted/50">
+	      <Card className="overflow-hidden">
+                <CardHeader className="border-b border-border/30">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                      <CardTitle className="text-foreground text-base">All Users</CardTitle>
-                      <CardDescription className="text-muted-foreground">Manage user accounts, roles, and permissions.</CardDescription>
+                      <CardTitle className="text-[0.8125rem]">All Users</CardTitle>
+                      <CardDescription>Manage user accounts, roles, and permissions.</CardDescription>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <div className="relative">
@@ -4843,7 +4855,7 @@ export default function SecretAdminPortal() {
                 <div className="max-h-[400px] overflow-auto">
                   <Table>
                     <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-                      <TableRow className="border-slate-200 hover:bg-transparent">
+                      <TableRow className="border-border/30 hover:bg-transparent">
                         <TableHead className="text-muted-foreground">Username</TableHead>
                         <TableHead className="text-muted-foreground hidden sm:table-cell">Job Title</TableHead>
                         <TableHead className="text-muted-foreground hidden sm:table-cell">Role</TableHead>
@@ -4854,7 +4866,7 @@ export default function SecretAdminPortal() {
                     </TableHeader>
                     <TableBody>
                       {filteredUsers.map((u) => (
-                        <TableRow key={u.id} className="border-slate-200 hover:bg-slate-50 transition-colors" data-testid={`row-user-${u.id}`}>
+                        <TableRow key={u.id} className="border-border/30 hover:bg-muted/20 transition-colors" data-testid={`row-user-${u.id}`}>
                           <TableCell className="font-medium text-foreground" data-testid={`text-username-${u.id}`}>
                             <div>{u.username}</div>
                             <div className="sm:hidden text-xs text-muted-foreground mt-1">
@@ -4868,16 +4880,16 @@ export default function SecretAdminPortal() {
                             </Badge>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">
-                            <Badge variant="outline" className={u.status === "active" ? "border-green-500/50 text-green-300" : "border-amber-500/50 text-amber-300"} data-testid={`badge-status-${u.id}`}>
+                            <Badge variant="outline" className={u.status === "active" ? "border-success/30 text-success" : "border-amber-500/30 text-amber-500"} data-testid={`badge-status-${u.id}`}>
                               {u.status}
                             </Badge>
                           </TableCell>
                           <TableCell className="hidden md:table-cell" data-testid={`text-terms-${u.id}`}>
                             {u.termsVersion ? (
                               <div className="flex items-center gap-1.5">
-                                <FileCheck size={14} className={u.termsVersion === CURRENT_TERMS_VERSION ? "text-green-400" : "text-amber-400"} />
+                                <FileCheck size={14} className={u.termsVersion === CURRENT_TERMS_VERSION ? "text-success" : "text-amber-400"} />
                                 <div className="text-xs">
-                                  <span className={u.termsVersion === CURRENT_TERMS_VERSION ? "text-green-300" : "text-amber-300"}>
+                                  <span className={u.termsVersion === CURRENT_TERMS_VERSION ? "text-success" : "text-amber-300"}>
                                     v{u.termsVersion}
                                   </span>
                                   {u.termsSignatureName && (
@@ -4893,7 +4905,7 @@ export default function SecretAdminPortal() {
                                 </div>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-1.5 text-red-400">
+                              <div className="flex items-center gap-1.5 text-destructive">
                                 <FileX size={14} />
                                 <span className="text-xs">Not signed</span>
                               </div>
@@ -4946,7 +4958,7 @@ export default function SecretAdminPortal() {
                               <Button 
                                 size="sm" 
                                 variant="ghost" 
-                                className="h-7 w-7 p-0 text-red-400 hover:text-red-300 hover:bg-red-950/30"
+                                className="h-7 w-7 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
                                 onClick={() => setDeleteConfirmUser(u.id)}
                                 data-testid={`button-delete-${u.id}`}
                                 title="Delete user"
@@ -4997,48 +5009,48 @@ export default function SecretAdminPortal() {
 
         {/* Right Column: Status & Info */}
         <div className="lg:col-span-4 space-y-6">
-          <Card className="border shadow-sm overflow-hidden\ bg-white dark:bg-card border-border">
-             <CardHeader className="border-b border-border">
+          <Card className="overflow-hidden">
+             <CardHeader className="border-b border-border/30 bg-muted/30">
                 <CardTitle className="flex items-center gap-2 text-sm text-foreground">
-                   <Shield size={18} className="text-blue-500" /> Access Level
+                   <div className="h-7 w-7 rounded-md bg-primary/8 flex items-center justify-center"><Shield className="h-3.5 w-3.5 text-primary" /></div> Access Level
                 </CardTitle>
              </CardHeader>
              <CardContent className="space-y-4 pt-4">
                 <div className="flex items-center justify-between text-sm">
                    <span className="text-muted-foreground">Access Type</span>
-                   <span className="font-mono text-blue-500">Level 0 (Owner)</span>
+                   <span className="font-mono text-primary">Level 0 (Owner)</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                    <span className="text-muted-foreground">Session Status</span>
-                   <span className="font-mono text-green-500">ACTIVE</span>
+                   <span className="font-mono text-success">ACTIVE</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                    <span className="text-muted-foreground">Session Timeout</span>
                    <span className="font-mono text-foreground">30 minutes</span>
                 </div>
-                <div className="mt-4 p-3 rounded-lg text-xs leading-relaxed bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300">
+                <div className="mt-4 p-3 rounded-lg text-xs leading-relaxed bg-primary/5 border border-primary/20 text-primary">
                    <strong>Note:</strong> This console provides full administrative access. All actions are logged for your records.
                 </div>
              </CardContent>
           </Card>
 
-          <Card className="border shadow-sm bg-white dark:bg-card border-border">
-             <CardHeader className="border-b border-border">
+          <Card>
+             <CardHeader className="border-b border-border/30 bg-muted/30">
                 <CardTitle className="text-sm flex items-center gap-2 text-foreground">
-                   <Activity size={16} className="text-muted-foreground" /> Quick Stats
+                   <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center"><Activity className="h-3.5 w-3.5 text-muted-foreground" /></div> Quick Stats
                 </CardTitle>
              </CardHeader>
              <CardContent className="pt-4">
                 <div className="space-y-3">
-                   <div className="flex items-center justify-between p-2 rounded bg-muted/50 border border-border">
+                   <div className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border/30">
                       <span className="text-xs text-muted-foreground">Total Users</span>
                       <span className="text-sm font-semibold text-foreground">{users.length}</span>
                    </div>
-                   <div className="flex items-center justify-between p-2 rounded bg-muted/50 border border-border">
+                   <div className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border/30">
                       <span className="text-xs text-muted-foreground">Admins</span>
-                      <span className="text-sm font-semibold text-blue-500">{users.filter(u => u.role === 'admin').length}</span>
+                      <span className="text-sm font-semibold text-primary">{users.filter(u => u.role === 'admin').length}</span>
                    </div>
-                   <div className="flex items-center justify-between p-2 rounded bg-muted/50 border border-border">
+                   <div className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border/30">
                       <span className="text-xs text-muted-foreground">Staff</span>
                       <span className="text-sm font-semibold text-foreground">{users.filter(u => u.role === 'staff').length}</span>
                    </div>
@@ -5046,10 +5058,10 @@ export default function SecretAdminPortal() {
              </CardContent>
           </Card>
 
-          <Card className="border shadow-sm bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
-             <CardHeader className="border-b border-red-200 dark:border-red-800">
-                <CardTitle className="text-sm flex items-center gap-2 text-red-600">
-                   <Trash2 size={16} /> Data Management
+          <Card className="bg-destructive/5 border-destructive/20">
+             <CardHeader className="border-b border-destructive/30">
+                <CardTitle className="text-sm flex items-center gap-2 text-destructive">
+                   <div className="h-7 w-7 rounded-md bg-destructive/10 flex items-center justify-center"><Trash2 className="h-3.5 w-3.5 text-destructive" /></div> Data Management
                 </CardTitle>
              </CardHeader>
              <CardContent className="space-y-3 pt-4">
@@ -5291,7 +5303,7 @@ export default function SecretAdminPortal() {
           <div className="max-h-[50vh] overflow-auto">
             <Table>
               <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-                <TableRow className="border-slate-200 hover:bg-transparent">
+                <TableRow className="border-border/30 hover:bg-transparent">
                   <TableHead className="text-muted-foreground">Date</TableHead>
                   <TableHead className="text-muted-foreground">Audit Type</TableHead>
                   <TableHead className="text-muted-foreground">Service User</TableHead>
@@ -5301,7 +5313,7 @@ export default function SecretAdminPortal() {
               </TableHeader>
               <TableBody>
                 {auditCompletionLogs.map((log) => (
-                  <TableRow key={log.id} className="border-slate-200 hover:bg-slate-50 transition-colors" data-testid={`row-audit-log-${log.id}`}>
+                  <TableRow key={log.id} className="border-border/30 hover:bg-muted/20 transition-colors" data-testid={`row-audit-log-${log.id}`}>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {new Date(log.createdAt).toLocaleDateString("en-GB", { 
                         day: "2-digit", 
@@ -5315,8 +5327,8 @@ export default function SecretAdminPortal() {
                       <Badge 
                         variant="outline" 
                         className={log.auditType === "EMAR" 
-                          ? "border-blue-500/50 text-blue-300" 
-                          : "border-green-500/50 text-green-300"
+                          ? "border-primary/30 text-primary" 
+                          : "border-success/30 text-success"
                         }
                       >
                         {log.auditType}
