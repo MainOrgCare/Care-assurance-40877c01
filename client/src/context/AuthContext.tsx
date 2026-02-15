@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useCallback } from "react";
+import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
@@ -17,6 +17,17 @@ interface User {
   isDemo?: boolean;
 }
 
+interface AuditLogEntry {
+  id: number | string;
+  user: string;
+  action: string;
+  target: string;
+  time: string;
+  status: string;
+  alert?: string;
+  createdAt?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   login: (username: string, password: string) => Promise<boolean>;
@@ -29,8 +40,8 @@ interface AuthContextType {
   createUser: (username: string, password: string, role: string) => Promise<void>;
   fetchUsers: () => Promise<void>;
   refetchUser: () => Promise<void>;
-  logAction: (action: string, target: string, status?: "Authorized" | "Flagged" | "Blocked" | "System", alert?: string, details?: Record<string, any>) => void;
-  auditLogs: any[];
+  logAction: (action: string, target: string, status?: "Authorized" | "Flagged" | "Blocked" | "System", alert?: string, details?: Record<string, unknown>) => void;
+  auditLogs: AuditLogEntry[];
   loading: boolean;
 }
 
@@ -40,24 +51,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  const mapSystemLog = (log: any) => {
-    const details = log?.details && typeof log.details === "object" ? log.details : {};
+  const mapSystemLog = (log: Record<string, unknown>): AuditLogEntry => {
+    const details = log?.details && typeof log.details === "object" ? (log.details as Record<string, unknown>) : {};
     return {
-      id: log.id,
-      user: log.username || "Unknown",
-      action: details.action || log.eventType || "Action",
-      target: details.target || details.serviceUserInitials || log.serviceUserInitials || "System",
+      id: log.id as string | number,
+      user: (log.username as string) || "Unknown",
+      action: (details.action as string) || (log.eventType as string) || "Action",
+      target: (details.target as string) || (details.serviceUserInitials as string) || (log.serviceUserInitials as string) || "System",
       time: log.createdAt
-        ? new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        ? new Date(log.createdAt as string).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
         : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      status: details.status || "System",
-      alert: details.alert,
-      createdAt: log.createdAt,
+      status: (details.status as string) || "System",
+      alert: details.alert as string | undefined,
+      createdAt: log.createdAt as string | undefined,
     };
   };
 
@@ -113,13 +124,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkSession();
   }, [checkSession]);
 
+  // Debounce session checks on focus/visibility change — at most once per 30 seconds.
+  // This prevents excessive API calls when users rapidly switch tabs.
+  const lastSessionCheck = useRef<number>(Date.now());
+  const SESSION_CHECK_DEBOUNCE_MS = 30_000;
+
   useEffect(() => {
-    const onFocus = () => {
-      checkSession();
+    const debouncedCheck = () => {
+      const now = Date.now();
+      if (now - lastSessionCheck.current >= SESSION_CHECK_DEBOUNCE_MS) {
+        lastSessionCheck.current = now;
+        checkSession();
+      }
     };
+
+    const onFocus = () => debouncedCheck();
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        checkSession();
+        debouncedCheck();
       }
     };
 
@@ -178,8 +200,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAllUsers([]);
   }, [user?.role, fetchUsers, fetchSystemLogs]);
 
-  const logAction = useCallback((action: string, target: string, status: "Authorized" | "Flagged" | "Blocked" | "System" = "Authorized", alert?: string, details?: Record<string, any>) => {
-    const newLog = {
+  const logAction = useCallback((action: string, target: string, status: "Authorized" | "Flagged" | "Blocked" | "System" = "Authorized", alert?: string, details?: Record<string, unknown>) => {
+    const newLog: AuditLogEntry = {
       id: Date.now(),
       user: user?.username || "Unknown",
       action,

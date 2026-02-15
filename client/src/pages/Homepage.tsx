@@ -235,7 +235,12 @@ export default function Homepage() {
           setContactMessage("");
         }
       } catch (err) {
-        setContactError("Failed to send message. Please try again.");
+        const isNetworkError = err instanceof TypeError && err.message.includes("fetch");
+        setContactError(
+          isNetworkError
+            ? "Network error. Check your connection and try again."
+            : "Failed to send message. Please try again."
+        );
       } finally {
         setContactLoading(false);
       }
@@ -414,7 +419,10 @@ export default function Homepage() {
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       required
+                      minLength={2}
                       autoComplete="username"
+                      autoFocus
+                      aria-describedby="login-hint"
                       data-testid="input-dropdown-username"
                     />
                   </div>
@@ -427,11 +435,16 @@ export default function Homepage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
+                      minLength={8}
                       autoComplete="current-password"
                       data-testid="input-dropdown-password"
                     />
                   </div>
-                  <Button type="submit" className="home-cta w-full" disabled={loading}>
+                  <Button
+                    type="submit"
+                    className="home-cta w-full"
+                    disabled={loading || username.trim().length < 2 || password.length < 8}
+                  >
                     {loading ? (
                       <span className="flex items-center gap-2">
                         <Loader2 className="animate-spin h-4 w-4" /> Signing in...
@@ -441,8 +454,8 @@ export default function Homepage() {
                     )}
                   </Button>
                 </form>
-                <div className="px-4 pb-4 text-center">
-                  <p className="text-xs text-muted-foreground">Need access? Contact your administrator</p>
+                <div className="px-4 pb-4 text-center space-y-1">
+                  <p id="login-hint" className="text-xs text-muted-foreground">Need access? Contact your administrator</p>
                 </div>
               </PopoverContent>
             </Popover>

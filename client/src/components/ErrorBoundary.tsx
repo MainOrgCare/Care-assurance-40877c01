@@ -3,6 +3,8 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
+const IS_PRODUCTION = import.meta.env.PROD;
+
 interface Props {
   children: ReactNode;
   /** Optional custom fallback UI. Receives error + reset callback. */
@@ -31,6 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
+        keepalive: true,
         body: JSON.stringify({
           message: error.message,
           stack: error.stack?.slice(0, 2000),
@@ -54,7 +57,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="flex flex-1 items-center justify-center p-6">
+        <div className="flex flex-1 items-center justify-center p-6" role="alert">
           <Card className="w-full max-w-lg">
             <CardContent className="pt-8 pb-7 space-y-4">
               <div className="flex items-center gap-3 text-destructive">
@@ -66,12 +69,14 @@ export class ErrorBoundary extends Component<Props, State> {
                   <p className="text-sm text-muted-foreground">An unexpected error occurred. You can retry rendering this section or reload the page.</p>
                 </div>
               </div>
-              <details className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-                <summary className="cursor-pointer text-xs font-medium text-muted-foreground">Technical details</summary>
-                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-destructive font-mono">
-                  {this.state.error?.message}
-                </pre>
-              </details>
+              {!IS_PRODUCTION && (
+                <details className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                  <summary className="cursor-pointer text-xs font-medium text-muted-foreground">Technical details</summary>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-destructive font-mono">
+                    {this.state.error?.message}
+                  </pre>
+                </details>
+              )}
               <div className="flex items-center gap-3">
                 <Button variant="outline" className="flex-1 gap-2" onClick={this.reset}>
                   <RefreshCw size={14} />

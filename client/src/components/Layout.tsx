@@ -353,7 +353,7 @@ const SidebarContent = memo(function SidebarContent({
             )}
           </CollapsibleTrigger>
           {!isCollapsed && (
-            <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5">
+            <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Service Users pages">
              <Link href="/service-users/upload" className={subNavLinkClass(location === "/service-users/upload")}>
                 <Upload size={14} /> Data Upload
              </Link>
@@ -392,7 +392,7 @@ const SidebarContent = memo(function SidebarContent({
             )}
           </CollapsibleTrigger>
           {!isCollapsed && (
-            <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5">
+            <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Care Workers pages">
              <Link href="/care-workers/list" className={subNavLinkClass(location === "/care-workers/list")}>
                 <Users size={14} /> Carers
              </Link>
@@ -432,7 +432,7 @@ const SidebarContent = memo(function SidebarContent({
               )}
             </CollapsibleTrigger>
             {!isCollapsed && (
-              <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5">
+              <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Admin pages">
               <Link href="/shadow-admin-portal" className={subNavLinkClass(location === "/shadow-admin-portal")}>
                 <ShieldCheck size={14} /> Administrator Controls
               </Link>
@@ -903,7 +903,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main + Footer Column */}
       <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col">
         {/* Main Content */}
-        <main id="main-content" className={mainClass}>
+        <main id="main-content" data-scroll-region className={mainClass}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
           <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/40 bg-background px-4 md:px-6 transition-[background-color,border-color] duration-200">

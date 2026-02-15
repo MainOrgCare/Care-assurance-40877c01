@@ -1,0 +1,383 @@
+.homepage-theme {
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+
+.homepage-theme .home-pattern {
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--color-foreground) 10%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--color-foreground) 10%, transparent) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+.homepage-theme .home-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  border-bottom: 1px solid transparent;
+  transition: background-color 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease, backdrop-filter 0.24s ease;
+}
+
+.homepage-theme .home-header.is-scrolled {
+  background: color-mix(in oklab, var(--color-card) 80%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(16px);
+}
+
+.homepage-theme .home-brand-mark {
+  background-image: linear-gradient(140deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  color: var(--color-primary-foreground);
+}
+
+.homepage-theme .home-brand-copy {
+  color: var(--color-foreground);
+}
+
+.homepage-theme .home-brand-copy > div:first-child {
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
+}
+
+.homepage-theme .home-brand-copy > div:last-child {
+  color: var(--color-muted-foreground);
+  letter-spacing: 0.08em;
+}
+
+.homepage-theme .home-nav-link {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--color-muted-foreground);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.42rem 0.88rem;
+  transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.homepage-theme .home-nav-link:hover {
+  color: var(--color-foreground);
+  background: color-mix(in oklab, var(--color-muted) 60%, transparent);
+  border-color: color-mix(in oklab, var(--color-border) 55%, transparent);
+}
+
+.homepage-theme .home-nav-link.is-active {
+  color: var(--color-primary);
+  border-color: var(--color-primary-border);
+  background: var(--color-accent);
+}
+
+.homepage-theme .home-nav-toggle {
+  border-radius: 12px;
+  border-color: color-mix(in oklab, var(--color-border) 70%, transparent);
+  color: var(--color-foreground);
+}
+
+.homepage-theme .home-mobile-menu {
+  border: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--color-card) 88%, transparent);
+  box-shadow: var(--shadow-medium);
+  backdrop-filter: blur(14px);
+}
+
+.homepage-theme .home-mobile-link {
+  display: block;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 0.56rem 0.76rem;
+  text-align: left;
+  color: var(--color-muted-foreground);
+  font-size: 0.86rem;
+  font-weight: 700;
+  transition: all 0.18s ease;
+}
+
+.homepage-theme .home-mobile-link:hover,
+.homepage-theme .home-mobile-link.is-active {
+  border-color: var(--color-primary-border);
+  background: var(--color-accent);
+  color: var(--color-primary);
+}
+
+.homepage-theme .home-card {
+  border: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
+  background: var(--surface-card-highlight);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
+}
+
+.homepage-theme .home-card:hover {
+  border-color: color-mix(in oklab, var(--color-border) 88%, transparent);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
+}
+
+.homepage-theme .home-card-soft {
+  border: 1px solid color-mix(in oklab, var(--color-border) 62%, transparent);
+  background: color-mix(in oklab, var(--color-card) 82%, transparent);
+  border-radius: 12px;
+}
+
+.homepage-theme .home-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-primary-border);
+  padding: 0.35rem 0.8rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-primary);
+  background-color: var(--color-accent);
+}
+
+.homepage-theme .home-text-heading {
+  color: var(--color-foreground);
+}
+
+.homepage-theme .home-text-body {
+  color: var(--color-foreground);
+}
+
+.homepage-theme .home-text-soft {
+  color: var(--color-muted-foreground);
+}
+
+.homepage-theme .home-icon-chip {
+  background-color: color-mix(in oklab, var(--color-primary) 12%, transparent);
+  border: 1px solid var(--color-primary-border);
+  color: var(--color-primary);
+}
+
+.homepage-theme .home-eyebrow {
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: var(--color-primary);
+}
+
+.homepage-theme .home-cta {
+  border-radius: 12px;
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+  border: 1px solid var(--color-primary-border);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.18s ease;
+}
+
+.homepage-theme .home-cta:hover {
+  box-shadow: var(--shadow-medium);
+  transform: translateY(-1px);
+}
+
+.homepage-theme .home-outline {
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
+  color: var(--color-foreground);
+  background-color: color-mix(in oklab, var(--color-card) 76%, transparent);
+  font-weight: 700;
+  transition: all 0.18s ease;
+}
+
+.homepage-theme .home-outline:hover {
+  background-color: color-mix(in oklab, var(--color-card) 88%, transparent);
+  border-color: color-mix(in oklab, var(--color-border) 88%, transparent);
+}
+
+.homepage-theme .home-signal {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  padding: 1rem;
+}
+
+.homepage-theme .home-signal-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.8rem;
+}
+
+.homepage-theme .home-signal-success {
+  border-color: color-mix(in oklab, var(--color-success) 30%, transparent);
+  background-color: color-mix(in oklab, var(--color-success) 8%, var(--color-card));
+}
+
+.homepage-theme .home-signal-success .home-signal-icon {
+  background-color: color-mix(in oklab, var(--color-success) 18%, transparent);
+  color: var(--color-success);
+}
+
+.homepage-theme .home-signal-info {
+  border-color: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  background-color: color-mix(in oklab, var(--color-primary) 8%, var(--color-card));
+}
+
+.homepage-theme .home-signal-info .home-signal-icon {
+  background-color: color-mix(in oklab, var(--color-primary) 18%, transparent);
+  color: var(--color-primary);
+}
+
+.homepage-theme .home-signal-title {
+  color: var(--color-foreground);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.homepage-theme .home-signal-detail {
+  margin-top: 0.25rem;
+  color: var(--color-muted-foreground);
+  font-size: 0.76rem;
+}
+
+.homepage-theme .home-mini-stat p:first-child {
+  color: var(--color-muted-foreground);
+}
+
+.homepage-theme .home-mini-stat p:last-child {
+  color: var(--color-foreground);
+}
+
+.homepage-theme .home-band {
+  background-color: var(--color-sidebar);
+  background-image:
+    radial-gradient(820px 380px at 12% 10%, color-mix(in oklab, var(--color-sidebar-primary) 30%, transparent), transparent 66%),
+    radial-gradient(740px 360px at 88% 0%, color-mix(in oklab, var(--color-secondary) 24%, transparent), transparent 68%),
+    linear-gradient(130deg, var(--color-sidebar), color-mix(in oklab, var(--color-sidebar) 80%, black));
+}
+
+.homepage-theme .home-band h1,
+.homepage-theme .home-band h2,
+.homepage-theme .home-band h3 {
+  color: #ffffff !important;
+}
+
+.homepage-theme .home-band p {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.homepage-theme .home-band-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.4rem 1rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.homepage-theme .home-section-surface {
+  background: color-mix(in oklab, var(--color-card) 70%, transparent);
+}
+
+.homepage-theme .home-workflow-grid {
+  position: relative;
+}
+
+.homepage-theme .home-workflow-card {
+  background: color-mix(in oklab, var(--color-card) 82%, transparent);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.homepage-theme .home-workflow-card:hover {
+  box-shadow: var(--shadow-soft);
+  border-color: color-mix(in oklab, var(--color-border) 88%, transparent);
+}
+
+@media (min-width: 768px) {
+  .homepage-theme .home-workflow-grid::before {
+    content: "";
+    position: absolute;
+    top: 2.9rem;
+    left: 14%;
+    right: 14%;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(148, 163, 184, 0.22), rgba(15, 114, 186, 0.33), rgba(148, 163, 184, 0.22));
+    z-index: 0;
+  }
+
+  .homepage-theme .home-workflow-step::before {
+    content: "";
+    position: absolute;
+    top: 2.2rem;
+    left: -1.45rem;
+    width: 2.8rem;
+    height: 2.8rem;
+    border-radius: 999px;
+    border: 1px dashed rgba(148, 163, 184, 0.45);
+    pointer-events: none;
+  }
+}
+
+.homepage-theme h1,
+.homepage-theme h2,
+.homepage-theme h3 {
+  font-family: var(--font-heading, "Sora", "Manrope", "Segoe UI", sans-serif);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+  color: var(--color-foreground) !important;
+}
+
+.homepage-theme p {
+  line-height: 1.72;
+  color: var(--color-muted-foreground);
+}
+
+.homepage-theme .text-foreground {
+  color: var(--color-foreground) !important;
+}
+
+.homepage-theme .text-muted-foreground {
+  color: var(--color-muted-foreground) !important;
+}
+
+@media (max-width: 768px) {
+  .homepage-theme {
+    background-image: linear-gradient(180deg, var(--color-background), color-mix(in oklab, var(--color-background) 90%, var(--color-muted)));
+  }
+
+  .homepage-theme .home-pattern {
+    display: none;
+  }
+
+  .homepage-theme .home-card {
+    box-shadow: 0 10px 24px -20px rgba(0, 0, 0, 0.2);
+    border-radius: 13px;
+  }
+
+  .homepage-theme .home-card-soft {
+    border-radius: 10px;
+  }
+
+  .homepage-theme h1 {
+    font-size: 1.95rem !important;
+  }
+
+  .homepage-theme h2 {
+    font-size: 1.68rem !important;
+  }
+
+  .homepage-theme .home-cta,
+  .homepage-theme .home-outline {
+    width: 100%;
+  }
+}

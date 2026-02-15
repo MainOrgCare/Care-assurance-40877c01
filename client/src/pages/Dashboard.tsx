@@ -140,10 +140,9 @@ export default function Dashboard() {
   const [widgetOrder, setWidgetOrder] = useState<string[]>(ALL_WIDGETS.map(w => w.id));
   const [, navigate] = useLocation();
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
+  const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: 5 } });
+  const keyboardSensor = useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates });
+  const sensors = useSensors(pointerSensor, keyboardSensor);
 
   useEffect(() => {
     if (user?.isDemo) {
@@ -151,7 +150,7 @@ export default function Dashboard() {
     }
   }, [user?.isDemo, loadDemoData]);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery<DashboardResponse>({
+  const { data, isLoading, isError, error: fetchError, refetch, isRefetching } = useQuery<DashboardResponse>({
     queryKey: ["/api/dashboard/stats"],
     queryFn: async () => {
       const res = await fetch("/api/dashboard/stats", { credentials: "include" });
@@ -161,6 +160,7 @@ export default function Dashboard() {
     refetchInterval: 120000,
     refetchIntervalInBackground: false,
     staleTime: 30000,
+    retry: 2,
   });
 
   const { data: widgetPrefs } = useQuery<{ widgets: string[] | null }>({
@@ -214,7 +214,6 @@ export default function Dashboard() {
     if (widgetPrefs?.widgets && widgetPrefs.widgets.length > 0) {
       const savedWidgets = widgetPrefs.widgets;
       const visibleIds = savedWidgets.filter((w: string) => !w.startsWith("hidden:"));
-      savedWidgets.filter((w: string) => w.startsWith("hidden:")).map((w: string) => w.replace("hidden:", ""));
       const orderedIds = savedWidgets.map((w: string) => w.replace("hidden:", ""));
       const missingWidgets = ALL_WIDGETS.map(w => w.id).filter(id => !orderedIds.includes(id));
       setActiveWidgets(visibleIds);
@@ -404,8 +403,8 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-staff-checks-widget">0</div>
-              <p className="text-[11px] text-muted-foreground mt-1.5">Last 24 hours activity</p>
+              <div className="text-3xl font-bold tracking-tight text-muted-foreground/50 tabular-nums" data-testid="text-staff-checks-widget">&mdash;</div>
+              <p className="text-[11px] text-muted-foreground mt-1.5">Coming soon</p>
             </CardContent>
           </Card>
         );
@@ -550,6 +549,31 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Error Banner */}
+      {isError && (
+        <Card className="bg-destructive/5 border-destructive/20 animate-fade-in">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-destructive/15 flex items-center justify-center">
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-foreground text-sm">Unable to load dashboard data</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {fetchError instanceof Error ? fetchError.message : "An unexpected error occurred. Statistics may be out of date."}
+                  </p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching} className="gap-2">
+                {isRefetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Quick Actions */}
       <div className="space-y-3.5 animate-slide-up stagger-2">
         <div className="flex items-center gap-2.5 px-0.5">
@@ -627,7 +651,8 @@ export default function Dashboard() {
                     </div>
                     <div className="space-y-1 pl-3 border-l-2 border-emerald-500/25">
                        <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Staff Checks</p>
-                       <p className="text-3xl font-semibold tracking-tight text-foreground" data-testid="text-staff-checks">0</p>
+                       <p className="text-3xl font-semibold tracking-tight text-muted-foreground/50" data-testid="text-staff-checks">&mdash;</p>
+                       <p className="text-[10px] text-muted-foreground/60">Coming soon</p>
                     </div>
                  </div>
               </CardContent>

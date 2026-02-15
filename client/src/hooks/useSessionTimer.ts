@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 
 /**
  * Tracks elapsed time since the component mounted (i.e., session start).
- * Returns a formatted string like "2h 14m" or "45m".
+ * Returns a formatted string like "2h 14m", "45m", or "<1m" for the first minute.
  */
 export function useSessionTimer() {
   const [startTime] = useState(() => Date.now());
-  const [elapsed, setElapsed] = useState("0m");
+  const [elapsed, setElapsed] = useState("<1m");
 
   useEffect(() => {
     const update = () => {
@@ -17,8 +17,10 @@ export function useSessionTimer() {
 
       if (hours > 0) {
         setElapsed(`${hours}h ${minutes}m`);
+      } else if (minutes > 0) {
+        setElapsed(`${minutes}m`);
       } else {
-        setElapsed(`${Math.max(1, minutes)}m`);
+        setElapsed("<1m");
       }
     };
 

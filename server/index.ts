@@ -172,10 +172,18 @@ const corsOptions: CorsOptions = {
       return cb(null, true);
     }
     
-    // Allow Render.com subdomains for API server
-    if (origin.includes('.onrender.com')) {
+    // Allow Render.com subdomains — only the project's own subdomain in production
+    const renderSubdomain = process.env.RENDER_EXTERNAL_HOSTNAME;
+    if (renderSubdomain && origin === `https://${renderSubdomain}`) {
       if (CORS_DEBUG) {
-        log(`CORS: Render subdomain origin allowed: ${origin}`);
+        log(`CORS: project Render subdomain origin allowed: ${origin}`);
+      }
+      return cb(null, true);
+    }
+    // In development, also allow any Render subdomain for convenience
+    if (process.env.NODE_ENV !== 'production' && origin.includes('.onrender.com')) {
+      if (CORS_DEBUG) {
+        log(`CORS: Render subdomain origin allowed (dev mode): ${origin}`);
       }
       return cb(null, true);
     }
@@ -299,7 +307,9 @@ app.use(compression({
 
 // Request body size limits
 // Raw file uploads are handled by specific endpoints with multer
-const DEFAULT_BODY_LIMIT = '200mb'; // JSON API requests (includes large workbook ingestion payloads)
+// JSON payloads should rarely exceed 10MB; the workbook ingestion route
+// overrides this per-route via express.json({ limit }) where needed.
+const DEFAULT_BODY_LIMIT = '10mb';
 
 app.use(
   express.json({
@@ -443,7 +453,6 @@ const DEFAULT_ADMIN_USERNAME = "Lewis.barron";
     {
       port,
       host: "0.0.0.0",
-      reusePort: true,
     },
     () => {
       log(`serving on port ${port}`);

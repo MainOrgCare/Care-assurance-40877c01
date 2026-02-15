@@ -1,17 +1,29 @@
-import { useEffect, useState } from "react";
-import { WifiOff } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { WifiOff, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
  * A floating toast that appears when the user loses internet connectivity
  * and automatically dismisses when they reconnect.
+ *
+ * Uses a ref to track the reconnection timer so it is properly cleaned up
+ * if the component unmounts before the 3-second auto-dismiss fires.
  */
 export function OfflineIndicator() {
-  const [isOffline, setIsOffline] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [showReconnected, setShowReconnected] = useState(false);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    const clearReconnectTimer = () => {
+      if (reconnectTimer.current !== null) {
+        clearTimeout(reconnectTimer.current);
+        reconnectTimer.current = null;
+      }
+    };
+
     const handleOffline = () => {
+      clearReconnectTimer();
       setIsOffline(true);
       setShowReconnected(false);
     };
@@ -19,20 +31,19 @@ export function OfflineIndicator() {
     const handleOnline = () => {
       setIsOffline(false);
       setShowReconnected(true);
-      const timer = setTimeout(() => setShowReconnected(false), 3000);
-      return () => clearTimeout(timer);
+      clearReconnectTimer();
+      reconnectTimer.current = setTimeout(() => {
+        setShowReconnected(false);
+        reconnectTimer.current = null;
+      }, 3000);
     };
-
-    // Check initial state
-    if (!navigator.onLine) {
-      setIsOffline(true);
-    }
 
     window.addEventListener("offline", handleOffline);
     window.addEventListener("online", handleOnline);
     return () => {
       window.removeEventListener("offline", handleOffline);
       window.removeEventListener("online", handleOnline);
+      clearReconnectTimer();
     };
   }, []);
 
@@ -51,12 +62,12 @@ export function OfflineIndicator() {
     >
       {isOffline ? (
         <>
-          <WifiOff className="h-4 w-4" />
+          <WifiOff className="h-4 w-4" aria-hidden />
           <span>You are offline. Some features may be unavailable.</span>
         </>
       ) : (
         <>
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <Wifi className="h-4 w-4 text-emerald-500" aria-hidden />
           <span>Connection restored</span>
         </>
       )}

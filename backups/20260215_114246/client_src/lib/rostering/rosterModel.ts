@@ -1,0 +1,156 @@
+export interface TimelineEntry {
+  id: string;
+  title: string;
+  startMinutes: number;
+  durationMinutes: number;
+  serviceUserName?: string | null;
+  serviceUserKey?: string | null;
+  callTypeLabel?: string | null;
+  isTimeCritical?: boolean;
+  isDoubleUp?: boolean;
+  isTemplated?: boolean;
+  requiredStartMinutes?: number | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+export interface GanttLane {
+  id: string;
+  label: string;
+  entries: TimelineEntry[];
+}
+
+export interface WorkerSummary {
+  key: string;
+  workerName: string;
+  totalCalls: number;
+  uniqueServiceUsers: number;
+  totalDurationMinutes: number;
+  timeCriticalCalls: number;
+  shiftBarsCount: number;
+}
+
+interface WorkerCallGroupShape {
+  key: string;
+  serviceUserName: string | null;
+  serviceUserKey?: string | null;
+  serviceUserAddress?: string | null;
+  serviceUserLatitude?: number | null;
+  serviceUserLongitude?: number | null;
+  callTypeLabel: string;
+  requirementStartMinutes: number | null;
+  durationMinutes: number | null;
+  totalCalls: number;
+  isTimeCritical: boolean;
+  templatedWeekdayKeys?: Set<string>;
+  doubleUpWeekdayKeys?: Set<string>;
+}
+
+interface CareWorkerRosterShape {
+  key: string;
+  workerName: string;
+  uniqueServiceUsers: number;
+  callGroups: WorkerCallGroupShape[];
+  shiftBarsCount: number;
+}
+
+const fallbackDurationMinutes = 30;
+
+export const buildWorkerTimelineEntries = (
+  roster: CareWorkerRosterShape | null,
+  templateSelectionKey?: string,
+  selectedCallKeys?: Set<string>
+): TimelineEntry[] => {
+  if (!roster) return [];
+  const duplicateCounts = new Map<string, number>();
+  return roster.callGroups
+    .filter((group) => {
+      if (selectedCallKeys && selectedCallKeys.size > 0 && !selectedCallKeys.has(group.key)) {
+        return false;
+      }
+      // Must have a requirement start time
+      if (group.requirementStartMinutes === null) return false;
+      // Filter by template week/day if key provided
+      if (templateSelectionKey) {
+        if (!group.templatedWeekdayKeys) return false;
+        return group.templatedWeekdayKeys.has(templateSelectionKey);
+      }
+      return true;
+    })
+    .map((group) => {
+      // Prefix with worker key so IDs are globally unique across lanes.
+      const baseId = `${roster.key}::${group.key}`;
+      const duplicateIndex = duplicateCounts.get(baseId) ?? 0;
+      duplicateCounts.set(baseId, duplicateIndex + 1);
+      const entryId = duplicateIndex === 0 ? baseId : `${baseId}::dup${duplicateIndex + 1}`;
+      return {
+        id: entryId,
+        title: group.serviceUserName || group.callTypeLabel,
+        startMinutes: group.requirementStartMinutes as number,
+        durationMinutes: group.durationMinutes ?? fallbackDurationMinutes,
+        serviceUserName: group.serviceUserName,
+        serviceUserKey: group.serviceUserKey,
+        callTypeLabel: group.callTypeLabel,
+        isTimeCritical: group.isTimeCritical,
+        isDoubleUp: templateSelectionKey
+          ? Boolean(group.doubleUpWeekdayKeys?.has(templateSelectionKey))
+          : false,
+        isTemplated: templateSelectionKey
+          ? Boolean(group.templatedWeekdayKeys?.has(templateSelectionKey))
+          : false,
+        requiredStartMinutes: group.requirementStartMinutes ?? null,
+        address: group.serviceUserAddress ?? null,
+        latitude: group.serviceUserLatitude ?? null,
+        longitude: group.serviceUserLongitude ?? null,
+      };
+    });
+};
+
+export const buildWorkerSummaries = (rosters: CareWorkerRosterShape[]): WorkerSummary[] => {
+  return rosters.map((roster) => {
+    const totalCalls = roster.callGroups.reduce((acc, group) => acc + group.totalCalls, 0);
+    const totalDurationMinutes = roster.callGroups.reduce(
+      (acc, group) => acc + (group.durationMinutes ?? fallbackDurationMinutes),
+      0
+    );
+    const timeCriticalCalls = roster.callGroups.reduce(
+      (acc, group) => acc + (group.isTimeCritical ? group.totalCalls : 0),
+      0
+    );
+    return {
+      key: roster.key,
+      workerName: roster.workerName,
+      totalCalls,
+      uniqueServiceUsers: roster.uniqueServiceUsers,
+      totalDurationMinutes,
+      timeCriticalCalls,
+      shiftBarsCount: roster.shiftBarsCount,
+    };
+  });
+};
+
+export const buildWorkerLane = (
+  roster: CareWorkerRosterShape | null,
+  templateSelectionKey?: string,
+  selectedCallKeys?: Set<string>
+): GanttLane | null => {
+  if (!roster) return null;
+  return {
+    id: roster.key,
+    label: roster.workerName,
+    entries: buildWorkerTimelineEntries(roster, templateSelectionKey, selectedCallKeys),
+  };
+};
+
+export const buildAllWorkerLanes = (
+  rosters: CareWorkerRosterShape[],
+  templateSelectionKey?: string,
+  selectedCallKeys?: Set<string>
+): GanttLane[] => {
+  return rosters.map((roster) => ({
+    id: roster.key,
+    label: roster.workerName,
+    entries: buildWorkerTimelineEntries(roster, templateSelectionKey, selectedCallKeys),
+  }));
+};

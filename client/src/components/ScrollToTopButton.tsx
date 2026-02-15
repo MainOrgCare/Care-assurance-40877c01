@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -6,24 +6,38 @@ import { cn } from "@/lib/utils";
 /**
  * A floating button that appears when the user scrolls down
  * and smoothly scrolls back to the top of the main content area.
+ *
+ * Uses a throttled scroll handler and a data-attribute selector
+ * (data-scroll-region) which is more resilient than class-based lookup.
  */
 export function ScrollToTopButton() {
   const [visible, setVisible] = useState(false);
+  const ticking = useRef(false);
+
+  const getScrollRegion = useCallback((): Element | null =>
+    document.querySelector("[data-scroll-region]") ??
+    document.querySelector("main.overflow-y-auto"),
+  []);
 
   useEffect(() => {
-    const main = document.querySelector("main.overflow-y-auto");
+    const main = getScrollRegion();
     if (!main) return;
 
     const handleScroll = () => {
-      setVisible(main.scrollTop > 400);
+      if (ticking.current) return;
+      ticking.current = true;
+      requestAnimationFrame(() => {
+        setVisible(main.scrollTop > 400);
+        ticking.current = false;
+      });
     };
 
     main.addEventListener("scroll", handleScroll, { passive: true });
     return () => main.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [getScrollRegion]);
 
   const scrollToTop = () => {
-    const main = document.querySelector("main.overflow-y-auto");
+    const main = getScrollRegion();
     main?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
