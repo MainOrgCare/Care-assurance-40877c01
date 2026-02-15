@@ -15,21 +15,20 @@ import connectPgSimple from "connect-pg-simple";
 import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
-import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertAdminAlertSchema, insertPolicyDocumentSchema, insertContactMessageSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser } from "@shared/schema";
-import { createChatCompletion, createChatCompletionWithLogging, openai, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertPolicyDocumentSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser } from "@shared/schema";
+import { createChatCompletionWithLogging, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { getCacheStats, clearCache } from "./services/aiCache";
 import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseAI, extractMedicationInfo, extractPersonalCareNeeds, extractContinenceInfo, extractNutritionInfo, extractEnvironmentInfo } from "./services/ruleBasedEngine";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
 import { careWorkerRotaPayloadSchema, computeRotaSourceHash, rotaWeekdayEnum } from "./services/careWorkerRota";
 import multer from "multer";
 import mammoth from "mammoth";
-import { scanFile, computeFileHash, getCachedScan } from "./services/fileScan";
+import { scanFile } from "./services/fileScan";
 import { SafeXLSX, RawXLSX } from "./utils/safe-xlsx";
-import { convertPdfToImages } from "./services/pdfToImages";
 import { analyzeBillingRows } from "./services/billingAnalyzer";
 import { extractSupportPlanDataFromText, compareSupportPlanToServiceOrders, type ServiceOrderComparisonInput } from "./services/supportPlanCompare";
 import { geocodeAddress } from "./services/geocoding";
-import { parse as parseDateFns, format as formatDateFns } from "date-fns";
+
 // Use legacy build for Node.js (no DOM APIs required)
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
@@ -563,7 +562,19 @@ const parseJsonFromModel = (content: string): any => {
   }
   const startIndex = Math.min(...startCandidates);
   const jsonText = candidate.slice(startIndex, endIndex + 1);
-  return JSON.parse(jsonText);
+  try {
+    return JSON.parse(jsonText);
+  } catch (e: any) {
+    // Attempt recovery: strip trailing commas before closing braces/brackets
+    const cleaned = jsonText
+      .replace(/,\s*([}\]])/g, "$1")
+      .replace(/'/g, '"');
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      throw new Error(`Failed to parse model JSON response: ${e.message}`);
+    }
+  }
 };
 
 const BILLING_EXTRACTION_PROMPT = `You are extracting rows from a "Service Requirement Details" table in a care service order screenshot.
@@ -2166,8 +2177,8 @@ const parseJsonFromContent = (content: string): any | null => {
 const getLowCostModel = () => "gpt-4.1-mini";
 const getAccurateModel = () => getPreferredModel();
 const getRiskAssessmentModel = () => getPreferredModel();
-const getRiskAssessmentRecommendationModel = () => "gpt-4.1-mini"; // $0.40/$1.60 - cost-efficient via OpenAI
-const getRiskAssessmentGenerationModel = () => "gpt-4.1-mini"; // $0.40/$1.60 - cost-efficient via OpenAI
+const getRiskAssessmentRecommendationModel = () => getLowCostModel();
+const getRiskAssessmentGenerationModel = () => getLowCostModel();
 
 const inferGenericNameFromMedicationLabel = (name: string): string => {
   if (!name) return "";
@@ -6471,9 +6482,19 @@ export async function registerRoutes(
   };
 
   // Security lockdown: block model-backed AI routes when AI is disabled.
-  // Keep deterministic preflight and status checks available.
+  // Keep deterministic preflight, status checks, and endpoints with rule-based
+  // fallbacks available so they can degrade gracefully.
+  const AI_DISABLED_PASSTHROUGH = new Set([
+    "/analyze-emar/preflight",
+    "/status",
+    "/chat",
+    "/analyze-risks",
+    "/generate-risk-assessment",
+    "/generate-care-plan",
+    "/enhance-plan",
+  ]);
   app.use("/api/ai", requireAuth, (req, res, next) => {
-    if (req.path === "/analyze-emar/preflight" || req.path === "/status" || req.path === "/chat") return next();
+    if (AI_DISABLED_PASSTHROUGH.has(req.path)) return next();
     if (isAIEnabled()) return next();
     return res.status(503).json({ code: "AI_DISABLED", message: getAIDisabledMessage() });
   });
@@ -13469,6 +13490,7 @@ Return JSON - include ALL by default:
             (res as any).flush();
           }
         } catch (e) {
+          console.error('[Risks SSE] Write error:', e);
           if (heartbeatInterval) clearInterval(heartbeatInterval);
         }
       };
@@ -14206,6 +14228,7 @@ Remember: Extract information ONLY from service user documents above. Templates 
             (res as any).flush();
           }
         } catch (e) {
+          console.error('[RiskGen SSE] Write error:', e);
           if (heartbeatInterval) clearInterval(heartbeatInterval);
         }
       };
@@ -14740,6 +14763,7 @@ Remember: Extract information ONLY from the service user documents above. Templa
           if (typeof (res as any).flush === 'function') (res as any).flush();
         } catch (e) {
           console.error('[CarePlan SSE] Write error:', e);
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
         }
       };
       
@@ -15326,6 +15350,7 @@ Return ONLY valid JSON with content field.` }
             (res as any).flush();
           }
         } catch (e) {
+          console.error('[Enhance SSE] Write error:', e);
           if (heartbeatInterval) clearInterval(heartbeatInterval);
         }
       };
@@ -16194,7 +16219,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
         if (corrections.length > 0) {
           console.log(`[PlanEnhancer] ✅ Auto-corrected ${corrections.length} case mismatches:`);
           corrections.forEach(fix => {
-            console.log(`[PlanEnhancer]    ${fix.path}: "${fix.original}" → "${fix.corrected}"`);
+            console.log(`[PlanEnhancer]    ${fix}`);
           });
           result = corrected;
         } else {
@@ -16215,7 +16240,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
         console.log('[PlanEnhancer] ───────────────────────────────────────────────────');
         
         // Send validation progress update
-        const validationStatus = validation.isValid 
+        const validationStatus = validation.valid 
           ? "✅ All fields validated" 
           : validation.errors.length > 0
             ? `⚠️ ${validation.errors.length} validation errors`
@@ -16339,12 +16364,12 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
         
         // Attach schema validation results to payload
         if (validation.errors.length > 0) {
-          result._validationErrors = validation.errors.map(e => `${e.section}.${e.field}: "${e.value}" is invalid (allowed: ${e.allowedValues?.join(', ') || 'see schema'})`);
+          result._validationErrors = validation.errors.map(e => `${e.section}.${e.field}: "${e.value}" is invalid (allowed: ${e.expected?.join(', ') || 'see schema'})`);
         }
         if (validation.warnings.length > 0) {
           result._validationWarnings = validation.warnings.map(w => `${w.section}.${w.field}: ${w.message}`);
         }
-        result._validationScore = validation.isValid ? 100 : Math.max(0, 100 - (validation.errors.length * 10 + validation.warnings.length * 2));
+        result._validationScore = validation.valid ? 100 : Math.max(0, 100 - (validation.errors.length * 10 + validation.warnings.length * 2));
 
         // Check for critical missing top-level sections (sign of severe truncation)
         const criticalSections = ['thisIsMe', 'myCarePlan', 'goalSetting', 'riskSection1Health', 'riskSection2Medication'];
@@ -16991,6 +17016,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       const readiness = await getAIProviderReadiness();
       return res.json({
         provider: readiness.provider,
+        model: getPreferredModel(),
         aiEnabled,
         hasOpenAIKey: readiness.hasOpenAIKey,
         hasPATKey: readiness.hasPATKey,
@@ -20110,7 +20136,7 @@ I have also sent that reminder to your Messages inbox.`
 
       const completion = await createChatCompletionWithLogging(
         {
-          model: "gpt-4.1-mini",
+          model: getPreferredModel(),
           messages: [
             { role: "system", content: CHAT_ASSISTANT_SYSTEM_PROMPT + roleContext },
             ...scrubbedMessages,
@@ -20147,7 +20173,7 @@ I have also sent that reminder to your Messages inbox.`
             // Get a follow-up response from AI confirming the message was sent
             const followUp = await createChatCompletionWithLogging(
               {
-                model: "gpt-4.1-mini",
+                model: getPreferredModel(),
                 messages: [
                   { role: "system", content: CHAT_ASSISTANT_SYSTEM_PROMPT + roleContext },
                   ...scrubbedMessages,

@@ -5,7 +5,6 @@ import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText, Download, Edit3, Send, Zap, Info, AlertTriangle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
@@ -211,7 +210,6 @@ export default function PlanEnhancer() {
   const [viewMode, setViewMode] = useState<"enhanced" | "comparison">("enhanced");
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [updateNotes, setUpdateNotes] = useState("");
   
   // Pre-analysis state (rule-based, no AI cost)
@@ -226,6 +224,15 @@ export default function PlanEnhancer() {
     aiReason: string;
   } | null>(null);
   const [isPreAnalyzing, setIsPreAnalyzing] = useState(false);
+
+  // Fetch active provider for dynamic token limits
+  const [activeProvider, setActiveProvider] = useState<string>("github");
+  useEffect(() => {
+    fetch("/api/ai/status", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.provider) setActiveProvider(data.provider); })
+      .catch(() => {});
+  }, []);
 
   // Run quick pre-analysis when documents are ready (rule-based, no AI cost)
   const runPreAnalysis = useCallback(async () => {
@@ -538,14 +545,15 @@ export default function PlanEnhancer() {
       // Token limits per provider (conservative to account for system prompt overhead)
       // GitHub Models: 8K-16K input tokens → use 10K to be safe
       // OpenAI/Local: 90K+ → use 80K to be safe
-      const MAX_TOKENS = 10000; // Conservative limit for GitHub Models
+      const TOKEN_LIMITS: Record<string, number> = { github: 10000, openai: 80000, local: 40000 };
+      const MAX_TOKENS = TOKEN_LIMITS[activeProvider] ?? 10000;
       
       console.log(`[PlanEnhancer] Content size check:`, {
         supportingTokens,
         carePlanTokens,
         totalContentTokens,
         maxTokens: MAX_TOKENS,
-        provider: 'github' // TODO: detect actual provider
+        provider: activeProvider
       });
       
       if (totalContentTokens > MAX_TOKENS) {
@@ -560,7 +568,7 @@ export default function PlanEnhancer() {
           `• Removing redundant or outdated documents\n` +
           `• Summarizing lengthy medical histories\n` +
           `• Splitting into multiple care plan generations\n\n` +
-          `Or switch to OpenAI provider in Secret Admin Portal for 8x higher limits.`
+          `Or switch AI provider in Secret Admin Portal for higher limits.`
         );
       }
       
@@ -635,23 +643,23 @@ export default function PlanEnhancer() {
           if (response.status === 413 || errorMsg.toLowerCase().includes('too large') || errorMsg.toLowerCase().includes('payload')) {
             throw new Error(
               "Document content is too large for the server. Try: (1) Upload smaller or fewer documents, " +
-              "(2) Summarize lengthy sections, or (3) Use OpenAI provider which has higher token limits."
+              "(2) Summarize lengthy sections, or (3) Switch AI provider in Secret Admin Portal for higher token limits."
             );
           }
           
-          // Check for GitHub Models specific errors
-          if (errorMsg.includes("GitHub Models API quota") || errorMsg.includes("quota exceeded")) {
-            throw new Error("GitHub Models quota exceeded. Your API token has hit its rate limit. Wait for quota to reset, use a different token, or switch to OpenAI provider in Secret Admin Portal.");
+          // Check for provider-specific quota/permission errors
+          if (errorMsg.includes("quota exceeded") || errorMsg.includes("API quota")) {
+            throw new Error("AI provider quota exceeded. Your API token has hit its rate limit. Wait for quota to reset, use a different token, or switch provider in Secret Admin Portal.");
           }
           if (errorMsg.includes("models") && errorMsg.includes("permission")) {
-            throw new Error("GitHub Models permission denied. Your API token needs the 'models' scope. Generate a new token at https://github.com/settings/tokens or switch to OpenAI provider.");
+            throw new Error("AI provider permission error. Your API token may need additional scopes. Check your token configuration or switch provider in Secret Admin Portal.");
           }
           if (response.status === 429 || errorMsg.includes('rate limit') || errorMsg.includes('429')) {
             throw new Error("AI service is busy (rate limited). Please wait 30-60 seconds and try again.");
           }
           throw new Error(errorMsg || "Failed to generate care plan");
         } catch (e: any) {
-          if (e.message?.includes('AI service is busy') || e.message?.includes('GitHub Models') || e.message?.includes('too large')) throw e;
+          if (e.message?.includes('AI service is busy') || e.message?.includes('quota exceeded') || e.message?.includes('permission') || e.message?.includes('too large')) throw e;
           // If 413 but couldn't parse JSON, throw generic payload error
           if (response.status === 413) {
             throw new Error("Document content is too large. Try uploading smaller or fewer documents.");
@@ -711,17 +719,17 @@ export default function PlanEnhancer() {
       
       // Extract error info for better user guidance
       const errorMsg = error.message || "Plan generation failed";
-      const isGitHubQuota = errorMsg.includes("GitHub Models") && (errorMsg.includes("quota") || errorMsg.includes("rate limit"));
-      const isGitHubPermission = errorMsg.includes("GitHub Models") && errorMsg.includes("permission");
+      const isGitHubQuota = errorMsg.includes("quota") || errorMsg.includes("rate limit");
+      const isGitHubPermission = errorMsg.includes("permission");
       
       let title = "Generation Failed";
       let duration = 8000;
       
       if (isGitHubQuota) {
-        title = "GitHub Models Quota Exceeded";
+        title = "AI Provider Quota Exceeded";
         duration = 12000;
       } else if (isGitHubPermission) {
-        title = "GitHub Models Permission Error";
+        title = "AI Provider Permission Error";
         duration = 12000;
       }
       
@@ -1473,7 +1481,7 @@ export default function PlanEnhancer() {
                     <li>Split into multiple smaller PDFs (&lt; 50 pages each)</li>
                     <li>Upload only the most relevant documents</li>
                     <li>Summarize lengthy sections before pasting</li>
-                    <li>Consider using OpenAI provider for higher token limits</li>
+                    <li>Consider switching AI provider in Secret Admin for higher token limits</li>
                   </ul>
                 </CardContent>
               </Card>

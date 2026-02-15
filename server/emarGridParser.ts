@@ -2717,8 +2717,13 @@ const estimateExpectedDays = (dates: string[]): { expected: number | null; warni
   if (!first || !last) return { expected: null };
 
   const start = new Date(first.getFullYear(), first.getMonth(), first.getDate());
-  const end = new Date(last.getFullYear(), last.getMonth(), last.getDate());
+  let end = new Date(last.getFullYear(), last.getMonth(), last.getDate());
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return { expected: null };
+
+  // Handle year boundary: if end appears before start (e.g., Dec→Jan), bump end year forward.
+  if (end < start) {
+    end = new Date(end.getFullYear() + 1, end.getMonth(), end.getDate());
+  }
   if (end < start) return { expected: null };
   const diffMs = end.getTime() - start.getTime();
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
@@ -2802,11 +2807,16 @@ function groupByY(items: TextItem[], tolerance: number): TextItem[][] {
   return rows;
 }
 
+// Pre-compiled regex for extractCodesFromCell hot path (avoids re-creation per cell).
+const CELL_CODE_REGEX = new RegExp(CODE_PATTERN.source, "gi");
+
+// Canonical code list for fallback substring matching.
+const CANONICAL_CODES = ["AD", "AS", "P", "R", "MU", "NH", "SA", "S/A", "S-A", "FA", "PRN", "PRN-R", "PRN-AD", "PRN-AS", "MISSED", "N/A"];
+
 export function extractCodesFromCell(
   content: string,
   allowedCodes?: Set<string>
 ): { code: string; careWorker: string; time: string; keyMismatch?: boolean; detectedCode?: string } {
-  const codes = ["AD", "AS", "P", "R", "MU", "NH", "SA", "S/A", "S-A", "FA", "PRN", "PRN-R", "PRN-AD", "PRN-AS", "MISSED", "N/A"];
   let careWorker = "";
   let time = "";
 
@@ -2821,17 +2831,19 @@ export function extractCodesFromCell(
 
   const upperContent = content.toUpperCase();
   const normalizedContent = normalizeCodeText(upperContent);
-  const codeRegex = new RegExp(CODE_PATTERN.source, "gi");
+  // Reset lastIndex for the shared global regex before each use.
+  CELL_CODE_REGEX.lastIndex = 0;
 
   const pickCode = (filter?: Set<string>): string => {
-    let matches = Array.from(normalizedContent.matchAll(codeRegex)).map((match) => normalizeGridCode(match[1]));
+    CELL_CODE_REGEX.lastIndex = 0;
+    let matches = Array.from(normalizedContent.matchAll(CELL_CODE_REGEX)).map((match) => normalizeGridCode(match[1]));
     if (filter) {
       matches = matches.filter((code) => filter.has(code));
     }
     if (matches.length > 0) {
       return pickBestCode(matches);
     }
-    for (const code of codes) {
+    for (const code of CANONICAL_CODES) {
       const normalized = normalizeGridCode(code);
       if (filter && !filter.has(normalized)) continue;
       if (normalizedContent.includes(code)) {

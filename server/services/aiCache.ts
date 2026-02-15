@@ -1,7 +1,7 @@
 /**
  * AI Response Cache
  * Reduces AI API calls by caching responses for identical inputs.
- * Uses content hash-based keys with configurable TTL.
+ * Uses content hash-based keys with LRU eviction and configurable TTL.
  */
 
 import crypto from "crypto";
@@ -17,6 +17,7 @@ export interface CachedAIResponse {
 interface CacheEntry {
   response: CachedAIResponse;
   expiresAt: number;
+  lastAccessed: number;
 }
 
 // Default TTL: 24 hours (responses are deterministic with temp=0)
@@ -32,6 +33,7 @@ const cache = new Map<string, CacheEntry>();
 let cacheHits = 0;
 let cacheMisses = 0;
 let tokensSavedTotal = 0;
+let evictionCount = 0;
 
 /**
  * Generate a hash key for the AI request
@@ -47,7 +49,7 @@ export function generateCacheKey(
 }
 
 /**
- * Get a cached response if available
+ * Get a cached response if available (LRU: updates last-accessed time)
  */
 export function getCachedResponse(cacheKey: string): CachedAIResponse | null {
   const entry = cache.get(cacheKey);
@@ -64,11 +66,34 @@ export function getCachedResponse(cacheKey: string): CachedAIResponse | null {
     return null;
   }
   
+  // LRU: update last-accessed timestamp
+  entry.lastAccessed = Date.now();
+  
   cacheHits++;
   tokensSavedTotal += entry.response.tokensSaved;
   console.log(`[AI Cache] HIT - Feature: ${entry.response.feature}, Saved: ${entry.response.tokensSaved} tokens`);
   
   return entry.response;
+}
+
+/**
+ * Evict least-recently-used entry from cache
+ */
+function evictLRU(): void {
+  let oldestKey: string | null = null;
+  let oldestTime = Infinity;
+  
+  for (const [key, entry] of cache.entries()) {
+    if (entry.lastAccessed < oldestTime) {
+      oldestTime = entry.lastAccessed;
+      oldestKey = key;
+    }
+  }
+  
+  if (oldestKey) {
+    cache.delete(oldestKey);
+    evictionCount++;
+  }
 }
 
 /**
@@ -81,21 +106,22 @@ export function setCachedResponse(
   tokensSaved: number,
   ttlMs: number = DEFAULT_TTL_MS
 ): void {
-  // Enforce max size by removing oldest entries
+  // Enforce max size by evicting least-recently-used entry
   if (cache.size >= MAX_CACHE_SIZE) {
-    const oldestKey = cache.keys().next().value;
-    if (oldestKey) cache.delete(oldestKey);
+    evictLRU();
   }
   
+  const now = Date.now();
   const entry: CacheEntry = {
     response: {
       result,
-      timestamp: Date.now(),
+      timestamp: now,
       promptHash: cacheKey,
       feature,
       tokensSaved,
     },
-    expiresAt: Date.now() + ttlMs,
+    expiresAt: now + ttlMs,
+    lastAccessed: now,
   };
   
   cache.set(cacheKey, entry);
@@ -125,15 +151,19 @@ export function cleanCache(): void {
  * Get cache statistics
  */
 export function getCacheStats() {
+  const totalRequests = cacheHits + cacheMisses;
   return {
     size: cache.size,
+    maxSize: MAX_CACHE_SIZE,
     hits: cacheHits,
     misses: cacheMisses,
-    hitRate: cacheHits + cacheMisses > 0 
-      ? ((cacheHits / (cacheHits + cacheMisses)) * 100).toFixed(1) + "%"
+    hitRate: totalRequests > 0 
+      ? ((cacheHits / totalRequests) * 100).toFixed(1) + "%"
       : "N/A",
     tokensSaved: tokensSavedTotal,
-    estimatedCostSaved: `$${((tokensSavedTotal / 1000000) * 0.15).toFixed(4)}`, // Rough GPT-4o-mini rate
+    evictions: evictionCount,
+    // Estimate based on blended rate: ~60% input ($0.40/1M) + ~40% output ($1.60/1M) for gpt-4.1-mini
+    estimatedCostSaved: `$${((tokensSavedTotal / 1_000_000) * 0.88).toFixed(4)}`,
   };
 }
 
@@ -142,6 +172,7 @@ export function getCacheStats() {
  */
 export function clearCache(): void {
   cache.clear();
+  evictionCount = 0;
   console.log("[AI Cache] Cache cleared");
 }
 
@@ -152,6 +183,7 @@ export function resetStats(): void {
   cacheHits = 0;
   cacheMisses = 0;
   tokensSavedTotal = 0;
+  evictionCount = 0;
 }
 
 // Clean cache every hour

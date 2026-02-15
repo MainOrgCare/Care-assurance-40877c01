@@ -10,13 +10,12 @@ import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { Switch } from "@/components/ui/switch";
 import { ShieldAlert, ArrowRight, Loader2, AlertTriangle, CheckCircle, FileText, Info, Search, Copy, Check, X, Send, Edit3 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
 import { TemplateFiller } from "@/components/TemplateFiller";
-import { ClientPIIVault, VaultExport, restoreWithVault } from "@/lib/pii-vault";
+import { ClientPIIVault, VaultExport } from "@/lib/pii-vault";
 import { consumeJsonSseStream } from "@/lib/sse";
 
 /**
@@ -628,22 +627,22 @@ export default function RiskAssessment() {
       
       // Extract error info for better user guidance
       const errorMsg = error.message || "Could not analyze documents";
-      const isGitHubQuota = errorMsg.includes("GitHub Models API quota") || errorMsg.includes("quota exceeded");
+      const isGitHubQuota = errorMsg.includes("quota exceeded") || errorMsg.includes("API quota");
       const isGitHubPermission = errorMsg.includes("models") && errorMsg.includes("permission");
-      const isGitHubAuth = errorMsg.includes("GitHub Models API authentication");
+      const isGitHubAuth = errorMsg.includes("API authentication");
       
       let title = "Analysis Failed";
       let description = errorMsg;
       let duration = 8000; // Longer for errors with actionable steps
       
       if (isGitHubQuota) {
-        title = "GitHub Models Quota Exceeded";
+        title = "AI Provider Quota Exceeded";
         duration = 12000;
       } else if (isGitHubPermission) {
-        title = "GitHub Models Permission Error";
+        title = "AI Provider Permission Error";
         duration = 12000;
       } else if (isGitHubAuth) {
-        title = "GitHub Models Authentication Failed";
+        title = "AI Provider Authentication Failed";
         duration = 10000;
       }
       

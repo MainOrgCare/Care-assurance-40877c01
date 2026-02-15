@@ -241,10 +241,15 @@ export const extractSupportPlanDataFromText = (text: string): SupportPlanData =>
       let totalMinutesPerWeek = 0;
       for (const visit of visits) {
         if (visit.duration) {
-          // If frequency is "per day", multiply by 7
-          const daysPerWeek = visit.frequency?.toLowerCase().includes('per day') || 
-                              visit.frequency?.toLowerCase().includes('daily') ? 7 : 7;
-          totalMinutesPerWeek += visit.duration * daysPerWeek;
+          // Determine multiplier based on frequency
+          const freq = (visit.frequency || "").toLowerCase();
+          let timesPerWeek = 7; // default: daily
+          if (freq.includes("per week") || freq.includes("weekly")) {
+            timesPerWeek = 1;
+          } else if (freq.includes("twice")) {
+            timesPerWeek = 14; // twice daily × 7 days
+          }
+          totalMinutesPerWeek += visit.duration * timesPerWeek;
         }
       }
       if (totalMinutesPerWeek > 0) {
@@ -550,8 +555,9 @@ export const compareSupportPlanToServiceOrders = (
 
   const serviceOrderHours = (() => {
     if (latestSegment?.weeklyHours != null) return latestSegment.weeklyHours;
-    if (Number.isFinite(orders.summary?.totalWeeklyHours || NaN)) {
-      return Number(orders.summary!.totalWeeklyHours);
+    const summaryHours = Number(orders.summary?.totalWeeklyHours ?? NaN);
+    if (Number.isFinite(summaryHours)) {
+      return summaryHours;
     }
     const total = normalizedSegments.reduce((sum, seg) => sum + (seg.weeklyHours || 0), 0);
     return total;

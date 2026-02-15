@@ -76,9 +76,10 @@ export const AVAILABLE_MODELS = [
   { id: "gpt-5.2", name: "GPT-5.2", description: "Coding/agentic - most capable", inputCost: "$1.75/1M", outputCost: "$14.00/1M" },
   { id: "gpt-5", name: "GPT-5", description: "High quality", inputCost: "$1.25/1M", outputCost: "$10.00/1M" },
   { id: "gpt-4.1", name: "GPT-4.1", description: "Balanced performance", inputCost: "$2.00/1M", outputCost: "$8.00/1M" },
-  { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", description: "Cost-efficient", inputCost: "$0.40/1M", outputCost: "$1.60/1M" },
+  { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", description: "Cost-efficient (default)", inputCost: "$0.40/1M", outputCost: "$1.60/1M" },
+  { id: "gpt-4.1-nano", name: "GPT-4.1 Nano", description: "Ultra-efficient", inputCost: "$0.10/1M", outputCost: "$0.40/1M" },
   { id: "gpt-4o", name: "GPT-4o", description: "Legacy balanced", inputCost: "$2.50/1M", outputCost: "$10.00/1M" },
-  { id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Budget option", inputCost: "$0.15/1M", outputCost: "$0.60/1M" },
+  { id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Budget legacy", inputCost: "$0.15/1M", outputCost: "$0.60/1M" },
 ] as const;
 
 export type AvailableModel = typeof AVAILABLE_MODELS[number]["id"];

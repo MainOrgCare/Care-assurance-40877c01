@@ -1,4 +1,5 @@
-import { createChatCompletionWithLogging, type AiUserContext } from "./aiClient";
+import { createChatCompletionWithLogging, getPreferredModel, type AiUserContext } from "./aiClient";
+import { parseJsonFromContent } from "../utils/jsonParser";
 
 /**
  * Simple reversible name anonymization for schedule analysis.
@@ -167,7 +168,7 @@ Provide comprehensive analysis with actionable recommendations to optimize this 
 
   const response = await createChatCompletionWithLogging(
     {
-      model: "gpt-4.1-mini", // Cost-effective: $0.40/$1.60 vs GPT-5.2 $1.75/$14 (89% cheaper)
+      model: getPreferredModel(), // Use admin-configured model
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -185,7 +186,10 @@ Provide comprehensive analysis with actionable recommendations to optimize this 
     throw new Error("No response from AI analysis");
   }
 
-  const parsed = JSON.parse(content) as ScheduleAnalysisResult;
+  const parsed = parseJsonFromContent(content) as ScheduleAnalysisResult | null;
+  if (!parsed) {
+    throw new Error("Failed to parse AI analysis response as JSON");
+  }
   
   // Restore real worker names in the AI response
   return vault.restoreObject(parsed);
@@ -273,7 +277,7 @@ Evaluate if this optimization improved the schedule.`;
 
   const response = await createChatCompletionWithLogging(
     {
-      model: "gpt-4.1-mini", // Cost-effective: $0.40/$1.60 vs GPT-5.2 $1.75/$14 (89% cheaper)
+      model: getPreferredModel(), // Use admin-configured model
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -291,7 +295,10 @@ Evaluate if this optimization improved the schedule.`;
     throw new Error("No response from AI comparison");
   }
 
-  const parsed = JSON.parse(content) as ScheduleComparisonResult;
+  const parsed = parseJsonFromContent(content) as ScheduleComparisonResult | null;
+  if (!parsed) {
+    throw new Error("Failed to parse AI comparison response as JSON");
+  }
   
   // Restore real worker names in the AI response
   return vault.restoreObject(parsed);

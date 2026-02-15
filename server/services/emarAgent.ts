@@ -687,7 +687,9 @@ EXTRACTION RULES:
 4. PRN DOSES: For PRN medications, only include entries if there is a code, time, or signature. If the box is empty for a PRN med, do NOT create an entry.
 5. TIME: Only set "hasTime" true and provide "time" if an actual administration time (e.g., 08:45) is handwritten or typed in the box, distinct from the slot header.
 6. INITIALS: Capture the 2 or 3 letter care worker initials if present.
-7. AMBIGUITY: If you see a code like "AD" or a signature but the exact time slot is hard to determine, use the most likely slot and set timeSlot to "UNSPECIFIED" if truly impossible to map.`;
+7. AMBIGUITY: If you see a code like "AD" or a signature but the exact time slot is hard to determine, use the most likely slot and set timeSlot to "UNSPECIFIED" if truly impossible to map.
+8. CODE LEGEND: AD=Administered, AS=Assisted Self-Admin, R=Refused, MU=Medication Unavailable, NH=Not Home, SA=Self Admin, F=Family Admin, P=Prompt, PRN=PRN Administered, PRN-AD=PRN Administered, PRN-R=PRN Refused, MISSED=Scheduled dose not recorded.
+9. DATE FORMAT: Use dates EXACTLY as they appear in the DATES list above. Do not reformat or invent dates.`;
 
 export const emarAgent = {
   async extract(
@@ -962,17 +964,15 @@ export const emarAgent = {
     const [meta1, meta2] = await Promise.all([runMetadataPass(0), runMetadataPass(1)]);
 
     const metadataParsed = {
-      ...meta1,
-      ...meta2,
-      serviceUserInitials: meta1.serviceUserInitials || meta2.serviceUserInitials,
-      allergies: meta1.allergies || meta2.allergies,
+      serviceUserInitials: meta1.serviceUserInitials || meta2.serviceUserInitials || "",
+      allergies: meta1.allergies || meta2.allergies || "",
       medications: [...(meta1.medications || []), ...(meta2.medications || [])],
       dates: uniqueStrings([...(meta1.dates || []), ...(meta2.dates || [])]),
       timeSlots: uniqueStrings([...(meta1.timeSlots || []), ...(meta2.timeSlots || [])]),
     };
 
     const serviceUserInitialsRaw = String(
-      metadataParsed.serviceUserInitials || metadataParsed.serviceUserName || ""
+      metadataParsed.serviceUserInitials || meta1.serviceUserName || meta2.serviceUserName || ""
     ).trim();
     const allergiesRaw = String(metadataParsed.allergies || "").trim();
     const mergedMetadata = {
@@ -1213,13 +1213,20 @@ export const emarAgent = {
 
     const entries = reconcileConsensusEntries([rawPass1, rawPass2, rawPass3]);
 
+    // Compute consensus agreement rate for diagnostics
+    const passEntryCounts = [rawPass1.length, rawPass2.length, rawPass3.length];
+    const avgPassEntries = passEntryCounts.reduce((s, n) => s + n, 0) / 3;
+    const maxDeviation = Math.max(...passEntryCounts.map(n => Math.abs(n - avgPassEntries)));
+    const agreementRate = avgPassEntries > 0 ? ((1 - maxDeviation / avgPassEntries) * 100).toFixed(0) : "0";
+    console.log(`[EMAR Agent] Consensus: ${entries.length} entries from passes [${passEntryCounts.join(", ")}], agreement: ${agreementRate}%`);
+
     return {
       entries,
       metadata: {
         ...mergedMetadata,
         medications: medicationsWithIds,
       },
-      consensusStatus: "triple_pass_consensus",
+      consensusStatus: `triple_pass_consensus (${agreementRate}% agreement)`,
       validationPassed: entries.length > 0,
       model: getAgentModel(),
     };

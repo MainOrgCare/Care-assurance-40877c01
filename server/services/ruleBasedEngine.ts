@@ -112,10 +112,6 @@ const EQUIPMENT_PATTERNS = {
   unsafe: ["not working", "broken", "faulty", "damaged", "needs repair", "overdue service", "no", "failed", "non-compliant"]
 };
 
-// Yes/No detection
-const YES_PATTERNS = ["yes", "y", "true", "1", "confirmed", "present", "in place", "has", "does", "✓", "tick", "positive"];
-const NO_PATTERNS = ["no", "n", "false", "0", "denied", "absent", "not in place", "doesn't", "cannot", "✗", "none", "negative"];
-
 export interface RuleBasedRisk {
   level: "Low" | "Medium" | "High";
   confidence: number; // 0-1 scale
@@ -141,6 +137,17 @@ export interface MedicationInfo {
 }
 
 /**
+ * Check if a keyword match is negated by a preceding "no", "not", "no known", "denies", etc.
+ */
+function isNegated(text: string, keyword: string): boolean {
+  const idx = text.indexOf(keyword);
+  if (idx < 0) return false;
+  // Look at the 20 chars before the keyword for negation words
+  const prefix = text.slice(Math.max(0, idx - 20), idx).trim().toLowerCase();
+  return /\b(no|not|no known|denies|denied|without|nil|never|none|absent|negative for)\s*$/.test(prefix);
+}
+
+/**
  * Analyze text for risk level using keyword matching
  */
 export function analyzeRiskLevel(text: string): RuleBasedRisk {
@@ -149,16 +156,16 @@ export function analyzeRiskLevel(text: string): RuleBasedRisk {
   const matchedMedium: string[] = [];
   const matchedLow: string[] = [];
   
-  // Check for high-risk indicators
+  // Check for high-risk indicators (skip if negated)
   for (const keyword of RISK_KEYWORDS.high) {
-    if (normalized.includes(keyword)) {
+    if (normalized.includes(keyword) && !isNegated(normalized, keyword)) {
       matchedHigh.push(keyword);
     }
   }
   
-  // Check for medium-risk indicators
+  // Check for medium-risk indicators (skip if negated)
   for (const keyword of RISK_KEYWORDS.medium) {
-    if (normalized.includes(keyword)) {
+    if (normalized.includes(keyword) && !isNegated(normalized, keyword)) {
       matchedMedium.push(keyword);
     }
   }
@@ -225,23 +232,6 @@ export function analyzeRiskLevel(text: string): RuleBasedRisk {
     requiresAI: true,
     reason: "Insufficient information for confident assessment"
   };
-}
-
-/**
- * Parse Yes/No values without AI
- */
-export function parseYesNo(text: string): "Yes" | "No" | null {
-  const normalized = text.toLowerCase().trim();
-  
-  for (const pattern of YES_PATTERNS) {
-    if (normalized.includes(pattern)) return "Yes";
-  }
-  
-  for (const pattern of NO_PATTERNS) {
-    if (normalized.includes(pattern)) return "No";
-  }
-  
-  return null;
 }
 
 /**
@@ -635,33 +625,50 @@ export function extractMedicationInfo(text: string): MedicationInfo[] {
   for (const medName of foundMeds) {
     const info: MedicationInfo = { name: medName };
     
-    // Detect route
+    // Find the context around this medication mention for per-medication attribute detection
+    const medIndex = normalized.indexOf(medName);
+    // Use a window of ~200 chars around the medication name for context-sensitive matching
+    const contextStart = Math.max(0, medIndex - 50);
+    const contextEnd = Math.min(normalized.length, medIndex + medName.length + 150);
+    const medContext = normalized.slice(contextStart, contextEnd);
+    
+    // Detect route (check medication context first, then fall back to full text)
     for (const [route, patterns] of Object.entries(MEDICATION_PATTERNS.routes)) {
-      if (patterns.some(p => normalized.includes(p))) {
+      if (patterns.some(p => medContext.includes(p) || normalized.includes(p))) {
         info.route = route;
         break;
       }
     }
     
-    // Detect frequency
+    // Detect frequency (check medication context first, then fall back to full text)
     for (const [freq, patterns] of Object.entries(MEDICATION_PATTERNS.frequencies)) {
-      if (patterns.some(p => normalized.includes(p))) {
+      if (patterns.some(p => medContext.includes(p))) {
         info.frequency = freq;
         break;
       }
     }
+    // If no frequency found in context, try the full text as fallback
+    if (!info.frequency) {
+      for (const [freq, patterns] of Object.entries(MEDICATION_PATTERNS.frequencies)) {
+        if (patterns.some(p => normalized.includes(p))) {
+          info.frequency = freq;
+          break;
+        }
+      }
+    }
     
-    // Detect storage
+    // Detect storage (per-medication context)
     for (const [storage, patterns] of Object.entries(MEDICATION_PATTERNS.storage)) {
-      if (patterns.some(p => normalized.includes(p))) {
+      if (patterns.some(p => medContext.includes(p) || normalized.includes(p))) {
         info.storage = storage;
         info.isControlled = storage === "controlled";
         break;
       }
     }
     
-    // Check for monitoring needs
-    info.needsMonitoring = /warfarin|inr|blood test|monitoring|level check/i.test(text);
+    // Check for monitoring needs (both per-med and known monitored drugs)
+    const monitoredDrugs = /warfarin|lithium|digoxin|theophylline|phenytoin|carbamazepine|methotrexate/i;
+    info.needsMonitoring = monitoredDrugs.test(medName) || /inr|blood test|monitoring|level check/i.test(medContext);
     
     medications.push(info);
   }
@@ -884,13 +891,6 @@ export function generateBasicSummary(sectionName: string, extractedData: Record<
   }
   
   return dataPoints.join(". ") + ".";
-}
-
-/**
- * Batch analyze multiple texts at once (for efficiency)
- */
-export function batchAnalyzeRisk(texts: string[]): RuleBasedRisk[] {
-  return texts.map(text => analyzeRiskLevel(text));
 }
 
 /**

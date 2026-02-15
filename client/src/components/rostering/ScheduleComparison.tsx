@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GitCompare, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Loader2, ArrowRight } from "lucide-react";
+import { GitCompare, TrendingUp, TrendingDown, Minus, Loader2, ArrowRight } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 
 interface WorkerStats {
@@ -121,7 +121,7 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
                 Schedule Comparison
               </CardTitle>
               <CardDescription>
-                AI-powered before/after analysis with GPT-4.1-mini
+                AI-powered before/after schedule analysis
               </CardDescription>
             </div>
             <Button 

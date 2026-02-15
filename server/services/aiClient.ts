@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { storage } from "../storage";
 import { calculateCostMicroDollars, AVAILABLE_MODELS, type AvailableModel } from "../config/aiPricing";
-import { generateCacheKey, getCachedResponse, setCachedResponse, getCacheStats } from "./aiCache";
+import { generateCacheKey, getCachedResponse, setCachedResponse } from "./aiCache";
 import { shouldUseAI, extractCommonFields } from "./ruleBasedEngine";
 
 // User context type for logging
@@ -196,27 +196,7 @@ export function setPreferredProvider(provider: AiProvider, persist: boolean = fa
 }
 
 export function getPreferredModel(): AvailableModel {
-  console.log(`[AI DEBUG] getPreferredModel called, returning: ${preferredModel}`);
   return preferredModel;
-}
-
-export function setPreferredModel(model: string, persist: boolean = false): void {
-  const validModels = AVAILABLE_MODELS.map(m => m.id);
-  if (!validModels.includes(model as AvailableModel)) {
-    throw new Error(`Invalid model. Must be one of: ${validModels.join(", ")}`);
-  }
-  preferredModel = model as AvailableModel;
-  console.log(`[AI Config] Preferred model set to: ${model}${persist ? " (persisted)" : ""}`);
-  
-  if (persist) {
-    storage.setAppSetting("ai_model", model).catch(err => 
-      console.error("[AI Config] Failed to persist model:", err.message)
-    );
-  }
-}
-
-export function getAvailableModels() {
-  return AVAILABLE_MODELS;
 }
 
 export function getUseEmarAgent(): boolean {
@@ -591,6 +571,7 @@ async function createChatCompletionWithProvider(
                           error?.response?.headers?.['retry-after'];
         const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
         console.warn(`[AI:${provider}] Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${MAX_RETRIES}...`);
+        await sleep(waitTime);
         continue;
       }
       
@@ -601,14 +582,6 @@ async function createChatCompletionWithProvider(
   
   // Should not reach here, but throw last error with formatting just in case
   throw formatGitHubModelsError(lastError, provider);
-}
-
-// Legacy function for backwards compatibility (returns just the completion)
-export async function createChatCompletion(
-  params: OpenAI.ChatCompletionCreateParamsNonStreaming
-): Promise<OpenAI.ChatCompletion> {
-  const result = await createChatCompletionWithProvider(params);
-  return result.completion;
 }
 
 export async function createChatCompletionWithLogging(
@@ -645,8 +618,8 @@ export async function createChatCompletionWithLogging(
   }
   
   // Check cache if enabled
-  if (useAICache) {
-    const cacheKey = generateCacheKey(params.messages as any, actualModel, featureName);
+  const cacheKey = useAICache ? generateCacheKey(params.messages as any, actualModel, featureName) : null;
+  if (cacheKey) {
     const cachedResponse = getCachedResponse(cacheKey);
     if (cachedResponse) {
       const duration = Date.now() - startTime;
@@ -698,8 +671,7 @@ export async function createChatCompletionWithLogging(
     console.log(`[AI:${featureName}] ✓ Completed in ${duration}ms, ${totalTokens} tokens, $${(costMicroDollars / 1000000).toFixed(4)} via ${providerLabel}`);
     
     // Cache the successful response if caching enabled
-    if (useAICache) {
-      const cacheKey = generateCacheKey(params.messages as any, actualModel, featureName);
+    if (cacheKey) {
       setCachedResponse(cacheKey, result.completion, featureName, totalTokens);
     }
     
@@ -787,8 +759,45 @@ export async function createHybridCompletion(
   // If rules-first is disabled, go straight to AI
   if (!useRulesFirst) {
     console.log(`[Hybrid:${featureName}] Rules-first disabled, using AI directly`);
-    // TODO: Implement AI path when rules-first is disabled
-    return { result: null, usedAI: true, reason: "Rules-first disabled in settings" };
+    // Build prompts and call AI directly
+    let systemPrompt = "";
+    let userPrompt = "";
+    switch (taskType) {
+      case "risk_assessment":
+        systemPrompt = "You are a care risk assessment expert. Analyze the provided content and determine the risk level (Low, Medium, High) with supporting evidence.";
+        userPrompt = `Analyze this content for risk factors:\n\n${content}\n\nProvide:\n1. Risk level (Low/Medium/High)\n2. Key risk factors identified\n3. Recommended mitigations`;
+        break;
+      case "care_plan":
+        systemPrompt = "You are a care plan writer. Create person-centered care content in the first person (I, my, me).";
+        userPrompt = `Based on this information, create care plan content:\n\n${content}`;
+        break;
+      case "simple_extraction":
+        systemPrompt = "Extract key information from the provided text and return as structured data.";
+        userPrompt = `Extract key fields from:\n\n${content}`;
+        break;
+    }
+    if (aiLiteMode) {
+      systemPrompt = "Be concise. Respond with key facts only.";
+    }
+    const directCompletion = await createChatCompletionWithLogging(
+      {
+        model: model || preferredModel,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 1000
+      },
+      featureName,
+      userContext
+    );
+    const directContent = directCompletion.choices[0]?.message?.content || "";
+    return {
+      result: { aiGenerated: true, content: directContent },
+      usedAI: true,
+      reason: "Rules-first disabled in settings"
+    };
   }
   
   // Try rule-based extraction first
@@ -863,5 +872,7 @@ export function getLocalLLMUrl(): string {
   return LOCAL_LLM_URL;
 }
 
-// Export the configured OpenAI client for legacy imports
-export const openai = aiEnabled ? getOpenAIClient() : null;
+// Export getter for OpenAI client (lazy — always reflects current AI state)
+export function getOpenAI(): OpenAI | null {
+  return aiEnabled ? getOpenAIClient() : null;
+}

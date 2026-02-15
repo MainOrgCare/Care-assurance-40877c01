@@ -143,7 +143,7 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
                 AI Schedule Analysis
               </CardTitle>
               <CardDescription>
-                GPT-4.1-mini powered insights for {props.weekNumber}, {props.weekDay}
+                AI-powered insights for {props.weekNumber}, {props.weekDay}
               </CardDescription>
             </div>
             <Button 

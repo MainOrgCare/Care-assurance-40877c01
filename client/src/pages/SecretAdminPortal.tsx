@@ -29,18 +29,6 @@ interface AdminAlert {
   createdAt: string;
 }
 
-interface RiskAssessmentLog {
-  id: string;
-  serviceUserName: string;
-  performedBy: string;
-  performedByJobTitle: string | null;
-  offeredAssessments: string[];
-  selectedAssessments: string[];
-  skippedMandatory: string[];
-  documentSummary: string | null;
-  createdAt: string;
-}
-
 interface AiUsageLog {
   id: string;
   userId: string | null;
@@ -238,7 +226,7 @@ function AIAdminLog() {
   }, [logs]);
 
   const filteredLogs = useMemo(() => {
-    const filtered = logs.filter(log => {
+    return logs.filter(log => {
       const matchesSearch = !searchQuery || 
         log.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         log.endpoint.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -247,10 +235,12 @@ function AIAdminLog() {
       const matchesEndpoint = endpointFilter === "all" || log.endpoint === endpointFilter;
       return matchesSearch && matchesUser && matchesEndpoint;
     });
-    // Reset to page 1 when filters change
-    setCurrentPage(1);
-    return filtered;
   }, [logs, searchQuery, userFilter, endpointFilter]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, userFilter, endpointFilter]);
 
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -267,11 +257,6 @@ function AIAdminLog() {
       minute: '2-digit',
       second: '2-digit'
     });
-  };
-
-  const formatCost = (microDollars: number) => {
-    const dollars = microDollars / 1000000;
-    return `$${dollars.toFixed(4)}`;
   };
 
   if (loading) {
@@ -301,6 +286,7 @@ function AIAdminLog() {
           <div className="flex-1 min-w-[200px]">
             <Input
               placeholder="Search logs..."
+              aria-label="Search AI request logs"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full"
@@ -569,7 +555,7 @@ function AICostSection() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-primary">{totalCalls}</div>
+            <div className="text-2xl font-semibold text-primary">{totalCalls.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">Total AI requests</p>
           </CardContent>
         </Card>
@@ -650,7 +636,7 @@ function AICostSection() {
                   <span className="font-semibold text-foreground">{formatCost(topFeature[1].cost)}</span>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {topFeature[1].calls} calls · {topFeature[1].tokens.toLocaleString()} tokens
+                  {topFeature[1].calls.toLocaleString()} calls · {topFeature[1].tokens.toLocaleString()} tokens
                 </div>
                 <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
                   <div
@@ -692,7 +678,7 @@ function AICostSection() {
                           {feature.replace(/_/g, " ")}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          {data.calls} calls · {avgTokens.toFixed(0)} tokens/call
+                          {data.calls.toLocaleString()} calls · {avgTokens.toFixed(0)} tokens/call
                         </span>
                       </div>
                       <div className="text-right">
@@ -703,7 +689,7 @@ function AICostSection() {
                     <div className="flex items-center gap-3">
                       <div className="h-2 flex-1 rounded-full bg-muted/30 overflow-hidden">
                         <div
-                          className="h-full bg-background/20"
+                          className="h-full bg-primary/40"
                           style={{ width: `${Math.max(6, Math.min(100, share))}%` }}
                         />
                       </div>
@@ -736,6 +722,7 @@ function AICostSection() {
                   value={logSearch}
                   onChange={(e) => setLogSearch(e.target.value)}
                   placeholder="Search user, feature, model..."
+                  aria-label="Search AI usage logs"
                   className="pl-9 bg-muted border-border text-foreground placeholder:text-muted-foreground w-[220px]"
                   data-testid="input-ai-usage-search"
                 />
@@ -750,6 +737,38 @@ function AICostSection() {
                   <SelectItem value="other">Other providers</SelectItem>
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                disabled={filteredLogs.length === 0}
+                onClick={() => {
+                  const headers = ["Timestamp", "User", "Feature", "Provider", "Model", "Input Tokens", "Output Tokens", "Total Tokens", "Cost (micro $)", "Duration (ms)"];
+                  const rows = filteredLogs.map(log => [
+                    new Date(log.createdAt).toISOString(),
+                    log.username || "System",
+                    log.featureName,
+                    log.provider || "unknown",
+                    log.model,
+                    log.inputTokens,
+                    log.outputTokens,
+                    log.totalTokens,
+                    log.costMicroDollars,
+                    log.durationMs ?? "",
+                  ]);
+                  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+                  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `ai-usage-${new Date().toISOString().slice(0, 10)}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <Download size={14} />
+                Export CSV
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -821,11 +840,13 @@ function AICostSection() {
 }
 
 function AIProviderSection() {
+  const { toast } = useToast();
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [hasPATKey, setHasPATKey] = useState(false);
   const [hasLocalLLM, setHasLocalLLM] = useState(false);
   const [localLLMUrl, setLocalLLMUrl] = useState("");
   const [selectedProvider, setSelectedProvider] = useState<"openai" | "github" | "local">("openai");
+  const [selectedModel, setSelectedModel] = useState("gpt-4.1-mini");
   const [useEmarAgent, setUseEmarAgent] = useState(true);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -847,6 +868,7 @@ function AIProviderSection() {
         setHasLocalLLM(Boolean(data.hasLocalLLM));
         setLocalLLMUrl(data.localLLMUrl || "");
         setSelectedProvider(data.provider || "openai");
+        if (data.model) setSelectedModel(data.model);
       }
       
       if (emarRes.ok) {
@@ -865,15 +887,15 @@ function AIProviderSection() {
     
     // Check if the target provider is available
     if (newProvider === "openai" && !hasOpenAIKey) {
-      alert("OpenAI API key is not configured.");
+      toast({ title: "Provider Unavailable", description: "OpenAI API key is not configured.", variant: "destructive" });
       return;
     }
     if (newProvider === "github" && !hasPATKey) {
-      alert("GitHub AI key (PAT_AI_KEY) is not configured.");
+      toast({ title: "Provider Unavailable", description: "GitHub AI key (PAT_AI_KEY) is not configured.", variant: "destructive" });
       return;
     }
     if (newProvider === "local" && !hasLocalLLM) {
-      alert(`Local LLM not available at ${localLLMUrl}. Ensure the local-llm service is running.`);
+      toast({ title: "Provider Unavailable", description: `Local LLM not available at ${localLLMUrl}. Ensure the local-llm service is running.`, variant: "destructive" });
       return;
     }
     
@@ -888,13 +910,14 @@ function AIProviderSection() {
       
       if (res.ok) {
         setSelectedProvider(newProvider);
+        toast({ title: "Provider Updated", description: `Switched to ${newProvider} provider.` });
       } else {
         const data = await res.json();
-        alert(data.message || "Failed to update provider");
+        toast({ title: "Update Failed", description: data.message || "Failed to update provider", variant: "destructive" });
       }
     } catch (error) {
       console.error("Failed to update provider:", error);
-      alert("Failed to update provider");
+      toast({ title: "Error", description: "Failed to update provider", variant: "destructive" });
     } finally {
       setUpdating(false);
     }
@@ -914,13 +937,14 @@ function AIProviderSection() {
       
       if (res.ok) {
         setUseEmarAgent(newValue);
+        toast({ title: "EMAR Agent Updated", description: `EMAR agent ${newValue ? "enabled" : "disabled"}.` });
       } else {
         const data = await res.json();
-        alert(data.message || "Failed to update EMAR agent preference");
+        toast({ title: "Update Failed", description: data.message || "Failed to update EMAR agent preference", variant: "destructive" });
       }
     } catch (error) {
       console.error("Failed to update EMAR agent:", error);
-      alert("Failed to update EMAR agent preference");
+      toast({ title: "Error", description: "Failed to update EMAR agent preference", variant: "destructive" });
     } finally {
       setUpdatingEmar(false);
     }
@@ -929,8 +953,8 @@ function AIProviderSection() {
   if (loading) {
     return (
       <Card>
-        <CardContent className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
     );
@@ -1096,7 +1120,7 @@ function AIProviderSection() {
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-foreground">Use EMAR Agent</span>
                 <span className="text-xs text-muted-foreground">
-                  Advanced GPT-4.1-mini extraction for thorough discrepancy detection
+                  Advanced AI extraction for thorough discrepancy detection
                 </span>
               </div>
             </div>
@@ -1114,7 +1138,7 @@ function AIProviderSection() {
             <div className="text-xs text-muted-foreground space-y-1">
               <div className="flex items-start gap-2">
                 <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30 shrink-0">
-                  {useEmarAgent ? "GPT-4.1-mini" : "Standard"}
+                  {useEmarAgent ? selectedModel : "Standard"}
                 </Badge>
                 <span className="font-medium text-foreground">
                   {useEmarAgent 
@@ -1140,11 +1164,11 @@ function AIProviderSection() {
             <div className="font-medium text-foreground mb-2">Optimized Tiered Approach</div>
             <div className="text-xs text-muted-foreground space-y-2">
               <div className="flex items-start gap-2">
-                <Badge variant="secondary" className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 shrink-0">GPT-4.1-mini</Badge>
+                <Badge variant="secondary" className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 shrink-0">{selectedModel}</Badge>
                 <span>Core EMAR extraction (accuracy critical)</span>
               </div>
               <div className="flex items-start gap-2">
-                <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shrink-0">GPT-4.1-mini</Badge>
+                <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shrink-0">{selectedModel}</Badge>
                 <span>Count validation, equivalence checks, drug interactions, validation passes (cost-efficient with temperature support)</span>
               </div>
             </div>
@@ -1166,15 +1190,18 @@ function AIProviderSection() {
 
 // AI Optimization Settings Component - reduces API calls and costs
 function AIOptimizationSection() {
+  const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
   const [useCache, setUseCache] = useState(true);
   const [useRulesFirst, setUseRulesFirst] = useState(true);
   const [liteMode, setLiteMode] = useState(false);
   const [cacheStats, setCacheStats] = useState<{
     size: number;
+    maxSize: number;
     hits: number;
     misses: number;
     hitRate: string;
     tokensSaved: number;
+    evictions: number;
     estimatedCostSaved: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1225,7 +1252,7 @@ function AIOptimizationSection() {
   };
 
   const clearCache = async () => {
-    if (!confirm("Clear the entire AI response cache? This will force fresh API calls.")) return;
+    setShowClearCacheConfirm(false);
     setUpdating(true);
     try {
       const res = await fetch("/api/admin/ai-optimization", {
@@ -1247,15 +1274,16 @@ function AIOptimizationSection() {
 
   if (loading) {
     return (
-      <div className="border-t border-border/30 pt-6">
-        <div className="flex items-center justify-center py-4">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
-      </div>
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
     );
   }
 
   return (
+    <>
     <div className="border-t border-border/30 pt-6">
       <h4 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
         <Zap size={16} className="text-amber-400" />
@@ -1309,7 +1337,7 @@ function AIOptimizationSection() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-foreground">Cache Statistics</span>
             <button
-              onClick={clearCache}
+              onClick={() => setShowClearCacheConfirm(true)}
               disabled={updating}
               className="text-xs text-destructive hover:text-destructive/80 disabled:opacity-50"
             >
@@ -1331,7 +1359,7 @@ function AIOptimizationSection() {
             </div>
           </div>
           <div className="text-xs text-muted-foreground mt-2 text-center">
-            {cacheStats.size} entries in cache ({cacheStats.hits} hits / {cacheStats.misses} misses)
+            {cacheStats.size}/{cacheStats.maxSize} entries in cache ({cacheStats.hits} hits / {cacheStats.misses} misses{cacheStats.evictions > 0 ? ` / ${cacheStats.evictions} evictions` : ""})
           </div>
         </div>
       )}
@@ -1367,152 +1395,28 @@ function AIOptimizationSection() {
         </div>
       </div>
     </div>
+
+    <Dialog open={showClearCacheConfirm} onOpenChange={setShowClearCacheConfirm}>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Clear AI Cache</DialogTitle>
+          <DialogDescription>
+            Clear the entire AI response cache? This will force fresh API calls for all subsequent requests.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowClearCacheConfirm(false)}>Cancel</Button>
+          <Button variant="destructive" onClick={clearCache}>Clear Cache</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
-function RiskAssessmentLogsSection() {
-  const [logs, setLogs] = useState<RiskAssessmentLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-
-  useEffect(() => {
-    fetchLogs();
-  }, []);
-
-  const fetchLogs = async () => {
-    try {
-      const response = await fetch("/api/risk-assessment-logs", {
-        credentials: "include",
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setLogs(data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch risk assessment logs:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredLogs = logs.filter(log => 
-    log.serviceUserName.toLowerCase().includes(search.toLowerCase()) ||
-    log.performedBy.toLowerCase().includes(search.toLowerCase())
-  );
-
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-	    <Card className="overflow-hidden">
-      <CardHeader className="border-b border-border/30 bg-muted/30">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-foreground text-base">
-              <FileWarning size={18} className="text-amber-400" />
-              Risk Assessment Audit Log
-            </CardTitle>
-            <CardDescription className="text-muted-foreground text-sm">
-              Track which risk assessments were offered and selected for each service user.
-            </CardDescription>
-          </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by service user or staff..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-muted border-border text-foreground placeholder:text-muted-foreground w-[250px]"
-              data-testid="input-risk-log-search"
-            />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border/30 hover:bg-transparent">
-                <TableHead className="text-muted-foreground font-medium">Date</TableHead>
-                <TableHead className="text-muted-foreground font-medium">Service User</TableHead>
-                <TableHead className="text-muted-foreground font-medium">Performed By</TableHead>
-                <TableHead className="text-muted-foreground font-medium text-center">Offered</TableHead>
-                <TableHead className="text-muted-foreground font-medium text-center">Selected</TableHead>
-                <TableHead className="text-muted-foreground font-medium">Skipped Mandatory</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredLogs.map((log) => (
-                <TableRow key={log.id} className="border-border/30 hover:bg-muted/20 transition-colors" data-testid={`row-risk-log-${log.id}`}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {new Date(log.createdAt).toLocaleDateString("en-GB", { 
-                      day: "2-digit", 
-                      month: "short", 
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit"
-                    })}
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-medium text-foreground">{log.serviceUserName}</span>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <span className="text-foreground">{log.performedBy}</span>
-                      {log.performedByJobTitle && (
-                        <p className="text-xs text-muted-foreground">{log.performedByJobTitle}</p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="secondary" className="bg-muted text-foreground">
-                      {log.offeredAssessments?.length || 0}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="secondary" className="bg-success/20 text-success border border-success/30">
-                      {log.selectedAssessments?.length || 0}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {log.skippedMandatory && log.skippedMandatory.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {log.skippedMandatory.map((item, idx) => (
-                          <Badge key={idx} variant="destructive" className="text-xs">
-                            {item}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-success">None skipped</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filteredLogs.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    {logs.length === 0 ? "No risk assessment logs yet." : "No logs found matching your search."}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-	      <CardFooter className="border-t py-3 border-border/30 bg-muted/30">
-        <p className="text-xs text-muted-foreground">Showing {filteredLogs.length} of {logs.length} log entries</p>
-      </CardFooter>
-    </Card>
-  );
-}
+// RiskAssessmentLogsSection, AuditTrailSection, and UnifiedSystemLogSection
+// were removed as dead code — their functionality is covered by the Operations
+// Command Center and the System Log dialog.
 
 interface UserPresence {
   id: string;
@@ -1542,46 +1446,6 @@ interface BlockedIp {
   reason: string | null;
   username: string | null;
   createdAt: string;
-}
-
-interface AuditTrailData {
-  riskAssessments: RiskAssessmentLog[];
-  discrepancies: Array<{
-    id: string;
-    careWorkerId: string;
-    type: string;
-    date: string;
-    description: string;
-    action: string;
-    severity: string | null;
-    actionMedium: string | null;
-    manager: string | null;
-    notes: string | null;
-    createdAt: string;
-    careWorker: { name: string };
-  }>;
-  suspensions: Array<{
-    id: string;
-    userId: string;
-    username: string;
-    adminUsername: string;
-    durationMinutes: number;
-    reason: string | null;
-    startsAt: string;
-    endsAt: string;
-    reinstatedEarly: boolean;
-    createdAt: string;
-  }>;
-  sessionHistory: Array<{
-    id: string;
-    userId: string;
-    username: string;
-    sessionId: string;
-    loggedInAt: string;
-    loggedOutAt: string | null;
-    durationSeconds: number | null;
-    terminatedByAdmin: boolean;
-  }>;
 }
 
 function ActivePresenceSection() {
@@ -1764,6 +1628,11 @@ function ActivePresenceSection() {
                 <div 
                   className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => toggleExpanded(user.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpanded(user.id); } }}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isExpanded}
+                  aria-label={`${user.username} session details`}
                 >
                   <div className="flex items-center gap-3">
                     <div className="h-2.5 w-2.5 rounded-full bg-success animate-pulse" />
@@ -1867,6 +1736,13 @@ function ActivePresenceSection() {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {offlineUsers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                    No offline staff members.
+                  </TableCell>
+                </TableRow>
+              )}
               {offlineUsers.slice(0, 10).map((user) => (
                 <TableRow key={user.id} className="border-border/30 hover:bg-muted/20">
                   <TableCell>
@@ -1893,6 +1769,13 @@ function ActivePresenceSection() {
             </TableBody>
           </Table>
         </CardContent>
+        {offlineUsers.length > 10 && (
+          <CardFooter className="border-t py-3 border-border/30 bg-muted/30">
+            <p className="text-xs text-muted-foreground">
+              Showing 10 of {offlineUsers.length} offline staff
+            </p>
+          </CardFooter>
+        )}
       </Card>
 
       <Dialog open={!!suspendingUser} onOpenChange={() => setSuspendingUser(null)}>
@@ -2064,514 +1947,14 @@ function BlockedIpsSection() {
   );
 }
 
-function AuditTrailSection() {
-  const [data, setData] = useState<AuditTrailData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("discrepancies");
-  const [search, setSearch] = useState("");
-
-  useEffect(() => {
-    fetchAuditTrail();
-  }, []);
-
-  const fetchAuditTrail = async () => {
-    try {
-      const response = await fetch("/api/admin/audit-trail", { credentials: "include" });
-      if (response.ok) {
-        const result = await response.json();
-        setData(result);
-      }
-    } catch (error) {
-      console.error("Failed to fetch audit trail:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!data) return null;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search audit trail..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 bg-muted border-border text-foreground placeholder:text-muted-foreground" data-testid="input-audit-search" />
-        </div>
-        <Select value={activeTab} onValueChange={setActiveTab}>
-          <SelectTrigger className="w-[180px] bg-muted border-border text-foreground">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="discrepancies">Discrepancies</SelectItem>
-            <SelectItem value="suspensions">Suspensions</SelectItem>
-            <SelectItem value="sessions">Session History</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {activeTab === "discrepancies" && (
-	    <Card className="overflow-hidden">
-          <CardHeader className="border-b border-border/30 bg-muted/30">
-            <CardTitle className="flex items-center gap-2 text-foreground text-base">
-              <AlertTriangle size={18} className="text-amber-400" />
-              Care Worker Discrepancies ({data.discrepancies.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border/30">
-                    <TableHead className="text-muted-foreground">Date</TableHead>
-                    <TableHead className="text-muted-foreground">Care Worker</TableHead>
-                    <TableHead className="text-muted-foreground">Type</TableHead>
-                    <TableHead className="text-muted-foreground">Description</TableHead>
-                    <TableHead className="text-muted-foreground">Action</TableHead>
-                    <TableHead className="text-muted-foreground">Severity</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.discrepancies.filter(d => d.careWorker.name.toLowerCase().includes(search.toLowerCase()) || d.description.toLowerCase().includes(search.toLowerCase())).slice(0, 20).map((d) => (
-                    <TableRow key={d.id} className="border-border/30 hover:bg-muted/20">
-                      <TableCell className="text-muted-foreground text-xs font-mono">{d.date}</TableCell>
-                      <TableCell className="text-foreground">{d.careWorker.name}</TableCell>
-                      <TableCell><Badge variant="outline" className="text-xs">{d.type}</Badge></TableCell>
-                      <TableCell className="text-muted-foreground text-sm max-w-[300px] truncate">{d.description}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{d.action}</TableCell>
-                      <TableCell>
-                        {d.severity && (
-                          <Badge className={d.severity === "high" ? "bg-destructive/20 text-destructive" : d.severity === "medium" ? "bg-amber-500/20 text-amber-500" : "bg-muted text-foreground"}>
-                            {d.severity}
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {activeTab === "suspensions" && (
-	        <Card className="overflow-hidden">
-          <CardHeader className="border-b border-border/30 bg-muted/30">
-            <CardTitle className="flex items-center gap-2 text-foreground text-base">
-              <Lock size={18} className="text-destructive" />
-              Suspension Logs ({data.suspensions.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border/30">
-                  <TableHead className="text-muted-foreground">Date</TableHead>
-                  <TableHead className="text-muted-foreground">User</TableHead>
-                  <TableHead className="text-muted-foreground">Admin</TableHead>
-                  <TableHead className="text-muted-foreground">Duration</TableHead>
-                  <TableHead className="text-muted-foreground">Reason</TableHead>
-                  <TableHead className="text-muted-foreground">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.suspensions.filter(s => s.username.toLowerCase().includes(search.toLowerCase())).map((s) => (
-                  <TableRow key={s.id} className="border-border/30 hover:bg-muted/20">
-                    <TableCell className="text-muted-foreground text-xs font-mono">{new Date(s.startsAt).toLocaleString()}</TableCell>
-                    <TableCell className="text-foreground">{s.username}</TableCell>
-                    <TableCell className="text-muted-foreground">{s.adminUsername}</TableCell>
-                    <TableCell className="text-muted-foreground">{s.durationMinutes} min</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{s.reason || "-"}</TableCell>
-                    <TableCell>
-                      {s.reinstatedEarly ? (
-                        <Badge variant="outline" className="border-success/30 text-success">Reinstated</Badge>
-                      ) : new Date(s.endsAt) > new Date() ? (
-                        <Badge variant="destructive">Active</Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-border text-muted-foreground">Expired</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {activeTab === "sessions" && (
-	        <Card className="overflow-hidden">
-          <CardHeader className="border-b border-border/30 bg-muted/30">
-            <CardTitle className="flex items-center gap-2 text-foreground text-base">
-              <Activity size={18} className="text-primary" />
-              Session History ({data.sessionHistory.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border/30">
-                  <TableHead className="text-muted-foreground">Login Time</TableHead>
-                  <TableHead className="text-muted-foreground">User</TableHead>
-                  <TableHead className="text-muted-foreground">Logout Time</TableHead>
-                  <TableHead className="text-muted-foreground">Duration</TableHead>
-                  <TableHead className="text-muted-foreground">Terminated</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.sessionHistory.filter(s => s.username.toLowerCase().includes(search.toLowerCase())).slice(0, 30).map((s) => (
-                  <TableRow key={s.id} className="border-border/30 hover:bg-muted/20">
-                    <TableCell className="text-muted-foreground text-xs font-mono">{new Date(s.loggedInAt).toLocaleString()}</TableCell>
-                    <TableCell className="text-foreground">{s.username}</TableCell>
-                    <TableCell className="text-muted-foreground text-xs font-mono">{s.loggedOutAt ? new Date(s.loggedOutAt).toLocaleString() : "-"}</TableCell>
-                    <TableCell className="text-muted-foreground">{s.durationSeconds ? `${Math.floor(s.durationSeconds / 60)}m` : "-"}</TableCell>
-                    <TableCell>{s.terminatedByAdmin ? <Badge variant="destructive" className="text-xs">Admin</Badge> : <span className="text-muted-foreground">-</span>}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
-
 interface SystemLog {
-  id: string;
+  id: string | number;
   user: string;
   action: string;
   target: string;
   time: string;
-  status: "Authorized" | "System" | "Flagged" | "Blocked";
+  status: string;
   alert?: string;
-}
-
-interface UnifiedSystemLogSectionProps {
-  systemLogs: SystemLog[];
-  logSearch: string;
-  setLogSearch: (val: string) => void;
-  logStatusFilter: string;
-  setLogStatusFilter: (val: string) => void;
-  filteredLogs: SystemLog[];
-}
-
-function UnifiedSystemLogSection({ systemLogs, logSearch, setLogSearch, logStatusFilter, setLogStatusFilter, filteredLogs }: UnifiedSystemLogSectionProps) {
-  const [logCategory, setLogCategory] = useState("activity");
-  const [auditData, setAuditData] = useState<AuditTrailData | null>(null);
-  const [riskLogs, setRiskLogs] = useState<RiskAssessmentLog[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchAllData = async () => {
-      try {
-        const [auditRes, riskRes] = await Promise.all([
-          fetch("/api/admin/audit-trail", { credentials: "include" }),
-          fetch("/api/risk-assessment-logs", { credentials: "include" })
-        ]);
-        if (auditRes.ok) setAuditData(await auditRes.json());
-        if (riskRes.ok) setRiskLogs(await riskRes.json());
-      } catch (error) {
-        console.error("Failed to fetch logs:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAllData();
-  }, []);
-
-  const getCategoryLabel = (cat: string) => {
-    switch (cat) {
-      case "activity": return "Activity Logs";
-      case "discrepancies": return "Discrepancies";
-      case "suspensions": return "Suspensions";
-      case "sessions": return "Session History";
-      case "risk": return "Risk Assessments";
-      default: return cat;
-    }
-  };
-
-  const getCategoryCount = (cat: string) => {
-    switch (cat) {
-      case "activity": return systemLogs.length;
-      case "discrepancies": return auditData?.discrepancies.length || 0;
-      case "suspensions": return auditData?.suspensions.length || 0;
-      case "sessions": return auditData?.sessionHistory.length || 0;
-      case "risk": return riskLogs.length;
-      default: return 0;
-    }
-  };
-
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-	    <Card className="overflow-hidden">
-      <CardHeader className="border-b border-border/30 bg-muted/30">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-foreground text-base">
-              <Terminal size={18} className="text-purple-400" /> System Log
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Unified view of all system activity, audits, and assessments.
-            </CardDescription>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-              <Input
-                placeholder="Search..."
-                value={logSearch}
-                onChange={(e) => setLogSearch(e.target.value)}
-                className="bg-card border-border text-foreground pl-9 w-[180px]"
-                data-testid="input-unified-log-search"
-              />
-            </div>
-            <Select value={logCategory} onValueChange={setLogCategory}>
-              <SelectTrigger className="bg-card border-border text-foreground w-[180px]" data-testid="select-log-category">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="activity">Activity Logs ({getCategoryCount("activity")})</SelectItem>
-                <SelectItem value="discrepancies">Discrepancies ({getCategoryCount("discrepancies")})</SelectItem>
-                <SelectItem value="suspensions">Suspensions ({getCategoryCount("suspensions")})</SelectItem>
-                <SelectItem value="sessions">Session History ({getCategoryCount("sessions")})</SelectItem>
-                <SelectItem value="risk">Risk Assessments ({getCategoryCount("risk")})</SelectItem>
-              </SelectContent>
-            </Select>
-            {logCategory === "activity" && (
-              <Select value={logStatusFilter} onValueChange={setLogStatusFilter}>
-                <SelectTrigger className="bg-card border-border text-foreground w-[120px]" data-testid="select-log-filter">
-                  <Filter size={14} className="mr-2" />
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="Authorized">Authorized</SelectItem>
-                  <SelectItem value="System">System</SelectItem>
-                  <SelectItem value="Flagged">Flagged</SelectItem>
-                  <SelectItem value="Blocked">Blocked</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <div className="max-h-[500px] overflow-auto">
-        {logCategory === "activity" && (
-          <Table>
-            <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-border/30 hover:bg-transparent">
-                <TableHead className="text-muted-foreground w-[100px]">Time</TableHead>
-                <TableHead className="text-muted-foreground">User</TableHead>
-                <TableHead className="text-muted-foreground">Action</TableHead>
-                <TableHead className="text-muted-foreground">Target</TableHead>
-                <TableHead className="text-muted-foreground text-right">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredLogs.map((log) => (
-                <TableRow key={log.id} className="border-border/30 hover:bg-muted/20 transition-colors" data-testid={`row-log-${log.id}`}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{log.time}</TableCell>
-                  <TableCell className="font-medium text-foreground">{log.user}</TableCell>
-                  <TableCell className="text-muted-foreground">{log.action}</TableCell>
-                  <TableCell className="text-muted-foreground">{log.target || "-"}</TableCell>
-                  <TableCell className="text-right">
-                    {log.status === 'Authorized' && <span className="text-xs text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/30">Authorized</span>}
-                    {log.status === 'System' && <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full border border-border/50">System</span>}
-                    {(log.status === 'Flagged' || log.status === 'Blocked') && (
-                      <span className="text-xs text-amber-400 bg-amber-950/30 px-2 py-0.5 rounded-full border border-amber-900/50 flex items-center justify-end gap-1 ml-auto w-fit">
-                        <Lock size={10} /> {log.alert || log.status}
-                      </span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filteredLogs.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No logs found.</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
-        )}
-
-        {logCategory === "discrepancies" && auditData && (
-          <Table>
-            <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-border/30">
-                <TableHead className="text-muted-foreground">Date</TableHead>
-                <TableHead className="text-muted-foreground">Care Worker</TableHead>
-                <TableHead className="text-muted-foreground">Type</TableHead>
-                <TableHead className="text-muted-foreground">Description</TableHead>
-                <TableHead className="text-muted-foreground">Action</TableHead>
-                <TableHead className="text-muted-foreground">Severity</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {auditData.discrepancies.filter(d => d.careWorker.name.toLowerCase().includes(logSearch.toLowerCase()) || d.description.toLowerCase().includes(logSearch.toLowerCase())).slice(0, 30).map((d) => (
-                <TableRow key={d.id} className="border-border/30 hover:bg-muted/20">
-                  <TableCell className="text-muted-foreground text-xs font-mono">{d.date}</TableCell>
-                  <TableCell className="text-foreground">{d.careWorker.name}</TableCell>
-                  <TableCell><Badge variant="outline" className="text-xs">{d.type}</Badge></TableCell>
-                  <TableCell className="text-muted-foreground text-sm max-w-[300px] truncate">{d.description}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{d.action}</TableCell>
-                  <TableCell>
-                    {d.severity && (
-                      <Badge className={d.severity === "high" ? "bg-destructive/20 text-destructive" : d.severity === "medium" ? "bg-amber-500/20 text-amber-500" : "bg-muted text-foreground"}>
-                        {d.severity}
-                      </Badge>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {auditData.discrepancies.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No discrepancies recorded.</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
-        )}
-
-        {logCategory === "suspensions" && auditData && (
-          <Table>
-            <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-border/30">
-                <TableHead className="text-muted-foreground">Date</TableHead>
-                <TableHead className="text-muted-foreground">User</TableHead>
-                <TableHead className="text-muted-foreground">Admin</TableHead>
-                <TableHead className="text-muted-foreground">Duration</TableHead>
-                <TableHead className="text-muted-foreground">Reason</TableHead>
-                <TableHead className="text-muted-foreground">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {auditData.suspensions.filter(s => s.username.toLowerCase().includes(logSearch.toLowerCase())).map((s) => (
-                <TableRow key={s.id} className="border-border/30 hover:bg-muted/20">
-                  <TableCell className="text-muted-foreground text-xs font-mono">{new Date(s.startsAt).toLocaleString()}</TableCell>
-                  <TableCell className="text-foreground">{s.username}</TableCell>
-                  <TableCell className="text-muted-foreground">{s.adminUsername}</TableCell>
-                  <TableCell className="text-muted-foreground">{s.durationMinutes} min</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{s.reason || "-"}</TableCell>
-                  <TableCell>
-                    {s.reinstatedEarly ? (
-                      <Badge variant="outline" className="border-success/30 text-success">Reinstated</Badge>
-                    ) : new Date(s.endsAt) > new Date() ? (
-                      <Badge variant="destructive">Active</Badge>
-                    ) : (
-                      <Badge variant="outline" className="border-border text-muted-foreground">Expired</Badge>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {auditData.suspensions.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No suspensions recorded.</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
-        )}
-
-        {logCategory === "sessions" && auditData && (
-          <Table>
-            <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-border/30">
-                <TableHead className="text-muted-foreground">Login Time</TableHead>
-                <TableHead className="text-muted-foreground">User</TableHead>
-                <TableHead className="text-muted-foreground">Logout Time</TableHead>
-                <TableHead className="text-muted-foreground">Duration</TableHead>
-                <TableHead className="text-muted-foreground">Terminated</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {auditData.sessionHistory.filter(s => s.username.toLowerCase().includes(logSearch.toLowerCase())).slice(0, 30).map((s) => (
-                <TableRow key={s.id} className="border-border/30 hover:bg-muted/20">
-                  <TableCell className="text-muted-foreground text-xs font-mono">{new Date(s.loggedInAt).toLocaleString()}</TableCell>
-                  <TableCell className="text-foreground">{s.username}</TableCell>
-                  <TableCell className="text-muted-foreground text-xs font-mono">{s.loggedOutAt ? new Date(s.loggedOutAt).toLocaleString() : "-"}</TableCell>
-                  <TableCell className="text-muted-foreground">{s.durationSeconds ? `${Math.floor(s.durationSeconds / 60)}m` : "-"}</TableCell>
-                  <TableCell>{s.terminatedByAdmin ? <Badge variant="destructive" className="text-xs">Admin</Badge> : <span className="text-muted-foreground">-</span>}</TableCell>
-                </TableRow>
-              ))}
-              {auditData.sessionHistory.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No session history.</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
-        )}
-
-        {logCategory === "risk" && (
-          <Table>
-            <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
-              <TableRow className="border-border/30 hover:bg-transparent">
-                <TableHead className="text-muted-foreground">Date</TableHead>
-                <TableHead className="text-muted-foreground">Service User</TableHead>
-                <TableHead className="text-muted-foreground">Performed By</TableHead>
-                <TableHead className="text-muted-foreground text-center">Offered</TableHead>
-                <TableHead className="text-muted-foreground text-center">Selected</TableHead>
-                <TableHead className="text-muted-foreground">Skipped Mandatory</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {riskLogs.filter(log => log.serviceUserName.toLowerCase().includes(logSearch.toLowerCase()) || log.performedBy.toLowerCase().includes(logSearch.toLowerCase())).map((log) => (
-                <TableRow key={log.id} className="border-border/30 hover:bg-muted/20 transition-colors" data-testid={`row-risk-log-${log.id}`}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {new Date(log.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-medium text-foreground">{log.serviceUserName}</span>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <span className="text-foreground">{log.performedBy}</span>
-                      {log.performedByJobTitle && <p className="text-xs text-muted-foreground">{log.performedByJobTitle}</p>}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="secondary" className="bg-muted text-foreground">{log.offeredAssessments?.length || 0}</Badge>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="secondary" className="bg-success/20 text-success border border-success/30">{log.selectedAssessments?.length || 0}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {log.skippedMandatory && log.skippedMandatory.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {log.skippedMandatory.map((item, idx) => <Badge key={idx} variant="destructive" className="text-xs">{item}</Badge>)}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-success">None skipped</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {riskLogs.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No risk assessment logs yet.</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
-        )}
-      </div>
-	      <CardFooter className="border-t py-3 border-border/30 bg-muted/30">
-        <p className="text-xs text-muted-foreground">
-          Viewing {getCategoryLabel(logCategory)} • {getCategoryCount(logCategory)} entries
-        </p>
-      </CardFooter>
-    </Card>
-  );
 }
 
 interface PolicyDocument {
@@ -2601,6 +1984,7 @@ function PolicyDocumentsSection() {
   const [uploadName, setUploadName] = useState("");
   const [uploadCategory, setUploadCategory] = useState("");
   const [uploadVersion, setUploadVersion] = useState("1.0");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -2663,6 +2047,7 @@ function PolicyDocumentsSection() {
   };
 
   const handleDelete = async (id: string) => {
+    setDeleteConfirmId(null);
     try {
       const response = await fetch(`/api/policy-documents/${id}`, {
         method: "DELETE",
@@ -2797,7 +2182,7 @@ function PolicyDocumentsSection() {
                       size="sm"
                       variant="ghost"
                       className="text-destructive hover:text-destructive/80 hover:bg-destructive/10"
-                      onClick={() => handleDelete(doc.id)}
+                      onClick={() => setDeleteConfirmId(doc.id)}
                       data-testid={`button-delete-policy-${doc.id}`}
                     >
                       <Trash2 size={14} />
@@ -2816,6 +2201,24 @@ function PolicyDocumentsSection() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Delete Policy Document Confirmation */}
+      <Dialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Delete Policy Document</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this policy document? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}>
+              <Trash2 size={14} className="mr-2" /> Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -2825,6 +2228,7 @@ function ContactMessagesSection() {
   const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
+  const [messageSearch, setMessageSearch] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -2900,6 +2304,16 @@ function ContactMessagesSection() {
 
   const unreadCount = useMemo(() => messages.filter(m => !m.isRead).length, [messages]);
 
+  const filteredMessages = useMemo(() => {
+    if (!messageSearch) return messages;
+    const q = messageSearch.toLowerCase();
+    return messages.filter(m => 
+      m.name.toLowerCase().includes(q) || 
+      m.email.toLowerCase().includes(q) || 
+      m.message.toLowerCase().includes(q)
+    );
+  }, [messages, messageSearch]);
+
   if (loading) {
     return (
       <Card>
@@ -2961,23 +2375,37 @@ function ContactMessagesSection() {
       {/* Messages List */}
 	      <Card className="overflow-hidden">
         <CardHeader className="border-b border-border/30 bg-muted/30">
-          <CardTitle className="flex items-center gap-2 text-foreground text-base">
-            <Mail size={18} className="text-teal-400" />
-            Contact Form Messages
-          </CardTitle>
-          <CardDescription className="text-muted-foreground text-sm">
-            Messages from the public contact form on the homepage.
-          </CardDescription>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-foreground text-base">
+                <Mail size={18} className="text-teal-400" />
+                Contact Form Messages
+              </CardTitle>
+              <CardDescription className="text-muted-foreground text-sm">
+                Messages from the public contact form on the homepage.
+              </CardDescription>
+            </div>
+            <div className="relative w-full md:w-[260px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search messages..."
+                aria-label="Search contact messages"
+                value={messageSearch}
+                onChange={(e) => setMessageSearch(e.target.value)}
+                className="pl-9 bg-muted border-border text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
-          {messages.length === 0 ? (
+          {filteredMessages.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Mail className="h-12 w-12 mx-auto mb-4 opacity-20" />
-              <p>No messages yet</p>
+              <p>{messageSearch ? "No messages match your search" : "No messages yet"}</p>
             </div>
           ) : (
             <div className="divide-y divide-white/5">
-              {messages.map((msg) => (
+              {filteredMessages.map((msg) => (
                 <div
                   key={msg.id}
                   className={`p-4 cursor-pointer hover:bg-muted/20 transition-colors ${
@@ -3290,11 +2718,11 @@ function OperationsCommandCenter({
     );
   };
 
+  const [showStopAnnouncementConfirm, setShowStopAnnouncementConfirm] = useState(false);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+
   const handleStopAnnouncement = async () => {
-    const confirmed = window.confirm(
-      "Stop the global announcement now? This immediately disables the broadcast banner."
-    );
-    if (!confirmed) return;
+    setShowStopAnnouncementConfirm(false);
 
     setSaving(true);
     try {
@@ -3432,10 +2860,7 @@ function OperationsCommandCenter({
   };
 
   const handleDisconnectNonAdminSessions = async () => {
-    const confirmed = window.confirm(
-      "Disconnect all active non-admin sessions now? This logs out all staff immediately."
-    );
-    if (!confirmed) return;
+    setShowDisconnectConfirm(false);
 
     try {
       const response = await fetch("/api/admin/sessions/disconnect-non-admin", {
@@ -3796,7 +3221,7 @@ function OperationsCommandCenter({
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
-                  onClick={handleStopAnnouncement}
+                  onClick={() => setShowStopAnnouncementConfirm(true)}
                   disabled={saving || !hasActiveAnnouncement}
                   className="border-destructive/30 text-destructive hover:bg-destructive/10"
                   data-testid="button-stop-global-announcement"
@@ -3846,7 +3271,7 @@ function OperationsCommandCenter({
             <Button
               variant="outline"
               className="justify-start border-destructive/30 text-destructive hover:bg-destructive/10"
-              onClick={handleDisconnectNonAdminSessions}
+              onClick={() => setShowDisconnectConfirm(true)}
               data-testid="button-disconnect-non-admin-sessions"
             >
               <UserX size={15} className="mr-2" />
@@ -3930,6 +3355,40 @@ function OperationsCommandCenter({
           </div>
         </CardContent>
       </Card>
+
+      {/* Stop Announcement Confirmation */}
+      <Dialog open={showStopAnnouncementConfirm} onOpenChange={setShowStopAnnouncementConfirm}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Stop Global Announcement</DialogTitle>
+            <DialogDescription>
+              Stop the global announcement now? This immediately disables the broadcast banner for all users.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowStopAnnouncementConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleStopAnnouncement}>Stop Broadcast</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Disconnect Sessions Confirmation */}
+      <Dialog open={showDisconnectConfirm} onOpenChange={setShowDisconnectConfirm}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Disconnect All Non-Admin Sessions</DialogTitle>
+            <DialogDescription>
+              This will immediately log out all active non-admin users. This action is typically used in emergency situations only.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDisconnectConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDisconnectNonAdminSessions}>
+              <UserX size={14} className="mr-2" /> Disconnect All
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -3975,6 +3434,8 @@ export default function SecretAdminPortal() {
 
   // System Log Dialog State
   const [systemLogDialogOpen, setSystemLogDialogOpen] = useState(false);
+  const [showResetDataConfirm, setShowResetDataConfirm] = useState(false);
+  const [userActionLoading, setUserActionLoading] = useState(false);
   const [auditCompletionLogs, setAuditCompletionLogs] = useState<Array<{
     id: string;
     auditType: string;
@@ -4019,6 +3480,27 @@ export default function SecretAdminPortal() {
   const handleOpenSystemLogDialog = () => {
     setSystemLogDialogOpen(true);
     fetchAuditCompletionLogs();
+  };
+
+  const handleResetPerformanceData = async () => {
+    setShowResetDataConfirm(false);
+    try {
+      const res = await fetch("/api/admin/reset-performance-data", {
+        method: "POST",
+        credentials: "include"
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast({ 
+          title: "Data Cleared", 
+          description: `Deleted: ${data.deleted.careWorkers} workers, ${data.deleted.discrepancies} discrepancies, ${data.deleted.audits} audits, ${data.deleted.adminAlerts} alerts` 
+        });
+      } else {
+        toast({ title: "Error", description: "Failed to reset data", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to reset data", variant: "destructive" });
+    }
   };
 
   useEffect(() => {
@@ -4093,6 +3575,7 @@ export default function SecretAdminPortal() {
       return;
     }
     
+    setUserActionLoading(true);
     try {
       const response = await fetch("/api/users", {
         method: "POST",
@@ -4134,12 +3617,15 @@ export default function SecretAdminPortal() {
         description: "Failed to create user.",
         variant: "destructive",
       });
+    } finally {
+      setUserActionLoading(false);
     }
   };
 
   const handleUpdateUser = async () => {
     if (!editingUser) return;
     
+    setUserActionLoading(true);
     try {
       const originalUser = users.find(u => u.id === editingUser.id);
       let hasError = false;
@@ -4238,6 +3724,8 @@ export default function SecretAdminPortal() {
         description: "Failed to update user.",
         variant: "destructive",
       });
+    } finally {
+      setUserActionLoading(false);
     }
   };
 
@@ -4256,6 +3744,7 @@ export default function SecretAdminPortal() {
       return;
     }
 
+    setUserActionLoading(true);
     try {
       const res = await fetch(`/api/admin/users/${resetPasswordUser.id}/reset-password`, {
         method: "POST",
@@ -4275,6 +3764,8 @@ export default function SecretAdminPortal() {
       }
     } catch {
       toast({ title: "Error", description: "Failed to reset password", variant: "destructive" });
+    } finally {
+      setUserActionLoading(false);
     }
   };
 
@@ -4309,6 +3800,7 @@ export default function SecretAdminPortal() {
   };
 
   const handleDeleteUser = async (userId: string) => {
+    setUserActionLoading(true);
     try {
       const response = await fetch(`/api/users/${userId}`, {
         method: "DELETE",
@@ -4329,6 +3821,8 @@ export default function SecretAdminPortal() {
         description: "Failed to delete user.",
         variant: "destructive",
       });
+    } finally {
+      setUserActionLoading(false);
     }
   };
 
@@ -4613,13 +4107,15 @@ export default function SecretAdminPortal() {
                 </CardContent>
               </Card>
 
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-4 gap-4">
                 {[
                   { label: "Active Users", value: activeUsers.length.toString(), sub: "Currently approved", iconCls: "text-success", bgCls: "bg-success/10", icon: ShieldCheck },
                   { label: "Pending Approvals", value: pendingUsers.length.toString(), sub: "Awaiting review", iconCls: "text-amber-500", bgCls: "bg-amber-500/10", icon: Clock },
+                  { label: "Suspended", value: users.filter(u => (u.status as string) === "suspended").length.toString(), sub: "Account suspensions", iconCls: "text-destructive", bgCls: "bg-destructive/10", icon: Lock },
                   { label: "Total Logs", value: systemLogs.length.toString(), sub: "Session activity", iconCls: "text-primary", bgCls: "bg-primary/10", icon: Activity }
                 ].map((stat, i) => (
-                  <Card key={i}>
+                  <Card key={i} className="relative overflow-hidden">
+                    <div className={`absolute inset-0 ${stat.bgCls} opacity-[0.03]`} />
                     <CardHeader className="pb-2">
                       <CardTitle className="text-[10px] font-semibold uppercase tracking-wider flex items-center gap-2.5 text-muted-foreground">
                         <div className={`h-7 w-7 rounded-md flex items-center justify-center ${stat.bgCls}`}>
@@ -4667,6 +4163,13 @@ export default function SecretAdminPortal() {
                           </TableCell>
                         </TableRow>
                       ))}
+                      {activeUsers.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                            No active team members.
+                          </TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
                 </div>
@@ -4764,8 +4267,8 @@ export default function SecretAdminPortal() {
                         </Select>
                       </div>
                       <div className="md:col-span-2 flex items-end">
-                        <Button type="submit" className="w-full" data-testid="button-create-user">
-                          <UserPlus size={16} className="mr-2" /> Create User
+                        <Button type="submit" className="w-full" disabled={userActionLoading} data-testid="button-create-user">
+                          {userActionLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <UserPlus size={16} className="mr-2" />} Create User
                         </Button>
                       </div>
                     </div>
@@ -4774,15 +4277,22 @@ export default function SecretAdminPortal() {
               </Card>
 
               {/* Pending Approvals */}
-              {pendingUsers.length > 0 && (
-                <Card className="bg-amber-950/20 border-amber-900/30 backdrop-blur-sm">
-                  <CardHeader className="border-b border-amber-900/30 bg-muted/20">
-                    <CardTitle className="text-amber-400 text-base flex items-center gap-2">
-                      <Clock size={18} /> Pending Approvals
+              <Card className="bg-amber-950/20 border-amber-900/30 backdrop-blur-sm">
+                <CardHeader className="border-b border-amber-900/30 bg-muted/20">
+                  <CardTitle className="text-amber-400 text-base flex items-center gap-2">
+                    <Clock size={18} /> Pending Approvals
+                    {pendingUsers.length > 0 && (
                       <Badge className="bg-amber-600 text-foreground ml-2">{pendingUsers.length}</Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4">
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                  {pendingUsers.length === 0 ? (
+                    <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                      <Check size={16} className="text-success" />
+                      No pending approvals — all caught up.
+                    </div>
+                  ) : (
                     <div className="space-y-2">
                       {pendingUsers.map((u) => (
                         <div key={u.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border border-border/30">
@@ -4796,19 +4306,19 @@ export default function SecretAdminPortal() {
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10" onClick={() => rejectUser(u.id)} data-testid={`button-reject-${u.id}`}>
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10" onClick={() => rejectUser(u.id)} data-testid={`button-reject-${u.id}`} aria-label="Reject user">
                               <X size={14} />
                             </Button>
-                            <Button size="sm" className="h-8 w-8 p-0 bg-success hover:bg-success/80 text-white" onClick={() => approveUser(u.id)} data-testid={`button-approve-${u.id}`}>
+                            <Button size="sm" className="h-8 w-8 p-0 bg-success hover:bg-success/80 text-white" onClick={() => approveUser(u.id)} data-testid={`button-approve-${u.id}`} aria-label="Approve user">
                               <Check size={14} />
                             </Button>
                           </div>
                         </div>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  )}
+                </CardContent>
+              </Card>
 
               {/* All Users Table */}
 	      <Card className="overflow-hidden">
@@ -4823,6 +4333,7 @@ export default function SecretAdminPortal() {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
                         <Input 
                           placeholder="Search users..."
+                          aria-label="Search users"
                           value={userSearch}
                           onChange={(e) => setUserSearch(e.target.value)}
                           className="bg-card border-border text-foreground pl-9 w-[200px]"
@@ -4847,6 +4358,7 @@ export default function SecretAdminPortal() {
                           <SelectItem value="all">All Status</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="suspended">Suspended</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -4928,6 +4440,7 @@ export default function SecretAdminPortal() {
                                 })}
                                 data-testid={`button-edit-${u.id}`}
                                 title="Edit user details"
+                                aria-label="Edit user details"
                               >
                                 <Pencil size={14} />
                               </Button>
@@ -4937,6 +4450,7 @@ export default function SecretAdminPortal() {
                                 className="h-7 w-7 p-0 text-orange-400 hover:text-orange-300 hover:bg-orange-950/30"
                                 onClick={() => handleDisconnectSession(u.id, u.username)}
                                 title="Disconnect user session"
+                                aria-label="Disconnect user session"
                                 data-testid={`button-disconnect-${u.id}`}
                               >
                                 <Unplug size={14} />
@@ -4951,6 +4465,7 @@ export default function SecretAdminPortal() {
                                   setResetPasswordConfirm("");
                                 }}
                                 title="Reset user password"
+                                aria-label="Reset user password"
                                 data-testid={`button-reset-password-${u.id}`}
                               >
                                 <FileKey size={14} />
@@ -4962,6 +4477,7 @@ export default function SecretAdminPortal() {
                                 onClick={() => setDeleteConfirmUser(u.id)}
                                 data-testid={`button-delete-${u.id}`}
                                 title="Delete user"
+                                aria-label="Delete user"
                               >
                                 <Trash2 size={14} />
                               </Button>
@@ -5070,26 +4586,7 @@ export default function SecretAdminPortal() {
                   variant="destructive" 
                   size="sm" 
                   className="w-full"
-                  onClick={async () => {
-                    if (!confirm("Are you sure you want to delete ALL performance data? This cannot be undone.")) return;
-                    try {
-                      const res = await fetch("/api/admin/reset-performance-data", {
-                        method: "POST",
-                        credentials: "include"
-                      });
-                      if (res.ok) {
-                        const data = await res.json();
-                        toast({ 
-                          title: "Data Cleared", 
-                          description: `Deleted: ${data.deleted.careWorkers} workers, ${data.deleted.discrepancies} discrepancies, ${data.deleted.audits} audits, ${data.deleted.adminAlerts} alerts` 
-                        });
-                      } else {
-                        toast({ title: "Error", description: "Failed to reset data", variant: "destructive" });
-                      }
-                    } catch {
-                      toast({ title: "Error", description: "Failed to reset data", variant: "destructive" });
-                    }
-                  }}
+                  onClick={() => setShowResetDataConfirm(true)}
                   data-testid="button-reset-performance-data"
                 >
                   <Trash2 size={14} className="mr-2" /> Reset All Performance Data
@@ -5171,8 +4668,8 @@ export default function SecretAdminPortal() {
             <Button variant="outline" onClick={() => setEditingUser(null)} className="border-border text-foreground">
               Cancel
             </Button>
-            <Button onClick={handleUpdateUser} className="bg-indigo-600 hover:bg-indigo-500 text-white" data-testid="button-save-user">
-              <Save size={16} className="mr-2" /> Save Changes
+            <Button onClick={handleUpdateUser} disabled={userActionLoading} className="bg-indigo-600 hover:bg-indigo-500 text-white" data-testid="button-save-user">
+              {userActionLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Save size={16} className="mr-2" />} Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -5255,10 +4752,11 @@ export default function SecretAdminPortal() {
               </Button>
               <Button
                 type="submit"
+                disabled={userActionLoading}
                 className="bg-amber-600 hover:bg-amber-500 text-white"
                 data-testid="button-confirm-reset-password"
               >
-                <FileKey size={16} className="mr-2" /> Reset Password
+                {userActionLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <FileKey size={16} className="mr-2" />} Reset Password
               </Button>
             </DialogFooter>
           </form>
@@ -5280,10 +4778,11 @@ export default function SecretAdminPortal() {
             </Button>
             <Button 
               variant="destructive" 
+              disabled={userActionLoading}
               onClick={() => deleteConfirmUser && handleDeleteUser(deleteConfirmUser)}
               data-testid="button-confirm-delete"
             >
-              <Trash2 size={16} className="mr-2" /> Remove User
+              {userActionLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Trash2 size={16} className="mr-2" />} Remove User
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -5361,6 +4860,24 @@ export default function SecretAdminPortal() {
             </p>
             <Button variant="outline" onClick={() => setSystemLogDialogOpen(false)} className="border-border text-foreground">
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Performance Data Confirmation */}
+      <Dialog open={showResetDataConfirm} onOpenChange={setShowResetDataConfirm}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Delete All Performance Data</DialogTitle>
+            <DialogDescription>
+              This will permanently delete ALL care worker performance data, discrepancies, audits, and alerts. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowResetDataConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleResetPerformanceData}>
+              <Trash2 size={14} className="mr-2" /> Delete Everything
             </Button>
           </DialogFooter>
         </DialogContent>
