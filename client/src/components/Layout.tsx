@@ -29,6 +29,8 @@ import {
   AlertTriangle,
   Megaphone,
   Search,
+  ArrowRightLeft,
+  GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, Suspense, memo, useCallback, useRef, useMemo, lazy, Fragment } from "react";
@@ -131,6 +133,22 @@ const PAGE_META_RULES: Array<{ match: (path: string) => boolean; meta: PageMeta 
       section: "Assurance",
       title: "Compliance Hub",
       subtitle: "Monitor regulatory posture and track outstanding compliance actions.",
+    },
+  },
+  {
+    match: (path) => path === "/cqc-assessment",
+    meta: {
+      section: "Assurance",
+      title: "CQC Self-Assessment",
+      subtitle: "Rate your service against CQC Key Lines of Enquiry with evidence-based scoring.",
+    },
+  },
+  {
+    match: (path) => path === "/policy-acknowledgement",
+    meta: {
+      section: "Assurance",
+      title: "Policy Acknowledgement",
+      subtitle: "Read and electronically sign policy documents to maintain compliance records.",
     },
   },
   {
@@ -320,6 +338,18 @@ const SidebarContent = memo(function SidebarContent({
           <span className={labelClass}>Compliance</span>
         </Link>
 
+        {/* CQC Assessment */}
+        <Link href="/cqc-assessment" className={navLinkClass(location === "/cqc-assessment")} title={isCollapsed ? "CQC Assessment" : undefined} aria-current={location === "/cqc-assessment" ? "page" : undefined}>
+          <ShieldCheck size={16} />
+          <span className={labelClass}>CQC Assessment</span>
+        </Link>
+
+        {/* Policy Acknowledgement */}
+        <Link href="/policy-acknowledgement" className={navLinkClass(location === "/policy-acknowledgement")} title={isCollapsed ? "Policies" : undefined} aria-current={location === "/policy-acknowledgement" ? "page" : undefined}>
+          <FileText size={16} />
+          <span className={labelClass}>Policies</span>
+        </Link>
+
         {/* Section Label */}
         {!isCollapsed && (
           <div className="px-3 pt-4 pb-1">
@@ -407,6 +437,12 @@ const SidebarContent = memo(function SidebarContent({
              </Link>
              <Link href="/care-workers/performance" className={subNavLinkClass(location === "/care-workers/performance")}>
                 <BarChart size={14} /> Performance
+             </Link>
+             <Link href="/care-workers/handovers" className={subNavLinkClass(location === "/care-workers/handovers")}>
+                <ArrowRightLeft size={14} /> Shift Handovers
+             </Link>
+             <Link href="/care-workers/training" className={subNavLinkClass(location === "/care-workers/training")}>
+                <GraduationCap size={14} /> Training
              </Link>
             </CollapsibleContent>
           )}

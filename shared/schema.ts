@@ -1142,6 +1142,86 @@ export type InsertGdprRetentionPolicy = z.infer<typeof insertGdprRetentionPolicy
 export type GdprRetentionPolicy = typeof gdprRetentionPolicies.$inferSelect;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// SHIFT HANDOVER NOTES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const shiftHandovers = pgTable("shift_handovers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  authorId: varchar("author_id").notNull().references(() => users.id),
+  authorName: text("author_name").notNull(),
+  shiftDate: text("shift_date").notNull(), // DD/MM/YYYY
+  shiftType: text("shift_type").notNull(), // 'morning', 'afternoon', 'night'
+  summary: text("summary").notNull(),
+  keyEvents: text("key_events"),
+  medicationNotes: text("medication_notes"),
+  clientConcerns: text("client_concerns"),
+  staffingNotes: text("staffing_notes"),
+  followUpRequired: boolean("follow_up_required").notNull().default(false),
+  followUpDetails: text("follow_up_details"),
+  priority: text("priority").notNull().default("normal"), // 'low', 'normal', 'high', 'urgent'
+  acknowledgedBy: jsonb("acknowledged_by").$type<string[]>().default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertShiftHandoverSchema = createInsertSchema(shiftHandovers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertShiftHandover = z.infer<typeof insertShiftHandoverSchema>;
+export type ShiftHandover = typeof shiftHandovers.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STAFF TRAINING TRACKER
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const staffTraining = pgTable("staff_training", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  staffId: varchar("staff_id").notNull().references(() => users.id),
+  staffName: text("staff_name").notNull(),
+  courseName: text("course_name").notNull(),
+  category: text("category").notNull().default("mandatory"), // 'mandatory', 'recommended', 'specialist'
+  provider: text("provider"),
+  completedDate: text("completed_date"), // DD/MM/YYYY or null if not yet completed
+  expiryDate: text("expiry_date"), // DD/MM/YYYY
+  status: text("status").notNull().default("pending"), // 'pending', 'completed', 'expired', 'expiring_soon'
+  certificateRef: text("certificate_ref"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertStaffTrainingSchema = createInsertSchema(staffTraining).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertStaffTraining = z.infer<typeof insertStaffTrainingSchema>;
+export type StaffTraining = typeof staffTraining.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POLICY ACKNOWLEDGEMENTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const policyAcknowledgements = pgTable("policy_acknowledgements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  policyId: varchar("policy_id").notNull().references(() => policyDocuments.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  userName: text("user_name").notNull(),
+  acknowledgedAt: timestamp("acknowledged_at").notNull().defaultNow(),
+  signatureName: text("signature_name").notNull(),
+});
+
+export const insertPolicyAcknowledgementSchema = createInsertSchema(policyAcknowledgements).omit({
+  id: true,
+  acknowledgedAt: true,
+});
+
+export type InsertPolicyAcknowledgement = z.infer<typeof insertPolicyAcknowledgementSchema>;
+export type PolicyAcknowledgement = typeof policyAcknowledgements.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════
 // APPLICATION SETTINGS TABLE
 // ═══════════════════════════════════════════════════════════════════════════
 

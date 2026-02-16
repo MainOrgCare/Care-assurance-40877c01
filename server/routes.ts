@@ -20849,5 +20849,191 @@ I have also sent that reminder to your Messages inbox.`
     }
   });
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // SHIFT HANDOVER NOTES
+  // ═══════════════════════════════════════════════════════════════════════
+
+  app.get("/api/shift-handovers", requireAuth, async (_req: any, res) => {
+    try {
+      const handovers = await storage.getAllShiftHandovers();
+      return res.json(handovers);
+    } catch (error) {
+      console.error("[HANDOVERS] Error fetching:", safeErrorMessage(error));
+      return res.status(500).json({ message: "Failed to fetch shift handovers" });
+    }
+  });
+
+  app.post("/api/shift-handovers", requireAuth, async (req: any, res) => {
+    try {
+      const { shiftDate, shiftType, summary, keyEvents, medicationNotes, clientConcerns, staffingNotes, followUpRequired, followUpDetails, priority } = req.body;
+      if (!shiftDate || !shiftType || !summary) {
+        return res.status(400).json({ message: "shiftDate, shiftType, and summary are required" });
+      }
+      const handover = await storage.createShiftHandover({
+        authorId: req.user.id,
+        authorName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.username,
+        shiftDate,
+        shiftType,
+        summary,
+        keyEvents: keyEvents || null,
+        medicationNotes: medicationNotes || null,
+        clientConcerns: clientConcerns || null,
+        staffingNotes: staffingNotes || null,
+        followUpRequired: followUpRequired || false,
+        followUpDetails: followUpDetails || null,
+        priority: priority || "normal",
+        acknowledgedBy: [],
+      });
+      return res.status(201).json(handover);
+    } catch (error) {
+      console.error("[HANDOVERS] Error creating:", safeErrorMessage(error));
+      return res.status(500).json({ message: "Failed to create shift handover" });
+    }
+  });
+
+  app.post("/api/shift-handovers/:id/acknowledge", requireAuth, async (req: any, res) => {
+    try {
+      const handover = await storage.acknowledgeShiftHandover(req.params.id, req.user.id);
+      if (!handover) return res.status(404).json({ message: "Handover not found" });
+      return res.json(handover);
+    } catch (error) {
+      console.error("[HANDOVERS] Error acknowledging:", safeErrorMessage(error));
+      return res.status(500).json({ message: "Failed to acknowledge handover" });
+    }
+  });
+
+  app.delete("/api/shift-handovers/:id", requireAuth, async (req: any, res) => {
+    try {
+      await storage.deleteShiftHandover(req.params.id);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("[HANDOVERS] Error deleting:", safeErrorMessage(error));
+      return res.status(500).json({ message: "Failed to delete handover" });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // STAFF TRAINING TRACKER
+  // ═══════════════════════════════════════════════════════════════════════
+
+  app.get("/api/staff-training", requireAuth, async (_req: any, res) => {
+    try {
+      const records = await storage.getAllStaffTraining();
+      return res.json(records);
+    } catch (error) {
+      console.error("[TRAINING] Error fetching:", safeErrorMessage(error));
+      return res.status(500).json({ message: "Failed to fetch training records" });
+    }
+  });
+
+  app.get("/api/staff-training/user/:userId", requireAuth, async (req: any, res) => {
+    try {
+      const records = await storage.getStaffTrainingByStaff(req.params.userId);
+      return res.json(records);
+    } catch (error) {
+      console.error("[TRAINING] Error fetching user training:", safeErrorMessage(error));
+      return res.status(500).json({ message: "Failed to fetch training records" });
+    }
+  });
+
+  app.post("/api/staff-training", requireAuth, async (req: any, res) => {
+    try {
+      const { staffId, staffName, courseName, category, provider, completedDate, expiryDate, status, certificateRef, notes } = req.body;
+      if (!staffId || !staffName || !courseName) {
+        return res.status(400).json({ message: "staffId, staffName, and courseName are required" });
+      }
+      const record = await storage.createStaffTraining({
+        staffId,
+        staffName,
+        courseName,
+        category: category || "mandatory",
+        provider: provider || null,
+        completedDate: completedDate || null,
+        expiryDate: expiryDate || null,
+        status: status || "pending",
+        certificateRef: certificateRef || null,
+        notes: notes || null,
+      });
+      return res.status(201).json(record);
+    } catch (error) {
+      console.error("[TRAINING] Error creating:", safeErrorMessage(error));
+      return res.status(500).json({ message: "Failed to create training record" });
+    }
+  });
+
+  app.patch("/api/staff-training/:id", requireAuth, async (req: any, res) => {
+    try {
+      const record = await storage.updateStaffTraining(req.params.id, req.body);
+      if (!record) return res.status(404).json({ message: "Training record not found" });
+      return res.json(record);
+    } catch (error) {
+      console.error("[TRAINING] Error updating:", safeErrorMessage(error));
+      return res.status(500).json({ message: "Failed to update training record" });
+    }
+  });
+
+  app.delete("/api/staff-training/:id", requireAuth, async (req: any, res) => {
+    try {
+      await storage.deleteStaffTraining(req.params.id);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("[TRAINING] Error deleting:", safeErrorMessage(error));
+      return res.status(500).json({ message: "Failed to delete training record" });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // POLICY ACKNOWLEDGEMENTS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  app.get("/api/policy-acknowledgements", requireAuth, async (_req: any, res) => {
+    try {
+      const acks = await storage.getAllPolicyAcknowledgements();
+      return res.json(acks);
+    } catch (error) {
+      console.error("[POLICY-ACK] Error fetching:", safeErrorMessage(error));
+      return res.status(500).json({ message: "Failed to fetch acknowledgements" });
+    }
+  });
+
+  app.get("/api/policy-acknowledgements/policy/:policyId", requireAuth, async (req: any, res) => {
+    try {
+      const acks = await storage.getPolicyAcknowledgements(req.params.policyId);
+      return res.json(acks);
+    } catch (error) {
+      console.error("[POLICY-ACK] Error fetching:", safeErrorMessage(error));
+      return res.status(500).json({ message: "Failed to fetch acknowledgements" });
+    }
+  });
+
+  app.get("/api/policy-acknowledgements/user/:userId", requireAuth, async (req: any, res) => {
+    try {
+      const acks = await storage.getUserPolicyAcknowledgements(req.params.userId);
+      return res.json(acks);
+    } catch (error) {
+      console.error("[POLICY-ACK] Error fetching:", safeErrorMessage(error));
+      return res.status(500).json({ message: "Failed to fetch acknowledgements" });
+    }
+  });
+
+  app.post("/api/policy-acknowledgements", requireAuth, async (req: any, res) => {
+    try {
+      const { policyId, signatureName } = req.body;
+      if (!policyId || !signatureName) {
+        return res.status(400).json({ message: "policyId and signatureName are required" });
+      }
+      const ack = await storage.createPolicyAcknowledgement({
+        policyId,
+        userId: req.user.id,
+        userName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.username,
+        signatureName,
+      });
+      return res.status(201).json(ack);
+    } catch (error) {
+      console.error("[POLICY-ACK] Error creating:", safeErrorMessage(error));
+      return res.status(500).json({ message: "Failed to create acknowledgement" });
+    }
+  });
+
   return httpServer;
 }

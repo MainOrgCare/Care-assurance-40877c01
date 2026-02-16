@@ -122,6 +122,18 @@ import {
   // App settings
   appSettings,
   type AppSetting,
+  // Shift handovers
+  shiftHandovers,
+  type ShiftHandover,
+  type InsertShiftHandover,
+  // Staff training
+  staffTraining,
+  type StaffTraining,
+  type InsertStaffTraining,
+  // Policy acknowledgements
+  policyAcknowledgements,
+  type PolicyAcknowledgement,
+  type InsertPolicyAcknowledgement,
 } from "@shared/schema";
 
 const SALT_ROUNDS = 10;
@@ -414,6 +426,26 @@ export interface IStorage {
     callRecommendations: number;
     workbookUploads: number;
   }>;
+
+  // Shift Handover operations
+  createShiftHandover(handover: InsertShiftHandover): Promise<ShiftHandover>;
+  getAllShiftHandovers(): Promise<ShiftHandover[]>;
+  getShiftHandover(id: string): Promise<ShiftHandover | undefined>;
+  acknowledgeShiftHandover(id: string, userId: string): Promise<ShiftHandover | undefined>;
+  deleteShiftHandover(id: string): Promise<void>;
+
+  // Staff Training operations
+  createStaffTraining(training: InsertStaffTraining): Promise<StaffTraining>;
+  getAllStaffTraining(): Promise<StaffTraining[]>;
+  getStaffTrainingByStaff(staffId: string): Promise<StaffTraining[]>;
+  updateStaffTraining(id: string, training: Partial<InsertStaffTraining>): Promise<StaffTraining | undefined>;
+  deleteStaffTraining(id: string): Promise<void>;
+
+  // Policy Acknowledgement operations
+  createPolicyAcknowledgement(ack: InsertPolicyAcknowledgement): Promise<PolicyAcknowledgement>;
+  getPolicyAcknowledgements(policyId: string): Promise<PolicyAcknowledgement[]>;
+  getUserPolicyAcknowledgements(userId: string): Promise<PolicyAcknowledgement[]>;
+  getAllPolicyAcknowledgements(): Promise<PolicyAcknowledgement[]>;
 
   // App Settings operations
   getAppSetting(key: string): Promise<string | null>;
@@ -2660,6 +2692,99 @@ export class DatabaseStorage implements IStorage {
 
   async getAllAppSettings(): Promise<AppSetting[]> {
     return await this.db.select().from(appSettings);
+  }
+
+  // --- Shift Handovers ---
+
+  async createShiftHandover(handover: InsertShiftHandover): Promise<ShiftHandover> {
+    const result = await this.db.insert(shiftHandovers).values(handover).returning();
+    return result[0];
+  }
+
+  async getAllShiftHandovers(): Promise<ShiftHandover[]> {
+    return await this.db.select().from(shiftHandovers).orderBy(desc(shiftHandovers.createdAt));
+  }
+
+  async getShiftHandover(id: string): Promise<ShiftHandover | undefined> {
+    const result = await this.db.select().from(shiftHandovers).where(eq(shiftHandovers.id, id));
+    return result[0];
+  }
+
+  async acknowledgeShiftHandover(id: string, userId: string): Promise<ShiftHandover | undefined> {
+    const existing = await this.getShiftHandover(id);
+    if (!existing) return undefined;
+    const currentList = (existing.acknowledgedBy as string[]) || [];
+    if (currentList.includes(userId)) return existing;
+    const updated = [...currentList, userId];
+    const result = await this.db
+      .update(shiftHandovers)
+      .set({ acknowledgedBy: updated })
+      .where(eq(shiftHandovers.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteShiftHandover(id: string): Promise<void> {
+    await this.db.delete(shiftHandovers).where(eq(shiftHandovers.id, id));
+  }
+
+  // --- Staff Training ---
+
+  async createStaffTraining(training: InsertStaffTraining): Promise<StaffTraining> {
+    const result = await this.db.insert(staffTraining).values(training).returning();
+    return result[0];
+  }
+
+  async getAllStaffTraining(): Promise<StaffTraining[]> {
+    return await this.db.select().from(staffTraining).orderBy(desc(staffTraining.createdAt));
+  }
+
+  async getStaffTrainingByStaff(staffId: string): Promise<StaffTraining[]> {
+    return await this.db
+      .select()
+      .from(staffTraining)
+      .where(eq(staffTraining.staffId, staffId))
+      .orderBy(desc(staffTraining.createdAt));
+  }
+
+  async updateStaffTraining(id: string, updates: Partial<InsertStaffTraining>): Promise<StaffTraining | undefined> {
+    const result = await this.db
+      .update(staffTraining)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(staffTraining.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteStaffTraining(id: string): Promise<void> {
+    await this.db.delete(staffTraining).where(eq(staffTraining.id, id));
+  }
+
+  // --- Policy Acknowledgements ---
+
+  async createPolicyAcknowledgement(ack: InsertPolicyAcknowledgement): Promise<PolicyAcknowledgement> {
+    const result = await this.db.insert(policyAcknowledgements).values(ack).returning();
+    return result[0];
+  }
+
+  async getPolicyAcknowledgements(policyId: string): Promise<PolicyAcknowledgement[]> {
+    return await this.db
+      .select()
+      .from(policyAcknowledgements)
+      .where(eq(policyAcknowledgements.policyId, policyId))
+      .orderBy(desc(policyAcknowledgements.acknowledgedAt));
+  }
+
+  async getUserPolicyAcknowledgements(userId: string): Promise<PolicyAcknowledgement[]> {
+    return await this.db
+      .select()
+      .from(policyAcknowledgements)
+      .where(eq(policyAcknowledgements.userId, userId))
+      .orderBy(desc(policyAcknowledgements.acknowledgedAt));
+  }
+
+  async getAllPolicyAcknowledgements(): Promise<PolicyAcknowledgement[]> {
+    return await this.db.select().from(policyAcknowledgements).orderBy(desc(policyAcknowledgements.acknowledgedAt));
   }
 }
 

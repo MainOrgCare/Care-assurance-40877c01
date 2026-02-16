@@ -1,10 +1,29 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   ArrowLeft, 
   Mail, 
@@ -16,12 +35,16 @@ import {
   AlertTriangle,
   CheckCircle2,
   Inbox,
-  RefreshCw
+  RefreshCw,
+  Send,
+  PenSquare,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
+import { useAuth } from "@/context/AuthContext";
 
 interface Message {
   id: string;
@@ -40,10 +63,25 @@ interface Message {
 export default function Messages() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const [composeForm, setComposeForm] = useState({
+    recipientId: "",
+    subject: "",
+    message: "",
+    priority: "normal" as "normal" | "high" | "urgent",
+  });
+
+  // Fetch users for recipient picker
+  const { data: allUsers = [] } = useQuery<Array<{ id: string; username: string; firstName: string | null; lastName: string | null; status: string }>>({
+    queryKey: ["/api/users"],
+  });
+  const availableRecipients = allUsers.filter((u) => u.status === "active" && u.id !== user?.id);
 
   const fetchMessages = async () => {
     setLoading(true);
@@ -134,6 +172,22 @@ export default function Messages() {
 
   const unreadCount = messages.filter(m => !m.isRead).length;
 
+  const handleSendMessage = async () => {
+    if (!composeForm.recipientId || !composeForm.subject.trim() || !composeForm.message.trim()) return;
+    setComposing(true);
+    try {
+      await apiRequest("POST", "/api/messages/send", composeForm);
+      toast({ title: "Sent", description: "Message has been sent successfully." });
+      setComposeOpen(false);
+      setComposeForm({ recipientId: "", subject: "", message: "", priority: "normal" });
+      fetchMessages();
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to send message.", variant: "destructive" });
+    } finally {
+      setComposing(false);
+    }
+  };
+
   return (
     <div className="page-shell">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -159,6 +213,79 @@ export default function Messages() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-1.5">
+                <PenSquare className="h-4 w-4" />
+                Compose
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>New Message</DialogTitle>
+                <DialogDescription>Send a message to a team member.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">To *</label>
+                  <Select value={composeForm.recipientId} onValueChange={(v) => setComposeForm({ ...composeForm, recipientId: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select recipient..." /></SelectTrigger>
+                    <SelectContent>
+                      {availableRecipients.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.username}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-[1fr_140px] gap-2">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Subject *</label>
+                    <Input
+                      value={composeForm.subject}
+                      onChange={(e) => setComposeForm({ ...composeForm, subject: e.target.value })}
+                      placeholder="Message subject..."
+                      maxLength={200}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Priority</label>
+                    <Select value={composeForm.priority} onValueChange={(v: "normal" | "high" | "urgent") => setComposeForm({ ...composeForm, priority: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="normal">Normal</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Message *</label>
+                  <Textarea
+                    value={composeForm.message}
+                    onChange={(e) => setComposeForm({ ...composeForm, message: e.target.value })}
+                    placeholder="Type your message..."
+                    rows={6}
+                    maxLength={5000}
+                  />
+                  <p className="text-[10px] text-muted-foreground text-right mt-0.5">{composeForm.message.length}/5000</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setComposeOpen(false)}>Cancel</Button>
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={!composeForm.recipientId || !composeForm.subject.trim() || !composeForm.message.trim() || composing}
+                  className="gap-1.5"
+                >
+                  {composing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Send
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Button variant="outline" size="sm" onClick={fetchMessages} disabled={loading}>
             <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
             Refresh
