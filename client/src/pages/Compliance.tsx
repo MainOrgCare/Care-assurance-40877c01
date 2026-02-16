@@ -33,6 +33,8 @@ export default function Compliance() {
     },
   });
 
+  const { exportCSV } = useDataExport();
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
@@ -56,7 +58,6 @@ export default function Compliance() {
   }
 
   const auditList: Audit[] = audits ?? [];
-  const { exportCSV } = useDataExport();
   
   const emarAudits = auditList.filter((a: Audit) => a.auditType === "EMAR");
   const visitAudits = auditList.filter((a: Audit) => a.auditType === "Visit");
