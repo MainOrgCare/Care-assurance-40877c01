@@ -22,11 +22,14 @@ interface UseGlobalShortcutsOptions {
   onToggleCommandPalette?: () => void;
   /** Callback to toggle the chat assistant */
   onToggleChatAssistant?: () => void;
+  /** Callback to open the keyboard shortcuts reference */
+  onOpenKeyboardShortcuts?: () => void;
 }
 
 export function useGlobalShortcuts({
   onToggleCommandPalette,
   onToggleChatAssistant,
+  onOpenKeyboardShortcuts,
 }: UseGlobalShortcutsOptions = {}) {
   const [, setLocation] = useLocation();
   const pendingGoRef = useRef(false);
@@ -84,7 +87,7 @@ export function useGlobalShortcuts({
         // Single-key shortcuts
         if (key === "?") {
           e.preventDefault();
-          onToggleCommandPalette?.();
+          onOpenKeyboardShortcuts?.();
         }
       }
     };
@@ -94,5 +97,5 @@ export function useGlobalShortcuts({
       window.removeEventListener("keydown", handleKeyDown);
       clearGoState();
     };
-  }, [setLocation, onToggleCommandPalette, onToggleChatAssistant, clearGoState]);
+  }, [setLocation, onToggleCommandPalette, onToggleChatAssistant, onOpenKeyboardShortcuts, clearGoState]);
 }

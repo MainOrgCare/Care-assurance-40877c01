@@ -47,12 +47,15 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import ComplieeIdleButton from "@/components/ComplieeIdleButton";
 import CommandPalette from "@/components/CommandPalette";
 import KeyboardShortcutsDialog from "@/components/KeyboardShortcutsDialog";
+import NotificationCenter from "@/components/NotificationCenter";
 import { PageTransition } from "@/components/PageTransition";
 import { ScrollToTopButton } from "@/components/ScrollToTopButton";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { SessionTimeoutWarning } from "@/components/SessionTimeoutWarning";
 import { QuickNotes } from "@/components/QuickNotes";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useScrollToTop } from "@/hooks/useScrollToTop";
@@ -549,6 +552,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         return !current;
       });
     }, []),
+    onOpenKeyboardShortcuts: useCallback(() => setIsKeyboardShortcutsOpen(true), []),
   });
 
   // Build breadcrumb trail from current route
@@ -888,10 +892,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </a>
 
       {/* Desktop Sidebar */}
-      <aside className={cn(
-        "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-sidebar-border bg-sidebar transition-all duration-200",
-        isSidebarCollapsed ? "w-[72px]" : "w-[260px]"
-      )}>
+      <aside
+        className={cn(
+          "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-sidebar-border bg-sidebar transition-all duration-200",
+          isSidebarCollapsed ? "w-[72px]" : "w-[260px]"
+        )}
+        aria-label="Main navigation"
+        role="navigation"
+      >
         <SidebarContent
           location={location}
           handleSecretClick={handleSecretClick}
@@ -903,10 +911,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main + Footer Column */}
       <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col">
         {/* Main Content */}
-        <main id="main-content" data-scroll-region className={mainClass}>
+        <main id="main-content" tabIndex={-1} data-scroll-region className={mainClass} aria-label={pageMeta.title || "Main content"} style={{ outline: "none" }}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="workspace-header sticky top-0 z-30 flex h-[3.25rem] items-center justify-between border-b border-border/30 bg-background/95 backdrop-blur-sm px-4 md:px-5 transition-[background-color,border-color] duration-200">
+          <header className="workspace-header sticky top-0 z-30 flex h-[3.25rem] items-center justify-between border-b border-border/30 bg-background/95 backdrop-blur-sm px-4 md:px-5 transition-[background-color,border-color] duration-200" role="banner" aria-label="Page header">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -980,6 +988,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="hidden lg:inline">Search...</span>
                 <kbd className="rounded border border-border/70 bg-background px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground">⌘K</kbd>
               </button>
+
+              {/* Notification Center (admin alerts) */}
+              <NotificationCenter />
 
               {/* Messages Button */}
               <Link href="/messages">
@@ -1167,11 +1178,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
               <div className="flex items-center gap-3">
                 <div className="hidden md:flex items-center gap-1.5 text-[9px] text-muted-foreground/60 font-medium tabular-nums">
-                  <span className={cn(
-                    "h-1.5 w-1.5 rounded-full transition-colors",
-                    isConnected ? "bg-emerald-500" : "bg-red-500"
-                  )} />
-                  <span>{isConnected ? "Connected" : "Disconnected"}</span>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-muted/40 transition-colors cursor-help">
+                          <span className={cn(
+                            "h-1.5 w-1.5 rounded-full transition-colors",
+                            isConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+                          )} />
+                          <span>{isConnected ? "Connected" : "Disconnected"}</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-[10px]">
+                        <p className="font-semibold">{isConnected ? "WebSocket Connected" : "WebSocket Disconnected"}</p>
+                        <p className="text-muted-foreground">Session: {sessionDuration}</p>
+                        <p className="text-muted-foreground">Press ? for keyboard shortcuts</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   <span className="mx-0.5 opacity-40">&middot;</span>
                   <span>{sessionDuration}</span>
                 </div>
@@ -1193,6 +1217,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Offline indicator */}
       <OfflineIndicator />
+
+      {/* Session timeout warning */}
+      <SessionTimeoutWarning />
 
       {/* Scroll to top floating button */}
       {!isSingleScreenRoute && <ScrollToTopButton />}

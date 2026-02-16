@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
+import { isValidPassword } from "@/lib/validation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download, ChevronDown } from "lucide-react";
@@ -177,12 +178,8 @@ function formatBytes(bytes: number | null | undefined): string {
 }
 
 const PASSWORD_RULES_TEXT = "Password must be at least 8 characters and include a letter and a number.";
-const isValidPassword = (value: string): boolean => {
-  if (!value || value.length < 8) return false;
-  return /[A-Za-z]/.test(value) && /\d/.test(value);
-};
 
-function AIAdminLog() {
+const AIAdminLog = memo(function AIAdminLog() {
   const [logs, setLogs] = useState<AIRequestLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -421,9 +418,9 @@ function AIAdminLog() {
       </CardContent>
     </Card>
   );
-}
+});
 
-function AICostSection() {
+const AICostSection = memo(function AICostSection() {
   const [logs, setLogs] = useState<AiUsageLog[]>([]);
   const [stats, setStats] = useState<AiUsageStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -837,9 +834,9 @@ function AICostSection() {
       </Card>
     </div>
   );
-}
+});
 
-function AIProviderSection() {
+const AIProviderSection = memo(function AIProviderSection() {
   const { toast } = useToast();
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [hasPATKey, setHasPATKey] = useState(false);
@@ -1186,10 +1183,10 @@ function AIProviderSection() {
       </CardContent>
     </Card>
   );
-}
+});
 
 // AI Optimization Settings Component - reduces API calls and costs
-function AIOptimizationSection() {
+const AIOptimizationSection = memo(function AIOptimizationSection() {
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
   const [useCache, setUseCache] = useState(true);
   const [useRulesFirst, setUseRulesFirst] = useState(true);
@@ -1412,7 +1409,7 @@ function AIOptimizationSection() {
     </Dialog>
     </>
   );
-}
+});
 
 // RiskAssessmentLogsSection, AuditTrailSection, and UnifiedSystemLogSection
 // were removed as dead code — their functionality is covered by the Operations
@@ -1448,7 +1445,7 @@ interface BlockedIp {
   createdAt: string;
 }
 
-function ActivePresenceSection() {
+const ActivePresenceSection = memo(function ActivePresenceSection() {
   const [users, setUsers] = useState<UserPresence[]>([]);
   const [loading, setLoading] = useState(true);
   const [suspendingUser, setSuspendingUser] = useState<string | null>(null);
@@ -1835,9 +1832,9 @@ function ActivePresenceSection() {
       </Dialog>
     </div>
   );
-}
+});
 
-function BlockedIpsSection() {
+const BlockedIpsSection = memo(function BlockedIpsSection() {
   const [blockedIps, setBlockedIps] = useState<BlockedIp[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -1945,7 +1942,7 @@ function BlockedIpsSection() {
       </CardContent>
     </Card>
   );
-}
+});
 
 interface SystemLog {
   id: string | number;
@@ -1977,7 +1974,7 @@ const POLICY_CATEGORIES = [
   { value: "risk_assessment", label: "Risk Assessment Guidelines" },
 ];
 
-function PolicyDocumentsSection() {
+const PolicyDocumentsSection = memo(function PolicyDocumentsSection() {
   const [documents, setDocuments] = useState<PolicyDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -2221,9 +2218,9 @@ function PolicyDocumentsSection() {
       </Dialog>
     </div>
   );
-}
+});
 
-function ContactMessagesSection() {
+const ContactMessagesSection = memo(function ContactMessagesSection() {
   const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
@@ -2547,7 +2544,7 @@ function ContactMessagesSection() {
       </Dialog>
     </div>
   );
-}
+});
 
 function formatUptime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "0m";
@@ -2579,7 +2576,7 @@ function formatOpsEventName(value: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function OperationsCommandCenter({
+const OperationsCommandCenter = memo(function OperationsCommandCenter({
   currentAlertCount,
   onRefreshAlerts,
 }: {
@@ -3391,7 +3388,7 @@ function OperationsCommandCenter({
       </Dialog>
     </div>
   );
-}
+});
 
 interface EditingUser {
   id: string;
@@ -4884,4 +4881,4 @@ export default function SecretAdminPortal() {
       </Dialog>
     </div>
   );
-}
+});

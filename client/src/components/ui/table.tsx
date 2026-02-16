@@ -55,7 +55,7 @@ const TableFooter = React.forwardRef<
 ))
 TableFooter.displayName = "TableFooter"
 
-const TableRow = React.forwardRef<
+const TableRowInner = React.forwardRef<
   HTMLTableRowElement,
   React.HTMLAttributes<HTMLTableRowElement>
 >(({ className, ...props }, ref) => (
@@ -68,7 +68,8 @@ const TableRow = React.forwardRef<
     {...props}
   />
 ))
-TableRow.displayName = "TableRow"
+TableRowInner.displayName = "TableRow"
+const TableRow = React.memo(TableRowInner)
 
 const TableHead = React.forwardRef<
   HTMLTableCellElement,

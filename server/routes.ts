@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import express from "express";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -28,6 +28,7 @@ import { SafeXLSX, RawXLSX } from "./utils/safe-xlsx";
 import { analyzeBillingRows } from "./services/billingAnalyzer";
 import { extractSupportPlanDataFromText, compareSupportPlanToServiceOrders, type ServiceOrderComparisonInput } from "./services/supportPlanCompare";
 import { geocodeAddress } from "./services/geocoding";
+import rateLimit from "express-rate-limit";
 
 // Use legacy build for Node.js (no DOM APIs required)
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
@@ -409,7 +410,7 @@ async function scanAndLogFile(
     console.error("Virus scan error:", error);
     return {
       allowed: false,
-      error: `File scan failed: ${error.message}. Please try again later.`,
+      error: `File scan failed: ${safeErrorMessage(error, "unknown error")}. Please try again later.`,
     };
   }
 }
@@ -682,6 +683,19 @@ async function extractRowsFromBillingImage(
 
 const connectedClients: Map<string, WebSocket> = new Map();
 let sessionStore: any = null;
+
+/**
+ * Never leak raw error.message to the client — it can contain
+ * database connection strings, SQL errors, file paths, and internal service details.
+ * Only expose raw messages in explicit development mode.
+ */
+const safeErrorMessage = (error: unknown, fallback = "Internal server error"): string => {
+  if (process.env.NODE_ENV === "development") {
+    return (error instanceof Error ? error.message : String(error)) || fallback;
+  }
+  return fallback;
+};
+
 const PLATFORM_CONTROLS_KEY = "platform_controls";
 const PLATFORM_CONTROLS_CACHE_TTL_MS = 10_000;
 const DEFAULT_MAINTENANCE_MESSAGE =
@@ -4056,8 +4070,8 @@ If none found: {"interactions": []}`
     const finalResult = Array.from(deduped.values());
     drugInteractionCache.set(cacheKey, finalResult);
     return finalResult;
-  } catch (error: any) {
-    console.error("[Drug Interactions] Check failed:", error.message);
+  } catch (error: unknown) {
+    console.error("[Drug Interactions] Check failed:", safeErrorMessage(error, "unknown error"));
     return ruleBasedInteractions;
   }
 }
@@ -4231,7 +4245,17 @@ export async function registerRoutes(
     const url = new URL(req.url || "", `http://${req.headers.host}`);
     const userId = url.searchParams.get("userId");
 
-    if (userId) {
+    // Authenticate WebSocket connections by verifying the session cookie.
+    // Without this, any client could connect with an arbitrary userId.
+    const fakeRes = { setHeader: () => {}, getHeader: () => undefined, end: () => {} } as any;
+    sessionMiddleware(req as any, fakeRes, () => {
+      const sessionUserId = (req as any).session?.userId;
+      // Validate the requested userId matches the authenticated session
+      if (!sessionUserId || !userId || String(sessionUserId) !== String(userId)) {
+        ws.close(4001, "Unauthorized");
+        return;
+      }
+
       connectedClients.set(userId, ws);
 
       ws.on("close", () => {
@@ -4241,7 +4265,7 @@ export async function registerRoutes(
       ws.on("error", () => {
         connectedClients.delete(userId);
       });
-    }
+    });
   });
 
   const sendToUser = (userId: string, message: any) => {
@@ -4294,10 +4318,8 @@ export async function registerRoutes(
     }
   }
 
-  // Trust proxy so secure cookies work when behind reverse proxies
-  app.set("trust proxy", 1);
-
   // Session middleware (skip for Vite HMR WebSocket)
+  // Note: trust proxy is set in index.ts (before routes are registered)
   const sessionMiddleware = session({
     ...(sessionStore ? { store: sessionStore } : {}),
     secret: process.env.SESSION_SECRET || "carecompli-secret-key-change-in-prod",
@@ -4307,7 +4329,11 @@ export async function registerRoutes(
     cookie: {
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // "none" for cross-origin in production
+      // "none" is required for the split Render architecture where the static
+      // site (care-assurance-web) and the API (care-assurance-api) live on
+      // different origins.  Combined with secure:true + CSRF origin validation
+      // this is safe.  If moving to same-origin, change to "lax".
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 1000 * 60 * 30, // 30 minutes - auto logout on inactivity
     },
     rolling: true, // Reset cookie expiration on each request (keeps session alive while active)
@@ -4323,15 +4349,15 @@ export async function registerRoutes(
 
   // CSRF Protection: Verify Origin/Referer header for state-changing requests
   // This protects against cross-site request forgery by validating the request source
-  const csrfProtection = (req: any, res: any, next: any) => {
+  const csrfProtection = (req: Request, res: Response, next: NextFunction) => {
     // Skip for safe methods (GET, HEAD, OPTIONS)
     const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
     if (safeMethods.includes(req.method)) {
       return next();
     }
     
-    // Skip CSRF check in development for easier testing
-    if (process.env.NODE_ENV !== 'production') {
+    // Only disable CSRF if explicitly opted out (e.g. for local dev)
+    if (process.env.DISABLE_CSRF === 'true') {
       return next();
     }
     
@@ -4356,6 +4382,12 @@ export async function registerRoutes(
       `https://${process.env.CANONICAL_DOMAIN || 'careassurance.uk'}`,
       `https://www.${process.env.CANONICAL_DOMAIN || 'careassurance.uk'}`,
     ];
+    
+    // Allow the Render API hostname (set automatically by Render)
+    const renderHost = process.env.RENDER_EXTERNAL_HOSTNAME;
+    if (renderHost) {
+      allowedOrigins.push(`https://${renderHost}`);
+    }
     
     // Allow browser extension origins
     const isExtensionOrigin = origin?.startsWith('chrome-extension://') || 
@@ -4384,6 +4416,45 @@ export async function registerRoutes(
   // Apply CSRF protection to API routes
   app.use('/api', csrfProtection);
 
+  // ── Rate Limiting ─────────────────────────────────────────────────────────────
+  // General API rate limit: 200 requests per minute per IP
+  const generalLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many requests — please try again shortly." },
+    keyGenerator: (req: any) => {
+      const forwarded = req.headers['x-forwarded-for'];
+      if (forwarded) {
+        return (typeof forwarded === 'string' ? forwarded : forwarded[0]).split(',')[0].trim();
+      }
+      return req.socket?.remoteAddress || req.ip || 'unknown';
+    },
+  });
+  app.use('/api', generalLimiter);
+
+  // Strict rate limit for auth endpoints: 10 requests per minute per IP
+  const authLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many authentication attempts — please wait before trying again." },
+  });
+  app.use('/api/auth/login', authLimiter);
+  app.use('/api/auth/register', authLimiter);
+
+  // Moderate rate limit for AI endpoints: 15 requests per minute per IP
+  const aiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 15,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "AI processing rate limit reached — please try again in a moment." },
+  });
+  app.use('/api/ai', aiLimiter);
+
   // Auth middleware
   const buildDemoSessionUser = (sessionUserId: string) => ({
     id: sessionUserId,
@@ -4400,7 +4471,7 @@ export async function registerRoutes(
     termsVersion: "1.0",
   });
 
-  const resolveAuthenticatedUser = async (req: any): Promise<any | null> => {
+  const resolveAuthenticatedUser = async (req: Request): Promise<Express.Request["user"] | null> => {
     if (!req.session?.userId) {
       return null;
     }
@@ -4427,7 +4498,7 @@ export async function registerRoutes(
     return user;
   };
 
-  const requireAuth = async (req: any, res: any, next: any) => {
+  const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
     const user = await resolveAuthenticatedUser(req);
     if (!user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -4470,14 +4541,14 @@ export async function registerRoutes(
     next();
   };
 
-  const requireAdmin = async (req: any, res: any, next: any) => {
+  const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user || req.user.role !== "admin") {
       return res.status(403).json({ message: "Forbidden: Admin access required" });
     }
     next();
   };
 
-  const blockDemoWrites = async (req: any, res: any, next: any) => {
+  const blockDemoWrites = async (req: Request, res: Response, next: NextFunction) => {
     if (req.user?.isDemo) {
       return res.status(403).json({ 
         message: "Demo mode: Changes are not saved. Sign up to access all features." 
@@ -4489,13 +4560,18 @@ export async function registerRoutes(
   // ===== AUTH ROUTES =====
   
   // Helper to get client IP address
-  const getClientIp = (req: any): string => {
+  const getClientIp = (req: Request): string => {
     const forwarded = req.headers['x-forwarded-for'];
     if (forwarded) {
       return (typeof forwarded === 'string' ? forwarded : forwarded[0]).split(',')[0].trim();
     }
     return req.socket?.remoteAddress || req.ip || 'unknown';
   };
+
+  // Health check — no auth required; used by load balancers, uptime monitors, and render.yaml
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
 
   // Login
   app.post("/api/auth/login", async (req, res) => {
@@ -4706,7 +4782,7 @@ export async function registerRoutes(
         forcingLogout,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Login failed") });
     }
   });
 
@@ -4762,7 +4838,7 @@ export async function registerRoutes(
 
         return res.json(demoUser);
       } catch (error: any) {
-        return res.status(500).json({ message: error.message });
+        return res.status(500).json({ message: safeErrorMessage(error, "Login failed") });
       }
     });
   }
@@ -4802,7 +4878,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Registration failed") });
     }
   });
 
@@ -4828,7 +4904,7 @@ export async function registerRoutes(
       }
       return res.json({ authenticated: true, user: toPublicUser(user) });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message || "Failed to check session" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to check session") });
     }
   });
 
@@ -4915,7 +4991,7 @@ export async function registerRoutes(
         maxNonAdminSessions: MAX_NON_ADMIN_SESSIONS,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get active sessions") });
     }
   });
 
@@ -4940,7 +5016,7 @@ export async function registerRoutes(
         createdAt: u.createdAt,
       })));
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get users") });
     }
   });
 
@@ -4957,7 +5033,7 @@ export async function registerRoutes(
         createdAt: u.createdAt,
       })));
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get pending users") });
     }
   });
 
@@ -4990,7 +5066,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create user") });
     }
   });
 
@@ -5020,7 +5096,7 @@ export async function registerRoutes(
         status: user.status,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to approve user") });
     }
   });
 
@@ -5044,7 +5120,7 @@ export async function registerRoutes(
       
       return res.json({ message: "User deleted successfully" });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete user") });
     }
   });
 
@@ -5067,7 +5143,7 @@ export async function registerRoutes(
         jobTitle: user.jobTitle,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update job title") });
     }
   });
 
@@ -5103,7 +5179,7 @@ export async function registerRoutes(
         jobTitle: user.jobTitle,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update role") });
     }
   });
 
@@ -5133,7 +5209,7 @@ export async function registerRoutes(
         jobTitle: user.jobTitle,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update username") });
     }
   });
 
@@ -5167,7 +5243,7 @@ export async function registerRoutes(
       
       return res.json({ message: "User session disconnected successfully" });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to disconnect user") });
     }
   });
 
@@ -5190,7 +5266,7 @@ export async function registerRoutes(
       }
       return res.status(400).json({ message: "No valid fields to update" });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update profile") });
     }
   });
 
@@ -5270,7 +5346,7 @@ export async function registerRoutes(
       
       return res.json({ message: "Password changed successfully" });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to change password") });
     }
   });
 
@@ -5314,7 +5390,7 @@ export async function registerRoutes(
       
       return res.json({ message: `Password reset for user ${user.username}. User will need to log in again.` });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to reset password") });
     }
   });
 
@@ -5327,7 +5403,7 @@ export async function registerRoutes(
         deleted: result
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to reset performance data") });
     }
   });
 
@@ -5340,7 +5416,7 @@ export async function registerRoutes(
       const recentAlerts = await storage.getRecentAlerts24h();
       return res.json({ stats, recentAlerts });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get dashboard stats") });
     }
   });
 
@@ -5397,7 +5473,7 @@ export async function registerRoutes(
 
       return res.json(activities.slice(0, limit));
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load activities") });
     }
   });
 
@@ -5407,7 +5483,7 @@ export async function registerRoutes(
       const widgets = await storage.getDashboardWidgets(req.user.id);
       return res.json({ widgets: widgets || null });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load widget preferences") });
     }
   });
 
@@ -5421,7 +5497,7 @@ export async function registerRoutes(
       await storage.updateDashboardWidgets(req.user.id, widgets);
       return res.json({ message: "Dashboard preferences saved", widgets });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to save widget preferences") });
     }
   });
 
@@ -5433,7 +5509,7 @@ export async function registerRoutes(
       const workers = await storage.getAllCareWorkers();
       return res.json(workers);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load care workers") });
     }
   });
 
@@ -5447,7 +5523,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create care worker") });
     }
   });
 
@@ -5463,7 +5539,7 @@ export async function registerRoutes(
       
       return res.json({ ...worker, discrepancies });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load care worker") });
     }
   });
 
@@ -5475,7 +5551,7 @@ export async function registerRoutes(
       const discrepancies = await storage.getAllDiscrepancies();
       return res.json(discrepancies);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load discrepancies") });
     }
   });
 
@@ -5511,7 +5587,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create discrepancy") });
     }
   });
 
@@ -5523,7 +5599,7 @@ export async function registerRoutes(
       const audits = await storage.getAllAudits();
       return res.json(audits);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load audits") });
     }
   });
 
@@ -5537,7 +5613,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create audit") });
     }
   });
 
@@ -5661,7 +5737,7 @@ export async function registerRoutes(
       
       return res.json(careWorkers);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load care worker data") });
     }
   });
 
@@ -5688,7 +5764,7 @@ export async function registerRoutes(
         updatedAt: controls.updatedAt,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load platform settings") });
     }
   });
 
@@ -5705,7 +5781,7 @@ export async function registerRoutes(
         maintenanceWindowUpcoming: runtime.maintenanceWindowUpcoming,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load platform controls") });
     }
   });
 
@@ -5802,7 +5878,7 @@ export async function registerRoutes(
 
       return res.json({ message: "Platform controls updated", controls });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update platform controls") });
     }
   });
 
@@ -5846,7 +5922,7 @@ export async function registerRoutes(
 
         return res.json({ message: "Global announcement stopped", controls });
       } catch (error: any) {
-        return res.status(500).json({ message: error.message });
+        return res.status(500).json({ message: safeErrorMessage(error, "Failed to stop announcement") });
       }
     }
   );
@@ -5924,7 +6000,7 @@ export async function registerRoutes(
         incidents,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load operations incidents") });
     }
   });
 
@@ -5934,7 +6010,7 @@ export async function registerRoutes(
       const alerts = await storage.getUnreadAdminAlerts();
       return res.json(alerts);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load alerts") });
     }
   });
 
@@ -5944,7 +6020,7 @@ export async function registerRoutes(
       await storage.markAlertAsRead(req.params.id);
       return res.json({ message: "Alert marked as read" });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update alert") });
     }
   });
 
@@ -5975,7 +6051,7 @@ export async function registerRoutes(
 
       return res.json({ message: "All alerts marked as read", cleared: alerts.length });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update alerts") });
     }
   });
 
@@ -6061,7 +6137,7 @@ export async function registerRoutes(
         },
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load health data") });
     }
   });
 
@@ -6116,7 +6192,7 @@ export async function registerRoutes(
         disconnected: sessions.length,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to disconnect sessions") });
     }
   });
 
@@ -6199,7 +6275,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create rota") });
     }
   });
 
@@ -6210,7 +6286,7 @@ export async function registerRoutes(
       const rotas = await storage.getCareWorkerRotas({ search });
       return res.json(rotas);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load rotas") });
     }
   });
 
@@ -6223,7 +6299,7 @@ export async function registerRoutes(
       }
       return res.json(rota);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load rota") });
     }
   });
 
@@ -6241,7 +6317,7 @@ export async function registerRoutes(
       const result = await geocodeAddress(address);
       return res.json({ address, result });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to geocode address") });
     }
   });
 
@@ -6284,7 +6360,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update rota") });
     }
   });
 
@@ -6304,7 +6380,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load recommendations") });
     }
   });
 
@@ -6321,7 +6397,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create recommendation") });
     }
   });
 
@@ -6334,7 +6410,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete recommendations") });
     }
   });
 
@@ -6345,7 +6421,7 @@ export async function registerRoutes(
       const docs = await storage.getAllPolicyDocuments();
       return res.json(docs);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load policy documents") });
     }
   });
 
@@ -6354,7 +6430,7 @@ export async function registerRoutes(
       const docs = await storage.getPolicyDocumentsByCategory(req.params.category);
       return res.json(docs);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load policy documents") });
     }
   });
 
@@ -6367,7 +6443,7 @@ export async function registerRoutes(
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create policy document") });
     }
   });
 
@@ -6379,7 +6455,7 @@ export async function registerRoutes(
       }
       return res.json(doc);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update policy document") });
     }
   });
 
@@ -6388,7 +6464,7 @@ export async function registerRoutes(
       await storage.deletePolicyDocument(req.params.id);
       return res.json({ success: true });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete policy document") });
     }
   });
 
@@ -6437,7 +6513,7 @@ export async function registerRoutes(
       return res.status(201).json(doc);
     } catch (error: any) {
       console.error("Policy document upload error:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to upload policy document") });
     }
   });
 
@@ -6517,7 +6593,7 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       console.error("AI status fetch error:", error);
-      return res.status(500).json({ message: error.message || "Failed to check AI status" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to check AI status") });
     }
   });
 
@@ -6640,7 +6716,7 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       console.error("EMAR preflight error:", error);
-      return res.status(500).json({ message: error.message || "Preflight failed" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Preflight failed") });
     }
   });
 
@@ -6869,7 +6945,7 @@ export async function registerRoutes(
         console.log(`DEBUG: Final extracted text: ${documentText.length} chars from PDF (pdfjs-dist), PII scrubbed (${emarPIIVault.getStats().total} items)`);
       } catch (textError: any) {
         console.error("PDF text extraction failed:", textError);
-        sendEvent('error', { message: "Failed to extract text from PDF: " + textError.message });
+        sendEvent('error', { message: safeErrorMessage(textError, "Failed to extract text from PDF") });
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
       }
@@ -12481,7 +12557,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       
     } catch (error: any) {
       console.error("EMAR AI Error:", error);
-      sendEvent('error', { message: error.message || "AI analysis failed" });
+      sendEvent('error', { message: safeErrorMessage(error, "AI analysis failed") });
       if (progressInterval) clearInterval(progressInterval);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       emarPIIVault.clear();
@@ -13413,7 +13489,7 @@ Return JSON - include ALL by default:
         return res.end();
     } catch (error: any) {
       console.error("Visit AI Error:", error);
-      sendEvent('error', { message: error.message || "AI analysis failed" });
+      sendEvent('error', { message: safeErrorMessage(error, "AI analysis failed") });
       if (progressInterval) clearInterval(progressInterval);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       visitPIIVault.clear();
@@ -14159,10 +14235,10 @@ Remember: Extract information ONLY from service user documents above. Templates 
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       if (progressInterval) clearInterval(progressInterval);
       if (res.headersSent) {
-        res.write(`event: error\ndata: ${JSON.stringify({ message: error.message || "AI analysis failed" })}\n\n`);
+        res.write(`event: error\ndata: ${JSON.stringify({ message: safeErrorMessage(error, "AI analysis failed") })}\n\n`);
         return res.end();
       }
-      return res.status(500).json({ message: error.message || "AI analysis failed" });
+      return res.status(500).json({ message: safeErrorMessage(error, "AI analysis failed") });
     }
   });
 
@@ -14660,10 +14736,10 @@ Remember: Extract information ONLY from the service user documents above. Templa
       if (progressInterval) clearInterval(progressInterval);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       if (res.headersSent) {
-        res.write(`event: error\ndata: ${JSON.stringify({ message: error.message || "AI generation failed" })}\n\n`);
+        res.write(`event: error\ndata: ${JSON.stringify({ message: safeErrorMessage(error, "AI generation failed") })}\n\n`);
         return res.end();
       }
-      return res.status(500).json({ message: error.message || "AI generation failed" });
+      return res.status(500).json({ message: safeErrorMessage(error, "AI generation failed") });
     }
   });
 
@@ -14708,7 +14784,7 @@ Remember: Extract information ONLY from the service user documents above. Templa
       });
     } catch (error: any) {
       console.error("Get call types error:", error);
-      return res.status(500).json({ message: error.message || "Failed to get call types" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get call types") });
     }
   });
 
@@ -15265,7 +15341,7 @@ Return ONLY valid JSON with content field.` }
       } catch (genError: any) {
         console.error("[CarePlan] Generation error:", genError.message);
         piiVault.clear(); // Clear vault on error too
-        sendEvent('error', { message: genError.message || "AI generation failed" });
+        sendEvent('error', { message: safeErrorMessage(genError, "AI generation failed") });
         if (progressInterval) clearInterval(progressInterval);
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
@@ -15277,10 +15353,10 @@ Return ONLY valid JSON with content field.` }
       if (progressInterval) clearInterval(progressInterval);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       if (res.headersSent) {
-        res.write(`event: error\ndata: ${JSON.stringify({ message: error.message || "AI generation failed" })}\n\n`);
+        res.write(`event: error\ndata: ${JSON.stringify({ message: safeErrorMessage(error, "AI generation failed") })}\n\n`);
         return res.end();
       }
-      return res.status(500).json({ message: error.message || "AI generation failed" });
+      return res.status(500).json({ message: safeErrorMessage(error, "AI generation failed") });
     }
   });
 
@@ -16426,10 +16502,10 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       if (progressInterval) clearInterval(progressInterval);
       if (res.headersSent) {
-        res.write(`event: error\ndata: ${JSON.stringify({ message: error.message || "AI enhancement failed" })}\n\n`);
+        res.write(`event: error\ndata: ${JSON.stringify({ message: safeErrorMessage(error, "AI enhancement failed") })}\n\n`);
         return res.end();
       }
-      return res.status(500).json({ message: error.message || "AI enhancement failed" });
+      return res.status(500).json({ message: safeErrorMessage(error, "AI enhancement failed") });
     }
   });
 
@@ -16441,7 +16517,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
       const log = await storage.createRiskAssessmentLog(req.body);
       return res.status(201).json(log);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create risk assessment log") });
     }
   });
 
@@ -16451,7 +16527,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
       const logs = await storage.getAllRiskAssessmentLogs();
       return res.json(logs);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load risk assessment logs") });
     }
   });
 
@@ -16463,7 +16539,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
       const history = await storage.getAllSessionHistory();
       return res.json(history);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load session history") });
     }
   });
 
@@ -16473,7 +16549,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
       const logs = await storage.getSuspensionLogs();
       return res.json(logs);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load suspension logs") });
     }
   });
 
@@ -16520,7 +16596,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
 
       return res.json({ message: "User suspended", suspendedUntil: endsAt });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to suspend user") });
     }
   });
 
@@ -16536,7 +16612,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
 
       return res.json({ message: "User reinstated" });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to reinstate user") });
     }
   });
 
@@ -16571,7 +16647,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
 
       return res.json({ message: "User kicked" });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to kick user") });
     }
   });
 
@@ -16593,7 +16669,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
         jobTitle: user.jobTitle,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update user name") });
     }
   });
 
@@ -16614,7 +16690,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
         sessionHistory: sessionHistoryData,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load audit trail") });
     }
   });
 
@@ -16644,7 +16720,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
 
       return res.json(usersWithPresence);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load user presence data") });
     }
   });
 
@@ -16654,7 +16730,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
       const blockedIps = await storage.getAllBlockedIps();
       return res.json(blockedIps);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load blocked IPs") });
     }
   });
 
@@ -16682,7 +16758,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
       
       return res.json(blocked);
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to block IP") });
     }
   });
 
@@ -16692,7 +16768,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
       await storage.unblockIp(req.params.id);
       return res.json({ success: true });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to unblock IP") });
     }
   });
 
@@ -16768,7 +16844,7 @@ Return ONLY the email text, nothing else.`;
       return res.json({ rewrittenEmail });
     } catch (error: any) {
       console.error("Email rewrite error:", error);
-      return res.status(500).json({ message: error.message || "Failed to rewrite email" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to rewrite email") });
     } finally {
       piiVault.clear();
     }
@@ -16836,7 +16912,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ protocol });
     } catch (error: any) {
       console.error("PRN protocol generation error:", error);
-      return res.status(500).json({ message: error.message || "Failed to generate PRN protocol" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to generate PRN protocol") });
     }
   });
 
@@ -16872,7 +16948,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.status(201).json(review);
     } catch (error: any) {
       console.error("Refusal review creation error:", error);
-      return res.status(500).json({ message: error.message || "Failed to create refusal review" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create refusal review") });
     }
   });
 
@@ -16883,7 +16959,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(reviews);
     } catch (error: any) {
       console.error("Get refusal reviews error:", error);
-      return res.status(500).json({ message: error.message || "Failed to get refusal reviews" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get refusal reviews") });
     }
   });
 
@@ -16923,7 +16999,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(review);
     } catch (error: any) {
       console.error("Refusal review update error:", error);
-      return res.status(500).json({ message: error.message || "Failed to update refusal review" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update refusal review") });
     }
   });
 
@@ -16959,7 +17035,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.status(201).json(createdReviews);
     } catch (error: any) {
       console.error("Bulk refusal review creation error:", error);
-      return res.status(500).json({ message: error.message || "Failed to create refusal reviews" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create refusal reviews") });
     }
   });
 
@@ -17002,7 +17078,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.status(201).json({ success: true, count });
     } catch (error: any) {
       console.error("EMAR corrections save error:", error);
-      return res.status(500).json({ message: error.message || "Failed to save EMAR corrections" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to save EMAR corrections") });
     }
   });
 
@@ -17027,7 +17103,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("AI provider fetch error:", error);
-      return res.status(500).json({ message: error.message || "Failed to fetch AI provider" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to fetch AI provider") });
     }
   });
 
@@ -17066,7 +17142,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true, provider });
     } catch (error: any) {
       console.error("AI provider update error:", error);
-      return res.status(500).json({ message: error.message || "Failed to update AI provider" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update AI provider") });
     }
   });
 
@@ -17077,7 +17153,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ useEmarAgent: useAgent });
     } catch (error: any) {
       console.error("EMAR agent preference fetch error:", error);
-      return res.status(500).json({ message: error.message || "Failed to fetch EMAR agent preference" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to fetch EMAR agent preference") });
     }
   });
 
@@ -17099,7 +17175,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true, useEmarAgent });
     } catch (error: any) {
       console.error("EMAR agent update error:", error);
-      return res.status(500).json({ message: error.message || "Failed to update EMAR agent preference" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update EMAR agent preference") });
     }
   });
 
@@ -17120,7 +17196,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("AI optimization fetch error:", error);
-      return res.status(500).json({ message: error.message || "Failed to fetch AI optimization settings" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to fetch AI optimization settings") });
     }
   });
 
@@ -17133,7 +17209,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         try {
           setAIEnabled(aiEnabled, true);
         } catch (error: any) {
-          return res.status(400).json({ message: error.message || "Invalid AI enabled setting" });
+          return res.status(400).json({ message: safeErrorMessage(error, "Invalid AI enabled setting") });
         }
         if (!aiEnabled) {
           setUseEmarAgent(false, true);
@@ -17172,7 +17248,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("AI optimization update error:", error);
-      return res.status(500).json({ message: error.message || "Failed to update AI optimization settings" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update AI optimization settings") });
     }
   });
 
@@ -17183,7 +17259,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(stats);
     } catch (error: any) {
       console.error("AI cache stats fetch error:", error);
-      return res.status(500).json({ message: error.message || "Failed to fetch AI cache stats" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to fetch AI cache stats") });
     }
   });
 
@@ -17231,7 +17307,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("Quick analyze error:", error);
-      return res.status(500).json({ message: error.message || "Quick analysis failed" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Quick analysis failed") });
     }
   });
 
@@ -17316,7 +17392,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("Care data extraction error:", error);
-      return res.status(500).json({ message: error.message || "Extraction failed" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Extraction failed") });
     }
   });
 
@@ -17348,7 +17424,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("Plan quality check error:", error);
-      return res.status(500).json({ message: error.message || "Quality check failed" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Quality check failed") });
     }
   });
 
@@ -17533,7 +17609,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         }
       });
     } catch (error: any) {
-      return res.status(500).json({ message: error.message || "Failed to get extension status" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get extension status") });
     }
   });
 
@@ -17564,7 +17640,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("Extension package metadata error:", error);
-      return res.status(500).json({ message: error.message || "Failed to load extension package metadata" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load extension package metadata") });
     }
   });
 
@@ -17592,7 +17668,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("Extension package lookup error:", error);
-      return res.status(500).json({ message: error.message || "Failed to prepare extension package" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to prepare extension package") });
     }
   });
 
@@ -17621,7 +17697,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ users });
     } catch (error: any) {
       console.error("Extension service users error:", error);
-      return res.status(500).json({ message: error.message || "Failed to get service users" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get service users") });
     }
   });
 
@@ -17651,7 +17727,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("Extension service user error:", error);
-      return res.status(500).json({ message: error.message || "Failed to get service user" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get service user") });
     }
   });
 
@@ -17686,7 +17762,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(payload);
     } catch (error: any) {
       console.error("Extension risk assessment error:", error);
-      return res.status(500).json({ message: error.message || "Failed to get risk assessment" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get risk assessment") });
     }
   });
 
@@ -17742,7 +17818,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(payload);
     } catch (error: any) {
       console.error("Extension care plan error:", error);
-      return res.status(500).json({ message: error.message || "Failed to get care plan" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get care plan") });
     }
   });
 
@@ -17782,7 +17858,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("Extension recent error:", error);
-      return res.status(500).json({ message: error.message || "Failed to get recent items" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get recent items") });
     }
   });
 
@@ -17799,7 +17875,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ logs, stats });
     } catch (error: any) {
       console.error("AI usage fetch error:", error);
-      return res.status(500).json({ message: error.message || "Failed to fetch AI usage" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to fetch AI usage") });
     }
   });
 
@@ -17832,7 +17908,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ logs: enrichedLogs });
     } catch (error: any) {
       console.error("AI request logs fetch error:", error);
-      return res.status(500).json({ message: error.message || "Failed to fetch AI request logs" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to fetch AI request logs") });
     }
   });
 
@@ -17962,7 +18038,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(analysis);
     } catch (error: any) {
       console.error("Billing tool error:", error);
-      return res.status(500).json({ message: error.message || "Failed to analyze service order images" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to analyze service order images") });
     }
   });
 
@@ -18051,7 +18127,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("Support plan comparison error:", error);
-      return res.status(500).json({ message: error.message || "Failed to compare support plan" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to compare support plan") });
     }
   });
 
@@ -18195,7 +18271,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.send(excelBuffer);
     } catch (error: any) {
       console.error("Reconciliation error:", error);
-      return res.status(500).json({ message: error.message || "Failed to process Excel file" });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to process Excel file") });
     }
   });
 
@@ -18652,7 +18728,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
       console.error("[Rostering] Failed to ingest workbook analysis:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to upload workbook") });
     }
   });
 
@@ -18676,7 +18752,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(summaries);
     } catch (error: any) {
       console.error("[TestingFeatures] Failed to fetch uploads:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load workbooks") });
     }
   });
 
@@ -18921,7 +18997,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("[TestingFeatures] Failed to fetch upload:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load workbook details") });
     }
   });
 
@@ -18937,7 +19013,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[TestingFeatures] Failed to delete upload:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete workbook") });
     }
   });
 
@@ -18952,7 +19028,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(orders);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch service orders:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load service orders") });
     }
   });
 
@@ -18962,7 +19038,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(orders);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch service orders:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load service orders") });
     }
   });
 
@@ -18972,7 +19048,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete service order:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete service order") });
     }
   });
 
@@ -18998,7 +19074,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(assignments);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch template assignments:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load template assignments") });
     }
   });
 
@@ -19008,7 +19084,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete template assignment:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete template assignment") });
     }
   });
 
@@ -19019,7 +19095,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(serviceUsers);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch service users:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load analyzed service users") });
     }
   });
 
@@ -19032,7 +19108,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(serviceUser);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch service user:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load service user") });
     }
   });
 
@@ -19042,7 +19118,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete service user:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete service user") });
     }
   });
 
@@ -19053,7 +19129,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(careWorkers);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch care workers:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load analyzed care workers") });
     }
   });
 
@@ -19066,7 +19142,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(careWorker);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch care worker:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load care worker") });
     }
   });
 
@@ -19076,7 +19152,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete care worker:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete care worker") });
     }
   });
 
@@ -19099,7 +19175,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(recommendations);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch recommendations:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load recommendations") });
     }
   });
 
@@ -19113,7 +19189,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(recommendation);
     } catch (error: any) {
       console.error("[Rostering] Failed to apply recommendation:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to apply recommendation") });
     }
   });
 
@@ -19123,7 +19199,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete recommendation:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete recommendation") });
     }
   });
 
@@ -19134,7 +19210,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(uploads);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch workbook uploads:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load workbook uploads") });
     }
   });
 
@@ -19371,7 +19447,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch workbook upload:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load workbook upload details") });
     }
   });
 
@@ -19381,7 +19457,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete workbook upload:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete workbook upload") });
     }
   });
 
@@ -19397,7 +19473,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("[Rostering] Failed to cleanup expired data:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to cleanup expired data") });
     }
   });
 
@@ -19413,7 +19489,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("[Rostering] Failed to reset data:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to cleanup data") });
     }
   });
 
@@ -19439,13 +19515,66 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       });
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch data stats:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load data statistics") });
     }
   });
 
   // =====================================================================
   // ROSTERING STUDIO - Recommended Times, Templates & Constraints
   // =====================================================================
+
+  // Zod schemas for rostering endpoint validation
+  const callTimeSchema = z.object({
+    serviceUserKey: z.string().min(1),
+    serviceUserName: z.string().min(1),
+    callTypeLabel: z.string().min(1),
+    recommendedStartMinutes: z.number().int().min(0).max(1440),
+    toleranceMinutes: z.number().int().min(0).max(480).optional(),
+    priority: z.number().int().min(1).max(10).optional(),
+    notes: z.string().max(1000).nullable().optional(),
+    id: z.string().optional(),
+  });
+
+  const workerStartTimeSchema = z.object({
+    workerKey: z.string().min(1),
+    workerName: z.string().min(1),
+    templateWeek: z.enum(["week1", "week2"]),
+    templateDay: z.enum(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+    recommendedStartMinutes: z.number().int().min(0).max(1440),
+    recommendedEndMinutes: z.number().int().min(0).max(1440).nullable().optional(),
+    maxCallsPerDay: z.number().int().min(0).max(100).nullable().optional(),
+    maxMinutesPerDay: z.number().int().min(0).max(1440).nullable().optional(),
+    notes: z.string().max(1000).nullable().optional(),
+    id: z.string().optional(),
+  });
+
+  const workerTemplateSchema = z.object({
+    workerKey: z.string().min(1),
+    workerName: z.string().min(1),
+    serviceUserKey: z.string().min(1),
+    serviceUserName: z.string().min(1),
+    callTypeLabels: z.array(z.string()).nullable().optional(),
+    isPrimary: z.boolean().optional(),
+    priority: z.number().int().min(1).max(10).optional(),
+    templateWeek: z.string().nullable().optional(),
+    templateDay: z.string().nullable().optional(),
+    notes: z.string().max(1000).nullable().optional(),
+    id: z.string().optional(),
+  });
+
+  const workerConstraintSchema = z.object({
+    workerKey: z.string().min(1),
+    workerName: z.string().min(1),
+    maxCallsPerDay: z.number().int().min(0).max(100).nullable().optional(),
+    maxMinutesPerDay: z.number().int().min(0).max(1440).nullable().optional(),
+    maxCallsPerWeek: z.number().int().min(0).max(700).nullable().optional(),
+    maxMinutesPerWeek: z.number().int().min(0).max(10080).nullable().optional(),
+    preferredMaxDistance: z.number().int().min(0).nullable().optional(),
+    availableDays: z.array(z.string()).nullable().optional(),
+    unavailableDates: z.array(z.string()).nullable().optional(),
+    notes: z.string().max(1000).nullable().optional(),
+    id: z.string().optional(),
+  });
 
   // --- Recommended Call Times ---
   app.get("/api/admin/rostering/workbooks/:id/call-times", requireAuth, requireAdmin, async (req, res) => {
@@ -19454,23 +19583,27 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(callTimes);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch call times:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load call times") });
     }
   });
 
-  app.post("/api/admin/rostering/workbooks/:id/call-times", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+  app.post("/api/admin/rostering/workbooks/:id/call-times", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
+      const parsed = callTimeSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid call time data", errors: parsed.error.flatten().fieldErrors });
+      }
       const callTime = await storage.upsertRosteringRecommendedCallTime({
-        ...req.body,
+        ...parsed.data,
         workbookId: req.params.id,
-        createdBy: req.user?.id ?? null,
-        createdByUsername: req.user?.username ?? null,
+        createdBy: (req as any).user?.id ?? null,
+        createdByUsername: (req as any).user?.username ?? null,
       });
-      console.log(`[Rostering] Call time saved for ${req.body.serviceUserName} - ${req.body.callTypeLabel}`);
+      console.log(`[Rostering] Call time saved for ${parsed.data.serviceUserName} - ${parsed.data.callTypeLabel}`);
       return res.status(201).json(callTime);
     } catch (error: any) {
       console.error("[Rostering] Failed to save call time:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to save call time") });
     }
   });
 
@@ -19480,7 +19613,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete call time:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete call time") });
     }
   });
 
@@ -19491,23 +19624,27 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(startTimes);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch worker start times:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load worker start times") });
     }
   });
 
-  app.post("/api/admin/rostering/workbooks/:id/worker-start-times", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+  app.post("/api/admin/rostering/workbooks/:id/worker-start-times", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
+      const parsed = workerStartTimeSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid worker start time data", errors: parsed.error.flatten().fieldErrors });
+      }
       const startTime = await storage.upsertRosteringWorkerStartTime({
-        ...req.body,
+        ...parsed.data,
         workbookId: req.params.id,
-        createdBy: req.user?.id ?? null,
-        createdByUsername: req.user?.username ?? null,
+        createdBy: (req as any).user?.id ?? null,
+        createdByUsername: (req as any).user?.username ?? null,
       });
-      console.log(`[Rostering] Worker start time saved for ${req.body.workerName} - ${req.body.templateDay}`);
+      console.log(`[Rostering] Worker start time saved for ${parsed.data.workerName} - ${parsed.data.templateDay}`);
       return res.status(201).json(startTime);
     } catch (error: any) {
       console.error("[Rostering] Failed to save worker start time:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to save start time") });
     }
   });
 
@@ -19517,7 +19654,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete worker start time:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete start time") });
     }
   });
 
@@ -19528,23 +19665,27 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(templates);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch worker templates:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load worker templates") });
     }
   });
 
-  app.post("/api/admin/rostering/workbooks/:id/worker-templates", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+  app.post("/api/admin/rostering/workbooks/:id/worker-templates", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
+      const parsed = workerTemplateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid worker template data", errors: parsed.error.flatten().fieldErrors });
+      }
       const template = await storage.upsertRosteringWorkerTemplate({
-        ...req.body,
+        ...parsed.data,
         workbookId: req.params.id,
-        createdBy: req.user?.id ?? null,
-        createdByUsername: req.user?.username ?? null,
+        createdBy: (req as any).user?.id ?? null,
+        createdByUsername: (req as any).user?.username ?? null,
       });
-      console.log(`[Rostering] Worker template saved: ${req.body.workerName} -> ${req.body.serviceUserName}`);
+      console.log(`[Rostering] Worker template saved: ${parsed.data.workerName} -> ${parsed.data.serviceUserName}`);
       return res.status(201).json(template);
     } catch (error: any) {
       console.error("[Rostering] Failed to save worker template:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to save worker template") });
     }
   });
 
@@ -19554,7 +19695,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete worker template:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete worker template") });
     }
   });
 
@@ -19565,23 +19706,27 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(constraints);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch worker constraints:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load worker constraints") });
     }
   });
 
-  app.post("/api/admin/rostering/workbooks/:id/worker-constraints", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+  app.post("/api/admin/rostering/workbooks/:id/worker-constraints", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
+      const parsed = workerConstraintSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid worker constraint data", errors: parsed.error.flatten().fieldErrors });
+      }
       const constraint = await storage.upsertRosteringWorkerConstraint({
-        ...req.body,
+        ...parsed.data,
         workbookId: req.params.id,
-        createdBy: req.user?.id ?? null,
-        createdByUsername: req.user?.username ?? null,
+        createdBy: (req as any).user?.id ?? null,
+        createdByUsername: (req as any).user?.username ?? null,
       });
-      console.log(`[Rostering] Worker constraint saved for ${req.body.workerName}`);
+      console.log(`[Rostering] Worker constraint saved for ${parsed.data.workerName}`);
       return res.status(201).json(constraint);
     } catch (error: any) {
       console.error("[Rostering] Failed to save worker constraint:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to save worker constraint") });
     }
   });
 
@@ -19591,7 +19736,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete worker constraint:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete worker constraint") });
     }
   });
 
@@ -19603,7 +19748,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(templates);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch schedule templates:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load schedule templates") });
     }
   });
 
@@ -19627,7 +19772,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.status(201).json(template);
     } catch (error: any) {
       console.error("[Rostering] Failed to create schedule template:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create schedule template") });
     }
   });
 
@@ -19637,7 +19782,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete schedule template:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete schedule template") });
     }
   });
 
@@ -19650,7 +19795,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(states);
     } catch (error: any) {
       console.error("[Rostering] Failed to get saved states:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load saved states") });
     }
   });
 
@@ -19677,7 +19822,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.status(201).json(state);
     } catch (error: any) {
       console.error("[Rostering] Failed to create saved state:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create saved state") });
     }
   });
 
@@ -19702,7 +19847,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(updated);
     } catch (error: any) {
       console.error("[Rostering] Failed to update saved state:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update saved state") });
     }
   });
 
@@ -19719,7 +19864,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(activated);
     } catch (error: any) {
       console.error("[Rostering] Failed to activate saved state:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to activate saved state") });
     }
   });
 
@@ -19731,7 +19876,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete saved state:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete saved state") });
     }
   });
 
@@ -19751,7 +19896,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(state || null);
     } catch (error: any) {
       console.error("[Rostering] Failed to get active state:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load active state") });
     }
   });
 
@@ -19768,7 +19913,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(analysis);
     } catch (error: any) {
       console.error("[Rostering] Schedule analysis failed:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to analyze schedule") });
     }
   });
 
@@ -19785,7 +19930,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json(comparison);
     } catch (error: any) {
       console.error("[Rostering] Schedule comparison failed:", error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to compare schedules") });
     }
   });
 
@@ -20296,8 +20441,8 @@ I have also sent that reminder to your Messages inbox.`
         currentConsents,
         history: consents,
       });
-    } catch (error: any) {
-      console.error("[GDPR] Error getting consent:", error.message);
+    } catch (error: unknown) {
+      console.error("[GDPR] Error getting consent:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to get consent status" });
     }
   });
@@ -20346,8 +20491,8 @@ I have also sent that reminder to your Messages inbox.`
       });
 
       return res.json({ success: true, consent });
-    } catch (error: any) {
-      console.error("[GDPR] Error updating consent:", error.message);
+    } catch (error: unknown) {
+      console.error("[GDPR] Error updating consent:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to update consent" });
     }
   });
@@ -20390,8 +20535,8 @@ I have also sent that reminder to your Messages inbox.`
         request,
         message: "Your data access request has been submitted. You will receive your data within 30 days.",
       });
-    } catch (error: any) {
-      console.error("[GDPR] Error creating access request:", error.message);
+    } catch (error: unknown) {
+      console.error("[GDPR] Error creating access request:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to create data request" });
     }
   });
@@ -20430,8 +20575,8 @@ I have also sent that reminder to your Messages inbox.`
         request,
         message: "Your data erasure request has been submitted. Your request will be processed within 30 days.",
       });
-    } catch (error: any) {
-      console.error("[GDPR] Error creating erasure request:", error.message);
+    } catch (error: unknown) {
+      console.error("[GDPR] Error creating erasure request:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to create erasure request" });
     }
   });
@@ -20473,8 +20618,8 @@ I have also sent that reminder to your Messages inbox.`
       });
 
       return res.json(data);
-    } catch (error: any) {
-      console.error("[GDPR] Error exporting user data:", error.message);
+    } catch (error: unknown) {
+      console.error("[GDPR] Error exporting user data:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to export data" });
     }
   });
@@ -20671,16 +20816,23 @@ I have also sent that reminder to your Messages inbox.`
   // ==========================================================================
   // Client Error Logging
   // ==========================================================================
-  app.post("/api/log-client-error", requireAuth, async (req, res) => {
+  // Client error logging — auth optional so pre-login errors are captured too
+  app.post("/api/log-client-error", async (req: any, res) => {
     try {
       const { message, stack, componentStack, url, timestamp } = req.body || {};
       const truncate = (s: string | undefined, max: number) =>
         typeof s === "string" ? s.slice(0, max) : "";
 
+      // Limit body size to prevent abuse (truncation handles oversized fields)
+      const bodyStr = JSON.stringify(req.body || {});
+      if (bodyStr.length > 10_000) {
+        return res.status(413).json({ logged: false, reason: "Payload too large" });
+      }
+
       storage.createSystemLog({
         eventType: "CLIENT_ERROR",
-        userId: req.user?.id?.toString(),
-        username: req.user?.username,
+        userId: req.user?.id?.toString() || "anonymous",
+        username: req.user?.username || "anonymous",
         details: {
           url: truncate(url, 500),
           message: truncate(message, 500),

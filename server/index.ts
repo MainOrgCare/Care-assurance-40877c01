@@ -11,6 +11,10 @@ import cors, { CorsOptions } from "cors";
 import { randomUUID } from "node:crypto";
 
 const app = express();
+// Render.com places the app behind a single reverse proxy.
+// trust proxy lets Express correctly derive req.ip, req.protocol, and req.secure
+// from the X-Forwarded-* headers set by the proxy.
+app.set("trust proxy", 1);
 const httpServer = createServer(app);
 
 declare module "http" {
@@ -53,6 +57,25 @@ app.use((req, res, next) => {
 const isProduction = process.env.NODE_ENV === "production";
 
 // CSP is stricter in production, relaxed in dev for HMR/debugging
+// In the split Render architecture the static site and API live on separate origins.
+// RENDER_EXTERNAL_HOSTNAME (set automatically by Render on the API service) or the
+// VITE_API_BASE_URL build-time variable tell us the API origin to whitelist.
+const renderApiHost = process.env.RENDER_EXTERNAL_HOSTNAME; // e.g. "care-assurance-api.onrender.com"
+
+const productionConnectSrc: string[] = [
+  "'self'",
+  `https://${CANONICAL_DOMAIN}`,
+  `https://www.${CANONICAL_DOMAIN}`,
+  `wss://${CANONICAL_DOMAIN}`,
+  `wss://www.${CANONICAL_DOMAIN}`,
+  "https://fonts.googleapis.com",
+  "https://fonts.gstatic.com",
+];
+// If the API is on a Render subdomain, allow that origin too
+if (renderApiHost) {
+  productionConnectSrc.push(`https://${renderApiHost}`, `wss://${renderApiHost}`);
+}
+
 const cspDirectives: Record<string, string[]> = {
   defaultSrc: ["'self'"],
   scriptSrc: isProduction 
@@ -62,9 +85,10 @@ const cspDirectives: Record<string, string[]> = {
   styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
   imgSrc: ["'self'", "data:", "https:"],
   connectSrc: isProduction 
-    ? ["'self'", `https://${CANONICAL_DOMAIN}`, `https://www.${CANONICAL_DOMAIN}`, "https://fonts.googleapis.com", "https://fonts.gstatic.com"]
+    ? productionConnectSrc
     : ["'self'", "ws:", "wss:", "http://localhost:*", "http://127.0.0.1:*", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
   fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+  workerSrc: ["'self'", "blob:"],
   objectSrc: ["'none'"],
   mediaSrc: ["'self'"],
   frameSrc: ["'none'"],

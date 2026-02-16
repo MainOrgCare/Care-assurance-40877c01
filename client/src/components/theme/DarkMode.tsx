@@ -370,5 +370,3 @@ function UserSettings() {
   Your content looks great in both light and dark mode
 </div>
 `;
-
-console.log('✅ Dark Mode implementation loaded');

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 
 interface Message {
@@ -72,16 +73,11 @@ export default function Messages() {
     // Mark as read if not already
     if (!message.isRead) {
       try {
-        const res = await fetch(`/api/messages/${message.id}/read`, {
-          method: "PATCH",
-          credentials: "include",
-        });
-        if (res.ok) {
-          setMessages(prev => prev.map(m => 
-            m.id === message.id ? { ...m, isRead: true } : m
-          ));
-          setSelectedMessage(prev => prev ? { ...prev, isRead: true } : prev);
-        }
+        await apiRequest("PATCH", `/api/messages/${message.id}/read`);
+        setMessages(prev => prev.map(m => 
+          m.id === message.id ? { ...m, isRead: true } : m
+        ));
+        setSelectedMessage(prev => prev ? { ...prev, isRead: true } : prev);
       } catch (error) {
         console.error("Failed to mark message as read:", error);
       }
@@ -90,16 +86,11 @@ export default function Messages() {
 
   const handleArchive = async (id: string) => {
     try {
-      const res = await fetch(`/api/messages/${id}/archive`, {
-        method: "PATCH",
-        credentials: "include",
-      });
-      if (res.ok) {
-        toast({ title: "Archived", description: "Message has been archived" });
-        setMessages(prev => prev.filter(m => m.id !== id));
-        if (selectedMessage?.id === id) {
-          setSelectedMessage(null);
-        }
+      await apiRequest("PATCH", `/api/messages/${id}/archive`);
+      toast({ title: "Archived", description: "Message has been archived" });
+      setMessages(prev => prev.filter(m => m.id !== id));
+      if (selectedMessage?.id === id) {
+        setSelectedMessage(null);
       }
     } catch (error) {
       toast({ title: "Error", description: "Failed to archive message", variant: "destructive" });
@@ -108,16 +99,11 @@ export default function Messages() {
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`/api/messages/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (res.ok) {
-        toast({ title: "Deleted", description: "Message has been deleted" });
-        setMessages(prev => prev.filter(m => m.id !== id));
-        if (selectedMessage?.id === id) {
-          setSelectedMessage(null);
-        }
+      await apiRequest("DELETE", `/api/messages/${id}`);
+      toast({ title: "Deleted", description: "Message has been deleted" });
+      setMessages(prev => prev.filter(m => m.id !== id));
+      if (selectedMessage?.id === id) {
+        setSelectedMessage(null);
       }
     } catch (error) {
       toast({ title: "Error", description: "Failed to delete message", variant: "destructive" });

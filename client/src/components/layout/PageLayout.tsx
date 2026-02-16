@@ -44,7 +44,7 @@ export interface PageLayoutProps {
  *   activeTab="overview"
  *   onTabChange={setActiveTab}
  * >
- *   {/* Page content */}
+ *   Page content goes here
  * </PageLayout>
  */
 export function PageLayout({

@@ -7,18 +7,20 @@ declare global {
   namespace Express {
     interface Request {
       user?: {
-        id: number;
+        id: string;
         username: string;
         firstName?: string | null;
         lastName?: string | null;
         role: string;
         status?: string | null;
         jobTitle?: string | null;
-        termsAcceptedAt?: string | null;
+        email?: string | null;
+        termsAcceptedAt?: string | Date | null;
         termsVersion?: string | null;
         termsSignatureName?: string | null;
         termsSignatureDate?: string | null;
         isDemo?: boolean;
+        [key: string]: unknown;
       };
     }
   }

@@ -15,6 +15,7 @@ import { Redirect } from "wouter";
 import React, { Suspense, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PageLoadingBar } from "@/components/PageLoadingBar";
 
 // Lazy loaded pages for code splitting - reduces initial bundle size
 const NotFound = React.lazy(() => import("@/pages/not-found"));
@@ -99,6 +100,7 @@ function HomeRoute() {
 function Router() {
   return (
     <ErrorBoundary>
+      <PageLoadingBar />
       <Suspense fallback={<RouteFallback />}>
         <Switch>
         <Route path="/terms" component={TermsConditions} />

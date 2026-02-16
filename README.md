@@ -1,6 +1,7 @@
 # Care Assurance Platform
 
 Care Assurance is a full-stack healthcare compliance and operations platform for:
+
 - risk assessment and care planning workflows
 - EMAR and visit auditing
 - staffing, rota analysis, and rostering tools
@@ -75,5 +76,6 @@ Default app/API URL: `http://localhost:5000`
 ## Extension Tooling
 
 For Edge Add-ons release flow, see:
+
 - `extension/edge-acp-autofill/README.md`
 - `script/edge-addons-publish.py`

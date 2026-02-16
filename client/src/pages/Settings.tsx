@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { isValidPassword } from "@/lib/validation";
+import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -69,11 +71,6 @@ const themeOptions: Array<{
 
 const PASSWORD_RULES_TEXT = "Password must be at least 8 characters and include a letter and a number.";
 
-const isValidPassword = (value: string): boolean => {
-  if (!value || value.length < 8) return false;
-  return /[A-Za-z]/.test(value) && /\d/.test(value);
-};
-
 export default function Settings() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -113,24 +110,14 @@ export default function Settings() {
 
     setChangingPassword(true);
     try {
-      const res = await fetch("/api/auth/password", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-
-      if (res.ok) {
-        toast({ title: "Success", description: "Password changed successfully" });
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
-      } else {
-        const data = await res.json();
-        toast({ title: "Error", description: data.message || "Failed to change password", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Error", description: "Failed to change password", variant: "destructive" });
+      await apiRequest("PATCH", "/api/auth/password", { currentPassword, newPassword });
+      toast({ title: "Success", description: "Password changed successfully" });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      const message = err?.body ? JSON.parse(err.body)?.message : "Failed to change password";
+      toast({ title: "Error", description: message || "Failed to change password", variant: "destructive" });
     } finally {
       setChangingPassword(false);
     }

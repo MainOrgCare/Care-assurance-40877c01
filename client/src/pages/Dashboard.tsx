@@ -1,12 +1,15 @@
-import { useState, useEffect, useMemo, useCallback, memo } from "react";
+import { useState, useEffect, useMemo, useCallback, memo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { AlertCircle, CheckCircle2, FileText, Activity, RefreshCw, Loader2, Settings, GripVertical, Pill, ClipboardList, Shield, Users, ArrowRight, Upload, Brain, TrendingUp, Clock, Zap, Play, Info, ChevronDown, Sparkles, type LucideIcon } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AlertCircle, CheckCircle2, FileText, Activity, RefreshCw, Loader2, Settings, GripVertical, Pill, ClipboardList, Shield, Users, ArrowRight, Upload, Brain, TrendingUp, Clock, Zap, Play, Info, ChevronDown, Sparkles, Download, type LucideIcon } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
@@ -51,7 +54,6 @@ const ALL_WIDGETS: WidgetConfig[] = [
   { id: "medication_audits", label: "Medication Audits", icon: Pill },
   { id: "care_plan_reviews", label: "Care Plan Reviews", icon: FileText },
   { id: "risk_assessments", label: "Risk Assessments", icon: Shield },
-  { id: "staff_checks", label: "Staff Checks", icon: Users },
   { id: "compliance_data", label: "Compliance Data", icon: ClipboardList },
   { id: "recent_alerts", label: "Recent Alerts", icon: AlertCircle },
   { id: "activity_feed", label: "Activity Feed", icon: Clock },
@@ -174,13 +176,7 @@ export default function Dashboard() {
 
   const saveWidgetsMutation = useMutation({
     mutationFn: async (widgets: string[]) => {
-      const res = await fetch("/api/dashboard/widgets", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ widgets }),
-      });
-      if (!res.ok) throw new Error("Failed to save preferences");
+      const res = await apiRequest("PUT", "/api/dashboard/widgets", { widgets });
       return res.json();
     },
     onSuccess: () => {
@@ -393,21 +389,6 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         );
-      case "staff_checks":
-        return (
-          <Card key={widgetId} className="group" data-testid="widget-staff-checks">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
-              <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Staff Checks</CardTitle>
-              <div className="h-8 w-8 rounded-md flex items-center justify-center bg-indigo-500/8">
-                <Users className="h-3.5 w-3.5 text-indigo-600" />
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0.5">
-              <div className="text-2xl font-bold tracking-tight text-muted-foreground/40 tabular-nums" data-testid="text-staff-checks-widget">&mdash;</div>
-              <p className="text-[10px] text-muted-foreground mt-1">Coming soon</p>
-            </CardContent>
-          </Card>
-        );
       default:
         return null;
     }
@@ -444,11 +425,21 @@ export default function Dashboard() {
 
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 animate-slide-up stagger-1">
         <div className="space-y-1">
+          {isLoading && !stats ? (
+            <>
+              <Skeleton className="h-3 w-32 mb-2" />
+              <Skeleton className="h-7 w-56 mb-1" />
+              <Skeleton className="h-4 w-44" />
+            </>
+          ) : (
+            <>
           <p className="text-[10px] font-semibold text-primary/60 tracking-wide uppercase">
             Welcome back, {user?.firstName || user?.username || 'there'}
           </p>
           <h1 className="page-title leading-tight" data-testid="text-dashboard-title">Operations Dashboard</h1>
           <p className="page-subtitle">Unified operations overview &mdash; last 24 hours.</p>
+            </>
+          )}
         </div>
         <div className="flex gap-2">
           <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
@@ -607,6 +598,71 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {isLoading && !stats ? (
+        <>
+          {/* Skeleton stat cards */}
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-3">
+            {[1, 2, 3, 4].map(i => (
+              <Card key={i}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-8 w-8 rounded-md" />
+                </CardHeader>
+                <CardContent className="pt-0.5">
+                  <Skeleton className="h-7 w-16 mb-2" />
+                  <Skeleton className="h-2.5 w-28" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          {/* Skeleton large panels */}
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-7 animate-slide-up stagger-4">
+            <Card className="lg:col-span-4">
+              <CardHeader className="border-b border-border/30 pb-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-6 w-6 rounded-md" />
+                  <div>
+                    <Skeleton className="h-4 w-32 mb-1" />
+                    <Skeleton className="h-3 w-44" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-y-6 gap-x-5">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="space-y-2 pl-2.5 border-l-2 border-border/20">
+                      <Skeleton className="h-2.5 w-20" />
+                      <Skeleton className="h-6 w-10" />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="lg:col-span-3">
+              <CardHeader className="border-b border-border/30 pb-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-6 w-6 rounded-md" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-border/30">
+                      <Skeleton className="h-8 w-8 rounded-md flex-shrink-0" />
+                      <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-3 w-40" />
+                        <Skeleton className="h-2.5 w-56" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      ) : (
+      <>
       {smallWidgets.length > 0 && (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-3">
           {smallWidgets.map(widgetId => renderSmallWidget(widgetId))}
@@ -647,11 +703,6 @@ export default function Dashboard() {
                        <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums" data-testid="text-risk-assessments">
                          {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
                        </p>
-                    </div>
-                    <div className="space-y-1 pl-2.5 border-l-2 border-emerald-500/20">
-                       <p className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/70">Staff Checks</p>
-                       <p className="text-2xl font-semibold tracking-tight text-muted-foreground/40 tabular-nums" data-testid="text-staff-checks">&mdash;</p>
-                       <p className="text-[9px] text-muted-foreground/50">Coming soon</p>
                     </div>
                  </div>
               </CardContent>
@@ -773,85 +824,110 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       )}
+      </>
+      )}
 
-      {/* Platform Benefits */}
-      <Card className="overflow-hidden animate-slide-up stagger-5" data-testid="card-platform-benefits">
+      {/* Operational Summary & Data Export */}
+      <Card className="overflow-hidden animate-slide-up stagger-5" data-testid="card-operational-summary">
         <CardHeader className="pb-3 border-b border-border/30">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-md flex items-center justify-center bg-blue-500/8">
-              <TrendingUp className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-md flex items-center justify-center bg-blue-500/8">
+                <TrendingUp className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <CardTitle className="text-xs font-semibold">Operational Summary</CardTitle>
+                <CardDescription className="text-[10px]">Real-time overview of today&apos;s operations.</CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-xs font-semibold">Performance Metrics</CardTitle>
-              <CardDescription className="text-[10px]">Efficiency indicators across care delivery.</CardDescription>
+            <div className="flex items-center gap-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span className={cn("h-1.5 w-1.5 rounded-full", isRefetching ? "bg-amber-500 animate-pulse" : isError ? "bg-destructive" : "bg-emerald-500")} />
+                      <span>{isRefetching ? "Refreshing..." : isError ? "Offline" : "Live"}</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    <p className="text-xs">
+                      {isRefetching ? "Fetching latest data..." : isError ? "Unable to reach server" : "Data refreshes every 2 minutes"}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </CardHeader>
         <CardContent className="pt-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="space-y-2 group p-4 rounded-lg bg-muted/10 hover:bg-muted/20 transition-all duration-150 border border-border/25 hover:border-border/40">
-              <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-md bg-background flex items-center justify-center border border-border/40">
-                  <Clock className="h-3.5 w-3.5 text-foreground/60" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {(() => {
+              const totalWork = (stats?.auditsCompleted ?? 0) + (stats?.carePlanReviews ?? 0) + (stats?.riskAssessments ?? 0) + (stats?.medicationAudits ?? 0);
+              const summaryItems = [
+                { label: "Total Operations", value: totalWork, icon: Activity, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/8", border: "border-blue-500/20" },
+                { label: "Active Alerts", value: stats?.activeAlerts ?? 0, icon: AlertCircle, color: (stats?.activeAlerts ?? 0) > 0 ? "text-destructive" : "text-emerald-600", bg: (stats?.activeAlerts ?? 0) > 0 ? "bg-destructive/8" : "bg-emerald-500/8", border: (stats?.activeAlerts ?? 0) > 0 ? "border-destructive/20" : "border-emerald-500/20" },
+                { label: "Plans Updated", value: stats?.plansUpdated ?? 0, icon: FileText, color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-500/8", border: "border-violet-500/20" },
+                { label: "Risk Checks", value: stats?.riskAssessments ?? 0, icon: Shield, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/8", border: "border-amber-500/20" },
+              ];
+              return summaryItems.map((item) => (
+                <div key={item.label} className={cn("p-3.5 rounded-lg border transition-all duration-150 hover:shadow-sm", item.border, "bg-background")}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className={cn("h-7 w-7 rounded-md flex items-center justify-center", item.bg)}>
+                      <item.icon className={cn("h-3.5 w-3.5", item.color)} />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold tracking-tight text-foreground tabular-nums">
+                    {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : item.value}
+                  </p>
+                  <p className="text-[10px] font-medium text-muted-foreground mt-0.5">{item.label}</p>
                 </div>
-                <span className="text-xl font-bold tracking-tight text-foreground tabular-nums">90%</span>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-foreground mb-0.5">Time Recovery</p>
-                <p className="text-[10px] leading-relaxed text-muted-foreground/70">Autonomous auditing recaptures hours for frontline care.</p>
-              </div>
-            </div>
-            <div className="space-y-2 group p-4 rounded-lg bg-muted/10 hover:bg-muted/20 transition-all duration-150 border border-border/25 hover:border-border/40">
-              <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-md bg-background flex items-center justify-center border border-border/40">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-foreground/60" />
-                </div>
-                <span className="text-xl font-bold tracking-tight text-foreground tabular-nums">3-Pass</span>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-foreground mb-0.5">Deep Analysis</p>
-                <p className="text-[10px] leading-relaxed text-muted-foreground/70">Layered review logic identifies discrepancies with precision.</p>
-              </div>
-            </div>
-            <div className="space-y-2 group p-4 rounded-lg bg-muted/10 hover:bg-muted/20 transition-all duration-150 border border-border/25 hover:border-border/40">
-              <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-md bg-background flex items-center justify-center border border-border/40">
-                  <Shield className="h-3.5 w-3.5 text-foreground/60" />
-                </div>
-                <span className="text-xl font-bold tracking-tight text-foreground tabular-nums">Live</span>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-foreground mb-0.5">Active Guard</p>
-                <p className="text-[10px] leading-relaxed text-muted-foreground/70">Real-time telemetry of compliance and incident signals.</p>
-              </div>
-            </div>
-            <div className="space-y-2 group p-4 rounded-lg bg-muted/10 hover:bg-muted/20 transition-all duration-150 border border-border/25 hover:border-border/40">
-              <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-md bg-background flex items-center justify-center border border-border/40">
-                  <Brain className="h-3.5 w-3.5 text-foreground/60" />
-                </div>
-                <span className="text-xl font-bold tracking-tight text-foreground tabular-nums">Expert</span>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-foreground mb-0.5">Contextual AI</p>
-                <p className="text-[10px] leading-relaxed text-muted-foreground/70">Neural processing of complex medical and care plan data.</p>
-              </div>
-            </div>
+              ));
+            })()}
           </div>
-          {user?.role === 'admin' && (
           <div className="mt-5 pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/30">
-            <p className="text-xs text-muted-foreground/70">
-              Calculate your organization&apos;s potential ROI from autonomous compliance.
+            <p className="text-[10px] text-muted-foreground/70">
+              Last refreshed {data ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'} &middot; Auto-refresh every 2 min
             </p>
-            <Link href="/roi-calculator">
-              <Button variant="outline" size="sm" className="font-medium" data-testid="button-roi-calculator">
-                <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
-                Savings Estimator
-                <ArrowRight className="h-3 w-3 ml-1.5" />
+            <div className="flex items-center gap-2">
+              {user?.role === 'admin' && (
+                <Link href="/roi-calculator">
+                  <Button variant="ghost" size="sm" className="text-xs h-8 font-medium text-muted-foreground hover:text-foreground" data-testid="button-roi-calculator">
+                    <TrendingUp className="h-3 w-3 mr-1.5" />
+                    ROI Calculator
+                  </Button>
+                </Link>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-8 font-medium"
+                data-testid="button-export-dashboard"
+                disabled={isLoading || !stats}
+                onClick={() => {
+                  if (!stats) return;
+                  const rows = [
+                    ["Metric", "Value", "Period"],
+                    ["Audits Completed", String(stats.auditsCompleted), "Last 24h"],
+                    ["Active Alerts", String(stats.activeAlerts), "Current"],
+                    ["Plans Updated", String(stats.plansUpdated), "Last 24h"],
+                    ["Medication Audits", String(stats.medicationAudits), "Last 24h"],
+                    ["Care Plan Reviews", String(stats.carePlanReviews), "Last 24h"],
+                    ["Risk Assessments", String(stats.riskAssessments), "Last 24h"],
+                  ];
+                  const csv = rows.map(r => r.join(",")).join("\n");
+                  const blob = new Blob([csv], { type: "text/csv" });
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `dashboard-export-${new Date().toISOString().slice(0, 10)}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                }}
+              >
+                <Download className="h-3 w-3 mr-1.5" />
+                Export CSV
               </Button>
-            </Link>
+            </div>
           </div>
-          )}
         </CardContent>
       </Card>
     </div>

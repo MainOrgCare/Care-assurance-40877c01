@@ -17,7 +17,8 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     shortcuts: [
       { keys: ["Ctrl", "K"], description: "Open command palette" },
       { keys: ["Ctrl", "/"], description: "Toggle Compli-ee assistant" },
-      { keys: ["?"], description: "Open command palette" },
+      { keys: ["?"], description: "Show this shortcut reference" },
+      { keys: ["Esc"], description: "Close any open dialog or popover" },
     ],
   },
   {
@@ -32,6 +33,12 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["G", "P"], description: "Go to Plan Enhancer" },
       { keys: ["G", "R"], description: "Go to Risk Assessment" },
       { keys: ["G", "W"], description: "Go to Care Workers" },
+    ],
+  },
+  {
+    title: "Dashboard",
+    shortcuts: [
+      { keys: ["Ctrl", "Shift", "E"], description: "Export dashboard as CSV" },
     ],
   },
 ];

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   X,
   Send,
@@ -140,7 +140,7 @@ const toUiMessage = (value: unknown): Message | null => {
 
 const getStorageKey = (userId: string) => `${CHAT_STORAGE_PREFIX}:${userId}`;
 
-export function ComplieeAvatar({
+export const ComplieeAvatar = React.memo(function ComplieeAvatar({
   size = "md",
   animate = false,
 }: {
@@ -178,9 +178,9 @@ export function ComplieeAvatar({
       />
     </div>
   );
-}
+});
 
-export function ChatTriggerButton({ onClick }: { onClick: () => void }) {
+export const ChatTriggerButton = React.memo(function ChatTriggerButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -191,7 +191,7 @@ export function ChatTriggerButton({ onClick }: { onClick: () => void }) {
       <span>Help</span>
     </button>
   );
-}
+});
 
 export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
   const { user } = useAuth();

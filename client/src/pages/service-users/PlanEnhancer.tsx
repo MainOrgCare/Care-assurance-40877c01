@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect, memo } from "react";
 import jsPDF from "jspdf";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useAuth } from "@/context/AuthContext";
@@ -103,7 +103,7 @@ type PlanEnhancerResult = {
   scrubbed: CarePlanTemplate;
 };
 
-function CopyButton({ text, label }: { text: string; label?: string }) {
+const CopyButton = memo(function CopyButton({ text, label }: { text: string; label?: string }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
 
@@ -119,9 +119,9 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
       {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
     </Button>
   );
-}
+});
 
-function FieldRow({ label, value, copyValue }: { label: string; value: string; copyValue?: string }) {
+const FieldRow = memo(function FieldRow({ label, value, copyValue }: { label: string; value: string; copyValue?: string }) {
   if (!value || value === "N/A") return null;
   const valueToCopy = copyValue ?? value;
   return (
@@ -133,9 +133,9 @@ function FieldRow({ label, value, copyValue }: { label: string; value: string; c
       </div>
     </div>
   );
-}
+});
 
-function TextBlock({ label, value, copyValue }: { label: string; value: string; copyValue?: string }) {
+const TextBlock = memo(function TextBlock({ label, value, copyValue }: { label: string; value: string; copyValue?: string }) {
   if (!value) return null;
   const valueToCopy = copyValue ?? value;
   const placeholderCount = countPlaceholders(value);
@@ -174,9 +174,9 @@ function TextBlock({ label, value, copyValue }: { label: string; value: string; 
       </div>
     </div>
   );
-}
+});
 
-function Section({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+const Section = memo(function Section({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   
   return (
@@ -198,7 +198,7 @@ function Section({ title, children, defaultOpen = false }: { title: string; chil
       </Card>
     </Collapsible>
   );
-}
+});
 
 export default function PlanEnhancer() {
   const { serviceUserData, getAllDocumentContent, isAnyParsing } = useTemporaryData();
@@ -548,14 +548,6 @@ export default function PlanEnhancer() {
       const TOKEN_LIMITS: Record<string, number> = { github: 10000, openai: 80000, local: 40000 };
       const MAX_TOKENS = TOKEN_LIMITS[activeProvider] ?? 10000;
       
-      console.log(`[PlanEnhancer] Content size check:`, {
-        supportingTokens,
-        carePlanTokens,
-        totalContentTokens,
-        maxTokens: MAX_TOKENS,
-        provider: activeProvider
-      });
-      
       if (totalContentTokens > MAX_TOKENS) {
         const excessTokens = totalContentTokens - MAX_TOKENS;
         const excessKB = Math.ceil((excessTokens * 4) / 1024);
@@ -601,14 +593,6 @@ export default function PlanEnhancer() {
       };
       const payloadJSON = JSON.stringify(finalPayload);
       const payloadSizeMB = (new Blob([payloadJSON]).size / (1024 * 1024)).toFixed(2);
-      
-      console.log(`[PlanEnhancer] Final payload:`, {
-        payloadSizeMB: `${payloadSizeMB}MB`,
-        supportingContentLength: combinedSupporting.length,
-        carePlanContentLength: carePlanContent?.length || 0,
-        totalChars: combinedSupporting.length + (carePlanContent?.length || 0),
-        estimatedTokens: totalContentTokens,
-      });
 
       // 6-minute client timeout — must exceed server-side AI timeout (5 min) to
       // avoid aborting while the server is still generating the plan.
