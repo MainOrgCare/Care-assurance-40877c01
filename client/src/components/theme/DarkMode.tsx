@@ -1,7 +1,7 @@
 // Dark Mode Theme Implementation for Care Assurance
 // This setup provides complete dark mode support across the entire app
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 // ============================================================================
 // DARK MODE CONTEXT & HOOK

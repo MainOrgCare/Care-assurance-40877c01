@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev:client": "vite dev --port 5173",
+    "dev:client": "npx vite dev --port 5173",
     "dev": "NODE_ENV=development AI_ENABLED=${AI_ENABLED:-true} tsx server/index.ts",
     "dev:full": "set -a; [ -f .env ] && . ./.env; set +a; npm run dev",
     "build:client": "npx vite build",
