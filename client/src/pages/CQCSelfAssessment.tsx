@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback, memo, useEffect } from "react";
-import Layout from "@/components/Layout";
 import {
   Card,
   CardContent,
@@ -233,7 +232,6 @@ function CQCSelfAssessment() {
   }, [assessment, domainScores, answeredQuestions, totalQuestions, completionPct, toast]);
 
   return (
-    <Layout>
       <div className="space-y-6">
         {/* Overview header */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
@@ -347,7 +345,6 @@ function CQCSelfAssessment() {
           Auto-saved to browser · Last updated: {new Date(assessment.lastUpdated).toLocaleString("en-GB")}
         </p>
       </div>
-    </Layout>
   );
 }
 

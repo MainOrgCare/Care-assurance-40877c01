@@ -2,7 +2,6 @@ import { useState, useMemo, memo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/context/AuthContext";
-import Layout from "@/components/Layout";
 import {
   Card,
   CardContent,
@@ -328,7 +327,6 @@ function StaffTraining() {
   }, [records]);
 
   return (
-    <Layout>
       <div className="space-y-6">
         {/* Summary */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -498,7 +496,6 @@ function StaffTraining() {
           </Card>
         )}
       </div>
-    </Layout>
   );
 }
 

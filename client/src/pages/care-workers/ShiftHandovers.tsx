@@ -2,7 +2,6 @@ import { useState, useMemo, memo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/context/AuthContext";
-import Layout from "@/components/Layout";
 import {
   Card,
   CardContent,
@@ -414,7 +413,6 @@ function ShiftHandovers() {
   }, [handovers, user]);
 
   return (
-    <Layout>
       <div className="space-y-6">
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -510,7 +508,6 @@ function ShiftHandovers() {
           </div>
         )}
       </div>
-    </Layout>
   );
 }
 
