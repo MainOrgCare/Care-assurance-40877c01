@@ -496,10 +496,10 @@ export default function Homepage() {
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
             <motion.div {...reveal()} className="text-center lg:text-left">
               <span className="home-eyebrow">Operational Assurance for UK Care</span>
-              <h1 className="home-text-heading mt-5 text-3xl sm:text-4xl lg:text-[3.25rem] font-heading font-bold leading-[1.1]">
+              <h1 className="home-text-heading mt-5 text-3xl sm:text-4xl lg:text-[3.25rem] font-heading font-bold leading-[1.08] tracking-[-0.03em]">
                 Compliance reporting that feels calm, clear, and prepared.
               </h1>
-              <p className="home-text-body mt-6 text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed">
+              <p className="home-text-body mt-6 text-lg max-w-xl mx-auto lg:mx-0 leading-[1.7]">
                 CareAssurance streamlines EMAR audits, care plans, and visit reviews into one
                 structured workspace. Detect risks earlier, document decisions faster, and walk
                 into inspections with confidence.
@@ -520,13 +520,15 @@ export default function Homepage() {
               </div>
               <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {HERO_STATS.map((stat) => (
-                  <div key={stat.label} className="home-card-soft p-4 text-left">
-                    <div className="home-text-soft flex items-center gap-2 text-xs font-medium">
-                      <stat.icon className="h-4 w-4 text-slate-700" />
+                  <div key={stat.label} className="home-card-soft p-4 text-left group">
+                    <div className="home-text-soft flex items-center gap-2.5 text-xs font-medium">
+                      <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-primary/8 border border-primary/10">
+                        <stat.icon className="h-3.5 w-3.5 text-primary" />
+                      </div>
                       {stat.label}
                     </div>
-                    <div className="home-text-heading mt-2 text-xl font-semibold">{stat.value}</div>
-                    <div className="home-text-soft text-xs font-medium mt-0.5">{stat.detail}</div>
+                    <div className="home-text-heading mt-2.5 text-xl font-bold tracking-tight">{stat.value}</div>
+                    <div className="home-text-soft text-[11px] font-medium mt-0.5">{stat.detail}</div>
                   </div>
                 ))}
               </div>
@@ -930,29 +932,29 @@ export default function Homepage() {
         </section>
       </main>
 
-      <footer className="relative z-10 border-t border-border">
+      <footer className="relative z-10 border-t border-border/40">
         <div className="max-w-6xl mx-auto px-4 py-10 flex flex-col md:flex-row items-center justify-between gap-6 text-sm">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center bg-blue-500">
-              <ShieldCheck className="h-4 w-4" />
+            <div className="h-10 w-10 rounded-xl text-white flex items-center justify-center bg-gradient-to-br from-primary to-secondary shadow-sm">
+              <ShieldCheck className="h-4.5 w-4.5" />
             </div>
             <div>
-              <span className="font-semibold home-text-heading">CareAssurance</span>
-              <span className="ml-2 home-text-soft">careassurance.uk</span>
+              <span className="font-bold home-text-heading tracking-[-0.01em]">CareAssurance</span>
+              <span className="ml-2 home-text-soft text-[13px]">careassurance.uk</span>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-6 home-text-soft">
+          <div className="flex flex-wrap items-center gap-6 home-text-soft text-[13px]">
             <button
               type="button"
-              className="bg-transparent p-0 font-medium hover:text-foreground transition-colors"
+              className="bg-transparent p-0 font-semibold hover:text-foreground transition-colors"
               onClick={() => scrollToSection("contact")}
             >
               Contact
             </button>
-            <Link href="/terms" className="font-medium hover:text-foreground transition-colors">
+            <Link href="/terms" className="font-semibold hover:text-foreground transition-colors">
               Terms & Conditions
             </Link>
-            <Link href="/privacy" className="font-medium hover:text-foreground transition-colors">
+            <Link href="/privacy" className="font-semibold hover:text-foreground transition-colors">
               Privacy Policy
             </Link>
           </div>

@@ -81,10 +81,10 @@ export default function Compliance() {
 
   return (
     <div className="page-shell max-w-7xl mx-auto" data-testid="compliance-page">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-1.5">
           <h2 className="page-title">Compliance Overview</h2>
-          <p className="page-subtitle">View audit history, discrepancies, and compliance metrics across all service users.</p>
+          <p className="page-subtitle max-w-lg">View audit history, discrepancies, and compliance metrics across all service users.</p>
         </div>
         <Button
           variant="outline"
@@ -114,12 +114,12 @@ export default function Compliance() {
         <Card data-testid="stat-total-audits">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
             <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Total Audits</CardTitle>
-            <div className="h-8 w-8 rounded-md flex items-center justify-center bg-primary/8">
-              <FileText className="h-3.5 w-3.5 text-primary" />
+            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-primary/10 shadow-sm">
+              <FileText className="h-4 w-4 text-primary" />
             </div>
           </CardHeader>
           <CardContent className="pt-0.5">
-            <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums">{auditList.length}</div>
+            <div className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">{auditList.length}</div>
             <p className="text-[10px] text-muted-foreground mt-1">
               {emarAudits.length} EMAR, {visitAudits.length} Visit
             </p>
@@ -129,12 +129,12 @@ export default function Compliance() {
         <Card data-testid="stat-discrepancies">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
             <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Discrepancies Found</CardTitle>
-            <div className="h-8 w-8 rounded-md flex items-center justify-center bg-amber-500/8">
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-amber-500/10 shadow-sm">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             </div>
           </CardHeader>
           <CardContent className="pt-0.5">
-            <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums">{totalDiscrepancies}</div>
+            <div className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">{totalDiscrepancies}</div>
             <p className="text-[10px] text-muted-foreground mt-1">Across all audits</p>
           </CardContent>
         </Card>
@@ -142,12 +142,12 @@ export default function Compliance() {
         <Card data-testid="stat-warnings">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
             <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Warnings</CardTitle>
-            <div className="h-8 w-8 rounded-md flex items-center justify-center bg-yellow-500/8">
-              <AlertTriangle className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400" />
+            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-yellow-500/10 shadow-sm">
+              <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
             </div>
           </CardHeader>
           <CardContent className="pt-0.5">
-            <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums">{totalWarnings}</div>
+            <div className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">{totalWarnings}</div>
             <p className="text-[10px] text-muted-foreground mt-1">Items requiring attention</p>
           </CardContent>
         </Card>
@@ -155,12 +155,12 @@ export default function Compliance() {
         <Card data-testid="stat-compliance-rate">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
             <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Compliance Rate</CardTitle>
-            <div className="h-8 w-8 rounded-md flex items-center justify-center bg-emerald-500/8">
-              <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-emerald-500/10 shadow-sm">
+              <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
             </div>
           </CardHeader>
           <CardContent className="pt-0.5">
-            <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums">
+            <div className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">
               {auditList.length > 0 ? Math.round(100 - (totalDiscrepancies / Math.max(auditList.length, 1) * 10)) : 100}%
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">Based on audit results</p>
@@ -270,7 +270,7 @@ export default function Compliance() {
                 return (
                   <div 
                     key={audit.id} 
-                    className="flex items-center justify-between p-4 rounded-lg transition-colors bg-muted/35 hover:bg-muted/55"
+                    className="flex items-center justify-between p-4 rounded-xl transition-all duration-150 bg-muted/30 hover:bg-muted/50 hover:shadow-sm"
                     data-testid={`audit-row-${audit.id}`}
                   >
                     <div className="flex items-center gap-4">

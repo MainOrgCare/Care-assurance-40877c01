@@ -423,8 +423,8 @@ export default function Dashboard() {
         </Card>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 animate-slide-up stagger-1">
-        <div className="space-y-1">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-slide-up stagger-1">
+        <div className="space-y-1.5">
           {isLoading && !stats ? (
             <>
               <Skeleton className="h-3 w-32 mb-2" />
@@ -433,11 +433,11 @@ export default function Dashboard() {
             </>
           ) : (
             <>
-          <p className="text-[10px] font-semibold text-primary/60 tracking-wide uppercase">
+          <p className="text-[10px] font-bold text-primary/55 tracking-[0.12em] uppercase">
             Welcome back, {user?.firstName || user?.username || 'there'}
           </p>
           <h1 className="page-title leading-tight" data-testid="text-dashboard-title">Operations Dashboard</h1>
-          <p className="page-subtitle">Unified operations overview &mdash; last 24 hours.</p>
+          <p className="page-subtitle max-w-lg">Unified operations overview &mdash; last 24 hours.</p>
             </>
           )}
         </div>
@@ -566,30 +566,31 @@ export default function Dashboard() {
       )}
 
       {/* Quick Actions */}
-      <div className="space-y-3 animate-slide-up stagger-2">
-        <div className="flex items-center gap-2 px-0.5">
-          <div className="h-6 w-6 rounded-md flex items-center justify-center bg-amber-500/8 border border-amber-500/12">
-            <Zap className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+      <div className="space-y-3.5 animate-slide-up stagger-2">
+        <div className="flex items-center gap-2.5 px-0.5">
+          <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-amber-500/10 border border-amber-500/15 shadow-sm">
+            <Zap className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <h2 className="text-[0.8125rem] font-semibold tracking-tight text-foreground">Launch Center</h2>
+            <h2 className="text-[0.8125rem] font-semibold tracking-[-0.01em] text-foreground">Launch Center</h2>
+            <p className="text-[10px] text-muted-foreground/60">Quick access to key workflows</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {QUICK_ACTIONS.map((action, index) => (
             <Link key={index} href={action.href}>
-              <Card className="group h-full" data-testid={`card-quick-action-${index}`}>
-                <CardContent className={`p-3.5 relative border ${action.panelTone} rounded-xl transition-colors duration-150`}>
-                  <div className={`relative h-8 w-8 rounded-md ${action.iconTone} flex items-center justify-center mb-2.5`}>
+              <Card className="group h-full cursor-pointer" data-testid={`card-quick-action-${index}`}>
+                <CardContent className={`p-4 relative border ${action.panelTone} rounded-xl transition-all duration-200 group-hover:shadow-md`}>
+                  <div className={`relative h-9 w-9 rounded-lg ${action.iconTone} flex items-center justify-center mb-3 shadow-sm`}>
                     <action.icon className="h-4 w-4" />
                   </div>
                   
-                  <h3 className="font-semibold text-xs mb-0.5 group-hover:text-primary transition-colors duration-150 text-foreground tracking-tight">{action.label}</h3>
-                  <p className="text-[10px] leading-relaxed text-muted-foreground/70">{action.description}</p>
+                  <h3 className="font-semibold text-[13px] mb-0.5 group-hover:text-primary transition-colors duration-150 text-foreground tracking-[-0.01em]">{action.label}</h3>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground/65">{action.description}</p>
                   
-                  <div className="flex items-center gap-1 mt-2.5 text-[9px] font-semibold text-primary/70 opacity-0 group-hover:opacity-100 transition-opacity duration-120">
+                  <div className="flex items-center gap-1 mt-3 text-[10px] font-semibold text-primary/60 opacity-0 group-hover:opacity-100 translate-x-0 group-hover:translate-x-0.5 transition-all duration-200">
                     <span>Open</span>
-                    <ArrowRight className="h-2.5 w-2.5" />
+                    <ArrowRight className="h-3 w-3" />
                   </div>
                 </CardContent>
               </Card>
@@ -829,14 +830,14 @@ export default function Dashboard() {
 
       {/* Operational Summary & Data Export */}
       <Card className="overflow-hidden animate-slide-up stagger-5" data-testid="card-operational-summary">
-        <CardHeader className="pb-3 border-b border-border/30">
+        <CardHeader className="pb-3 border-b border-border/25">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded-md flex items-center justify-center bg-blue-500/8">
-                <TrendingUp className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+            <div className="flex items-center gap-2.5">
+              <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-blue-500/10 border border-blue-500/12 shadow-sm">
+                <TrendingUp className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <CardTitle className="text-xs font-semibold">Operational Summary</CardTitle>
+                <CardTitle className="text-[13px] font-semibold tracking-[-0.01em]">Operational Summary</CardTitle>
                 <CardDescription className="text-[10px]">Real-time overview of today&apos;s operations.</CardDescription>
               </div>
             </div>
@@ -864,22 +865,22 @@ export default function Dashboard() {
             {(() => {
               const totalWork = (stats?.auditsCompleted ?? 0) + (stats?.carePlanReviews ?? 0) + (stats?.riskAssessments ?? 0) + (stats?.medicationAudits ?? 0);
               const summaryItems = [
-                { label: "Total Operations", value: totalWork, icon: Activity, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/8", border: "border-blue-500/20" },
-                { label: "Active Alerts", value: stats?.activeAlerts ?? 0, icon: AlertCircle, color: (stats?.activeAlerts ?? 0) > 0 ? "text-destructive" : "text-emerald-600", bg: (stats?.activeAlerts ?? 0) > 0 ? "bg-destructive/8" : "bg-emerald-500/8", border: (stats?.activeAlerts ?? 0) > 0 ? "border-destructive/20" : "border-emerald-500/20" },
-                { label: "Plans Updated", value: stats?.plansUpdated ?? 0, icon: FileText, color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-500/8", border: "border-violet-500/20" },
-                { label: "Risk Checks", value: stats?.riskAssessments ?? 0, icon: Shield, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/8", border: "border-amber-500/20" },
+                { label: "Total Operations", value: totalWork, icon: Activity, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/15" },
+                { label: "Active Alerts", value: stats?.activeAlerts ?? 0, icon: AlertCircle, color: (stats?.activeAlerts ?? 0) > 0 ? "text-destructive" : "text-emerald-600", bg: (stats?.activeAlerts ?? 0) > 0 ? "bg-destructive/10" : "bg-emerald-500/10", border: (stats?.activeAlerts ?? 0) > 0 ? "border-destructive/15" : "border-emerald-500/15" },
+                { label: "Plans Updated", value: stats?.plansUpdated ?? 0, icon: FileText, color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-500/10", border: "border-violet-500/15" },
+                { label: "Risk Checks", value: stats?.riskAssessments ?? 0, icon: Shield, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/15" },
               ];
               return summaryItems.map((item) => (
-                <div key={item.label} className={cn("p-3.5 rounded-lg border transition-all duration-150 hover:shadow-sm", item.border, "bg-background")}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className={cn("h-7 w-7 rounded-md flex items-center justify-center", item.bg)}>
+                <div key={item.label} className={cn("p-4 rounded-xl border transition-all duration-200 hover:shadow-md hover:-translate-y-px", item.border, "bg-background")}>
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shadow-sm", item.bg)}>
                       <item.icon className={cn("h-3.5 w-3.5", item.color)} />
                     </div>
                   </div>
-                  <p className="text-2xl font-bold tracking-tight text-foreground tabular-nums">
+                  <p className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">
                     {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : item.value}
                   </p>
-                  <p className="text-[10px] font-medium text-muted-foreground mt-0.5">{item.label}</p>
+                  <p className="text-[10px] font-semibold text-muted-foreground/70 mt-0.5 tracking-wide">{item.label}</p>
                 </div>
               ));
             })()}

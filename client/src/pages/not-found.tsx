@@ -14,43 +14,46 @@ export default function NotFound() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center px-6 py-12 bg-background">
-      <Card className="w-full max-w-md mx-auto text-center bg-card/95 border-border/75">
-        <CardContent className="pt-8 pb-7 space-y-5">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/10 text-destructive ring-1 ring-destructive/25">
-            <AlertCircle className="h-5 w-5" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-2xl font-heading font-bold text-foreground">Page not found</h1>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              The page you were looking for does not exist or has been moved.
-            </p>
-            {location !== "/" && (
-              <p className="text-xs text-muted-foreground/70 font-mono break-all">
-                {location}
+      <div className="w-full max-w-md mx-auto text-center">
+        <Card className="bg-card/95 border-border/50 shadow-[var(--shadow-card)]">
+          <CardContent className="pt-10 pb-8 px-8 space-y-6">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/8 text-destructive ring-1 ring-destructive/15 shadow-sm">
+              <AlertCircle className="h-6 w-6" />
+            </div>
+            <div className="space-y-2.5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-destructive/60">Error 404</p>
+              <h1 className="text-[1.5rem] font-heading font-bold text-foreground tracking-[-0.02em]">Page not found</h1>
+              <p className="text-[13px] text-muted-foreground leading-relaxed max-w-xs mx-auto">
+                The page you were looking for does not exist or has been moved.
               </p>
-            )}
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button
-              variant="outline"
-              className="flex-1 gap-2"
-              onClick={() => window.history.back()}
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Go Back
-            </Button>
-            <Link href="/dashboard">
-              <Button className="w-full gap-2">
-                <Home className="h-4 w-4" />
-                Dashboard
+              {location !== "/" && (
+                <p className="text-xs text-muted-foreground/50 font-mono break-all bg-muted/30 rounded-lg px-3 py-1.5 mt-2">
+                  {location}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1 gap-2"
+                onClick={() => window.history.back()}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Go Back
               </Button>
-            </Link>
-          </div>
-          <p className="text-xs text-muted-foreground/60">
-            If this page should exist, please contact your administrator.
-          </p>
-        </CardContent>
-      </Card>
+              <Link href="/dashboard">
+                <Button className="w-full gap-2">
+                  <Home className="h-4 w-4" />
+                  Dashboard
+                </Button>
+              </Link>
+            </div>
+            <p className="text-[11px] text-muted-foreground/50">
+              If this page should exist, please contact your administrator.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -264,19 +264,19 @@ const SidebarContent = memo(function SidebarContent({
 
   const navLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-2.5 rounded-md text-[0.8rem] font-medium tracking-[0.004em] transition-all duration-120 group cursor-pointer",
-      isCollapsed ? "px-2.5 py-2 justify-center gap-0" : "px-3 py-[0.375rem]",
+      "flex items-center gap-2.5 rounded-lg text-[0.8rem] font-medium tracking-[0.004em] transition-all duration-150 group cursor-pointer",
+      isCollapsed ? "px-2.5 py-2.5 justify-center gap-0" : "px-3 py-[0.4375rem]",
       isActive
-        ? "bg-sidebar-primary/10 text-sidebar-primary font-semibold"
-        : "text-sidebar-foreground/55 hover:text-sidebar-foreground/85 hover:bg-sidebar-foreground/[0.05]"
+        ? "bg-sidebar-primary/12 text-sidebar-primary font-semibold shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-sidebar-primary)_15%,transparent)]"
+        : "text-sidebar-foreground/50 hover:text-sidebar-foreground/85 hover:bg-sidebar-foreground/[0.06]"
     ), [isCollapsed]);
 
   const subNavLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[0.76rem] font-medium transition-all duration-120",
+      "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[0.76rem] font-medium transition-all duration-150",
       isActive
-        ? "bg-sidebar-primary/8 text-sidebar-primary"
-        : "text-sidebar-foreground/45 hover:text-sidebar-foreground/75 hover:bg-sidebar-foreground/[0.04]"
+        ? "bg-sidebar-primary/8 text-sidebar-primary shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-sidebar-primary)_10%,transparent)]"
+        : "text-sidebar-foreground/40 hover:text-sidebar-foreground/70 hover:bg-sidebar-foreground/[0.04]"
     ), []);
 
   const labelClass = cn(
@@ -287,21 +287,21 @@ const SidebarContent = memo(function SidebarContent({
   return (
     <div className="flex h-full flex-col bg-sidebar">
       {/* Logo Section */}
-      <div className={cn("px-5 pt-5 pb-3.5", isCollapsed && "px-3 pt-4 pb-3")}>
+      <div className={cn("px-5 pt-5 pb-4", isCollapsed && "px-3 pt-4 pb-3")}>
         <Link href="/">
           <div 
             onClick={handleSecretClick}
             className={cn("flex items-center gap-3 cursor-pointer group", isCollapsed && "justify-center")}
           >
-            <div className="relative h-8 w-8 rounded-lg flex items-center justify-center bg-sidebar-primary/12 border border-sidebar-primary/15">
-              <ShieldCheck className="h-4 w-4 text-sidebar-primary" />
+            <div className="relative h-9 w-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-sidebar-primary/20 to-sidebar-primary/8 border border-sidebar-primary/20 shadow-sm">
+              <ShieldCheck className="h-4.5 w-4.5 text-sidebar-primary" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
-              <h1 className="font-heading text-[14px] leading-none tracking-[-0.015em]">
-                <span className="font-bold text-sidebar-foreground">Care</span><span className="font-normal text-sidebar-foreground/50">Assurance</span>
+              <h1 className="font-heading text-[15px] leading-none tracking-[-0.02em]">
+                <span className="font-bold text-sidebar-foreground">Care</span><span className="font-medium text-sidebar-foreground/45">Assurance</span>
               </h1>
-              <span className="text-[9px] mt-0.5 font-semibold uppercase tracking-[0.1em] text-sidebar-foreground/35">Operations Platform</span>
+              <span className="text-[9px] mt-1 font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/30">Operations Platform</span>
             </div>
             )}
           </div>
@@ -309,7 +309,7 @@ const SidebarContent = memo(function SidebarContent({
       </div>
 
       {/* Divider */}
-      <div className={cn("mx-5 h-px bg-sidebar-border/50", isCollapsed && "mx-3")} />
+      <div className={cn("mx-5 h-px bg-gradient-to-r from-transparent via-sidebar-border/60 to-transparent", isCollapsed && "mx-3")} />
 
       <nav aria-label="Main navigation" className={cn("flex-1 space-y-0.5 py-2.5 overflow-y-auto overscroll-contain", isCollapsed ? "px-2" : "px-3")}>
         
@@ -352,8 +352,8 @@ const SidebarContent = memo(function SidebarContent({
 
         {/* Section Label */}
         {!isCollapsed && (
-          <div className="px-3 pt-4 pb-1">
-            <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/25">Modules</span>
+          <div className="px-3 pt-5 pb-1.5">
+            <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/22">Modules</span>
           </div>
         )}
 
@@ -367,7 +367,7 @@ const SidebarContent = memo(function SidebarContent({
            <CollapsibleTrigger
             title={isCollapsed ? "Service Users" : undefined}
             className={cn(
-            "flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]",
+            "flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all duration-150 group hover:bg-sidebar-foreground/[0.06]",
             isCollapsed && "justify-center px-2.5"
            )}>
             <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
@@ -500,11 +500,11 @@ const SidebarContent = memo(function SidebarContent({
       </nav>
 
       {/* Footer Actions */}
-      <div className={cn("px-3 pb-4 space-y-0.5 mt-auto border-t border-sidebar-border/50 pt-3", isCollapsed && "px-2")}>
+      <div className={cn("px-3 pb-4 space-y-0.5 mt-auto border-t border-sidebar-border/40 pt-3", isCollapsed && "px-2")}>
         <Link
           href="/settings"
           className={cn(
-            "w-full flex items-center gap-3 rounded-lg text-[0.82rem] font-medium transition-all text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.06]",
+            "w-full flex items-center gap-3 rounded-lg text-[0.82rem] font-medium transition-all duration-150 text-sidebar-foreground/45 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.06]",
             isCollapsed ? "justify-center px-2.5 py-2.5 gap-0" : "px-3 py-[0.4375rem]"
           )}
           data-testid="button-settings"
@@ -515,7 +515,7 @@ const SidebarContent = memo(function SidebarContent({
         </Link>
         <button
           className={cn(
-            "w-full flex items-center gap-3 rounded-lg text-[0.82rem] font-medium transition-all text-red-400/70 hover:text-red-400 hover:bg-red-500/8",
+            "w-full flex items-center gap-3 rounded-lg text-[0.82rem] font-medium transition-all duration-150 text-red-400/60 hover:text-red-400 hover:bg-red-500/8",
             isCollapsed ? "justify-center px-2.5 py-2.5 gap-0" : "px-3 py-[0.4375rem]"
           )}
           onClick={logout}
@@ -950,7 +950,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main id="main-content" tabIndex={-1} data-scroll-region className={mainClass} aria-label={pageMeta.title || "Main content"} style={{ outline: "none" }}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="workspace-header sticky top-0 z-30 flex h-[3.25rem] items-center justify-between border-b border-border/30 bg-background/95 backdrop-blur-sm px-4 md:px-5 transition-[background-color,border-color] duration-200" role="banner" aria-label="Page header">
+          <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/25 bg-background/96 backdrop-blur-md px-4 md:px-6 transition-[background-color,border-color] duration-200" role="banner" aria-label="Page header">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -985,10 +985,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="sr-only">Toggle sidebar</span>
               </Button>
 
-              <div className="hidden lg:flex items-center gap-2.5 min-w-0 ml-1">
+              <div className="hidden lg:flex items-center gap-3 min-w-0 ml-1">
                 <div className="min-w-0">
-                  <p className="text-[9px] uppercase tracking-[0.12em] font-bold text-primary/50">{pageMeta.section}</p>
-                  <h2 className="text-[0.84rem] font-semibold tracking-[-0.01em] text-foreground truncate leading-tight">{pageMeta.title}</h2>
+                  <p className="text-[9px] uppercase tracking-[0.14em] font-bold text-primary/45">{pageMeta.section}</p>
+                  <h2 className="text-[0.875rem] font-semibold tracking-[-0.012em] text-foreground truncate leading-tight">{pageMeta.title}</h2>
                 </div>
                 {breadcrumbs.length > 0 && (
                   <div className="hidden xl:block border-l border-border/40 pl-3 ml-1">
@@ -1013,7 +1013,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 rounded-lg border border-border/40 bg-card/60 px-1.5 py-0.5">
+            <div className="flex items-center gap-2 rounded-xl border border-border/35 bg-card/70 px-2 py-1 shadow-[var(--shadow-xs)]">
               {/* Command Palette Trigger */}
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}
@@ -1057,7 +1057,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
               
-              <div className="group flex cursor-pointer items-center gap-2.5 rounded-lg border border-border/40 bg-muted/25 py-1.5 pl-3 pr-1.5 transition-colors duration-150 hover:border-primary/20 hover:bg-muted/40">
+              <div className="group flex cursor-pointer items-center gap-2.5 rounded-lg border border-border/35 bg-muted/20 py-1.5 pl-3 pr-1.5 transition-all duration-150 hover:border-primary/20 hover:bg-muted/35 hover:shadow-sm">
                 <div className="text-right hidden sm:block">
                   <p className="text-[10.5px] font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
                     {displayName}
@@ -1074,11 +1074,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     )}
                   </div>
                 </div>
-                <div className="relative h-7 w-7 rounded-lg flex items-center justify-center font-bold uppercase text-[10px] bg-primary text-primary-foreground shadow-sm">
+                <div className="relative h-8 w-8 rounded-lg flex items-center justify-center font-bold uppercase text-[10px] bg-primary text-primary-foreground shadow-[0_1px_3px_rgba(15,23,42,0.12)] ring-2 ring-primary/15">
                   {user?.firstName ? user.firstName.substring(0, 1) : user?.username?.substring(0, 1) || "?"}
                   {user?.lastName ? user.lastName.substring(0, 1) : ""}
                   <div className={cn(
-                    "absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background transition-colors",
+                    "absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card transition-colors",
                     isConnected ? "bg-emerald-500" : "bg-red-500"
                   )} />
                 </div>
@@ -1162,11 +1162,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className={cardClass}>
             {isFullBleed ? (
               <Suspense fallback={
-                <div className="flex-1 flex flex-col gap-4 animate-pulse">
-                  <div className="h-8 w-48 bg-muted rounded-lg" />
+                <div className="flex-1 flex flex-col gap-4 animate-pulse p-6">
+                  <div className="h-8 w-52 bg-muted rounded-lg" />
                   <div className="h-4 w-full max-w-md bg-muted/60 rounded" />
                   <div className="h-4 w-full max-w-sm bg-muted/40 rounded" />
-                  <div className="mt-6 h-32 w-full bg-muted/30 rounded-xl" />
+                  <div className="mt-6 h-40 w-full bg-muted/30 rounded-xl" />
                 </div>
               }>
                 <PageTransition>
@@ -1175,21 +1175,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Suspense>
             ) : (
               <>
-                <div className="mb-5">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="inline-block h-1 w-1 rounded-full bg-primary/50" />
-                    <p className="text-[9px] uppercase tracking-[0.1em] font-bold text-primary/45">{pageMeta.section}</p>
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="inline-block h-1 w-5 rounded-full bg-primary/40" />
+                    <p className="text-[9px] uppercase tracking-[0.12em] font-bold text-primary/45">{pageMeta.section}</p>
                   </div>
-                  <h1 className="text-lg sm:text-xl font-heading font-bold text-foreground tracking-[-0.015em] leading-tight">{pageMeta.title}</h1>
-                  <p className="text-xs text-muted-foreground mt-1 max-w-2xl leading-relaxed">{pageMeta.subtitle}</p>
+                  <h1 className="text-xl sm:text-[1.375rem] font-heading font-bold text-foreground tracking-[-0.018em] leading-tight">{pageMeta.title}</h1>
+                  <p className="text-[0.8125rem] text-muted-foreground mt-1.5 max-w-2xl leading-relaxed">{pageMeta.subtitle}</p>
                 </div>
-                <div className="h-px mb-4 bg-border/30" />
+                <div className="h-px mb-5 bg-gradient-to-r from-border/50 via-border/30 to-transparent" />
                 <Suspense fallback={
                   <div className="flex-1 flex flex-col gap-4 animate-pulse">
-                    <div className="h-8 w-48 bg-muted rounded-lg" />
+                    <div className="h-8 w-52 bg-muted rounded-lg" />
                     <div className="h-4 w-full max-w-md bg-muted/60 rounded" />
                     <div className="h-4 w-full max-w-sm bg-muted/40 rounded" />
-                    <div className="mt-6 h-32 w-full bg-muted/30 rounded-xl" />
+                    <div className="mt-6 h-40 w-full bg-muted/30 rounded-xl" />
                   </div>
                 }>
                   <PageTransition>
@@ -1205,12 +1205,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         {!isSingleScreenRoute && (
-          <footer className="workspace-footer flex-shrink-0 border-t border-border/20 bg-background/80 px-4 py-2 transition-[background-color,border-color] duration-200">
-            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1 text-[11px] text-muted-foreground/70">
-              <div className="flex items-center gap-2 font-medium">
-                <span className="text-foreground/55">&copy; {new Date().getFullYear()} CareAssurance</span>
-                <span className="hidden sm:inline text-muted-foreground/20">&middot;</span>
-                <span className="hidden sm:inline text-muted-foreground/60 text-[10px]">Precision tools for high-trust care teams</span>
+          <footer className="workspace-footer flex-shrink-0 border-t border-border/15 bg-background/90 backdrop-blur-sm px-5 py-2.5 transition-[background-color,border-color] duration-200">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5 text-[11px] text-muted-foreground/65">
+              <div className="flex items-center gap-2.5 font-medium">
+                <span className="text-foreground/50">&copy; {new Date().getFullYear()} CareAssurance</span>
+                <span className="hidden sm:inline text-border">&middot;</span>
+                <span className="hidden sm:inline text-muted-foreground/50 text-[10px]">Precision tools for high-trust care teams</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="hidden md:flex items-center gap-1.5 text-[9px] text-muted-foreground/60 font-medium tabular-nums">

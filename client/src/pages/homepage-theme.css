@@ -19,15 +19,16 @@
 }
 
 .homepage-theme .home-header.is-scrolled {
-  background: color-mix(in oklab, var(--color-card) 80%, transparent);
-  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(16px);
+  background: color-mix(in oklab, var(--color-card) 85%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 50%, transparent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.03);
+  backdrop-filter: blur(20px);
 }
 
 .homepage-theme .home-brand-mark {
   background-image: linear-gradient(140deg, var(--color-primary) 0%, var(--color-secondary) 100%);
   color: var(--color-primary-foreground);
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--color-primary) 25%, transparent);
 }
 
 .homepage-theme .home-brand-copy {
@@ -116,9 +117,15 @@
 }
 
 .homepage-theme .home-card-soft {
-  border: 1px solid color-mix(in oklab, var(--color-border) 62%, transparent);
-  background: color-mix(in oklab, var(--color-card) 82%, transparent);
-  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--color-border) 55%, transparent);
+  background: color-mix(in oklab, var(--color-card) 78%, transparent);
+  border-radius: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.homepage-theme .home-card-soft:hover {
+  border-color: color-mix(in oklab, var(--color-border) 70%, transparent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .homepage-theme .home-pill {
@@ -158,9 +165,10 @@
   display: inline-block;
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  font-size: 0.66rem;
+  font-size: 0.68rem;
   font-weight: 800;
   color: var(--color-primary);
+  opacity: 0.8;
 }
 
 .homepage-theme .home-cta {
@@ -169,12 +177,12 @@
   color: var(--color-primary-foreground);
   border: 1px solid var(--color-primary-border);
   font-weight: 700;
-  box-shadow: var(--shadow-sm);
-  transition: all 0.18s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 12px color-mix(in oklab, var(--color-primary) 20%, transparent);
+  transition: all 0.2s ease;
 }
 
 .homepage-theme .home-cta:hover {
-  box-shadow: var(--shadow-medium);
+  box-shadow: 0 4px 16px color-mix(in oklab, var(--color-primary) 30%, transparent), 0 8px 24px rgba(0, 0, 0, 0.08);
   transform: translateY(-1px);
 }
 
@@ -293,13 +301,14 @@
 }
 
 .homepage-theme .home-workflow-card {
-  background: color-mix(in oklab, var(--color-card) 82%, transparent);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  background: color-mix(in oklab, var(--color-card) 85%, transparent);
+  transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
 }
 
 .homepage-theme .home-workflow-card:hover {
   box-shadow: var(--shadow-soft);
   border-color: color-mix(in oklab, var(--color-border) 88%, transparent);
+  transform: translateY(-2px);
 }
 
 @media (min-width: 768px) {
