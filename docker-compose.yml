@@ -1,0 +1,53 @@
+# ───────────────────────────────────────────────────────────────────────────────
+# CareAssurance — Local Development Stack
+#
+# Spins up the application with a PostgreSQL database for local development.
+#
+# Usage:
+#   cp .env.example .env          # Fill in your env vars
+#   docker compose up -d           # Start services
+#   docker compose logs -f app     # Follow app logs
+#   docker compose down -v         # Tear down (removes volumes)
+# ───────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── PostgreSQL Database ───────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: care_assurance
+      POSTGRES_USER: care
+      POSTGRES_PASSWORD: care_local_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U care -d care_assurance"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Application (API + Client) ────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      SERVE_STATIC: "true"
+      DATABASE_URL: postgresql://care:care_local_dev@db:5432/care_assurance
+      PORT: "5000"
+
+volumes:
+  pgdata:
+    driver: local

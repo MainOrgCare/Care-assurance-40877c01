@@ -44,3 +44,5 @@ export {
   apiInternalError,
   type ApiErrorOptions,
 } from "./apiResponse";
+
+export { logger, createLogger } from "./logger";

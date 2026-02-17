@@ -1,43 +1,22 @@
-# Contributing to Care Assurance
-
-Thank you for your interest in contributing to the Care Assurance platform. This
 document outlines the conventions and workflows that keep the codebase
 consistent, reviewable, and production-ready.
+git clone <repo-url> && cd care-assurance
+
+# Contributing Guide
+
+Thank you for your interest in improving this project. However, this codebase is maintained and developed by a single engineer. External contributions are not accepted at this time.
+
+## Internal Development Standards
+- All code must be professional, maintainable, and follow best practices for security and compliance.
+- Documentation should be kept up to date and clear for future maintainers.
+- All changes should be tested and reviewed for quality.
+
+## Questions or Issues
+If you have questions or encounter issues, please contact the project maintainer directly.
 
 ---
 
-## Getting Started
-
-```bash
-# 1. Clone the repository
-git clone <repo-url> && cd care-assurance
-
-# 2. Install dependencies
-npm install
-
-# 3. Copy environment config
-cp .env.example .env   # then edit .env
-
-# 4. Push the database schema (first run)
-npm run db:push
-
-# 5. Start the dev server
-npm run dev
-```
-
-## Branch Strategy
-
-| Branch | Purpose |
-| --- | --- |
-| `main` | Production-ready code; protected with CI checks |
-| `develop` | Integration branch for feature work |
-| `feature/*` | New features and enhancements |
-| `fix/*` | Bug fixes |
-| `chore/*` | Tooling, dependency updates, refactors |
-
-## Commit Messages
-
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
+*This file exists for completeness and clarity. No external pull requests will be accepted.*
 
 ```
 <type>(<scope>): <short description>

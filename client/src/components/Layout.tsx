@@ -63,117 +63,9 @@ import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useScrollToTop } from "@/hooks/useScrollToTop";
 import { useRecentPages } from "@/hooks/useRecentPages";
 import { useSessionTimer } from "@/hooks/useSessionTimer";
+import { resolvePageMeta, buildBreadcrumbs, type PageMeta } from "@/config/navigation";
 
-type PageMeta = {
-  section: string;
-  title: string;
-  subtitle: string;
-};
-
-const PAGE_META_RULES: Array<{ match: (path: string) => boolean; meta: PageMeta }> = [
-  {
-    match: (path) => path === "/dashboard",
-    meta: {
-      section: "Overview",
-      title: "Operations Dashboard",
-      subtitle: "Live visibility of compliance, workforce, and service delivery performance.",
-    },
-  },
-  {
-    match: (path) => path === "/messages",
-    meta: {
-      section: "Communication",
-      title: "Team Messages",
-      subtitle: "Track updates, handovers, and operational communications in one place.",
-    },
-  },
-  {
-    match: (path) => path === "/email-assistant",
-    meta: {
-      section: "Communication",
-      title: "Email Assistant",
-      subtitle: "Create structured, professional communications quickly with standardized workflows.",
-    },
-  },
-  {
-    match: (path) => path.startsWith("/service-users"),
-    meta: {
-      section: "Service Users",
-      title: "Service User Management",
-      subtitle: "Upload records, produce care planning outputs, and maintain person-centred documentation.",
-    },
-  },
-  {
-    match: (path) => path.startsWith("/care-workers"),
-    meta: {
-      section: "Care Workers",
-      title: "Care Worker Operations",
-      subtitle: "Review EMAR, visit audits, and workforce performance from a unified workspace.",
-    },
-  },
-  {
-    match: (path) => path.startsWith("/rostering"),
-    meta: {
-      section: "Rostering",
-      title: "Rostering Studio",
-      subtitle: "Plan, optimize, and compare schedules with clear workload and quality signals.",
-    },
-  },
-  {
-    match: (path) => path === "/call-reconciliation",
-    meta: {
-      section: "Assurance",
-      title: "Call Reconciliation",
-      subtitle: "Validate call evidence and reconcile completed visits against expected delivery.",
-    },
-  },
-  {
-    match: (path) => path === "/compliance",
-    meta: {
-      section: "Assurance",
-      title: "Compliance Hub",
-      subtitle: "Monitor regulatory posture and track outstanding compliance actions.",
-    },
-  },
-  {
-    match: (path) => path === "/cqc-assessment",
-    meta: {
-      section: "Assurance",
-      title: "CQC Self-Assessment",
-      subtitle: "Rate your service against CQC Key Lines of Enquiry with evidence-based scoring.",
-    },
-  },
-  {
-    match: (path) => path === "/policy-acknowledgement",
-    meta: {
-      section: "Assurance",
-      title: "Policy Acknowledgement",
-      subtitle: "Read and electronically sign policy documents to maintain compliance records.",
-    },
-  },
-  {
-    match: (path) => path === "/settings",
-    meta: {
-      section: "Administration",
-      title: "System Settings",
-      subtitle: "Configure security, user preferences, and operating defaults.",
-    },
-  },
-  {
-    match: (path) => path.startsWith("/shadow-admin-portal") || path.startsWith("/system-logs") || path.startsWith("/testing-features") || path.startsWith("/billing-tool") || path.startsWith("/roi-calculator"),
-    meta: {
-      section: "Administration",
-      title: "Administrative Controls",
-      subtitle: "Platform configuration, diagnostics, and management controls for authorized users.",
-    },
-  },
-];
-
-const DEFAULT_PAGE_META: PageMeta = {
-  section: "Workspace",
-  title: "CareAssurance",
-  subtitle: "Operational tooling for high-trust, compliant care delivery.",
-};
+// Page metadata and breadcrumbs are now defined in @/config/navigation.ts
 
 type PlatformBannerControls = {
   maintenanceMode: boolean;
@@ -189,11 +81,6 @@ type PlatformBannerControls = {
   announcementText: string;
   announcementSeverity: "info" | "warning" | "critical";
   updatedAt: string;
-};
-
-const resolvePageMeta = (path: string): PageMeta => {
-  const matched = PAGE_META_RULES.find((rule) => rule.match(path));
-  return matched?.meta || DEFAULT_PAGE_META;
 };
 
 const formatBannerDate = (value: string | null | undefined): string => {
@@ -592,48 +479,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   });
 
   // Build breadcrumb trail from current route
-  const breadcrumbs = useMemo(() => {
-    const crumbs: Array<{ label: string; href?: string }> = [];
-    if (location === "/dashboard") {
-      crumbs.push({ label: "Dashboard" });
-    } else if (location === "/messages") {
-      crumbs.push({ label: "Messages" });
-    } else if (location === "/email-assistant") {
-      crumbs.push({ label: "Email Assistant" });
-    } else if (location === "/compliance") {
-      crumbs.push({ label: "Compliance" });
-    } else if (location === "/settings") {
-      crumbs.push({ label: "Settings" });
-    } else if (location.startsWith("/service-users")) {
-      crumbs.push({ label: "Service Users", href: "/service-users/upload" });
-      if (location === "/service-users/upload") crumbs.push({ label: "Data Upload" });
-      else if (location === "/service-users/care-planning") crumbs.push({ label: "Care Planning" });
-      else if (location === "/service-users/risk-assessment") crumbs.push({ label: "Risk Assessment" });
-      else if (location === "/service-users/plan-enhancer") crumbs.push({ label: "Plan Enhancer" });
-    } else if (location.startsWith("/care-workers")) {
-      crumbs.push({ label: "Care Workers", href: "/care-workers/list" });
-      if (location === "/care-workers/list") crumbs.push({ label: "Carers" });
-      else if (location === "/care-workers/emar-audit") crumbs.push({ label: "EMAR Audit" });
-      else if (location === "/care-workers/visit-audit") crumbs.push({ label: "Visit Audit" });
-      else if (location === "/care-workers/performance") crumbs.push({ label: "Performance" });
-    } else if (location.startsWith("/rostering")) {
-      crumbs.push({ label: "Rostering Studio" });
-    } else if (location === "/call-reconciliation") {
-      crumbs.push({ label: "Call Reconciliation" });
-    } else if (location === "/shadow-admin-portal") {
-      crumbs.push({ label: "Admin", href: "/shadow-admin-portal" });
-      crumbs.push({ label: "Administrator Controls" });
-    } else if (location === "/system-logs") {
-      crumbs.push({ label: "Admin", href: "/shadow-admin-portal" });
-      crumbs.push({ label: "System Logs" });
-    } else if (location === "/billing-tool") {
-      crumbs.push({ label: "Admin", href: "/shadow-admin-portal" });
-      crumbs.push({ label: "Billing Tool" });
-    } else if (location === "/roi-calculator") {
-      crumbs.push({ label: "Features & Benefits" });
-    }
-    return crumbs;
-  }, [location]);
+  const breadcrumbs = useMemo(() => buildBreadcrumbs(location), [location]);
 
   const openChatAssistant = useCallback(() => {
     setHasOpenedChat(true);

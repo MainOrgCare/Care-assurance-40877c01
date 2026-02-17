@@ -20,3 +20,6 @@ export { registerPolicyAcknowledgementRoutes } from "./policyAcknowledgements";
 export { registerClientErrorRoutes } from "./clientErrors";
 export { registerMessageRoutes } from "./messages";
 export { registerGdprRoutes } from "./gdpr";
+export { registerContactRoutes } from "./contact";
+export { registerExtensionRoutes } from "./extension";
+export { registerAiUsageRoutes } from "./aiUsage";

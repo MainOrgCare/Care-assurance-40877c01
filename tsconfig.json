@@ -9,6 +9,7 @@
     "downlevelIteration": true,
     "module": "ESNext",
     "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "lib": ["esnext", "dom", "dom.iterable"],
     "jsx": "react-jsx",
     "esModuleInterop": true,

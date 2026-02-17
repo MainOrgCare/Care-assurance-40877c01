@@ -1,8 +1,14 @@
 {
-  "name": "rest-express",
+  "name": "care-assurance",
   "version": "1.0.0",
+  "description": "Operational intelligence platform for domiciliary care providers — compliance, rostering, AI-assisted care planning, and workforce management.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "dev:client": "npx vite dev --port 5173",
     "dev": "NODE_ENV=development AI_ENABLED=${AI_ENABLED:-true} tsx server/index.ts",

@@ -9,6 +9,7 @@ import { createServer } from "http";
 import { storage } from "./storage";
 import cors, { CorsOptions } from "cors";
 import { randomUUID } from "node:crypto";
+import { requestLogger } from "./middleware/requestLogger";
 
 const app = express();
 // Render.com places the app behind a single reverse proxy.
@@ -364,41 +365,8 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
-const safeStringify = (payload: unknown, maxLength = 1500): string => {
-  try {
-    const json = JSON.stringify(payload);
-    if (json.length <= maxLength) return json;
-    return `${json.slice(0, maxLength)}... [truncated]`;
-  } catch {
-    return "[unserializable]";
-  }
-};
-
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `[${req.requestId || "no-request-id"}] ${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse && process.env.NODE_ENV !== "production") {
-        logLine += ` :: ${safeStringify(capturedJsonResponse)}`;
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
-});
+// Structured request logging (replaces inline logging middleware)
+app.use(requestLogger);
 
 const DEFAULT_ADMIN_USERNAME = "Lewis.barron";
 

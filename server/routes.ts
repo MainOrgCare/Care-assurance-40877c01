@@ -1,4 +1,16 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
+import {
+  apiSuccess,
+  apiError,
+  apiBadRequest,
+  apiUnauthorized,
+  apiForbidden,
+  apiNotFound,
+  apiConflict,
+  apiTooManyRequests,
+  apiInternalError,
+} from "./utils/apiResponse";
 import express from "express";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -24,6 +36,9 @@ import {
   registerClientErrorRoutes,
   registerMessageRoutes,
   registerGdprRoutes,
+  registerContactRoutes,
+  registerExtensionRoutes,
+  registerAiUsageRoutes,
 } from "./routes/index";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertPolicyDocumentSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser } from "@shared/schema";
 import { createChatCompletionWithLogging, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, type AiUserContext, type AiProvider } from "./services/aiClient";
@@ -4512,6 +4527,7 @@ export async function registerRoutes(
     const user = await resolveAuthenticatedUser(req);
     if (!user) {
       return res.status(401).json({ message: "Unauthorized" });
+      return apiUnauthorized(res);
     }
     req.user = user;
 
@@ -4520,10 +4536,7 @@ export async function registerRoutes(
         const platformControls = await getPlatformControls();
         const runtime = getPlatformControlsRuntime(platformControls);
         if (runtime.readOnlyActive) {
-          return res.status(503).json({
-            message: platformControls.maintenanceMessage || DEFAULT_MAINTENANCE_MESSAGE,
-            code: "READ_ONLY_MODE",
-          });
+          return apiError(res, 503, platformControls.maintenanceMessage || DEFAULT_MAINTENANCE_MESSAGE, { code: "READ_ONLY_MODE" });
         }
       } catch (error) {
         console.error("Failed to load platform controls in auth middleware:", error);
@@ -4554,6 +4567,7 @@ export async function registerRoutes(
   const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user || req.user.role !== "admin") {
       return res.status(403).json({ message: "Forbidden: Admin access required" });
+      return apiForbidden(res, "Forbidden: Admin access required");
     }
     next();
   };
@@ -4561,8 +4575,7 @@ export async function registerRoutes(
   const blockDemoWrites = async (req: Request, res: Response, next: NextFunction) => {
     if (req.user?.isDemo) {
       return res.status(403).json({ 
-        message: "Demo mode: Changes are not saved. Sign up to access all features." 
-      });
+      return apiForbidden(res, "Demo mode: Changes are not saved. Sign up to access all features.");
     }
     next();
   };
@@ -4595,6 +4608,7 @@ export async function registerRoutes(
     }
 
     res.json({
+    apiSuccess(res, {
       status: "ok",
       timestamp: new Date().toISOString(),
       uptime: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
@@ -4630,8 +4644,7 @@ export async function registerRoutes(
           }
         });
         return res.status(429).json({
-          message: `Too many login attempts. Try again in ${blockedSeconds} seconds.`,
-        });
+        return apiTooManyRequests(res, `Too many login attempts. Try again in ${blockedSeconds} seconds.`);
       }
       
       // Check if IP is blocked
@@ -4648,12 +4661,14 @@ export async function registerRoutes(
             }
           });
           return res.status(403).json({ message: "Access denied. Your IP address has been blocked." });
+                  return apiForbidden(res, "Access denied. Your IP address has been blocked.");
         }
       }
       
       if (!usernameValue || !password || typeof password !== "string") {
         recordLoginFailure(attemptKey, usernameValue);
         return res.status(400).json({ message: "Username and password required" });
+        return apiBadRequest(res, "Username and password required");
       }
 
       const user = await storage.getUserByUsername(usernameValue);
@@ -4670,6 +4685,8 @@ export async function registerRoutes(
           }
         });
         return res.status(401).json({ message: "Invalid credentials" });
+        return apiUnauthorized(res, "Invalid credentials");
+        return apiUnauthorized(res, "Invalid credentials");
       }
 
       const isValidPassword = await storage.verifyPassword(password, user.password);
@@ -4702,6 +4719,7 @@ export async function registerRoutes(
           }
         });
         return res.status(403).json({ message: "Account pending approval" });
+        return apiForbidden(res, "Account pending approval");
       }
 
       // Check if user is suspended
@@ -4720,8 +4738,7 @@ export async function registerRoutes(
           }
         });
         return res.status(403).json({ 
-          message: `Account suspended. Please try again in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''}.`
-        });
+        return apiForbidden(res, `Account suspended. Please try again in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''}.`);
       }
 
       // Check session limits for non-admin users
@@ -4733,8 +4750,7 @@ export async function registerRoutes(
       
       if (!isAdmin && nonAdminCount >= MAX_NON_ADMIN_SESSIONS && !existingSession) {
         return res.status(503).json({ 
-          message: `System is at capacity (${MAX_NON_ADMIN_SESSIONS} users). Please try again later.` 
-        });
+        return apiError(res, 503, `System is at capacity (${MAX_NON_ADMIN_SESSIONS} users). Please try again later.`, { code: "SYSTEM_CAPACITY" });
       }
       
       // Admin priority: if admin logs in and all slots are full, force logout oldest non-admin
@@ -4800,6 +4816,7 @@ export async function registerRoutes(
       await storage.updateLastOnlineAt(user.id);
       
       return res.json({
+      return apiSuccess(res, {
         id: user.id,
         username: user.username,
         firstName: user.firstName,
@@ -4813,6 +4830,8 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       return res.status(500).json({ message: safeErrorMessage(error, "Login failed") });
+      return apiInternalError(res, safeErrorMessage(error, "Login failed"));
+                return apiForbidden(res, "Access denied. Your IP address has been blocked.");
     }
   });
 
@@ -4867,6 +4886,8 @@ export async function registerRoutes(
         });
 
         return res.json(demoUser);
+        return apiSuccess(res, demoUser);
+        return apiInternalError(res, safeErrorMessage(error, "Login failed"));
       } catch (error: any) {
         return res.status(500).json({ message: safeErrorMessage(error, "Login failed") });
       }
@@ -4878,20 +4899,21 @@ export async function registerRoutes(
     try {
       if (!hasDatabaseUrl) {
         return res.status(503).json({
-          message: "Development database is not configured (DATABASE_URL missing). Registration is disabled in this environment.",
-        });
+        return apiError(res, 503, "Development database is not configured (DATABASE_URL missing). Registration is disabled in this environment.", { code: "NO_DATABASE" });
       }
 
       const validatedData = insertUserSchema.parse(req.body);
       const passwordError = validatePassword(validatedData.password, validatedData.username);
       if (passwordError) {
         return res.status(400).json({ message: passwordError });
+        return apiBadRequest(res, passwordError);
       }
       
       // Check if user already exists
       const existingUser = await storage.getUserByUsername(validatedData.username);
       if (existingUser) {
         return res.status(400).json({ message: "Username already exists" });
+        return apiBadRequest(res, "Username already exists");
       }
 
       const user = await storage.createUser({
@@ -4901,14 +4923,13 @@ export async function registerRoutes(
       });
 
       return res.status(201).json({ 
-        message: "Account created. Awaiting admin approval.",
-        id: user.id 
-      });
+      return apiCreated(res, { id: user.id }, "Account created. Awaiting admin approval.");
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      if (error instanceof z.ZodError) {
+        return apiBadRequest(res, "Validation error", { errors: error.errors });
       }
-      return res.status(500).json({ message: safeErrorMessage(error, "Registration failed") });
+      return apiInternalError(res, safeErrorMessage(error, "Registration failed"));
     }
   });
 
@@ -4941,6 +4962,10 @@ export async function registerRoutes(
   // Check session
   app.get("/api/auth/me", requireAuth, async (req: any, res) => {
     return res.json(toPublicUser(req.user));
+    return apiSuccess(res, toPublicUser(req.user));
+    return apiSuccess(res, { authenticated: false });
+    return apiSuccess(res, { authenticated: true, user: toPublicUser(user) });
+    return apiInternalError(res, safeErrorMessage(error, "Failed to check session"));
   });
 
   // Accept terms and conditions
@@ -4950,12 +4975,15 @@ export async function registerRoutes(
       
       if (!version) {
         return res.status(400).json({ message: "Terms version is required" });
+        return apiBadRequest(res, "Terms version is required");
       }
       if (!signatureName || signatureName.trim().length < 2) {
         return res.status(400).json({ message: "Please enter your full name" });
+        return apiBadRequest(res, "Please enter your full name");
       }
       if (!signatureDate) {
         return res.status(400).json({ message: "Please enter today's date" });
+        return apiBadRequest(res, "Please enter today's date");
       }
 
       const updatedUser = await storage.updateUserTermsAcceptance(
@@ -4966,7 +4994,8 @@ export async function registerRoutes(
       );
       
       if (!updatedUser) {
-        return res.status(500).json({ message: "Failed to update user" });
+      if (!updatedUser) {
+        return apiInternalError(res, "Failed to update user");
       }
 
       // Update session user
@@ -4976,16 +5005,17 @@ export async function registerRoutes(
       req.user.termsSignatureDate = signatureDate;
 
       return res.json({ 
-        success: true, 
-        message: "Terms accepted successfully",
+      return apiSuccess(res, {
+        success: true,
         termsAcceptedAt: updatedUser.termsAcceptedAt,
         termsVersion: updatedUser.termsVersion || version,
         termsSignatureName: signatureName.trim(),
         termsSignatureDate: signatureDate,
-      });
+      }, { message: "Terms accepted successfully" });
     } catch (error) {
       console.error("Error accepting terms:", error);
       return res.status(500).json({ message: "Failed to accept terms" });
+      return apiInternalError(res, "Failed to accept terms");
     }
   });
 
@@ -5000,9 +5030,11 @@ export async function registerRoutes(
     req.session.destroy((err) => {
       if (err) {
         return res.status(500).json({ message: "Logout failed" });
+        return apiInternalError(res, "Logout failed");
       }
       res.clearCookie("connect.sid");
       return res.json({ message: "Logged out successfully" });
+      return apiSuccess(res, { message: "Logged out successfully" });
     });
   });
 
@@ -5011,6 +5043,7 @@ export async function registerRoutes(
     try {
       const sessions = await storage.getAllActiveSessions();
       return res.json({
+      return apiSuccess(res, {
         sessions: sessions.map(s => ({
           id: s.id,
           username: s.username,
@@ -5022,6 +5055,7 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to get active sessions") });
+      return apiInternalError(res, safeErrorMessage(error, "Failed to get active sessions"));
     }
   });
 
@@ -17459,19 +17493,27 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   });
 
   // =====================================================================
-  // EXTENSION API - Direct Integration with Care Assurance Extension
+  // EXTENSION API — Extracted to server/routes/extension.ts
   // =====================================================================
+  registerExtensionRoutes(app, { requireAuth, requireAdmin });
 
-  const EXTENSION_PACKAGE_CANDIDATES = [
-    path.resolve(process.cwd(), "dist", "edge-acp-autofill.zip"),
-    path.resolve(process.cwd(), "edge-acp-autofill.zip"),
-  ] as const;
-  const EXTENSION_SOURCE_DIR = path.resolve(process.cwd(), "extension", "edge-acp-autofill");
-  const EXTENSION_MANIFEST_PATH = path.resolve(EXTENSION_SOURCE_DIR, "manifest.json");
-  const EXTENSION_PACKAGE_SCRIPT = path.resolve(process.cwd(), "script", "package-extension.py");
+  // =====================================================================
+  // AI USAGE LOGS — Extracted to server/routes/aiUsage.ts
+  // =====================================================================
+  registerAiUsageRoutes(app, { requireAuth, requireAdmin });
 
-  /** Attempt to build the zip via the Python script (preferred). */
-  const packageExtensionZipViaPython = async (): Promise<boolean> => {
+  // =====================================================================
+  // CALL RECONCILIATION - Excel Processing
+  // =====================================================================
+  
+  // Helper to convert column letter to index (A=0, B=1, etc.)
+  function colLetterToIndex(letter: string): number {
+    let result = 0;
+    for (let i = 0; i < letter.length; i++) {
+      result = result * 26 + (letter.charCodeAt(i) - 64);
+    }
+    return result - 1;
+  }
     try {
       await fs.access(EXTENSION_PACKAGE_SCRIPT);
     } catch {
@@ -18327,105 +18369,9 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   });
 
   // =====================================================================
-  // CONTACT FORM - Stores messages for admin review
+  // CONTACT FORM  →  server/routes/contact.ts
   // =====================================================================
-
-  // Contact form is always enabled (no SMTP required)
-  app.get("/api/contact/status", async (req, res) => {
-    return res.json({ enabled: true });
-  });
-
-  // Submit contact form message (public endpoint)
-  app.post("/api/contact", async (req, res) => {
-    try {
-      const { name, email, organisation, message } = req.body;
-
-      // Validation
-      if (!name || typeof name !== "string" || name.trim().length < 2) {
-        return res.status(400).json({ message: "Please enter your name" });
-      }
-      if (!email || typeof email !== "string" || !email.includes("@")) {
-        return res.status(400).json({ message: "Please enter a valid email address" });
-      }
-      if (!message || typeof message !== "string" || message.trim().length < 10) {
-        return res.status(400).json({ message: "Please enter a message (at least 10 characters)" });
-      }
-
-      // Sanitize inputs
-      const sanitizedName = name.trim().slice(0, 100);
-      const sanitizedEmail = email.trim().slice(0, 100);
-      const sanitizedOrg = organisation ? String(organisation).trim().slice(0, 100) : null;
-      const sanitizedMessage = message.trim().slice(0, 5000);
-
-      // Save to database
-      await storage.createContactMessage({
-        name: sanitizedName,
-        email: sanitizedEmail,
-        organisation: sanitizedOrg,
-        message: sanitizedMessage,
-      });
-
-      console.log(`[Contact] Message saved from ${sanitizedEmail} (${sanitizedName})`);
-
-      return res.json({ 
-        success: true, 
-        message: "Thank you for your message. We'll respond within 1 business day." 
-      });
-    } catch (error: any) {
-      console.error("[Contact] Failed to save message:", error);
-      return res.status(500).json({ 
-        message: "Failed to send message. Please try again later." 
-      });
-    }
-  });
-
-  // Get all contact messages (admin only)
-  app.get("/api/contact/messages", requireAuth, requireAdmin, async (req: any, res: any) => {
-    try {
-      const includeArchived = req.query.includeArchived === "true";
-      const messages = await storage.getContactMessages(includeArchived);
-      return res.json(messages);
-    } catch (error: any) {
-      console.error("[Contact] Failed to fetch messages:", error);
-      return res.status(500).json({ message: "Failed to fetch messages" });
-    }
-  });
-
-  // Mark message as read (admin only)
-  app.patch("/api/contact/messages/:id/read", requireAuth, requireAdmin, async (req: any, res: any) => {
-    try {
-      const { id } = req.params;
-      await storage.markContactMessageRead(id, req.user.username);
-      return res.json({ success: true });
-    } catch (error: any) {
-      console.error("[Contact] Failed to mark message as read:", error);
-      return res.status(500).json({ message: "Failed to update message" });
-    }
-  });
-
-  // Archive message (admin only)
-  app.patch("/api/contact/messages/:id/archive", requireAuth, requireAdmin, async (req: any, res: any) => {
-    try {
-      const { id } = req.params;
-      await storage.archiveContactMessage(id);
-      return res.json({ success: true });
-    } catch (error: any) {
-      console.error("[Contact] Failed to archive message:", error);
-      return res.status(500).json({ message: "Failed to archive message" });
-    }
-  });
-
-  // Delete message (admin only)
-  app.delete("/api/contact/messages/:id", requireAuth, requireAdmin, async (req: any, res: any) => {
-    try {
-      const { id } = req.params;
-      await storage.deleteContactMessage(id);
-      return res.json({ success: true });
-    } catch (error: any) {
-      console.error("[Contact] Failed to delete message:", error);
-      return res.status(500).json({ message: "Failed to delete message" });
-    }
-  });
+  registerContactRoutes(app, { requireAuth, requireAdmin });
 
   // =====================================================================
   // USER MESSAGING PORTAL  →  server/routes/messages.ts
