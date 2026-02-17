@@ -17440,32 +17440,53 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
   const EXTENSION_MANIFEST_PATH = path.resolve(EXTENSION_SOURCE_DIR, "manifest.json");
   const EXTENSION_PACKAGE_SCRIPT = path.resolve(process.cwd(), "script", "package-extension.py");
 
-  const packageExtensionZip = async (): Promise<void> => {
+  /** Attempt to build the zip via the Python script (preferred). */
+  const packageExtensionZipViaPython = async (): Promise<boolean> => {
     try {
       await fs.access(EXTENSION_PACKAGE_SCRIPT);
     } catch {
-      throw new Error(`Extension packaging script not found at ${EXTENSION_PACKAGE_SCRIPT}`);
+      return false;
     }
-
     const pythonCandidates = ["python3", "python"] as const;
-    let lastError: unknown = null;
-
     for (const pythonCmd of pythonCandidates) {
       try {
         await execFileAsync(pythonCmd, [EXTENSION_PACKAGE_SCRIPT], {
           cwd: process.cwd(),
           timeout: 120000,
         });
-        return;
-      } catch (error) {
-        lastError = error;
-      }
+        return true;
+      } catch { /* try next */ }
     }
+    return false;
+  };
 
+  /** Fallback: build the zip using the system `zip` command (available on most Linux hosts). */
+  const packageExtensionZipViaShell = async (): Promise<boolean> => {
+    try {
+      await fs.access(EXTENSION_SOURCE_DIR);
+    } catch {
+      return false;
+    }
+    const outPath = path.resolve(process.cwd(), "dist", "edge-acp-autofill.zip");
+    await fs.mkdir(path.dirname(outPath), { recursive: true });
+    try {
+      // Remove stale zip if present
+      await fs.unlink(outPath).catch(() => {});
+      await execFileAsync("zip", ["-r", outPath, "."], {
+        cwd: EXTENSION_SOURCE_DIR,
+        timeout: 120000,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const packageExtensionZip = async (): Promise<void> => {
+    if (await packageExtensionZipViaPython()) return;
+    if (await packageExtensionZipViaShell()) return;
     throw new Error(
-      `Failed to package Edge extension zip. ${
-        lastError instanceof Error ? lastError.message : "Python runtime unavailable."
-      }`
+      "Failed to package Edge extension zip. Neither Python nor the system zip command succeeded."
     );
   };
 

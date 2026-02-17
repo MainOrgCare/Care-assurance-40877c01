@@ -247,7 +247,7 @@ export default function ROICalculator() {
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <Button asChild className="gap-2" data-testid="button-direct-add-extension">
-                <a href="/api/admin/extension/package?fresh=1" target="_blank" rel="noopener noreferrer">
+                <a href={`${(import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "")}/api/admin/extension/package?fresh=1`} target="_blank" rel="noopener noreferrer">
                   <Download className="h-4 w-4" />
                   Download Edge Extension (.zip)
                 </a>

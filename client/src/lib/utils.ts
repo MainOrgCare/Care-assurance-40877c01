@@ -6,6 +6,27 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Returns the API base URL configured via VITE_API_BASE_URL.
+ * When the frontend and API are deployed on separate origins (e.g. Render
+ * static site + Node service), native `<a href>` links must be prefixed with
+ * this value so the browser navigates to the API origin instead of the static
+ * site origin.
+ */
+export function getApiBaseUrl(): string {
+  return (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+}
+
+/**
+ * Resolves an API path (e.g. "/api/admin/extension/package") to a full URL
+ * that works for both `<a href>` links and `fetch()` calls, regardless of
+ * whether the API lives on a separate origin.
+ */
+export function apiHref(path: string): string {
+  const base = getApiBaseUrl();
+  return base ? `${base}${path}` : path;
+}
+
+/**
  * Create a simple hash from a string for deduplication purposes.
  * Uses Web Crypto API (SubtleCrypto) when available, falls back to simple hash.
  */

@@ -3876,7 +3876,13 @@ export default function SecretAdminPortal() {
   const extensionHashShort = extensionInfo?.package?.sha256
     ? `${extensionInfo.package.sha256.slice(0, 12)}...${extensionInfo.package.sha256.slice(-8)}`
     : "Unavailable";
-  const extensionDownloadUrl = extensionInfo?.downloadUrl || "/api/admin/extension/package?fresh=1";
+  const extensionDownloadUrl = (() => {
+    const raw = extensionInfo?.downloadUrl || "/api/admin/extension/package?fresh=1";
+    // Prefix with API base URL so <a href> navigates to the API origin,
+    // not the static-site origin (which would 404 on /api routes).
+    const base = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+    return base && raw.startsWith("/") ? `${base}${raw}` : raw;
+  })();
 
   if (!mounted) return null;
 

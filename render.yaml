@@ -19,7 +19,7 @@ services:
     name: care-assurance-api
     runtime: node
     plan: standard
-    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:server
+    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:server && npm run package:extension
     startCommand: npm run start:api
     healthCheckPath: /healthz
     autoDeploy: true
