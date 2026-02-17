@@ -2838,8 +2838,8 @@ export default function TestingFeatures() {
   }, [careWorkerRosters, debouncedCareWorkerSearch, rosteringFullscreen]);
 
   const clearTemplateRecommendations = useCallback(
-    async (workerKey: string, week: TemplateWeekKey, day: WeekdayLabel, groupKeys: string[]) => {
-      if (!groupKeys.length) return;
+    async (workerKey: string, week: TemplateWeekKey, day: WeekdayLabel, groupKeys: string[]): Promise<{ rateLimited: boolean }> => {
+      if (!groupKeys.length) return { rateLimited: false };
       try {
         const response = await fetch("/api/admin/rostering-recommendations", {
           method: "DELETE",
@@ -2854,6 +2854,9 @@ export default function TestingFeatures() {
             groupKeys,
           }),
         });
+        if (response.status === 429) {
+          return { rateLimited: true };
+        }
         const result = await response.json();
         if (!response.ok) {
           throw new Error(result.message || "Unable to clear template recommendations.");
@@ -2873,16 +2876,22 @@ export default function TestingFeatures() {
             [storeKey]: updated,
           };
         });
+        return { rateLimited: false };
       } catch (error) {
         console.warn("Unable to clear template recommendations.", error);
+        return { rateLimited: false };
       }
     },
     []
   );
 
+  const clearedRosterFingerprintRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!careWorkerRosters.length) return;
-    let cancelled = false;
+
+    // Build a fingerprint of the roster template state to avoid re-running
+    // the same cleanup on every render / data refetch.
     const removals = new Map<
       string,
       { workerKey: string; week: TemplateWeekKey; day: WeekdayLabel; groupKeys: Set<string> }
@@ -2906,15 +2915,32 @@ export default function TestingFeatures() {
       });
     });
 
+    if (removals.size === 0) return;
+
+    // Fingerprint = sorted store keys; skip if we already cleared this exact set.
+    const fingerprint = Array.from(removals.keys()).sort().join("|");
+    if (clearedRosterFingerprintRef.current === fingerprint) return;
+
+    let cancelled = false;
+
     const clearAll = async () => {
       for (const entry of removals.values()) {
         if (cancelled) return;
-        await clearTemplateRecommendations(
+        const { rateLimited } = await clearTemplateRecommendations(
           entry.workerKey,
           entry.week,
           entry.day,
           Array.from(entry.groupKeys)
         );
+        // Stop immediately if the server is rate-limiting us.
+        if (rateLimited) {
+          console.warn("Rate-limited while clearing rostering recommendations — aborting remaining.");
+          return;
+        }
+      }
+      // Mark this fingerprint as completed so subsequent renders skip it.
+      if (!cancelled) {
+        clearedRosterFingerprintRef.current = fingerprint;
       }
     };
 

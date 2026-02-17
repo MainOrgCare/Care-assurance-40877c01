@@ -335,14 +335,21 @@ app.use(compression({
 // overrides this per-route via express.json({ limit }) where needed.
 const DEFAULT_BODY_LIMIT = '10mb';
 
-app.use(
+// Paths that use a per-route body parser with a higher limit.
+// Skip the global JSON parser for these so the route-level limit applies.
+const LARGE_BODY_PATHS = new Set([
+  '/api/admin/rostering/workbook-uploads/ingest',
+]);
+
+app.use((req, res, next) => {
+  if (LARGE_BODY_PATHS.has(req.path)) return next();
   express.json({
     limit: DEFAULT_BODY_LIMIT,
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
-  }),
-);
+  })(req, res, next);
+});
 
 app.use(express.urlencoded({ extended: false, limit: DEFAULT_BODY_LIMIT }));
 

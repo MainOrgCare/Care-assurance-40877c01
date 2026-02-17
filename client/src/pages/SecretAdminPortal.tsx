@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, memo } from "react";
-import { isValidPassword } from "@/lib/validation";
+import { validatePassword, MIN_PASSWORD_LENGTH } from "@/lib/validation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download, ChevronDown } from "lucide-react";
@@ -177,7 +177,7 @@ function formatBytes(bytes: number | null | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-const PASSWORD_RULES_TEXT = "Password must be at least 8 characters and include a letter and a number.";
+const PASSWORD_RULES_TEXT = `Password must be at least ${MIN_PASSWORD_LENGTH} characters and include an uppercase letter, lowercase letter, number, and special character.`;
 
 const AIAdminLog = memo(function AIAdminLog() {
   const [logs, setLogs] = useState<AIRequestLog[]>([]);
@@ -3563,10 +3563,11 @@ export default function SecretAdminPortal() {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserUsername || !newUserPassword) return;
-    if (!isValidPassword(newUserPassword)) {
+    const pwError = validatePassword(newUserPassword);
+    if (pwError) {
       toast({
         title: "Password Too Weak",
-        description: PASSWORD_RULES_TEXT,
+        description: pwError,
         variant: "destructive",
       });
       return;
@@ -3736,8 +3737,9 @@ export default function SecretAdminPortal() {
       toast({ title: "Password Mismatch", description: "Passwords do not match.", variant: "destructive" });
       return;
     }
-    if (!isValidPassword(resetPasswordValue)) {
-      toast({ title: "Password Too Weak", description: PASSWORD_RULES_TEXT, variant: "destructive" });
+    const resetPwError = validatePassword(resetPasswordValue);
+    if (resetPwError) {
+      toast({ title: "Password Too Weak", description: resetPwError, variant: "destructive" });
       return;
     }
 

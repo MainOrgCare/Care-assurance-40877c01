@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { isValidPassword } from "@/lib/validation";
+import { validatePassword, MIN_PASSWORD_LENGTH } from "@/lib/validation";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { Label } from "@/components/ui/label";
@@ -69,7 +69,7 @@ const themeOptions: Array<{
   },
 ];
 
-const PASSWORD_RULES_TEXT = "Password must be at least 8 characters and include a letter and a number.";
+const PASSWORD_RULES_TEXT = `Password must be at least ${MIN_PASSWORD_LENGTH} characters and include an uppercase letter, lowercase letter, number, and special character.`;
 
 export default function Settings() {
   const [, setLocation] = useLocation();
@@ -103,8 +103,9 @@ export default function Settings() {
       toast({ title: "Error", description: "New passwords do not match", variant: "destructive" });
       return;
     }
-    if (!isValidPassword(newPassword)) {
-      toast({ title: "Error", description: PASSWORD_RULES_TEXT, variant: "destructive" });
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      toast({ title: "Error", description: passwordError, variant: "destructive" });
       return;
     }
 

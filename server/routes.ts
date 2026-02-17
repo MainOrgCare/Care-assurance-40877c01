@@ -15,6 +15,14 @@ import connectPgSimple from "connect-pg-simple";
 import pkg from "pg";
 const { Pool } = pkg;
 import { z } from "zod";
+
+// Extracted route modules (incremental migration from monolith)
+import {
+  registerHandoverRoutes,
+  registerTrainingRoutes,
+  registerPolicyAcknowledgementRoutes,
+  registerClientErrorRoutes,
+} from "./routes/index";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertPolicyDocumentSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser } from "@shared/schema";
 import { createChatCompletionWithLogging, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { getCacheStats, clearCache } from "./services/aiCache";
@@ -20835,226 +20843,14 @@ I have also sent that reminder to your Messages inbox.`
   });
 
   // ==========================================================================
-  // Client Error Logging
+  // Modular Route Modules
   // ==========================================================================
-  // Client error logging — auth optional so pre-login errors are captured too
-  app.post("/api/log-client-error", async (req: any, res) => {
-    try {
-      const { message, stack, componentStack, url, timestamp } = req.body || {};
-      const truncate = (s: string | undefined, max: number) =>
-        typeof s === "string" ? s.slice(0, max) : "";
-
-      // Limit body size to prevent abuse (truncation handles oversized fields)
-      const bodyStr = JSON.stringify(req.body || {});
-      if (bodyStr.length > 10_000) {
-        return res.status(413).json({ logged: false, reason: "Payload too large" });
-      }
-
-      storage.createSystemLog({
-        eventType: "CLIENT_ERROR",
-        userId: req.user?.id?.toString() || "anonymous",
-        username: req.user?.username || "anonymous",
-        details: {
-          url: truncate(url, 500),
-          message: truncate(message, 500),
-          stack: truncate(stack, 2000),
-          componentStack: truncate(componentStack, 1000),
-          reportedAt: timestamp,
-        },
-      });
-
-      return res.json({ logged: true });
-    } catch {
-      // Error logging must never fail visibly
-      return res.json({ logged: false });
-    }
-  });
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // SHIFT HANDOVER NOTES
-  // ═══════════════════════════════════════════════════════════════════════
-
-  app.get("/api/shift-handovers", requireAuth, async (_req: any, res) => {
-    try {
-      const handovers = await storage.getAllShiftHandovers();
-      return res.json(handovers);
-    } catch (error) {
-      console.error("[HANDOVERS] Error fetching:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to fetch shift handovers" });
-    }
-  });
-
-  app.post("/api/shift-handovers", requireAuth, async (req: any, res) => {
-    try {
-      const { shiftDate, shiftType, summary, keyEvents, medicationNotes, clientConcerns, staffingNotes, followUpRequired, followUpDetails, priority } = req.body;
-      if (!shiftDate || !shiftType || !summary) {
-        return res.status(400).json({ message: "shiftDate, shiftType, and summary are required" });
-      }
-      const handover = await storage.createShiftHandover({
-        authorId: req.user.id,
-        authorName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.username,
-        shiftDate,
-        shiftType,
-        summary,
-        keyEvents: keyEvents || null,
-        medicationNotes: medicationNotes || null,
-        clientConcerns: clientConcerns || null,
-        staffingNotes: staffingNotes || null,
-        followUpRequired: followUpRequired || false,
-        followUpDetails: followUpDetails || null,
-        priority: priority || "normal",
-        acknowledgedBy: [],
-      });
-      return res.status(201).json(handover);
-    } catch (error) {
-      console.error("[HANDOVERS] Error creating:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to create shift handover" });
-    }
-  });
-
-  app.post("/api/shift-handovers/:id/acknowledge", requireAuth, async (req: any, res) => {
-    try {
-      const handover = await storage.acknowledgeShiftHandover(req.params.id, req.user.id);
-      if (!handover) return res.status(404).json({ message: "Handover not found" });
-      return res.json(handover);
-    } catch (error) {
-      console.error("[HANDOVERS] Error acknowledging:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to acknowledge handover" });
-    }
-  });
-
-  app.delete("/api/shift-handovers/:id", requireAuth, async (req: any, res) => {
-    try {
-      await storage.deleteShiftHandover(req.params.id);
-      return res.json({ success: true });
-    } catch (error) {
-      console.error("[HANDOVERS] Error deleting:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to delete handover" });
-    }
-  });
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // STAFF TRAINING TRACKER
-  // ═══════════════════════════════════════════════════════════════════════
-
-  app.get("/api/staff-training", requireAuth, async (_req: any, res) => {
-    try {
-      const records = await storage.getAllStaffTraining();
-      return res.json(records);
-    } catch (error) {
-      console.error("[TRAINING] Error fetching:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to fetch training records" });
-    }
-  });
-
-  app.get("/api/staff-training/user/:userId", requireAuth, async (req: any, res) => {
-    try {
-      const records = await storage.getStaffTrainingByStaff(req.params.userId);
-      return res.json(records);
-    } catch (error) {
-      console.error("[TRAINING] Error fetching user training:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to fetch training records" });
-    }
-  });
-
-  app.post("/api/staff-training", requireAuth, async (req: any, res) => {
-    try {
-      const { staffId, staffName, courseName, category, provider, completedDate, expiryDate, status, certificateRef, notes } = req.body;
-      if (!staffId || !staffName || !courseName) {
-        return res.status(400).json({ message: "staffId, staffName, and courseName are required" });
-      }
-      const record = await storage.createStaffTraining({
-        staffId,
-        staffName,
-        courseName,
-        category: category || "mandatory",
-        provider: provider || null,
-        completedDate: completedDate || null,
-        expiryDate: expiryDate || null,
-        status: status || "pending",
-        certificateRef: certificateRef || null,
-        notes: notes || null,
-      });
-      return res.status(201).json(record);
-    } catch (error) {
-      console.error("[TRAINING] Error creating:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to create training record" });
-    }
-  });
-
-  app.patch("/api/staff-training/:id", requireAuth, async (req: any, res) => {
-    try {
-      const record = await storage.updateStaffTraining(req.params.id, req.body);
-      if (!record) return res.status(404).json({ message: "Training record not found" });
-      return res.json(record);
-    } catch (error) {
-      console.error("[TRAINING] Error updating:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to update training record" });
-    }
-  });
-
-  app.delete("/api/staff-training/:id", requireAuth, async (req: any, res) => {
-    try {
-      await storage.deleteStaffTraining(req.params.id);
-      return res.json({ success: true });
-    } catch (error) {
-      console.error("[TRAINING] Error deleting:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to delete training record" });
-    }
-  });
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // POLICY ACKNOWLEDGEMENTS
-  // ═══════════════════════════════════════════════════════════════════════
-
-  app.get("/api/policy-acknowledgements", requireAuth, async (_req: any, res) => {
-    try {
-      const acks = await storage.getAllPolicyAcknowledgements();
-      return res.json(acks);
-    } catch (error) {
-      console.error("[POLICY-ACK] Error fetching:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to fetch acknowledgements" });
-    }
-  });
-
-  app.get("/api/policy-acknowledgements/policy/:policyId", requireAuth, async (req: any, res) => {
-    try {
-      const acks = await storage.getPolicyAcknowledgements(req.params.policyId);
-      return res.json(acks);
-    } catch (error) {
-      console.error("[POLICY-ACK] Error fetching:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to fetch acknowledgements" });
-    }
-  });
-
-  app.get("/api/policy-acknowledgements/user/:userId", requireAuth, async (req: any, res) => {
-    try {
-      const acks = await storage.getUserPolicyAcknowledgements(req.params.userId);
-      return res.json(acks);
-    } catch (error) {
-      console.error("[POLICY-ACK] Error fetching:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to fetch acknowledgements" });
-    }
-  });
-
-  app.post("/api/policy-acknowledgements", requireAuth, async (req: any, res) => {
-    try {
-      const { policyId, signatureName } = req.body;
-      if (!policyId || !signatureName) {
-        return res.status(400).json({ message: "policyId and signatureName are required" });
-      }
-      const ack = await storage.createPolicyAcknowledgement({
-        policyId,
-        userId: req.user.id,
-        userName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.username,
-        signatureName,
-      });
-      return res.status(201).json(ack);
-    } catch (error) {
-      console.error("[POLICY-ACK] Error creating:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to create acknowledgement" });
-    }
-  });
+  // These route groups have been extracted into dedicated files under
+  // server/routes/ for better organisation and maintainability.
+  registerClientErrorRoutes(app);
+  registerHandoverRoutes(app, { requireAuth });
+  registerTrainingRoutes(app, { requireAuth });
+  registerPolicyAcknowledgementRoutes(app, { requireAuth });
 
   return httpServer;
 }
