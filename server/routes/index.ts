@@ -18,3 +18,5 @@ export { registerHandoverRoutes } from "./handovers";
 export { registerTrainingRoutes } from "./training";
 export { registerPolicyAcknowledgementRoutes } from "./policyAcknowledgements";
 export { registerClientErrorRoutes } from "./clientErrors";
+export { registerMessageRoutes } from "./messages";
+export { registerGdprRoutes } from "./gdpr";

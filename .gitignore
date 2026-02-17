@@ -1,7 +1,38 @@
-node_modules
+# ── Dependencies ──────────────────────────────────────────────────
+node_modules/
+
+# ── Build output ──────────────────────────────────────────────────
+dist/
+*.tsbuildinfo
+
+# ── Environment & secrets ─────────────────────────────────────────
 .env
-dist
-node_modules
-.vscode
-attached_assets
+.env.local
+.env.*.local
+
+# ── Editor / IDE ──────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS files ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Logs ──────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Local AI models ──────────────────────────────────────────────
 .ollama/
+
+# ── Uploaded / generated assets (large binaries) ─────────────────
+attached_assets/
+
+# ── Coverage reports ──────────────────────────────────────────────
+coverage/
+.nyc_output/
