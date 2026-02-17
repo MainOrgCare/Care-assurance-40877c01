@@ -242,6 +242,7 @@ function PolicyAcknowledgement() {
   const isLoading = loadingPolicies || loadingAcks;
 
   return (
+    <>
       <div className="space-y-6">
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -381,6 +382,7 @@ function PolicyAcknowledgement() {
           onClose={() => setViewAcksDialog(null)}
         />
       )}
+    </>
   );
 }
 
