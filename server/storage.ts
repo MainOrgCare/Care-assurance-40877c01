@@ -2711,14 +2711,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async acknowledgeShiftHandover(id: string, userId: string): Promise<ShiftHandover | undefined> {
-    const existing = await this.getShiftHandover(id);
-    if (!existing) return undefined;
-    const currentList = (existing.acknowledgedBy as string[]) || [];
-    if (currentList.includes(userId)) return existing;
-    const updated = [...currentList, userId];
+    // Atomic SQL-level append to avoid read-modify-write race condition.
+    // Uses jsonb concat so concurrent acknowledgements don't overwrite each other.
     const result = await this.db
       .update(shiftHandovers)
-      .set({ acknowledgedBy: updated })
+      .set({
+        acknowledgedBy: sql`
+          CASE
+            WHEN COALESCE(${shiftHandovers.acknowledgedBy}, '[]'::jsonb) @> ${JSON.stringify([userId])}::jsonb
+            THEN ${shiftHandovers.acknowledgedBy}
+            ELSE COALESCE(${shiftHandovers.acknowledgedBy}, '[]'::jsonb) || ${JSON.stringify([userId])}::jsonb
+          END
+        `,
+      })
       .where(eq(shiftHandovers.id, id))
       .returning();
     return result[0];

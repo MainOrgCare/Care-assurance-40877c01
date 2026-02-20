@@ -63,6 +63,13 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
     return;
   }
 
+  // Only attach the finish listener and body capture for API routes.
+  // Non-API routes (vite, static) just pass through without overhead.
+  if (!path.startsWith("/api")) {
+    next();
+    return;
+  }
+
   const start = Date.now();
   let capturedJsonBody: Record<string, any> | undefined;
 
@@ -76,9 +83,6 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
   }
 
   res.on("finish", () => {
-    // Only log API routes to avoid noise from vite/static middleware
-    if (!path.startsWith("/api")) return;
-
     const duration = Date.now() - start;
     const requestId = (req as any).requestId || "no-request-id";
     const { method } = req;

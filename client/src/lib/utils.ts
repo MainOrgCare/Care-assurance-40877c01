@@ -44,12 +44,10 @@ export async function createHash(data: string | ArrayBuffer | Uint8Array): Promi
     return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
   }
 
-  // Fallback: simple hash function over bytes
-  let hash = 0;
+  // Fallback: simple hash function over bytes (djb2-style)
+  let hash = 5381;
   for (let i = 0; i < bytes.length; i++) {
-    const value = bytes[i];
-    hash = ((hash << 5) - hash) + value;
-    hash = hash & hash;
+    hash = ((hash << 5) + hash + bytes[i]) | 0; // int32 truncation
   }
-  return Math.abs(hash).toString(16).padStart(16, "0");
+  return Math.abs(hash).toString(16).padStart(8, "0");
 }

@@ -133,17 +133,20 @@ export function setCachedResponse(
  */
 export function cleanCache(): void {
   const now = Date.now();
-  let removed = 0;
-  
-  for (const [key, entry] of Array.from(cache.entries())) {
+  const keysToDelete: string[] = [];
+
+  for (const [key, entry] of cache) {
     if (now > entry.expiresAt) {
-      cache.delete(key);
-      removed++;
+      keysToDelete.push(key);
     }
   }
-  
-  if (removed > 0) {
-    console.log(`[AI Cache] Cleaned ${removed} expired entries`);
+
+  for (const key of keysToDelete) {
+    cache.delete(key);
+  }
+
+  if (keysToDelete.length > 0) {
+    console.log(`[AI Cache] Cleaned ${keysToDelete.length} expired entries`);
   }
 }
 
@@ -168,11 +171,11 @@ export function getCacheStats() {
 }
 
 /**
- * Clear the entire cache
+ * Clear the entire cache and reset all statistics
  */
 export function clearCache(): void {
   cache.clear();
-  evictionCount = 0;
+  resetStats();
   console.log("[AI Cache] Cache cleared");
 }
 
@@ -186,5 +189,7 @@ export function resetStats(): void {
   evictionCount = 0;
 }
 
-// Clean cache every hour
-setInterval(cleanCache, 60 * 60 * 1000);
+// Clean cache every hour. Use unref() so this timer does not prevent
+// the Node.js process from exiting cleanly (e.g. in tests or shutdown).
+const _cacheCleanupTimer = setInterval(cleanCache, 60 * 60 * 1000);
+_cacheCleanupTimer.unref();

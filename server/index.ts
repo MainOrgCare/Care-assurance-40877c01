@@ -110,11 +110,11 @@ app.use(helmet({
   },
   frameguard: { action: 'deny' },
   noSniff: true,
-  xssFilter: true,
+  // xssFilter removed — the X-XSS-Protection header is deprecated by modern browsers
+  // and Helmet itself has deprecated the option. CSP provides proper XSS protection.
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   permittedCrossDomainPolicies: { permittedPolicies: 'none' },
   dnsPrefetchControl: { allow: false },
-  ieNoOpen: true,
   originAgentCluster: true,
 }));
 app.disable('x-powered-by'); // Remove Express fingerprinting
@@ -129,8 +129,7 @@ app.use('/api/', (req, res, next) => {
   // Permissions Policy (formerly Feature Policy) - restrict browser features
   res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
   
-  // Additional security headers
-  res.set('X-Content-Type-Options', 'nosniff');
+  // Prevent IE from opening downloads in the site's context
   res.set('X-Download-Options', 'noopen');
   
   next();
@@ -368,7 +367,7 @@ export function log(message: string, source = "express") {
 // Structured request logging (replaces inline logging middleware)
 app.use(requestLogger);
 
-const DEFAULT_ADMIN_USERNAME = "Lewis.barron";
+const DEFAULT_ADMIN_USERNAME = "admin";
 
 (async () => {
   // Admin bootstrap (development or explicit production bootstrap only)
@@ -386,13 +385,20 @@ const DEFAULT_ADMIN_USERNAME = "Lewis.barron";
         if (process.env.NODE_ENV === "production" && !bootstrapPassword) {
           log("Admin bootstrap skipped: ADMIN_BOOTSTRAP_PASSWORD not provided in production.");
         } else {
+          // In dev, use a password that satisfies the 12-char NIST policy.
+          // Still logs a prominent warning so developers know to change it.
+          const devPassword = "Dev-Admin-12345!";
+          const password = bootstrapPassword || devPassword;
           await storage.createUser({
             username: bootstrapUsername,
-            password: bootstrapPassword || "testtest",
+            password,
             role: "admin",
             status: "active",
           });
           log(`Created admin user (username: ${bootstrapUsername})`);
+          if (!bootstrapPassword) {
+            log("⚠  Dev admin created with default password — change before deploying to production!");
+          }
         }
       }
     }

@@ -1,5 +1,4 @@
 import type { Express, Request, Response, NextFunction } from "express";
-import type { Express, Request, Response, NextFunction } from "express";
 import {
   apiSuccess,
   apiError,
@@ -145,6 +144,7 @@ type LoginAttempt = {
 };
 
 const loginAttempts = new Map<string, LoginAttempt>();
+const MAX_LOGIN_ATTEMPTS_MAP_SIZE = 10_000; // Cap to prevent memory exhaustion
 
 // Progressive lockout: block times increase with each block
 const PROGRESSIVE_BLOCK_MULTIPLIERS = [1, 2, 4, 8, 16]; // 15min, 30min, 1hr, 2hr, 4hr
@@ -199,7 +199,25 @@ const pruneLoginAttempts = (): void => {
       loginAttempts.delete(key);
     }
   }
+  // Hard cap: if map still exceeds limit, evict oldest entries
+  if (loginAttempts.size > MAX_LOGIN_ATTEMPTS_MAP_SIZE) {
+    const excess = loginAttempts.size - MAX_LOGIN_ATTEMPTS_MAP_SIZE;
+    let removed = 0;
+    for (const key of loginAttempts.keys()) {
+      if (removed >= excess) break;
+      loginAttempts.delete(key);
+      removed++;
+    }
+  }
 };
+
+// Periodic login attempts cleanup (every 5 minutes) — prevents unbounded growth
+const _loginAttemptsCleanupInterval = setInterval(() => {
+  pruneLoginAttempts();
+}, 5 * 60 * 1000);
+if (typeof _loginAttemptsCleanupInterval.unref === "function") {
+  _loginAttemptsCleanupInterval.unref();
+}
 
 const getBlockedSeconds = (key: string): number => {
   const attempt = loginAttempts.get(key);
@@ -4381,8 +4399,9 @@ export async function registerRoutes(
       return next();
     }
     
-    // Only disable CSRF if explicitly opted out (e.g. for local dev)
-    if (process.env.DISABLE_CSRF === 'true') {
+    // Only disable CSRF if explicitly opted out AND not in production.
+    // This prevents accidental CSRF bypass in live deployments.
+    if (process.env.DISABLE_CSRF === 'true' && process.env.NODE_ENV !== 'production') {
       return next();
     }
     
@@ -4442,33 +4461,9 @@ export async function registerRoutes(
   app.use('/api', csrfProtection);
 
   // ── Rate Limiting ─────────────────────────────────────────────────────────────
-  // General API rate limit: 200 requests per minute per IP
-  const generalLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 200,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { message: "Too many requests — please try again shortly." },
-    keyGenerator: (req: any) => {
-      const forwarded = req.headers['x-forwarded-for'];
-      if (forwarded) {
-        return (typeof forwarded === 'string' ? forwarded : forwarded[0]).split(',')[0].trim();
-      }
-      return req.socket?.remoteAddress || req.ip || 'unknown';
-    },
-  });
-  app.use('/api', generalLimiter);
-
-  // Strict rate limit for auth endpoints: 10 requests per minute per IP
-  const authLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 10,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { message: "Too many authentication attempts — please wait before trying again." },
-  });
-  app.use('/api/auth/login', authLimiter);
-  app.use('/api/auth/register', authLimiter);
+  // NOTE: Global API, auth, and admin rate limiters are defined in server/index.ts
+  // (with polling-endpoint exemptions and proper key generators).
+  // Only add route-specific limiters here that are NOT covered by index.ts.
 
   // Moderate rate limit for AI endpoints: 15 requests per minute per IP
   const aiLimiter = rateLimit({
@@ -4477,10 +4472,33 @@ export async function registerRoutes(
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: "AI processing rate limit reached — please try again in a moment." },
+    skip: () => process.env.NODE_ENV !== 'production',
   });
   app.use('/api/ai', aiLimiter);
 
-  // Auth middleware
+  // Auth middleware — short-lived session cache to reduce DB round-trips.
+  // Each authenticated request previously cost 3 DB queries. This cache reduces
+  // it to 0 for repeat requests within the 5-second window, and debounces
+  // the session activity update to once per 60 seconds.
+  const AUTH_CACHE_TTL_MS = 5_000;
+  const ACTIVITY_DEBOUNCE_MS = 60_000;
+  const authSessionCache = new Map<string, { user: Express.Request["user"]; cachedAt: number }>();
+  const lastActivityUpdate = new Map<string, number>();
+
+  // Prune cache entries older than 2× TTL (runs lazily, not on interval)
+  let lastAuthCachePrune = Date.now();
+  const pruneAuthCache = () => {
+    const now = Date.now();
+    if (now - lastAuthCachePrune < AUTH_CACHE_TTL_MS * 4) return;
+    lastAuthCachePrune = now;
+    for (const [key, entry] of authSessionCache) {
+      if (now - entry.cachedAt > AUTH_CACHE_TTL_MS * 2) authSessionCache.delete(key);
+    }
+    for (const [key, ts] of lastActivityUpdate) {
+      if (now - ts > ACTIVITY_DEBOUNCE_MS * 2) lastActivityUpdate.delete(key);
+    }
+  };
+
   const buildDemoSessionUser = (sessionUserId: string) => ({
     id: sessionUserId,
     username: "demo_user",
@@ -4506,27 +4524,51 @@ export async function registerRoutes(
       return buildDemoSessionUser(req.session.userId);
     }
 
+    const cacheKey = `${req.session.userId}:${req.sessionID}`;
+    const now = Date.now();
+    pruneAuthCache();
+
+    // Check cache first — avoids 3 DB queries for repeat requests
+    const cached = authSessionCache.get(cacheKey);
+    if (cached && now - cached.cachedAt < AUTH_CACHE_TTL_MS) {
+      // Debounce session activity updates (fire-and-forget, at most once/60s)
+      const lastUpdate = lastActivityUpdate.get(req.sessionID) ?? 0;
+      if (now - lastUpdate > ACTIVITY_DEBOUNCE_MS) {
+        lastActivityUpdate.set(req.sessionID, now);
+        storage.updateSessionActivity(req.sessionID).catch(() => {});
+      }
+      return cached.user;
+    }
+
     const user = await storage.getUser(req.session.userId);
     if (!user || user.status !== "active") {
+      authSessionCache.delete(cacheKey);
       return null;
     }
 
     // Check if session is still valid in active_sessions
     const activeSession = await storage.getActiveSessionBySessionId(req.sessionID);
     if (!activeSession || String(activeSession.userId) !== String(req.session.userId)) {
+      authSessionCache.delete(cacheKey);
       req.session.destroy(() => {});
       return null;
     }
 
-    // Update last activity
-    await storage.updateSessionActivity(req.sessionID);
+    // Update last activity (debounced — at most once per 60s per session)
+    const lastUpdate = lastActivityUpdate.get(req.sessionID) ?? 0;
+    if (now - lastUpdate > ACTIVITY_DEBOUNCE_MS) {
+      lastActivityUpdate.set(req.sessionID, now);
+      await storage.updateSessionActivity(req.sessionID);
+    }
+
+    // Cache the resolved user
+    authSessionCache.set(cacheKey, { user, cachedAt: now });
     return user;
   };
 
   const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
     const user = await resolveAuthenticatedUser(req);
     if (!user) {
-      return res.status(401).json({ message: "Unauthorized" });
       return apiUnauthorized(res);
     }
     req.user = user;
@@ -4566,7 +4608,6 @@ export async function registerRoutes(
 
   const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user || req.user.role !== "admin") {
-      return res.status(403).json({ message: "Forbidden: Admin access required" });
       return apiForbidden(res, "Forbidden: Admin access required");
     }
     next();
@@ -4574,7 +4615,6 @@ export async function registerRoutes(
 
   const blockDemoWrites = async (req: Request, res: Response, next: NextFunction) => {
     if (req.user?.isDemo) {
-      return res.status(403).json({ 
       return apiForbidden(res, "Demo mode: Changes are not saved. Sign up to access all features.");
     }
     next();
@@ -4596,18 +4636,22 @@ export async function registerRoutes(
     const uptime = process.uptime();
     const memoryMB = Math.round(process.memoryUsage().rss / 1_048_576);
 
-    // Quick DB connectivity probe
+    // Quick DB connectivity probe — use getAppSetting which is lightweight.
+    // Only report connected if the query actually succeeds; a network/auth
+    // error should correctly report "unavailable".
     let dbOk = false;
     if (hasDatabaseUrl) {
       try {
-        await storage.getUser("__health_probe__"); // lightweight query
-        dbOk = true;
+        await Promise.race([
+          storage.getAppSetting("__health_probe__"),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
+        ]);
+        dbOk = true; // query completed (even if key doesn't exist)
       } catch {
-        dbOk = true; // query ran, user just doesn't exist
+        dbOk = false; // genuine connection/timeout failure
       }
     }
 
-    res.json({
     apiSuccess(res, {
       status: "ok",
       timestamp: new Date().toISOString(),
@@ -4643,7 +4687,6 @@ export async function registerRoutes(
             blockedSeconds 
           }
         });
-        return res.status(429).json({
         return apiTooManyRequests(res, `Too many login attempts. Try again in ${blockedSeconds} seconds.`);
       }
       
@@ -4660,14 +4703,12 @@ export async function registerRoutes(
               reason: 'IP address in block list' 
             }
           });
-          return res.status(403).json({ message: "Access denied. Your IP address has been blocked." });
-                  return apiForbidden(res, "Access denied. Your IP address has been blocked.");
+          return apiForbidden(res, "Access denied. Your IP address has been blocked.");
         }
       }
       
       if (!usernameValue || !password || typeof password !== "string") {
         recordLoginFailure(attemptKey, usernameValue);
-        return res.status(400).json({ message: "Username and password required" });
         return apiBadRequest(res, "Username and password required");
       }
 
@@ -4684,8 +4725,6 @@ export async function registerRoutes(
             reason: 'User not found' 
           }
         });
-        return res.status(401).json({ message: "Invalid credentials" });
-        return apiUnauthorized(res, "Invalid credentials");
         return apiUnauthorized(res, "Invalid credentials");
       }
 
@@ -4702,7 +4741,7 @@ export async function registerRoutes(
             reason: 'Invalid password' 
           }
         });
-        return res.status(401).json({ message: "Invalid credentials" });
+        return apiUnauthorized(res, "Invalid credentials");
       }
 
       if (user.status !== "active") {
@@ -4718,7 +4757,6 @@ export async function registerRoutes(
             status: user.status 
           }
         });
-        return res.status(403).json({ message: "Account pending approval" });
         return apiForbidden(res, "Account pending approval");
       }
 
@@ -4737,7 +4775,6 @@ export async function registerRoutes(
             suspendedUntil: user.suspendedUntil 
           }
         });
-        return res.status(403).json({ 
         return apiForbidden(res, `Account suspended. Please try again in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''}.`);
       }
 
@@ -4749,7 +4786,6 @@ export async function registerRoutes(
       let forcingLogout = false;
       
       if (!isAdmin && nonAdminCount >= MAX_NON_ADMIN_SESSIONS && !existingSession) {
-        return res.status(503).json({ 
         return apiError(res, 503, `System is at capacity (${MAX_NON_ADMIN_SESSIONS} users). Please try again later.`, { code: "SYSTEM_CAPACITY" });
       }
       
@@ -4815,7 +4851,6 @@ export async function registerRoutes(
       // Update last online
       await storage.updateLastOnlineAt(user.id);
       
-      return res.json({
       return apiSuccess(res, {
         id: user.id,
         username: user.username,
@@ -4829,9 +4864,7 @@ export async function registerRoutes(
         forcingLogout,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: safeErrorMessage(error, "Login failed") });
       return apiInternalError(res, safeErrorMessage(error, "Login failed"));
-                return apiForbidden(res, "Access denied. Your IP address has been blocked.");
     }
   });
 
@@ -4885,11 +4918,9 @@ export async function registerRoutes(
           });
         });
 
-        return res.json(demoUser);
         return apiSuccess(res, demoUser);
-        return apiInternalError(res, safeErrorMessage(error, "Login failed"));
       } catch (error: any) {
-        return res.status(500).json({ message: safeErrorMessage(error, "Login failed") });
+        return apiInternalError(res, safeErrorMessage(error, "Login failed"));
       }
     });
   }
@@ -4898,21 +4929,18 @@ export async function registerRoutes(
   app.post("/api/auth/register", async (req, res) => {
     try {
       if (!hasDatabaseUrl) {
-        return res.status(503).json({
         return apiError(res, 503, "Development database is not configured (DATABASE_URL missing). Registration is disabled in this environment.", { code: "NO_DATABASE" });
       }
 
       const validatedData = insertUserSchema.parse(req.body);
       const passwordError = validatePassword(validatedData.password, validatedData.username);
       if (passwordError) {
-        return res.status(400).json({ message: passwordError });
         return apiBadRequest(res, passwordError);
       }
       
       // Check if user already exists
       const existingUser = await storage.getUserByUsername(validatedData.username);
       if (existingUser) {
-        return res.status(400).json({ message: "Username already exists" });
         return apiBadRequest(res, "Username already exists");
       }
 
@@ -4922,10 +4950,8 @@ export async function registerRoutes(
         status: "pending",
       });
 
-      return res.status(201).json({ 
       return apiCreated(res, { id: user.id }, "Account created. Awaiting admin approval.");
     } catch (error: any) {
-      if (error instanceof z.ZodError) {
       if (error instanceof z.ZodError) {
         return apiBadRequest(res, "Validation error", { errors: error.errors });
       }
@@ -4961,11 +4987,7 @@ export async function registerRoutes(
 
   // Check session
   app.get("/api/auth/me", requireAuth, async (req: any, res) => {
-    return res.json(toPublicUser(req.user));
     return apiSuccess(res, toPublicUser(req.user));
-    return apiSuccess(res, { authenticated: false });
-    return apiSuccess(res, { authenticated: true, user: toPublicUser(user) });
-    return apiInternalError(res, safeErrorMessage(error, "Failed to check session"));
   });
 
   // Accept terms and conditions
@@ -4974,15 +4996,12 @@ export async function registerRoutes(
       const { version, signatureName, signatureDate } = req.body;
       
       if (!version) {
-        return res.status(400).json({ message: "Terms version is required" });
         return apiBadRequest(res, "Terms version is required");
       }
       if (!signatureName || signatureName.trim().length < 2) {
-        return res.status(400).json({ message: "Please enter your full name" });
         return apiBadRequest(res, "Please enter your full name");
       }
       if (!signatureDate) {
-        return res.status(400).json({ message: "Please enter today's date" });
         return apiBadRequest(res, "Please enter today's date");
       }
 
@@ -4994,7 +5013,6 @@ export async function registerRoutes(
       );
       
       if (!updatedUser) {
-      if (!updatedUser) {
         return apiInternalError(res, "Failed to update user");
       }
 
@@ -5004,7 +5022,6 @@ export async function registerRoutes(
       req.user.termsSignatureName = signatureName.trim();
       req.user.termsSignatureDate = signatureDate;
 
-      return res.json({ 
       return apiSuccess(res, {
         success: true,
         termsAcceptedAt: updatedUser.termsAcceptedAt,
@@ -5014,7 +5031,6 @@ export async function registerRoutes(
       }, { message: "Terms accepted successfully" });
     } catch (error) {
       console.error("Error accepting terms:", error);
-      return res.status(500).json({ message: "Failed to accept terms" });
       return apiInternalError(res, "Failed to accept terms");
     }
   });
@@ -5022,6 +5038,13 @@ export async function registerRoutes(
   // Logout
   app.post("/api/auth/logout", async (req, res) => {
     const sessionId = req.sessionID;
+    const userId = req.session?.userId;
+    
+    // Invalidate auth cache for this session
+    if (userId) {
+      authSessionCache.delete(`${userId}:${sessionId}`);
+    }
+    lastActivityUpdate.delete(sessionId);
     
     // Update session history with logout time
     await storage.updateSessionLogout(sessionId, false);
@@ -5029,11 +5052,9 @@ export async function registerRoutes(
     
     req.session.destroy((err) => {
       if (err) {
-        return res.status(500).json({ message: "Logout failed" });
         return apiInternalError(res, "Logout failed");
       }
       res.clearCookie("connect.sid");
-      return res.json({ message: "Logged out successfully" });
       return apiSuccess(res, { message: "Logged out successfully" });
     });
   });
@@ -5042,7 +5063,6 @@ export async function registerRoutes(
   app.get("/api/active-sessions", requireAuth, requireAdmin, async (req, res) => {
     try {
       const sessions = await storage.getAllActiveSessions();
-      return res.json({
       return apiSuccess(res, {
         sessions: sessions.map(s => ({
           id: s.id,
@@ -5054,7 +5074,6 @@ export async function registerRoutes(
         maxNonAdminSessions: MAX_NON_ADMIN_SESSIONS,
       });
     } catch (error: any) {
-      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get active sessions") });
       return apiInternalError(res, safeErrorMessage(error, "Failed to get active sessions"));
     }
   });

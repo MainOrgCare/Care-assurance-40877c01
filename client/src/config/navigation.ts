@@ -204,6 +204,8 @@ export function buildBreadcrumbs(location: string): BreadcrumbEntry[] {
     else if (location === "/care-workers/emar-audit") crumbs.push({ label: "EMAR Audit" });
     else if (location === "/care-workers/visit-audit") crumbs.push({ label: "Visit Audit" });
     else if (location === "/care-workers/performance") crumbs.push({ label: "Performance" });
+    else if (location === "/care-workers/handovers") crumbs.push({ label: "Shift Handovers" });
+    else if (location === "/care-workers/training") crumbs.push({ label: "Training" });
   } else if (location.startsWith("/rostering")) {
     crumbs.push({ label: "Rostering Studio" });
   } else if (location === "/call-reconciliation") {
@@ -219,6 +221,13 @@ export function buildBreadcrumbs(location: string): BreadcrumbEntry[] {
     crumbs.push({ label: "Billing Tool" });
   } else if (location === "/roi-calculator") {
     crumbs.push({ label: "Features & Benefits" });
+  } else if (location === "/cqc-assessment") {
+    crumbs.push({ label: "CQC Self-Assessment" });
+  } else if (location === "/policy-acknowledgement") {
+    crumbs.push({ label: "Policy Acknowledgement" });
+  } else if (location === "/testing-features") {
+    crumbs.push({ label: "Admin", href: "/shadow-admin-portal" });
+    crumbs.push({ label: "Testing Features" });
   }
 
   return crumbs;

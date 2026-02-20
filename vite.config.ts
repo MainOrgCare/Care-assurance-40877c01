@@ -31,6 +31,11 @@ export default defineConfig({
     emptyOutDir: true,
     minify: 'esbuild',
     sourcemap: false,
+    // Strip console.log/debug and debugger statements in production builds
+    esbuild: {
+      drop: process.env.NODE_ENV === 'production' ? ['debugger'] : [],
+      pure: process.env.NODE_ENV === 'production' ? ['console.log', 'console.debug'] : [],
+    },
     chunkSizeWarningLimit: 1500,
     target: 'es2020',
     cssMinify: true,

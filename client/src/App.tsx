@@ -58,8 +58,12 @@ function RouteFallback() {
   );
 }
 
-// Preload common routes when browser is idle
+// Preload common routes when browser is idle (runs at most once)
+let hasPreloaded = false;
 const preloadRoutes = () => {
+  if (hasPreloaded) return;
+  hasPreloaded = true;
+
   const connection = (navigator as Navigator & {
     connection?: { saveData?: boolean; effectiveType?: string };
   }).connection;

@@ -2,7 +2,7 @@
 # CareAssurance — Production Dockerfile
 #
 # Multi-stage build for the full-stack application (API + static client).
-# Optimised for small final image size and layer caching.
+# Optimised for small final image size, security, and layer caching.
 #
 # Usage:
 #   docker build -t care-assurance .
@@ -10,7 +10,10 @@
 # ───────────────────────────────────────────────────────────────────────────────
 
 # ── Stage 1: Dependencies ─────────────────────────────────────────────────────
-FROM node:20-slim AS deps
+FROM node:20-alpine AS deps
+
+# Alpine needs libc6-compat for some native modules (e.g. bcrypt)
+RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 
@@ -29,11 +32,13 @@ COPY . .
 RUN npm run build:client && npm run build:server && npm run build:worker
 
 # ── Stage 3: Production ──────────────────────────────────────────────────────
-FROM node:20-slim AS production
+FROM node:20-alpine AS production
+
+RUN apk add --no-cache libc6-compat dumb-init
 
 # Security: run as non-root user
-RUN groupadd --gid 1001 appgroup && \
-    useradd --uid 1001 --gid appgroup --shell /bin/false --create-home appuser
+RUN addgroup --gid 1001 appgroup && \
+    adduser --uid 1001 --ingroup appgroup --disabled-password --shell /bin/false appuser
 
 WORKDIR /app
 
@@ -58,4 +63,6 @@ USER appuser
 
 EXPOSE 5000
 
+# Use dumb-init to properly handle PID 1 signal forwarding (SIGTERM, etc.)
+ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "dist/index.cjs"]

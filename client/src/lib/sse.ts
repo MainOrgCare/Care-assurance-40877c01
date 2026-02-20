@@ -55,23 +55,35 @@ export async function consumeJsonSseStream(response: Response, onEvent: SseEvent
     await onEvent({ eventType: parsed.eventType, data, rawData: parsed.rawData });
   };
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true }).replace(/\r/g, "");
+      buffer += decoder.decode(value, { stream: true }).replace(/\r/g, "");
 
-    let boundaryIndex = buffer.indexOf("\n\n");
-    while (boundaryIndex !== -1) {
-      const message = buffer.slice(0, boundaryIndex);
-      buffer = buffer.slice(boundaryIndex + 2);
-      await processMessage(message);
-      boundaryIndex = buffer.indexOf("\n\n");
+      let boundaryIndex = buffer.indexOf("\n\n");
+      while (boundaryIndex !== -1) {
+        const message = buffer.slice(0, boundaryIndex);
+        buffer = buffer.slice(boundaryIndex + 2);
+        await processMessage(message);
+        boundaryIndex = buffer.indexOf("\n\n");
+      }
     }
-  }
 
-  const remaining = buffer.trim();
-  if (remaining) {
-    await processMessage(remaining);
+    const remaining = buffer.trim();
+    if (remaining) {
+      await processMessage(remaining);
+    }
+  } catch (error) {
+    // Release the reader lock so the underlying stream can be garbage collected
+    reader.releaseLock();
+    // Re-throw with more context for callers to handle
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw error; // Let abort signals propagate cleanly
+    }
+    throw new Error(
+      `SSE stream error: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }

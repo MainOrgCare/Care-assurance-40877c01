@@ -1,9 +1,9 @@
 import { QueryClient, QueryFunction, type QueryFunctionContext } from "@tanstack/react-query";
 
-const REQUEST_ID_HEADER = "X-Request-ID";
+export const REQUEST_ID_HEADER = "X-Request-ID";
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
-const randomRequestId = (): string =>
+export const randomRequestId = (): string =>
   (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -36,11 +36,28 @@ async function fetchWithTimeout(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
+  // Compose caller's signal with the timeout signal so either can abort.
+  // AbortSignal.any() is available in modern browsers; fall back to the
+  // timeout signal if the caller doesn't provide one.
+  const callerSignal = init?.signal;
+  let composedSignal: AbortSignal;
+  if (callerSignal && typeof AbortSignal.any === "function") {
+    composedSignal = AbortSignal.any([callerSignal, controller.signal]);
+  } else {
+    composedSignal = callerSignal ?? controller.signal;
+  }
+
+  // If the caller already aborted before we even start, clean up immediately.
+  if (callerSignal?.aborted) {
+    clearTimeout(timeout);
+    throw callerSignal.reason ?? new DOMException("Aborted", "AbortError");
+  }
+
   try {
     return await fetch(input, {
       ...init,
       headers: withRequestIdHeader(init?.headers),
-      signal: init?.signal ?? controller.signal,
+      signal: composedSignal,
     });
   } finally {
     clearTimeout(timeout);

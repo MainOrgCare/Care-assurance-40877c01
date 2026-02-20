@@ -5,6 +5,7 @@ type GeocodeResult = {
 };
 
 const cache = new Map<string, GeocodeResult | null>();
+const MAX_GEOCODE_CACHE_SIZE = 5_000;
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL_MS = 1100;
 
@@ -37,6 +38,7 @@ export const geocodeAddress = async (address: string): Promise<GeocodeResult | n
         "User-Agent": "CareAssurance/1.0",
         "Accept-Language": "en",
       },
+      signal: AbortSignal.timeout(10_000), // 10s timeout
     });
     if (!response.ok) {
       cache.set(normalized, null);
@@ -53,6 +55,11 @@ export const geocodeAddress = async (address: string): Promise<GeocodeResult | n
       lon: Number(first.lon),
       displayName: first.display_name ?? address,
     };
+    // Evict oldest entries if cache exceeds limit
+    if (cache.size >= MAX_GEOCODE_CACHE_SIZE) {
+      const firstKey = cache.keys().next().value;
+      if (firstKey !== undefined) cache.delete(firstKey);
+    }
     cache.set(normalized, result);
     return result;
   } catch (error) {

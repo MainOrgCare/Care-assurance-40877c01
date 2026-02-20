@@ -292,7 +292,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (data.role === "admin") {
         await fetchUsers();
-        await fetchSystemLogs();
+        // fetchSystemLogs runs automatically via the useEffect on user.role change
       }
 
       return true;

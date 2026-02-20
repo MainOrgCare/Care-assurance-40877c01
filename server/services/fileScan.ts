@@ -62,28 +62,37 @@ export async function scanFile(metadata: FileMetadata): Promise<ScanResult> {
     };
   }
 
-  return new Promise((resolve, reject) => {
-    apiInstance.scanFile(metadata.buffer, (error: any, data: any) => {
-      if (error) {
-        console.error("Cloudmersive scan error:", error);
-        reject(new Error(`Virus scan failed: ${error.message || "Unknown error"}`));
-        return;
-      }
+  const SCAN_TIMEOUT_MS = 30_000; // 30 second timeout to prevent hanging promises
 
-      const isClean = data.CleanResult === true;
-      const result: ScanResult = {
-        isClean,
-        scanResult: isClean ? "clean" : "threat",
-        threatsFound: isClean ? null : JSON.stringify(data.FoundViruses || []),
-        fileHash,
-        cached: false,
-      };
+  return Promise.race([
+    new Promise<ScanResult>((resolve, reject) => {
+      apiInstance.scanFile(metadata.buffer, (error: any, data: any) => {
+        if (error) {
+          console.error("Cloudmersive scan error:", error);
+          reject(new Error(`Virus scan failed: ${error.message || "Unknown error"}`));
+          return;
+        }
 
-      scanCache.set(fileHash, { result, timestamp: Date.now() });
+        const isClean = data.CleanResult === true;
+        const result: ScanResult = {
+          isClean,
+          scanResult: isClean ? "clean" : "threat",
+          threatsFound: isClean ? null : JSON.stringify(data.FoundViruses || []),
+          fileHash,
+          cached: false,
+        };
 
-      resolve(result);
-    });
-  });
+        // Cap cache at 1000 entries to prevent memory exhaustion
+        if (scanCache.size >= 1000) cleanCache();
+        scanCache.set(fileHash, { result, timestamp: Date.now() });
+
+        resolve(result);
+      });
+    }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Virus scan timed out after 30s")), SCAN_TIMEOUT_MS)
+    ),
+  ]);
 }
 
 export function getCachedScan(fileHash: string): ScanResult | null {

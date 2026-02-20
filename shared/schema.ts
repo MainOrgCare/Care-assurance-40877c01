@@ -64,7 +64,10 @@ export const discrepancies = pgTable("discrepancies", {
   manager: text("manager"), // Manager name if referred
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  careWorkerIdx: index("discrepancies_care_worker_idx").on(table.careWorkerId),
+  typeIdx: index("discrepancies_type_idx").on(table.type),
+}));
 
 export const insertDiscrepancySchema = createInsertSchema(discrepancies).omit({
   id: true,
@@ -84,7 +87,10 @@ export const audits = pgTable("audits", {
   periodEnd: text("period_end").notNull(), // DD/MMM/YYYY
   results: jsonb("results").notNull(), // Stores full audit data
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  auditTypeIdx: index("audits_audit_type_idx").on(table.auditType),
+  createdAtIdx: index("audits_created_at_idx").on(table.createdAt),
+}));
 
 export const insertAuditSchema = createInsertSchema(audits).omit({
   id: true,
@@ -203,7 +209,10 @@ export const activeSessions = pgTable("active_sessions", {
   longitude: text("longitude"),
   lastActivity: timestamp("last_activity").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("active_sessions_user_id_idx").on(table.userId),
+  sessionIdIdx: index("active_sessions_session_id_idx").on(table.sessionId),
+}));
 
 export const insertActiveSessionSchema = createInsertSchema(activeSessions).omit({
   id: true,
@@ -257,7 +266,11 @@ export const systemLogs = pgTable("system_logs", {
   details: jsonb("details"), // Additional event details
   serviceUserInitials: text("service_user_initials"), // Only initials for privacy
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  eventTypeIdx: index("system_logs_event_type_idx").on(table.eventType),
+  createdAtIdx: index("system_logs_created_at_idx").on(table.createdAt),
+  userIdIdx: index("system_logs_user_id_idx").on(table.userId),
+}));
 
 export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({
   id: true,
@@ -288,7 +301,10 @@ export const sessionHistory = pgTable("session_history", {
   loggedOutAt: timestamp("logged_out_at"),
   durationSeconds: integer("duration_seconds"),
   terminatedByAdmin: boolean("terminated_by_admin").default(false),
-});
+}, (table) => ({
+  userIdIdx: index("session_history_user_id_idx").on(table.userId),
+  loggedInAtIdx: index("session_history_logged_in_at_idx").on(table.loggedInAt),
+}));
 
 export const insertSessionHistorySchema = createInsertSchema(sessionHistory).omit({
   id: true,
@@ -374,7 +390,9 @@ export const fileScanLogs = pgTable("file_scan_logs", {
   uploadType: text("upload_type"), // 'policy-document', 'parse-pdf', 'emar-analysis'
   cachedResult: boolean("cached_result").default(false), // True if result came from cache
   scannedAt: timestamp("scanned_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  fileHashIdx: index("file_scan_logs_file_hash_idx").on(table.fileHash),
+}));
 
 export const insertFileScanLogSchema = createInsertSchema(fileScanLogs).omit({
   id: true,
@@ -432,7 +450,11 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
   durationMs: integer("duration_ms"),
   requestPayload: jsonb("request_payload"), // Full AI request data (messages, params, etc.)
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("ai_usage_logs_user_id_idx").on(table.userId),
+  featureIdx: index("ai_usage_logs_feature_idx").on(table.featureName),
+  createdAtIdx: index("ai_usage_logs_created_at_idx").on(table.createdAt),
+}));
 
 export const insertAiUsageLogSchema = createInsertSchema(aiUsageLogs).omit({
   id: true,

@@ -6,6 +6,12 @@ export type AppTheme = "light" | "dark" | "midnight" | "ocean";
 const THEME_CLASSES = ["theme-light", "theme-dark", "theme-midnight", "theme-ocean"];
 const THEME_TRANSITION_CLASS = "theme-transitioning";
 
+const FONT_SIZES: readonly FontSize[] = ["small", "medium", "large"];
+
+function isFontSize(value: string | null): value is FontSize {
+  return value !== null && (FONT_SIZES as readonly string[]).includes(value);
+}
+
 function isAppTheme(value: string | null): value is AppTheme {
   return value === "light" || value === "dark" || value === "midnight" || value === "ocean";
 }
@@ -91,7 +97,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const [fontSize, setFontSizeState] = useState<FontSize>(() => {
     const saved = getStorageItem("lewis-font-size");
-    return (saved as FontSize) || "medium";
+    return isFontSize(saved) ? saved : "medium";
   });
   
   const [compactMode, setCompactModeState] = useState(() => {

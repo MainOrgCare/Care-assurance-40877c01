@@ -3,12 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import "leaflet/dist/leaflet.css";
-
-const REQUEST_ID_HEADER = "X-Request-ID";
-const randomRequestId = (): string =>
-	(typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
-		? crypto.randomUUID()
-		: `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+import { REQUEST_ID_HEADER, randomRequestId } from "@/lib/queryClient";
 
 const reportClientError = (payload: {
 	message: string;
@@ -91,7 +86,12 @@ if (apiBaseUrl) {
 	};
 }
 
-createRoot(document.getElementById("root")!).render(
+const rootElement = document.getElementById("root");
+if (!rootElement) {
+	throw new Error("Root element #root not found in document");
+}
+
+createRoot(rootElement).render(
 	<StrictMode>
 		<App />
 	</StrictMode>
