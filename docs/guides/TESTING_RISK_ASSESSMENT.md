@@ -9,6 +9,7 @@ The risk assessment tool has been completely rewritten to follow **CQC 2024** an
 ## 🧪 How to Test
 
 ### **1. Server Restart Required**
+
 ```bash
 # Stop the current server (Ctrl+C in the terminal)
 # Then restart:
@@ -16,12 +17,14 @@ npx tsx server/index.ts
 ```
 
 OR if you're using the build:
+
 ```bash
 npm run build
 npm start
 ```
 
 ### **2. Clear Cache (Important!)**
+
 The system caches risk analysis results. To test the new improvements:
 
 **Option A**: Upload NEW documents that haven't been analyzed before  
@@ -35,6 +38,7 @@ The system caches risk analysis results. To test the new improvements:
 ### **Test 1: Specific Condition Only**
 
 **Upload**: Care plan that mentions:
+
 ```
 "John has Type 2 diabetes and needs support monitoring 
 his blood sugar twice daily. He takes metformin."
@@ -42,11 +46,13 @@ his blood sugar twice daily. He takes metformin."
 
 **Expected Result**:
 ✅ Diabetes Management (ONLY)
+
 - isMandatory: false
 - First-person reason: "I have Type 2 diabetes and need support monitoring my blood sugar..."
 - Evidence snippets included
 
 ❌ Should NOT recommend:
+
 - Falls Prevention (not mentioned)
 - Medication Administration (metformin is self-administered based on wording)
 - Fire Safety (no fire hazards mentioned)
@@ -57,6 +63,7 @@ his blood sugar twice daily. He takes metformin."
 ### **Test 2: Multiple Documented Needs**
 
 **Upload**: Documents mentioning:
+
 ```
 - History of 3 falls in past 6 months
 - Uses walking frame for mobility
@@ -71,6 +78,7 @@ his blood sugar twice daily. He takes metformin."
 ✅ Diabetes Management
 
 All with:
+
 - isMandatory: false
 - First-person explanations
 - 2-6 evidence snippets each
@@ -80,7 +88,9 @@ All with:
 ### **Test 3: Template Detection (Critical Test)**
 
 **Upload BOTH**:
+
 1. **Risk assessment template** containing placeholder text:
+
    ```
    "Service user may have risk of falls"
    "Diabetes management may be required"
@@ -88,6 +98,7 @@ All with:
    ```
 
 2. **Actual care plan** containing:
+
    ```
    "Mary has epilepsy and had a seizure last week.
    She has rescue medication that carers need to know about."
@@ -97,6 +108,7 @@ All with:
 ✅ Epilepsy Management (ONLY - from actual care plan)
 
 ❌ Should NOT recommend:
+
 - Falls Prevention (only in template)
 - Diabetes Management (only in template)
 - Skin Integrity (only in template)
@@ -108,17 +120,20 @@ All with:
 ### **Test 4: Minimal Needs Service User**
 
 **Upload**: Simple care plan:
+
 ```
 "Robert is fully independent but needs help with 
 shopping once a week due to lack of transport."
 ```
 
 **Expected Result**:
+
 - Possibly NO risk assessments recommended
 - Or only Environmental Safety IF shopping involves specific documented hazards
 - isMandatory: false for any recommendation
 
 ❌ Should NOT recommend:
+
 - Generic "everyone needs this" assessments
 - Mobility (he's fully independent)
 - Personal Care (he's independent)
@@ -136,6 +151,7 @@ shopping once a week due to lack of transport."
 ✅ Example: "I have epilepsy and had a seizure last week..."
 
 ❌ Should NOT say:
+
 - "The service user has..."
 - "They require..."
 - "Assessment needed for..."
@@ -145,6 +161,7 @@ shopping once a week due to lack of transport."
 ## 🔍 What to Look For
 
 ### **Quality Indicators** ✅
+
 1. **Relevance**: Only assessments with documented evidence
 2. **First-Person**: All reasons use "I" and "my"
 3. **Evidence**: Each assessment has 2-6 specific quotes
@@ -152,6 +169,7 @@ shopping once a week due to lack of transport."
 5. **Conservative**: Fewer assessments than before (quality over quantity)
 
 ### **Red Flags** ❌
+
 1. Assessments appearing without documented evidence
 2. Generic recommendations "just in case"
 3. Third-person language ("the service user")
@@ -164,7 +182,9 @@ shopping once a week due to lack of transport."
 ## 📊 Before vs After Comparison
 
 ### **Expected Reduction in Recommendations**
+
 The new system should recommend **30-50% fewer assessments** on average because it:
+
 - Requires stronger evidence
 - Filters out generic recommendations
 - Ignores template/placeholder text
@@ -177,19 +197,25 @@ The new system should recommend **30-50% fewer assessments** on average because 
 ## 🐛 If You See Issues
 
 ### **Problem**: Still showing all assessments
-**Solution**: 
+
+**Solution**:
+
 1. Make sure server was restarted after changes
 2. Clear cache by uploading different documents
 3. Check that uploaded files contain REAL service user info (not just templates)
 
 ### **Problem**: Not showing any assessments when there should be some
+
 **Solution**:
+
 1. Check that evidence is SPECIFIC (not just one vague mention)
 2. Ensure documents clearly describe care needs
 3. Verify documents mention conditions/needs multiple times
 
 ### **Problem**: Evidence snippets don't match recommendations
+
 **Solution**:
+
 1. This suggests template content is being used
 2. Make sure "Documents to analyze:" section has real content
 3. Check policy documents are properly labeled as templates
@@ -199,12 +225,14 @@ The new system should recommend **30-50% fewer assessments** on average because 
 ## 📸 Screenshots to Compare
 
 ### **Old System** (Before)
+
 - 15+ assessments recommended
 - Many marked "Mandatory"
 - Generic reasons
 - Evidence from templates
 
 ### **New System** (After)
+
 - 3-5 highly relevant assessments
 - None marked "Mandatory"
 - First-person reasons

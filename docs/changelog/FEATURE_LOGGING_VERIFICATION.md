@@ -24,6 +24,7 @@
 ### Database Tables
 
 **riskAssessmentLogs** (`shared/schema.ts` lines 217-228)
+
 ```typescript
 export const riskAssessmentLogs = pgTable("risk_assessment_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -39,10 +40,12 @@ export const riskAssessmentLogs = pgTable("risk_assessment_logs", {
 ```
 
 **Storage Format:**
+
 - `serviceUserInitials`: **"K.S."** (1-3 initials with periods)
 - **NOT STORED:** Full names, dates of birth, addresses, NHS numbers
 
 **Example Log Entry:**
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -70,13 +73,16 @@ export const riskAssessmentLogs = pgTable("risk_assessment_logs", {
    - Uses PIIVault for all document content
 
 ### Console Logging Example
+
 ```
 Service User: K.S.
 Document Content Preview: "Patient {{PII_abc123_NAME_1}} has NHS number {{PII_abc123_NHS_NUM_1}}"
 ```
+
 ✅ **Only shows tokens, not real PII**
 
 ### GDPR Compliance
+
 - ✅ Article 5(1)(c) - Data minimization: Only initials stored
 - ✅ Request-scoped vault: PII cleared after response
 - ✅ Audit trail: `gdprAuditLogs` tracks processing events without storing actual PII
@@ -88,16 +94,19 @@ Document Content Preview: "Patient {{PII_abc123_NAME_1}} has NHS number {{PII_ab
 ### Database Tables
 
 **No dedicated log table** - Uses general-purpose audit logs:
+
 - `gdprAuditLogs` - Tracks PII processing events (categories only, no values)
 - `systemLogs` - Optional service user initials field
 - `aiUsageLogs` - Tracks staff usage, not service users
 
 **Storage in systemLogs** (if used):
+
 ```typescript
 serviceUserInitials: text("service_user_initials"), // ✅ Only initials for privacy
 ```
 
 **Storage Format:**
+
 - Service user data: **"K.S."** (initials) or **NULL** (not stored at all)
 - PII categories: **`{NAME: 5, NHS_NUM: 2, DOB: 3}`** (counts only)
 - **NOT STORED:** Actual service user names, NHS numbers, addresses
@@ -105,9 +114,11 @@ serviceUserInitials: text("service_user_initials"), // ✅ Only initials for pri
 ### API Endpoint
 
 **`POST /api/ai/generate-care-plan`** - Generates CQC 2024-compliant care plans (12 sections)
+
 - Accepts `callTypeLabel` (Morning, Lunch, Tea, Bed, Domestic, General)
 - Uses PIIVault to scrub all PII from uploaded documents
 - Logs to `gdprAuditLogs`:
+
   ```json
   {
     "eventType": "PII_SCRUB",
@@ -120,15 +131,18 @@ serviceUserInitials: text("service_user_initials"), // ✅ Only initials for pri
   ```
 
 ### Console Logging
+
 ```
 📋 CARE PLAN AI INPUT - CONTENT SENT TO AI
 Call Type: Morning
 Model: gpt-4o
 Document Content Preview: "Service user {{PII_xyz_NAME_1}} has medical history of..."
 ```
+
 ✅ **Shows scrubbed tokens, not real names**
 
 ### GDPR Compliance
+
 - ✅ No service user PII stored in logs
 - ✅ Only tracks **what type** of data was processed, not the data itself
 - ✅ Staff accountability: userId and username logged for audit trail
@@ -140,6 +154,7 @@ Document Content Preview: "Service user {{PII_xyz_NAME_1}} has medical history o
 ### Database Tables
 
 **Same as Care Planner** - Uses general-purpose audit logs:
+
 - `gdprAuditLogs` - PII categories and counts
 - `systemLogs` - Optional initials field
 - `aiUsageLogs` - Staff usage tracking
@@ -149,21 +164,25 @@ Document Content Preview: "Service user {{PII_xyz_NAME_1}} has medical history o
 ### API Endpoint
 
 **`POST /api/ai/enhance-plan`** - Enhances existing care plans with supporting documents
+
 - Merges evidence from multiple documents
 - Fills gaps with professional defaults
 - Flags missing information as verification questions
 - Uses PIIVault for all document processing
 
 ### Console Logging
+
 ```
 📋 AI INPUT ANALYSIS - CONTENT SENT TO AI FOR GENERATION
 Provider: openai
 Model: gpt-4o
 Content Preview: "Care plan for {{PII_def456_NAME_1}} includes..."
 ```
+
 ✅ **Tokenized content only**
 
 ### GDPR Compliance
+
 - ✅ Identical to Care Planner
 - ✅ No dedicated log table = no service user data stored
 - ✅ Only metadata (PII categories, staff user info) logged
@@ -175,6 +194,7 @@ Content Preview: "Care plan for {{PII_def456_NAME_1}} includes..."
 ### Database Tables
 
 **audits** (`shared/schema.ts` lines 78-89)
+
 ```typescript
 export const audits = pgTable("audits", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -189,10 +209,12 @@ export const audits = pgTable("audits", {
 ```
 
 **Storage Format:**
+
 - `serviceUserName`: **"K.Spencer"** (pseudonymized: Initial.Lastname)
 - **NOT "Karen Spencer"** (full name never stored)
 
 **emarCorrections** (`shared/schema.ts` lines 389-413)
+
 ```typescript
 export const emarCorrections = pgTable("emar_corrections", {
   id: varchar("id").primaryKey(),
@@ -208,6 +230,7 @@ export const emarCorrections = pgTable("emar_corrections", {
 ```
 
 ### Example Audit Log Entry
+
 ```json
 {
   "id": "audit-12345",
@@ -228,6 +251,7 @@ export const emarCorrections = pgTable("emar_corrections", {
 ### API Endpoint
 
 **`POST /api/ai/analyze-emar`** - Multi-pass AI extraction of EMAR data
+
 - Detects grid layout vs list format
 - Extracts metadata (service user initials, allergies, medications, date range)
 - Triple-pass voting for administration events
@@ -235,6 +259,7 @@ export const emarCorrections = pgTable("emar_corrections", {
 - Checks for drug interactions
 
 ### EMAR Audit Flow
+
 ```
 1. Upload EMAR PDF/DOCX
    ↓
@@ -252,6 +277,7 @@ export const emarCorrections = pgTable("emar_corrections", {
 ```
 
 ### GDPR Compliance
+
 - ✅ **Pseudonymized format** "K.Spencer" is compliant (Article 4(5))
 - ✅ Corrections use **initials only** for maximum privacy
 - ✅ Full names never appear in database logs
@@ -277,6 +303,7 @@ export const audits = pgTable("audits", {
 ### API Endpoint
 
 **`POST /api/ai/analyze-visit`** - Triple-check validation of visit logs
+
 - Checks location compliance (200m radius)
 - Validates duration (≥70% of expected time)
 - Assesses note quality
@@ -284,6 +311,7 @@ export const audits = pgTable("audits", {
 - Triple-pass filtering to eliminate false positives
 
 ### Example Visit Audit Entry
+
 ```json
 {
   "id": "audit-67890",
@@ -308,6 +336,7 @@ export const audits = pgTable("audits", {
 ```
 
 ### Visit Audit Flow
+
 ```
 1. Upload visit log CSV/PDF
    ↓
@@ -325,6 +354,7 @@ export const audits = pgTable("audits", {
 ```
 
 ### GDPR Compliance
+
 - ✅ Same as EMAR Audits (pseudonymized format)
 - ✅ Discrepancies tracked against **care workers** (staff accountability)
 - ✅ Service user data minimized to pseudonymized identifier
@@ -336,14 +366,17 @@ export const audits = pgTable("audits", {
 All 5 features share the same GDPR-compliant logging infrastructure:
 
 ### 1. PIIVault System (Core Protection)
+
 ```
 User Input → PIIVault.scrub() → Tokenized Data → AI Processing → PIIVault.restore()
 ```
+
 - **Real PII never reaches AI** or persistent logs
 - Request-scoped: Cleared after response sent
 - Token format: `{{PII_prefix_CATEGORY_number}}`
 
 ### 2. GDPR Audit Logs (Processing Records)
+
 ```json
 {
   "eventType": "PII_SCRUB",
@@ -354,18 +387,22 @@ User Input → PIIVault.scrub() → Tokenized Data → AI Processing → PIIVaul
   "piiItemCount": 7
 }
 ```
+
 - **Does NOT store actual PII values**
 - Tracks **what type** of data was processed
 - Staff accountability: userId and username for audit trail
 
 ### 3. System Logs (Optional Service User Context)
+
 ```typescript
 serviceUserInitials: text("service_user_initials"), // ✅ "K.S." or NULL
 ```
+
 - Only used when service user context needed
 - **Never stores full names**
 
 ### 4. Feature-Specific Logs
+
 - **Risk Assessments:** `riskAssessmentLogs.serviceUserInitials` = "K.S."
 - **EMAR/Visit Audits:** `audits.serviceUserName` = "K.Spencer" (pseudonymized)
 - **Care Planner/Enhancer:** No dedicated logs (uses GDPR audit logs only)
@@ -378,24 +415,28 @@ serviceUserInitials: text("service_user_initials"), // ✅ "K.S." or NULL
 All features log scrubbed content to console (for debugging):
 
 ### Risk Assessment Console Log
+
 ```
 Service User: K.S.
 Document Content: "Patient {{PII_abc123_NAME_1}} requires assistance with..."
 ```
 
 ### Care Plan Console Log
+
 ```
 Call Type: Morning
 Document Content: "Service user {{PII_xyz_NAME_1}} has medical history of..."
 ```
 
 ### EMAR Audit Console Log
+
 ```
 Service user initials: K.S.
 Medications extracted: 5 (includes {{PII_def456_NAME_1}}'s daily regimen)
 ```
 
 ### Visit Audit Console Log
+
 ```
 Visits analyzed: 56
 Service user: M.J. (pseudonymized in audit results as M.Jones)
@@ -410,12 +451,14 @@ Service user: M.J. (pseudonymized in audit results as M.Jones)
 To verify compliance for each feature:
 
 ### ✅ Risk Assessments
+
 ```sql
 SELECT service_user_initials FROM risk_assessment_logs LIMIT 10;
 -- Expected: "K.S.", "M.J.", "L.B." (initials only)
 ```
 
 ### ✅ Care Planner
+
 ```sql
 SELECT pii_categories FROM gdpr_audit_logs 
 WHERE endpoint = '/api/ai/generate-care-plan' LIMIT 10;
@@ -423,6 +466,7 @@ WHERE endpoint = '/api/ai/generate-care-plan' LIMIT 10;
 ```
 
 ### ✅ Plan Enhancer
+
 ```sql
 SELECT pii_categories FROM gdpr_audit_logs 
 WHERE endpoint = '/api/ai/enhance-plan' LIMIT 10;
@@ -430,6 +474,7 @@ WHERE endpoint = '/api/ai/enhance-plan' LIMIT 10;
 ```
 
 ### ✅ EMAR Audits
+
 ```sql
 SELECT service_user_name, audit_type FROM audits 
 WHERE audit_type = 'EMAR' LIMIT 10;
@@ -437,6 +482,7 @@ WHERE audit_type = 'EMAR' LIMIT 10;
 ```
 
 ### ✅ Visit Audits
+
 ```sql
 SELECT service_user_name, audit_type FROM audits 
 WHERE audit_type = 'Visit' LIMIT 10;
@@ -444,6 +490,7 @@ WHERE audit_type = 'Visit' LIMIT 10;
 ```
 
 ### ✅ All Features - GDPR Audit Logs
+
 ```sql
 SELECT event_type, pii_item_count, username FROM gdpr_audit_logs 
 WHERE event_type IN ('PII_SCRUB', 'PII_RESTORE') 
@@ -481,6 +528,7 @@ ORDER BY created_at DESC LIMIT 20;
 ---
 
 **Related Documentation:**
+
 - [GDPR_LOGGING_COMPLIANCE.md](GDPR_LOGGING_COMPLIANCE.md) - Complete compliance framework
 - [AI_DATA_SCRUBBING_DOCUMENTATION.md](AI_DATA_SCRUBBING_DOCUMENTATION.md) - Data flow for all AI services
 - [AUTOMATIC_NAME_CACHING_IMPLEMENTATION.md](AUTOMATIC_NAME_CACHING_IMPLEMENTATION.md) - Vault export system

@@ -38,8 +38,7 @@ const startWorker = async () => {
   log(`Worker started. Cleanup interval: ${CLEANUP_INTERVAL_MS}ms`);
   await runCleanup();
   cleanupInterval = setInterval(runCleanup, CLEANUP_INTERVAL_MS);
-  // Allow the process to exit naturally if this is the only timer left
-  cleanupInterval.unref();
+  // Keep the process alive — Render requires long-lived worker processes
 };
 
 // Graceful shutdown: clear the interval and let the process exit cleanly

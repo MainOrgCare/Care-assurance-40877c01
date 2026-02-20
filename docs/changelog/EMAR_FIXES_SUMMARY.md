@@ -3,13 +3,16 @@
 ## ✅ Fixed: False Positive Detection ("10mg -" Issue)
 
 ### Problem
+
 When the EMAR agent was turned OFF, the grid parser was detecting invalid medication names like:
+
 - "10mg -"
 - "500mcg /"
 - "20mg-"
 - Other dose-only patterns with trailing punctuation
 
 ### Root Cause
+
 Multiple validation gaps in the medication name detection pipeline:
 
 1. **splitMedicationLabel()** (emarGridParser.ts L144-266)
@@ -30,6 +33,7 @@ Multiple validation gaps in the medication name detection pipeline:
 ### Solution Implemented
 
 #### 1. Enhanced splitMedicationLabel() (emarGridParser.ts)
+
 ```typescript
 // EARLY CHECK: Pure dose pattern with trailing punctuation
 const pureDoselRegex = /^\d+(?:\.\d+)?\s*(?:mg|mcg|ml|g|iu|units?|%)\s*[-\/\\:;,\s]+$/i;
@@ -55,6 +59,7 @@ if (/^\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|units?|%)\s*[-\/\\]?$/i.test(compact)) r
 ```
 
 #### 2. Strengthened Candidate Filtering (emarGridParser.ts)
+
 ```typescript
 // STRENGTHENED CHECKS: Reject names with trailing invalid characters or dose-only patterns
 const endsWithInvalidChar = candidateNameOnly && /[-\/\\:;,]$/.test(candidateNameOnly);
@@ -66,6 +71,7 @@ if (!candidateMeaningful || isLowInformationMedicationName(candidateNameOnly) ||
 ```
 
 #### 3. Agent Medication Validation (emarAgent.ts)
+
 ```typescript
 // VALIDATION: Filter out low-quality medication names
 // Reject names ending with invalid trailing characters
@@ -90,6 +96,7 @@ if (!hasMeaningfulToken) {
 ```
 
 ### Test Coverage
+
 Added comprehensive test in `server/__tests__/emarAgent.test.ts`:
 
 ```typescript
@@ -113,17 +120,20 @@ test("emarAgent.extract (gridBaseline) filters out false positive medication nam
 ## ⚠️ Still Needs Investigation: Under-Detection (Missing Slots/Rules)
 
 ### Problem
+
 When the EMAR agent is turned ON, it's not detecting all medication administration slots and their associated rules.
 
 ### Potential Causes
 
 1. **Time Slot Detection Gaps** (emarGridParser.ts L1851-1890)
+
    ```typescript
    // Current logic only assigns slots within exact Y-coordinate ranges
    if (avgY >= med.yStart && avgY < med.yEnd) {
      med.timeSlots.push({ slot: normalizedSlot, ... });
    }
    ```
+
    - Staggered layouts may cause slots to appear outside expected Y-ranges
    - No fallback to nearby medications if exact match fails
    - Y-range expansion exists but may miss edge cases
@@ -141,9 +151,11 @@ When the EMAR agent is turned ON, it's not detecting all medication administrati
 ### Recommended Next Steps
 
 #### 1. Get Example EMAR Document
+
 **Need**: A PDF where agent is missing medication slots
 
 **Analysis Plan**:
+
 ```bash
 # Enable debug logging
 export EMAR_GRID_DEBUG=true
@@ -160,6 +172,7 @@ pnpm tsx script/test-emar-parser.ts path/to/problem-emar.pdf
 ```
 
 #### 2. Proposed Enhancement: Fallback Slot Detection
+
 Add secondary pass to detect slots from cell evidence:
 
 ```typescript
@@ -190,6 +203,7 @@ const detectSlotFromCells = (medications, cells) => {
 ```
 
 #### 3. Enhanced Y-Range Tolerance
+
 Increase flexibility in slot-to-medication association:
 
 ```typescript
@@ -221,6 +235,7 @@ if (!matched && medsOnPage.length > 0) {
 ## Files Modified
 
 ### Core Changes
+
 1. **server/emarGridParser.ts** (3 changes)
    - Enhanced `splitMedicationLabel()` with early dose pattern checks
    - Added trailing character validation
@@ -230,19 +245,21 @@ if (!matched && medsOnPage.length > 0) {
    - Added medication name validation in gridBaseline processing
 
 ### Test Coverage
-3. **server/__tests__/emarAgent.test.ts** (1 addition)
+
+3. **server/**tests**/emarAgent.test.ts** (1 addition)
    - New test: "filters out false positive medication names"
    - Validates rejection of "10mg -", "500mcg /", "20mg-", "100ml/"
    - Confirms valid medications still pass through
 
 ### Documentation
+
 4. **EMAR_AUDIT_ISSUES.md** (created)
    - Detailed analysis of both issues
    - Root cause identification
    - Proposed solutions with code examples
    - Testing approach
 
-5. **EMAR_FIXES_SUMMARY.md** (this file)
+2. **EMAR_FIXES_SUMMARY.md** (this file)
    - Summary of fixes applied
    - Test results
    - Outstanding issues and investigation plan
@@ -252,12 +269,14 @@ if (!matched && medsOnPage.length > 0) {
 ## Next Actions
 
 ### ✅ Completed
+
 - [x] Fixed false positive detection ("10mg -" issue)
 - [x] Added comprehensive validation at 3 levels (parser, candidate filtering, agent)
 - [x] Created test coverage for false positives
 - [x] All tests passing
 
 ### 🔄 Pending Investigation
+
 - [ ] Get example EMAR PDF where agent misses medication slots
 - [ ] Enable debug logging and analyze slot detection
 - [ ] Implement fallback slot detection from cell evidence
@@ -265,7 +284,9 @@ if (!matched && medsOnPage.length > 0) {
 - [ ] Test with real EMAR documents showing the issue
 
 ### 📋 Recommended Testing
+
 Once you have a problem EMAR document:
+
 1. Test with agent OFF → Verify no "10mg -" false positives appear
 2. Test with agent ON → Verify all time slots are detected
 3. Compare both modes → Medications and slot coverage should match
@@ -276,12 +297,14 @@ Once you have a problem EMAR document:
 ## Impact Assessment
 
 ### Fixed Issue: False Positives
+
 - **Severity**: HIGH (data quality issue)
 - **Impact**: Prevents invalid "medications" from appearing in audit reports
 - **Risk**: LOW - validation is conservative, unlikely to filter valid medications
 - **Testing**: ✅ Comprehensive test coverage added and passing
 
 ### Outstanding Issue: Under-Detection
+
 - **Severity**: HIGH (missing critical administration records)
 - **Impact**: Incomplete medication administration tracking
 - **Risk**: MEDIUM - need real example to assess scope
@@ -290,7 +313,9 @@ Once you have a problem EMAR document:
 ---
 
 ## Contact for More Info
+
 For questions or to provide test EMAR documents, please share:
+
 1. Example PDF showing missing slots
 2. Expected vs actual slot detection results
 3. Any error logs or console output from the parsing process

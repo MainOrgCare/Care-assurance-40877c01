@@ -57,12 +57,14 @@ Processing under Standard Contractual Clauses (SCCs)
 ### 2.2 Necessity Assessment
 
 **Why AI processing is necessary:**
+
 - Traditional manual care planning is time-consuming and variable in quality
 - AI assistance ensures comprehensive coverage of all required care areas
 - Reduces risk of missing critical care needs
 - Improves CQC inspection outcomes
 
 **Proportionality measures:**
+
 - Only minimum necessary data is processed
 - PII is tokenized before AI transmission
 - Users can opt out of AI features
@@ -216,6 +218,7 @@ Processing under Standard Contractual Clauses (SCCs)
 ### 6.2 ICO Consultation
 
 Prior consultation with the ICO is **not required** because:
+
 - High risks have been adequately mitigated
 - Processing is within established legal frameworks
 - Technical controls reduce residual risk to acceptable levels

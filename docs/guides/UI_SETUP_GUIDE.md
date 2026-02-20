@@ -194,6 +194,7 @@ Use in CSS:
 Before deploying, verify:
 
 #### Dark Mode
+
 - [ ] Dark mode toggle appears in header
 - [ ] Toggle switches between light/dark mode
 - [ ] Selected theme persists after page reload
@@ -202,6 +203,7 @@ Before deploying, verify:
 - [ ] Color contrast meets WCAG AA standards
 
 #### PageLayout  
+
 - [ ] Header content displays correctly
 - [ ] Title and description visible
 - [ ] Tab navigation works with mouse and keyboard
@@ -211,6 +213,7 @@ Before deploying, verify:
 - [ ] Desktop: layout unchanged from before
 
 #### ResponsiveDialog
+
 - [ ] Dialog opens/closes smoothly
 - [ ] Mobile: appears as bottom drawer
 - [ ] Desktop: appears as centered modal
@@ -220,6 +223,7 @@ Before deploying, verify:
 - [ ] Content readable on mobile screens
 
 #### Responsive Breakpoints
+
 - [ ] Mobile 320px: All elements visible and functional
 - [ ] Mobile 640px: Layout optimized
 - [ ] Tablet 768px: Side-by-side layout when needed
