@@ -60,6 +60,14 @@ interface Message {
   createdAt: string;
 }
 
+interface UserForRecipient {
+  id: string;
+  username: string;
+  firstName: string | null;
+  lastName: string | null;
+  status: string;
+}
+
 export default function Messages() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -78,10 +86,10 @@ export default function Messages() {
   });
 
   // Fetch users for recipient picker
-  const { data: allUsers = [] } = useQuery<Array<{ id: string; username: string; firstName: string | null; lastName: string | null; status: string }>>({
+  const { data: allUsers = [] } = useQuery<UserForRecipient[]>({
     queryKey: ["/api/users"],
   });
-  const availableRecipients = allUsers.filter((u: { id: string; username: string; firstName: string | null; lastName: string | null; status: string }) => u.status === "active" && u.id !== user?.id);
+  const availableRecipients = allUsers.filter((u: UserForRecipient) => u.status === "active" && u.id !== user?.id);
 
   const fetchMessages = useCallback(async () => {
     setLoading(true);
@@ -232,7 +240,7 @@ export default function Messages() {
                   <Select value={composeForm.recipientId} onValueChange={(v) => setComposeForm({ ...composeForm, recipientId: v })}>
                     <SelectTrigger><SelectValue placeholder="Select recipient..." /></SelectTrigger>
                     <SelectContent>
-                      {availableRecipients.map((u: { id: string; username: string; firstName: string | null; lastName: string | null; status: string }) => (
+                      {availableRecipients.map((u: UserForRecipient) => (
                         <SelectItem key={u.id} value={u.id}>
                           {u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.username}
                         </SelectItem>
