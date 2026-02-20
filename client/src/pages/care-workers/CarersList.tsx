@@ -37,16 +37,16 @@ export default function CarersList() {
     },
   });
 
-  const workersWithDiscrepancies = careWorkers.filter(w => w.discrepancyCount > 0);
+  const workersWithDiscrepancies = careWorkers.filter((w: CareWorkerFromAudits) => w.discrepancyCount > 0);
   const allWorkers = careWorkers;
 
-  const filteredWorkersWithDiscrepancies = workersWithDiscrepancies.filter(worker => {
+  const filteredWorkersWithDiscrepancies = workersWithDiscrepancies.filter((worker: CareWorkerFromAudits) => {
     if (searchQuery === "") return true;
     const query = searchQuery.toLowerCase();
     return worker.name.toLowerCase().includes(query);
   });
 
-  const filteredAllWorkers = allWorkers.filter(worker => {
+  const filteredAllWorkers = allWorkers.filter((worker: CareWorkerFromAudits) => {
     if (searchQuery === "") return true;
     const query = searchQuery.toLowerCase();
     return worker.name.toLowerCase().includes(query);
@@ -177,7 +177,7 @@ export default function CarersList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredWorkersWithDiscrepancies.map((worker) => (
+                {filteredWorkersWithDiscrepancies.map((worker: CareWorkerFromAudits) => (
                   <TableRow 
                     key={worker.name} 
                     className="hover:bg-muted/50 cursor-pointer group"
@@ -231,7 +231,7 @@ export default function CarersList() {
                             
                             <div className="space-y-2">
                               <h3 className="text-sm font-medium text-foreground">Recorded Issues</h3>
-                              {worker.discrepancies.map((disc, idx) => (
+                              {worker.discrepancies.map((disc: CareWorkerDiscrepancy, idx: number) => (
                                 <div 
                                   key={`${disc.date}-${disc.type}`} 
                                   className="p-3 rounded-lg text-sm bg-muted/40 border border-border/60"
@@ -304,7 +304,7 @@ export default function CarersList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAllWorkers.map((worker) => (
+                {filteredAllWorkers.map((worker: CareWorkerFromAudits) => (
                   <TableRow 
                     key={worker.name} 
                     className="hover:bg-muted/50"

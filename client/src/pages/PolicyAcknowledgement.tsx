@@ -226,14 +226,14 @@ function PolicyAcknowledgement() {
     if (!searchTerm) return policies;
     const q = searchTerm.toLowerCase();
     return policies.filter(
-      (p) => p.title.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)
+      (p: PolicyDocument) => p.title.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)
     );
   }, [policies, searchTerm]);
 
   // Stats
   const stats = useMemo(() => {
     const total = policies.length;
-    const acknowledged = policies.filter((p) => userAcks.has(p.id)).length;
+    const acknowledged = policies.filter((p: PolicyDocument) => userAcks.has(p.id)).length;
     const pending = total - acknowledged;
     const completionPct = total > 0 ? Math.round((acknowledged / total) * 100) : 0;
     return { total, acknowledged, pending, completionPct };
@@ -314,9 +314,9 @@ function PolicyAcknowledgement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((policy) => {
+                  {filtered.map((policy: PolicyDocument) => {
                     const isAcked = userAcks.has(policy.id);
-                    const policyAckCount = allAcks.filter((a) => a.policyId === policy.id).length;
+                    const policyAckCount = allAcks.filter((a: PolicyAck) => a.policyId === policy.id).length;
                     return (
                       <TableRow key={policy.id}>
                         <TableCell className="font-medium text-sm">{policy.title}</TableCell>

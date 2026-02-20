@@ -75,7 +75,7 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
       if (!response.ok) throw new Error("Comparison failed");
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: ComparisonResult) => {
       setComparison(data);
     },
   });
