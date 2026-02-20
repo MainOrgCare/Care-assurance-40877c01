@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,27 +83,28 @@ export default function Messages() {
   });
   const availableRecipients = allUsers.filter((u) => u.status === "active" && u.id !== user?.id);
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/messages?includeArchived=${showArchived}`, {
         credentials: "include",
       });
-      if (res.ok) {
-        const data = await res.json();
-        setMessages(data);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch messages: ${res.status}`);
       }
+      const data = await res.json();
+      setMessages(data);
     } catch (error) {
       console.error("Failed to fetch messages:", error);
       toast({ title: "Error", description: "Failed to load messages", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  };
+  }, [showArchived, toast]);
 
   useEffect(() => {
     fetchMessages();
-  }, [showArchived]);
+  }, [fetchMessages]);
 
   const handleSelectMessage = async (message: Message) => {
     setSelectedMessage(message);

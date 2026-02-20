@@ -46,22 +46,25 @@ export default function Performance() {
   const [selectedWorker, setSelectedWorker] = useState<CareWorkerFromAudits | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch("/api/audits/care-workers", { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to fetch data");
+        const workers: CareWorkerFromAudits[] = await res.json();
+        if (!cancelled) setCareWorkers(workers);
+      } catch (error: any) {
+        if (!cancelled) {
+          toast({ title: "Error", description: error.message || "Failed to load performance data", variant: "destructive" });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
     fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch("/api/audits/care-workers", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch data");
-      const workers: CareWorkerFromAudits[] = await res.json();
-      setCareWorkers(workers);
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to load performance data", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => { cancelled = true; };
+  }, [toast]);
 
   const getCompliancePercentage = useCallback((worker: CareWorkerFromAudits): number => {
     if (worker.auditCount === 0) return 100;

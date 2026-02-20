@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, ChevronRight, Search, Users, FileText, Loader2, Download } from "lucide-react";
+import { AlertTriangle, ChevronRight, Search, Users, FileText, Loader2, Download, AlertCircle } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useQuery } from "@tanstack/react-query";
 import { useDataExport } from "@/hooks/useDataExport";
@@ -28,7 +28,7 @@ export default function CarersList() {
   const [searchQuery, setSearchQuery] = useState("");
   const { exportCSV } = useDataExport();
 
-  const { data: careWorkers = [], isLoading: loading } = useQuery<CareWorkerFromAudits[]>({
+  const { data: careWorkers = [], isLoading: loading, isError, error } = useQuery<CareWorkerFromAudits[]>({
     queryKey: ["/api/audits/care-workers"],
     queryFn: async () => {
       const res = await fetch("/api/audits/care-workers", { credentials: "include" });
@@ -112,6 +112,24 @@ export default function CarersList() {
           </div>
         </div>
       </div>
+
+      {isError && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="py-8">
+            <div className="flex flex-col items-center text-center space-y-3">
+              <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center">
+                <AlertCircle className="h-5 w-5 text-destructive" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Failed to load care workers</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {error instanceof Error ? error.message : "An unexpected error occurred. Please try again."}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="border-b border-border/30">

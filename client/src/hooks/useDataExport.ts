@@ -34,7 +34,7 @@ export function useDataExport() {
   );
 
   const escapeCSV = useCallback((value: string): string => {
-    if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+    if (value.includes(",") || value.includes('"') || value.includes("\n") || value.includes("\r")) {
       return `"${value.replace(/"/g, '""')}"`;
     }
     return value;
@@ -87,5 +87,6 @@ function downloadBlob(content: string, filename: string, mimeType: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Defer revocation so the browser has time to start the download
+  setTimeout(() => URL.revokeObjectURL(url), 200);
 }

@@ -25,17 +25,16 @@ export default defineConfig({
       plugins: [],
     },
   },
+  esbuild: {
+    drop: process.env.NODE_ENV === "production" ? ["debugger"] : [],
+    pure: process.env.NODE_ENV === "production" ? ["console.log", "console.debug"] : [],
+  },
   root: path.resolve(import.meta.dirname, "client"),
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
     minify: 'esbuild',
     sourcemap: false,
-    // Strip console.log/debug and debugger statements in production builds
-    esbuild: {
-      drop: process.env.NODE_ENV === 'production' ? ['debugger'] : [],
-      pure: process.env.NODE_ENV === 'production' ? ['console.log', 'console.debug'] : [],
-    },
     chunkSizeWarningLimit: 1500,
     target: 'es2020',
     cssMinify: true,

@@ -37,14 +37,23 @@ async function fetchWithTimeout(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   // Compose caller's signal with the timeout signal so either can abort.
-  // AbortSignal.any() is available in modern browsers; fall back to the
-  // timeout signal if the caller doesn't provide one.
+  // AbortSignal.any() is available in modern browsers; fall back gracefully.
   const callerSignal = init?.signal;
   let composedSignal: AbortSignal;
-  if (callerSignal && typeof AbortSignal.any === "function") {
-    composedSignal = AbortSignal.any([callerSignal, controller.signal]);
+  if (typeof AbortSignal.any === "function") {
+    composedSignal = callerSignal
+      ? AbortSignal.any([callerSignal, controller.signal])
+      : controller.signal;
+  } else if (callerSignal) {
+    // Fallback: link caller signal to timeout controller manually
+    composedSignal = controller.signal;
+    callerSignal.addEventListener(
+      "abort",
+      () => controller.abort(callerSignal.reason),
+      { once: true },
+    );
   } else {
-    composedSignal = callerSignal ?? controller.signal;
+    composedSignal = controller.signal;
   }
 
   // If the caller already aborted before we even start, clean up immediately.

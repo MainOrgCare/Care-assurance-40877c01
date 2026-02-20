@@ -161,7 +161,7 @@ export default function Compliance() {
           </CardHeader>
           <CardContent className="pt-0.5">
             <div className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">
-              {auditList.length > 0 ? Math.round(100 - (totalDiscrepancies / Math.max(auditList.length, 1) * 10)) : 100}%
+              {auditList.length > 0 ? Math.max(0, Math.min(100, Math.round(100 - (totalDiscrepancies / Math.max(auditList.length, 1) * 10)))) : 100}%
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">Based on audit results</p>
           </CardContent>
@@ -326,15 +326,20 @@ export default function Compliance() {
 }
 
 function getMonthlyAuditData(audits: Audit[]) {
-  const monthCounts: { [key: string]: number } = {};
+  const monthCounts: { [key: string]: { label: string; count: number; sortKey: number } } = {};
   
   audits.forEach((audit: Audit) => {
     const date = new Date(audit.createdAt);
     const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-    monthCounts[monthKey] = (monthCounts[monthKey] || 0) + 1;
+    if (!monthCounts[monthKey]) {
+      // Use year-month numeric key for sorting
+      monthCounts[monthKey] = { label: monthKey, count: 0, sortKey: date.getFullYear() * 100 + date.getMonth() };
+    }
+    monthCounts[monthKey].count += 1;
   });
 
-  return Object.entries(monthCounts)
-    .map(([month, count]) => ({ month, count }))
-    .slice(-6);
+  return Object.values(monthCounts)
+    .sort((a, b) => a.sortKey - b.sortKey)
+    .slice(-6)
+    .map(({ label, count }) => ({ month: label, count }));
 }

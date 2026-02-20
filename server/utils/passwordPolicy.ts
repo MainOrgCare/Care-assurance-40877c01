@@ -102,6 +102,13 @@ interface LoginAttempt {
 
 const loginAttempts = new Map<string, LoginAttempt>();
 
+/**
+ * Cap to prevent unbounded memory growth.
+ * NOTE: routes.ts currently has its own duplicate loginAttempts Map + helpers.
+ * TODO: refactor routes.ts to import from here to single-source this logic.
+ */
+const MAX_LOGIN_ATTEMPTS_MAP_SIZE = 10_000;
+
 export function getLoginAttemptKey(
   ip: string | null,
   username?: string,
@@ -122,6 +129,24 @@ export function pruneLoginAttempts(): void {
       loginAttempts.delete(key);
     }
   }
+  // Hard cap: if map still exceeds limit, evict oldest entries
+  if (loginAttempts.size > MAX_LOGIN_ATTEMPTS_MAP_SIZE) {
+    const excess = loginAttempts.size - MAX_LOGIN_ATTEMPTS_MAP_SIZE;
+    let removed = 0;
+    for (const key of loginAttempts.keys()) {
+      if (removed >= excess) break;
+      loginAttempts.delete(key);
+      removed++;
+    }
+  }
+}
+
+// Periodic cleanup (every 5 minutes) — prevents unbounded growth
+const _loginAttemptsCleanupInterval = setInterval(() => {
+  pruneLoginAttempts();
+}, 5 * 60 * 1000);
+if (typeof _loginAttemptsCleanupInterval.unref === "function") {
+  _loginAttemptsCleanupInterval.unref();
 }
 
 /** Returns remaining block seconds (0 when not blocked). */

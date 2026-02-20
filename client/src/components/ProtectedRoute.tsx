@@ -2,6 +2,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Redirect, Route } from "wouter";
 import { Suspense, lazy } from "react";
 import { Loader2 } from "lucide-react";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const Layout = lazy(() => import("./Layout"));
 
@@ -38,7 +39,9 @@ export default function ProtectedRoute({
           }
         >
           <Layout>
-            <Component {...params} />
+            <ErrorBoundary>
+              <Component {...params} />
+            </ErrorBoundary>
           </Layout>
         </Suspense>
       )}

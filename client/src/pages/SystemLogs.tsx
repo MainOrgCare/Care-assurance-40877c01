@@ -5,9 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Terminal, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, Download } from "lucide-react";
+import { Terminal, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, Download, AlertCircle } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useDataExport } from "@/hooks/useDataExport";
+import { useToast } from "@/hooks/use-toast";
 
 interface SystemLogEntry {
   id: string;
@@ -33,6 +34,7 @@ interface PaginatedResponse {
 export default function SystemLogs() {
   const [logs, setLogs] = useState<SystemLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
@@ -41,9 +43,11 @@ export default function SystemLogs() {
   const limit = 10;
 
   const debouncedSearch = useDebounce(search, 300);
+  const { toast } = useToast();
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const params = new URLSearchParams({
         page: String(page),
@@ -58,12 +62,15 @@ export default function SystemLogs() {
       setTotal(data.total || 0);
       setTotalPages(data.totalPages || 1);
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to fetch system logs";
       console.error("Failed to fetch system logs:", error);
+      setFetchError(message);
       setLogs([]);
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearch, statusFilter]);
+  }, [page, limit, debouncedSearch, statusFilter, toast]);
 
   useEffect(() => {
     fetchLogs();
@@ -154,6 +161,25 @@ export default function SystemLogs() {
           </Select>
         </CardContent>
       </Card>
+
+      {fetchError && !loading && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="py-6">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground">Failed to load logs</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{fetchError}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={fetchLogs}>
+                <RefreshCw className="mr-2 h-3.5 w-3.5" /> Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

@@ -117,8 +117,11 @@ export default function Settings() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: any) {
-      const message = err?.body ? JSON.parse(err.body)?.message : "Failed to change password";
-      toast({ title: "Error", description: message || "Failed to change password", variant: "destructive" });
+      let message = "Failed to change password";
+      try {
+        message = err?.body ? JSON.parse(err.body)?.message || message : message;
+      } catch { /* body isn't valid JSON */ }
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setChangingPassword(false);
     }
