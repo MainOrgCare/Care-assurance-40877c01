@@ -10,7 +10,7 @@
 # ───────────────────────────────────────────────────────────────────────────────
 
 # ── Stage 1: Dependencies ─────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:20.20.0-alpine3.19 AS deps
 
 # Alpine needs libc6-compat for some native modules (e.g. bcrypt)
 RUN apk add --no-cache libc6-compat
@@ -32,7 +32,7 @@ COPY . .
 RUN npm run build:client && npm run build:server && npm run build:worker
 
 # ── Stage 3: Production ──────────────────────────────────────────────────────
-FROM node:20-alpine AS production
+FROM node:20.20.0-alpine3.19 AS production
 
 RUN apk add --no-cache libc6-compat dumb-init
 
