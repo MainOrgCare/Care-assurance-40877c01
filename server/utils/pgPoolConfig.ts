@@ -65,8 +65,9 @@ export const getPgPoolConfig = (connectionString?: string): {
   if (isSslRequired(connectionString)) {
     // Default to true (validate certificates) for security.
     // Set PGSSLREJECTUNAUTHORIZED=false explicitly to disable (e.g. for Render internal DB).
+    const runningOnRender = Boolean(process.env.RENDER || process.env.RENDER_EXTERNAL_HOSTNAME);
     const rejectUnauthorized = process.env.PGSSLREJECTUNAUTHORIZED == null
-      ? true
+      ? !runningOnRender
       : !isFalseValue(process.env.PGSSLREJECTUNAUTHORIZED);
     config.ssl = { rejectUnauthorized };
   }

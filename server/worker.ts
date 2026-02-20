@@ -1,6 +1,7 @@
 import { storage } from "./storage";
 
 const CLEANUP_INTERVAL_MS = Number(process.env.CLEANUP_INTERVAL_MS) || 21_600_000; // 6 hours
+const hasDatabaseUrl = Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.trim());
 
 const log = (message: string) => {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -18,6 +19,11 @@ const runCleanup = async () => {
     const total = Object.values(result).reduce((sum, value) => sum + value, 0);
     log(`Cleanup completed: ${total} expired records removed.`);
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("self-signed certificate")) {
+      console.error("[worker] Cleanup failed: self-signed certificate. Set PGSSLREJECTUNAUTHORIZED=false for Render DB.");
+      return;
+    }
     console.error("[worker] Cleanup failed:", error);
   }
 };
@@ -25,6 +31,10 @@ const runCleanup = async () => {
 let cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
 const startWorker = async () => {
+  if (!hasDatabaseUrl) {
+    log("DATABASE_URL is missing. Worker cannot start without a database connection.");
+    process.exit(1);
+  }
   log(`Worker started. Cleanup interval: ${CLEANUP_INTERVAL_MS}ms`);
   await runCleanup();
   cleanupInterval = setInterval(runCleanup, CLEANUP_INTERVAL_MS);
