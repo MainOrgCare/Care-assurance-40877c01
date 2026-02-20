@@ -81,7 +81,7 @@ export default function Messages() {
   const { data: allUsers = [] } = useQuery<Array<{ id: string; username: string; firstName: string | null; lastName: string | null; status: string }>>({
     queryKey: ["/api/users"],
   });
-  const availableRecipients = allUsers.filter((u) => u.status === "active" && u.id !== user?.id);
+  const availableRecipients = allUsers.filter((u: { id: string; username: string; firstName: string | null; lastName: string | null; status: string }) => u.status === "active" && u.id !== user?.id);
 
   const fetchMessages = useCallback(async () => {
     setLoading(true);
@@ -232,7 +232,7 @@ export default function Messages() {
                   <Select value={composeForm.recipientId} onValueChange={(v) => setComposeForm({ ...composeForm, recipientId: v })}>
                     <SelectTrigger><SelectValue placeholder="Select recipient..." /></SelectTrigger>
                     <SelectContent>
-                      {availableRecipients.map((u) => (
+                      {availableRecipients.map((u: { id: string; username: string; firstName: string | null; lastName: string | null; status: string }) => (
                         <SelectItem key={u.id} value={u.id}>
                           {u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.username}
                         </SelectItem>

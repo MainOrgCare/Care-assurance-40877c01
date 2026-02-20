@@ -776,7 +776,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                    {activityData.map((item) => (
+                    {activityData.map((item: ActivityItem) => (
                       <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg border border-border/40 bg-muted/15 hover:bg-muted/25 transition-colors">
                         <div className={cn(
                           "h-8 w-8 rounded-md flex items-center justify-center border border-border/50 shrink-0",

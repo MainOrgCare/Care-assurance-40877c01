@@ -305,7 +305,7 @@ function StaffTraining() {
   });
 
   const filtered = useMemo(() => {
-    return records.filter((r) => {
+    return records.filter((r: TrainingRecord) => {
       if (filterCategory !== "all" && r.category !== filterCategory) return false;
       if (filterStatus !== "all" && r.status !== filterStatus) return false;
       if (searchTerm) {
@@ -318,10 +318,10 @@ function StaffTraining() {
 
   // Stats
   const stats = useMemo(() => {
-    const completed = records.filter((r) => r.status === "completed").length;
-    const expired = records.filter((r) => r.status === "expired").length;
-    const pending = records.filter((r) => r.status === "pending").length;
-    const expiringSoon = records.filter((r) => r.status === "expiring_soon").length;
+    const completed = records.filter((r: TrainingRecord) => r.status === "completed").length;
+    const expired = records.filter((r: TrainingRecord) => r.status === "expired").length;
+    const pending = records.filter((r: TrainingRecord) => r.status === "pending").length;
+    const expiringSoon = records.filter((r: TrainingRecord) => r.status === "expiring_soon").length;
     const complianceRate = records.length > 0 ? Math.round((completed / records.length) * 100) : 0;
     return { completed, expired, pending, expiringSoon, complianceRate, total: records.length };
   }, [records]);
@@ -435,7 +435,7 @@ function StaffTraining() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((r) => (
+                  {filtered.map((r: TrainingRecord) => (
                     <TableRow key={r.id}>
                       <TableCell className="text-sm font-medium">{r.staffName}</TableCell>
                       <TableCell className="text-sm">{r.courseName}</TableCell>

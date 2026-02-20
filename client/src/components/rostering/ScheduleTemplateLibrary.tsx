@@ -160,7 +160,7 @@ export default function ScheduleTemplateLibrary({
   };
 
   const filteredTemplates = templates.filter(
-    (t) => t.weekDay === currentWeekDay && t.weekNumber === currentWeekNumber
+    (t: ScheduleTemplate) => t.weekDay === currentWeekDay && t.weekNumber === currentWeekNumber
   );
 
   return (
@@ -256,7 +256,7 @@ export default function ScheduleTemplateLibrary({
             </Alert>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredTemplates.map((template) => (
+              {filteredTemplates.map((template: ScheduleTemplate) => (
                 <Card key={template.id} className="hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">

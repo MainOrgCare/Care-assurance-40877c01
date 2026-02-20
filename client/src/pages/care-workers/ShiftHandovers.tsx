@@ -386,7 +386,7 @@ function ShiftHandovers() {
   });
 
   const filtered = useMemo(() => {
-    return handovers.filter((h) => {
+    return handovers.filter((h: ShiftHandover) => {
       if (filterShift !== "all" && h.shiftType !== filterShift) return false;
       if (filterPriority !== "all" && h.priority !== filterPriority) return false;
       if (searchTerm) {
@@ -404,10 +404,10 @@ function ShiftHandovers() {
   // Summary stats
   const stats = useMemo(() => {
     const today = new Date().toLocaleDateString("en-GB");
-    const todayHandovers = handovers.filter((h) => h.shiftDate === today);
-    const followUps = handovers.filter((h) => h.followUpRequired);
+    const todayHandovers = handovers.filter((h: ShiftHandover) => h.shiftDate === today);
+    const followUps = handovers.filter((h: ShiftHandover) => h.followUpRequired);
     const unacknowledged = handovers.filter(
-      (h) => h.authorId !== user?.id && !(h.acknowledgedBy || []).includes(user?.id || "")
+      (h: ShiftHandover) => h.authorId !== user?.id && !(h.acknowledgedBy || []).includes(user?.id || "")
     );
     return { total: handovers.length, today: todayHandovers.length, followUps: followUps.length, unacknowledged: unacknowledged.length };
   }, [handovers, user]);
@@ -496,7 +496,7 @@ function ShiftHandovers() {
         ) : (
           <div className="space-y-3">
             <AnimatePresence mode="popLayout">
-              {filtered.map((h) => (
+              {filtered.map((h: ShiftHandover) => (
                 <HandoverCard
                   key={h.id}
                   handover={h}

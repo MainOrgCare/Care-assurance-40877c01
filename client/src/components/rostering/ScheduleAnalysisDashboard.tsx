@@ -91,7 +91,7 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
       if (!response.ok) throw new Error("Analysis failed");
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: AnalysisResult) => {
       setAnalysis(data);
     },
   });
