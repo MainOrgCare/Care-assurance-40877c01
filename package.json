@@ -1,7 +1,7 @@
-{
+﻿{
   "name": "care-assurance",
   "version": "1.0.0",
-  "description": "Operational intelligence platform for domiciliary care providers — compliance, rostering, AI-assisted care planning, and workforce management.",
+  "description": "Operational intelligence platform for domiciliary care providers â€” compliance, rostering, AI-assisted care planning, and workforce management.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "private": true,
@@ -11,8 +11,10 @@
     "dev:full": "set -a; [ -f .env ] && . ./.env; set +a; npm run dev",
     "build:client": "npx vite build",
     "build:server": "npx esbuild server/index.ts --bundle --platform=node --packages=external --format=cjs --outfile=dist/index.cjs --external:./vite.config --external:./vite",
-    "build": "npm run build:client && npm run build:server",
+    "build:worker": "npx esbuild server/worker.ts --bundle --platform=node --packages=external --format=cjs --outfile=dist/worker.cjs",
+    "build": "npm run build:client && npm run build:server && npm run build:worker",
     "start:api": "NODE_ENV=production AI_ENABLED=${AI_ENABLED:-true} node dist/index.cjs",
+    "start:worker": "NODE_ENV=production node dist/worker.cjs",
     "start": "npm run start:api",
     "test": "npm run test:server && npm run test:client",
     "test:server": "node --import tsx --test --test-force-exit server/__tests__/*.test.ts",
@@ -154,3 +156,5 @@
     }
   }
 }
+
+

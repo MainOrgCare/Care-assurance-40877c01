@@ -1,11 +1,25 @@
-version: "1"
+﻿version: "1"
 
 services:
   - type: web
-    name: care-assurance
+    runtime: static
+    name: care-assurance-web
+    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:client
+    staticPublishPath: dist/public
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
+
+  - type: web
+    name: care-assurance-api
     runtime: node
     plan: standard
-    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build
+    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:server
     startCommand: npm run start:api
     healthCheckPath: /healthz
     autoDeploy: true
@@ -15,23 +29,13 @@ services:
       - key: ENABLE_CANONICAL_REDIRECT
         value: "false"
       - key: SERVE_STATIC
-        value: "true"
+        value: "false"
       - key: CORS_ORIGIN
         sync: false
       - key: SESSION_SECRET
-        generateValue: true
+        sync: false
       - key: AI_ENABLED
         value: "true"
-      - key: PORT
-        value: "5000"
-      
-      # Database connection (set in dashboard)
-      - key: DATABASE_URL
-        sync: false
-      - key: PGSSLREJECTUNAUTHORIZED
-        value: "false"
-
-      # Optional overrides
       - key: CONTACT_EMAIL
         sync: false
       - key: CONTACT_FROM
@@ -48,20 +52,30 @@ services:
         sync: false
       - key: CLOUDMERSIVE_API_KEY
         sync: false
-      
-      # AI provider keys
+      - key: DATABASE_URL
+        sync: false
+      - key: PGSSLREJECTUNAUTHORIZED
+        value: "false"
       - key: PAT_AI_KEY
         sync: false
-      - key: AZURE_OPENAI_API_INSTANCE_NAME
-        sync: false
-      - key: AZURE_OPENAI_API_DEPLOYMENT_NAME
-        sync: false
-      - key: AZURE_OPENAI_API_KEY
-        sync: false
-      - key: AZURE_OPENAI_API_VERSION
-        value: "2024-02-15-preview"
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_FALLBACK_API_KEY
         sync: false
 
+  - type: worker
+    name: care-assurance-worker
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:worker
+    startCommand: npm run start:worker
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLEANUP_INTERVAL_MS
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: PGSSLREJECTUNAUTHORIZED
+        value: "false"
