@@ -3,6 +3,7 @@ import { storage } from "../storage";
 import { calculateCostMicroDollars, AVAILABLE_MODELS, type AvailableModel } from "../config/aiPricing";
 import { generateCacheKey, getCachedResponse, setCachedResponse } from "./aiCache";
 import { shouldUseAI, extractCommonFields } from "./ruleBasedEngine";
+import { scrubMessagesForLog } from "../utils/piiVault";
 
 // User context type for logging
 export interface AiUserContext {
@@ -640,7 +641,7 @@ export async function createChatCompletionWithLogging(
         durationMs: duration,
         requestPayload: {
           model: actualModel,
-          messages: params.messages,
+          messages: scrubMessagesForLog(params.messages as any),
           temperature: params.temperature,
           max_completion_tokens: params.max_completion_tokens || params.max_tokens,
           response_format: params.response_format,
@@ -690,7 +691,7 @@ export async function createChatCompletionWithLogging(
       durationMs: duration,
       requestPayload: {
         model: actualModel,
-        messages: params.messages,
+        messages: scrubMessagesForLog(params.messages as any),
         temperature: params.temperature,
         max_completion_tokens: params.max_completion_tokens || params.max_tokens,
         response_format: params.response_format,
@@ -719,7 +720,7 @@ export async function createChatCompletionWithLogging(
       durationMs: duration,
       requestPayload: {
         model: actualModel,
-        messages: params.messages,
+        messages: scrubMessagesForLog(params.messages as any),
         temperature: params.temperature,
         max_completion_tokens: params.max_completion_tokens || params.max_tokens,
         response_format: params.response_format,

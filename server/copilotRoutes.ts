@@ -21,6 +21,7 @@ import {
 } from "./services/aiClient";
 import { storage } from "./storage";
 import { parseJsonFromContent } from "./utils/jsonParser";
+import { PIIVault } from "./utils/piiVault";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COPILOT API KEY AUTHENTICATION
@@ -262,22 +263,33 @@ RULES:
 
 Return ONLY the email text, nothing else.`;
 
+      // Scrub PII before sending to AI
+      const vault = new PIIVault();
+      const scrubbedInput = vault.scrubString(inputText);
+      vault.logAudit("SCRUB", "/api/copilot/rewrite-email", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
+
       const response = await createChatCompletionWithLogging({
         model: getLowCostModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: inputText },
+          { role: "user", content: scrubbedInput },
         ],
         max_completion_tokens: 1000,
         temperature: 0.2,
         seed: 42,
       }, "copilot_email_assistant", COPILOT_USER_CONTEXT);
 
-      const rewrittenEmail = response.choices[0]?.message?.content;
-      if (!rewrittenEmail) {
+      const rawReply = response.choices[0]?.message?.content;
+      if (!rawReply) {
+        vault.clear();
         res.status(500).json({ error: "Generation failed", message: "AI did not return a response" });
         return;
       }
+
+      // Restore PII in the response
+      const rewrittenEmail = vault.restoreString(rawReply);
+      vault.logAudit("RESTORE", "/api/copilot/rewrite-email", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
+      vault.clear();
 
       res.json({ rewrittenEmail, tone, model: getLowCostModel() });
     } catch (error: any) {
@@ -458,11 +470,16 @@ Respond ONLY with valid JSON:
   "gapsInKnowledge": "Areas where training is needed"
 }`;
 
+      // Scrub PII before sending to AI
+      const vault = new PIIVault();
+      const scrubbedContent = vault.scrubString(documentContent);
+      vault.logAudit("SCRUB", "/api/copilot/analyze-visit", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
+
       const response = await createChatCompletionWithLogging({
         model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Audit these visit logs:\n\n${documentContent}` },
+          { role: "user", content: `Audit these visit logs:\n\n${scrubbedContent}` },
         ],
         max_completion_tokens: 8000,
         temperature: 0,
@@ -471,7 +488,12 @@ Respond ONLY with valid JSON:
       }, "copilot_visit_audit", COPILOT_USER_CONTEXT);
 
       const content = response.choices[0]?.message?.content || "";
-      const analysis = parseJsonFromContent(content);
+      // Convert tokens to human-readable placeholders for the response
+      const placeholderContent = vault.toPlaceholdersString(content);
+      vault.logAudit("RESTORE", "/api/copilot/analyze-visit", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
+
+      const analysis = parseJsonFromContent(placeholderContent);
+      vault.clear();
 
       if (!analysis) {
         res.json({
@@ -567,11 +589,16 @@ Respond with valid JSON:
   "summary": "Overall risk profile summary"
 }`;
 
+      // Scrub PII before sending to AI
+      const vault = new PIIVault();
+      const scrubbedContent = vault.scrubString(documentContent);
+      vault.logAudit("SCRUB", "/api/copilot/analyze-risks", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
+
       const response = await createChatCompletionWithLogging({
         model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Analyze these documents for risks:\n\n${documentContent}` },
+          { role: "user", content: `Analyze these documents for risks:\n\n${scrubbedContent}` },
         ],
         max_completion_tokens: 8000,
         temperature: 0,
@@ -580,7 +607,11 @@ Respond with valid JSON:
       }, "copilot_risk_analysis", COPILOT_USER_CONTEXT);
 
       const content = response.choices[0]?.message?.content || "";
-      const riskProfile = parseJsonFromContent(content);
+      const placeholderContent = vault.toPlaceholdersString(content);
+      vault.logAudit("RESTORE", "/api/copilot/analyze-risks", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
+
+      const riskProfile = parseJsonFromContent(placeholderContent);
+      vault.clear();
 
       if (!riskProfile) {
         res.json({
@@ -621,13 +652,18 @@ Respond with valid JSON:
         policyContext = `\n=== RISK ASSESSMENT TEMPLATES ===\n${riskPolicies.map(p => `--- ${p.name} ---\n${p.content}`).join("\n")}\n=== END TEMPLATES ===\n`;
       }
 
+      // Scrub PII before sending to AI
+      const vault = new PIIVault();
+
       const riskProfileContext = riskProfile
-        ? `\nRISK PROFILE DATA:\n${typeof riskProfile === "string" ? riskProfile : JSON.stringify(riskProfile, null, 2)}\n`
+        ? `\nRISK PROFILE DATA:\n${vault.scrubString(typeof riskProfile === "string" ? riskProfile : JSON.stringify(riskProfile, null, 2))}\n`
         : "";
 
       const documentContext = documentContent
-        ? `\nSUPPORTING DOCUMENTS:\n${documentContent}\n`
+        ? `\nSUPPORTING DOCUMENTS:\n${vault.scrubString(documentContent)}\n`
         : "";
+
+      vault.logAudit("SCRUB", "/api/copilot/generate-risk-assessment", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
 
       const systemPrompt = `You are an expert UK care risk assessor following CQC 2024 standards. Generate a comprehensive risk assessment for the "${category}" category.
 
@@ -682,11 +718,15 @@ Respond with valid JSON:
       }, "copilot_risk_assessment", COPILOT_USER_CONTEXT);
 
       const content = response.choices[0]?.message?.content || "";
-      const assessment = parseJsonFromContent(content);
+      const placeholderContent = vault.toPlaceholdersString(content);
+      vault.logAudit("RESTORE", "/api/copilot/generate-risk-assessment", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
+
+      const assessment = parseJsonFromContent(placeholderContent);
+      vault.clear();
 
       if (!assessment) {
         res.json({
-          rawAssessment: content,
+          rawAssessment: placeholderContent,
           parseWarning: "Could not parse structured JSON. Raw assessment text returned.",
         });
         return;
@@ -800,12 +840,17 @@ Respond with valid JSON:
   "summary": "Brief overview of the care plan"
 }`;
 
+      // Scrub PII before sending to AI
+      const vault = new PIIVault();
+      const scrubbedContent = vault.scrubString(documentContent);
+      vault.logAudit("SCRUB", "/api/copilot/generate-care-plan", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
+
       const currentProvider = getPreferredProvider();
       const response = await createChatCompletionWithLogging({
         model: getAccurateModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a ${callTypeLabel} care plan from these documents:\n\n${documentContent}` },
+          { role: "user", content: `Generate a ${callTypeLabel} care plan from these documents:\n\n${scrubbedContent}` },
         ],
         max_completion_tokens: currentProvider === "github" ? 8000 : 12000,
         temperature: 0,
@@ -814,11 +859,15 @@ Respond with valid JSON:
       }, "copilot_care_plan", COPILOT_USER_CONTEXT);
 
       const content = response.choices[0]?.message?.content || "";
-      const carePlan = parseJsonFromContent(content);
+      const placeholderContent = vault.toPlaceholdersString(content);
+      vault.logAudit("RESTORE", "/api/copilot/generate-care-plan", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
+
+      const carePlan = parseJsonFromContent(placeholderContent);
+      vault.clear();
 
       if (!carePlan) {
         res.json({
-          rawCarePlan: content,
+          rawCarePlan: placeholderContent,
           parseWarning: "Could not parse structured JSON. Raw care plan text returned.",
         });
         return;
@@ -884,14 +933,18 @@ Respond with valid JSON:
         policyContext = `\n=== POLICY DOCUMENTS ===\n${allPolicies.map(p => `--- ${p.name} ---\n${p.content}`).join("\n")}\n=== END POLICIES ===\n`;
       }
 
+      // Scrub PII before sending to AI
+      const vault = new PIIVault();
+
       const contentParts: string[] = [];
       if (existingPlanContent) {
-        contentParts.push(`=== EXISTING CARE PLAN ===\n${existingPlanContent}`);
+        contentParts.push(`=== EXISTING CARE PLAN ===\n${vault.scrubString(existingPlanContent)}`);
       }
       if (documentContent) {
-        contentParts.push(`=== SUPPORTING DOCUMENTS ===\n${documentContent}`);
+        contentParts.push(`=== SUPPORTING DOCUMENTS ===\n${vault.scrubString(documentContent)}`);
       }
       const combinedContent = contentParts.join("\n\n");
+      vault.logAudit("SCRUB", "/api/copilot/enhance-plan", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
 
       const systemPrompt = `You are an expert care plan writer for UK care facilities following CQC 2024 standards.
 
@@ -1168,11 +1221,15 @@ Respond with valid JSON matching this comprehensive schema:
       }, "copilot_plan_enhance", COPILOT_USER_CONTEXT);
 
       const content = response.choices[0]?.message?.content || "";
-      const enhancedPlan = parseJsonFromContent(content);
+      const placeholderContent = vault.toPlaceholdersString(content);
+      vault.logAudit("RESTORE", "/api/copilot/enhance-plan", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
+
+      const enhancedPlan = parseJsonFromContent(placeholderContent);
+      vault.clear();
 
       if (!enhancedPlan) {
         res.json({
-          rawPlan: content,
+          rawPlan: placeholderContent,
           parseWarning: "Could not parse structured JSON. Raw enhanced plan text returned.",
         });
         return;
@@ -1567,21 +1624,32 @@ RESPONSE FORMAT:
 
       const contextPrompt = context ? `\nContext: ${context}\n` : "";
 
+      // Scrub PII before sending to AI
+      const vault = new PIIVault();
+      const scrubbedMessage = vault.scrubString(`${contextPrompt}${message}`);
+      vault.logAudit("SCRUB", "/api/copilot/chat", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
+
       const response = await createChatCompletionWithLogging({
         model: getLowCostModel(),
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `${contextPrompt}${message}` },
+          { role: "user", content: scrubbedMessage },
         ],
         max_completion_tokens: 3000,
         temperature: 0.3,
       }, "copilot_chat", COPILOT_USER_CONTEXT);
 
-      const reply = response.choices[0]?.message?.content;
-      if (!reply) {
+      const rawReply = response.choices[0]?.message?.content;
+      if (!rawReply) {
+        vault.clear();
         res.status(500).json({ error: "No response", message: "AI did not return a response" });
         return;
       }
+
+      // Restore PII in the chat reply
+      const reply = vault.restoreString(rawReply);
+      vault.logAudit("RESTORE", "/api/copilot/chat", COPILOT_USER_CONTEXT.userId, COPILOT_USER_CONTEXT.username);
+      vault.clear();
 
       res.json({ reply, model: getLowCostModel() });
     } catch (error: any) {
