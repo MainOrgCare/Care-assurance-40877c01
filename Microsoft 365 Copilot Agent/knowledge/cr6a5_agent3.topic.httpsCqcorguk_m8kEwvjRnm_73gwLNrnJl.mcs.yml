@@ -1,6 +1,0 @@
-# Name: https://Cqc.org.uk
-# This knowledge source searches information on the web found in https://Cqc.com website
-kind: KnowledgeSourceConfiguration
-source:
-  kind: PublicSiteSearchSource
-  site: https://cqc.org.uk/
