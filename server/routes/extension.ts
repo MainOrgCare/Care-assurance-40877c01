@@ -74,12 +74,10 @@ async function packageExtensionZipViaShell(): Promise<boolean> {
   }
 }
 
-async function packageExtensionZip(): Promise<void> {
-  if (await packageExtensionZipViaPython()) return;
-  if (await packageExtensionZipViaShell()) return;
-  throw new Error(
-    "Failed to package Edge extension zip. Neither Python nor the system zip command succeeded."
-  );
+async function packageExtensionZip(): Promise<boolean> {
+  if (await packageExtensionZipViaPython()) return true;
+  if (await packageExtensionZipViaShell()) return true;
+  return false;
 }
 
 async function resolveExtensionPackagePath(): Promise<string | null> {
@@ -153,23 +151,29 @@ async function isExtensionPackageStale(packagePath: string): Promise<boolean> {
 async function ensureLatestExtensionPackage(forceBuild: boolean): Promise<{ packagePath: string | null; rebuilt: boolean }> {
   let rebuilt = false;
   if (forceBuild) {
-    await packageExtensionZip();
-    rebuilt = true;
+    const success = await packageExtensionZip();
+    if (success) {
+      rebuilt = true;
+    }
   }
 
   let packagePath = await resolveExtensionPackagePath();
   if (!packagePath) {
-    await packageExtensionZip();
-    rebuilt = true;
-    packagePath = await resolveExtensionPackagePath();
+    const success = await packageExtensionZip();
+    if (success) {
+      rebuilt = true;
+      packagePath = await resolveExtensionPackagePath();
+    }
   }
 
   if (packagePath && !forceBuild) {
     const stale = await isExtensionPackageStale(packagePath);
     if (stale) {
-      await packageExtensionZip();
-      rebuilt = true;
-      packagePath = await resolveExtensionPackagePath();
+      const success = await packageExtensionZip();
+      if (success) {
+        rebuilt = true;
+        packagePath = await resolveExtensionPackagePath();
+      }
     }
   }
 
@@ -247,7 +251,7 @@ export function registerExtensionRoutes(
       if (!metadata) {
         return res.status(404).json({
           message:
-            "Extension package is unavailable. Run `npm run package:extension` to generate dist/edge-acp-autofill.zip.",
+            "Extension package is unavailable. The extension source files are not present in this installation.",
         });
       }
 
@@ -278,7 +282,7 @@ export function registerExtensionRoutes(
       if (!metadata) {
         return res.status(404).json({
           message:
-            "Extension package is unavailable. Run `npm run package:extension` to generate dist/edge-acp-autofill.zip.",
+            "Extension package is unavailable. The extension source files are not present in this installation.",
         });
       }
 
