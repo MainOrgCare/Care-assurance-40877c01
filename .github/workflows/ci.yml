@@ -30,9 +30,5 @@ jobs:
         run: npm run test
       - name: Type check
         run: npm run check
-      - name: Build client
-        run: npm run build:client
-      - name: Build API server
-        run: npm run build:server
-      - name: Build worker
-        run: npm run build:worker
+      - name: Build
+        run: npm run build

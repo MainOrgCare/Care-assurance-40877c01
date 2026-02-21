@@ -1,38 +1,29 @@
-# ── Dependencies ──────────────────────────────────────────────────
+# Dependencies
 node_modules/
 
-# ── Build output ──────────────────────────────────────────────────
+# Build output
 dist/
 *.tsbuildinfo
 
-# ── Environment & secrets ─────────────────────────────────────────
+# Environment & secrets
 .env
 .env.local
 .env.*.local
 
-# ── Editor / IDE ──────────────────────────────────────────────────
-.vscode/
+# Editor / IDE
 .idea/
 *.swp
 *.swo
 *~
 
-# ── OS files ──────────────────────────────────────────────────────
+# OS files
 .DS_Store
 Thumbs.db
 
-# ── Logs ──────────────────────────────────────────────────────────
+# Logs
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# ── Local AI models ──────────────────────────────────────────────
-.ollama/
-
-# ── Uploaded / generated assets (large binaries) ─────────────────
-attached_assets/
-
-# ── Coverage reports ──────────────────────────────────────────────
+# Coverage reports
 coverage/
 .nyc_output/

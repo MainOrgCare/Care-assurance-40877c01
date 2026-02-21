@@ -1,4 +1,39 @@
-# Care Assurance Platform
+# Care Assurance
+
+Operational intelligence platform for domiciliary care providers.
+
+## Quick Start
+
+```bash
+npm install
+npm run dev
+```
+
+## Deploy to Render
+
+Push to `main` — Render auto-deploys via `render.yaml`.
+
+Or manually: **New > Web Service > Connect repo > Apply**.
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start dev server (API + Vite HMR) |
+| `npm run build` | Build client + server for production |
+| `npm start` | Run production server |
+| `npm test` | Run all tests |
+| `npm run check` | TypeScript type check |
+| `npm run db:push` | Push schema to database |
+
+## Environment Variables
+
+Set in Render dashboard or `.env` locally:
+
+- `DATABASE_URL` — PostgreSQL connection string (required)
+- `SESSION_SECRET` — Session encryption key
+- `AI_ENABLED` — Enable AI features (default: true)
+- `OPENAI_API_KEY` or `PAT_AI_KEY` — AI provider key Platform
 
 > **AI-powered healthcare compliance, auditing, and operations platform** built for UK domiciliary care providers.
 

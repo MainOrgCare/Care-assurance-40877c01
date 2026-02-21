@@ -1,17 +1,5 @@
 {
-    "chatgpt.openOnStartup": false,
-    "github.codespaces.defaultExtensions": [
-        "GitHub.codespaces",
-        "GitHub.vscode-pull-request-github",
-        "GitHub.copilot",
-        "GitHub.copilot-chat"
-    ],
     "git.ignoreLimitWarning": true,
     "css.lint.unknownAtRules": "ignore",
-    "markdown.validate.enabled": true,
-    "python-envs.defaultEnvManager": "ms-python.python:venv",
-    "python.terminal.activateEnvironment": false,
-    "python-envs.pythonProjects": [],
-    "websearch.preferredEngine": "bing",
     "chat.agent.maxRequests": 1000
 }

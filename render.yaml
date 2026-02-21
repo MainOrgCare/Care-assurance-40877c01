@@ -2,24 +2,10 @@ version: "1"
 
 services:
   - type: web
-    runtime: static
-    name: care-assurance-web
-    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:client
-    staticPublishPath: dist/public
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    autoDeploy: true
-    envVars:
-      - key: VITE_API_BASE_URL
-        sync: false
-
-  - type: web
-    name: care-assurance-api
+    name: care-assurance
     runtime: node
     plan: standard
-    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:server && npm run package:extension
+    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build
     startCommand: npm run start:api
     healthCheckPath: /healthz
     autoDeploy: true
@@ -29,19 +15,27 @@ services:
       - key: ENABLE_CANONICAL_REDIRECT
         value: "false"
       - key: SERVE_STATIC
-        value: "false"
+        value: "true"
       - key: CORS_ORIGIN
         sync: false
       - key: SESSION_SECRET
-        sync: false
+        generateValue: true
       - key: AI_ENABLED
         value: "true"
-      # Optional overrides; defaults exist in code. Prefer setting in Render dashboard.
+      - key: PORT
+        value: "5000"
+      
+      # Database connection (set in dashboard)
+      - key: DATABASE_URL
+        sync: false
+      - key: PGSSLREJECTUNAUTHORIZED
+        value: "false"
+
+      # Optional overrides
       - key: CONTACT_EMAIL
         sync: false
       - key: CONTACT_FROM
         sync: false
-      # Set these in the Render dashboard (do not commit secrets):
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
@@ -54,60 +48,20 @@ services:
         sync: false
       - key: CLOUDMERSIVE_API_KEY
         sync: false
-      # If you use Postgres, set DATABASE_URL in the dashboard.
-      - key: DATABASE_URL
-        sync: false
-      - key: PGSSLREJECTUNAUTHORIZED
-        value: "false"
-      # AI provider keys (set at least one in dashboard).
+      
+      # AI provider keys
       - key: PAT_AI_KEY
         sync: false
+      - key: AZURE_OPENAI_API_INSTANCE_NAME
+        sync: false
+      - key: AZURE_OPENAI_API_DEPLOYMENT_NAME
+        sync: false
+      - key: AZURE_OPENAI_API_KEY
+        sync: false
+      - key: AZURE_OPENAI_API_VERSION
+        value: "2024-02-15-preview"
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_FALLBACK_API_KEY
         sync: false
-      # Local LLM disabled - using GitHub AI / OpenAI instead
-      # - key: LOCAL_LLM_URL
-      #   value: "https://local-llm-mr51.onrender.com"
 
-  - type: worker
-    name: care-assurance-worker
-    runtime: node
-    plan: starter
-    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:worker
-    startCommand: npm run start:worker
-    autoDeploy: true
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: CLEANUP_INTERVAL_MS
-        sync: false
-      - key: DATABASE_URL
-        sync: false
-      - key: PGSSLREJECTUNAUTHORIZED
-        value: "false"
-
-  # Local LLM Service - DISABLED (CPU too slow, would need GPU hosting)
-  # Keeping code for future reference if GPU becomes affordable
-  # To re-enable: uncomment section below and deploy
-  #
-  # - type: web
-  #   name: local-llm
-  #   runtime: docker
-  #   dockerfilePath: ./Dockerfile.localllm
-  #   plan: pro max
-  #   healthCheckPath: /api/tags
-  #   autoDeploy: true
-  #   disk:
-  #     name: ollama-models
-  #     mountPath: /ollama-data
-  #     sizeGB: 10
-  #   envVars:
-  #     - key: OLLAMA_HOST
-  #       value: "0.0.0.0:11434"
-  #     - key: OLLAMA_KEEP_ALIVE
-  #       value: "24h"
-  #     - key: OLLAMA_MODELS
-  #       value: "/ollama-data/models"
-  #     - key: OLLAMA_NUM_CTX
-  #       value: "65536"
