@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Care Assurance - ACP Autofill</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup-container">
+      <!-- Header -->
+      <header class="popup-header">
+        <div class="header-content">
+          <div class="header-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          </div>
+          <div>
+            <h1 class="header-title">Care Assurance</h1>
+            <p class="header-subtitle">ACP Autofill v0.3.4</p>
+          </div>
+          <div id="connection-badge" class="connection-badge disconnected">
+            <span class="connection-dot"></span>
+            <span class="connection-text">Offline</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Tab Navigation -->
+      <div class="tab-navigation">
+        <button id="tab-connect" class="tab-btn active" data-tab="connect">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+          Connect
+        </button>
+        <button id="tab-upload" class="tab-btn" data-tab="upload">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          Upload
+        </button>
+        <button id="tab-autofill" class="tab-btn" data-tab="autofill">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          Autofill
+        </button>
+      </div>
+
+      <!-- Main Content Area -->
+      <div class="popup-content">
+        
+        <!-- Error Banner -->
+        <div id="error-banner" class="alert alert-error" hidden>
+          <span id="error-message"></span>
+          <button id="error-dismiss" class="error-dismiss-btn" title="Dismiss">✕</button>
+        </div>
+
+        <!-- ========== TAB 1: CONNECT ========== -->
+        <div id="tab-content-connect" class="tab-content active">
+          
+          <section class="card">
+            <div class="card-header">
+              <h2 class="card-title">Connection</h2>
+              <p class="card-description">Connect to fetch service users and assessments</p>
+            </div>
+            <div class="card-content">
+              <div id="connect-status" class="status-box">
+                <span>Not connected</span>
+              </div>
+              <button id="connect-btn" class="btn btn-primary btn-block">
+                Connect to Care Assurance
+              </button>
+            </div>
+          </section>
+
+          <section id="recent-section" class="card" hidden>
+            <div class="card-header">
+              <h2 class="card-title">Quick Access</h2>
+            </div>
+            <div class="card-content">
+              <div id="recent-list" class="recent-list"></div>
+            </div>
+          </section>
+
+          <section id="search-section" class="card" hidden>
+            <div class="card-header">
+              <h2 class="card-title">Service Users</h2>
+            </div>
+            <div class="card-content">
+              <input id="service-user-search" type="text" class="form-input" placeholder="Search by name..." />
+              <div id="service-user-list" class="service-user-list"></div>
+            </div>
+          </section>
+
+          <section id="selected-user-section" class="card" hidden>
+            <div class="card-header">
+              <h2 class="card-title">Selected User</h2>
+            </div>
+            <div class="card-content">
+              <div id="selected-user-info" class="selected-user-info"></div>
+              <div class="action-buttons">
+                <button id="load-care-plan-btn" class="btn btn-primary" disabled>Load Care Plan</button>
+                <button id="load-risk-btn" class="btn btn-secondary" disabled>Load Risk Assessment</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ========== TAB 2: UPLOAD ========== -->
+        <div id="tab-content-upload" class="tab-content">
+          
+          <section class="card">
+            <div class="card-header">
+              <h2 class="card-title">Document Type</h2>
+            </div>
+            <div class="card-content">
+              <div class="document-type-grid">
+                <label class="document-type-option">
+                  <input type="radio" name="document-type" value="socialWork" />
+                  <div class="document-type-card">
+                    <span class="doc-label">Social Work</span>
+                  </div>
+                </label>
+                <label class="document-type-option">
+                  <input type="radio" name="document-type" value="carePlan" />
+                  <div class="document-type-card">
+                    <span class="doc-label">Care Plan</span>
+                  </div>
+                </label>
+                <label class="document-type-option">
+                  <input type="radio" name="document-type" value="movingHandling" />
+                  <div class="document-type-card">
+                    <span class="doc-label">Moving & Handling</span>
+                  </div>
+                </label>
+                <label class="document-type-option">
+                  <input type="radio" name="document-type" value="otherDocuments" checked />
+                  <div class="document-type-card">
+                    <span class="doc-label">Other Documents</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h2 class="card-title">Upload Files</h2>
+            </div>
+            <div class="card-content">
+              <div class="file-upload-area">
+                <input id="document-files" type="file" accept=".pdf,.doc,.docx,.txt,image/*" multiple class="file-input" />
+                <label for="document-files" class="file-upload-label">
+                  <span>Click to select files</span>
+                </label>
+                <div id="file-list" class="file-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-content">
+              <textarea id="upload-notes" class="form-textarea" placeholder="Additional context..." rows="2"></textarea>
+              <button id="analyze-documents" class="btn btn-primary btn-block" disabled>Analyze with AI</button>
+              <div id="analysis-status" class="status-text"></div>
+              <div id="analysis-progress" class="progress-container" hidden>
+                <div class="progress-bar">
+                  <div id="analysis-progress-fill" class="progress-fill"></div>
+                </div>
+                <div id="progress-details" class="progress-text"></div>
+              </div>
+            </div>
+          </section>
+
+          <section id="uploaded-docs-summary" class="card" hidden>
+            <div class="card-header">
+              <h2 class="card-title">Uploaded Documents</h2>
+              <button id="clear-uploads" class="btn-icon" title="Clear all">✕</button>
+            </div>
+            <div class="card-content">
+              <div id="uploaded-docs-list" class="uploaded-docs-list"></div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ========== TAB 3: AUTOFILL ========== -->
+        <div id="tab-content-autofill" class="tab-content">
+
+          <section class="card">
+            <div class="card-header">
+              <h2 class="card-title">Payload Status</h2>
+            </div>
+            <div class="card-content">
+              <div id="payload-status" class="status-box">
+                <span>No data loaded</span>
+              </div>
+            </div>
+          </section>
+
+          <section id="selection-section" class="card" hidden>
+            <div class="card-header">
+              <h2 class="card-title">Select Assessments</h2>
+              <div class="toolbar-actions">
+                <button id="select-all-btn" class="btn-sm">All</button>
+                <button id="clear-selection-btn" class="btn-sm">None</button>
+              </div>
+            </div>
+            <div class="card-content">
+              <div id="assessment-list" class="assessment-list"></div>
+              <span id="selection-count" class="selection-badge">0 selected</span>
+              <textarea id="additional-notes" class="form-textarea" placeholder="Additional notes..." rows="2"></textarea>
+              <button id="proceed-with-selection" class="btn btn-primary btn-block">Generate Assessments</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h2 class="card-title">ACP Settings</h2>
+            </div>
+            <div class="card-content">
+              <div class="form-row">
+                <div class="form-group half">
+                  <label class="form-label">Case ID</label>
+                  <input id="case-id" type="text" class="form-input" placeholder="61758" />
+                </div>
+                <div class="form-group half">
+                  <label class="form-label">Service Data Group</label>
+                  <input id="service-data-group-id" type="text" class="form-input" placeholder="1017650" />
+                </div>
+              </div>
+              <button id="auto-detect-ids" class="btn btn-secondary btn-sm btn-block" title="Detect from current page URL">🔍 Auto-Detect from Page</button>
+              <div class="form-group">
+                <label class="form-label">Fill Mode</label>
+                <select id="interaction-mode" class="form-select">
+                  <option value="auto">Instant</option>
+                  <option value="slow">Realistic Typing</option>
+                  <option value="manual">Highlight Only</option>
+                </select>
+              </div>
+              <div class="options-row">
+                <label class="checkbox-label">
+                  <input id="auto-submit" type="checkbox" class="checkbox" />
+                  <span>Auto-submit</span>
+                </label>
+                <label class="checkbox-label">
+                  <input id="dry-run" type="checkbox" class="checkbox" />
+                  <span>Dry run</span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-content">
+              <div id="progress-status" class="status-text"></div>
+              <div class="action-row">
+                <button id="start-autofill" class="btn btn-primary btn-lg">Start Autofill</button>
+                <button id="stop-autofill" class="btn btn-secondary">Stop</button>
+              </div>
+              <button id="clear-data" class="btn btn-ghost btn-block">Clear All</button>
+            </div>
+          </section>
+
+          <details class="card collapsible">
+            <summary class="collapsible-header">
+              <span>Signature & Logs</span>
+              <span class="chevron">▼</span>
+            </summary>
+            <div class="card-content">
+              <input id="signature-file" type="file" accept="image/*" class="file-input" />
+              <button id="upload-signature" class="btn btn-secondary btn-sm btn-block">Upload Signature</button>
+              <div id="signature-filename" class="selected-filename"></div>
+              <div id="signature-status" class="status-text"></div>
+              <hr />
+              <div id="log-status" class="status-text">No actions.</div>
+              <div id="log-list" class="log-container"></div>
+              <button id="clear-logs" class="btn btn-ghost btn-sm btn-block">Clear Log</button>
+            </div>
+          </details>
+        </div>
+
+      </div>
+
+      <footer class="popup-footer">
+        <p class="footer-text">Care Assurance Extension v0.3.3</p>
+      </footer>
+    </main>
+    <script src="constants.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
