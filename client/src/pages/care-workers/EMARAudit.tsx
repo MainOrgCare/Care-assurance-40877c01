@@ -1610,7 +1610,7 @@ ${generatedProtocol.additionalComments}`;
         date,
         medication,
         medicationId,
-        issue: `${formattedDate} Used incorrect medication code on ${medDisplayName}, Code used was ${code} when medication level is ${levelDisplayName.toLowerCase()}`,
+        issue: `${formattedDate} Used incorrect medication code on ${medDisplayName}, Code used was ${codeDisplayName} when medication level is ${levelDisplayName.toLowerCase()}`,
         actions: {
           performanceNote: false,
           meeting: "none",
