@@ -1539,20 +1539,40 @@ ${generatedProtocol.additionalComments}`;
     level: string
   ): { discrepancies: Discrepancy[]; allCodeEntryKeys: Set<string> } => {
     const supportCodes = ['AS', 'AD', 'P'];
-    
+
     const codeMapping: Record<string, { validCodes: string[]; invalidCodes: string[] }> = {
       'assist': { validCodes: ['AS'], invalidCodes: ['AD', 'P'] },
       'prompt': { validCodes: ['P'], invalidCodes: ['AS', 'AD'] },
       'administer': { validCodes: ['AD'], invalidCodes: ['AS', 'P'] },
     };
-    
+
     const mapping = codeMapping[level];
     const derivedDiscrepancies: Discrepancy[] = [];
     const allCodeEntryKeys = new Set<string>(); // Track ALL code-related entries (both valid and invalid)
     const processedDiscrepancyKeys = new Set<string>(); // For deduplication within derived discrepancies
-    
+
+    // Build a set of PRN medication IDs and names for quick lookup
+    const prnMedicationIds = new Set<number>();
+    const prnMedicationNames = new Set<string>();
+    if (analysisResult.prnMedications?.hasPRN) {
+      analysisResult.prnMedications.medications.forEach(med => {
+        const medName = typeof med === 'string' ? med : med.name;
+        const medId = typeof med === 'object' && med !== null && 'medicationId' in med
+          ? (med as any).medicationId
+          : undefined;
+        if (medName) prnMedicationNames.add(medName.toLowerCase());
+        if (medId !== undefined && typeof medId === 'number') prnMedicationIds.add(medId);
+      });
+    }
+
+    // Helper function to check if a medication is PRN
+    const isPrnMedication = (medication: string, medicationId?: number): boolean => {
+      if (medicationId !== undefined && prnMedicationIds.has(medicationId)) return true;
+      return prnMedicationNames.has(medication.toLowerCase());
+    };
+
     if (!mapping) return { discrepancies: [], allCodeEntryKeys };
-    
+
     const addCodeDiscrepancy = (
       careWorkerName: string,
       date: string,
@@ -1563,12 +1583,12 @@ ${generatedProtocol.additionalComments}`;
       const key = getDiscrepancyKey(careWorkerName, date, medication, medicationId);
       if (processedDiscrepancyKeys.has(key)) return;
       processedDiscrepancyKeys.add(key);
-      
-      const codeDisplayName = code === 'AS' ? 'Assist' : 
-                              code === 'AD' ? 'Administer' : 
+
+      const codeDisplayName = code === 'AS' ? 'Assist' :
+                              code === 'AD' ? 'Administer' :
                               code === 'P' ? 'Prompt' : code;
       const levelDisplayName = level.charAt(0).toUpperCase() + level.slice(1);
-      
+
       // Format date as (DD/MM)
       const dateParts = date.match(/(\d{1,2})[^\d]+(\d{1,2}|\w+)/);
       let formattedDate = date;
@@ -1582,9 +1602,9 @@ ${generatedProtocol.additionalComments}`;
         const month = monthNames[monthPart.toLowerCase().slice(0, 3)] || monthPart.padStart(2, '0');
         formattedDate = `(${day}/${month})`;
       }
-      
+
       const medDisplayName = getMedicationDisplayName(medication);
-      
+
       derivedDiscrepancies.push({
         careWorkerName,
         date,
@@ -1601,7 +1621,36 @@ ${generatedProtocol.additionalComments}`;
         },
       });
     };
-    
+
+    // Add a custom discrepancy with a specific message
+    const addCustomDiscrepancy = (
+      careWorkerName: string,
+      date: string,
+      medication: string,
+      medicationId: number | undefined,
+      issue: string
+    ) => {
+      const key = getDiscrepancyKey(careWorkerName, date, medication, medicationId);
+      if (processedDiscrepancyKeys.has(key)) return;
+      processedDiscrepancyKeys.add(key);
+
+      derivedDiscrepancies.push({
+        careWorkerName,
+        date,
+        medication,
+        medicationId,
+        issue,
+        actions: {
+          performanceNote: false,
+          meeting: "none",
+          referToManager: false,
+          notesRecorded: false,
+          discussedWithStaff: false,
+          escalatedToManager: false,
+        },
+      });
+    };
+
     // Process entries - track ALL code entries for filtering, but only create discrepancies for INVALID codes
     const processEntry = (
       careWorkerName: string,
@@ -1611,11 +1660,57 @@ ${generatedProtocol.additionalComments}`;
       code?: string
     ) => {
       const entryCode = (code || '').toUpperCase();
+      const isPrn = isPrnMedication(medication, medicationId);
+
+      // Helper to format date as (DD/MM)
+      const formatDate = (dateStr: string): string => {
+        const dateParts = dateStr.match(/(\d{1,2})[^\d]+(\d{1,2}|\w+)/);
+        if (dateParts) {
+          const day = dateParts[1].padStart(2, '0');
+          const monthNames: { [key: string]: string } = {
+            jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+            jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+          };
+          const monthPart = dateParts[2];
+          const month = monthNames[monthPart.toLowerCase().slice(0, 3)] || monthPart.padStart(2, '0');
+          return `(${day}/${month})`;
+        }
+        return dateStr;
+      };
+
+      // Rule 1: R code used on PRN medication is a discrepancy
+      if (entryCode === 'R' && isPrn) {
+        const formattedDate = formatDate(date);
+        const medDisplayName = getMedicationDisplayName(medication);
+        addCustomDiscrepancy(
+          careWorkerName,
+          date,
+          medication,
+          medicationId,
+          `${formattedDate} Used R (Refused) code on PRN medication ${medDisplayName}. PRN medications should use PRN-R code instead`
+        );
+      }
+
+      // Rule 2: PRN codes (PRN-AD, PRN-AS, PRN-R, PRN) used on non-PRN medication is a discrepancy
+      const prnCodes = ['PRN-AD', 'PRN-AS', 'PRN-R', 'PRN'];
+      if (prnCodes.includes(entryCode) && !isPrn) {
+        const formattedDate = formatDate(date);
+        const medDisplayName = getMedicationDisplayName(medication);
+        addCustomDiscrepancy(
+          careWorkerName,
+          date,
+          medication,
+          medicationId,
+          `${formattedDate} Used PRN code (${entryCode}) on non-PRN medication ${medDisplayName}. Warning: Incorrect medication level`
+        );
+      }
+
+      // Original support code validation (AS, AD, P)
       if (supportCodes.includes(entryCode)) {
         // Track ALL code entries (valid or invalid) so we can filter out AI discrepancies about them
         const key = getDiscrepancyKey(careWorkerName, date, medication, medicationId);
         allCodeEntryKeys.add(key);
-        
+
         // Only create discrepancies for INVALID codes
         if (mapping.invalidCodes.includes(entryCode)) {
           addCodeDiscrepancy(careWorkerName, date, medication, medicationId, entryCode);
