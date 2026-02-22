@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import {
   PIIVault,
   scrubMessagesForLog,
@@ -12,57 +13,57 @@ describe("PIIVault", () => {
   it("scrubs NHS numbers (spaced format)", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("NHS: 123 456 7890");
-    expect(result).not.toContain("123 456 7890");
-    expect(result).toMatch(/\{\{PII_.*_NHS_NUM_\d+\}\}/);
+    assert(!(result).includes("123 456 7890"));
+    assert((/\{\{PII_.*_NHS_NUM_\d+\}\}/).test(result));
   });
 
   it("scrubs NHS numbers (no spaces)", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("NHS number is 1234567890");
-    expect(result).not.toContain("1234567890");
+    assert(!(result).includes("1234567890"));
   });
 
   // ── National Insurance Numbers ─────────────────────────────────────
   it("scrubs NI numbers", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("NI: AB123456C");
-    expect(result).not.toContain("AB123456C");
-    expect(result).toMatch(/\{\{PII_.*_NI_NUM_\d+\}\}/);
+    assert(!(result).includes("AB123456C"));
+    assert((/\{\{PII_.*_NI_NUM_\d+\}\}/).test(result));
   });
 
   it("scrubs NI numbers with spaces", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("NI: AB 12 34 56 C");
-    expect(result).not.toContain("AB 12 34 56 C");
+    assert(!(result).includes("AB 12 34 56 C"));
   });
 
   // ── UK Postcodes ───────────────────────────────────────────────────
   it("scrubs UK postcodes", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Lives at SW1A 1AA area");
-    expect(result).not.toContain("SW1A 1AA");
-    expect(result).toMatch(/\{\{PII_.*_POSTCODE_\d+\}\}/);
+    assert(!(result).includes("SW1A 1AA"));
+    assert((/\{\{PII_.*_POSTCODE_\d+\}\}/).test(result));
   });
 
   it("scrubs postcodes without space", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Postcode: EC1A1BB");
-    expect(result).not.toContain("EC1A1BB");
+    assert(!(result).includes("EC1A1BB"));
   });
 
   // ── Email addresses ────────────────────────────────────────────────
   it("scrubs email addresses", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Contact: john.doe@example.com please");
-    expect(result).not.toContain("john.doe@example.com");
-    expect(result).toMatch(/\{\{PII_.*_EMAIL_\d+\}\}/);
+    assert(!(result).includes("john.doe@example.com"));
+    assert((/\{\{PII_.*_EMAIL_\d+\}\}/).test(result));
   });
 
   // ── Phone numbers ─────────────────────────────────────────────────
   it("scrubs UK mobile numbers", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Mobile: 07700 900123");
-    expect(result).not.toContain("07700 900123");
+    assert(!(result).includes("07700 900123"));
   });
 
   it("scrubs UK landline numbers", () => {
@@ -75,140 +76,140 @@ describe("PIIVault", () => {
   it("scrubs international format +44", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Phone: +44 7700 900123");
-    expect(result).not.toContain("+44 7700 900123");
+    assert(!(result).includes("+44 7700 900123"));
   });
 
   // ── Dates ──────────────────────────────────────────────────────────
   it("scrubs DD/MM/YYYY dates", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("DOB: 15/03/1942");
-    expect(result).not.toContain("15/03/1942");
+    assert(!(result).includes("15/03/1942"));
   });
 
   it("scrubs ISO dates", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Date: 2024-03-15");
-    expect(result).not.toContain("2024-03-15");
+    assert(!(result).includes("2024-03-15"));
   });
 
   it("scrubs long-form dates", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Born 15th January 2025");
-    expect(result).not.toContain("15th January 2025");
+    assert(!(result).includes("15th January 2025"));
   });
 
   it("scrubs abbreviated dates", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Seen on 3rd Feb 2026");
-    expect(result).not.toContain("3rd Feb 2026");
+    assert(!(result).includes("3rd Feb 2026"));
   });
 
   // ── Ages ───────────────────────────────────────────────────────────
   it("scrubs age patterns", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Client aged 85");
-    expect(result).not.toContain("aged 85");
+    assert(!(result).includes("aged 85"));
   });
 
   it("scrubs year-of-birth patterns", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("born 1938");
-    expect(result).not.toContain("born 1938");
+    assert(!(result).includes("born 1938"));
   });
 
   // ── Street addresses ──────────────────────────────────────────────
   it("scrubs street addresses", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Lives at 42 Maple Drive");
-    expect(result).not.toContain("42 Maple Drive");
+    assert(!(result).includes("42 Maple Drive"));
   });
 
   it("scrubs house names", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Address: The Rose Cottage");
-    expect(result).not.toContain("Rose Cottage");
+    assert(!(result).includes("Rose Cottage"));
   });
 
   // ── Named fields ──────────────────────────────────────────────────
   it("scrubs labelled DOB fields", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Date of Birth: 12/06/1940");
-    expect(result).not.toContain("12/06/1940");
+    assert(!(result).includes("12/06/1940"));
   });
 
   it("scrubs labelled contact fields", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Emergency contact: 07700 900999");
-    expect(result).not.toContain("07700 900999");
+    assert(!(result).includes("07700 900999"));
   });
 
   it("scrubs labelled address fields", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Address: 10 High Street, London");
-    expect(result).not.toContain("10 High Street, London");
+    assert(!(result).includes("10 High Street, London"));
   });
 
   // ── Titled names ──────────────────────────────────────────────────
   it("scrubs titled names (Mr, Mrs, Dr)", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Seen by Dr Smith today");
-    expect(result).not.toContain("Smith");
-    expect(result).toMatch(/\{\{PII_.*_HEALTHCARE_PRO_\d+\}\}/);
+    assert(!(result).includes("Smith"));
+    assert((/\{\{PII_.*_HEALTHCARE_PRO_\d+\}\}/).test(result));
   });
 
   it("scrubs Mrs names", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Mrs Johnson visited");
-    expect(result).not.toContain("Johnson");
+    assert(!(result).includes("Johnson"));
   });
 
   // ── Staff names ───────────────────────────────────────────────────
   it("scrubs staff names after role labels", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Carer: Sarah Wilson");
-    expect(result).not.toContain("Sarah Wilson");
-    expect(result).toMatch(/\{\{PII_.*_STAFF_\d+\}\}/);
+    assert(!(result).includes("Sarah Wilson"));
+    assert((/\{\{PII_.*_STAFF_\d+\}\}/).test(result));
   });
 
   // ── Financial identifiers ─────────────────────────────────────────
   it("scrubs sort codes", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Sort code: 12-34-56");
-    expect(result).not.toContain("12-34-56");
+    assert(!(result).includes("12-34-56"));
   });
 
   it("scrubs bank account numbers", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Account number: 12345678");
-    expect(result).not.toContain("12345678");
+    assert(!(result).includes("12345678"));
   });
 
   // ── Government IDs ────────────────────────────────────────────────
   it("scrubs UK vehicle registrations", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Vehicle: AB12 CDE");
-    expect(result).not.toContain("AB12 CDE");
+    assert(!(result).includes("AB12 CDE"));
   });
 
   // ── Network identifiers ───────────────────────────────────────────
   it("scrubs IP addresses", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("IP: 192.168.1.100");
-    expect(result).not.toContain("192.168.1.100");
+    assert(!(result).includes("192.168.1.100"));
   });
 
   it("scrubs MAC addresses", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("MAC: AA:BB:CC:DD:EE:FF");
-    expect(result).not.toContain("AA:BB:CC:DD:EE:FF");
+    assert(!(result).includes("AA:BB:CC:DD:EE:FF"));
   });
 
   // ── Explicit name introductions ───────────────────────────────────
   it("scrubs 'my name is' patterns", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("My name is Florence Oduwu");
-    expect(result).not.toContain("Florence Oduwu");
-    expect(result).toContain("My name is");
+    assert(!(result).includes("Florence Oduwu"));
+    assert((result).includes("My name is"));
   });
 
   // ── Object key scrubbing ──────────────────────────────────────────
@@ -220,11 +221,11 @@ describe("PIIVault", () => {
       address: "42 Rose Lane",
       condition: "Diabetes",
     });
-    expect(result.name).not.toBe("John Smith");
-    expect(result.email).not.toBe("john@example.com");
-    expect(result.address).not.toBe("42 Rose Lane");
-    expect(result.condition).not.toBe("John Smith"); // should not be scrubbed by key
-    expect(result.name).toMatch(/\{\{PII_.*_FIELD_\d+\}\}/);
+    assert.notStrictEqual(result.name, "John Smith");
+    assert.notStrictEqual(result.email, "john@example.com");
+    assert.notStrictEqual(result.address, "42 Rose Lane");
+    assert.notStrictEqual(result.condition, "John Smith"); // should not be scrubbed by key
+    assert((/\{\{PII_.*_FIELD_\d+\}\}/).test(result.name));
   });
 
   // ── Deduplication ─────────────────────────────────────────────────
@@ -235,8 +236,8 @@ describe("PIIVault", () => {
     );
     // Both occurrences should produce the same token
     const tokens = result.match(/\{\{PII_[^}]+\}\}/g);
-    expect(tokens).toHaveLength(2);
-    expect(tokens![0]).toBe(tokens![1]);
+    assert.strictEqual((tokens).length, 2);
+    assert.strictEqual(tokens![0], tokens![1]);
   });
 
   // ── Whitelist preservation ────────────────────────────────────────
@@ -245,15 +246,15 @@ describe("PIIVault", () => {
     const result = vault.scrubString(
       "Diagnosis: Alzheimer's disease. Taking metformin.",
     );
-    expect(result).toContain("Alzheimer's");
-    expect(result).toContain("metformin");
+    assert((result).includes("Alzheimer's"));
+    assert((result).includes("metformin"));
   });
 
   it("preserves care phrases", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Care plan for personal care");
-    expect(result).toContain("care plan");
-    expect(result).toContain("personal care");
+    assert((result).includes("care plan"));
+    assert((result).includes("personal care"));
   });
 
   // ── Restoration ───────────────────────────────────────────────────
@@ -262,8 +263,8 @@ describe("PIIVault", () => {
     const original = "Mrs Smith lives at SW1A 1AA. NHS: 123 456 7890";
     const scrubbed = vault.scrubString(original);
     const restored = vault.restoreString(scrubbed);
-    expect(restored).toContain("SW1A 1AA");
-    expect(restored).toContain("123 456 7890");
+    assert((restored).includes("SW1A 1AA"));
+    assert((restored).includes("123 456 7890"));
   });
 
   it("restores scrubbed objects", () => {
@@ -271,7 +272,7 @@ describe("PIIVault", () => {
     const original = { note: "Seen at 42 Maple Drive, SW1A 1AA" };
     const scrubbed = vault.scrub(original);
     const restored = vault.restore(scrubbed);
-    expect(restored.note).toContain("SW1A 1AA");
+    assert((restored.note).includes("SW1A 1AA"));
   });
 
   // ── Placeholder conversion ────────────────────────────────────────
@@ -279,38 +280,38 @@ describe("PIIVault", () => {
     const vault = new PIIVault();
     const scrubbed = vault.scrubString("NHS: 123 456 7890, Email: a@b.com");
     const placeholders = vault.toPlaceholdersString(scrubbed);
-    expect(placeholders).toContain("[NHS Number]");
-    expect(placeholders).toContain("[Email]");
-    expect(placeholders).not.toContain("123 456 7890");
-    expect(placeholders).not.toContain("a@b.com");
+    assert((placeholders).includes("[NHS Number]"));
+    assert((placeholders).includes("[Email]"));
+    assert(!(placeholders).includes("123 456 7890"));
+    assert(!(placeholders).includes("a@b.com"));
   });
 
   // ── Vault lifecycle ───────────────────────────────────────────────
   it("clears all entries", () => {
     const vault = new PIIVault();
     vault.scrubString("NHS: 123 456 7890");
-    expect(vault.getStats().total).toBeGreaterThan(0);
+    assert((vault.getStats().total) > (0));
     vault.clear();
-    expect(vault.getStats().total).toBe(0);
+    assert.strictEqual(vault.getStats().total, 0);
   });
 
   it("exports vault mapping", () => {
     const vault = new PIIVault();
     vault.scrubString("Email: test@example.com");
     const exported = vault.export();
-    expect(exported.prefix).toBeTruthy();
-    expect(Object.keys(exported.mapping).length).toBeGreaterThan(0);
+    assert(exported.prefix);
+    assert((Object.keys(exported.mapping).length) > (0));
     const firstEntry = Object.values(exported.mapping)[0];
-    expect(firstEntry.original).toBe("test@example.com");
-    expect(firstEntry.category).toBe("EMAIL");
+    assert.strictEqual(firstEntry.original, "test@example.com");
+    assert.strictEqual(firstEntry.category, "EMAIL");
   });
 
   it("verifies integrity", () => {
     const vault = new PIIVault();
     vault.scrubString("NHS: 123 456 7890 and name is John");
     const result = vault.verifyIntegrity();
-    expect(result.valid).toBe(true);
-    expect(result.issues).toHaveLength(0);
+    assert.strictEqual(result.valid, true);
+    assert.strictEqual((result.issues).length, 0);
   });
 
   // ── withPIIVault helper ───────────────────────────────────────────
@@ -321,9 +322,9 @@ describe("PIIVault", () => {
       const scrubbed = vault.scrubString("NHS: 123 456 7890");
       return scrubbed;
     });
-    expect(result).toMatch(/\{\{PII_/);
+    assert((/\{\{PII_/).test(result));
     // Vault should be cleared after callback
-    expect(vaultRef!.getStats().total).toBe(0);
+    assert.strictEqual(vaultRef!.getStats().total, 0);
   });
 
   it("withPIIVault auto-clears on error", async () => {
@@ -337,7 +338,7 @@ describe("PIIVault", () => {
     } catch {
       // expected
     }
-    expect(vaultRef!.getStats().total).toBe(0);
+    assert.strictEqual(vaultRef!.getStats().total, 0);
   });
 
   // ── scrubWithVault helper ─────────────────────────────────────────
@@ -345,11 +346,11 @@ describe("PIIVault", () => {
     const { scrubbed, vault } = scrubWithVault(
       "Client: Mrs Jones, NHS: 123 456 7890",
     );
-    expect(scrubbed).not.toContain("123 456 7890");
-    expect(vault.getStats().total).toBeGreaterThan(0);
+    assert(!(scrubbed).includes("123 456 7890"));
+    assert((vault.getStats().total) > (0));
     // Can restore
     const restored = vault.restoreString(scrubbed);
-    expect(restored).toContain("123 456 7890");
+    assert((restored).includes("123 456 7890"));
     vault.clear();
   });
 });
@@ -362,12 +363,12 @@ describe("scrubMessagesForLog", () => {
     ];
     const scrubbed = scrubMessagesForLog(messages);
     // System message should be mostly unchanged
-    expect(scrubbed[0].content).toContain("care assistant");
+    assert((scrubbed[0].content).includes("care assistant"));
     // User message should have PII replaced with placeholders
-    expect(scrubbed[1].content).not.toContain("123 456 7890");
-    expect(scrubbed[1].content).not.toContain("SW1A 1AA");
-    expect(scrubbed[1].content).toContain("[NHS Number]");
-    expect(scrubbed[1].content).toContain("[Postcode]");
+    assert(!(scrubbed[1].content).includes("123 456 7890"));
+    assert(!(scrubbed[1].content).includes("SW1A 1AA"));
+    assert((scrubbed[1].content).includes("[NHS Number]"));
+    assert((scrubbed[1].content).includes("[Postcode]"));
   });
 
   it("handles multi-part content (vision messages)", () => {
@@ -388,35 +389,35 @@ describe("scrubMessagesForLog", () => {
     ];
     const scrubbed = scrubMessagesForLog(messages);
     const content = scrubbed[0].content as any[];
-    expect(content[0].text).not.toContain("SW1A 1AA");
-    expect(content[0].text).toContain("[Postcode]");
+    assert(!(content[0].text).includes("SW1A 1AA"));
+    assert((content[0].text).includes("[Postcode]"));
     // base64 image should be redacted
-    expect(content[1].image_url.url).toBe("[base64_image_redacted]");
+    assert.strictEqual(content[1].image_url.url, "[base64_image_redacted]");
   });
 
   it("preserves non-string content types", () => {
     const messages = [{ role: "system", content: null }];
     const scrubbed = scrubMessagesForLog(messages as any);
-    expect(scrubbed[0].content).toBeNull();
+    assert.strictEqual(scrubbed[0].content, null);
   });
 });
 
 describe("isClinicalOrMedicalTerm", () => {
   it("recognizes clinical conditions", () => {
-    expect(isClinicalOrMedicalTerm("Alzheimer")).toBe(true);
-    expect(isClinicalOrMedicalTerm("Parkinson's")).toBe(true);
-    expect(isClinicalOrMedicalTerm("Crohn's")).toBe(true);
+    assert.strictEqual(isClinicalOrMedicalTerm("Alzheimer"), true);
+    assert.strictEqual(isClinicalOrMedicalTerm("Parkinson's"), true);
+    assert.strictEqual(isClinicalOrMedicalTerm("Crohn's"), true);
   });
 
   it("recognizes medications", () => {
-    expect(isClinicalOrMedicalTerm("warfarin")).toBe(true);
-    expect(isClinicalOrMedicalTerm("paracetamol")).toBe(true);
-    expect(isClinicalOrMedicalTerm("Metformin")).toBe(true);
+    assert.strictEqual(isClinicalOrMedicalTerm("warfarin"), true);
+    assert.strictEqual(isClinicalOrMedicalTerm("paracetamol"), true);
+    assert.strictEqual(isClinicalOrMedicalTerm("Metformin"), true);
   });
 
   it("rejects non-clinical terms", () => {
-    expect(isClinicalOrMedicalTerm("Johnson")).toBe(false);
-    expect(isClinicalOrMedicalTerm("Springfield")).toBe(false);
+    assert.strictEqual(isClinicalOrMedicalTerm("Johnson"), false);
+    assert.strictEqual(isClinicalOrMedicalTerm("Springfield"), false);
   });
 });
 
@@ -441,25 +442,25 @@ describe("PIIVault - complex document scrubbing", () => {
     const scrubbed = vault.scrubString(document);
 
     // PII should be removed
-    expect(scrubbed).not.toContain("943 567 8901");
-    expect(scrubbed).not.toContain("AB 12 34 56 C");
-    expect(scrubbed).not.toContain("SN1 2AB");
-    expect(scrubbed).not.toContain("07700 123456");
-    expect(scrubbed).not.toContain("15/03/1942");
+    assert(!(scrubbed).includes("943 567 8901"));
+    assert(!(scrubbed).includes("AB 12 34 56 C"));
+    assert(!(scrubbed).includes("SN1 2AB"));
+    assert(!(scrubbed).includes("07700 123456"));
+    assert(!(scrubbed).includes("15/03/1942"));
 
     // Clinical terms should be preserved
-    expect(scrubbed).toContain("Alzheimer's");
+    assert((scrubbed).includes("Alzheimer's"));
 
     // Should be restorable
     const restored = vault.restoreString(scrubbed);
-    expect(restored).toContain("943 567 8901");
-    expect(restored).toContain("SN1 2AB");
+    assert((restored).includes("943 567 8901"));
+    assert((restored).includes("SN1 2AB"));
 
     // Stats should reflect what was found
     const stats = vault.getStats();
-    expect(stats.total).toBeGreaterThan(5);
-    expect(stats.byCategory.NHS_NUM).toBeGreaterThanOrEqual(1);
-    expect(stats.byCategory.POSTCODE).toBeGreaterThanOrEqual(1);
+    assert((stats.total) > (5));
+    assert((stats.byCategory.NHS_NUM) >= (1));
+    assert((stats.byCategory.POSTCODE) >= (1));
 
     vault.clear();
   });
