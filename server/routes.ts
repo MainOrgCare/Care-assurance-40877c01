@@ -5028,15 +5028,19 @@ export async function registerRoutes(
       }
 
       const updatedUser = await storage.updateUserTermsAcceptance(
-        req.user.id, 
-        version, 
-        signatureName.trim(), 
+        req.user.id,
+        version,
+        signatureName.trim(),
         signatureDate
       );
-      
+
       if (!updatedUser) {
         return apiInternalError(res, "Failed to update user");
       }
+
+      // Invalidate auth cache to ensure updated terms are reflected immediately
+      const cacheKey = `${req.user.id}:${req.sessionID}`;
+      authSessionCache.delete(cacheKey);
 
       // Update session user
       req.user.termsAcceptedAt = updatedUser.termsAcceptedAt;
