@@ -327,13 +327,20 @@ export default function Compliance() {
 
 function getMonthlyAuditData(audits: Audit[]) {
   const monthCounts: { [key: string]: { label: string; count: number; sortKey: number } } = {};
-  
+
   audits.forEach((audit: Audit) => {
-    const date = new Date(audit.createdAt);
-    const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    const rawDate = audit.createdAt || audit.periodEnd || audit.periodStart;
+    const date = rawDate ? new Date(rawDate) : null;
+    if (!date || Number.isNaN(date.getTime())) return;
+
+    const monthKey = date.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
     if (!monthCounts[monthKey]) {
       // Use year-month numeric key for sorting
-      monthCounts[monthKey] = { label: monthKey, count: 0, sortKey: date.getFullYear() * 100 + date.getMonth() };
+      monthCounts[monthKey] = {
+        label: monthKey,
+        count: 0,
+        sortKey: date.getFullYear() * 100 + date.getMonth(),
+      };
     }
     monthCounts[monthKey].count += 1;
   });

@@ -4756,7 +4756,7 @@ export default function TestingFeatures() {
 
   if (user?.role !== "admin") {
     return (
-      <Card className="max-w-2xl mx-auto">
+      <Card className="max-w-2xl mx-auto border-border/60 bg-background/70 shadow-medium">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-red-500">
             <Shield size={18} />
@@ -4775,7 +4775,7 @@ export default function TestingFeatures() {
   const insightsNavDisabled = analysisResults.length === 0;
   const studioNavDisabled = careWorkerRosters.length === 0;
   const stacksNavDisabled = serviceUserStacks.length === 0;
-  const showRosteringStudio = false;
+  const showRosteringStudio = careWorkerRosters.length > 0;
 
   return (
     <div className="page-shell max-w-7xl mx-auto space-y-10 relative pb-6">
@@ -5101,6 +5101,19 @@ export default function TestingFeatures() {
                 <Users className="h-3.5 w-3.5" />
                 Stacks
               </Button>
+              {showRosteringStudio && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={studioNavDisabled}
+                  onClick={() => scrollToAnchor("tf-studio")}
+                  className="gap-2"
+                >
+                  <Route className="h-3.5 w-3.5" />
+                  Rostering Studio
+                </Button>
+              )}
             </div>
             <Separator />
             <p className="text-xs text-muted-foreground">

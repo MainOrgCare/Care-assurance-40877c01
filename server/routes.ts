@@ -13193,9 +13193,61 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
     };
   };
 
+  const normalizeAuditContext = (input: any) => ({
+    serviceUserName: typeof input?.serviceUserName === "string" ? input.serviceUserName.trim() : "",
+    auditPeriodStart: typeof input?.auditPeriodStart === "string" ? input.auditPeriodStart.trim() : "",
+    auditPeriodEnd: typeof input?.auditPeriodEnd === "string" ? input.auditPeriodEnd.trim() : "",
+    notes: typeof input?.notes === "string" ? input.notes.trim() : "",
+  });
+
+  const normalizeAuditServiceUserName = (name: string, allowSensitiveView: boolean) => {
+    const cleaned = String(name || "").trim();
+    if (!cleaned) return "";
+    if (allowSensitiveView) return normalizeFullName(cleaned) || cleaned;
+    return normalizeInitials(cleaned) || toInitials(cleaned) || cleaned;
+  };
+
+  const applyAuditHints = (
+    result: any,
+    hints: ReturnType<typeof normalizeAuditContext>,
+    allowSensitiveView: boolean
+  ) => {
+    if (!result) return result;
+    const hintedName = normalizeAuditServiceUserName(hints.serviceUserName, allowSensitiveView);
+    if (hintedName && (!result.serviceUserName || result.serviceUserName === "N.N.")) {
+      result.serviceUserName = hintedName;
+    }
+    if (hints.auditPeriodStart && !result.auditPeriodStart) {
+      result.auditPeriodStart = hints.auditPeriodStart;
+    }
+    if (hints.auditPeriodEnd && !result.auditPeriodEnd) {
+      result.auditPeriodEnd = hints.auditPeriodEnd;
+    }
+    return result;
+  };
+
+  const enrichVisitResult = (result: any, fallback: any) => {
+    if (!result || !fallback) return result;
+    if (!Array.isArray(result.careCalls) || result.careCalls.length === 0) {
+      result.careCalls = Array.isArray(fallback.careCalls) ? fallback.careCalls : [];
+    }
+    if (!Array.isArray(result.discrepancies) || result.discrepancies.length === 0) {
+      result.discrepancies = Array.isArray(fallback.discrepancies) ? fallback.discrepancies : [];
+    }
+    if (!result.auditPeriodStart) result.auditPeriodStart = fallback.auditPeriodStart || "";
+    if (!result.auditPeriodEnd) result.auditPeriodEnd = fallback.auditPeriodEnd || "";
+    if (!result.serviceUserName || result.serviceUserName === "Multiple") {
+      result.serviceUserName = fallback.serviceUserName || result.serviceUserName;
+    }
+    if (!result.themesAndTrends) result.themesAndTrends = fallback.themesAndTrends;
+    if (!result.gapsInKnowledge) result.gapsInKnowledge = fallback.gapsInKnowledge;
+    result.hasDiscrepancies = Array.isArray(result.discrepancies) && result.discrepancies.length > 0;
+    return result;
+  };
+
   // Analyze Visit Notes with SSE streaming progress
   app.post("/api/ai/analyze-visit", requireAuth, async (req, res) => {
-    const { documentContent } = req.body;
+    const { documentContent, auditContext } = req.body;
     const visitPIIVault = new PIIVault();
     
     if (!documentContent) {
@@ -13257,6 +13309,15 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       // User context for AI cost tracking
       const user = await storage.getUser(req.session.userId!);
       const aiUserContext: AiUserContext = { userId: user?.id || null, username: user?.username || null };
+      const allowSensitiveView = user?.role === "admin";
+      const auditHints = normalizeAuditContext(auditContext);
+      const auditHintsForAi = {
+        serviceUserName: auditHints.serviceUserName ? visitPIIVault.scrubString(auditHints.serviceUserName) : "",
+        auditPeriodStart: auditHints.auditPeriodStart,
+        auditPeriodEnd: auditHints.auditPeriodEnd,
+        notes: auditHints.notes ? visitPIIVault.scrubString(auditHints.notes) : "",
+      };
+      const serviceUserFullName = normalizeFullName(extractServiceUserFullName(documentContent));
       const visitAuditModel = getAccurateModel();
       const visitAuditValidationModel = visitAuditModel;
       
@@ -13276,7 +13337,14 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       }
       if (preprocessing.needsChunking && Array.isArray(preprocessing.lines)) {
         sendProgress(20, "Large dataset detected. Running optimized audit locally...", "local_audit");
-        const localResult = buildDeterministicVisitAudit(preprocessing.lines);
+        const localResult = applyAuditHints(
+          buildDeterministicVisitAudit(preprocessing.lines),
+          auditHints,
+          allowSensitiveView
+        );
+        if (allowSensitiveView && serviceUserFullName && localResult.serviceUserName !== "Multiple") {
+          localResult.serviceUserName = serviceUserFullName;
+        }
         sendProgress(100, "Analysis complete!", "complete");
         sendEvent('result', localResult);
         if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -13310,6 +13378,16 @@ You MUST apply the rules and guidelines from the policy documents above when ana
 
       sendProgress(15, "Analyzing visit records...", "parsing");
 
+      const auditContextBlock = auditHintsForAi.serviceUserName || auditHintsForAi.auditPeriodStart || auditHintsForAi.auditPeriodEnd || auditHintsForAi.notes
+        ? `
+OPERATOR PROVIDED CONTEXT (USE ONLY TO FILL MISSING DETAILS, NEVER TO INVENT DISCREPANCIES):
+- Service user: ${auditHintsForAi.serviceUserName || "Not provided"}
+- Audit period start: ${auditHintsForAi.auditPeriodStart || "Not provided"}
+- Audit period end: ${auditHintsForAi.auditPeriodEnd || "Not provided"}
+- Notes: ${auditHintsForAi.notes || "Not provided"}
+`
+        : "";
+
       const systemPrompt = `You are an expert care visit auditor for a UK care facility. Analyze the visit logs and carer notes.
 
 CRITICAL INSTRUCTION - COMPREHENSIVE AUDIT:
@@ -13329,6 +13407,8 @@ FORMATTING RULES - MUST FOLLOW:
 EXTRACT FROM DOCUMENT:
 - Service user INITIALS ONLY (e.g., K.S., not full name)
 - First and last dates covered in the document
+
+${auditContextBlock}
 
 VALIDATION RULES:
 1. LOCATION: Carer must log in at location (less than 200m from service user's address) for the call to be compliant.
@@ -13441,6 +13521,13 @@ Respond ONLY with valid JSON in this exact format:
       const result = chunkResults.length === 1
         ? chunkResults[0]
         : mergeVisitAuditResults(chunkResults);
+
+      if (preprocessing.lines && (result?.careCalls?.length || 0) === 0) {
+        const fallbackResult = buildDeterministicVisitAudit(preprocessing.lines);
+        enrichVisitResult(result, fallbackResult);
+      }
+
+      applyAuditHints(result, auditHints, allowSensitiveView);
 
       sendProgress(50, "Processing initial results...", "parsing_results");
         
@@ -13581,7 +13668,10 @@ Return JSON - include ALL by default:
         
         console.log(`DEBUG Visit Audit: Triple-check complete - ${originalCount} initial -> ${validatedDiscrepancies.length} confirmed (status: ${validationStatus})`);
         
-        result.discrepancies = validatedDiscrepancies;
+        result.discrepancies = validatedDiscrepancies.map((disc: any, index: number) => ({
+          ...disc,
+          evidence: validationEvidence[String(index + 1)] || validationEvidence[index + 1],
+        }));
         result.hasDiscrepancies = validatedDiscrepancies.length > 0;
         result.validationPasses = 3;
         result.validationStatus = validationStatus;
@@ -13591,6 +13681,9 @@ Return JSON - include ALL by default:
         sendProgress(100, "Analysis complete!", "complete");
         // Restore any PII tokens in the result before sending to client
         const restoredResult = visitPIIVault.restore(result);
+        if (allowSensitiveView && serviceUserFullName && restoredResult.serviceUserName !== "Multiple") {
+          restoredResult.serviceUserName = serviceUserFullName;
+        }
         visitPIIVault.logAudit('RESTORE', '/api/ai/analyze-visit', aiUserContext.userId, aiUserContext.username);
         sendEvent('result', restoredResult);
         if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -14723,7 +14816,7 @@ ${scrubbedDocumentContent}
 
 Remember: Extract information ONLY from the service user documents above. Templates contain placeholder/example text that should be ignored.` }
         ],
-        temperature: 0.8,
+        temperature: 0.2,
         max_completion_tokens: 12000,
         response_format: { type: "json_object" },
       }, "risk_assessment", aiUserContext);
@@ -14766,6 +14859,25 @@ Remember: Extract information ONLY from the service user documents above. Templa
           return cleaned;
         };
 
+        const evidenceHints = scrubbedEvidencePack
+          ? scrubbedEvidencePack
+              .split(/\n+/)
+              .map((line) => line.replace(/^[-•]\s*/, "").trim())
+              .filter(Boolean)
+              .slice(0, 8)
+          : [];
+        const hasSpecificDetail = (value: string) =>
+          /\d|mg|ml|hour|minute|am|pm|wheelchair|hoist|frame|walker|oxygen|insulin|falls|seizure|pressure|catheter|stairs|dementia|diabetes|epilepsy|copd|asthma|stroke|arthritis|skin|wound|ulcer/i.test(value);
+        const improveField = (value: string, fallback: string) => {
+          const trimmed = value?.trim() || "";
+          if (trimmed.length >= 40 && hasSpecificDetail(trimmed)) return trimmed;
+          const hint = evidenceHints.find((line) => line.length > 12) || "";
+          if (hint) {
+            return `${trimmed || fallback} ${toFirstPerson(hint)}`.trim();
+          }
+          return trimmed || fallback;
+        };
+
         if (!Array.isArray(result.risks) || result.risks.length === 0) {
           result.risks = [
             {
@@ -14786,20 +14898,61 @@ Remember: Extract information ONLY from the service user documents above. Templa
         result.category = preservedFields.category;
 
         if (Array.isArray(result.risks)) {
-          result.risks = result.risks.map((risk: any) => ({
-            ...risk,
-            initialRating: normalizeRiskRating(risk?.initialRating),
-            riskDefinition: typeof risk?.riskDefinition === "string"
+          result.risks = result.risks.map((risk: any) => {
+            const riskDefinition = typeof risk?.riskDefinition === "string"
               ? cleanNotAwarePhrases(toFirstPerson(risk.riskDefinition))
-              : risk?.riskDefinition,
-            howItsARisk: typeof risk?.howItsARisk === "string"
+              : "";
+            const howItsARisk = typeof risk?.howItsARisk === "string"
               ? cleanNotAwarePhrases(toFirstPerson(risk.howItsARisk))
-              : risk?.howItsARisk,
-            controlMeasures: typeof risk?.controlMeasures === "string"
+              : "";
+            const controlMeasures = typeof risk?.controlMeasures === "string"
               ? cleanNotAwarePhrases(toFirstPerson(sanitizeOutOfScopeText(risk.controlMeasures)))
-              : risk?.controlMeasures,
-            ratingAfterControls: normalizeRiskRating(risk?.ratingAfterControls),
-          }));
+              : "";
+            return {
+              ...risk,
+              initialRating: normalizeRiskRating(risk?.initialRating),
+              riskDefinition: improveField(riskDefinition, "I have a documented risk in this area of my care."),
+              howItsARisk: improveField(howItsARisk, "This risk could affect my safety and wellbeing without the right support."),
+              controlMeasures: improveField(controlMeasures, "My care team will follow my care plan and provide support to reduce this risk."),
+              whoWillBeHarmed: typeof risk?.whoWillBeHarmed === "string" && risk.whoWillBeHarmed.trim().length > 0
+                ? risk.whoWillBeHarmed.trim()
+                : "Service User and Care Workers",
+              ratingAfterControls: normalizeRiskRating(risk?.ratingAfterControls),
+            };
+          });
+        }
+
+        const riskQualityScores = Array.isArray(result.risks)
+          ? result.risks.map((risk: any) => {
+              const fields = [risk?.riskDefinition, risk?.howItsARisk, risk?.controlMeasures]
+                .filter((val: string) => typeof val === "string")
+                .join(" ");
+              let score = 0;
+              if (fields.length > 120) score += 40;
+              if (hasSpecificDetail(fields)) score += 40;
+              if (fields.split(/\s+/).length > 40) score += 20;
+              return score;
+            })
+          : [];
+        const averageRiskScore = riskQualityScores.length
+          ? riskQualityScores.reduce((sum: number, score: number) => sum + score, 0) / riskQualityScores.length
+          : 0;
+
+        if (!result.risks || result.risks.length < 2 || averageRiskScore < 60) {
+          console.warn(`[RiskAssessment] Low quality AI output (risks=${result.risks?.length || 0}, avgScore=${averageRiskScore.toFixed(1)}). Using rule-based fallback.`);
+          const fallbackResult = buildRuleBasedRiskAssessmentPayload({
+            documentContent: scrubbedDocumentContent,
+            assessmentCategory,
+            serviceUserInitials,
+            performedBy,
+            performedByJobTitle,
+          });
+          result = fallbackResult;
+          result.serviceUserInitials = normalizeInitials(result.serviceUserInitials);
+          result.assessmentDate = preservedFields.assessmentDate;
+          result.signedBy = normalizeSignedByName(preservedFields.signedBy || "Staff member");
+          result.jobTitle = preservedFields.jobTitle;
+          result.category = preservedFields.category;
         }
         if (typeof result.additionalNotes === "string") {
           result.additionalNotes = cleanNotAwarePhrases(toFirstPerson(result.additionalNotes));
@@ -15204,10 +15357,10 @@ OUTPUT FORMAT - Return ONLY valid JSON:
       console.log(`Date: ${today}`);
       console.log('');
       
-      const carePlanUserContent = `Generate a comprehensive ${callTypeLabel} care plan following CQC 2024 person-centred standards.\n\n═══════════════════════════════════════════════════════════════════════════════\nSERVICE USER DOCUMENTS\n═══════════════════════════════════════════════════════════════════════════════\n${documentContent}`;
+      const carePlanUserContent = `Generate a comprehensive ${callTypeLabel} care plan following CQC 2024 person-centred standards.\n\n═══════════════════════════════════════════════════════════════════════════════\nSERVICE USER DOCUMENTS\n═══════════════════════════════════════════════════════════════════════════════\n${documentContentForAi}`;
       
       console.log('📊 CONTENT STATS:');
-      console.log(`   Document Content Length: ${documentContent.length.toLocaleString()} chars`);
+      console.log(`   Document Content Length: ${documentContentForAi.length.toLocaleString()} chars`);
       console.log(`   Total User Content: ${carePlanUserContent.length.toLocaleString()} chars`);
       console.log(`   Policy Context Length: ${policyContext.length.toLocaleString()} chars`);
       console.log(`   Number of Mandatory Sections: ${mandatorySections.length}`);
@@ -15215,9 +15368,9 @@ OUTPUT FORMAT - Return ONLY valid JSON:
       
       console.log('📄 DOCUMENT CONTENT PREVIEW (First 2000 characters):');
       console.log('─────────────────────────────────────────────────────────────────');
-      console.log(documentContent.substring(0, 2000));
-      if (documentContent.length > 2000) {
-        console.log(`\n... [${(documentContent.length - 2000).toLocaleString()} more characters] ...\n`);
+      console.log(documentContentForAi.substring(0, 2000));
+      if (documentContentForAi.length > 2000) {
+        console.log(`\n... [${(documentContentForAi.length - 2000).toLocaleString()} more characters] ...\n`);
       }
       console.log('─────────────────────────────────────────────────────────────────');
       console.log('');

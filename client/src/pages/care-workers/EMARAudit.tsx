@@ -1381,7 +1381,7 @@ export default function EMARAudit() {
 
       const resultForSave = (result as any)?.scrubbedResult || result;
       const auditData = {
-        serviceUserName: serviceUserDisplayScrubbed,
+        serviceUserName: serviceUserDisplay,
         auditor: user.username,
         auditType: "EMAR",
         periodStart: resultForSave.auditPeriodStart,
@@ -1407,7 +1407,7 @@ export default function EMARAudit() {
 
       if (!auditRes.ok) throw new Error("Failed to save audit");
 
-      logAction("EMAR Audit Saved", serviceUserDisplayScrubbed || "N.N.", "Authorized", undefined, {
+      logAction("EMAR Audit Saved", serviceUserDisplay || "N.N.", "Authorized", undefined, {
         event: "emar_audit_saved",
         serviceUserInitials: serviceUserDisplayScrubbed || "N.N.",
         auditPeriodStart: result?.auditPeriodStart,

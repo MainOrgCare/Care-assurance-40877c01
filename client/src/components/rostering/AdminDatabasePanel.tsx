@@ -196,8 +196,8 @@ export const AdminDatabasePanel: React.FC = () => {
   ];
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="border-border/70 bg-background/70 shadow-medium hover-elevate">
+      <CardHeader className="border-b border-border/50 bg-muted/30">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Database className="h-5 w-5 text-primary" />
@@ -217,15 +217,15 @@ export const AdminDatabasePanel: React.FC = () => {
           View extracted rostering data statistics and manage data retention
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5">
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {statItems.map((item) => (
             <div
               key={item.label}
-              className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border"
+              className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft"
             >
-              <div className={`p-2 rounded-md ${item.color}`}>
+              <div className={`p-2 rounded-md ${item.color} shadow-sm`}>
                 <item.icon className="h-4 w-4 text-white" />
               </div>
               <div>
@@ -239,12 +239,12 @@ export const AdminDatabasePanel: React.FC = () => {
         <Separator />
 
         {/* Data Retention Info */}
-        <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-4">
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
           <div className="flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 text-blue-600 mt-0.5" />
+            <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
             <div>
-              <h4 className="font-medium text-blue-900 dark:text-blue-100">Data Retention Policy</h4>
-              <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+              <h4 className="font-medium text-foreground">Data Retention Policy</h4>
+              <p className="text-sm text-muted-foreground mt-1">
                 All extracted data is automatically retained for <strong>3 months</strong> from the last update. 
                 Overlapping data from multiple workbook uploads is deduplicated to prevent duplicates.
               </p>
@@ -260,6 +260,7 @@ export const AdminDatabasePanel: React.FC = () => {
             variant="outline"
             onClick={() => cleanupMutation.mutate()}
             disabled={cleanupMutation.isPending}
+            className="gap-2"
           >
             {cleanupMutation.isPending ? (
               <Loader2 className="h-4 w-4 mr-2" />
@@ -272,6 +273,7 @@ export const AdminDatabasePanel: React.FC = () => {
             variant="destructive"
             onClick={() => resetMutation.mutate()}
             disabled={resetMutation.isPending}
+            className="gap-2"
           >
             {resetMutation.isPending ? (
               <Loader2 className="h-4 w-4 mr-2" />
@@ -316,7 +318,7 @@ export const AdminDatabasePanel: React.FC = () => {
                 return (
                   <div
                     key={upload.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/70 px-3 py-2"
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{upload.fileName}</p>
@@ -341,11 +343,11 @@ export const AdminDatabasePanel: React.FC = () => {
 
         {/* Last Cleanup Result */}
         {cleanupMutation.data && (
-          <div className="rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 p-4">
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
             <div className="flex items-start gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+              <CheckCircle2 className="h-5 w-5 text-emerald-500 mt-0.5" />
               <div>
-                <h4 className="font-medium text-green-900 dark:text-green-100">Last Cleanup Result</h4>
+                <h4 className="font-medium text-foreground">Last Cleanup Result</h4>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {Object.entries(cleanupMutation.data.deleted as Record<string, number>).map(([key, value]) => (
                     <Badge key={key} variant="secondary" className="text-xs">

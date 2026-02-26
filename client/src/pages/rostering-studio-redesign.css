@@ -25,6 +25,16 @@
   background: radial-gradient(circle at 50% 0, rgba(14, 124, 102, 0.16), transparent 55%);
 }
 
+.rstd-empty {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  gap: 0.9rem;
+  background: radial-gradient(circle at 50% 0, rgba(14, 124, 102, 0.16), transparent 55%);
+  text-align: center;
+  padding: 1.5rem;
+}
+
 .rstd-loading-orb {
   width: 4rem;
   height: 4rem;

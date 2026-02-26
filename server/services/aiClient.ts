@@ -1,9 +1,17 @@
 import OpenAI from "openai";
-import { storage } from "../storage";
+let storageRef: typeof import("../storage").storage | null = null;
+
+const getStorage = async () => {
+  if (storageRef) return storageRef;
+  const module = await import("../storage");
+  storageRef = module.storage;
+  return storageRef;
+};
 import { calculateCostMicroDollars, AVAILABLE_MODELS, type AvailableModel } from "../config/aiPricing";
 import { generateCacheKey, getCachedResponse, setCachedResponse } from "./aiCache";
 import { shouldUseAI, extractCommonFields } from "./ruleBasedEngine";
-import { scrubMessagesForLog } from "../utils/piiVault";
+import { scrubMessagesForLog, detectHighRiskPII } from "../utils/piiVault";
+import { logSecurityEvent } from "../utils/securityAudit";
 
 // User context type for logging
 export interface AiUserContext {
@@ -82,6 +90,7 @@ async function ensureSettingsLoaded(): Promise<void> {
 
   settingsLoadPromise = (async () => {
     try {
+      const storage = await getStorage();
       const savedProvider = await storage.getAppSetting("ai_provider");
       if (savedProvider && (savedProvider === "openai" || savedProvider === "github" || savedProvider === "local")) {
         preferredProvider = savedProvider as AiProvider;
@@ -168,13 +177,13 @@ export function setAIEnabled(enabled: boolean, persist: boolean = false): void {
   console.log(`[AI Config] AI ${aiEnabled ? "enabled" : "disabled"}${persist ? " (persisted)" : ""}`);
 
   if (persist) {
-    storage.setAppSetting("ai_enabled", aiEnabled ? "true" : "false").catch(err =>
-      console.error("[AI Config] Failed to persist AI enabled setting:", err.message)
-    );
+    void getStorage()
+      .then(storage => storage.setAppSetting("ai_enabled", aiEnabled ? "true" : "false"))
+      .catch(err => console.error("[AI Config] Failed to persist AI enabled setting:", err.message));
     if (!aiEnabled) {
-      storage.setAppSetting("emar_agent", "false").catch(err =>
-        console.error("[AI Config] Failed to persist EMAR agent disable:", err.message)
-      );
+      void getStorage()
+        .then(storage => storage.setAppSetting("emar_agent", "false"))
+        .catch(err => console.error("[AI Config] Failed to persist EMAR agent disable:", err.message));
     }
   }
 }
@@ -190,9 +199,9 @@ export function setPreferredProvider(provider: AiProvider, persist: boolean = fa
   console.log(`[AI Config] Preferred provider set to: ${provider}${persist ? " (persisted)" : ""}`);
   
   if (persist) {
-    storage.setAppSetting("ai_provider", provider).catch(err => 
-      console.error("[AI Config] Failed to persist provider:", err.message)
-    );
+    void getStorage()
+      .then(storage => storage.setAppSetting("ai_provider", provider))
+      .catch(err => console.error("[AI Config] Failed to persist provider:", err.message));
   }
 }
 
@@ -209,9 +218,9 @@ export function setUseEmarAgent(enabled: boolean, persist: boolean = false): voi
   console.log(`[AI Config] EMAR Agent ${useEmarAgent ? 'enabled' : 'disabled'}${persist ? " (persisted)" : ""}`);
   
   if (persist) {
-    storage.setAppSetting("emar_agent", useEmarAgent ? "true" : "false").catch(err => 
-      console.error("[AI Config] Failed to persist EMAR agent setting:", err.message)
-    );
+    void getStorage()
+      .then(storage => storage.setAppSetting("emar_agent", useEmarAgent ? "true" : "false"))
+      .catch(err => console.error("[AI Config] Failed to persist EMAR agent setting:", err.message));
   }
 }
 
@@ -224,9 +233,9 @@ export function setUseAICache(enabled: boolean, persist: boolean = false): void 
   useAICache = enabled;
   console.log(`[AI Config] AI Cache ${enabled ? 'enabled' : 'disabled'}${persist ? " (persisted)" : ""}`);
   if (persist) {
-    storage.setAppSetting("ai_cache", enabled ? "true" : "false").catch(err => 
-      console.error("[AI Config] Failed to persist cache setting:", err.message)
-    );
+    void getStorage()
+      .then(storage => storage.setAppSetting("ai_cache", enabled ? "true" : "false"))
+      .catch(err => console.error("[AI Config] Failed to persist cache setting:", err.message));
   }
 }
 
@@ -238,9 +247,9 @@ export function setUseRulesFirst(enabled: boolean, persist: boolean = false): vo
   useRulesFirst = enabled;
   console.log(`[AI Config] Rules-First ${enabled ? 'enabled' : 'disabled'}${persist ? " (persisted)" : ""}`);
   if (persist) {
-    storage.setAppSetting("ai_rules_first", enabled ? "true" : "false").catch(err => 
-      console.error("[AI Config] Failed to persist rules-first setting:", err.message)
-    );
+    void getStorage()
+      .then(storage => storage.setAppSetting("ai_rules_first", enabled ? "true" : "false"))
+      .catch(err => console.error("[AI Config] Failed to persist rules-first setting:", err.message));
   }
 }
 
@@ -252,9 +261,9 @@ export function setAILiteMode(enabled: boolean, persist: boolean = false): void 
   aiLiteMode = enabled;
   console.log(`[AI Config] AI Lite Mode ${enabled ? 'enabled' : 'disabled'}${persist ? " (persisted)" : ""}`);
   if (persist) {
-    storage.setAppSetting("ai_lite_mode", enabled ? "true" : "false").catch(err => 
-      console.error("[AI Config] Failed to persist lite mode setting:", err.message)
-    );
+    void getStorage()
+      .then(storage => storage.setAppSetting("ai_lite_mode", enabled ? "true" : "false"))
+      .catch(err => console.error("[AI Config] Failed to persist lite mode setting:", err.message));
   }
 }
 
@@ -617,6 +626,51 @@ export async function createChatCompletionWithLogging(
   if (!userContext) {
     console.warn(`[AI:${featureName}] WARNING: No user context provided - cost attribution will be incomplete`);
   }
+
+  const scanForPII = (messages: Array<{ role: string; content: any }>) => {
+    let total = 0;
+    const byCategory: Record<string, number> = {};
+    const checkText = (text: string) => {
+      const findings = detectHighRiskPII(text);
+      if (findings.total === 0) return;
+      total += findings.total;
+      for (const [key, count] of Object.entries(findings.byCategory)) {
+        byCategory[key] = (byCategory[key] || 0) + count;
+      }
+    };
+
+    for (const msg of messages) {
+      if (typeof msg.content === "string") {
+        checkText(msg.content);
+        continue;
+      }
+      if (Array.isArray(msg.content)) {
+        for (const part of msg.content) {
+          if (part?.type === "text" && typeof part.text === "string") {
+            checkText(part.text);
+          }
+        }
+      }
+    }
+
+    return { total, byCategory };
+  };
+
+  const piiFindings = scanForPII(params.messages as Array<{ role: string; content: any }>);
+  if (piiFindings.total > 0) {
+    logSecurityEvent({
+      eventType: "SUSPICIOUS_INPUT",
+      endpoint: `ai:${featureName}`,
+      userId,
+      username,
+      details: {
+        reason: "pii_detected_in_ai_prompt",
+        categories: Object.keys(piiFindings.byCategory),
+        totalItems: piiFindings.total,
+      },
+    });
+    throw new Error("PII detected in AI prompt. Scrub content with PIIVault before calling AI.");
+  }
   
   // Check cache if enabled
   const cacheKey = useAICache ? generateCacheKey(params.messages as any, actualModel, featureName) : null;
@@ -627,7 +681,9 @@ export async function createChatCompletionWithLogging(
       console.log(`[AI:${featureName}] ⚡ CACHE HIT - returned in ${duration}ms (saved API call)`);
       
       // Log cache hit (0 cost)
-      storage.createAiUsageLog({
+      const storage = await getStorage().catch(() => null);
+      if (storage) {
+        storage.createAiUsageLog({
         userId,
         username,
         featureName: `${featureName}:cached`,
@@ -649,7 +705,8 @@ export async function createChatCompletionWithLogging(
           featureName: featureName,
           cached: true,
         },
-      }).catch(err => console.error("[AI] Failed to log cache hit:", err.message));
+        }).catch(err => console.error("[AI] Failed to log cache hit:", err.message));
+      }
       
       return cachedResponse.result as OpenAI.ChatCompletion;
     }
@@ -677,7 +734,9 @@ export async function createChatCompletionWithLogging(
     }
     
     // Log to database asynchronously (don't block the response)
-    storage.createAiUsageLog({
+    const storage = await getStorage().catch(() => null);
+    if (storage) {
+      storage.createAiUsageLog({
       userId,
       username,
       featureName,
@@ -698,7 +757,8 @@ export async function createChatCompletionWithLogging(
         provider: provider,
         featureName: featureName,
       },
-    }).catch(err => console.error("[AI] Failed to log usage:", err.message));
+      }).catch(err => console.error("[AI] Failed to log usage:", err.message));
+    }
     
     return result.completion;
   } catch (error: any) {
@@ -706,7 +766,9 @@ export async function createChatCompletionWithLogging(
     console.error(`[AI:${featureName}] Failed after ${duration}ms:`, error.message);
     
     // Log failed attempt
-    storage.createAiUsageLog({
+    const storage = await getStorage().catch(() => null);
+    if (storage) {
+      storage.createAiUsageLog({
       userId,
       username,
       featureName,
@@ -728,7 +790,8 @@ export async function createChatCompletionWithLogging(
         featureName: featureName,
         error: error.message,
       },
-    }).catch(err => console.error("[AI] Failed to log error:", err.message));
+      }).catch(err => console.error("[AI] Failed to log error:", err.message));
+    }
     
     throw error;
   }

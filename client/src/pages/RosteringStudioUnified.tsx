@@ -160,6 +160,7 @@ type TemplateWeekKey = (typeof TEMPLATE_WEEK_OPTIONS)[number]["key"];
 type WeekdayLabel = (typeof WEEKDAY_OPTIONS)[number];
 const DEFAULT_TEMPLATE_WEEK: TemplateWeekKey = "week1";
 const DEFAULT_TEMPLATE_DAY: WeekdayLabel = "Monday";
+const ROSTERING_PREFERENCES_KEY = "rstd.preferences.v1";
 
 // ===== TYPES =====
 interface RowAnalysis {
@@ -313,6 +314,23 @@ interface SavedRosterStateSummary {
   createdAt: string;
   updatedAt: string;
   createdByUsername?: string;
+}
+
+interface ScheduleSnapshot {
+  workers: Array<{ name: string; calls: number; minutes: number }>;
+  conflicts: number;
+  travelGaps: number;
+  timestamp?: string;
+}
+
+interface ComparisonData {
+  before: ScheduleSnapshot;
+  after: ScheduleSnapshot;
+  changes: {
+    timeShifts: number;
+    reassignments: number;
+    deletions: number;
+  };
 }
 
 // ===== HELPER FUNCTIONS =====
@@ -488,8 +506,32 @@ export default function RosteringStudioUnified({
   const [saveScheduleDescription, setSaveScheduleDescription] = useState("");
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
 
-  // Comparison data for before/after analysis
-  const [savedComparisonData] = useState<any>(null);
+  const buildScheduleSnapshot = useCallback((lanes: GanttLane[]): ScheduleSnapshot => {
+    const workers = lanes.map((lane) => ({
+      name: lane.label,
+      calls: lane.entries.length,
+      minutes: lane.entries.reduce((sum, entry) => sum + entry.durationMinutes, 0),
+    }));
+    let conflicts = 0;
+    for (const lane of lanes) {
+      const sorted = [...lane.entries].sort((a, b) => a.startMinutes - b.startMinutes);
+      for (let i = 0; i < sorted.length - 1; i += 1) {
+        const current = sorted[i];
+        const next = sorted[i + 1];
+        if (current.startMinutes + current.durationMinutes > next.startMinutes) {
+          conflicts += 1;
+        }
+      }
+    }
+    return {
+      workers,
+      conflicts,
+      travelGaps: 0,
+      timestamp: new Date().toISOString(),
+    };
+  }, []);
+
+  const [savedComparisonData, setSavedComparisonData] = useState<ComparisonData | null>(null);
 
   const timelineZoom = TIMELINE_ZOOM_LEVELS[timelineZoomIndex] ?? 100;
   const timelineRowHeight = useMemo(
@@ -514,6 +556,11 @@ export default function RosteringStudioUnified({
   });
 
   const activeWorkbookId = selectedWorkbookId || workbooksList[0]?.id || null;
+
+  const activeWorkbookLabel = useMemo(() => {
+    if (!activeWorkbookId) return "No workbook";
+    return workbooksList.find((wb) => wb.id === activeWorkbookId)?.name || "Workbook";
+  }, [activeWorkbookId, workbooksList]);
 
   const { data: workbookData, isLoading: workbookLoading } = useQuery<WorkbookFull>({
     queryKey: ["/api/admin/rostering/workbook-uploads", activeWorkbookId],
@@ -558,6 +605,54 @@ export default function RosteringStudioUnified({
     ...ROSTERING_QUERY_OPTIONS,
   });
   const constraintsForEditor = useMemo(() => constraintsRaw, [constraintsRaw]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.localStorage.getItem(ROSTERING_PREFERENCES_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as Partial<{
+        panelVisibility: Partial<PanelVisibility>;
+        showAllWorkers: boolean;
+        showOnlyTemplated: boolean;
+        showHalfHourTicks: boolean;
+        workerFilter: "all" | "over" | "under";
+        snapMinutes: number;
+        timelineZoomIndex: number;
+        selectedTemplateWeek: TemplateWeekKey;
+        selectedTemplateDay: WeekdayLabel;
+      }>;
+      if (parsed.panelVisibility) {
+        setPanelVisibility({ ...defaultPanelVisibility, ...parsed.panelVisibility });
+      }
+      if (typeof parsed.showAllWorkers === "boolean") setShowAllWorkers(parsed.showAllWorkers);
+      if (typeof parsed.showOnlyTemplated === "boolean") setShowOnlyTemplated(parsed.showOnlyTemplated);
+      if (typeof parsed.showHalfHourTicks === "boolean") setShowHalfHourTicks(parsed.showHalfHourTicks);
+      if (parsed.workerFilter) setWorkerFilter(parsed.workerFilter);
+      if (typeof parsed.snapMinutes === "number") setSnapMinutes(parsed.snapMinutes);
+      if (typeof parsed.timelineZoomIndex === "number") setTimelineZoomIndex(parsed.timelineZoomIndex);
+      if (parsed.selectedTemplateWeek) setSelectedTemplateWeek(parsed.selectedTemplateWeek);
+      if (parsed.selectedTemplateDay) setSelectedTemplateDay(parsed.selectedTemplateDay);
+    } catch {
+      // Ignore invalid preference payloads.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const payload = {
+      panelVisibility,
+      showAllWorkers,
+      showOnlyTemplated,
+      showHalfHourTicks,
+      workerFilter,
+      snapMinutes,
+      timelineZoomIndex,
+      selectedTemplateWeek,
+      selectedTemplateDay,
+    };
+    window.localStorage.setItem(ROSTERING_PREFERENCES_KEY, JSON.stringify(payload));
+  }, [panelVisibility, showAllWorkers, showOnlyTemplated, showHalfHourTicks, workerFilter, snapMinutes, timelineZoomIndex, selectedTemplateWeek, selectedTemplateDay]);
 
   // Saved states
   const { data: savedStates = [] } = useQuery<SavedRosterStateSummary[]>({
@@ -1006,9 +1101,52 @@ export default function RosteringStudioUnified({
     toast({ title: "Schedule reset" });
   }, [toast]);
 
+  const handleShowAllPanels = useCallback(() => {
+    setPanelVisibility({
+      timeline: true,
+      map: true,
+      workers: true,
+      details: true,
+      callTimes: true,
+      constraints: true,
+      workload: true,
+      optimization: true,
+      database: true,
+      aiAnalysis: true,
+      comparison: true,
+      costs: true,
+      templates: true,
+    });
+  }, []);
+
+  const handleResetPanels = useCallback(() => {
+    setPanelVisibility(defaultPanelVisibility);
+  }, []);
+
+  const handleCaptureBaseline = useCallback(() => {
+    const snapshot = buildScheduleSnapshot(timelineLanes);
+    setSavedComparisonData({
+      before: snapshot,
+      after: snapshot,
+      changes: {
+        timeShifts: 0,
+        reassignments: 0,
+        deletions: 0,
+      },
+    });
+    setPanelVisibility((prev) => ({ ...prev, comparison: true }));
+    toast({ title: "Baseline captured" });
+  }, [buildScheduleSnapshot, timelineLanes, toast]);
+
+  const handleClearComparison = useCallback(() => {
+    setSavedComparisonData(null);
+    setPanelVisibility((prev) => ({ ...prev, comparison: false }));
+  }, []);
+
   const handleRunOptimization = useCallback(async () => {
     setIsOptimizing(true);
     try {
+      const beforeSnapshot = buildScheduleSnapshot(timelineLanes);
       const result: OptimizationResult = runFullOptimization(
         timelineLanes,
         optimizationWeights,
@@ -1018,6 +1156,28 @@ export default function RosteringStudioUnified({
           recommendedCallTimes: callTimesForEditor,
         }
       );
+      const mergedTimeOverrides = {
+        ...rosterState.present.timeOverrides,
+        ...result.timeOverrides,
+      };
+      const mergedLaneOverrides = {
+        ...rosterState.present.laneOverrides,
+        ...result.laneOverrides,
+      };
+      const afterLanes = applyOverridesToLanes(baseTimelineLanes, {
+        timeOverrides: mergedTimeOverrides,
+        laneOverrides: mergedLaneOverrides,
+      });
+      setSavedComparisonData({
+        before: beforeSnapshot,
+        after: buildScheduleSnapshot(afterLanes),
+        changes: {
+          timeShifts: Object.keys(result.timeOverrides).length,
+          reassignments: Object.keys(result.laneOverrides).length,
+          deletions: 0,
+        },
+      });
+      setPanelVisibility((prev) => ({ ...prev, comparison: true }));
       dispatchRoster({
         type: "APPLY_OPTIMIZATION",
         timeOverrides: result.timeOverrides,
@@ -1035,7 +1195,7 @@ export default function RosteringStudioUnified({
     } finally {
       setIsOptimizing(false);
     }
-  }, [timelineLanes, optimizationWeights, optimizationConstraints, callTimesForEditor, toast]);
+  }, [buildScheduleSnapshot, timelineLanes, optimizationWeights, optimizationConstraints, callTimesForEditor, rosterState.present.timeOverrides, rosterState.present.laneOverrides, baseTimelineLanes, toast]);
 
   const handleApplyRecommendedTimes = useCallback(() => {
     let applied = 0;
@@ -1051,13 +1211,32 @@ export default function RosteringStudioUnified({
       }
     }
     if (applied > 0) {
+      const beforeSnapshot = buildScheduleSnapshot(timelineLanes);
+      const mergedTimeOverrides = {
+        ...rosterState.present.timeOverrides,
+        ...timeOverrides,
+      };
+      const afterLanes = applyOverridesToLanes(baseTimelineLanes, {
+        timeOverrides: mergedTimeOverrides,
+        laneOverrides: rosterState.present.laneOverrides,
+      });
+      setSavedComparisonData({
+        before: beforeSnapshot,
+        after: buildScheduleSnapshot(afterLanes),
+        changes: {
+          timeShifts: applied,
+          reassignments: 0,
+          deletions: 0,
+        },
+      });
+      setPanelVisibility((prev) => ({ ...prev, comparison: true }));
       dispatchRoster({
         type: "APPLY_OPTIMIZATION",
         timeOverrides,
       });
     }
     toast({ title: `Applied ${applied} recommended times` });
-  }, [timelineLanes, callTimeLookup, toast]);
+  }, [buildScheduleSnapshot, timelineLanes, callTimeLookup, baseTimelineLanes, rosterState.present.timeOverrides, rosterState.present.laneOverrides, toast]);
 
   const handleAutoBalance = useCallback(() => {
     // Open optimization settings panel with workload balance focus
@@ -1294,6 +1473,28 @@ export default function RosteringStudioUnified({
     );
   }
 
+  if (!workbooksList.length) {
+    return (
+      <div className="rstd-empty">
+        <div className="rstd-loading-orb">
+          <Database className="h-8 w-8 text-primary" />
+        </div>
+        <div className="space-y-2 text-center">
+          <p className="rstd-loading-text">No roster data loaded</p>
+          <p className="text-xs text-muted-foreground">
+            Upload a workbook in Testing Features to unlock the full rostering workspace.
+          </p>
+        </div>
+        <Button asChild size="sm" className="gap-2">
+          <Link href="/testing-features">
+            <ArrowLeft className="h-4 w-4" />
+            Go to Testing Features
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
   // ===== RENDER =====
   return (
     <TooltipProvider>
@@ -1309,6 +1510,9 @@ export default function RosteringStudioUnified({
                 <p className="rstd-brand-subtitle">Operational Command Deck</p>
               </div>
             </div>
+            <Badge variant="secondary" className="text-[10px] px-2">
+              {activeWorkbookLabel}
+            </Badge>
             {!embedded && (
               <Button variant="ghost" size="sm" asChild className="mr-1 h-7 w-7 p-0">
                 <Link href="/testing-features">
@@ -1453,6 +1657,15 @@ export default function RosteringStudioUnified({
                   Details Panel
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleShowAllPanels}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  Show All Panels
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleResetPanels}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Reset Panel Layout
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuLabel>Tools</DropdownMenuLabel>
                 <DropdownMenuCheckboxItem
                   checked={panelVisibility.callTimes}
@@ -1519,6 +1732,15 @@ export default function RosteringStudioUnified({
                   <BookTemplate className="mr-2 h-4 w-4" />
                   Template Library
                 </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleCaptureBaseline}>
+                  <GitCompare className="mr-2 h-4 w-4" />
+                  Capture Baseline
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleClearComparison}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Clear Comparison
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Timeline</DropdownMenuLabel>
                 <DropdownMenuItem onClick={handleTimelineZoomIn}>
@@ -1748,6 +1970,25 @@ export default function RosteringStudioUnified({
             );
           })}
           <div className="ml-auto flex items-center gap-1 shrink-0">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 text-[10px]"
+              onClick={handleCaptureBaseline}
+            >
+              Baseline
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 text-[10px]"
+              onClick={handleClearComparison}
+              disabled={!savedComparisonData}
+            >
+              Clear
+            </Button>
             <Badge variant="secondary" className="text-[10px]">
               Snap: {snapMinutes}m
             </Badge>

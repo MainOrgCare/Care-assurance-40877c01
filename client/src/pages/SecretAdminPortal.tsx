@@ -258,7 +258,7 @@ const AIAdminLog = memo(function AIAdminLog() {
 
   if (loading) {
     return (
-      <Card>
+      <Card className="border-border/60 bg-background/70 shadow-medium">
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -267,8 +267,8 @@ const AIAdminLog = memo(function AIAdminLog() {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="border-border/60 bg-background/70 shadow-medium hover-elevate">
+      <CardHeader className="border-b border-border/40 bg-muted/30">
         <CardTitle className="flex items-center gap-2">
           <Terminal className="h-5 w-5" />
           AI Request Log
@@ -357,7 +357,7 @@ const AIAdminLog = memo(function AIAdminLog() {
               <AccordionItem 
                 key={log.id} 
                 value={log.id}
-                className="border rounded-lg bg-muted/30"
+                className="border border-border/60 rounded-xl bg-background/60"
               >
                 <AccordionTrigger className="px-4 py-3 hover:no-underline">
                   <div className="flex items-center justify-between w-full pr-4">
@@ -450,7 +450,7 @@ const AICostSection = memo(function AICostSection() {
 
   if (loading) {
     return (
-      <Card>
+      <Card className="border-border/60 bg-background/70 shadow-medium">
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -533,7 +533,7 @@ const AICostSection = memo(function AICostSection() {
   return (
     <div className="space-y-6">
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Card>
+        <Card className="border-border/60 bg-background/70 shadow-soft">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
               <DollarSign size={14} className="text-success" /> Total Spend
@@ -545,7 +545,7 @@ const AICostSection = memo(function AICostSection() {
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="border-border/60 bg-background/70 shadow-soft">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
               <Cpu size={14} className="text-primary" /> API Calls
@@ -557,7 +557,7 @@ const AICostSection = memo(function AICostSection() {
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="border-border/60 bg-background/70 shadow-soft">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
               <TrendingUp size={14} className="text-purple-600" /> Features Used
@@ -569,7 +569,7 @@ const AICostSection = memo(function AICostSection() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border/60 bg-background/70 shadow-soft">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
               <Activity size={14} className="text-amber-500" /> Avg Cost / Call
@@ -583,7 +583,7 @@ const AICostSection = memo(function AICostSection() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
-        <Card>
+        <Card className="border-border/60 bg-background/70 shadow-soft">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
               <Cpu size={14} className="text-sky-500" /> Cost Efficiency
@@ -617,7 +617,7 @@ const AICostSection = memo(function AICostSection() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border/60 bg-background/70 shadow-soft">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
               <TrendingUp size={14} className="text-emerald-500" /> Top Cost Driver
@@ -650,7 +650,7 @@ const AICostSection = memo(function AICostSection() {
       </div>
 
       {stats && Object.keys(stats.byFeature).length > 0 && (
-        <Card>
+        <Card className="border-border/60 bg-background/70 shadow-medium hover-elevate">
           <CardHeader className="border-b border-border/30 bg-muted/30">
             <CardTitle className="flex items-center gap-2 text-foreground text-base">
               <DollarSign size={18} className="text-success" />
@@ -668,7 +668,7 @@ const AICostSection = memo(function AICostSection() {
                 const avgTokens = data.calls > 0 ? data.tokens / data.calls : 0;
 
                 return (
-                  <div key={feature} className="p-3 rounded-lg bg-muted/30 border border-border/40 space-y-2">
+                  <div key={feature} className="p-3 rounded-lg bg-background/60 border border-border/40 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <Badge variant="secondary" className={getFeatureColor(feature)}>
@@ -700,7 +700,7 @@ const AICostSection = memo(function AICostSection() {
         </Card>
       )}
 
-	      <Card className="overflow-hidden">
+	      <Card className="overflow-hidden border-border/60 bg-background/70 shadow-medium hover-elevate">
         <CardHeader className="border-b border-border/30 bg-muted/30">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -949,7 +949,7 @@ const AIProviderSection = memo(function AIProviderSection() {
 
   if (loading) {
     return (
-      <Card>
+      <Card className="border-border/60 bg-background/70 shadow-medium">
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -958,7 +958,7 @@ const AIProviderSection = memo(function AIProviderSection() {
   }
 
   return (
-    <Card>
+    <Card className="border-border/60 bg-background/70 shadow-medium hover-elevate">
       <CardHeader className="border-b border-border/30 bg-muted/30">
         <CardTitle className="flex items-center gap-2 text-foreground text-base">
           <Cpu size={18} className="text-purple-400" />
@@ -3889,9 +3889,15 @@ export default function SecretAdminPortal() {
   if (!mounted) return null;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 p-2 md:p-8">
+    <div className="relative space-y-8 animate-in fade-in duration-700 p-2 md:p-8">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-40 right-0 h-72 w-72 rounded-full bg-primary/12 blur-3xl" />
+        <div className="absolute top-40 left-0 h-80 w-80 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.08),transparent_55%)]" />
+      </div>
       {/* Header */}
-      <div className="relative overflow-hidden rounded-2xl border border-border/60 p-8 bg-card">
+      <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/80 p-8 shadow-medium backdrop-blur">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_55%),radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.12),transparent_45%)]" />
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-primary">
@@ -3907,7 +3913,7 @@ export default function SecretAdminPortal() {
             </div>
           </div>
           
-          <div className="flex items-center gap-3 px-3 py-1.5 rounded-full border border-success/30 bg-success/8">
+          <div className="flex items-center gap-3 px-3 py-1.5 rounded-full border border-success/30 bg-success/8 shadow-soft">
             <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
             <span className="text-[10px] font-bold uppercase tracking-wider text-success">System Active</span>
           </div>
@@ -3923,7 +3929,7 @@ export default function SecretAdminPortal() {
           {/* Critical Tools Section */}
           <div className="grid md:grid-cols-2 gap-4">
             <Link href="/call-reconciliation">
-              <div className="group relative overflow-hidden rounded-xl border border-border/60 p-6 transition-all hover:shadow-md cursor-pointer bg-card">
+              <div className="group relative overflow-hidden rounded-xl border border-border/60 bg-background/70 p-6 shadow-soft transition-all hover-elevate cursor-pointer">
                 <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
                   <ArrowRightLeft size={80} className="text-muted-foreground" />
                 </div>
@@ -3938,7 +3944,7 @@ export default function SecretAdminPortal() {
             </Link>
 
             <Button 
-              className="group relative overflow-hidden rounded-xl border border-border/60 p-6 h-auto transition-all hover:shadow-md cursor-pointer w-full text-left flex flex-col items-start bg-card"
+              className="group relative overflow-hidden rounded-xl border border-border/60 bg-background/70 p-6 h-auto transition-all hover-elevate cursor-pointer w-full text-left flex flex-col items-start"
               onClick={handleOpenSystemLogDialog}
               data-testid="button-system-log"
               variant="ghost"
@@ -4033,7 +4039,7 @@ export default function SecretAdminPortal() {
                 </Card>
               )}
 
-              <Card data-testid="card-download-edge-extension">
+              <Card data-testid="card-download-edge-extension" className="border-border/60 bg-background/70 shadow-medium hover-elevate">
                 <CardHeader className="border-b border-border/30">
                   <CardTitle className="flex items-center gap-3 text-[0.8125rem]">
                     <div className="h-7 w-7 rounded-md bg-primary/8 flex items-center justify-center">
@@ -4119,7 +4125,7 @@ export default function SecretAdminPortal() {
                   { label: "Suspended", value: users.filter(u => (u.status as string) === "suspended").length.toString(), sub: "Account suspensions", iconCls: "text-destructive", bgCls: "bg-destructive/10", icon: Lock },
                   { label: "Total Logs", value: systemLogs.length.toString(), sub: "Session activity", iconCls: "text-primary", bgCls: "bg-primary/10", icon: Activity }
                 ].map((stat, i) => (
-                  <Card key={i} className="relative overflow-hidden">
+                  <Card key={i} className="relative overflow-hidden border-border/60 bg-background/70 shadow-soft hover-elevate">
                     <div className={`absolute inset-0 ${stat.bgCls} opacity-[0.03]`} />
                     <CardHeader className="pb-2">
                       <CardTitle className="text-[10px] font-semibold uppercase tracking-wider flex items-center gap-2.5 text-muted-foreground">
@@ -4138,7 +4144,7 @@ export default function SecretAdminPortal() {
               </div>
 
               {/* Quick User List */}
-              <Card className="overflow-hidden">
+              <Card className="overflow-hidden border-border/60 bg-background/70 shadow-medium hover-elevate">
                 <CardHeader className="border-b border-border/30">
                   <CardTitle className="flex items-center gap-3 text-[0.8125rem]">
                     <div className="h-7 w-7 rounded-md bg-primary/8 flex items-center justify-center">
@@ -4190,7 +4196,7 @@ export default function SecretAdminPortal() {
 
             <TabsContent value="users" className="space-y-6">
               {/* Add New User */}
-              <Card>
+              <Card className="border-border/60 bg-background/70 shadow-medium hover-elevate">
                 <CardHeader className="border-b border-border/30">
                   <div className="flex items-center justify-between">
                     <div>
@@ -4326,7 +4332,7 @@ export default function SecretAdminPortal() {
               </Card>
 
               {/* All Users Table */}
-	      <Card className="overflow-hidden">
+              <Card className="overflow-hidden border-border/60 bg-background/70 shadow-medium hover-elevate">
                 <CardHeader className="border-b border-border/30">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
@@ -4530,7 +4536,7 @@ export default function SecretAdminPortal() {
 
         {/* Right Column: Status & Info */}
         <div className="lg:col-span-4 space-y-6">
-          <Card className="overflow-hidden">
+           <Card className="overflow-hidden border-border/60 bg-background/70 shadow-medium hover-elevate">
              <CardHeader className="border-b border-border/30 bg-muted/30">
                 <CardTitle className="flex items-center gap-2 text-sm text-foreground">
                    <div className="h-7 w-7 rounded-md bg-primary/8 flex items-center justify-center"><Shield className="h-3.5 w-3.5 text-primary" /></div> Access Level
@@ -4555,7 +4561,7 @@ export default function SecretAdminPortal() {
              </CardContent>
           </Card>
 
-          <Card>
+           <Card className="border-border/60 bg-background/70 shadow-medium hover-elevate">
              <CardHeader className="border-b border-border/30 bg-muted/30">
                 <CardTitle className="text-sm flex items-center gap-2 text-foreground">
                    <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center"><Activity className="h-3.5 w-3.5 text-muted-foreground" /></div> Quick Stats
@@ -4579,7 +4585,7 @@ export default function SecretAdminPortal() {
              </CardContent>
           </Card>
 
-          <Card className="bg-destructive/5 border-destructive/20">
+           <Card className="bg-destructive/5 border-destructive/20 shadow-medium hover-elevate">
              <CardHeader className="border-b border-destructive/30">
                 <CardTitle className="text-sm flex items-center gap-2 text-destructive">
                    <div className="h-7 w-7 rounded-md bg-destructive/10 flex items-center justify-center"><Trash2 className="h-3.5 w-3.5 text-destructive" /></div> Data Management

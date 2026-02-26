@@ -154,8 +154,8 @@ const SidebarContent = memo(function SidebarContent({
       "flex items-center gap-2.5 rounded-lg text-[0.8rem] font-medium tracking-[0.004em] transition-all duration-150 group cursor-pointer",
       isCollapsed ? "px-2.5 py-2.5 justify-center gap-0" : "px-3 py-[0.4375rem]",
       isActive
-        ? "bg-sidebar-primary/12 text-sidebar-primary font-semibold shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-sidebar-primary)_15%,transparent)]"
-        : "text-sidebar-foreground/50 hover:text-sidebar-foreground/85 hover:bg-sidebar-foreground/[0.06]"
+        ? "bg-sidebar-primary/14 text-sidebar-primary font-semibold shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-sidebar-primary)_18%,transparent)]"
+        : "text-sidebar-foreground/55 hover:text-sidebar-foreground/88 hover:bg-sidebar-foreground/[0.08]"
     ), [isCollapsed]);
 
   const subNavLinkClass = useCallback((isActive: boolean) =>
@@ -653,7 +653,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(
-    "workspace-card rounded-xl border border-border/40 bg-card p-4 sm:p-5 lg:p-6 flex flex-col w-full flex-1 min-h-0 motion-safe:animate-[fade-in_120ms_ease-out]",
+    "workspace-card rounded-xl border border-border/50 bg-card p-4 sm:p-5 lg:p-6 flex flex-col w-full flex-1 min-h-0 shadow-[var(--shadow-card)] motion-safe:animate-[fade-in_120ms_ease-out]",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
@@ -796,7 +796,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main id="main-content" tabIndex={-1} data-scroll-region className={mainClass} aria-label={pageMeta.title || "Main content"} style={{ outline: "none" }}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/25 bg-background/96 backdrop-blur-md px-4 md:px-6 transition-[background-color,border-color] duration-200" role="banner" aria-label="Page header">
+          <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/35 bg-card/80 backdrop-blur-md px-4 md:px-6 shadow-[0_6px_18px_-14px_rgba(15,23,42,0.4)] transition-[background-color,border-color,box-shadow] duration-200" role="banner" aria-label="Page header">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -859,7 +859,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 rounded-xl border border-border/35 bg-card/70 px-2 py-1 shadow-[var(--shadow-xs)]">
+            <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-card/80 px-2 py-1 shadow-[var(--shadow-xs)]">
               {/* Command Palette Trigger */}
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}

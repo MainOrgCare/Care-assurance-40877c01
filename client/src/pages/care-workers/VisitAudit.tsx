@@ -24,6 +24,7 @@ interface Discrepancy {
   careWorkerName: string;
   date: string;
   issue: string;
+  evidence?: string;
   actions: DiscrepancyAction;
 }
 
@@ -124,6 +125,12 @@ export default function VisitAudit() {
   const prevContentRef = useRef("");
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
+  const [auditContext, setAuditContext] = useState({
+    serviceUserName: "",
+    auditPeriodStart: "",
+    auditPeriodEnd: "",
+    notes: "",
+  });
 
   // Throttle progress updates to reduce re-renders during SSE streaming
   const lastProgressUpdateRef = useRef<number>(0);
@@ -208,7 +215,15 @@ export default function VisitAudit() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ documentContent }),
+        body: JSON.stringify({
+          documentContent,
+          auditContext: {
+            serviceUserName: auditContext.serviceUserName.trim(),
+            auditPeriodStart: auditContext.auditPeriodStart.trim(),
+            auditPeriodEnd: auditContext.auditPeriodEnd.trim(),
+            notes: auditContext.notes.trim(),
+          },
+        }),
       });
 
       if (!res.ok) {
@@ -434,6 +449,10 @@ export default function VisitAudit() {
     ? `${user.username} (${user.jobTitle})` 
     : `${user?.username} (${user?.role === 'admin' ? 'Admin' : 'Staff'})`;
 
+  const hasDiscrepancyEvidence = Boolean(
+    result?.discrepancies?.some((disc) => Boolean(disc.evidence))
+  );
+
   return (
     <div className="page-shell max-w-6xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
@@ -497,6 +516,61 @@ The AI will automatically extract:
                   </>
                 )}
               </Button>
+            </div>
+
+            <div className="rounded-2xl border border-border/40 bg-muted/20 p-5 space-y-4">
+              <div className="space-y-1">
+                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Audit Context (Optional)</p>
+                <p className="text-xs text-muted-foreground">
+                  Provide known details to improve extraction when logs are messy or incomplete.
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="audit-service-user" className="text-xs text-muted-foreground">Service user initials or name</Label>
+                  <Input
+                    id="audit-service-user"
+                    value={auditContext.serviceUserName}
+                    onChange={(e) => setAuditContext((prev) => ({ ...prev, serviceUserName: e.target.value }))}
+                    placeholder="e.g., K.S. or Kieran Smith"
+                    className="bg-background border-border/60 rounded-xl"
+                    data-testid="input-audit-service-user"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="audit-period-start" className="text-xs text-muted-foreground">Audit start date</Label>
+                  <Input
+                    id="audit-period-start"
+                    value={auditContext.auditPeriodStart}
+                    onChange={(e) => setAuditContext((prev) => ({ ...prev, auditPeriodStart: e.target.value }))}
+                    placeholder="DD/MM/YYYY"
+                    className="bg-background border-border/60 rounded-xl"
+                    data-testid="input-audit-start"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="audit-period-end" className="text-xs text-muted-foreground">Audit end date</Label>
+                  <Input
+                    id="audit-period-end"
+                    value={auditContext.auditPeriodEnd}
+                    onChange={(e) => setAuditContext((prev) => ({ ...prev, auditPeriodEnd: e.target.value }))}
+                    placeholder="DD/MM/YYYY"
+                    className="bg-background border-border/60 rounded-xl"
+                    data-testid="input-audit-end"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="audit-notes" className="text-xs text-muted-foreground">Operational notes</Label>
+                <Textarea
+                  id="audit-notes"
+                  value={auditContext.notes}
+                  onChange={(e) => setAuditContext((prev) => ({ ...prev, notes: e.target.value }))}
+                  placeholder="e.g., GPS issues on 12/02 or approved early departures"
+                  className="bg-background border-border/60 rounded-xl min-h-[90px]"
+                  data-testid="textarea-audit-notes"
+                />
+              </div>
             </div>
 
             {loading && (
@@ -663,6 +737,9 @@ The AI will automatically extract:
                           <TableRow className="border-destructive/20">
                             <TableHead className="w-24 text-destructive/80 font-semibold uppercase text-[10px] tracking-widest">Date</TableHead>
                             <TableHead className="text-destructive/80 font-semibold uppercase text-[10px] tracking-widest">Incident Details</TableHead>
+                            {hasDiscrepancyEvidence && (
+                              <TableHead className="text-destructive/80 font-semibold uppercase text-[10px] tracking-widest">Evidence</TableHead>
+                            )}
                             <TableHead className="text-destructive/80 font-semibold uppercase text-[10px] tracking-widest">Mitigation Directives</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -671,6 +748,11 @@ The AI will automatically extract:
                             <TableRow key={`${disc.date}-${disc.issue}`} data-testid={`row-discrepancy-${carerIdx}-${idx}`} className="border-destructive/10 hover:bg-destructive/5 transition-colors">
                               <TableCell className="text-muted-foreground font-semibold text-xs">{disc.date}</TableCell>
                               <TableCell className="text-foreground font-semibold text-xs leading-relaxed">{disc.issue}</TableCell>
+                              {hasDiscrepancyEvidence && (
+                                <TableCell className="text-xs text-muted-foreground">
+                                  {disc.evidence || "-"}
+                                </TableCell>
+                              )}
                               <TableCell>
                                 <div className="flex flex-wrap gap-1.5">
                                   {disc.actions.performanceNote && (

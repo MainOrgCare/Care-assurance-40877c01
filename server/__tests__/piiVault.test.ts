@@ -253,8 +253,9 @@ describe("PIIVault", () => {
   it("preserves care phrases", () => {
     const vault = new PIIVault();
     const result = vault.scrubString("Care plan for personal care");
-    assert((result).includes("care plan"));
-    assert((result).includes("personal care"));
+    const normalized = result.toLowerCase();
+    assert((normalized).includes("care plan"));
+    assert((normalized).includes("personal care"));
   });
 
   // ── Restoration ───────────────────────────────────────────────────

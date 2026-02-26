@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { normalizeApiPayload } from "@/lib/queryClient";
 
 interface User {
   id: string;
@@ -245,41 +246,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: "include",
       });
 
-      const data = await response.json();
+      const payload = await response.json();
+      const data = normalizeApiPayload(payload);
 
       if (!response.ok) {
         if (response.status === 403) {
           toast({
             title: "Account Pending Approval",
-            description: "Your account is awaiting administrator approval.",
+            description: payload?.message || "Your account is awaiting administrator approval.",
             variant: "destructive"
           });
           logAction("Login Attempt", "System", "Blocked", "Account Pending");
         } else if (response.status === 401) {
           toast({
             title: "Invalid Credentials",
-            description: data.message || "Please check your username and password.",
+            description: payload?.message || "Please check your username and password.",
             variant: "destructive"
           });
           logAction("Login Attempt", "System", "Blocked", "Invalid Credentials");
         } else if (response.status === 429) {
           toast({
             title: "Too Many Attempts",
-            description: data.message || "Please wait before trying again.",
+            description: payload?.message || "Please wait before trying again.",
             variant: "destructive"
           });
           logAction("Login Attempt", "System", "Blocked", "Rate Limited");
         } else if (response.status === 503) {
           toast({
             title: "Service Unavailable",
-            description: data.message || "Authentication is temporarily unavailable.",
+            description: payload?.message || "Authentication is temporarily unavailable.",
             variant: "destructive"
           });
           logAction("Login Attempt", "System", "System", "Auth Unavailable");
         } else {
           toast({
             title: "Login Failed",
-            description: data.message || "An error occurred during login. Please try again.",
+            description: payload?.message || "An error occurred during login. Please try again.",
             variant: "destructive"
           });
           logAction("Login Attempt", "System", "Blocked", "Login Failed");
@@ -313,12 +315,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: "include",
       });
 
-      const data = await response.json();
+      const payload = await response.json();
+      const data = normalizeApiPayload(payload);
 
       if (!response.ok) {
         toast({
           title: "Demo Unavailable",
-          description: data.message || "Could not start demo session.",
+          description: payload?.message || "Could not start demo session.",
           variant: "destructive"
         });
         return false;

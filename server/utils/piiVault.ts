@@ -360,6 +360,61 @@ export class PIIVault {
       (_match, prefix, name) => `${prefix} ${this.store(name, "NAME")}`,
     );
 
+    // === PHASE 4: Labelled PII fields ===
+    s = s.replace(
+      /\b(DOB|Date of Birth|D\.O\.B\.?)\s*:?\s*([^\n,;]{1,80})/gi,
+      (_match, label, value) => {
+        const trimmed = value.trim();
+        if (trimmed.includes("{{PII_")) {
+          return `${label}: ${trimmed}`;
+        }
+        return `${label}: ${this.store(trimmed, "DOB")}`;
+      },
+    );
+    s = s.replace(
+      /\b(Emergency contact|Next of kin|Contact|Tel|Telephone|Phone|Mobile|Email)\s*:?\s*([^\n,;]{1,120})/gi,
+      (_match, label, value) => {
+        const trimmed = value.trim();
+        if (trimmed.includes("{{PII_")) {
+          return `${label}: ${trimmed}`;
+        }
+        const hasEmail = new RegExp(PII_PATTERNS.email).test(trimmed);
+        const hasPhone = new RegExp(PII_PATTERNS.ukPhone).test(trimmed) || new RegExp(PII_PATTERNS.intlPhone).test(trimmed);
+        if (hasEmail) return `${label}: ${this.store(trimmed, "EMAIL")}`;
+        if (hasPhone) return `${label}: ${this.store(trimmed, "PHONE")}`;
+        return `${label}: ${this.store(trimmed, "CONTACT")}`;
+      },
+    );
+    s = s.replace(
+      /\b(Address|Home address|Residence)\s*:?\s*([^\n]{1,160})/gi,
+      (_match, label, value) => {
+        const trimmed = value.trim();
+        if (trimmed.includes("{{PII_")) {
+          return `${label}: ${trimmed}`;
+        }
+        return `${label}: ${this.store(trimmed, "ADDRESS")}`;
+      },
+    );
+
+    // === PHASE 5: Titled names ===
+    s = s.replace(
+      /\b(Mr|Mrs|Ms|Miss|Dr|Prof|Professor)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/g,
+      (_match, title, name) => {
+        const lower = String(title || "").toLowerCase();
+        const category: PIICategory =
+          lower === "dr" || lower === "prof" || lower === "professor"
+            ? "HEALTHCARE_PRO"
+            : "NAME";
+        return `${title} ${this.store(name, category)}`;
+      },
+    );
+
+    // === PHASE 6: Staff names ===
+    s = s.replace(
+      /\b(Carer|Care Worker|Nurse|Doctor|GP|Support Worker|Key Worker|Social Worker)\s*:?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/gi,
+      (_match, role, name) => `${role}: ${this.store(name, "STAFF")}`,
+    );
+
     // Possessive patterns not in whitelist
     s = s.replace(/\b([A-Z][a-z]+)['']s\b/g, (match, name) => {
       if (isClinicalOrMedicalTerm(name)) return match;
@@ -369,13 +424,19 @@ export class PIIVault {
 
     // Full name patterns (First Last or First Middle Last)
     s = s.replace(
-      /\b([A-Z][a-z]+)\s+((?:O['']|Mc|Mac)?[A-Za-z][a-z]+)(?:\s+((?:O['']|Mc|Mac)?[A-Za-z][a-z]+))?\b/g,
-      (match, first, second, third) => {
+      /\b([A-Z][a-z]+)\s+((?:O['']|Mc|Mac)?[A-Z][a-z]+)(?:\s+((?:O['']|Mc|Mac)?[A-Z][a-z]+))?\b/g,
+      (match, first, second, third, offset, full) => {
         const phrase = match.toLowerCase();
         if (CARE_PHRASE_WHITELIST.has(phrase)) return match;
         if (isClinicalOrMedicalTerm(first) || isClinicalOrMedicalTerm(second)) return match;
         if (third && isClinicalOrMedicalTerm(third)) return match;
         if (COMMON_ENGLISH_WORDS.has(first.toLowerCase())) return match;
+        const lowerFirst = String(first).toLowerCase();
+        if (["mr", "mrs", "ms", "miss", "dr", "prof", "professor"].includes(lowerFirst)) return match;
+        const before = full.slice(Math.max(0, offset - 40), offset);
+        if (/\b(Carer|Care Worker|Nurse|Doctor|GP|Support Worker|Key Worker|Social Worker)\s*:?\s*$/i.test(before)) {
+          return match;
+        }
         return this.store(match, "NAME");
       },
     );
@@ -409,39 +470,6 @@ export class PIIVault {
         }
         return match;
       },
-    );
-
-    // === PHASE 4: Labelled PII fields ===
-    s = s.replace(
-      /\b(DOB|Date of Birth|D\.O\.B\.?)\s*:?\s*([^\n,;]{1,20})/gi,
-      (_match, label, value) => `${label}: ${this.store(value.trim(), "DOB")}`,
-    );
-    s = s.replace(
-      /\b(Emergency contact|Next of kin|Contact|Tel|Telephone|Phone|Mobile|Email)\s*:?\s*([^\n,;]{1,50})/gi,
-      (_match, label, value) => `${label}: ${this.store(value.trim(), "CONTACT")}`,
-    );
-    s = s.replace(
-      /\b(Address|Home address|Residence)\s*:?\s*([^\n]{1,100})/gi,
-      (_match, label, value) => `${label}: ${this.store(value.trim(), "ADDRESS")}`,
-    );
-
-    // === PHASE 5: Titled names ===
-    s = s.replace(
-      /\b(Mr|Mrs|Ms|Miss|Dr|Prof|Professor)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/g,
-      (_match, title, name) => {
-        const lower = String(title || "").toLowerCase();
-        const category: PIICategory =
-          lower === "dr" || lower === "prof" || lower === "professor"
-            ? "HEALTHCARE_PRO"
-            : "NAME";
-        return `${title} ${this.store(name, category)}`;
-      },
-    );
-
-    // === PHASE 6: Staff names ===
-    s = s.replace(
-      /\b(Carer|Care Worker|Nurse|Doctor|GP|Support Worker|Key Worker|Social Worker)\s*:?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/gi,
-      (_match, role, name) => `${role}: ${this.store(name, "STAFF")}`,
     );
 
     return s;
@@ -685,4 +713,42 @@ export function scrubMessagesForLog(
     }
     return msg;
   });
+}
+
+const HIGH_RISK_PII_PATTERNS: Array<{ key: string; regex: RegExp }> = [
+  { key: "NHS_NUM", regex: PII_PATTERNS.nhsNumber },
+  { key: "NI_NUM", regex: PII_PATTERNS.niNumber },
+  { key: "POSTCODE", regex: PII_PATTERNS.ukPostcode },
+  { key: "EMAIL", regex: PII_PATTERNS.email },
+  { key: "PHONE", regex: PII_PATTERNS.ukPhone },
+  { key: "PHONE", regex: PII_PATTERNS.intlPhone },
+  { key: "NETWORK", regex: PII_PATTERNS.ipAddress },
+  { key: "NETWORK", regex: PII_PATTERNS.ipv6Address },
+  { key: "NETWORK", regex: PII_PATTERNS.macAddress },
+  { key: "BANK", regex: PII_PATTERNS.ukSortCode },
+  { key: "BANK", regex: PII_PATTERNS.ukBankAccount },
+  { key: "CARD", regex: PII_PATTERNS.cardNumber },
+  { key: "BANK", regex: PII_PATTERNS.iban },
+  { key: "LICENSE", regex: PII_PATTERNS.ukDrivingLicense },
+  { key: "PASSPORT", regex: PII_PATTERNS.ukPassport },
+  { key: "VEHICLE", regex: PII_PATTERNS.ukVehicleReg },
+  { key: "ADDRESS", regex: PII_PATTERNS.streetAddress },
+  { key: "ADDRESS", regex: PII_PATTERNS.houseName },
+];
+
+export function detectHighRiskPII(
+  text: string,
+): { total: number; byCategory: Record<string, number> } {
+  const cleaned = text.replace(/\{\{PII_[A-Z_]+_\d+\}\}/g, "");
+  const byCategory: Record<string, number> = {};
+  let total = 0;
+
+  for (const pattern of HIGH_RISK_PII_PATTERNS) {
+    const matches = cleaned.match(pattern.regex);
+    if (!matches || matches.length === 0) continue;
+    byCategory[pattern.key] = (byCategory[pattern.key] || 0) + matches.length;
+    total += matches.length;
+  }
+
+  return { total, byCategory };
 }

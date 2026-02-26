@@ -20,6 +20,18 @@ class ApiError extends Error {
   }
 }
 
+export const normalizeApiPayload = <T>(payload: unknown): T => {
+  if (payload && typeof payload === "object" && "data" in payload) {
+    return (payload as { data: T }).data;
+  }
+  return payload as T;
+};
+
+export async function parseApiResponse<T>(res: Response): Promise<T> {
+  const payload = await res.json();
+  return normalizeApiPayload<T>(payload);
+}
+
 const withRequestIdHeader = (headers?: HeadersInit): Headers => {
   const nextHeaders = new Headers(headers || undefined);
   if (!nextHeaders.has(REQUEST_ID_HEADER)) {
@@ -112,7 +124,7 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    return await parseApiResponse(res);
   };
 
 export const queryClient = new QueryClient({

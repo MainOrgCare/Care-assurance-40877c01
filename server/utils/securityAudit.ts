@@ -7,7 +7,14 @@
  *
  * @module server/utils/securityAudit
  */
-import { storage } from "../storage";
+let storageRef: typeof import("../storage").storage | null = null;
+
+const getStorage = async () => {
+  if (storageRef) return storageRef;
+  const module = await import("../storage");
+  storageRef = module.storage;
+  return storageRef;
+};
 
 export type SecurityEventType =
   | "PII_SCRUB"
@@ -79,22 +86,24 @@ export function logSecurityEvent(
   ];
 
   if (gdprEvents.includes(event.eventType)) {
-    storage
-      .createGdprAuditLog({
-        eventType: event.eventType,
-        endpoint: event.endpoint,
-        userId:
-          typeof event.userId === "number"
-            ? String(event.userId)
-            : (event.userId as string | undefined) || undefined,
-        username: (event.username as string | undefined) || undefined,
-        ipAddress: event.ipAddress,
-        piiCategories:
-          (event.details?.categories as string[] | undefined) || undefined,
-        piiItemCount:
-          (event.details?.totalItems as number | undefined) || undefined,
-        details: event.details,
-      })
+    void getStorage()
+      .then((storage) =>
+        storage.createGdprAuditLog({
+          eventType: event.eventType,
+          endpoint: event.endpoint,
+          userId:
+            typeof event.userId === "number"
+              ? String(event.userId)
+              : (event.userId as string | undefined) || undefined,
+          username: (event.username as string | undefined) || undefined,
+          ipAddress: event.ipAddress,
+          piiCategories:
+            (event.details?.categories as string[] | undefined) || undefined,
+          piiItemCount:
+            (event.details?.totalItems as number | undefined) || undefined,
+          details: event.details,
+        })
+      )
       .catch((err: Error) => {
         console.error(
           "[SECURITY] Failed to persist GDPR audit log:",
@@ -104,19 +113,21 @@ export function logSecurityEvent(
   }
 
   if (authEvents.includes(event.eventType)) {
-    storage
-      .createSystemLog({
-        eventType: `security_${event.eventType.toLowerCase()}`,
-        userId: event.userId ? String(event.userId) : null,
-        username: (event.username as string | null) || null,
-        serviceUserInitials: null,
-        details: {
-          ...event.details,
-          endpoint: event.endpoint,
-          ipAddress: event.ipAddress,
-          timestamp: log.timestamp,
-        },
-      })
+    void getStorage()
+      .then((storage) =>
+        storage.createSystemLog({
+          eventType: `security_${event.eventType.toLowerCase()}`,
+          userId: event.userId ? String(event.userId) : null,
+          username: (event.username as string | null) || null,
+          serviceUserInitials: null,
+          details: {
+            ...event.details,
+            endpoint: event.endpoint,
+            ipAddress: event.ipAddress,
+            timestamp: log.timestamp,
+          },
+        })
+      )
       .catch((err: Error) => {
         console.error(
           "[SECURITY] Failed to persist system log:",
