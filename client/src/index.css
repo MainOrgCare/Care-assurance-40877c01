@@ -527,21 +527,21 @@
 
 /* Removed heavy glow animations for performance */
 
-/* Simplified theme-specific body backgrounds */
+/* Theme-specific body backgrounds */
 .theme-dark body,
 html:not(.theme-light):not(.theme-midnight):not(.theme-ocean) body {
-  background-color: hsl(222, 20%, 8%);
-  background-image: none;
+  background-color: hsl(222 22% 7%);
+  background-image: var(--surface-bg-gradient);
 }
 
 html.theme-midnight body {
-  background-color: hsl(220, 25%, 7%);
-  background-image: none;
+  background-color: hsl(226 26% 6%);
+  background-image: var(--surface-bg-gradient);
 }
 
 html.theme-ocean body {
-  background-color: hsl(200, 35%, 10%);
-  background-image: none;
+  background-color: hsl(200 38% 9%);
+  background-image: var(--surface-bg-gradient);
 }
 
 html.theme-light body {
@@ -945,6 +945,12 @@ html.theme-dark,
   --surface-shell-border: rgba(148, 163, 184, 0.22);
   --surface-shell-shadow: 0 4px 16px -8px rgba(2, 6, 23, 0.4);
   --surface-noise-opacity: 0;
+  --surface-bg-gradient: radial-gradient(1200px 600px at 10% -20%, hsl(216 40% 20% / 0.45), transparent 60%),
+    radial-gradient(1000px 520px at 90% -10%, hsl(188 45% 16% / 0.35), transparent 55%),
+    linear-gradient(180deg, hsl(222 24% 9%) 0%, hsl(222 20% 7%) 45%, hsl(222 20% 6%) 100%);
+  --surface-grid: linear-gradient(90deg, hsl(220 24% 22% / 0.25) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(220 24% 22% / 0.25) 1px, transparent 1px);
+  --surface-grid-size: 140px 140px;
 }
 
 html.theme-light {
@@ -967,6 +973,12 @@ html.theme-midnight {
   --surface-shell-border: rgba(148, 163, 255, 0.25);
   --surface-shell-shadow: 0 4px 16px -8px rgba(5, 8, 25, 0.4);
   --surface-noise-opacity: 0;
+  --surface-bg-gradient: radial-gradient(1100px 600px at 12% -20%, hsl(245 42% 18% / 0.55), transparent 62%),
+    radial-gradient(900px 520px at 90% -10%, hsl(210 46% 16% / 0.45), transparent 55%),
+    linear-gradient(180deg, hsl(228 28% 7%) 0%, hsl(226 28% 6%) 45%, hsl(226 28% 5%) 100%);
+  --surface-grid: linear-gradient(90deg, hsl(236 34% 24% / 0.26) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(236 34% 24% / 0.26) 1px, transparent 1px);
+  --surface-grid-size: 160px 160px;
 }
 
 html.theme-ocean {
@@ -977,6 +989,12 @@ html.theme-ocean {
   --surface-shell-border: rgba(94, 234, 212, 0.26);
   --surface-shell-shadow: 0 4px 16px -8px rgba(8, 47, 73, 0.3);
   --surface-noise-opacity: 0;
+  --surface-bg-gradient: radial-gradient(1100px 620px at 10% -20%, hsl(190 50% 18% / 0.5), transparent 60%),
+    radial-gradient(900px 540px at 90% -10%, hsl(168 58% 18% / 0.4), transparent 58%),
+    linear-gradient(180deg, hsl(200 42% 9%) 0%, hsl(200 38% 8%) 45%, hsl(200 38% 7%) 100%);
+  --surface-grid: linear-gradient(90deg, hsl(190 40% 22% / 0.25) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(190 40% 22% / 0.25) 1px, transparent 1px);
+  --surface-grid-size: 150px 150px;
 }
 
 /* Default Dark Theme Overrides */

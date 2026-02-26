@@ -18,76 +18,82 @@ function AnimatedCompliee({
   className?: string;
 }) {
   return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      viewBox="0 0 64 80" 
-      className={className}
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 64 80"
+      className={cn("compliee-svg", className)}
     >
-      {/* Hair base */}
-      <rect x="10" y="8" width="44" height="20" rx="10" fill="#FBBF24"/>
-      
-      {/* Face */}
-      <rect x="8" y="16" width="48" height="36" rx="12" fill="#FED7AA"/>
-      
-      {/* Hair bangs ;D */}
-      <rect x="12" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>
-      <rect x="24" y="4" width="16" height="16" rx="6" fill="#FBBF24"/>
-      <rect x="36" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>
-      
-      {/* Eyes - with blink state */}
-      {isBlinking ? (
-        <>
-          {/* Closed eyes (horizontal lines) */}
-          <rect x="14" y="33" rx="2" width="14" height="3" fill="#1E40AF"/>
-          <rect x="36" y="33" rx="2" width="14" height="3" fill="#1E40AF"/>
-        </>
-      ) : (
-        <>
-          {/* Open eyes */}
-          <circle cx="21" cy="34" r="10" fill="white"/>
-          <circle cx="43" cy="34" r="10" fill="white"/>
-          <circle cx="24" cy="35" r="6" fill="#1E40AF"/>
-          <circle cx="46" cy="35" r="6" fill="#1E40AF"/>
-          <circle cx="27" cy="32" r="3" fill="white"/>
-          <circle cx="49" cy="32" r="3" fill="white"/>
-        </>
-      )}
-      
-      {/* Smile */}
-      <path d="M24 46 Q32 52 40 46" stroke="#78350F" strokeWidth="2" fill="none" strokeLinecap="round"/>
-      
-      {/* Blush */}
-      <rect x="6" y="36" width="6" height="4" rx="2" fill="#FECACA" opacity="0.6"/>
-      <rect x="52" y="36" width="6" height="4" rx="2" fill="#FECACA" opacity="0.6"/>
-      
+      <g className="compliee-head">
+        {/* Hair base */}
+        <rect x="10" y="8" width="44" height="20" rx="10" fill="#FBBF24"/>
+
+        {/* Face */}
+        <rect x="8" y="16" width="48" height="36" rx="12" fill="#FED7AA"/>
+
+        {/* Hair bangs ;D */}
+        <rect x="12" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>
+        <rect x="24" y="4" width="16" height="16" rx="6" fill="#FBBF24"/>
+        <rect x="36" y="6" width="16" height="14" rx="6" fill="#FBBF24"/>
+
+        {/* Eyes - with blink state */}
+        {isBlinking ? (
+          <>
+            {/* Closed eyes (horizontal lines) */}
+            <rect x="14" y="33" rx="2" width="14" height="3" fill="#1E40AF"/>
+            <rect x="36" y="33" rx="2" width="14" height="3" fill="#1E40AF"/>
+          </>
+        ) : (
+          <>
+            {/* Open eyes */}
+            <circle cx="21" cy="34" r="10" fill="white"/>
+            <circle cx="43" cy="34" r="10" fill="white"/>
+            <circle cx="24" cy="35" r="6" fill="#1E40AF" className="compliee-iris"/>
+            <circle cx="46" cy="35" r="6" fill="#1E40AF" className="compliee-iris"/>
+            <circle cx="27" cy="32" r="3" fill="white" className="compliee-eye-spark"/>
+            <circle cx="49" cy="32" r="3" fill="white" className="compliee-eye-spark"/>
+          </>
+        )}
+
+        {/* Smile */}
+        <path d="M24 46 Q32 52 40 46" stroke="#78350F" strokeWidth="2" fill="none" strokeLinecap="round"/>
+
+        {/* Blush */}
+        <rect x="6" y="36" width="6" height="4" rx="2" fill="#FECACA" opacity="0.6"/>
+        <rect x="52" y="36" width="6" height="4" rx="2" fill="#FECACA" opacity="0.6"/>
+      </g>
+
       {/* Body */}
-      <rect x="14" y="50" width="36" height="26" rx="4" fill="#4F46E5"/>
-      
-      {/* V detail */}
-      <path d="M22 50 L32 60 L42 50" fill="#3730A3"/>
-      <line x1="22" y1="50" x2="32" y2="60" stroke="white" strokeWidth="2.5"/>
-      <line x1="42" y1="50" x2="32" y2="60" stroke="white" strokeWidth="1.5"/>
-      
-      {/* Left hand with clipboard */}
-      <rect x="4" y="56" width="10" height="10" rx="4" fill="#FED7AA"/>
-      <rect x="0" y="52" width="8" height="10" rx="1" fill="#A5B4FC"/>
-      <rect x="2" y="50" width="4" height="3" rx="1" fill="#F59E0B"/>
-      
-      {/* Right hand - waving or normal */}
-      {isWaving ? (
-        <g className="origin-[55px_59px] animate-wave">
-          <rect x="50" y="48" width="10" height="10" rx="4" fill="#FED7AA"/>
-          {/* Fingers up for wave */}
-          <rect x="52" y="42" width="3" height="8" rx="1.5" fill="#FED7AA"/>
-          <rect x="56" y="44" width="3" height="6" rx="1.5" fill="#FED7AA"/>
-        </g>
-      ) : (
-        <rect x="50" y="54" width="10" height="10" rx="4" fill="#FED7AA"/>
-      )}
-      
-      {/* Feet */}
-      <rect x="20" y="74" width="10" height="5" rx="2" fill="#374151"/>
-      <rect x="34" y="74" width="10" height="5" rx="2" fill="#374151"/>
+      <g className="compliee-body">
+        <rect x="14" y="50" width="36" height="26" rx="4" fill="#4F46E5"/>
+
+        {/* V detail */}
+        <path d="M22 50 L32 60 L42 50" fill="#3730A3"/>
+        <line x1="22" y1="50" x2="32" y2="60" stroke="white" strokeWidth="2.5"/>
+        <line x1="42" y1="50" x2="32" y2="60" stroke="white" strokeWidth="1.5"/>
+
+        {/* Left hand with clipboard */}
+        <rect x="4" y="56" width="10" height="10" rx="4" fill="#FED7AA"/>
+        <rect x="0" y="52" width="8" height="10" rx="1" fill="#A5B4FC"/>
+        <rect x="2" y="50" width="4" height="3" rx="1" fill="#F59E0B"/>
+
+        {/* Right hand - waving or normal */}
+        {isWaving ? (
+          <g className="origin-[55px_59px] animate-compliee-wave">
+            <rect x="50" y="48" width="10" height="10" rx="4" fill="#FED7AA"/>
+            {/* Fingers up for wave */}
+            <rect x="52" y="42" width="3" height="8" rx="1.5" fill="#FED7AA"/>
+            <rect x="56" y="44" width="3" height="6" rx="1.5" fill="#FED7AA"/>
+          </g>
+        ) : (
+          <rect x="50" y="54" width="10" height="10" rx="4" fill="#FED7AA" className="compliee-hand"/>
+        )}
+
+        {/* Feet */}
+        <rect x="20" y="74" width="10" height="5" rx="2" fill="#374151"/>
+        <rect x="34" y="74" width="10" height="5" rx="2" fill="#374151"/>
+      </g>
+
+      <circle cx="8" cy="14" r="2.5" fill="#FDE68A" className="compliee-sparkle" />
     </svg>
   );
 }
@@ -185,41 +191,78 @@ export default function ComplieeIntro({ onComplete, onAskHelp }: ComplieeIntroPr
       {/* Styles for animations */}
       <style>{`
         @keyframes peekIn {
-          0% { transform: translateX(100%); }
-          100% { transform: translateX(30%); }
+          0% { transform: translateX(100%) scale(0.95); }
+          100% { transform: translateX(30%) scale(1); }
         }
         @keyframes peekOut {
-          0% { transform: translateX(30%); }
-          100% { transform: translateX(100%); }
+          0% { transform: translateX(30%) scale(1); }
+          100% { transform: translateX(100%) scale(0.96); }
         }
         @keyframes slideInFull {
-          0% { transform: translateX(30%); }
-          100% { transform: translateX(0); }
+          0% { transform: translateX(30%) scale(0.98); }
+          100% { transform: translateX(0) scale(1); }
         }
-        @keyframes wave {
+        @keyframes complieeWave {
           0%, 100% { transform: rotate(0deg); }
-          25% { transform: rotate(-20deg); }
-          75% { transform: rotate(20deg); }
+          20% { transform: rotate(-18deg); }
+          50% { transform: rotate(22deg); }
+          80% { transform: rotate(-12deg); }
         }
-        @keyframes bob {
+        @keyframes complieeFloat {
           0%, 100% { transform: translateY(0) translateX(0); }
-          25% { transform: translateY(-3px) translateX(3px); }
-          50% { transform: translateY(0) translateX(0); }
-          75% { transform: translateY(-3px) translateX(-3px); }
+          30% { transform: translateY(-4px) translateX(2px); }
+          60% { transform: translateY(2px) translateX(-2px); }
+        }
+        @keyframes headTilt {
+          0%, 100% { transform: rotate(0deg); }
+          35% { transform: rotate(-2deg); }
+          70% { transform: rotate(2.5deg); }
+        }
+        @keyframes irisDrift {
+          0%, 100% { transform: translate(0, 0); }
+          30% { transform: translate(1px, -1px); }
+          60% { transform: translate(-1px, 1px); }
+        }
+        @keyframes sparklePulse {
+          0%, 100% { transform: scale(0.8); opacity: 0.3; }
+          50% { transform: scale(1.2); opacity: 0.9; }
+        }
+        @keyframes handSwing {
+          0%, 100% { transform: rotate(0deg); }
+          50% { transform: rotate(-6deg); }
         }
         @keyframes bubblePop {
           0% { transform: scale(0); opacity: 0; }
           50% { transform: scale(1.1); }
           100% { transform: scale(1); opacity: 1; }
         }
-        .animate-wave {
-          animation: wave 0.4s ease-in-out infinite;
+        .animate-compliee-wave {
+          animation: complieeWave 0.6s ease-in-out infinite;
         }
-        .animate-bob {
-          animation: bob 2s ease-in-out infinite;
+        .animate-compliee-float {
+          animation: complieeFloat 2.6s ease-in-out infinite;
         }
         .animate-bubble-pop {
           animation: bubblePop 0.3s ease-out forwards;
+        }
+        .compliee-head {
+          transform-origin: 32px 30px;
+          animation: headTilt 4s ease-in-out infinite;
+        }
+        .compliee-iris {
+          transform-origin: center;
+          animation: irisDrift 3.6s ease-in-out infinite;
+        }
+        .compliee-eye-spark {
+          animation: sparklePulse 2.4s ease-in-out infinite;
+        }
+        .compliee-sparkle {
+          transform-origin: center;
+          animation: sparklePulse 1.8s ease-in-out infinite;
+        }
+        .compliee-hand {
+          transform-origin: 55px 60px;
+          animation: handSwing 2.8s ease-in-out infinite;
         }
       `}</style>
 
@@ -265,7 +308,7 @@ export default function ComplieeIntro({ onComplete, onAskHelp }: ComplieeIntroPr
             phase === "peek2" && "animate-[peekIn_0.3s_ease-out_forwards]",
             phase === "wave" && "translate-x-[30%]",
             phase === "slideIn" && "animate-[slideInFull_0.4s_ease-out_forwards]",
-            (phase === "askHelp" || phase === "idle") && "translate-x-0 animate-bob"
+            (phase === "askHelp" || phase === "idle") && "translate-x-0 animate-compliee-float"
           )}
         >
           <AnimatedCompliee 

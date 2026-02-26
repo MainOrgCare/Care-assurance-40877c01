@@ -58,7 +58,6 @@ import { PageTransition } from "@/components/PageTransition";
 import { ScrollToTopButton } from "@/components/ScrollToTopButton";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { SessionTimeoutWarning } from "@/components/SessionTimeoutWarning";
-import { QuickNotes } from "@/components/QuickNotes";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useScrollToTop } from "@/hooks/useScrollToTop";
 import { useRecentPages } from "@/hooks/useRecentPages";
@@ -97,6 +96,31 @@ const formatBannerDate = (value: string | null | undefined): string => {
 
 const ChatAssistant = lazy(() => import("@/components/ChatAssistant"));
 const ComplieeIntro = lazy(() => import("@/components/ComplieeIntro"));
+
+function ContentFallback({ variant = "standard" }: { variant?: "standard" | "full" }) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setIsVisible(true), 220);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  if (!isVisible) return null;
+
+  const wrapperClass =
+    variant === "full"
+      ? "flex-1 flex flex-col gap-4 p-6"
+      : "flex-1 flex flex-col gap-4";
+
+  return (
+    <div className={wrapperClass} aria-busy="true" aria-live="polite">
+      <div className="h-8 w-52 bg-muted/50 rounded-lg" />
+      <div className="h-4 w-full max-w-md bg-muted/40 rounded" />
+      <div className="h-4 w-full max-w-sm bg-muted/30 rounded" />
+      <div className="mt-6 h-40 w-full bg-muted/20 rounded-xl" />
+    </div>
+  );
+}
 
 const SidebarContent = memo(function SidebarContent({
   location,
@@ -1007,14 +1031,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className={contentWrapperClass}>
           <div className={cardClass}>
             {isFullBleed ? (
-              <Suspense fallback={
-                <div className="flex-1 flex flex-col gap-4 animate-pulse p-6">
-                  <div className="h-8 w-52 bg-muted rounded-lg" />
-                  <div className="h-4 w-full max-w-md bg-muted/60 rounded" />
-                  <div className="h-4 w-full max-w-sm bg-muted/40 rounded" />
-                  <div className="mt-6 h-40 w-full bg-muted/30 rounded-xl" />
-                </div>
-              }>
+              <Suspense fallback={<ContentFallback variant="full" />}>
                 <PageTransition>
                   {children}
                 </PageTransition>
@@ -1030,14 +1047,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <p className="text-[0.8125rem] text-muted-foreground mt-1.5 max-w-2xl leading-relaxed">{pageMeta.subtitle}</p>
                 </div>
                 <div className="h-px mb-5 bg-gradient-to-r from-border/50 via-border/30 to-transparent" />
-                <Suspense fallback={
-                  <div className="flex-1 flex flex-col gap-4 animate-pulse">
-                    <div className="h-8 w-52 bg-muted rounded-lg" />
-                    <div className="h-4 w-full max-w-md bg-muted/60 rounded" />
-                    <div className="h-4 w-full max-w-sm bg-muted/40 rounded" />
-                    <div className="mt-6 h-40 w-full bg-muted/30 rounded-xl" />
-                  </div>
-                }>
+                <Suspense fallback={<ContentFallback />}>
                   <PageTransition>
                     {children}
                   </PageTransition>
@@ -1093,9 +1103,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </footer>
         )}
       </div>
-
-      {/* Quick Notes widget */}
-      <QuickNotes />
 
       {/* Offline indicator */}
       <OfflineIndicator />
