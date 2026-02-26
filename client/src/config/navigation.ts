@@ -24,8 +24,6 @@ import {
   Activity,
   ClipboardList,
   BarChart,
-  ArrowRightLeft,
-  GraduationCap,
   Lock,
   Calculator,
   FlaskConical,
@@ -204,8 +202,6 @@ export function buildBreadcrumbs(location: string): BreadcrumbEntry[] {
     else if (location === "/care-workers/emar-audit") crumbs.push({ label: "EMAR Audit" });
     else if (location === "/care-workers/visit-audit") crumbs.push({ label: "Visit Audit" });
     else if (location === "/care-workers/performance") crumbs.push({ label: "Performance" });
-    else if (location === "/care-workers/handovers") crumbs.push({ label: "Shift Handovers" });
-    else if (location === "/care-workers/training") crumbs.push({ label: "Training" });
   } else if (location.startsWith("/rostering")) {
     crumbs.push({ label: "Rostering Studio" });
   } else if (location === "/call-reconciliation") {
@@ -284,8 +280,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/care-workers/emar-audit", label: "EMAR Audit", icon: Activity },
       { href: "/care-workers/visit-audit", label: "Visit Audit", icon: ClipboardList },
       { href: "/care-workers/performance", label: "Performance", icon: BarChart },
-      { href: "/care-workers/handovers", label: "Shift Handovers", icon: ArrowRightLeft },
-      { href: "/care-workers/training", label: "Training", icon: GraduationCap },
     ],
   },
   {

@@ -13823,15 +13823,12 @@ Return JSON - include ALL by default:
 
       const cachedPayload = getRiskAnalysisCache(cacheKey);
       if (cachedPayload) {
-        // Reconstruct vault from current request's scrubbed PII (vault populated at scrub step above)
-        // Cache only stores template results with placeholders — never stores real PII values
-        const vaultExport = piiVault.export();
+        // Cache stores placeholder-only output to avoid persisting PII across requests.
+        // Do not return rawWithTokens on cache hits because tokens would not match this request's vault.
         const fullPayload = {
           ...cachedPayload,
-          vaultExport,
-          rawWithTokens: cachedPayload._rawWithTokens || cachedPayload,
+          _cached: true,
         };
-        delete fullPayload._rawWithTokens; // Clean up internal field
         sendProgress(65, "Loaded cached analysis...", "cache");
         sendProgress(100, "Complete!", "complete");
         sendEvent('result', fullPayload);
@@ -14017,6 +14014,11 @@ SCOPE OF PRACTICE - CARE WORKER BOUNDARIES
 ✗ OUT OF SCOPE: Diagnosis, prescribing, changing medication doses, clinical decisions
 
 All recommendations must remain within a care worker's scope of practice.
+
+PERSON-CENTRED VOICE AND DETAIL:
+- Use first person throughout narrative fields ("I", "my", "me")
+- In recommendedAssessments.reason use 2-4 sentences describing impact on my daily life, what matters to me and how I prefer support to be delivered
+- documentSummary should be 3-5 sentences in first person, covering routines, preferences and emotional needs if documented
 
 ${privacyRules}
 
@@ -14419,9 +14421,8 @@ Remember: Extract information ONLY from service user documents above. Templates 
       console.log(`[Risks] Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for automatic local restoration`);
       piiVault.logAudit('RESTORE', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
       
-      // Cache only the template result + raw tokens — NEVER cache vaultExport (which contains real PII)
-      // On cache hit, vault is reconstructed from the current request's scrub pass
-      const cachePayload = { ...templateResult, _rawWithTokens: result };
+      // Cache only the template result — NEVER cache vaultExport (contains real PII)
+      const cachePayload = { ...templateResult };
       setRiskAnalysisCache(cacheKey, cachePayload);
       sendProgress(100, "Complete!", "complete");
       sendEvent('result', payload);
@@ -14625,6 +14626,12 @@ FIRST PERSON WRITING:
 - Write EVERYTHING in first person as the service user speaking about themselves
 - Use "I", "me", "my", "myself" throughout ALL fields
 - Vary your sentence structure naturally - do not repeat the same opening phrases
+
+PERSON-CENTRED DETAIL REQUIREMENTS:
+- Each riskDefinition, howItsARisk and controlMeasures should be 2-4 sentences with rich, specific detail
+- Include impact on my daily life, triggers, early warning signs and what helps me feel safe
+- Describe how I prefer support to be delivered (pace, prompts, reassurance, environment)
+- Avoid vague phrases like "appropriate support" or "assist as needed"
 
 WHO WILL BE HARMED - BE ACCURATE:
 - Consider ALL people who could be affected, not just carers
@@ -14877,6 +14884,15 @@ Remember: Extract information ONLY from the service user documents above. Templa
           }
           return trimmed || fallback;
         };
+        const ensureDetailed = (value: string) => {
+          const sentenceCount = value.split(/[.!?]+/).filter((s) => s.trim().length > 10).length;
+          if (sentenceCount >= 2) return value;
+          const hint = evidenceHints.find((line) => line.length > 12) || "";
+          const extra = hint
+            ? ` ${toFirstPerson(hint)}.`
+            : " I prefer calm, clear support that follows my care plan and keeps me safe.";
+          return `${value.trim()}${extra}`.trim();
+        };
 
         if (!Array.isArray(result.risks) || result.risks.length === 0) {
           result.risks = [
@@ -14911,9 +14927,9 @@ Remember: Extract information ONLY from the service user documents above. Templa
             return {
               ...risk,
               initialRating: normalizeRiskRating(risk?.initialRating),
-              riskDefinition: improveField(riskDefinition, "I have a documented risk in this area of my care."),
-              howItsARisk: improveField(howItsARisk, "This risk could affect my safety and wellbeing without the right support."),
-              controlMeasures: improveField(controlMeasures, "My care team will follow my care plan and provide support to reduce this risk."),
+              riskDefinition: ensureDetailed(improveField(riskDefinition, "I have a documented risk in this area of my care.")),
+              howItsARisk: ensureDetailed(improveField(howItsARisk, "This risk could affect my safety and wellbeing without the right support.")),
+              controlMeasures: ensureDetailed(improveField(controlMeasures, "My care team will follow my care plan and provide support to reduce this risk.")),
               whoWillBeHarmed: typeof risk?.whoWillBeHarmed === "string" && risk.whoWillBeHarmed.trim().length > 0
                 ? risk.whoWillBeHarmed.trim()
                 : "Service User and Care Workers",
@@ -15254,6 +15270,7 @@ WRITING QUALITY STANDARDS:
 ✓ ACTIONABLE: Carers must know EXACTLY what to do from reading this
 ✓ STEP-BY-STEP: Describe routines in sequence (first this, then that)
 ✓ COMPREHENSIVE: Cover ALL aspects relevant to this call type
+✓ PERSON-CENTRED DETAIL: Include what matters to me, preferences, triggers, sensory needs, communication style and how I want support delivered
 ✓ DIGNIFIED: Maintain my dignity, privacy and respect throughout
 ✓ SAFETY: Highlight any risks, equipment needs, medical considerations
 ✓ READABLE: Use clear sentences (15-25 words average), avoid jargon
@@ -15302,7 +15319,7 @@ EXAMPLE QUALITY (Morning call - 250 words):
 
 OUTPUT FORMAT - Return ONLY valid JSON:
 {
-  "content": "Detailed first-person narrative (300+ words minimum) covering ALL aspects of care for this call type in one flowing paragraph"
+  "content": "Detailed first-person narrative (450+ words minimum) covering ALL aspects of care for this call type in one flowing paragraph"
 }`;
 
       sendProgress(10, "Generating care plan...", "generating");
@@ -15424,7 +15441,7 @@ YOUR TASK
 3. Write in FIRST PERSON as if I am describing my own care needs
 4. Be SPECIFIC: times, preferences, equipment, step-by-step routines
 5. Include safety considerations and dignity throughout
-6. Minimum 300 words - comprehensive detail is essential
+6. Minimum 450 words - comprehensive detail is essential
 7. Write as ONE flowing paragraph (not bullet points)
 
 QUALITY CHECKLIST:
@@ -15435,7 +15452,7 @@ QUALITY CHECKLIST:
 ✓ Dignity and respect maintained?
 ✓ Focused ONLY on ${callTypeLabel} tasks?
 ✓ Actionable - carers know exactly what to do?
-✓ Minimum 300 words of comprehensive detail?
+✓ Minimum 450 words of comprehensive detail?
 
 Return ONLY valid JSON with content field.` }
           ],
@@ -15456,18 +15473,52 @@ Return ONLY valid JSON with content field.` }
         }
 
         let enhancedContent = parsed.content || "";
+        const getContentStats = (text: string) => {
+          const words = text.split(/\s+/).filter(Boolean);
+          const sentences = text.split(/[.!?]+/).filter((s: string) => s.trim().length > 10);
+          return {
+            wordCount: words.length,
+            sentenceCount: sentences.length,
+            avgWordsPerSentence: sentences.length > 0 ? words.length / sentences.length : 0,
+          };
+        };
+
+        let { wordCount, sentenceCount, avgWordsPerSentence } = getContentStats(enhancedContent);
+        if (wordCount < 450) {
+          sendProgress(82, "Expanding with more person-centred detail...", "refining");
+          try {
+            const refineResponse = await createChatCompletionWithLogging({
+              model: getAccurateModel(),
+              messages: [
+                { role: "system", content: baseSystemPrompt },
+                { role: "user", content: `Expand and enrich the care plan below to at least 450 words. Keep it in first person, include routines, preferences, what matters to me, communication style, emotional support needs, triggers, equipment and safety. Do NOT add facts beyond the documents. Keep it as one flowing paragraph.\n\nDOCUMENTS (REFERENCE ONLY, DO NOT QUOTE VERBATIM):\n${documentContentForAi}\n\nDRAFT CARE PLAN TO EXPAND:\n${enhancedContent}\n\nReturn ONLY valid JSON with content field.` },
+              ],
+              temperature: 0.1,
+              max_completion_tokens: 2400,
+              seed: 42,
+              response_format: { type: "json_object" },
+            }, "care_plan_calltype_refine", aiUserContext);
+
+            const refinedContent = refineResponse.choices[0]?.message?.content || "";
+            const refinedParsed = parseJsonFromContent(refinedContent);
+            if (refinedParsed?.content && refinedParsed.content.length > enhancedContent.length) {
+              enhancedContent = refinedParsed.content;
+            }
+          } catch (refineError: any) {
+            console.warn("[CarePlan] Refinement pass failed:", refineError?.message || refineError);
+          }
+        }
+
+        ({ wordCount, sentenceCount, avgWordsPerSentence } = getContentStats(enhancedContent));
         
         // Comprehensive Quality Validation
-        const wordCount = enhancedContent.split(/\s+/).length;
-        const sentenceCount = enhancedContent.split(/[.!?]+/).filter((s: string) => s.trim().length > 10).length;
-        const avgWordsPerSentence = sentenceCount > 0 ? wordCount / sentenceCount : 0;
         
         console.log(`[CarePlan] Generated ${wordCount} words, ${sentenceCount} sentences for ${callTypeLabel} plan`);
         
         // Length check
-        if (wordCount < 150) {
-          console.warn(`[CarePlan] ⚠️  Content too short (${wordCount} words, minimum 300 recommended)`);
-        } else if (wordCount < 250) {
+        if (wordCount < 200) {
+          console.warn(`[CarePlan] ⚠️  Content too short (${wordCount} words, minimum 450 recommended)`);
+        } else if (wordCount < 350) {
           console.log(`[CarePlan] ⚠️  Content adequate but could be more detailed (${wordCount} words)`);
         } else {
           console.log(`[CarePlan] ✅ Content length good (${wordCount} words)`);
@@ -15864,6 +15915,7 @@ Always include: "If concerned about [specific sign], contact [GP/District Nurse/
 - ALL narrative content MUST be FIRST PERSON: "I", "my", "me" (never "the service user", "client", or "they")
 - Write in clear, flowing sentences that read naturally
 - Use specific details: equipment names, times, quantities, preferences
+- Include what matters to me, routines, triggers, sensory needs, communication style and how I want support delivered
 - NO PLACEHOLDERS MID-SENTENCE. Never write "I need [needs user input]" or "My condition [to be confirmed]"
 
 STYLE GUIDANCE - MATCH THE PROVIDED CASE-2 EXAMPLES:
@@ -16548,6 +16600,64 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
       const content = response.choices[0]?.message?.content || "";
       let result = parseJsonFromContent(content);
       if (result) {
+        const normalizeFirstPerson = (value: unknown): unknown => {
+          if (typeof value !== "string") return value;
+          let updated = toFirstPerson(value.trim());
+          const verbMap: Record<string, string> = {
+            requires: "require",
+            needs: "need",
+            has: "have",
+            prefers: "prefer",
+            likes: "like",
+            enjoys: "enjoy",
+            wants: "want",
+            "would like": "would like",
+            is: "am",
+            was: "was",
+          };
+          updated = updated.replace(/^\s*(requires|needs|has|prefers|likes|enjoys|wants|would like|is|was)\b/i, (match) => {
+            const key = match.trim().toLowerCase();
+            const mapped = verbMap[key] || match.trim();
+            return `I ${mapped}`;
+          });
+          return updated;
+        };
+        const applyFirstPersonPath = (path: string) => {
+          const parts = path.split(".");
+          let target: any = result;
+          for (let i = 0; i < parts.length - 1; i += 1) {
+            if (!target || typeof target !== "object") return;
+            target = target[parts[i]];
+          }
+          const key = parts[parts.length - 1];
+          if (target && typeof target[key] === "string") {
+            target[key] = normalizeFirstPerson(target[key]);
+          }
+        };
+        const narrativePaths = [
+          "thisIsMe.whoAmI",
+          "thisIsMe.hobbiesInterests",
+          "thisIsMe.whatMakesGoodDay",
+          "myCarePlan.capacityAndSafeguarding",
+          "myCarePlan.healthAndWellbeing",
+          "myCarePlan.triggerPoints",
+          "myCarePlan.medicationRequirements",
+          "myCarePlan.nutrition",
+          "myCarePlan.personalCareNeeds",
+          "myCarePlan.mobilityAndEquipment",
+          "myCarePlan.houseworkAndSocial",
+          "myCarePlan.financialArrangements",
+        ];
+        narrativePaths.forEach(applyFirstPersonPath);
+        if (Array.isArray(result.goalSetting?.goals)) {
+          result.goalSetting.goals = result.goalSetting.goals.map((goal: any) => ({
+            ...goal,
+            goal: normalizeFirstPerson(goal?.goal),
+            howToAchieve: normalizeFirstPerson(goal?.howToAchieve),
+            potentialBarriers: normalizeFirstPerson(goal?.potentialBarriers),
+          }));
+        }
+
         // Validate and auto-correct categorical field values
         console.log('[PlanEnhancer] ───────────────────────────────────────────────────');
         console.log('[PlanEnhancer] SCHEMA VALIDATION');
@@ -16630,6 +16740,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
           
           if (typeof value === 'string' && value.trim()) {
             const wordCount = value.trim().split(/\s+/).length;
+            const sentenceCount = value.split(/[.!?]+/).filter((s: string) => s.trim().length > 10).length;
             qualityMetrics.wordCounts[label] = wordCount;
             
             if (wordCount >= minWords) {
@@ -16642,6 +16753,10 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
             const hasFirstPerson = /\b(I|my|me)\b/i.test(value);
             if (!hasFirstPerson && wordCount > 20) {
               qualityMetrics.warnings.push(`⚠️  ${label}: May not be in first person`);
+            }
+
+            if (wordCount > 40 && sentenceCount < 2) {
+              qualityMetrics.warnings.push(`⚠️  ${label}: Too few sentences for detailed narrative`);
             }
             
             // Check for vague language

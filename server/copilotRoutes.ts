@@ -559,6 +559,9 @@ PRIVACY:
 FORMATTING:
 - Never use m-dashes or en-dashes
 - Never use Oxford commas
+- Use first person in narrative fields ("I", "my", "me")
+- documentSummary should be 3-5 sentences with daily life impact, preferences and what matters to me
+- medicalConditions.impactOnCare and recommendedAssessments.reason should be 2-4 sentences in first person with specific detail
 
 Respond with valid JSON:
 {
@@ -674,6 +677,7 @@ REQUIREMENTS:
 - Include specific hazards, likelihood, impact, and control measures
 - Stay within care worker scope of practice
 - Use person-centred language (first person "I", "my")
+- Each hazard description, existingControls and additionalControls should include concrete, person-centred detail
 
 Respond with valid JSON:
 {
@@ -700,7 +704,7 @@ Respond with valid JSON:
       "status": "pending"
     }
   ],
-  "personCentredNarrative": "First-person narrative about how this affects my daily life and what support I need",
+  "personCentredNarrative": "First-person narrative (4-6 sentences) about how this affects my daily life and what support I need",
   "escalationProcedure": "When and how to escalate concerns",
   "reviewTriggers": ["What changes would require reassessment"]
 }`;
@@ -815,6 +819,7 @@ ${mandatorySections.map((s, i) => `${i + 1}. ${s}`).join("\n")}
 WRITING STANDARDS:
 - Write in FIRST PERSON: "I", "my", "me" (never "the service user")
 - Be specific: times, preferences, equipment names
+- Person-centred detail required: include routines, what matters to me, communication style, triggers, emotional needs and how I want support delivered
 - Never use m-dashes or en-dashes
 - Never use Oxford commas
 - Use UK English
@@ -832,12 +837,12 @@ Respond with valid JSON:
     {
       "title": "Section title (from mandatory list)",
       "priority": "high|medium|low",
-      "content": "Detailed first-person narrative for this section",
+      "content": "Detailed first-person narrative (3-6 sentences) for this section",
       "keyActions": ["Specific action 1", "Action 2"]
     }
   ],
   "verificationQuestions": ["Question about missing information 1", "Question 2"],
-  "summary": "Brief overview of the care plan"
+  "summary": "Brief first-person overview of the care plan"
 }`;
 
       // Scrub PII before sending to AI
@@ -954,6 +959,7 @@ YOUR MISSION: Create a COMPREHENSIVE, EVIDENCE-BASED care plan with complete str
 WRITING STANDARDS:
 - Write in FIRST PERSON: "I", "my", "me"
 - Be specific and actionable
+- Person-centred detail required: include routines, preferences, what matters to me, communication style and emotional support needs
 - Use UK English, no m-dashes, no Oxford commas
 - Stay within care worker scope of practice
 - NEVER fabricate details not in documents

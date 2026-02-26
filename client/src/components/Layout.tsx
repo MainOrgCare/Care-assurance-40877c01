@@ -29,8 +29,6 @@ import {
   AlertTriangle,
   Megaphone,
   Search,
-  ArrowRightLeft,
-  GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, Suspense, memo, useCallback, useRef, useMemo, lazy, Fragment } from "react";
@@ -348,12 +346,6 @@ const SidebarContent = memo(function SidebarContent({
              </Link>
              <Link href="/care-workers/performance" className={subNavLinkClass(location === "/care-workers/performance")}>
                 <BarChart size={14} /> Performance
-             </Link>
-             <Link href="/care-workers/handovers" className={subNavLinkClass(location === "/care-workers/handovers")}>
-                <ArrowRightLeft size={14} /> Shift Handovers
-             </Link>
-             <Link href="/care-workers/training" className={subNavLinkClass(location === "/care-workers/training")}>
-                <GraduationCap size={14} /> Training
              </Link>
             </CollapsibleContent>
           )}

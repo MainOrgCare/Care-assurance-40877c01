@@ -42,8 +42,6 @@ const TestingFeatures = React.lazy(() => import("@/pages/TestingFeatures"));
 const RosteringStudioUnified = React.lazy(() => import("@/pages/RosteringStudioUnified"));
 const BillingTool = React.lazy(() => import("@/pages/BillingTool"));
 const SystemLogs = React.lazy(() => import("@/pages/SystemLogs"));
-const ShiftHandovers = React.lazy(() => import("@/pages/care-workers/ShiftHandovers"));
-const StaffTraining = React.lazy(() => import("@/pages/care-workers/StaffTraining"));
 const CQCSelfAssessment = React.lazy(() => import("@/pages/CQCSelfAssessment"));
 const PolicyAcknowledgement = React.lazy(() => import("@/pages/PolicyAcknowledgement"));
 
@@ -126,8 +124,6 @@ function Router() {
         <ProtectedRoute path="/care-workers/emar-audit" component={EMARAudit} />
         <ProtectedRoute path="/care-workers/visit-audit" component={VisitAudit} />
         <ProtectedRoute path="/care-workers/performance" component={Performance} />
-        <ProtectedRoute path="/care-workers/handovers" component={ShiftHandovers} />
-        <ProtectedRoute path="/care-workers/training" component={StaffTraining} />
 
         {/* Admin Dropdown */}
         <AdminRoute path="/shadow-admin-portal" component={SecretAdminPortal} />

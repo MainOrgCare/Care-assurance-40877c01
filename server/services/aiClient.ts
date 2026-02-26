@@ -828,12 +828,12 @@ export async function createHybridCompletion(
     let userPrompt = "";
     switch (taskType) {
       case "risk_assessment":
-        systemPrompt = "You are a care risk assessment expert. Analyze the provided content and determine the risk level (Low, Medium, High) with supporting evidence.";
-        userPrompt = `Analyze this content for risk factors:\n\n${content}\n\nProvide:\n1. Risk level (Low/Medium/High)\n2. Key risk factors identified\n3. Recommended mitigations`;
+        systemPrompt = "You are a UK care risk assessment specialist. Write in first person as the service user, with person-centred detail and evidence-based clarity. Keep language practical for care workers.";
+        userPrompt = `Analyze this content for risk factors:\n\n${content}\n\nProvide:\n1. Overall risk level (Low/Medium/High)\n2. Detailed risks with impact on my daily life, triggers and early warning signs\n3. Practical mitigations and how I prefer support to be delivered\n4. Escalation cues and when to seek help`;
         break;
       case "care_plan":
-        systemPrompt = "You are a care plan writer. Create person-centered care content in the first person (I, my, me).";
-        userPrompt = `Based on this information, create care plan content:\n\n${content}`;
+        systemPrompt = "You are a UK care plan writer. Produce a person-centred, first-person narrative that is detailed, actionable and respectful. Avoid generic filler.";
+        userPrompt = `Based on this information, write a detailed first-person care plan narrative (I, my, me). Include routines, preferences, what matters to me, communication style, emotional support needs, equipment, risks and how good support should look:\n\n${content}`;
         break;
       case "simple_extraction":
         systemPrompt = "Extract key information from the provided text and return as structured data.";
@@ -851,7 +851,7 @@ export async function createHybridCompletion(
           { role: "user", content: userPrompt }
         ],
         temperature: 0.3,
-        max_tokens: 1000
+        max_tokens: 1800
       },
       featureName,
       userContext
@@ -883,12 +883,12 @@ export async function createHybridCompletion(
   
   switch (taskType) {
     case "risk_assessment":
-      systemPrompt = "You are a care risk assessment expert. Analyze the provided content and determine the risk level (Low, Medium, High) with supporting evidence.";
-      userPrompt = `Analyze this content for risk factors:\n\n${content}\n\nProvide:\n1. Risk level (Low/Medium/High)\n2. Key risk factors identified\n3. Recommended mitigations`;
+      systemPrompt = "You are a UK care risk assessment specialist. Write in first person as the service user, with person-centred detail and evidence-based clarity. Keep language practical for care workers.";
+      userPrompt = `Analyze this content for risk factors:\n\n${content}\n\nProvide:\n1. Overall risk level (Low/Medium/High)\n2. Detailed risks with impact on my daily life, triggers and early warning signs\n3. Practical mitigations and how I prefer support to be delivered\n4. Escalation cues and when to seek help`;
       break;
     case "care_plan":
-      systemPrompt = "You are a care plan writer. Create person-centered care content in the first person (I, my, me).";
-      userPrompt = `Based on this information, create care plan content:\n\n${content}`;
+      systemPrompt = "You are a UK care plan writer. Produce a person-centred, first-person narrative that is detailed, actionable and respectful. Avoid generic filler.";
+      userPrompt = `Based on this information, write a detailed first-person care plan narrative (I, my, me). Include routines, preferences, what matters to me, communication style, emotional support needs, equipment, risks and how good support should look:\n\n${content}`;
       break;
     case "simple_extraction":
       systemPrompt = "Extract key information from the provided text and return as structured data.";
@@ -909,7 +909,7 @@ export async function createHybridCompletion(
         { role: "user", content: userPrompt }
       ],
       temperature: 0.3,
-      max_tokens: 1000
+      max_tokens: 1800
     },
     featureName,
     userContext
