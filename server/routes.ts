@@ -3904,7 +3904,7 @@ async function checkDrugInteractions(
     // Use preferred accurate model for drug interactions
     const deterministicSeed = 42;
     const aiUserContext: AiUserContext = userContext ?? { userId: null, username: null };
-    const completion = await executeSecureTextCompletion({
+    const response = await executeSecureTextCompletion({
       endpoint: "/api/ai/drug-interactions",
       feature: "drug_interactions",
       model: getAccurateModel(),
@@ -3941,7 +3941,7 @@ If none found: {"interactions": []}`
       useCache: false,
     });
 
-    const content = completion.restoredText || "";
+    const content = response.restoredText || "";
     const result = parseInteractions(content)
       .concat(ruleBasedInteractions)
       .sort((a, b) => {
@@ -11027,7 +11027,8 @@ Return JSON format:
   ]
 }
 
-If no equivalences found, return: {"equivalences": []}`,
+If no equivalences found, return: {"equivalences": []}`
+,
             temperature: 0,
             maxCompletionTokens: 1000,
             seed: DETERMINISTIC_SEED,
@@ -13333,13 +13334,12 @@ Respond ONLY with valid JSON in this exact format:
         const label = scrubbedChunks.length > 1 ? ` (${i + 1}/${scrubbedChunks.length})` : "";
         sendProgress(30, `Running AI analysis${label}...`, "ai_analysis");
 
-        const visitAuditPrompt = `Analyze these visit logs:\n\n${scrubbedChunks[i]}`;
         const response = await executeSecureTextCompletion({
           endpoint: "/api/ai/analyze-visit",
           feature: "visit_audit",
           model: visitAuditModel,
           userContext: aiUserContext,
-          inputText: visitAuditPrompt,
+          inputText: `Analyze these visit logs:\n\n${scrubbedChunks[i]}`,
           systemPrompt,
           maxCompletionTokens: 4000,
           temperature: 0,
@@ -14048,7 +14048,12 @@ QUALITY CHECKLIST BEFORE RESPONDING:
         }
       }, 3000);
 
-      const riskUserPrompt = `⚠️ CRITICAL INSTRUCTIONS ⚠️
+      const response = await executeSecureTextCompletion({
+        endpoint: "/api/ai/analyze-risks",
+        feature: "risk_analysis",
+        model: getRiskAssessmentRecommendationModel(),
+        userContext: aiUserContext,
+        inputText: `⚠️ CRITICAL INSTRUCTIONS ⚠️
 
 ═══════════════════════════════════════════════════════════════════════════════
 REMINDER: NHS ENGLAND PRINCIPLE #1 - PERSON-CENTRED CARE
@@ -14112,21 +14117,14 @@ Don't default to blanket assessments - find the SPECIFIC documented risks for TH
 6. NO SPECULATION: Do not assume or infer conditions not explicitly documented
    - Only recommend based on what's written in the documents
 
-Remember: Extract information ONLY from service user documents above. Templates contain placeholder text to ignore.`;
-
-    const response = await executeSecureTextCompletion({
-      endpoint: "/api/ai/analyze-risks",
-      feature: "risk_analysis",
-      model: getRiskAssessmentRecommendationModel(),
-      userContext: aiUserContext,
-      inputText: riskUserPrompt,
-      systemPrompt,
-      maxCompletionTokens: 8000,
-      temperature: 0,
-      seed: 42,
-      responseFormat: { type: "json_object" },
-      useCache: false,
-    });
+Remember: Extract information ONLY from service user documents above. Templates contain placeholder text to ignore.`,
+        systemPrompt,
+        maxCompletionTokens: 8000,
+        temperature: 0,
+        seed: 42,
+        responseFormat: { type: "json_object" },
+        useCache: false,
+      });
 
       clearInterval(progressInterval);
       sendProgress(80, "Processing results...", "processing");
@@ -14650,7 +14648,12 @@ ${scrubbedProfileContext ? `Profile Context:\n${scrubbedProfileContext}\n\n` : '
         }
       }, 3000);
 
-      const generationPrompt = `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
+      const response = await executeSecureTextCompletion({
+        endpoint: "/api/ai/generate-risk-assessment",
+        feature: "risk_assessment",
+        model: getRiskAssessmentGenerationModel(),
+        userContext: aiUserContext,
+        inputText: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
 
 ⚠️ CRITICAL INSTRUCTIONS - READ CAREFULLY ⚠️
 
@@ -14671,14 +14674,7 @@ ${scrubbedDocumentContent}
 
 === END SERVICE USER DOCUMENTS ===
 
-Remember: Extract information ONLY from the service user documents above. Templates contain placeholder/example text that should be ignored.`;
-
-      const response = await executeSecureTextCompletion({
-        endpoint: "/api/ai/generate-risk-assessment",
-        feature: "risk_assessment",
-        model: getRiskAssessmentGenerationModel(),
-        userContext: aiUserContext,
-        inputText: generationPrompt,
+Remember: Extract information ONLY from the service user documents above. Templates contain placeholder/example text that should be ignored.`,
         systemPrompt,
         temperature: 0.2,
         maxCompletionTokens: 12000,
@@ -15278,7 +15274,12 @@ OUTPUT FORMAT - Return ONLY valid JSON:
       }, 3000);
 
       try {
-        const carePlanGenerationPrompt = `Generate a comprehensive ${callTypeLabel} care plan following CQC 2024 person-centred standards.
+        const response = await executeSecureTextCompletion({
+          endpoint: "/api/ai/generate-care-plan",
+          feature: "care_plan_calltype",
+          model: getAccurateModel(),
+          userContext: aiUserContext,
+          inputText: `Generate a comprehensive ${callTypeLabel} care plan following CQC 2024 person-centred standards.
 
 ═══════════════════════════════════════════════════════════════════════════════
 SERVICE USER DOCUMENTS
@@ -15308,14 +15309,7 @@ QUALITY CHECKLIST:
 ✓ Actionable - carers know exactly what to do?
 ✓ Minimum 450 words of comprehensive detail?
 
-Return ONLY valid JSON with content field.`;
-
-        const response = await executeSecureTextCompletion({
-          endpoint: "/api/ai/generate-care-plan",
-          feature: "care_plan_calltype",
-          model: getAccurateModel(),
-          userContext: aiUserContext,
-          inputText: carePlanGenerationPrompt,
+Return ONLY valid JSON with content field.`,
           systemPrompt: baseSystemPrompt,
           temperature: 0.1,
           maxCompletionTokens: 3000,
@@ -15349,13 +15343,12 @@ Return ONLY valid JSON with content field.`;
         if (wordCount < 450) {
           sendProgress(82, "Expanding with more person-centred detail...", "refining");
           try {
-            const refinePrompt = `Expand and enrich the care plan below to at least 450 words. Keep it in first person, include routines, preferences, what matters to me, communication style, emotional support needs, triggers, equipment and safety. Do NOT add facts beyond the documents. Keep it as one flowing paragraph.\n\nDOCUMENTS (REFERENCE ONLY, DO NOT QUOTE VERBATIM):\n${documentContentForAi}\n\nDRAFT CARE PLAN TO EXPAND:\n${enhancedContent}\n\nReturn ONLY valid JSON with content field.`;
             const refineResponse = await executeSecureTextCompletion({
               endpoint: "/api/ai/generate-care-plan",
               feature: "care_plan_calltype_refine",
               model: getAccurateModel(),
               userContext: aiUserContext,
-              inputText: refinePrompt,
+              inputText: `Expand and enrich the care plan below to at least 450 words. Keep it in first person, include routines, preferences, what matters to me, communication style, emotional support needs, triggers, equipment and safety. Do NOT add facts beyond the documents. Keep it as one flowing paragraph.\n\nDOCUMENTS (REFERENCE ONLY, DO NOT QUOTE VERBATIM):\n${documentContentForAi}\n\nDRAFT CARE PLAN TO EXPAND:\n${enhancedContent}\n\nReturn ONLY valid JSON with content field.`,
               systemPrompt: baseSystemPrompt,
               temperature: 0.1,
               maxCompletionTokens: 2400,
@@ -16396,7 +16389,12 @@ PRIORITY STRATEGY FOR MAXIMUM COMPLETION:
         }
       }, 6000);
 
-      const completionPrompt = `Analyze ALL documents with EXTREME thoroughness and generate a COMPREHENSIVE, EVIDENCE-BASED care plan.
+      const response = await executeSecureTextCompletion({
+        endpoint: "/api/ai/enhance-plan",
+        feature: "plan_enhancer",
+        model: getRiskAssessmentGenerationModel(),
+        userContext: aiUserContext,
+        inputText: `Analyze ALL documents with EXTREME thoroughness and generate a COMPREHENSIVE, EVIDENCE-BASED care plan.
 
 ═══════════════════════════════════════════════════════
 DOCUMENTS TO ANALYZE - EXTRACT EVERY DETAIL
@@ -16436,18 +16434,11 @@ EVIDENCE-BASED ONLY:
 - Standard care implications for documented conditions are acceptable (e.g., "diabetes requires foot checks")
 - If unsure, add to verificationQuestions
 
-Return ONLY valid JSON matching the exact schema. Begin now.`;
-
-      const response = await executeSecureTextCompletion({
-        endpoint: "/api/ai/enhance-plan",
-        feature: "plan_enhancer",
-        model: getRiskAssessmentGenerationModel(),
-        userContext: aiUserContext,
-        inputText: completionPrompt,
+Return ONLY valid JSON matching the exact schema. Begin now.`,
         systemPrompt,
         temperature: 0,
-        maxCompletionTokens: currentProvider === "github" ? 8000 : 64000,
         seed: 42,
+        maxCompletionTokens: currentProvider === "github" ? 8000 : 64000,
         responseFormat: { type: "json_object" },
         useCache: false,
       });
@@ -17061,7 +17052,7 @@ RULES:
 
 Return ONLY the email text, nothing else.`;
 
-      const secureCompletion = await executeSecureTextCompletion({
+      const response = await executeSecureTextCompletion({
         endpoint: "/api/ai/rewrite-email",
         feature: "email_assistant",
         model: getLowCostModel(),
@@ -17075,7 +17066,11 @@ Return ONLY the email text, nothing else.`;
         cacheScope: `${tone}`,
       });
 
-      return res.json({ rewrittenEmail: secureCompletion.restoredText });
+      if (!response.restoredText) {
+        return res.status(500).json({ message: "Failed to generate email" });
+      }
+
+      return res.json({ rewrittenEmail: response.restoredText });
     } catch (error: any) {
       console.error("Email rewrite error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to rewrite email") });
@@ -17118,7 +17113,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         ? `Generate a complete PRN protocol for: ${medicationName}\n\nExisting information available:\n${JSON.stringify(existingData, null, 2)}\n\nPlease enhance and complete this protocol with all required fields.`
         : `Generate a complete PRN protocol for: ${medicationName}`;
 
-      const completion = await executeSecureTextCompletion({
+      const response = await executeSecureTextCompletion({
         endpoint: "/api/ai/generate-prn-protocol",
         feature: "prn_protocol",
         model: getAccurateModel(),
@@ -17133,7 +17128,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         cacheScope: medicationName.toLowerCase().trim(),
       });
 
-      const content = completion.restoredText || "";
+      const content = response.restoredText || "";
       
       if (!content) {
         return res.status(500).json({ message: "Failed to generate PRN protocol" });
