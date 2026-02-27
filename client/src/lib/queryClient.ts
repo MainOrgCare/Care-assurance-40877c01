@@ -155,11 +155,12 @@ export async function apiRequest(
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }: QueryFunctionContext) => {
+export function getQueryFn<T>(options: { on401: "throw" }): QueryFunction<T>;
+export function getQueryFn<T>(options: { on401: "returnNull" }): QueryFunction<T | null>;
+export function getQueryFn<T>(
+  { on401: unauthorizedBehavior }: { on401: UnauthorizedBehavior },
+): QueryFunction<T | null> {
+  return async ({ queryKey }: QueryFunctionContext) => {
     const path = (queryKey as readonly string[]).join("/");
     const res = await fetchWithTimeout(path, {
       credentials: "include",
@@ -170,8 +171,9 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await parseApiResponse(res);
+    return await parseApiResponse<T>(res);
   };
+}
 
 export const queryClient = new QueryClient({
   defaultOptions: {
