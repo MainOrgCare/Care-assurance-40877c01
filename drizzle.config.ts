@@ -4,10 +4,36 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL, ensure the database is provisioned");
 }
 
-// Ensure SSL is enabled for the database connection
-const dbUrl = process.env.DATABASE_URL.includes('sslmode=') 
-  ? process.env.DATABASE_URL 
-  : `${process.env.DATABASE_URL}${process.env.DATABASE_URL.includes('?') ? '&' : '?'}sslmode=require`;
+const FALSE_VALUES = new Set(["0", "false", "no", "off"]);
+
+const normalize = (value: string | null | undefined): string =>
+  String(value || "").trim().toLowerCase();
+
+const isFalseValue = (value: string | null | undefined): boolean =>
+  FALSE_VALUES.has(normalize(value));
+
+const rawDatabaseUrl = process.env.DATABASE_URL;
+const parsedUrl = new URL(rawDatabaseUrl);
+const sslMode = normalize(parsedUrl.searchParams.get("sslmode"));
+
+if (!sslMode) {
+  parsedUrl.searchParams.set("sslmode", "require");
+}
+
+// Use libpq-compatible semantics to avoid strict verify-full aliasing warnings for sslmode=require.
+if (normalize(parsedUrl.searchParams.get("sslmode")) === "require" && !parsedUrl.searchParams.has("uselibpqcompat")) {
+  parsedUrl.searchParams.set("uselibpqcompat", "true");
+}
+
+const dbUrl = parsedUrl.toString();
+const runningOnRender = Boolean(process.env.RENDER || process.env.RENDER_EXTERNAL_HOSTNAME);
+const rejectUnauthorized = process.env.PGSSLREJECTUNAUTHORIZED == null
+  ? !runningOnRender
+  : !isFalseValue(process.env.PGSSLREJECTUNAUTHORIZED);
+
+const sslConfig = normalize(parsedUrl.searchParams.get("sslmode")) === "disable"
+  ? undefined
+  : { rejectUnauthorized };
 
 export default defineConfig({
   out: "./migrations",
@@ -15,5 +41,6 @@ export default defineConfig({
   dialect: "postgresql",
   dbCredentials: {
     url: dbUrl,
+    ssl: sslConfig,
   },
 });

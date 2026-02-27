@@ -2,6 +2,7 @@ import { QueryClient, QueryFunction, type QueryFunctionContext } from "@tanstack
 
 export const REQUEST_ID_HEADER = "X-Request-ID";
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const SENSITIVE_ENDPOINT_PATTERN = /\/api\/(ai|parse-pdf|gdpr|client-errors)\b/i;
 
 export const randomRequestId = (): string =>
   (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
@@ -42,6 +43,18 @@ const withRequestIdHeader = (headers?: HeadersInit): Headers => {
   return nextHeaders;
 };
 
+const isSensitiveApiUrl = (input: RequestInfo | URL): boolean => {
+  let target = "";
+  if (typeof input === "string") {
+    target = input;
+  } else if (input instanceof URL) {
+    target = input.pathname;
+  } else if (input instanceof Request) {
+    target = input.url;
+  }
+  return SENSITIVE_ENDPOINT_PATTERN.test(target);
+};
+
 async function fetchWithTimeout(
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -77,9 +90,18 @@ async function fetchWithTimeout(
   }
 
   try {
+    const headers = withRequestIdHeader(init?.headers);
+    const isSensitive = isSensitiveApiUrl(input);
+    if (isSensitive) {
+      headers.set("Cache-Control", "no-store");
+      headers.set("Pragma", "no-cache");
+      headers.set("Expires", "0");
+    }
+
     return await fetch(input, {
       ...init,
-      headers: withRequestIdHeader(init?.headers),
+      headers,
+      cache: isSensitive ? "no-store" : init?.cache,
       signal: composedSignal,
     });
   } finally {
