@@ -1586,6 +1586,9 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
     return formatDuration(seconds);
   };
 
+  const onlineUsers = useMemo(() => users.filter(u => u.isOnline), [users]);
+  const offlineUsers = useMemo(() => users.filter(u => !u.isOnline && u.role !== "admin"), [users]);
+
   if (loading) {
     return (
       <Card>
@@ -1595,9 +1598,6 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
       </Card>
     );
   }
-
-  const onlineUsers = useMemo(() => users.filter(u => u.isOnline), [users]);
-  const offlineUsers = useMemo(() => users.filter(u => !u.isOnline && u.role !== "admin"), [users]);
 
   return (
     <div className="space-y-6">
