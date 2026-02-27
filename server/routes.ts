@@ -3903,11 +3903,12 @@ async function checkDrugInteractions(
   try {
     // Use preferred accurate model for drug interactions
     const deterministicSeed = 42;
+    const aiUserContext: AiUserContext = userContext ?? { userId: null, username: null };
     const completion = await executeSecureTextCompletion({
       endpoint: "/api/ai/drug-interactions",
       feature: "drug_interactions",
       model: getAccurateModel(),
-      userContext,
+      userContext: aiUserContext,
       inputText: `Check for interactions in this medication list: ${medList}`,
       systemPrompt: `You are a UK clinical pharmacist with BNF expertise. Identify dangerous drug-drug interactions.
 
