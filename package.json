@@ -153,6 +153,7 @@
   "overrides": {
     "detect-libc": "2.0.3",
     "esbuild": "^0.25.12",
+    "postgres-array": "2.0.0",
     "@rolldown/pluginutils": "1.0.0-rc.6",
     "@esbuild-kit/core-utils": {
       "esbuild": "^0.25.12"

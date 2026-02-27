@@ -102,6 +102,7 @@
 | 2026-02-27 | ✅ Completed fourth-wave UI harmonization in `VisitAudit.tsx`, `BillingTool.tsx`, and `PlanEnhancer.tsx` (compact shells + `app-surface` cards) with clean `check`/`build` |
 | 2026-02-27 | ✅ Completed fifth-wave UI harmonization in `RiskAssessment.tsx`, `Upload.tsx`, and `CallReconciliation.tsx` (compact shells + unified card surfaces) with clean `check`/`build` |
 | 2026-02-27 | ✅ Completed sixth-wave UI harmonization in `Messages.tsx`, `EmailAssistant.tsx`, and `Settings.tsx` (compact shells + `app-surface` cards) with clean `check`/`build` |
+| 2026-02-27 | ✅ Hardened Postgres runtime compatibility for Render ingest failures by pinning `postgres-array` to `2.0.0` in `package.json` overrides and revalidating dependency resolution/build |
 
 ---
 
