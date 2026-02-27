@@ -680,7 +680,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     isSingleScreenRoute && "h-full"
   );
   const cardClass = cn(
-    "workspace-card rounded-xl border border-border/50 bg-card p-4 sm:p-5 lg:p-6 flex flex-col w-full flex-1 min-h-0 shadow-[var(--shadow-card)] motion-safe:animate-[fade-in_120ms_ease-out]",
+    "workspace-card corporate-content-card rounded-xl border border-border/50 bg-card p-4 sm:p-5 lg:p-6 flex flex-col w-full flex-1 min-h-0 shadow-[var(--shadow-card)] motion-safe:animate-[fade-in_120ms_ease-out]",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
@@ -829,7 +829,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main id="main-content" tabIndex={-1} data-scroll-region className={mainClass} aria-label={pageMeta.title || "Main content"} style={{ outline: "none" }}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/35 bg-card/80 backdrop-blur-md px-4 md:px-6 shadow-[0_6px_18px_-14px_rgba(15,23,42,0.4)] transition-[background-color,border-color,box-shadow] duration-200" role="banner" aria-label="Page header">
+          <header className="workspace-header corporate-header-shell sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/35 bg-card/80 backdrop-blur-md px-4 md:px-6 shadow-[0_6px_18px_-14px_rgba(15,23,42,0.4)] transition-[background-color,border-color,box-shadow] duration-200" role="banner" aria-label="Page header">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -892,7 +892,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 rounded-xl border border-border/45 bg-background/75 backdrop-blur-sm px-2 py-1 shadow-[0_6px_16px_-14px_rgba(15,23,42,0.35)]">
+            <div className="corporate-action-cluster flex items-center gap-1.5 rounded-xl border border-border/45 bg-background/75 backdrop-blur-sm px-2 py-1 shadow-[0_6px_16px_-14px_rgba(15,23,42,0.35)]">
               {/* Command Palette Trigger */}
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}

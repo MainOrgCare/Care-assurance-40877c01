@@ -202,6 +202,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
           method: "POST",
           body: formData,
           credentials: "include",
+          cache: "no-store",
         });
         if (!response.ok) {
           const serverMessage = await readServerErrorMessage(response);
@@ -258,6 +259,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: formData,
         credentials: "include",
+        cache: "no-store",
         signal: controller.signal,
       });
 

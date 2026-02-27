@@ -61,6 +61,7 @@ import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
 import { extractFromRawCalls, getExpiryDate, type RawCallRecord } from "./services/serviceOrderBuilder";
 import { getPgPoolConfig } from "./utils/pgPoolConfig";
 import { validatePlanEnhancerResponse, autoCorrectPlanEnhancerResponse, generateValidationReport } from "./utils/planEnhancerValidator";
+import { executeSecureTextCompletion } from "./utils/secureAiPipeline";
 import {
   validatePassword,
   getLoginAttemptKey,
@@ -3902,12 +3903,13 @@ async function checkDrugInteractions(
   try {
     // Use preferred accurate model for drug interactions
     const deterministicSeed = 42;
-    const response = await createChatCompletionWithLogging({
+    const completion = await executeSecureTextCompletion({
+      endpoint: "/api/ai/drug-interactions",
+      feature: "drug_interactions",
       model: getAccurateModel(),
-      messages: [
-        {
-          role: "system",
-          content: `You are a UK clinical pharmacist with BNF expertise. Identify dangerous drug-drug interactions.
+      userContext,
+      inputText: `Check for interactions in this medication list: ${medList}`,
+      systemPrompt: `You are a UK clinical pharmacist with BNF expertise. Identify dangerous drug-drug interactions.
 
 CHECK CATEGORIES (in order of clinical severity):
 1. Anticoagulants (warfarin, apixaban, rivaroxaban, edoxaban, dabigatran) + NSAIDs/aspirin/antiplatelets → bleeding risk
@@ -3930,19 +3932,15 @@ SEVERITY RULES:
 
 Return JSON: {"interactions": [{"drug1": "Name1", "drug2": "Name2", "severity": "high|moderate|low", "description": "Brief clinical concern with mechanism"}]}
 If none found: {"interactions": []}`
-        },
-        {
-          role: "user",
-          content: `Check for interactions in this medication list: ${medList}`
-        }
-      ],
-      max_completion_tokens: 800,
+,
+      maxCompletionTokens: 800,
       temperature: 0,
       seed: deterministicSeed,
-      response_format: { type: "json_object" }
-    }, "drug_interactions", userContext);
+      responseFormat: { type: "json_object" },
+      useCache: false,
+    });
 
-    const content = response.choices[0]?.message?.content || "";
+    const content = completion.restoredText || "";
     const result = parseInteractions(content)
       .concat(ruleBasedInteractions)
       .sort((a, b) => {
@@ -8492,19 +8490,21 @@ Return JSON with EXACT shape:
 }`;
 
           try {
-            const response = await createChatCompletionWithLogging({
+            const response = await executeSecureTextCompletion({
+              endpoint: "/api/ai/analyze-emar",
+              feature: "emar_medication_normalize",
               model: emarMetadataModel,
-              messages: [
-                { role: "system", content: prompt },
-                { role: "user", content: JSON.stringify({ medications: batch }) },
-              ],
-              max_completion_tokens: 1200,
+              userContext: aiUserContext,
+              inputText: JSON.stringify({ medications: batch }),
+              systemPrompt: prompt,
+              maxCompletionTokens: 1200,
               temperature: 0,
               seed: DETERMINISTIC_SEED,
-              response_format: { type: "json_object" },
-            }, "emar_medication_normalize", aiUserContext);
+              responseFormat: { type: "json_object" },
+              useCache: false,
+            });
 
-            const content = response.choices[0]?.message?.content || "{}";
+            const content = response.restoredText || "{}";
             const parsed = parseJsonFromContent(content);
             const entries = Array.isArray(parsed?.medications) ? parsed.medications : [];
             for (const entry of entries) {
@@ -8541,18 +8541,20 @@ Return JSON with EXACT shape:
       };
 
       const extractMetadataForText = async (text: string) => {
-        const metadataResponse = await createChatCompletionWithLogging({
+        const metadataResponse = await executeSecureTextCompletion({
+          endpoint: "/api/ai/analyze-emar",
+          feature: "emar_metadata",
           model: emarMetadataModel,
-          messages: [
-            { role: "system", content: metadataPrompt },
-            { role: "user", content: `Analyze this EMAR document and extract the metadata:\n\n${text}` }
-          ],
-          max_completion_tokens: 4000,
+          userContext: aiUserContext,
+          inputText: `Analyze this EMAR document and extract the metadata:\n\n${text}`,
+          systemPrompt: metadataPrompt,
+          maxCompletionTokens: 4000,
           temperature: 0,
           seed: DETERMINISTIC_SEED,
-          response_format: { type: "json_object" },
-        }, "emar_metadata", aiUserContext);
-        return metadataResponse.choices[0]?.message?.content || "{}";
+          responseFormat: { type: "json_object" },
+          useCache: false,
+        });
+        return metadataResponse.restoredText || "{}";
       };
 
       if (gridLooksStrong && gridMetadataCandidate) {
@@ -8775,19 +8777,21 @@ Return JSON with EXACT shape:
 
         for (const text of texts) {
           try {
-            const response = await createChatCompletionWithLogging({
+            const response = await executeSecureTextCompletion({
+              endpoint: "/api/ai/analyze-emar",
+              feature: "emar_count_validation",
               model: emarValidationModel,
-              messages: [
-                { role: "system", content: medicationListPrompt },
-                { role: "user", content: `List medications in this document:\n\n${text}` },
-              ],
+              userContext: aiUserContext,
+              inputText: `List medications in this document:\n\n${text}`,
+              systemPrompt: medicationListPrompt,
               temperature: 0,
-              max_completion_tokens: 500,
+              maxCompletionTokens: 500,
               seed: DETERMINISTIC_SEED,
-              response_format: { type: "json_object" },
-            }, "emar_count_validation", aiUserContext);
+              responseFormat: { type: "json_object" },
+              useCache: false,
+            });
 
-            const content = response.choices[0]?.message?.content || '{"medications":[]}';
+            const content = response.restoredText || '{"medications":[]}';
             let parsed: any = null;
             try {
               parsed = JSON.parse(content);
@@ -10992,13 +10996,15 @@ CARE WORKER INITIALS (IMPORTANT):
         const medNames = medications.map((m: any) => m.name).join(", ");
         
         try {
+          const equivalencePrompt = "Identify any medication equivalences from the list provided.";
           // Use GPT-4o-mini for equivalence detection - 33x cheaper
-          const equivalenceResponse = await createChatCompletionWithLogging({
+          const equivalenceResponse = await executeSecureTextCompletion({
+            endpoint: "/api/ai/analyze-emar",
+            feature: "emar_equivalence",
             model: emarValidationModel,
-            messages: [
-              {
-                role: "system",
-                content: `You are a UK pharmaceutical expert. Analyze this list of medications from an EMAR and identify any pairs that are the SAME medication under different names (brand vs generic, or different brand names for the same drug).
+            userContext: aiUserContext,
+            inputText: equivalencePrompt,
+            systemPrompt: `You are a UK pharmaceutical expert. Analyze this list of medications from an EMAR and identify any pairs that are the SAME medication under different names (brand vs generic, or different brand names for the same drug).
 
 MEDICATIONS: ${medNames}
 
@@ -11020,20 +11026,15 @@ Return JSON format:
   ]
 }
 
-If no equivalences found, return: {"equivalences": []}`
-              },
-              {
-                role: "user",
-                content: "Identify any medication equivalences from the list provided."
-              }
-            ],
+If no equivalences found, return: {"equivalences": []}`,
             temperature: 0,
-            max_completion_tokens: 1000,
+            maxCompletionTokens: 1000,
             seed: DETERMINISTIC_SEED,
-            response_format: { type: "json_object" }
-          }, "emar_equivalence", aiUserContext);
+            responseFormat: { type: "json_object" },
+            useCache: false,
+          });
 
-          const equivalenceContent = equivalenceResponse.choices[0]?.message?.content || "{}";
+          const equivalenceContent = equivalenceResponse.restoredText || "{}";
           const equivalenceData = parseJsonFromContent(equivalenceContent) || { equivalences: [] };
 
           if (equivalenceData.equivalences && Array.isArray(equivalenceData.equivalences)) {
@@ -13331,19 +13332,22 @@ Respond ONLY with valid JSON in this exact format:
         const label = scrubbedChunks.length > 1 ? ` (${i + 1}/${scrubbedChunks.length})` : "";
         sendProgress(30, `Running AI analysis${label}...`, "ai_analysis");
 
-        const response = await createChatCompletionWithLogging({
+        const visitAuditPrompt = `Analyze these visit logs:\n\n${scrubbedChunks[i]}`;
+        const response = await executeSecureTextCompletion({
+          endpoint: "/api/ai/analyze-visit",
+          feature: "visit_audit",
           model: visitAuditModel,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: `Analyze these visit logs:\n\n${scrubbedChunks[i]}` }
-          ],
-          max_completion_tokens: 4000,
+          userContext: aiUserContext,
+          inputText: visitAuditPrompt,
+          systemPrompt,
+          maxCompletionTokens: 4000,
           temperature: 0,
           seed: DETERMINISTIC_SEED,
-          response_format: { type: "json_object" },
-        }, "visit_audit", aiUserContext);
+          responseFormat: { type: "json_object" },
+          useCache: false,
+        });
 
-        const content = response.choices[0]?.message?.content || "";
+        const content = response.restoredText || "";
         const parsed = parseVisitAuditResult(content);
         if (parsed) {
           chunkResults.push(parsed);
@@ -13412,19 +13416,21 @@ Return JSON with indices that are VALID. Include ALL unless you're CERTAIN one i
           try {
             sendProgress(65, "Running validation pass 2...", "validation_pass2");
             // Use visit-audit validation model for deterministic validation
-            const pass2Response = await createChatCompletionWithLogging({
+            const pass2Response = await executeSecureTextCompletion({
+              endpoint: "/api/ai/analyze-visit",
+              feature: "visit_audit_validation_pass2",
               model: visitAuditValidationModel,
-              messages: [
-                { role: "system", content: pass2Prompt },
-                { role: "user", content: "Review discrepancies. Be conservative - when in doubt, keep." }
-              ],
-              max_completion_tokens: 2000,
+              userContext: aiUserContext,
+              inputText: "Review discrepancies. Be conservative - when in doubt, keep.",
+              systemPrompt: pass2Prompt,
+              maxCompletionTokens: 2000,
               temperature: 0,
               seed: DETERMINISTIC_SEED,
-              response_format: { type: "json_object" },
-            }, "visit_audit_validation_pass2", aiUserContext);
+              responseFormat: { type: "json_object" },
+              useCache: false,
+            });
             
-            const pass2Content = pass2Response.choices[0]?.message?.content || "";
+            const pass2Content = pass2Response.restoredText || "";
             const pass2Match = pass2Content.match(/\{[\s\S]*\}/);
             
             if (pass2Match) {
@@ -13465,19 +13471,21 @@ Return JSON - include ALL by default:
             try {
               sendProgress(80, "Running validation pass 3...", "validation_pass3");
               // Use visit-audit validation model for deterministic validation
-              const pass3Response = await createChatCompletionWithLogging({
+              const pass3Response = await executeSecureTextCompletion({
+                endpoint: "/api/ai/analyze-visit",
+                feature: "visit_audit_validation_pass3",
                 model: visitAuditValidationModel,
-                messages: [
-                  { role: "system", content: pass3Prompt },
-                  { role: "user", content: "Confirm and provide evidence. Keep discrepancies even without explicit text." }
-                ],
-                max_completion_tokens: 2000,
+                userContext: aiUserContext,
+                inputText: "Confirm and provide evidence. Keep discrepancies even without explicit text.",
+                systemPrompt: pass3Prompt,
+                maxCompletionTokens: 2000,
                 temperature: 0,
                 seed: DETERMINISTIC_SEED,
-                response_format: { type: "json_object" },
-              }, "visit_audit_validation_pass3", aiUserContext);
+                responseFormat: { type: "json_object" },
+                useCache: false,
+              });
               
-              const pass3Content = pass3Response.choices[0]?.message?.content || "";
+              const pass3Content = pass3Response.restoredText || "";
               const pass3Match = pass3Content.match(/\{[\s\S]*\}/);
               
               if (pass3Match) {
@@ -14039,11 +14047,7 @@ QUALITY CHECKLIST BEFORE RESPONDING:
         }
       }, 3000);
 
-      const response = await createChatCompletionWithLogging({
-        model: getRiskAssessmentRecommendationModel(),
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `⚠️ CRITICAL INSTRUCTIONS ⚠️
+      const riskUserPrompt = `⚠️ CRITICAL INSTRUCTIONS ⚠️
 
 ═══════════════════════════════════════════════════════════════════════════════
 REMINDER: NHS ENGLAND PRINCIPLE #1 - PERSON-CENTRED CARE
@@ -14107,18 +14111,26 @@ Don't default to blanket assessments - find the SPECIFIC documented risks for TH
 6. NO SPECULATION: Do not assume or infer conditions not explicitly documented
    - Only recommend based on what's written in the documents
 
-Remember: Extract information ONLY from service user documents above. Templates contain placeholder text to ignore.` }
-        ],
-        max_completion_tokens: 8000,
-        temperature: 0,
-        seed: 42,
-        response_format: { type: "json_object" },
-      }, "risk_analysis", aiUserContext);
+Remember: Extract information ONLY from service user documents above. Templates contain placeholder text to ignore.`;
+
+    const response = await executeSecureTextCompletion({
+      endpoint: "/api/ai/analyze-risks",
+      feature: "risk_analysis",
+      model: getRiskAssessmentRecommendationModel(),
+      userContext: aiUserContext,
+      inputText: riskUserPrompt,
+      systemPrompt,
+      maxCompletionTokens: 8000,
+      temperature: 0,
+      seed: 42,
+      responseFormat: { type: "json_object" },
+      useCache: false,
+    });
 
       clearInterval(progressInterval);
       sendProgress(80, "Processing results...", "processing");
 
-      const content = response.choices[0]?.message?.content || "";
+      const content = response.restoredText || "";
       const parsed = parseJsonFromContent(content);
       if (!parsed) {
         sendEvent('error', { message: "Failed to parse AI response" });
@@ -14637,11 +14649,7 @@ ${scrubbedProfileContext ? `Profile Context:\n${scrubbedProfileContext}\n\n` : '
         }
       }, 3000);
 
-      const response = await createChatCompletionWithLogging({
-        model: getRiskAssessmentGenerationModel(),
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
+      const generationPrompt = `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
 
 ⚠️ CRITICAL INSTRUCTIONS - READ CAREFULLY ⚠️
 
@@ -14662,17 +14670,25 @@ ${scrubbedDocumentContent}
 
 === END SERVICE USER DOCUMENTS ===
 
-Remember: Extract information ONLY from the service user documents above. Templates contain placeholder/example text that should be ignored.` }
-        ],
+Remember: Extract information ONLY from the service user documents above. Templates contain placeholder/example text that should be ignored.`;
+
+      const response = await executeSecureTextCompletion({
+        endpoint: "/api/ai/generate-risk-assessment",
+        feature: "risk_assessment",
+        model: getRiskAssessmentGenerationModel(),
+        userContext: aiUserContext,
+        inputText: generationPrompt,
+        systemPrompt,
         temperature: 0.2,
-        max_completion_tokens: 12000,
-        response_format: { type: "json_object" },
-      }, "risk_assessment", aiUserContext);
+        maxCompletionTokens: 12000,
+        responseFormat: { type: "json_object" },
+        useCache: false,
+      });
 
       if (progressInterval) clearInterval(progressInterval);
       sendProgress(70, "Processing results...", "processing");
 
-      const content = response.choices[0]?.message?.content || "";
+      const content = response.restoredText || "";
       const parsed = parseJsonFromContent(content);
       if (parsed) {
         let result = parsed;
@@ -15261,11 +15277,7 @@ OUTPUT FORMAT - Return ONLY valid JSON:
       }, 3000);
 
       try {
-        const response = await createChatCompletionWithLogging({
-          model: getAccurateModel(),
-          messages: [
-            { role: "system", content: baseSystemPrompt },
-            { role: "user", content: `Generate a comprehensive ${callTypeLabel} care plan following CQC 2024 person-centred standards.
+        const carePlanGenerationPrompt = `Generate a comprehensive ${callTypeLabel} care plan following CQC 2024 person-centred standards.
 
 ═══════════════════════════════════════════════════════════════════════════════
 SERVICE USER DOCUMENTS
@@ -15295,16 +15307,24 @@ QUALITY CHECKLIST:
 ✓ Actionable - carers know exactly what to do?
 ✓ Minimum 450 words of comprehensive detail?
 
-Return ONLY valid JSON with content field.` }
-          ],
+Return ONLY valid JSON with content field.`;
+
+        const response = await executeSecureTextCompletion({
+          endpoint: "/api/ai/generate-care-plan",
+          feature: "care_plan_calltype",
+          model: getAccurateModel(),
+          userContext: aiUserContext,
+          inputText: carePlanGenerationPrompt,
+          systemPrompt: baseSystemPrompt,
           temperature: 0.1,
-          max_completion_tokens: 3000,
+          maxCompletionTokens: 3000,
           seed: 42,
-          response_format: { type: "json_object" },
-        }, "care_plan_calltype", aiUserContext);
+          responseFormat: { type: "json_object" },
+          useCache: false,
+        });
 
         if (progressInterval) clearInterval(progressInterval);
-        const content = response.choices[0]?.message?.content || "";
+        const content = response.restoredText || "";
         const parsed = parseJsonFromContent(content);
         
         if (!parsed || !parsed.content) {
@@ -15328,19 +15348,22 @@ Return ONLY valid JSON with content field.` }
         if (wordCount < 450) {
           sendProgress(82, "Expanding with more person-centred detail...", "refining");
           try {
-            const refineResponse = await createChatCompletionWithLogging({
+            const refinePrompt = `Expand and enrich the care plan below to at least 450 words. Keep it in first person, include routines, preferences, what matters to me, communication style, emotional support needs, triggers, equipment and safety. Do NOT add facts beyond the documents. Keep it as one flowing paragraph.\n\nDOCUMENTS (REFERENCE ONLY, DO NOT QUOTE VERBATIM):\n${documentContentForAi}\n\nDRAFT CARE PLAN TO EXPAND:\n${enhancedContent}\n\nReturn ONLY valid JSON with content field.`;
+            const refineResponse = await executeSecureTextCompletion({
+              endpoint: "/api/ai/generate-care-plan",
+              feature: "care_plan_calltype_refine",
               model: getAccurateModel(),
-              messages: [
-                { role: "system", content: baseSystemPrompt },
-                { role: "user", content: `Expand and enrich the care plan below to at least 450 words. Keep it in first person, include routines, preferences, what matters to me, communication style, emotional support needs, triggers, equipment and safety. Do NOT add facts beyond the documents. Keep it as one flowing paragraph.\n\nDOCUMENTS (REFERENCE ONLY, DO NOT QUOTE VERBATIM):\n${documentContentForAi}\n\nDRAFT CARE PLAN TO EXPAND:\n${enhancedContent}\n\nReturn ONLY valid JSON with content field.` },
-              ],
+              userContext: aiUserContext,
+              inputText: refinePrompt,
+              systemPrompt: baseSystemPrompt,
               temperature: 0.1,
-              max_completion_tokens: 2400,
+              maxCompletionTokens: 2400,
               seed: 42,
-              response_format: { type: "json_object" },
-            }, "care_plan_calltype_refine", aiUserContext);
+              responseFormat: { type: "json_object" },
+              useCache: false,
+            });
 
-            const refinedContent = refineResponse.choices[0]?.message?.content || "";
+            const refinedContent = refineResponse.restoredText || "";
             const refinedParsed = parseJsonFromContent(refinedContent);
             if (refinedParsed?.content && refinedParsed.content.length > enhancedContent.length) {
               enhancedContent = refinedParsed.content;
@@ -16372,11 +16395,7 @@ PRIORITY STRATEGY FOR MAXIMUM COMPLETION:
         }
       }, 6000);
 
-      const response = await createChatCompletionWithLogging({
-        model: getRiskAssessmentGenerationModel(),
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Analyze ALL documents with EXTREME thoroughness and generate a COMPREHENSIVE, EVIDENCE-BASED care plan.
+      const completionPrompt = `Analyze ALL documents with EXTREME thoroughness and generate a COMPREHENSIVE, EVIDENCE-BASED care plan.
 
 ═══════════════════════════════════════════════════════
 DOCUMENTS TO ANALYZE - EXTRACT EVERY DETAIL
@@ -16416,19 +16435,27 @@ EVIDENCE-BASED ONLY:
 - Standard care implications for documented conditions are acceptable (e.g., "diabetes requires foot checks")
 - If unsure, add to verificationQuestions
 
-Return ONLY valid JSON matching the exact schema. Begin now.` }
-        ],
+Return ONLY valid JSON matching the exact schema. Begin now.`;
+
+      const response = await executeSecureTextCompletion({
+        endpoint: "/api/ai/enhance-plan",
+        feature: "plan_enhancer",
+        model: getRiskAssessmentGenerationModel(),
+        userContext: aiUserContext,
+        inputText: completionPrompt,
+        systemPrompt,
         temperature: 0,
+        maxCompletionTokens: currentProvider === "github" ? 8000 : 64000,
         seed: 42,
-        max_completion_tokens: currentProvider === "github" ? 8000 : 64000, // GitHub Models: 8K output, OpenAI/Local: 64K
-        response_format: { type: "json_object" },
-      }, "plan_enhancer", aiUserContext);
+        responseFormat: { type: "json_object" },
+        useCache: false,
+      });
 
       clearInterval(progressInterval);
 
       // ── Check for token-limit truncation ──
-      const finishReason = response.choices[0]?.finish_reason;
-      const contentLength = response.choices[0]?.message?.content?.length || 0;
+      const finishReason = response.finishReason;
+      const contentLength = response.restoredText?.length || 0;
       console.log(`[PlanEnhancer] finish_reason=${finishReason}, content_length=${contentLength}`);
 
       if (finishReason === "length") {
@@ -16438,7 +16465,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
 
       sendProgress(75, "Processing results...", "processing");
 
-      const content = response.choices[0]?.message?.content || "";
+      const content = response.restoredText || "";
       let result = parseJsonFromContent(content);
       if (result) {
         const normalizeFirstPerson = (value: unknown): unknown => {
@@ -16994,7 +17021,6 @@ Return ONLY valid JSON matching the exact schema. Begin now.` }
   app.post("/api/ai/rewrite-email", requireAuth, async (req: any, res) => {
     // User context for AI cost tracking
     const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
-    const piiVault = new PIIVault();
     
     try {
       const { inputText, tone } = req.body;
@@ -17034,37 +17060,24 @@ RULES:
 
 Return ONLY the email text, nothing else.`;
 
-      // Scrub PII from user input before sending to AI
-      const scrubbedInput = piiVault.scrubString(inputText);
-      piiVault.logAudit('SCRUB', '/api/ai/rewrite-email', req.user?.id, req.user?.username);
-
-      const response = await createChatCompletionWithLogging({
+      const secureCompletion = await executeSecureTextCompletion({
+        endpoint: "/api/ai/rewrite-email",
+        feature: "email_assistant",
         model: getLowCostModel(),
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: scrubbedInput }
-        ],
-        max_completion_tokens: 1000,
+        userContext: aiUserContext,
+        inputText,
+        systemPrompt,
+        maxCompletionTokens: 1000,
         temperature: 0.2,
         seed: 42,
-      }, "email_assistant", aiUserContext);
+        useCache: getUseAICache(),
+        cacheScope: `${tone}`,
+      });
 
-      const rawEmail = response.choices[0]?.message?.content;
-      
-      if (!rawEmail) {
-        return res.status(500).json({ message: "Failed to generate email" });
-      }
-
-      // Restore PII in the AI response so the user sees original names/details
-      const rewrittenEmail = piiVault.restoreString(rawEmail);
-      piiVault.logAudit('RESTORE', '/api/ai/rewrite-email', req.user?.id, req.user?.username);
-
-      return res.json({ rewrittenEmail });
+      return res.json({ rewrittenEmail: secureCompletion.restoredText });
     } catch (error: any) {
       console.error("Email rewrite error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to rewrite email") });
-    } finally {
-      piiVault.clear();
     }
   });
 
@@ -17104,19 +17117,22 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         ? `Generate a complete PRN protocol for: ${medicationName}\n\nExisting information available:\n${JSON.stringify(existingData, null, 2)}\n\nPlease enhance and complete this protocol with all required fields.`
         : `Generate a complete PRN protocol for: ${medicationName}`;
 
-      const response = await createChatCompletionWithLogging({
+      const completion = await executeSecureTextCompletion({
+        endpoint: "/api/ai/generate-prn-protocol",
+        feature: "prn_protocol",
         model: getAccurateModel(),
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        max_completion_tokens: 1500,
+        userContext: aiUserContext,
+        inputText: userPrompt,
+        systemPrompt,
+        maxCompletionTokens: 1500,
         temperature: 0,
         seed: 42,
-        response_format: { type: "json_object" },
-      }, "prn_protocol", aiUserContext);
+        responseFormat: { type: "json_object" },
+        useCache: getUseAICache(),
+        cacheScope: medicationName.toLowerCase().trim(),
+      });
 
-      const content = response.choices[0]?.message?.content || "";
+      const content = completion.restoredText || "";
       
       if (!content) {
         return res.status(500).json({ message: "Failed to generate PRN protocol" });
