@@ -7,7 +7,7 @@ This file is automatically referenced by the Chat Catalyst extension to load pro
 
 ## Prompt Content
 
-#file:Session_starter.md
+#file:../../Session_starter.md
 
 🎯 **Session Context Loaded**
 

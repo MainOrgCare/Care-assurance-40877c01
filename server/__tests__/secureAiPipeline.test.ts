@@ -24,7 +24,7 @@ const createMockChatCompletion = (content: string): ChatCompletion => ({
 
 describe("secureAiPipeline", () => {
   it("scrubs outgoing text and restores tokenized response", async () => {
-    let capturedParams: { messages?: Array<{ content?: string }> } | null = null;
+    let capturedParams: { messages: Array<{ content?: string }> } = { messages: [] };
 
     const result = await executeSecureTextCompletion({
       endpoint: "/test/secure-text",
@@ -35,13 +35,14 @@ describe("secureAiPipeline", () => {
       inputText: "Patient John Smith, email john.smith@example.com",
       useCache: false,
       completionRunner: async (params) => {
-        capturedParams = params as { messages?: Array<{ content?: string }> };
-        const userMessage = (capturedParams.messages?.[1]?.content ?? "").toString();
+        const typedParams = params as { messages?: Array<{ content?: string }> };
+        capturedParams = { messages: typedParams.messages ?? [] };
+        const userMessage = (capturedParams.messages[1]?.content ?? "").toString();
         return createMockChatCompletion(`Echo: ${userMessage}`);
       },
     });
 
-    const scrubbedUser = (capturedParams?.messages?.[1]?.content ?? "").toString();
+    const scrubbedUser = (capturedParams.messages[1]?.content ?? "").toString();
     assert(!scrubbedUser.includes("John Smith"));
     assert(!scrubbedUser.includes("john.smith@example.com"));
     assert(result.restoredText.includes("John Smith"));
@@ -88,7 +89,7 @@ describe("secureAiPipeline", () => {
       },
     };
 
-    let capturedParams: { messages?: Array<{ role: string; content: string }> } | null = null;
+    let capturedParams: { messages: Array<{ role: string; content: string }> } = { messages: [] };
 
     await executeSecureChatCompletion({
       endpoint: "/test/secure-chat",
@@ -102,12 +103,13 @@ describe("secureAiPipeline", () => {
         { role: "assistant", content: "assistant secret should remain" },
       ],
       completionRunner: async (params) => {
-        capturedParams = params as { messages?: Array<{ role: string; content: string }> };
+        const typedParams = params as { messages?: Array<{ role: string; content: string }> };
+        capturedParams = { messages: typedParams.messages ?? [] };
         return createMockChatCompletion("ok");
       },
     });
 
-    const sentMessages = capturedParams?.messages ?? [];
+    const sentMessages = capturedParams.messages;
     const userMessage = sentMessages.find((m) => m.role === "user")?.content ?? "";
     const assistantMessage = sentMessages.find((m) => m.role === "assistant")?.content ?? "";
 
