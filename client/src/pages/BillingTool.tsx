@@ -590,7 +590,7 @@ export default function BillingTool() {
   }, [analysis]);
 
   return (
-    <div className="page-shell max-w-6xl mx-auto" data-testid="billing-tool-page">
+    <div className="page-shell page-shell-compact max-w-6xl mx-auto" data-testid="billing-tool-page">
       <div className="flex items-start gap-4">
         <div className="h-8 w-8 rounded-lg bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
           <FileImage className="h-4 w-4 text-primary" />
@@ -604,7 +604,7 @@ export default function BillingTool() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-        <Card className="border-border/60">
+        <Card className="app-surface border-border/60">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileImage className="h-5 w-5 text-primary" />
@@ -708,7 +708,7 @@ export default function BillingTool() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/60">
+        <Card className="app-surface border-border/60">
           <CardHeader>
             <CardTitle className="text-base">Analysis Settings</CardTitle>
             <CardDescription>
@@ -780,7 +780,7 @@ export default function BillingTool() {
       </div>
 
       {error && (
-        <Card className="border-red-500/30 bg-red-500/10">
+        <Card className="app-surface border-red-500/30 bg-red-500/10">
           <CardContent className="p-4 flex gap-3">
             <AlertCircle className="text-red-400 shrink-0 mt-0.5" size={18} />
             <p className="text-sm text-red-200">{error}</p>
@@ -790,7 +790,7 @@ export default function BillingTool() {
 
       {analysis && (
         <div className="space-y-6">
-          <Card className="border-border/60">
+          <Card className="app-surface border-border/60">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5 text-emerald-400" />
@@ -836,7 +836,7 @@ export default function BillingTool() {
             </Button>
           </div>
 
-          <Card className="border-border/60">
+          <Card className="app-surface border-border/60">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-primary" />

@@ -1,5 +1,6 @@
-import { createChatCompletionWithLogging, getPreferredModel, type AiUserContext } from "./aiClient";
+import { getPreferredModel, type AiUserContext } from "./aiClient";
 import { parseJsonFromContent } from "../utils/jsonParser";
+import { executeSecureTextCompletion } from "../utils/secureAiPipeline";
 
 /**
  * Simple reversible name anonymization for schedule analysis.
@@ -166,22 +167,20 @@ ${input.constraintViolations.length > 0 ? `CONSTRAINT VIOLATIONS:\n${input.const
 
 Provide comprehensive analysis with actionable recommendations to optimize this schedule.`;
 
-  const response = await createChatCompletionWithLogging(
-    {
-      model: getPreferredModel(), // Use admin-configured model
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.7,
-      max_completion_tokens: 3000,
-      response_format: { type: "json_object" },
-    },
-    "schedule_analysis",
-    aiUserContext
-  );
+  const response = await executeSecureTextCompletion({
+    endpoint: "/api/schedule/analyze",
+    feature: "schedule_analysis",
+    model: getPreferredModel(),
+    userContext: aiUserContext || { userId: null, username: null },
+    systemPrompt,
+    inputText: userPrompt,
+    temperature: 0.7,
+    maxCompletionTokens: 3000,
+    responseFormat: { type: "json_object" },
+    useCache: false,
+  });
 
-  const content = response.choices[0]?.message?.content;
+  const content = response.restoredText;
   if (!content) {
     throw new Error("No response from AI analysis");
   }
@@ -275,22 +274,20 @@ CHANGES: ${input.changes.timeShifts} time shifts, ${input.changes.reassignments}
 
 Evaluate if this optimization improved the schedule.`;
 
-  const response = await createChatCompletionWithLogging(
-    {
-      model: getPreferredModel(), // Use admin-configured model
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.5,
-      max_completion_tokens: 2000,
-      response_format: { type: "json_object" },
-    },
-    "schedule_comparison",
-    aiUserContext
-  );
+  const response = await executeSecureTextCompletion({
+    endpoint: "/api/schedule/compare",
+    feature: "schedule_comparison",
+    model: getPreferredModel(),
+    userContext: aiUserContext || { userId: null, username: null },
+    systemPrompt,
+    inputText: userPrompt,
+    temperature: 0.5,
+    maxCompletionTokens: 2000,
+    responseFormat: { type: "json_object" },
+    useCache: false,
+  });
 
-  const content = response.choices[0]?.message?.content;
+  const content = response.restoredText;
   if (!content) {
     throw new Error("No response from AI comparison");
   }

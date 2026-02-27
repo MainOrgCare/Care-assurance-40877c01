@@ -181,7 +181,7 @@ const Section = memo(function Section({ title, children, defaultOpen = false }: 
   
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <Card className="bg-card border-border">
+      <Card className="app-surface bg-card border-border">
         <CollapsibleTrigger asChild>
           <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
             <div className="flex items-center justify-between">
@@ -1128,7 +1128,7 @@ export default function PlanEnhancer() {
   }
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell-compact">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
         <div className="space-y-1">
           <h1 className="page-title leading-tight" data-testid="text-page-title">Plan Enhancer</h1>
@@ -1144,7 +1144,7 @@ export default function PlanEnhancer() {
         </div>
       </div>
 
-      <Card className="animate-slide-up stagger-2 mt-6 border-primary/20">
+      <Card className="app-surface animate-slide-up stagger-2 mt-6 border-primary/20">
         <CardHeader className="border-b border-border/40 pb-3">
           <CardTitle className="text-sm">Suggested updates to add</CardTitle>
         </CardHeader>
@@ -1168,7 +1168,7 @@ export default function PlanEnhancer() {
         </CardContent>
       </Card>
 
-      <Card className="animate-slide-up stagger-2 mt-6">
+      <Card className="app-surface animate-slide-up stagger-2 mt-6">
         <CardHeader className="border-b border-border/40 pb-4">
           <CardTitle className="text-base">Update Information (Optional)</CardTitle>
         </CardHeader>
@@ -1209,7 +1209,7 @@ export default function PlanEnhancer() {
         </CardContent>
       </Card>
 
-      <Card className="animate-slide-up stagger-3 overflow-hidden mt-6">
+      <Card className="app-surface animate-slide-up stagger-3 overflow-hidden mt-6">
         <CardHeader className="border-b border-border/40 pb-6">
           <CardTitle className="flex items-center gap-3">
             <div className="h-7 w-7 rounded-md flex items-center justify-center bg-primary/8">
@@ -1449,7 +1449,7 @@ export default function PlanEnhancer() {
         <div className="space-y-6 animate-slide-up">
             {/* Input truncation warning (large documents) */}
             {(displayResult as any)?._inputTruncated && (
-              <Card className="border-amber-500/40 bg-amber-500/10">
+              <Card className="app-surface border-amber-500/40 bg-amber-500/10">
                 <CardContent className="py-4 space-y-2">
                   <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-2">
                     <AlertTriangle size={16} />
@@ -1473,7 +1473,7 @@ export default function PlanEnhancer() {
             
             {/* Truncation / quality warning banner */}
             {(displayResult as any)?._truncated && (
-              <Card className="border-destructive/40 bg-destructive/10">
+              <Card className="app-surface border-destructive/40 bg-destructive/10">
                 <CardContent className="py-4 space-y-2">
                   <p className="text-sm font-semibold text-destructive flex items-center gap-2">
                     <AlertTriangle size={16} />
@@ -1494,7 +1494,7 @@ export default function PlanEnhancer() {
               </Card>
             )}
             {(displayResult as any)?._qualityScore != null && (displayResult as any)._qualityScore < 50 && !(displayResult as any)?._truncated && (
-              <Card className="border-amber-500/30 bg-amber-500/10">
+              <Card className="app-surface border-amber-500/30 bg-amber-500/10">
                 <CardContent className="py-4">
                   <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-2">
                     <AlertTriangle size={16} />
@@ -1575,7 +1575,7 @@ export default function PlanEnhancer() {
             </div>
 
           {displayResult.verificationQuestions && displayResult.verificationQuestions.length > 0 && (
-            <Card className="border-amber-500/30 bg-amber-500/10">
+            <Card className="app-surface border-amber-500/30 bg-amber-500/10">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm text-amber-700 dark:text-amber-300">Verification Needed</CardTitle>
               </CardHeader>
@@ -1593,7 +1593,7 @@ export default function PlanEnhancer() {
           )}
 
           {viewMode === "comparison" && originalContent && (
-            <Card className="overflow-hidden border-primary/20">
+            <Card className="app-surface overflow-hidden border-primary/20">
               <CardHeader className="border-b border-border/40 pb-6 bg-primary/5">
                 <CardTitle className="text-base font-semibold flex items-center gap-3">
                   <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">

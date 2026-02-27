@@ -62,7 +62,7 @@ export default function ServiceUserUpload() {
   };
 
   return (
-    <div className="page-shell max-w-6xl mx-auto">
+    <div className="page-shell page-shell-compact max-w-6xl mx-auto">
       <div className="animate-slide-up stagger-1">
         <h1 className="page-title text-3xl">Secure Intake Portal</h1>
         <p className="page-subtitle max-w-2xl">
@@ -74,7 +74,7 @@ export default function ServiceUserUpload() {
         {/* Box 1: Social Work */}
         <Card 
           className={cn(
-            "relative overflow-hidden transition-all duration-500 group",
+            "app-surface relative overflow-hidden transition-all duration-500 group",
             serviceUserData.socialWork 
               ? 'border-success/40 bg-success/5 shadow-glow'
               : dragOver === 'socialWork'
@@ -142,7 +142,7 @@ export default function ServiceUserUpload() {
         {/* Box 2: Initial Assessment */}
         <Card 
           className={cn(
-            "relative overflow-hidden transition-all duration-500 group",
+            "app-surface relative overflow-hidden transition-all duration-500 group",
             serviceUserData.initialAssessment 
               ? 'border-success/40 bg-success/5 shadow-glow'
               : dragOver === 'initialAssessment'
@@ -254,7 +254,7 @@ export default function ServiceUserUpload() {
         {/* Box 3: Care Plan */}
         <Card 
           className={cn(
-            "relative overflow-hidden transition-all duration-500 group",
+            "app-surface relative overflow-hidden transition-all duration-500 group",
             serviceUserData.carePlan 
               ? 'border-success/40 bg-success/5 shadow-glow' 
               : dragOver === 'carePlan'
@@ -322,7 +322,7 @@ export default function ServiceUserUpload() {
         {/* Box 4: Moving & Handling */}
         <Card
           className={cn(
-            "relative overflow-hidden transition-all duration-500 group",
+            "app-surface relative overflow-hidden transition-all duration-500 group",
             serviceUserData.movingHandling
               ? "border-success/40 bg-success/5 shadow-glow"
               : dragOver === "movingHandling"
@@ -408,7 +408,7 @@ export default function ServiceUserUpload() {
         {/* Box 5: Additional Documents */}
         <Card
           className={cn(
-            "relative overflow-hidden transition-all duration-500 group",
+            "app-surface relative overflow-hidden transition-all duration-500 group",
             (serviceUserData.additionalDocuments || []).length > 0
               ? "border-success/40 bg-success/5 shadow-glow"
               : dragOver === "additionalDocuments"
@@ -484,7 +484,7 @@ export default function ServiceUserUpload() {
         </Card>
       </div>
 
-      <Card className="mt-6 border-border/60 bg-muted/20 animate-slide-up stagger-3">
+      <Card className="app-surface mt-6 border-border/60 bg-muted/20 animate-slide-up stagger-3">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Additional Service User Context</CardTitle>
           <CardDescription className="text-xs text-muted-foreground/70">

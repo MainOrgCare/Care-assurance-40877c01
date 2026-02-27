@@ -72,7 +72,7 @@ export default function CallReconciliation() {
   }, []);
 
   return (
-    <div className="page-shell max-w-6xl mx-auto">
+    <div className="page-shell page-shell-compact max-w-6xl mx-auto">
       <div className="flex items-start gap-4">
         <div className="h-8 w-8 rounded-lg bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
           <ArrowRightLeft className="h-4 w-4 text-primary" />
@@ -86,7 +86,7 @@ export default function CallReconciliation() {
       {step === "upload" && (
         <div className="space-y-8">
            {error && (
-             <Card className="border-red-500/30 bg-red-500/10 max-w-2xl mx-auto">
+             <Card className="app-surface border-red-500/30 bg-red-500/10 max-w-2xl mx-auto">
                <CardContent className="p-4 flex gap-3">
                  <AlertCircle className="text-red-400 shrink-0 mt-0.5" size={18} />
                  <p className="text-sm text-red-300">{error}</p>
@@ -94,7 +94,7 @@ export default function CallReconciliation() {
              </Card>
            )}
 
-           <Card className={`border-2 border-dashed transition-all max-w-2xl mx-auto ${file ? "border-primary/50 bg-primary/10" : "border-border bg-muted hover:border-primary/30"}`}>
+           <Card className={`app-surface border-2 border-dashed transition-all max-w-2xl mx-auto ${file ? "border-primary/50 bg-primary/10" : "border-border bg-muted hover:border-primary/30"}`}>
              <CardContent className="flex flex-col items-center justify-center p-12 text-center space-y-6">
                <div className={`h-20 w-20 rounded-full flex items-center justify-center ${file ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"}`}>
                  {file ? <CheckCircle2 size={40} /> : <FileSpreadsheet size={40} />}
@@ -141,7 +141,7 @@ export default function CallReconciliation() {
              </Button>
            </div>
            
-           <Card className="border-blue-500/20 bg-blue-500/5 max-w-2xl mx-auto">
+           <Card className="app-surface border-blue-500/20 bg-blue-500/5 max-w-2xl mx-auto">
              <CardContent className="p-4">
                <div className="flex gap-3">
                  <div className="mt-0.5 text-blue-400"><Info size={18} /></div>
@@ -169,7 +169,7 @@ export default function CallReconciliation() {
       )}
 
       {step === "processing" && (
-        <Card className="p-16 flex flex-col items-center justify-center text-center space-y-8" aria-live="polite" role="status">
+        <Card className="app-surface p-16 flex flex-col items-center justify-center text-center space-y-8" aria-live="polite" role="status">
           <div className="relative">
              <div className="h-20 w-20 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
              <div className="absolute inset-0 flex items-center justify-center text-primary">
@@ -190,7 +190,7 @@ export default function CallReconciliation() {
 
       {step === "complete" && (
         <div className="space-y-6 animate-in slide-in-from-bottom-8 duration-500">
-          <Card className="p-12 flex flex-col items-center justify-center text-center space-y-6 max-w-2xl mx-auto">
+          <Card className="app-surface p-12 flex flex-col items-center justify-center text-center space-y-6 max-w-2xl mx-auto">
             <div className="h-20 w-20 rounded-full bg-emerald-500/20 flex items-center justify-center">
               <CheckCircle2 size={40} className="text-emerald-400" />
             </div>
@@ -212,7 +212,7 @@ export default function CallReconciliation() {
             </div>
           </Card>
 
-          <Card className="border-blue-500/20 bg-blue-500/5 max-w-2xl mx-auto">
+          <Card className="app-surface border-blue-500/20 bg-blue-500/5 max-w-2xl mx-auto">
             <CardContent className="p-4">
               <div className="flex gap-3">
                 <div className="mt-0.5 text-blue-400"><Download size={18} /></div>

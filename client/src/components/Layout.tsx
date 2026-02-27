@@ -693,8 +693,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const contentWrapperClass = cn(
     "workspace-content-shell w-full flex-1 min-h-0",
-    isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-5 pt-3 sm:pt-4 lg:pt-5 pb-4 sm:pb-5 lg:pb-6",
+    isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-6 pt-3 sm:pt-4 lg:pt-5 pb-4 sm:pb-5 lg:pb-6",
     isSingleScreenRoute && "h-full"
+  );
+  const contentInnerClass = cn(
+    "w-full mx-auto",
+    isFullBleed ? "max-w-none" : "max-w-[var(--content-max-width)]"
   );
   const cardClass = cn(
     "workspace-card corporate-content-card rounded-xl border border-border/50 bg-card p-4 sm:p-5 lg:p-6 flex flex-col w-full flex-1 min-h-0 shadow-[var(--shadow-card)] motion-safe:animate-[fade-in_120ms_ease-out]",
@@ -1062,6 +1066,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Page Content Area */}
         <div className={contentWrapperClass}>
+          <div className={contentInnerClass}>
           <div className={cardClass}>
             {isFullBleed ? (
               <Suspense fallback={<ContentFallback variant="full" />}>
@@ -1087,6 +1092,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </Suspense>
               </>
             )}
+          </div>
           </div>
         </div>
 

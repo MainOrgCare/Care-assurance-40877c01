@@ -198,7 +198,7 @@ export default function Messages() {
   };
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell-compact">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex items-start gap-4">
           <Button variant="ghost" size="icon-sm" onClick={() => setLocation("/dashboard")} aria-label="Back to dashboard" className="mt-0.5 text-muted-foreground">
@@ -307,7 +307,7 @@ export default function Messages() {
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[360px_1fr] min-h-0">
-        <Card className="overflow-hidden" data-testid="messages-list">
+        <Card className="app-surface overflow-hidden" data-testid="messages-list">
           <CardHeader className="py-3 border-b border-border/30">
             <div className="flex items-center gap-2">
               <div className="h-6 w-6 rounded-md bg-primary/8 flex items-center justify-center">
@@ -386,7 +386,7 @@ export default function Messages() {
           </ScrollArea>
         </Card>
 
-        <Card className="overflow-hidden" data-testid="messages-detail">
+        <Card className="app-surface overflow-hidden" data-testid="messages-detail">
           {selectedMessage ? (
             <>
               <CardHeader className="py-4">

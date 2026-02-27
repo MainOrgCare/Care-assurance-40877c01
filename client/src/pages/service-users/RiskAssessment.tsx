@@ -1263,7 +1263,7 @@ export default function RiskAssessment() {
   // Step 3: Ready to analyze
   if (step === "analyze") {
     return (
-      <div className="page-shell animate-fade-in">
+      <div className="page-shell page-shell-compact animate-fade-in">
         <div className="space-y-1">
           <h1 className="page-title">Neural Risk Profiling</h1>
           <p className="page-subtitle max-w-2xl">
@@ -1271,7 +1271,7 @@ export default function RiskAssessment() {
           </p>
         </div>
 
-        <Card className="animate-slide-up stagger-2">
+        <Card className="app-surface animate-slide-up stagger-2">
           <CardHeader className="border-b border-border/40 pb-6 mb-2">
             <CardTitle className="flex items-center gap-3">
               <div className="h-8 w-8 rounded-lg bg-primary/8 flex items-center justify-center text-primary">
@@ -1386,7 +1386,7 @@ export default function RiskAssessment() {
     const mandatorySkipped = getMandatoryNotSelected();
 
     return (
-      <div className="page-shell animate-fade-in">
+      <div className="page-shell page-shell-compact animate-fade-in">
         <div className="space-y-1">
           <h1 className="page-title">Risk Framework Selection</h1>
           <p className="page-subtitle max-w-2xl">
@@ -1421,7 +1421,7 @@ export default function RiskAssessment() {
         )}
 
         {/* Service User Info */}
-        <Card>
+        <Card className="app-surface">
           <CardHeader>
             <CardTitle>Service User Information</CardTitle>
           </CardHeader>
@@ -1454,7 +1454,7 @@ export default function RiskAssessment() {
         </Card>
 
         {(analysis.documentSummary || analysis.concerns.length > 0) && (
-          <Card>
+          <Card className="app-surface">
             <CardHeader>
               <CardTitle>Document Summary</CardTitle>
               <CardDescription>
@@ -1485,7 +1485,7 @@ export default function RiskAssessment() {
         )}
 
         {/* Assessment Selection */}
-        <Card>
+        <Card className="app-surface">
           <CardHeader className="space-y-3">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -1838,7 +1838,7 @@ export default function RiskAssessment() {
         )}
 
         {generatedAssessments.map((assessment, idx) => (
-          <Card key={idx} className={`print:bg-white print:text-black ${isAdmin && selectedForAcp.has(idx) ? 'ring-2 ring-primary/50' : ''}`}>
+          <Card key={idx} className={`app-surface print:bg-white print:text-black ${isAdmin && selectedForAcp.has(idx) ? 'ring-2 ring-primary/50' : ''}`}>
             <CardHeader className="border-b border-border">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">

@@ -1,5 +1,6 @@
-import { createChatCompletionWithLogging, getPreferredModel, type AiUserContext } from "./aiClient";
+import { getPreferredModel, type AiUserContext } from "./aiClient";
 import { parseJsonFromContent } from "../utils/jsonParser";
+import { executeSecureTextCompletion } from "../utils/secureAiPipeline";
 import type { ParsedEMAR } from "../emarGridParser";
 
 interface EmarAgentResult {
@@ -941,22 +942,20 @@ export const emarAgent = {
     const metadataPrompt = buildMetadataPrompt(tableContext, correctionsContext);
 
     const runMetadataPass = async (passIndex: number) => {
-      const response = await createChatCompletionWithLogging(
-        {
-          model: getAgentModel(),
-          messages: [
-            { role: "system", content: metadataPrompt },
-            { role: "user", content: `Extract metadata from this EMAR document:\n\n${rawText}` },
-          ],
-          temperature: passIndex === 0 ? 0 : 0.1,
-          max_completion_tokens: 2000,
-          seed: passIndex === 0 ? DETERMINISTIC_SEED : undefined,
-          response_format: { type: "json_object" },
-        },
-        `emar_agent_metadata_pass${passIndex + 1}`,
-        aiUserContext
-      );
-      const content = response.choices[0]?.message?.content || "{}";
+      const response = await executeSecureTextCompletion({
+        endpoint: "/api/admin/emar-audit/agent",
+        feature: `emar_agent_metadata_pass${passIndex + 1}`,
+        model: getAgentModel(),
+        userContext: aiUserContext,
+        systemPrompt: metadataPrompt,
+        inputText: `Extract metadata from this EMAR document:\n\n${rawText}`,
+        temperature: passIndex === 0 ? 0 : 0.1,
+        maxCompletionTokens: 2000,
+        seed: passIndex === 0 ? DETERMINISTIC_SEED : undefined,
+        responseFormat: { type: "json_object" },
+        useCache: false,
+      });
+      const content = response.restoredText || "{}";
       return parseJsonFromContent(content) || {};
     };
 
@@ -1089,23 +1088,21 @@ export const emarAgent = {
             correctionsContext
           );
 
-          const response = await createChatCompletionWithLogging(
-            {
-              model: getAgentModel(),
-              messages: [
-                { role: "system", content: prompt },
-                { role: "user", content: `Extract entries from this EMAR document:\n\n${rawText}` },
-              ],
-              temperature: passIndex === 0 ? 0 : 0.1,
-              max_completion_tokens: 8000,
-              seed: passIndex === 0 ? DETERMINISTIC_SEED : undefined,
-              response_format: { type: "json_object" },
-            },
-            `emar_agent_entries_pass${passIndex + 1}`,
-            aiUserContext
-          );
+          const response = await executeSecureTextCompletion({
+            endpoint: "/api/admin/emar-audit/agent",
+            feature: `emar_agent_entries_pass${passIndex + 1}`,
+            model: getAgentModel(),
+            userContext: aiUserContext,
+            systemPrompt: prompt,
+            inputText: `Extract entries from this EMAR document:\n\n${rawText}`,
+            temperature: passIndex === 0 ? 0 : 0.1,
+            maxCompletionTokens: 8000,
+            seed: passIndex === 0 ? DETERMINISTIC_SEED : undefined,
+            responseFormat: { type: "json_object" },
+            useCache: false,
+          });
 
-          const content = response.choices[0]?.message?.content || "{\"entries\":[]}";
+          const content = response.restoredText || "{\"entries\":[]}";
           const parsed = parseJsonFromContent(content) || { entries: [] };
           return Array.isArray(parsed.entries) ? parsed.entries : [];
         })

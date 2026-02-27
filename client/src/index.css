@@ -113,6 +113,7 @@
   --surface-grid: linear-gradient(90deg, hsl(220 16% 92% / 0.6) 1px, transparent 1px),
     linear-gradient(180deg, hsl(220 16% 92% / 0.6) 1px, transparent 1px);
   --surface-grid-size: 120px 120px;
+  --content-max-width: 1280px;
 }
 
 @layer base {
@@ -147,8 +148,8 @@
     font-optical-sizing: auto;
     position: relative;
     isolation: isolate;
-    font-size: 0.9375rem;
-    line-height: 1.6;
+    font-size: 0.95rem;
+    line-height: 1.62;
     letter-spacing: -0.008em;
   }
   body::before {
@@ -249,10 +250,26 @@
   }
   a {
     @apply transition-colors duration-150;
+    text-underline-offset: 0.16em;
+    text-decoration-thickness: 1px;
+  }
+  a:hover {
+    text-decoration-color: color-mix(in oklab, var(--color-primary) 35%, transparent);
   }
   /* Clean focus states */
   :focus-visible {
-    @apply outline-none ring-2 ring-primary/30 ring-offset-2 ring-offset-background;
+    @apply outline-none ring-2 ring-primary/35 ring-offset-2 ring-offset-background;
+  }
+  button,
+  [role="button"],
+  input,
+  textarea,
+  select {
+    transition:
+      border-color var(--motion-fast) var(--ease-standard),
+      background-color var(--motion-fast) var(--ease-standard),
+      box-shadow var(--motion-fast) var(--ease-standard),
+      color var(--motion-fast) var(--ease-standard);
   }
 }
 
@@ -481,6 +498,9 @@
     background: var(--color-card);
     box-shadow: var(--shadow-xs);
   }
+  .workspace-card > * + * {
+    margin-top: 0;
+  }
   .corporate-content-card {
     border-color: color-mix(in oklab, var(--color-border) 90%, transparent);
     background:
@@ -488,6 +508,11 @@
     box-shadow:
       0 1px 0 color-mix(in oklab, white 70%, transparent) inset,
       var(--shadow-card-hover);
+  }
+  .corporate-content-card:hover {
+    box-shadow:
+      0 1px 0 color-mix(in oklab, white 70%, transparent) inset,
+      var(--shadow-elevated);
   }
   .workspace-footer {
     border-color: var(--color-border);
@@ -860,8 +885,8 @@ html.theme-light body {
   scrollbar-color: hsl(216 12% 72%) transparent;
 }
 *::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
@@ -884,6 +909,9 @@ html.theme-light body {
 @media (max-width: 1024px) {
   :root {
     --radius: 0.75rem;
+  }
+  body {
+    font-size: 0.9375rem;
   }
   h1 { @apply text-3xl; }
   h2 { @apply text-2xl; }

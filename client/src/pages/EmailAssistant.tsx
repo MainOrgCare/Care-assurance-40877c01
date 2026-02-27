@@ -217,7 +217,7 @@ export default function EmailAssistant() {
   const uniqueCategories = useMemo(() => [...new Set(EMAIL_TEMPLATES.map(t => t.category))], []);
 
   return (
-    <div className="page-shell max-w-5xl mx-auto">
+    <div className="page-shell page-shell-compact max-w-5xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
         <div className="flex items-start gap-4">
           <div className="h-11 w-11 rounded-xl bg-primary/8 border border-primary/15 flex items-center justify-center shrink-0">
@@ -252,7 +252,7 @@ export default function EmailAssistant() {
 
       <div className="grid lg:grid-cols-2 gap-8 mt-6 h-full animate-slide-up stagger-2">
         {/* Input Section */}
-        <Card className="flex flex-col h-full overflow-hidden">
+        <Card className="app-surface flex flex-col h-full overflow-hidden">
           <CardHeader className="border-b border-border/30 pb-5">
             <CardTitle className="flex items-center gap-3">
               <span className="h-7 w-7 rounded-lg bg-muted/80 flex items-center justify-center text-[11px] font-bold text-muted-foreground tabular-nums border border-border/40">1</span>
@@ -302,7 +302,7 @@ export default function EmailAssistant() {
         {/* Output Section */}
         <div className="flex flex-col gap-4 h-full">
           <Card className={cn(
-            "flex flex-col h-full overflow-hidden transition-all duration-500",
+            "app-surface flex flex-col h-full overflow-hidden transition-all duration-500",
             outputText ? "border-primary/25" : "opacity-75"
           )}>
             <CardHeader className="border-b border-border/30 pb-5 bg-primary/[0.03]">

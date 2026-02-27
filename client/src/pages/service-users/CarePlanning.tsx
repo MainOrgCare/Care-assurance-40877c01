@@ -563,7 +563,7 @@ export default function CarePlanning() {
   }
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell-compact">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
         <div className="space-y-1">
           <h1 className="page-title leading-tight" data-testid="text-page-title">Care Planning</h1>
@@ -584,7 +584,7 @@ export default function CarePlanning() {
         </div>
       </div>
 
-      <Card className="animate-slide-up stagger-2 overflow-hidden">
+      <Card className="app-surface animate-slide-up stagger-2 overflow-hidden">
         <CardHeader className="border-b border-border/40 pb-6">
           <CardTitle className="flex items-center gap-3">
             <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-primary/8">
@@ -785,7 +785,7 @@ export default function CarePlanning() {
 
           {/* Call Type Tabs - show if multiple plans generated */}
           {carePlansByTypeRaw.size > 0 && (
-            <Card className="overflow-hidden">
+            <Card className="app-surface overflow-hidden">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-sm font-semibold text-muted-foreground">Generated Plans:</span>
@@ -813,7 +813,7 @@ export default function CarePlanning() {
 
           {/* New Simplified Format Display - Single Content Block */}
           {isSimplifiedFormat && carePlan.content && (
-            <Card className="overflow-hidden">
+            <Card className="app-surface overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
@@ -886,7 +886,7 @@ export default function CarePlanning() {
 
           {/* Legacy Sections Format Display */}
           {!isSimplifiedFormat && sectionsWithIndex.length > 0 && (
-          <Card className="overflow-hidden">
+          <Card className="app-surface overflow-hidden">
             <CardHeader className="border-b border-border/40 pb-6">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -1157,7 +1157,7 @@ export default function CarePlanning() {
 
           {/* Meta-data section - only show for legacy format with these fields */}
           {!isSimplifiedFormat && (carePlan.emergencyContacts || carePlan.gpDetails || carePlan.additionalNotes) && (
-            <Card className="overflow-hidden">
+            <Card className="app-surface overflow-hidden">
               <CardHeader className="border-b border-border/40">
                 <CardTitle className="text-base">Logistical Meta-Data</CardTitle>
               </CardHeader>

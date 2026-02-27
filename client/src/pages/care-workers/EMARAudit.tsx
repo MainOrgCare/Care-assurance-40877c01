@@ -2650,7 +2650,7 @@ ${generatedProtocol.additionalComments}`;
   };
 
   return (
-    <div className="page-shell max-w-6xl mx-auto">
+    <div className="page-shell page-shell-compact max-w-6xl mx-auto">
       <div className="space-y-2 animate-slide-up stagger-1">
         <h1 className="page-title">EMAR Audit</h1>
         <p className="page-subtitle max-w-2xl">
@@ -2659,7 +2659,7 @@ ${generatedProtocol.additionalComments}`;
       </div>
 
       {!analyzed ? (
-        <Card className="animate-slide-up stagger-2">
+        <Card className="app-surface animate-slide-up stagger-2">
           <CardHeader className="border-b border-border/40 pb-6 mb-2">
             <CardTitle className="flex items-center gap-3">
               <div className="h-8 w-8 rounded-lg bg-primary/8 flex items-center justify-center">
@@ -2989,7 +2989,7 @@ ${generatedProtocol.additionalComments}`;
             </div>
           )}
           {detectedInitials.length > 0 && !mappingsConfirmed && (
-            <Card className="border-primary/30 bg-primary/5 shadow-soft animate-scale-in">
+            <Card className="app-surface border-primary/30 bg-primary/5 shadow-soft animate-scale-in">
               <CardHeader className="border-b border-primary/10 pb-6 mb-2">
                 <CardTitle className="flex items-center gap-3 text-primary">
                   <div className="h-8 w-8 rounded-lg bg-primary/15 flex items-center justify-center">
@@ -3107,7 +3107,7 @@ ${generatedProtocol.additionalComments}`;
 
           {sortedWarnings.length > 0 && (
             <Collapsible open={warningsOpen} onOpenChange={setWarningsOpen}>
-              <Card className={warningCardClass}>
+              <Card className={cn("app-surface", warningCardClass)}>
                 <CollapsibleTrigger asChild>
                   <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors">
                     <CardTitle className={`flex items-center justify-between ${warningHeaderTextClass}`}>
@@ -3166,7 +3166,7 @@ ${generatedProtocol.additionalComments}`;
           )}
 
           {result.userVerificationItems && result.userVerificationItems.length > 0 && (
-            <Card className="bg-card border-border">
+            <Card className="app-surface bg-card border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-amber-500" />
@@ -3203,7 +3203,7 @@ ${generatedProtocol.additionalComments}`;
           )}
 
           {result.codeConflictDetected && (
-            <Card className="bg-amber-500/10 border-amber-500/30">
+            <Card className="app-surface bg-amber-500/10 border-amber-500/30">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
                   <AlertTriangle className="h-5 w-5" />
@@ -3260,7 +3260,7 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          <Card className="animate-slide-up stagger-3">
+          <Card className="app-surface animate-slide-up stagger-3">
             <CardContent className="p-8">
               <div className="flex items-center justify-between mb-8 border-b border-border/40 pb-6 flex-wrap gap-4">
                 <div className="flex items-center gap-3">
@@ -3316,6 +3316,7 @@ ${generatedProtocol.additionalComments}`;
           </Card>
 
           <Card className={cn(
+            "app-surface",
             "border-l-4 transition-all duration-500",
             hasAnyDiscrepancies() ? "border-l-destructive bg-destructive/5" : "border-l-success bg-success/5"
           )}>
@@ -3349,7 +3350,7 @@ ${generatedProtocol.additionalComments}`;
           </Card>
 
           {hasAnyDiscrepancies() && (
-            <Card className="animate-slide-up stagger-4 overflow-hidden border-destructive/20">
+            <Card className="app-surface animate-slide-up stagger-4 overflow-hidden border-destructive/20">
               <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap bg-destructive/5 border-b border-border/40 py-6">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl bg-destructive/20 flex items-center justify-center text-destructive shadow-sm">
@@ -3570,7 +3571,7 @@ ${generatedProtocol.additionalComments}`;
 
           {/* Drug Interactions Section */}
           {result?.drugInteractions && result.drugInteractions.length > 0 && (
-            <Card className="bg-card border-border">
+            <Card className="app-surface bg-card border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-amber-500" />
@@ -3621,7 +3622,7 @@ ${generatedProtocol.additionalComments}`;
 
           {/* Reasons Not Administered - Unified Refusal Section */}
           {unifiedRefusals.length > 0 && (
-            <Card className="animate-slide-up stagger-5 border-amber-500/20 overflow-hidden">
+            <Card className="app-surface animate-slide-up stagger-5 border-amber-500/20 overflow-hidden">
               <CardHeader className="bg-amber-500/5 border-b border-border/40 py-6">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-3">
@@ -3787,7 +3788,7 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          <Card className="animate-slide-up stagger-6 overflow-hidden border-amber-500/10">
+          <Card className="app-surface animate-slide-up stagger-6 overflow-hidden border-amber-500/10">
             <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 py-6 bg-amber-500/5">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-600 shadow-sm">
@@ -3973,7 +3974,7 @@ ${generatedProtocol.additionalComments}`;
           </Card>
 
           {result.officeClosedEntries && result.officeClosedEntries.length > 0 && (
-            <Card className="animate-slide-up stagger-7 overflow-hidden border-blue-500/20" data-testid="card-office-closed-entries">
+            <Card className="app-surface animate-slide-up stagger-7 overflow-hidden border-blue-500/20" data-testid="card-office-closed-entries">
               <CardHeader className="bg-blue-500/5 flex flex-row items-center justify-between border-b border-border/40 py-6">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-500 shadow-sm">
@@ -4035,7 +4036,7 @@ ${generatedProtocol.additionalComments}`;
           )}
 
           <div className="grid md:grid-cols-2 gap-6 animate-slide-up stagger-8">
-            <Card className="overflow-hidden">
+            <Card className="app-surface overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-primary/5">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Themes & Trends</CardTitle>
                 <CopyButton text={result.themesAndTrends} label="themes" />
@@ -4045,7 +4046,7 @@ ${generatedProtocol.additionalComments}`;
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden">
+            <Card className="app-surface overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-primary/5">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Training & Knowledge Gaps</CardTitle>
                 <CopyButton text={result.gapsInKnowledge} label="gaps" />

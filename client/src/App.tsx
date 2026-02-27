@@ -48,7 +48,7 @@ const PolicyAcknowledgement = React.lazy(() => import("@/pages/PolicyAcknowledge
 function RouteFallback() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background px-6">
-      <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-card/90 px-4 py-3 text-sm text-muted-foreground shadow-[0_12px_24px_-18px_rgba(15,23,42,0.35)]">
+      <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/90 px-4.5 py-3.5 text-sm text-muted-foreground shadow-[var(--shadow-card-hover)] backdrop-blur-sm">
         <Loader2 className="h-4.5 w-4.5 animate-spin text-primary" />
         Preparing your portal...
       </div>

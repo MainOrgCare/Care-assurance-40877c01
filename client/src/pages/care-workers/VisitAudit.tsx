@@ -454,7 +454,7 @@ export default function VisitAudit() {
   );
 
   return (
-    <div className="page-shell max-w-6xl mx-auto">
+    <div className="page-shell page-shell-compact max-w-6xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-slide-up stagger-1">
         <div className="space-y-1">
           <h1 className="page-title leading-tight">Visit Audit</h1>
@@ -465,7 +465,7 @@ export default function VisitAudit() {
       </div>
 
       {!analyzed ? (
-        <Card className="animate-slide-up stagger-2 mt-6">
+        <Card className="app-surface animate-slide-up stagger-2 mt-6">
           <CardHeader className="border-b border-border/40 pb-6">
             <CardTitle className="flex items-center gap-3">
               <div className="h-7 w-7 rounded-md flex items-center justify-center bg-primary/8">
@@ -600,7 +600,7 @@ The AI will automatically extract:
             <CopyableBox label="Operational End" value={result.auditPeriodEnd} className="border-border/40 rounded-xl" />
           </div>
 
-          <Card className="overflow-hidden">
+          <Card className="app-surface overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 pb-6">
               <CardTitle className="flex items-center gap-3">
                 <div className="h-7 w-7 rounded-md flex items-center justify-center bg-primary/8">
@@ -673,7 +673,7 @@ The AI will automatically extract:
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden">
+          <Card className="app-surface overflow-hidden">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -708,7 +708,7 @@ The AI will automatically extract:
           </Card>
 
           {result.hasDiscrepancies && result.discrepancies.length > 0 && (
-            <Card className="overflow-hidden">
+            <Card className="app-surface overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 pb-6">
                 <CardTitle className="flex items-center gap-3">
                   <div className="h-7 w-7 rounded-md flex items-center justify-center bg-destructive/8">
@@ -781,7 +781,7 @@ The AI will automatically extract:
           )}
 
           <div className="grid md:grid-cols-2 gap-6">
-            <Card className="overflow-hidden">
+            <Card className="app-surface overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Strategic Intelligence</CardTitle>
                 <CopyButton text={result.themesAndTrends} label="themes" />
@@ -791,7 +791,7 @@ The AI will automatically extract:
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden">
+            <Card className="app-surface overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Training Vectors</CardTitle>
                 <CopyButton text={result.gapsInKnowledge} label="gaps" />

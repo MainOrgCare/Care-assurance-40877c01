@@ -41,7 +41,7 @@ import {
   registerAiUsageRoutes,
 } from "./routes/index";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertPolicyDocumentSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser } from "@shared/schema";
-import { createChatCompletionWithLogging, getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { getCacheStats, clearCache } from "./services/aiCache";
 import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseAI, extractMedicationInfo, extractPersonalCareNeeds, extractContinenceInfo, extractNutritionInfo, extractEnvironmentInfo } from "./services/ruleBasedEngine";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
@@ -61,7 +61,7 @@ import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
 import { extractFromRawCalls, getExpiryDate, type RawCallRecord } from "./services/serviceOrderBuilder";
 import { getPgPoolConfig } from "./utils/pgPoolConfig";
 import { validatePlanEnhancerResponse, autoCorrectPlanEnhancerResponse, generateValidationReport } from "./utils/planEnhancerValidator";
-import { executeSecureTextCompletion } from "./utils/secureAiPipeline";
+import { executeSecureChatCompletion, executeSecureTextCompletion } from "./utils/secureAiPipeline";
 import {
   validatePassword,
   getLoginAttemptKey,
@@ -530,25 +530,20 @@ async function extractRowsFromBillingImage(
   const fallbackModel = "gpt-4.1-mini";
 
   const runExtraction = async (model: string) =>
-    createChatCompletionWithLogging(
-      {
-        model,
-        temperature: 0,
-        max_tokens: 1600,
-        messages: [
-          { role: "system", content: "You extract structured data from images." },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: BILLING_EXTRACTION_PROMPT },
-              { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
-            ],
-          },
-        ],
-      },
-      "billing-tool-extract",
-      userContext
-    );
+    executeSecureTextCompletion({
+      endpoint: "/api/billing-tool/extract-image",
+      feature: "billing-tool-extract",
+      model,
+      userContext,
+      systemPrompt: "You extract structured data from images.",
+      userContent: [
+        { type: "text", text: BILLING_EXTRACTION_PROMPT },
+        { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+      ],
+      temperature: 0,
+      maxCompletionTokens: 1600,
+      useCache: false,
+    });
 
   let completion;
   try {
@@ -565,7 +560,7 @@ async function extractRowsFromBillingImage(
     }
   }
 
-  const content = completion.choices?.[0]?.message?.content || "";
+  const content = completion.restoredText || "";
   if (!content.trim()) return [];
   const parsed = parseJsonFromModel(content);
   if (Array.isArray(parsed)) return parsed;
@@ -9556,26 +9551,21 @@ CARE WORKER INITIALS (IMPORTANT):
 
           const chunkPromises = legacyTextChunks.map(async (chunkText, chunkIndex) => {
             try {
-              const response = await createChatCompletionWithLogging(
-                {
-                  model: emarExtractionModel,
-                  messages: [
-                    { role: "system", content: prompt },
-                    {
-                      role: "user",
-                      content: `Extract medication entries from this document chunk (${chunkIndex + 1}/${legacyTextChunks.length}):\n\n${chunkText}`
-                    }
-                  ],
-                  temperature: 0,
-                  max_completion_tokens: 8000,
-                  seed: DETERMINISTIC_SEED,
-                  response_format: { type: "json_object" }
-                },
-                "emar_extraction",
-                aiUserContext
-              );
+              const response = await executeSecureTextCompletion({
+                endpoint: "/api/admin/emar-audit",
+                feature: "emar_extraction",
+                model: emarExtractionModel,
+                userContext: aiUserContext,
+                systemPrompt: prompt,
+                inputText: `Extract medication entries from this document chunk (${chunkIndex + 1}/${legacyTextChunks.length}):\n\n${chunkText}`,
+                temperature: 0,
+                maxCompletionTokens: 8000,
+                seed: DETERMINISTIC_SEED,
+                responseFormat: { type: "json_object" },
+                useCache: false,
+              });
 
-              const content = response.choices[0]?.message?.content || '{"entries":[]}';
+              const content = response.restoredText || '{"entries":[]}';
               const data = parseJsonFromContent(content) || { entries: [] };
               const chunkEntries = data.entries || [];
               console.log(
@@ -9671,19 +9661,21 @@ CARE WORKER INITIALS (IMPORTANT):
 - DO NOT confuse medication codes (AS, AD, P, R, MU, NH, SA, F, PRN) for care worker initials - MEDICATION CODES ARE NEVER INITIALS!`;
           
           try {
-            const response = await createChatCompletionWithLogging({
+            const response = await executeSecureTextCompletion({
+              endpoint: "/api/admin/emar-audit",
+              feature: "emar_extraction",
               model: emarExtractionModel,
-              messages: [
-                { role: "system", content: batchPrompt },
-                { role: "user", content: `Extract medication entries from this document:\n\n${analysisText}` }
-              ],
-        temperature: 0,
-        max_completion_tokens: 8000,
+              userContext: aiUserContext,
+              systemPrompt: batchPrompt,
+              inputText: `Extract medication entries from this document:\n\n${analysisText}`,
+              temperature: 0,
+              maxCompletionTokens: 8000,
               seed: DETERMINISTIC_SEED,
-              response_format: { type: "json_object" },
-            }, "emar_extraction", aiUserContext);
+              responseFormat: { type: "json_object" },
+              useCache: false,
+            });
             
-            const content = response.choices[0]?.message?.content || '{"entries":[]}';
+            const content = response.restoredText || '{"entries":[]}';
             const data = parseJsonFromContent(content) || { entries: [] };
             const batchEntries = data.entries || [];
             console.log(`DEBUG: Pass ${passNumber} Batch ${batchIndex + 1} extracted ${batchEntries.length} entries`);
@@ -12038,23 +12030,23 @@ Return JSON with indices that are VALID (keep these). Include ALL indices unless
 
         let pass2Success = false;
         try {
-          // Use GPT-4o-mini for validation passes - cheaper than GPT-4.1-mini
-          const pass2Response = await createChatCompletionWithLogging({
+          const pass2Response = await executeSecureTextCompletion({
+            endpoint: "/api/admin/emar-audit",
+            feature: "emar_validation_pass2",
             model: emarValidationModel,
-            messages: [
-              { role: "system", content: pass2SystemPrompt },
-              { role: "user", content: hasTextContext 
-                ? "Review the discrepancies. Be conservative - when in doubt, keep the discrepancy."
-                : [...imageContent, { type: "text", text: "Review the discrepancies based on these EMAR images. Be conservative - when in doubt, keep the discrepancy." }]
-              }
-            ],
+            userContext: aiUserContext,
+            systemPrompt: pass2SystemPrompt,
+            userContent: hasTextContext
+              ? "Review the discrepancies. Be conservative - when in doubt, keep the discrepancy."
+              : [...imageContent, { type: "text", text: "Review the discrepancies based on these EMAR images. Be conservative - when in doubt, keep the discrepancy." }],
             temperature: 0,
-            max_completion_tokens: 2000,
+            maxCompletionTokens: 2000,
             seed: DETERMINISTIC_SEED,
-            response_format: { type: "json_object" },
-          }, "emar_validation_pass2", aiUserContext);
-          
-          const pass2Content = pass2Response.choices[0]?.message?.content || "{}";
+            responseFormat: { type: "json_object" },
+            useCache: false,
+          });
+
+          const pass2Content = pass2Response.restoredText || "{}";
           
           try {
             const pass2Data = JSON.parse(pass2Content);
@@ -12111,23 +12103,23 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
 {"confirmedIndices": [1, 2, 3], "evidence": {"1": "Code 'R' visible in image", "2": "Detection appears valid"}}`;
 
           try {
-            // Use GPT-4o-mini for validation passes - cheaper than GPT-4.1-mini
-            const pass3Response = await createChatCompletionWithLogging({
+            const pass3Response = await executeSecureTextCompletion({
+              endpoint: "/api/admin/emar-audit",
+              feature: "emar_validation_pass3",
               model: emarValidationModel,
-              messages: [
-                { role: "system", content: pass3SystemPrompt },
-                { role: "user", content: hasTextContext
-                  ? "Confirm discrepancies and provide evidence where possible. Keep discrepancies even without explicit text evidence."
-                  : [...imageContent, { type: "text", text: "Confirm discrepancies based on these EMAR images. Provide evidence where visible. Keep discrepancies even without clear visual evidence." }]
-                }
-              ],
-              max_completion_tokens: 2000,
+              userContext: aiUserContext,
+              systemPrompt: pass3SystemPrompt,
+              userContent: hasTextContext
+                ? "Confirm discrepancies and provide evidence where possible. Keep discrepancies even without explicit text evidence."
+                : [...imageContent, { type: "text", text: "Confirm discrepancies based on these EMAR images. Provide evidence where visible. Keep discrepancies even without clear visual evidence." }],
+              maxCompletionTokens: 2000,
               temperature: 0,
               seed: DETERMINISTIC_SEED,
-              response_format: { type: "json_object" },
-            }, "emar_validation_pass3", aiUserContext);
-            
-            const pass3Content = pass3Response.choices[0]?.message?.content || "{}";
+              responseFormat: { type: "json_object" },
+              useCache: false,
+            });
+
+            const pass3Content = pass3Response.restoredText || "{}";
             
             try {
               const pass3Data = JSON.parse(pass3Content);
@@ -19825,27 +19817,23 @@ I have also sent that reminder to your Messages inbox.`
         username: req.user?.username || null 
       };
 
-      // Scrub PII from all user messages before sending to AI
-      const scrubbedMessages = recentMessages.map((m: { role: string; content: string }) => ({
-        role: m.role as "user" | "assistant",
-        content: m.role === "user" ? chatPIIVault.scrubString(m.content) : m.content,
-      }));
-      chatPIIVault.logAudit('SCRUB', '/api/ai/chat', req.user?.id, req.user?.username);
-
-      const completion = await createChatCompletionWithLogging(
-        {
-          model: getPreferredModel(),
-          messages: [
-            { role: "system", content: CHAT_ASSISTANT_SYSTEM_PROMPT + roleContext },
-            ...scrubbedMessages,
-          ],
-          tools: [{ type: "function", function: SEND_MESSAGE_FUNCTION }],
-          temperature: 0.7,
-          max_completion_tokens: 800,
-        },
-        "chat-assistant",
-        aiUserContext
-      );
+      const completion = await executeSecureChatCompletion({
+        endpoint: "/api/ai/chat",
+        feature: "chat-assistant",
+        model: getPreferredModel(),
+        userContext: aiUserContext,
+        vault: chatPIIVault,
+        messages: [
+          { role: "system", content: CHAT_ASSISTANT_SYSTEM_PROMPT + roleContext },
+          ...recentMessages.map((m: { role: string; content: string }) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        ],
+        tools: [{ type: "function", function: SEND_MESSAGE_FUNCTION }],
+        temperature: 0.7,
+        maxCompletionTokens: 800,
+      });
 
       const assistantMessage = completion.choices[0]?.message;
       
@@ -19869,25 +19857,28 @@ I have also sent that reminder to your Messages inbox.`
             console.log(`[Chat Assistant] Compli-ee sent message to ${req.user.username}: "${args.subject}"`);
             
             // Get a follow-up response from AI confirming the message was sent
-            const followUp = await createChatCompletionWithLogging(
-              {
-                model: getPreferredModel(),
-                messages: [
-                  { role: "system", content: CHAT_ASSISTANT_SYSTEM_PROMPT + roleContext },
-                  ...scrubbedMessages,
-                  assistantMessage as any,
-                  { 
-                    role: "tool", 
-                    tool_call_id: toolCall.id, 
-                    content: JSON.stringify({ success: true, message: "Message sent successfully to user's inbox" }) 
-                  },
-                ],
-                temperature: 0.7,
-                max_completion_tokens: 300,
-              },
-              "chat-assistant",
-              aiUserContext
-            );
+            const followUp = await executeSecureChatCompletion({
+              endpoint: "/api/ai/chat",
+              feature: "chat-assistant",
+              model: getPreferredModel(),
+              userContext: aiUserContext,
+              vault: chatPIIVault,
+              messages: [
+                { role: "system", content: CHAT_ASSISTANT_SYSTEM_PROMPT + roleContext },
+                ...recentMessages.map((m: { role: string; content: string }) => ({
+                  role: m.role,
+                  content: m.content,
+                })),
+                assistantMessage as any,
+                { 
+                  role: "tool", 
+                  tool_call_id: toolCall.id, 
+                  content: JSON.stringify({ success: true, message: "Message sent successfully to user's inbox" }) 
+                },
+              ],
+              temperature: 0.7,
+              maxCompletionTokens: 300,
+            });
             
             const rawReply = followUp.choices[0]?.message?.content || "Done! I've sent that to your Messages inbox. 📬";
             const reply = chatPIIVault.restoreString(rawReply);

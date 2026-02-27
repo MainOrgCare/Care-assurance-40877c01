@@ -128,7 +128,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="page-shell max-w-3xl mx-auto">
+    <div className="page-shell page-shell-compact max-w-3xl mx-auto">
       <div className="flex items-center gap-4 mb-8">
         <Button
           variant="ghost"
@@ -148,7 +148,7 @@ export default function Settings() {
         </div>
       </div>
 
-      <Card>
+      <Card className="app-surface">
         <CardContent className="space-y-8 pt-6">
           <section className="space-y-4">
             <div className="flex items-center gap-2">
