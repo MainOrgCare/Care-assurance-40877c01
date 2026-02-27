@@ -267,138 +267,155 @@ const SidebarContent = memo(function SidebarContent({
         )}
 
         {/* Service Users */}
-        <Collapsible
-          open={isCollapsed ? false : openServiceUsers}
-          onOpenChange={setOpenServiceUsers}
-          className="space-y-0.5"
-          disabled={isCollapsed}
-        >
-           <CollapsibleTrigger
-            title={isCollapsed ? "Service Users" : undefined}
+        {isCollapsed ? (
+          <Link
+            href="/service-users/upload"
+            title="Service Users"
             className={cn(
-            "flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all duration-150 group hover:bg-sidebar-foreground/[0.06]",
-            isCollapsed && "justify-center px-2.5"
-           )}>
-            <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
-              <Users size={16} className="text-sidebar-foreground/50" />
-               <span className={labelClass}>Service Users</span>
-            </div>
-            {!isCollapsed && (
-              <div className="flex items-center gap-2">
-               {timeLeft !== null && (
-                 <Badge variant="destructive" className="h-5 px-1.5 text-[9px] font-mono tabular-nums">
-                   {formatTime(timeLeft)}
-                 </Badge>
-               )}
-              <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openServiceUsers ? "rotate-180" : "")} />
-            </div>
+              "flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all duration-150 group hover:bg-sidebar-foreground/[0.06]"
             )}
-          </CollapsibleTrigger>
-          {!isCollapsed && (
+          >
+            <div className="flex items-center gap-0">
+              <Users size={16} className="text-sidebar-foreground/50" />
+              <span className={labelClass}>Service Users</span>
+            </div>
+          </Link>
+        ) : (
+          <Collapsible
+            open={openServiceUsers}
+            onOpenChange={setOpenServiceUsers}
+            className="space-y-0.5"
+          >
+             <CollapsibleTrigger
+              className="flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all duration-150 group hover:bg-sidebar-foreground/[0.06]"
+            >
+              <div className="flex items-center gap-3">
+                <Users size={16} className="text-sidebar-foreground/50" />
+                 <span className={labelClass}>Service Users</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {timeLeft !== null && (
+                  <Badge variant="destructive" className="h-5 px-1.5 text-[9px] font-mono tabular-nums">
+                    {formatTime(timeLeft)}
+                  </Badge>
+                )}
+                <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openServiceUsers ? "rotate-180" : "")} />
+              </div>
+            </CollapsibleTrigger>
             <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Service Users pages">
-             <Link href="/service-users/upload" className={subNavLinkClass(location === "/service-users/upload")}>
-                <Upload size={14} /> Data Upload
-             </Link>
-             <Link href="/service-users/care-planning" className={subNavLinkClass(location === "/service-users/care-planning")}>
-                <FileText size={14} /> Care Planning
-             </Link>
-             <Link href="/service-users/risk-assessment" className={subNavLinkClass(location === "/service-users/risk-assessment")}>
-                <ShieldAlert size={14} /> Risk Assessment
-             </Link>
-             <Link href="/service-users/plan-enhancer" className={subNavLinkClass(location === "/service-users/plan-enhancer")}>
-                <Sparkles size={14} /> Plan Enhancer
-             </Link>
+              <Link href="/service-users/upload" className={subNavLinkClass(location === "/service-users/upload")}>
+                 <Upload size={14} /> Data Upload
+              </Link>
+              <Link href="/service-users/care-planning" className={subNavLinkClass(location === "/service-users/care-planning")}>
+                 <FileText size={14} /> Care Planning
+              </Link>
+              <Link href="/service-users/risk-assessment" className={subNavLinkClass(location === "/service-users/risk-assessment")}>
+                 <ShieldAlert size={14} /> Risk Assessment
+              </Link>
+              <Link href="/service-users/plan-enhancer" className={subNavLinkClass(location === "/service-users/plan-enhancer")}>
+                 <Sparkles size={14} /> Plan Enhancer
+              </Link>
             </CollapsibleContent>
-          )}
-        </Collapsible>
+          </Collapsible>
+        )}
 
         {/* Care Workers */}
-        <Collapsible
-          open={isCollapsed ? false : openCareWorkers}
-          onOpenChange={setOpenCareWorkers}
-          className="space-y-0.5"
-          disabled={isCollapsed}
-        >
-           <CollapsibleTrigger
-            title={isCollapsed ? "Care Workers" : undefined}
-            className={cn(
-            "flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]",
-            isCollapsed && "justify-center px-2.5"
-           )}>
-            <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
+        {isCollapsed ? (
+          <Link
+            href="/care-workers/list"
+            title="Care Workers"
+            className="flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
+          >
+            <div className="flex items-center gap-0">
               <UserCog size={16} className="text-sidebar-foreground/50" />
-               <span className={labelClass}>Care Workers</span>
+              <span className={labelClass}>Care Workers</span>
             </div>
-            {!isCollapsed && (
+          </Link>
+        ) : (
+          <Collapsible
+            open={openCareWorkers}
+            onOpenChange={setOpenCareWorkers}
+            className="space-y-0.5"
+          >
+             <CollapsibleTrigger
+              className="flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
+            >
+              <div className="flex items-center gap-3">
+                <UserCog size={16} className="text-sidebar-foreground/50" />
+                 <span className={labelClass}>Care Workers</span>
+              </div>
               <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openCareWorkers ? "rotate-180" : "")}/>
-            )}
-          </CollapsibleTrigger>
-          {!isCollapsed && (
+            </CollapsibleTrigger>
             <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Care Workers pages">
-             <Link href="/care-workers/list" className={subNavLinkClass(location === "/care-workers/list")}>
-                <Users size={14} /> Carers
-             </Link>
-             <Link href="/care-workers/emar-audit" className={subNavLinkClass(location === "/care-workers/emar-audit")}>
-                <Activity size={14} /> EMAR Audit
-             </Link>
-             <Link href="/care-workers/visit-audit" className={subNavLinkClass(location === "/care-workers/visit-audit")}>
-                <ClipboardList size={14} /> Visit Audit
-             </Link>
-             <Link href="/care-workers/performance" className={subNavLinkClass(location === "/care-workers/performance")}>
-                <BarChart size={14} /> Performance
-             </Link>
+              <Link href="/care-workers/list" className={subNavLinkClass(location === "/care-workers/list")}>
+                 <Users size={14} /> Carers
+              </Link>
+              <Link href="/care-workers/emar-audit" className={subNavLinkClass(location === "/care-workers/emar-audit")}>
+                 <Activity size={14} /> EMAR Audit
+              </Link>
+              <Link href="/care-workers/visit-audit" className={subNavLinkClass(location === "/care-workers/visit-audit")}>
+                 <ClipboardList size={14} /> Visit Audit
+              </Link>
+              <Link href="/care-workers/performance" className={subNavLinkClass(location === "/care-workers/performance")}>
+                 <BarChart size={14} /> Performance
+              </Link>
             </CollapsibleContent>
-          )}
-        </Collapsible>
+          </Collapsible>
+        )}
 
         {/* Admin */}
         {isAdminUser && (
-          <Collapsible
-            open={isCollapsed ? false : openAdmin}
-            onOpenChange={setOpenAdmin}
-            className="space-y-0.5"
-            disabled={isCollapsed}
-          >
-            <CollapsibleTrigger
-              title={isCollapsed ? "Admin" : undefined}
-              className={cn(
-              "flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]",
-              isCollapsed && "justify-center px-2.5"
-            )}>
-              <div className={cn("flex items-center gap-3", isCollapsed && "gap-0")}>
+          isCollapsed ? (
+            <Link
+              href="/shadow-admin-portal"
+              title="Admin"
+              className="flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
+            >
+              <div className="flex items-center gap-0">
                 <Lock size={16} className="text-sidebar-foreground/50" />
                 <span className={labelClass}>Admin</span>
               </div>
-              {!isCollapsed && (
-                <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openAdmin ? "rotate-180" : "")} />
-              )}
-            </CollapsibleTrigger>
-            {!isCollapsed && (
-              <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Admin pages">
-              <Link href="/shadow-admin-portal" className={subNavLinkClass(location === "/shadow-admin-portal")}>
-                <ShieldCheck size={14} /> Administrator Controls
-              </Link>
-              <Link href="/roi-calculator" className={subNavLinkClass(location === "/roi-calculator")} data-testid="link-roi-calculator">
-                <Calculator size={14} /> Features & Benefits
-              </Link>
-              <Link href="/testing-features" className={subNavLinkClass(location === "/testing-features")}>
-                <FlaskConical size={14} /> Testing Features
-              </Link>
-              <Link href="/system-logs" className={subNavLinkClass(location === "/system-logs")}>
-                <Terminal size={14} /> System Logs
-              </Link>
-              <Link
-                href="/rostering-unified"
-                className={subNavLinkClass(location === "/rostering-unified")}
+            </Link>
+          ) : (
+            <Collapsible
+              open={openAdmin}
+              onOpenChange={setOpenAdmin}
+              className="space-y-0.5"
+            >
+              <CollapsibleTrigger
+                className="flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
               >
-                <ClipboardList size={14} /> Rostering Studio
-              </Link>
-              <Link href="/billing-tool" className={subNavLinkClass(location === "/billing-tool")} data-testid="link-billing-tool">
-                <FileSpreadsheet size={14} /> Billing Tool
-              </Link>
+                <div className="flex items-center gap-3">
+                  <Lock size={16} className="text-sidebar-foreground/50" />
+                  <span className={labelClass}>Admin</span>
+                </div>
+                <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openAdmin ? "rotate-180" : "")} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Admin pages">
+                <Link href="/shadow-admin-portal" className={subNavLinkClass(location === "/shadow-admin-portal")}>
+                  <ShieldCheck size={14} /> Administrator Controls
+                </Link>
+                <Link href="/roi-calculator" className={subNavLinkClass(location === "/roi-calculator")} data-testid="link-roi-calculator">
+                  <Calculator size={14} /> Features & Benefits
+                </Link>
+                <Link href="/testing-features" className={subNavLinkClass(location === "/testing-features")}>
+                  <FlaskConical size={14} /> Testing Features
+                </Link>
+                <Link href="/system-logs" className={subNavLinkClass(location === "/system-logs")}>
+                  <Terminal size={14} /> System Logs
+                </Link>
+                <Link
+                  href="/rostering-unified"
+                  className={subNavLinkClass(location === "/rostering-unified")}
+                >
+                  <ClipboardList size={14} /> Rostering Studio
+                </Link>
+                <Link href="/billing-tool" className={subNavLinkClass(location === "/billing-tool")} data-testid="link-billing-tool">
+                  <FileSpreadsheet size={14} /> Billing Tool
+                </Link>
               </CollapsibleContent>
-            )}
-          </Collapsible>
+            </Collapsible>
+          )
         )}
       </nav>
 
