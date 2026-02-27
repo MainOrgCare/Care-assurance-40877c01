@@ -5,13 +5,163 @@ const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES } = self.CA_EXTENSION_CONSTANT
 const API_PROXY_TYPE = "CA_API_PROXY_REQUEST";
 
 // Track tabs with content-app.js ready
-let contentScriptReadyTabs = new Map(); // origin -> tabId
+const contentScriptReadyTabs = new Map(); // normalized host -> tabId
+
+const normalizeOriginHost = (value) => {
+  if (!value) return "";
+  const raw = String(value).trim();
+  if (!raw) return "";
+  try {
+    if (raw.startsWith("http://") || raw.startsWith("https://")) {
+      return new URL(raw).host.toLowerCase();
+    }
+    return raw.replace(/^\/+/, "").replace(/\/+$/, "").toLowerCase();
+  } catch {
+    return raw.replace(/^\/+/, "").replace(/\/+$/, "").toLowerCase();
+  }
+};
+
+const getReadyHostCandidates = (targetOrigin) => {
+  const normalized = normalizeOriginHost(targetOrigin);
+  if (!normalized) return [];
+  const candidates = [normalized];
+  if (normalized.startsWith("www.")) {
+    candidates.push(normalized.slice(4));
+  } else {
+    candidates.push(`www.${normalized}`);
+  }
+  return Array.from(new Set(candidates));
+};
 
 const getStored = (keys) =>
   new Promise((resolve) => chrome.storage.local.get(keys, (items) => resolve(items)));
 
 const setStored = (items) =>
   new Promise((resolve) => chrome.storage.local.set(items, () => resolve()));
+
+const RUNTIME_METRICS_FLUSH_DELAY_MS = 900;
+const WORKER_HEARTBEAT_INTERVAL_MS = 30_000;
+
+const getDefaultRuntimeMetrics = () => ({
+  proxyRequests: 0,
+  proxySuccesses: 0,
+  proxyFailures: 0,
+  proxyRetries: 0,
+  autofillStarts: 0,
+  autofillStops: 0,
+  contentReadySignals: 0,
+  lastProxyEndpoint: null,
+  lastProxyMethod: null,
+  lastRequestId: null,
+  lastProxyStatus: null,
+  lastTargetOrigin: null,
+  lastError: null,
+  lastErrorAt: null,
+  workerStartedAt: null,
+  lastHeartbeatAt: null,
+  heartbeatCount: 0,
+  lastActivityAt: null,
+  lastActivityType: null,
+  lastUpdatedAt: null,
+});
+
+let runtimeMetricsCache = null;
+let runtimeMetricsHydrationPromise = null;
+let runtimeMetricsFlushTimer = null;
+
+const hydrateRuntimeMetricsCache = async () => {
+  if (runtimeMetricsCache) {
+    return runtimeMetricsCache;
+  }
+  if (runtimeMetricsHydrationPromise) {
+    return runtimeMetricsHydrationPromise;
+  }
+  runtimeMetricsHydrationPromise = getStored([STORAGE_KEYS.runtimeMetrics])
+    .then((stored) => {
+      const metrics = stored?.[STORAGE_KEYS.runtimeMetrics];
+      runtimeMetricsCache = {
+        ...getDefaultRuntimeMetrics(),
+        ...(metrics && typeof metrics === "object" ? metrics : {}),
+      };
+      return runtimeMetricsCache;
+    })
+    .finally(() => {
+      runtimeMetricsHydrationPromise = null;
+    });
+  return runtimeMetricsHydrationPromise;
+};
+
+const flushRuntimeMetrics = async () => {
+  if (!runtimeMetricsCache) {
+    return;
+  }
+  await setStored({
+    [STORAGE_KEYS.runtimeMetrics]: {
+      ...runtimeMetricsCache,
+      lastUpdatedAt: new Date().toISOString(),
+    },
+  });
+};
+
+const scheduleRuntimeMetricsFlush = () => {
+  if (runtimeMetricsFlushTimer) {
+    return;
+  }
+  runtimeMetricsFlushTimer = setTimeout(() => {
+    runtimeMetricsFlushTimer = null;
+    flushRuntimeMetrics().catch((error) => {
+      console.warn("[CA Extension] Failed to flush runtime metrics:", error);
+    });
+  }, RUNTIME_METRICS_FLUSH_DELAY_MS);
+};
+
+const updateRuntimeMetrics = async (updater, options = {}) => {
+  const current = await hydrateRuntimeMetricsCache();
+  const next = typeof updater === "function" ? updater(current) : current;
+  runtimeMetricsCache = {
+    ...getDefaultRuntimeMetrics(),
+    ...(next || current || {}),
+    lastUpdatedAt: new Date().toISOString(),
+  };
+  if (options.flushImmediately) {
+    await flushRuntimeMetrics();
+    return;
+  }
+  scheduleRuntimeMetricsFlush();
+};
+
+const markRuntimeActivity = (activityType, options = {}) =>
+  updateRuntimeMetrics((metrics) => ({
+    ...metrics,
+    lastActivityAt: new Date().toISOString(),
+    lastActivityType: activityType || metrics.lastActivityType || "activity",
+  }), options);
+
+const recordHeartbeat = () =>
+  updateRuntimeMetrics((metrics) => ({
+    ...metrics,
+    lastHeartbeatAt: new Date().toISOString(),
+    heartbeatCount: (metrics.heartbeatCount || 0) + 1,
+  }));
+
+updateRuntimeMetrics((metrics) => ({
+  ...metrics,
+  workerStartedAt: metrics.workerStartedAt || new Date().toISOString(),
+  lastActivityAt: new Date().toISOString(),
+  lastActivityType: "startup",
+}), { flushImmediately: true }).catch((error) => {
+  console.warn("[CA Extension] Failed to initialize runtime metrics:", error);
+});
+
+const heartbeatTimer = setInterval(() => {
+  recordHeartbeat().catch((error) => {
+    console.warn("[CA Extension] Failed to record heartbeat:", error);
+  });
+}, WORKER_HEARTBEAT_INTERVAL_MS);
+
+if (typeof heartbeatTimer?.unref === "function") {
+  heartbeatTimer.unref();
+}
 
 const buildFormUrl = (formType, caseId, serviceDataGroupId, payload) => {
   const config = FORM_CONFIGS[formType] || FORM_CONFIGS.acp;
@@ -31,6 +181,11 @@ const clearLastError = () => setStored({ [STORAGE_KEYS.lastError]: null });
 const setLastError = async (error) => {
   const message = typeof error === "string" ? error : error?.message || "Unknown error";
   await setStored({ [STORAGE_KEYS.lastError]: message });
+  await updateRuntimeMetrics((metrics) => ({
+    ...metrics,
+    lastError: message,
+    lastErrorAt: new Date().toISOString(),
+  }), { flushImmediately: true });
 };
 
 /** Update the extension badge to show autofill progress */
@@ -72,6 +227,10 @@ const startAutofill = async (caseId, serviceDataGroupId) => {
     },
   });
   await clearLastError();
+  await updateRuntimeMetrics((metrics) => ({
+    ...metrics,
+    autofillStarts: (metrics.autofillStarts || 0) + 1,
+  }));
   updateBadge(1, total);
 };
 
@@ -132,6 +291,10 @@ const stopAutofill = async () => {
     [STORAGE_KEYS.signatureData]: null,
     [STORAGE_KEYS.signatureBatchId]: null,
   });
+  await updateRuntimeMetrics((metrics) => ({
+    ...metrics,
+    autofillStops: (metrics.autofillStops || 0) + 1,
+  }));
   clearBadge();
 };
 
@@ -200,6 +363,22 @@ const buildTargetPatterns = (targetOrigin) => {
 };
 
 const findContentScriptTab = async (targetOrigin) => {
+  for (const readyHost of getReadyHostCandidates(targetOrigin)) {
+    const readyTabId = contentScriptReadyTabs.get(readyHost);
+    if (!readyTabId) continue;
+    try {
+      const tab = await chrome.tabs.get(readyTabId);
+      const currentHost = normalizeOriginHost(tab?.url);
+      if (tab?.id && currentHost && currentHost.includes(readyHost.replace(/^www\./, ""))) {
+        console.log(`[CA Extension] Reusing ready content script tab ${tab.id} for ${readyHost}`);
+        return tab.id;
+      }
+    } catch {
+      // Tab was closed or inaccessible — clear stale mapping.
+    }
+    contentScriptReadyTabs.delete(readyHost);
+  }
+
   const patterns = buildTargetPatterns(targetOrigin);
   console.log(`[CA Extension] Searching tabs with patterns:`, patterns);
   for (const pattern of patterns) {
@@ -209,6 +388,10 @@ const findContentScriptTab = async (targetOrigin) => {
       if (tabs.length > 0) {
         const activeTab = tabs.find((tab) => tab.active) || tabs[0];
         console.log(`[CA Extension] Using tab ${activeTab.id}: ${activeTab.url}`);
+        const tabHost = normalizeOriginHost(activeTab?.url);
+        if (tabHost && activeTab?.id) {
+          contentScriptReadyTabs.set(tabHost, activeTab.id);
+        }
         return activeTab.id;
       }
     } catch (error) {
@@ -219,12 +402,27 @@ const findContentScriptTab = async (targetOrigin) => {
 };
 
 const forwardProxyRequest = async (request, sendResponse) => {
-  const { endpoint, method = "GET", body, targetOrigin } = request || {};
+  const { endpoint, method = "GET", body, targetOrigin, requestId } = request || {};
   const resolvedTargetOrigin = targetOrigin || "careassurance.uk";
   console.log(`[CA Extension] API proxy request: ${method} ${endpoint} for ${resolvedTargetOrigin}`);
+  await updateRuntimeMetrics((metrics) => ({
+    ...metrics,
+    proxyRequests: (metrics.proxyRequests || 0) + 1,
+    lastProxyEndpoint: endpoint || null,
+    lastProxyMethod: method,
+    lastRequestId: requestId || null,
+    lastTargetOrigin: resolvedTargetOrigin,
+  }));
   try {
     const tabId = await findContentScriptTab(resolvedTargetOrigin);
     if (!tabId) {
+      await updateRuntimeMetrics((metrics) => ({
+        ...metrics,
+        proxyFailures: (metrics.proxyFailures || 0) + 1,
+        lastProxyStatus: "needs-tab",
+        lastError: `No tab for ${resolvedTargetOrigin}`,
+        lastErrorAt: new Date().toISOString(),
+      }));
       sendResponse({
         ok: false,
         error: `No Care Assurance tab found. Please open https://${resolvedTargetOrigin} and log in first.`,
@@ -239,10 +437,23 @@ const forwardProxyRequest = async (request, sendResponse) => {
         endpoint,
         method,
         body,
+        requestId,
       });
+      await updateRuntimeMetrics((metrics) => ({
+        ...metrics,
+        proxySuccesses: response?.ok ? (metrics.proxySuccesses || 0) + 1 : metrics.proxySuccesses || 0,
+        proxyFailures: response?.ok ? metrics.proxyFailures || 0 : (metrics.proxyFailures || 0) + 1,
+        lastProxyStatus: response?.ok ? "ok" : Number.isFinite(Number(response?.status)) ? Number(response.status) : "error",
+        lastError: response?.ok ? metrics.lastError : response?.error || metrics.lastError,
+        lastErrorAt: response?.ok ? metrics.lastErrorAt : new Date().toISOString(),
+      }));
       sendResponse(response);
     } catch (forwardError) {
       console.error("[CA Extension] Error forwarding to content script:", forwardError);
+      await updateRuntimeMetrics((metrics) => ({
+        ...metrics,
+        proxyRetries: (metrics.proxyRetries || 0) + 1,
+      }));
       try {
         await chrome.scripting.executeScript({
           target: { tabId },
@@ -254,10 +465,26 @@ const forwardProxyRequest = async (request, sendResponse) => {
           endpoint,
           method,
           body,
+          requestId,
         });
+        await updateRuntimeMetrics((metrics) => ({
+          ...metrics,
+          proxySuccesses: retryResponse?.ok ? (metrics.proxySuccesses || 0) + 1 : metrics.proxySuccesses || 0,
+          proxyFailures: retryResponse?.ok ? metrics.proxyFailures || 0 : (metrics.proxyFailures || 0) + 1,
+          lastProxyStatus: retryResponse?.ok ? "ok" : Number.isFinite(Number(retryResponse?.status)) ? Number(retryResponse.status) : "error",
+          lastError: retryResponse?.ok ? metrics.lastError : retryResponse?.error || metrics.lastError,
+          lastErrorAt: retryResponse?.ok ? metrics.lastErrorAt : new Date().toISOString(),
+        }));
         sendResponse(retryResponse);
       } catch (injectError) {
         console.error("[CA Extension] Failed to inject script:", injectError);
+        await updateRuntimeMetrics((metrics) => ({
+          ...metrics,
+          proxyFailures: (metrics.proxyFailures || 0) + 1,
+          lastProxyStatus: "inject-failed",
+          lastError: injectError?.message || "Script injection failed",
+          lastErrorAt: new Date().toISOString(),
+        }));
         sendResponse({
           ok: false,
           error: "Could not communicate with Care Assurance tab. Please refresh the page and try again.",
@@ -266,11 +493,19 @@ const forwardProxyRequest = async (request, sendResponse) => {
     }
   } catch (error) {
     console.error("[CA Extension] API proxy error:", error);
+    await updateRuntimeMetrics((metrics) => ({
+      ...metrics,
+      proxyFailures: (metrics.proxyFailures || 0) + 1,
+      lastProxyStatus: "exception",
+      lastError: error?.message || "Proxy request failed",
+      lastErrorAt: new Date().toISOString(),
+    }));
     sendResponse({ ok: false, error: error?.message || "Proxy request failed" });
   }
 };
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  markRuntimeActivity(message?.type || "message").catch(() => {});
   // Wrap sendResponse so a disconnected port (MV3 service-worker lifecycle) is silently caught
   const safeSendResponse = (data) => {
     try {
@@ -367,9 +602,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   
   // Handle content script ready notification
   if (message?.type === "CA_CONTENT_SCRIPT_READY") {
-    const origin = message.origin;
-    contentScriptReadyTabs.set(origin, _sender.tab?.id);
-    console.log(`[CA Extension] Content script ready on: ${origin}`);
+    const host = normalizeOriginHost(message.origin || _sender.tab?.url);
+    const tabId = _sender.tab?.id;
+    if (host && tabId) {
+      contentScriptReadyTabs.set(host, tabId);
+      updateRuntimeMetrics((metrics) => ({
+        ...metrics,
+        contentReadySignals: (metrics.contentReadySignals || 0) + 1,
+        lastTargetOrigin: host,
+      })).catch((error) => {
+        console.warn("[CA Extension] Failed to update runtime metrics:", error);
+      });
+      console.log(`[CA Extension] Content script ready on: ${host} (tab ${tabId})`);
+    }
     return false;
   }
   
@@ -380,4 +625,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   return false;
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  markRuntimeActivity("tab-removed").catch(() => {});
+  for (const [host, mappedTabId] of contentScriptReadyTabs.entries()) {
+    if (mappedTabId === tabId) {
+      contentScriptReadyTabs.delete(host);
+    }
+  }
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local") {
+    return;
+  }
+  if (!Object.prototype.hasOwnProperty.call(changes, STORAGE_KEYS.runtimeMetrics)) {
+    return;
+  }
+  const change = changes[STORAGE_KEYS.runtimeMetrics];
+  const nextValue = change?.newValue;
+  if (!nextValue || typeof nextValue !== "object") {
+    runtimeMetricsCache = null;
+    if (runtimeMetricsFlushTimer) {
+      clearTimeout(runtimeMetricsFlushTimer);
+      runtimeMetricsFlushTimer = null;
+    }
+    return;
+  }
+  runtimeMetricsCache = {
+    ...getDefaultRuntimeMetrics(),
+    ...nextValue,
+  };
 });

@@ -60,8 +60,10 @@ const ALL_WIDGETS: WidgetConfig[] = [
 ];
 
 const DEFAULT_WIDGETS = ["compliance_score", "audits_completed", "active_alerts", "plans_updated", "compliance_data", "recent_alerts"];
+const LARGE_WIDGET_IDS = new Set(["compliance_data", "recent_alerts", "activity_feed"]);
+const WIDGETS_BY_ID = new Map(ALL_WIDGETS.map((widget) => [widget.id, widget] as const));
 
-function SortableWidgetItemBase({ widget, isActive, onToggle }: { widget: WidgetConfig; isActive: boolean; onToggle: () => void }) {
+function SortableWidgetItemBase({ widget, isActive, onToggle }: { widget: WidgetConfig; isActive: boolean; onToggle: (widgetId: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
   
   const style = useMemo(() => ({
@@ -89,7 +91,7 @@ function SortableWidgetItemBase({ widget, isActive, onToggle }: { widget: Widget
       </div>
       <Switch
         checked={isActive}
-        onCheckedChange={onToggle}
+        onCheckedChange={() => onToggle(widget.id)}
         data-testid={`switch-widget-${widget.id}`}
       />
     </div>
@@ -217,20 +219,22 @@ export default function Dashboard() {
     }
   }, [widgetPrefs]);
 
-  const savePreferences = (order: string[], active: string[]) => {
+  const activeWidgetSet = useMemo(() => new Set(activeWidgets), [activeWidgets]);
+
+  const savePreferences = useCallback((order: string[], active: string[]) => {
     const widgetsToSave = order.map(id => active.includes(id) ? id : `hidden:${id}`);
     saveWidgetsMutation.mutate(widgetsToSave);
-  };
+  }, [saveWidgetsMutation]);
 
-  const toggleWidget = (widgetId: string) => {
+  const toggleWidget = useCallback((widgetId: string) => {
     const newWidgets = activeWidgets.includes(widgetId)
       ? activeWidgets.filter(w => w !== widgetId)
       : [...activeWidgets, widgetId];
     setActiveWidgets(newWidgets);
     savePreferences(widgetOrder, newWidgets);
-  };
+  }, [activeWidgets, widgetOrder, savePreferences]);
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
       const oldIndex = widgetOrder.indexOf(active.id as string);
@@ -239,7 +243,7 @@ export default function Dashboard() {
       setWidgetOrder(newOrder);
       savePreferences(newOrder, activeWidgets);
     }
-  };
+  }, [widgetOrder, activeWidgets, savePreferences]);
 
   const stats = data?.stats;
   const recentAlerts: AdminAlert[] = data?.recentAlerts ?? [];
@@ -256,9 +260,14 @@ export default function Dashboard() {
   }, []);
 
   
-  const sortedActiveWidgets = useMemo(() => widgetOrder.filter(id => activeWidgets.includes(id)), [widgetOrder, activeWidgets]);
-  const smallWidgets = useMemo(() => sortedActiveWidgets.filter(id => !["compliance_data", "recent_alerts", "activity_feed"].includes(id)), [sortedActiveWidgets]);
-  const largeWidgets = useMemo(() => sortedActiveWidgets.filter(id => ["compliance_data", "recent_alerts", "activity_feed"].includes(id)), [sortedActiveWidgets]);
+  const sortedActiveWidgets = useMemo(() => widgetOrder.filter(id => activeWidgetSet.has(id)), [widgetOrder, activeWidgetSet]);
+  const smallWidgets = useMemo(() => sortedActiveWidgets.filter(id => !LARGE_WIDGET_IDS.has(id)), [sortedActiveWidgets]);
+  const largeWidgets = useMemo(() => sortedActiveWidgets.filter(id => LARGE_WIDGET_IDS.has(id)), [sortedActiveWidgets]);
+
+  const orderedWidgets = useMemo(
+    () => widgetOrder.map((widgetId) => WIDGETS_BY_ID.get(widgetId)).filter((widget): widget is WidgetConfig => Boolean(widget)),
+    [widgetOrder],
+  );
 
   const renderSmallWidget = (widgetId: string) => {
     switch (widgetId) {
@@ -461,18 +470,14 @@ export default function Dashboard() {
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                   <SortableContext items={widgetOrder} strategy={verticalListSortingStrategy}>
                     <div className="space-y-2">
-                      {widgetOrder.map((widgetId) => {
-                        const widget = ALL_WIDGETS.find(w => w.id === widgetId);
-                        if (!widget) return null;
-                        return (
-                          <SortableWidgetItem
-                            key={widget.id}
-                            widget={widget}
-                            isActive={activeWidgets.includes(widget.id)}
-                            onToggle={() => toggleWidget(widget.id)}
-                          />
-                        );
-                      })}
+                      {orderedWidgets.map((widget) => (
+                        <SortableWidgetItem
+                          key={widget.id}
+                          widget={widget}
+                          isActive={activeWidgetSet.has(widget.id)}
+                          onToggle={toggleWidget}
+                        />
+                      ))}
                     </div>
                   </SortableContext>
                 </DndContext>

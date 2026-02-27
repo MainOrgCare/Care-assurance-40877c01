@@ -11,12 +11,14 @@ export const randomRequestId = (): string =>
 class ApiError extends Error {
   status: number;
   body: string;
+  requestId?: string;
 
-  constructor(status: number, body: string) {
-    super(`${status}: ${body}`);
+  constructor(status: number, body: string, requestId?: string) {
+    super(requestId ? `${status} [${requestId}]: ${body}` : `${status}: ${body}`);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.requestId = requestId;
   }
 }
 
@@ -88,7 +90,29 @@ async function fetchWithTimeout(
 async function throwIfResNotOk(res: Response): Promise<void> {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new ApiError(res.status, text);
+    const requestIdFromHeader = res.headers.get(REQUEST_ID_HEADER) || undefined;
+    let message = text;
+    let requestId = requestIdFromHeader;
+
+    try {
+      const parsed = JSON.parse(text) as {
+        message?: string;
+        error?: string;
+        requestId?: string;
+      };
+      if (parsed?.message && typeof parsed.message === "string") {
+        message = parsed.message;
+      } else if (parsed?.error && typeof parsed.error === "string") {
+        message = parsed.error;
+      }
+      if (parsed?.requestId && typeof parsed.requestId === "string") {
+        requestId = parsed.requestId;
+      }
+    } catch {
+      // Non-JSON error response; keep raw text.
+    }
+
+    throw new ApiError(res.status, message || res.statusText, requestId);
   }
 }
 

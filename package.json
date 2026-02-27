@@ -19,8 +19,8 @@
     "start": "npm run start:api",
     "test": "npm run test:server && npm run test:client",
     "test:server": "node --import tsx --test --test-force-exit server/__tests__/*.test.ts",
-    "test:client": "vitest run client/src/lib/__tests__",
-    "test:client:watch": "vitest client/src/lib/__tests__",
+    "test:client": "npx vitest run client/src/lib/__tests__",
+    "test:client:watch": "npx vitest client/src/lib/__tests__",
     "check": "tsc",
     "quality": "npm run test && npm run check && npm run build",
     "audit:prod": "npm audit --omit=dev",
@@ -85,7 +85,7 @@
     "express": "^4.21.2",
     "express-rate-limit": "^8.2.1",
     "express-session": "^1.18.2",
-    "framer-motion": "^12.23.26",
+    "framer-motion": "12.34.3",
     "helmet": "^8.1.0",
     "input-otp": "^1.4.2",
     "jspdf": "^4.0.0",
@@ -138,7 +138,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
-    "@vitejs/plugin-react": "^5.1.2",
+    "@vitejs/plugin-react": "4.4.1",
     "autoprefixer": "^10.4.22",
     "drizzle-kit": "^0.31.8",
     "esbuild": "^0.25.12",
@@ -146,12 +146,13 @@
     "tailwindcss": "^4.1.18",
     "tsx": "^4.21.0",
     "typescript": "5.6.3",
-    "vite": "^7.3.0",
+    "vite": "6.3.6",
     "vitest": "^3.2.4"
   },
   "overrides": {
     "detect-libc": "2.0.3",
     "esbuild": "^0.25.12",
+    "@rolldown/pluginutils": "1.0.0-rc.6",
     "@esbuild-kit/core-utils": {
       "esbuild": "^0.25.12"
     }

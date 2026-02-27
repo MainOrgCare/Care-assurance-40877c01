@@ -518,7 +518,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     let controller: AbortController | null = null;
 
     const fetchUnreadCount = async () => {
-      if (isDisposed || document.visibilityState === "hidden") return;
+      if (isDisposed || document.visibilityState === "hidden" || !navigator.onLine) return;
       controller?.abort();
       controller = new AbortController();
       try {
@@ -552,15 +552,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       }
     };
 
+    const handleOnline = () => {
+      void fetchUnreadCount();
+    };
+
     fetchUnreadCount();
     const interval = window.setInterval(fetchUnreadCount, 120000);
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("online", handleOnline);
 
     return () => {
       isDisposed = true;
       controller?.abort();
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("online", handleOnline);
     };
   }, [user?.id, shouldPollUnread, handleUnauthorized]);
 
@@ -603,7 +609,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     let controller: AbortController | null = null;
 
     const fetchPlatformControls = async () => {
-      if (document.visibilityState === "hidden") return;
+      if (document.visibilityState === "hidden" || !navigator.onLine) return;
       controller?.abort();
       controller = new AbortController();
       try {
@@ -638,13 +644,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         void fetchPlatformControls();
       }
     };
+    const handleOnline = () => {
+      void fetchPlatformControls();
+    };
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("online", handleOnline);
 
     return () => {
       disposed = true;
       controller?.abort();
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("online", handleOnline);
     };
   }, [user?.id, handleUnauthorized]);
 
@@ -766,17 +777,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { className: string; iconClassName: string }
   > = {
     info: {
-      className: "border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300",
+      className: "border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300 shadow-[0_6px_16px_-14px_rgba(37,99,235,0.45)]",
       iconClassName: "text-blue-600 dark:text-blue-400",
     },
     warning: {
-      className: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+      className: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300 shadow-[0_6px_16px_-14px_rgba(217,119,6,0.45)]",
       iconClassName: "text-amber-600 dark:text-amber-400",
     },
     critical: {
-      className: "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300",
+      className: "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300 shadow-[0_6px_16px_-14px_rgba(220,38,38,0.45)]",
       iconClassName: "text-red-600 dark:text-red-400",
     },
+  };
+
+  const bannerToneLabel: Record<"info" | "warning" | "critical", string> = {
+    info: "Info",
+    warning: "Maintenance",
+    critical: "Critical",
   };
 
   return (
@@ -875,11 +892,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-card/80 px-2 py-1 shadow-[var(--shadow-xs)]">
+            <div className="flex items-center gap-1.5 rounded-xl border border-border/45 bg-background/75 backdrop-blur-sm px-2 py-1 shadow-[0_6px_16px_-14px_rgba(15,23,42,0.35)]">
               {/* Command Palette Trigger */}
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}
-                className="hidden md:flex items-center gap-2 rounded-md border border-border/50 bg-muted/35 px-2.5 py-1 text-[0.75rem] font-medium text-muted-foreground hover:bg-muted/55 hover:text-foreground transition-colors cursor-pointer"
+                className="hidden md:flex items-center gap-2 rounded-md border border-border/50 bg-muted/35 px-2.5 py-1 text-[0.75rem] font-medium text-muted-foreground hover:bg-muted/55 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 transition-colors cursor-pointer"
                 title="Command Palette (Ctrl+K)"
               >
                 <Search className="h-3.5 w-3.5" />
@@ -894,7 +911,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <Link href="/messages">
                 <button
                   className={cn(
-                    "relative flex items-center justify-center h-8 w-8 rounded-lg transition-colors",
+                    "relative flex items-center justify-center h-8 w-8 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
                     unreadMessageCount > 0
                       ? "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/18"
                       : "bg-muted/40 hover:bg-muted/60"
@@ -904,7 +921,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 >
                   <Inbox className={cn("h-4 w-4", unreadMessageCount > 0 ? "text-emerald-600" : "text-muted-foreground")} />
                   {unreadMessageCount > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1 rounded-full bg-emerald-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm">
+                    <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1 rounded-full bg-emerald-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm animate-in zoom-in-50">
                       {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
                     </span>
                   )}
@@ -919,7 +936,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
               
-              <div className="group flex cursor-pointer items-center gap-2.5 rounded-lg border border-border/35 bg-muted/20 py-1.5 pl-3 pr-1.5 transition-all duration-150 hover:border-primary/20 hover:bg-muted/35 hover:shadow-sm">
+              <div className="group flex items-center gap-2.5 rounded-lg border border-border/35 bg-muted/20 py-1.5 pl-3 pr-1.5 transition-all duration-150 hover:border-primary/20 hover:bg-muted/35 hover:shadow-sm">
                 <div className="text-right hidden sm:block">
                   <p className="text-[10.5px] font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
                     {displayName}
@@ -1006,13 +1023,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               return (
                 <div
                   key={banner.id}
+                  role={banner.tone === "critical" ? "alert" : "status"}
+                  aria-live={banner.tone === "critical" ? "assertive" : "polite"}
                   className={cn(
-                    "rounded-xl border px-3 py-2 text-sm font-medium flex items-center gap-2",
+                    "rounded-xl border px-3 py-2.5 text-sm font-medium flex items-start gap-2.5 backdrop-blur-sm",
                     style.className
                   )}
                 >
-                  <Icon className={cn("h-4 w-4 shrink-0", style.iconClassName)} />
-                  <span>{banner.text}</span>
+                  <Icon className={cn("h-4 w-4 shrink-0 mt-0.5", style.iconClassName)} />
+                  <div className="min-w-0">
+                    <span className="inline-flex items-center rounded-full border border-current/20 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-[0.04em] leading-[1.2] opacity-85">
+                      {bannerToneLabel[banner.tone]}
+                    </span>
+                    <p className="mt-1 text-[13px] leading-relaxed">{banner.text}</p>
+                  </div>
                 </div>
               );
             })}

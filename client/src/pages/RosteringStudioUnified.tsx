@@ -398,6 +398,20 @@ const defaultPanelVisibility: PanelVisibility = {
   templates: false,
 };
 
+const BOTTOM_PANEL_KEYS = [
+  "map",
+  "callTimes",
+  "constraints",
+  "workload",
+  "optimization",
+  "database",
+  "aiAnalysis",
+  "comparison",
+  "costs",
+  "templates",
+] as const;
+type BottomPanelKey = (typeof BOTTOM_PANEL_KEYS)[number];
+
 const RouteMapViewLazy = lazy(async () => {
   const module = await import("@/components/rostering/RouteMapView");
   return { default: module.RouteMapView };
@@ -559,7 +573,7 @@ export default function RosteringStudioUnified({
 
   const activeWorkbookLabel = useMemo(() => {
     if (!activeWorkbookId) return "No workbook";
-    return workbooksList.find((wb) => wb.id === activeWorkbookId)?.name || "Workbook";
+    return workbooksList.find((wb: WorkbookSummary) => wb.id === activeWorkbookId)?.name || "Workbook";
   }, [activeWorkbookId, workbooksList]);
 
   const { data: workbookData, isLoading: workbookLoading } = useQuery<WorkbookFull>({
@@ -1420,19 +1434,6 @@ export default function RosteringStudioUnified({
   );
   const timelineDefaultSize = hasBottomPanels ? 55 : 100;
   const bottomDefaultSize = panelVisibility.timeline ? 45 : 100;
-  const bottomPanelKeys = [
-    "map",
-    "callTimes",
-    "constraints",
-    "workload",
-    "optimization",
-    "database",
-    "aiAnalysis",
-    "comparison",
-    "costs",
-    "templates",
-  ] as const;
-  type BottomPanelKey = (typeof bottomPanelKeys)[number];
   const bottomPanelWeights: Record<BottomPanelKey, number> = {
     map: hasAdditionalBottomPanel ? 38 : 100,
     callTimes: 20,
@@ -1445,22 +1446,29 @@ export default function RosteringStudioUnified({
     costs: 18,
     templates: 20,
   };
-  const bottomVisiblePanelKeys = bottomPanelKeys.filter((key) => {
-    if (key === "comparison") return hasComparisonPanel;
-    return Boolean(panelVisibility[key]);
-  });
-  const bottomPanelDefaultSizes = bottomVisiblePanelKeys.reduce<Record<string, number>>((acc, key, idx) => {
-    const totalWeight = bottomVisiblePanelKeys.reduce((sum, panelKey) => {
-      return sum + bottomPanelWeights[panelKey];
-    }, 0);
-    const used = Object.values(acc).reduce((sum, size) => sum + size, 0);
-    const isLast = idx === bottomVisiblePanelKeys.length - 1;
-    const nextSize = isLast
-      ? Math.max(0, 100 - used)
-      : Math.round((bottomPanelWeights[key] / Math.max(totalWeight, 1)) * 1000) / 10;
-    acc[key] = nextSize;
-    return acc;
-  }, {});
+  const bottomVisiblePanelKeys = useMemo(
+    () =>
+      BOTTOM_PANEL_KEYS.filter((key) => {
+        if (key === "comparison") return hasComparisonPanel;
+        return Boolean(panelVisibility[key]);
+      }),
+    [hasComparisonPanel, panelVisibility],
+  );
+  const bottomPanelDefaultSizes = useMemo(() => {
+    const sizes: Record<string, number> = {};
+    const totalWeight = bottomVisiblePanelKeys.reduce((sum, panelKey) => sum + bottomPanelWeights[panelKey], 0);
+    let used = 0;
+    for (let index = 0; index < bottomVisiblePanelKeys.length; index += 1) {
+      const key = bottomVisiblePanelKeys[index];
+      const isLast = index === bottomVisiblePanelKeys.length - 1;
+      const nextSize = isLast
+        ? Math.max(0, 100 - used)
+        : Math.round((bottomPanelWeights[key] / Math.max(totalWeight, 1)) * 1000) / 10;
+      sizes[key] = nextSize;
+      used += nextSize;
+    }
+    return sizes;
+  }, [bottomVisiblePanelKeys, bottomPanelWeights]);
 
   if (isLoading) {
     return (

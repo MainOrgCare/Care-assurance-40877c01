@@ -247,7 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const payload = await response.json();
-      const data = normalizeApiPayload(payload);
+      const data = normalizeApiPayload<User>(payload);
 
       if (!response.ok) {
         if (response.status === 403) {
@@ -316,7 +316,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const payload = await response.json();
-      const data = normalizeApiPayload(payload);
+      const data = normalizeApiPayload<User>(payload);
 
       if (!response.ok) {
         toast({

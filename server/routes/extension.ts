@@ -223,9 +223,10 @@ export function registerExtensionRoutes(
   // Get extension status and connection info
   app.get("/api/extension/status", requireAuth, async (req: any, res) => {
     try {
+      const manifestVersion = await readExtensionManifestVersion();
       return res.json({
         connected: true,
-        version: "0.2.6",
+        version: manifestVersion || "0.3.4",
         user: {
           id: req.user?.id,
           username: req.user?.username,

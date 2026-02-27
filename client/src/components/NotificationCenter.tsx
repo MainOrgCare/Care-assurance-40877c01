@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Bell, Check, CheckCheck, AlertTriangle, FileText, X, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Bell, Check, CheckCheck, AlertTriangle, FileText, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,8 @@ interface AdminAlert {
   createdAt: string;
 }
 
+const MAX_VISIBLE_ALERTS = 20;
+
 /** Notification Center — bell icon popover displaying admin alerts with mark-read actions. */
 export default function NotificationCenter() {
   const { user } = useAuth();
@@ -26,34 +28,64 @@ export default function NotificationCenter() {
   const [markingAll, setMarkingAll] = useState(false);
   const [markingIds, setMarkingIds] = useState<Set<string>>(new Set());
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fetchControllerRef = useRef<AbortController | null>(null);
 
   const isAdmin = user?.role === "admin";
 
-  const fetchAlerts = useCallback(async () => {
+  const fetchAlerts = useCallback(async (options?: { silent?: boolean }) => {
     if (!isAdmin) return;
+    if (document.visibilityState === "hidden" || !navigator.onLine) return;
+    fetchControllerRef.current?.abort();
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+    if (!options?.silent) setLoading(true);
     try {
-      const res = await fetch("/api/admin-alerts", { credentials: "include" });
+      const res = await fetch("/api/admin-alerts", {
+        credentials: "include",
+        signal: controller.signal,
+      });
       if (res.ok) {
         const data = await res.json();
         setAlerts(Array.isArray(data) ? data : []);
       }
-    } catch {
+    } catch (error) {
+      if ((error as Error)?.name === "AbortError") return;
       // Silently fail — will retry on next poll
+    } finally {
+      if (!options?.silent) setLoading(false);
     }
   }, [isAdmin]);
 
   // Poll every 60s + fetch on mount and when popover opens
   useEffect(() => {
     if (!isAdmin) return;
-    fetchAlerts();
-    pollRef.current = setInterval(fetchAlerts, 60_000);
+    const poll = () => {
+      void fetchAlerts({ silent: true });
+    };
+    void fetchAlerts();
+    pollRef.current = setInterval(poll, 60_000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchAlerts({ silent: true });
+      }
+    };
+    const onOnline = () => {
+      void fetchAlerts({ silent: true });
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("online", onOnline);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      fetchControllerRef.current?.abort();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("online", onOnline);
     };
   }, [isAdmin, fetchAlerts]);
 
   useEffect(() => {
-    if (open) fetchAlerts();
+    if (open) {
+      void fetchAlerts();
+    }
   }, [open, fetchAlerts]);
 
   const markRead = useCallback(async (id: string) => {
@@ -86,6 +118,12 @@ export default function NotificationCenter() {
 
   if (!isAdmin) return null;
 
+  const sortedAlerts = useMemo(
+    () => [...alerts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [alerts],
+  );
+  const visibleAlerts = useMemo(() => sortedAlerts.slice(0, MAX_VISIBLE_ALERTS), [sortedAlerts]);
+
   const unreadCount = alerts.length;
 
   const formatTime = (iso: string) => {
@@ -111,7 +149,7 @@ export default function NotificationCenter() {
       <PopoverTrigger asChild>
         <button
           className={cn(
-            "relative flex items-center justify-center h-8 w-8 rounded-lg transition-colors",
+            "relative flex items-center justify-center h-8 w-8 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
             unreadCount > 0
               ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/18"
               : "bg-muted/40 hover:bg-muted/60"
@@ -172,7 +210,7 @@ export default function NotificationCenter() {
               <span className="text-xs mt-0.5">No unread notifications</span>
             </div>
           ) : (
-            alerts.map((alert) => (
+            visibleAlerts.map((alert) => (
               <div
                 key={alert.id}
                 className="group flex items-start gap-2.5 px-3 py-2.5 border-b border-border/30 last:border-b-0 hover:bg-muted/30 transition-colors"
@@ -202,7 +240,7 @@ export default function NotificationCenter() {
                 <button
                   onClick={() => markRead(alert.id)}
                   disabled={markingIds.has(alert.id)}
-                  className="opacity-0 group-hover:opacity-100 mt-0.5 flex items-center justify-center h-6 w-6 rounded-md hover:bg-muted/60 transition-all text-muted-foreground hover:text-foreground"
+                  className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 mt-0.5 flex items-center justify-center h-6 w-6 rounded-md hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all text-muted-foreground hover:text-foreground"
                   title="Mark as read"
                   aria-label={`Dismiss alert for ${alert.careWorkerName}`}
                 >
@@ -221,7 +259,7 @@ export default function NotificationCenter() {
         {unreadCount > 0 && (
           <div className="border-t border-border/50 px-3 py-2 text-center">
             <span className="text-[10px] text-muted-foreground">
-              Showing {Math.min(unreadCount, 20)} of {unreadCount} alert{unreadCount !== 1 ? "s" : ""}
+              Showing {Math.min(unreadCount, MAX_VISIBLE_ALERTS)} of {unreadCount} alert{unreadCount !== 1 ? "s" : ""}
             </span>
           </div>
         )}

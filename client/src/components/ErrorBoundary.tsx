@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { reportClientError } from "@/lib/clientErrorReporter";
 
 const IS_PRODUCTION = import.meta.env.PROD;
 
@@ -29,19 +30,15 @@ export class ErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Report to server (fire-and-forget — error logging must never block UI)
     try {
-      fetch("/api/log-client-error", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        keepalive: true,
-        body: JSON.stringify({
-          message: error.message,
-          stack: error.stack?.slice(0, 2000),
-          componentStack: errorInfo.componentStack?.slice(0, 2000),
-          url: window.location.href,
-          timestamp: new Date().toISOString(),
-        }),
-      }).catch(() => { /* swallow */ });
+      reportClientError({
+        message: error.message,
+        stack: error.stack,
+        // componentStack is string | null in React 18; reporter expects string | undefined
+        componentStack: errorInfo.componentStack ?? undefined,
+        url: window.location.href,
+        source: "react.error-boundary",
+        type: "render",
+      });
     } catch { /* swallow */ }
   }
 
