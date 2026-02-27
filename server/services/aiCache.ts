@@ -17,7 +17,7 @@ export interface CachedAIResponse {
 interface CacheEntry {
   response: CachedAIResponse;
   expiresAt: number;
-  lastAccessed: number;
+  // lastAccessed removed — Map insertion order is used for O(1) LRU eviction
 }
 
 // Default TTL: 24 hours (responses are deterministic with temp=0)
@@ -49,55 +49,56 @@ export function generateCacheKey(
 }
 
 /**
- * Get a cached response if available (LRU: updates last-accessed time)
+ * Get a cached response if available.
+ *
+ * LRU promotion is O(1): we delete the entry and re-insert it so it moves
+ * to the tail of the Map's insertion-order sequence.
  */
 export function getCachedResponse(cacheKey: string): CachedAIResponse | null {
   const entry = cache.get(cacheKey);
-  
+
   if (!entry) {
     cacheMisses++;
     return null;
   }
-  
+
   // Check expiration
   if (Date.now() > entry.expiresAt) {
     cache.delete(cacheKey);
     cacheMisses++;
     return null;
   }
-  
-  // LRU: update last-accessed timestamp
-  entry.lastAccessed = Date.now();
-  
+
+  // LRU promotion: move to tail (most-recently-used) in O(1)
+  cache.delete(cacheKey);
+  cache.set(cacheKey, entry);
+
   cacheHits++;
   tokensSavedTotal += entry.response.tokensSaved;
   console.log(`[AI Cache] HIT - Feature: ${entry.response.feature}, Saved: ${entry.response.tokensSaved} tokens`);
-  
+
   return entry.response;
 }
 
 /**
- * Evict least-recently-used entry from cache
+ * Evict the least-recently-used entry from cache.
+ *
+ * Because Map preserves insertion order and we re-insert on every access,
+ * the first key in the Map is always the LRU entry — O(1) eviction.
  */
 function evictLRU(): void {
-  let oldestKey: string | null = null;
-  let oldestTime = Infinity;
-  
-  for (const [key, entry] of cache.entries()) {
-    if (entry.lastAccessed < oldestTime) {
-      oldestTime = entry.lastAccessed;
-      oldestKey = key;
-    }
-  }
-  
-  if (oldestKey) {
-    cache.delete(oldestKey);
+  const firstKey = cache.keys().next().value as string | undefined;
+  if (firstKey !== undefined) {
+    cache.delete(firstKey);
     evictionCount++;
   }
 }
 
 /**
- * Store a response in the cache
+ * Store a response in the cache.
+ *
+ * If the key already exists it is deleted first so the new entry lands at
+ * the tail (most-recently-used position).
  */
 export function setCachedResponse(
   cacheKey: string,
@@ -106,11 +107,14 @@ export function setCachedResponse(
   tokensSaved: number,
   ttlMs: number = DEFAULT_TTL_MS
 ): void {
-  // Enforce max size by evicting least-recently-used entry
-  if (cache.size >= MAX_CACHE_SIZE) {
+  // Remove existing entry so it is re-inserted at the tail
+  if (cache.has(cacheKey)) {
+    cache.delete(cacheKey);
+  } else if (cache.size >= MAX_CACHE_SIZE) {
+    // Only evict when adding a genuinely new key
     evictLRU();
   }
-  
+
   const now = Date.now();
   const entry: CacheEntry = {
     response: {
@@ -121,9 +125,8 @@ export function setCachedResponse(
       tokensSaved,
     },
     expiresAt: now + ttlMs,
-    lastAccessed: now,
   };
-  
+
   cache.set(cacheKey, entry);
   console.log(`[AI Cache] STORED - Feature: ${feature}, Key: ${cacheKey.substring(0, 8)}...`);
 }

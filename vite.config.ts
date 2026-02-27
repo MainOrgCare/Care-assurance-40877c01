@@ -12,6 +12,8 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
+      "fast-equals": path.resolve(import.meta.dirname, "node_modules", "fast-equals", "dist", "cjs", "index.cjs"),
+      "pako": path.resolve(import.meta.dirname, "node_modules", "pako", "dist", "pako.js"),
     },
   },
   optimizeDeps: {

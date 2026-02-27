@@ -3,6 +3,7 @@ const EMAR_MESSAGE_TYPE = "CA_SEND_TO_EMAR_EXTENSION";
 const EXTENSION_ACK_TYPE = "CA_EXTENSION_ACK";
 const STORE_PAYLOAD_TYPE = "CA_EXTENSION_STORE_PAYLOAD";
 const API_PROXY_TYPE = "CA_API_PROXY_REQUEST";
+const REQUEST_ID_HEADER = "X-Request-ID";
 
 console.log("[CA Extension Content] content-app.js loaded on:", window.location.origin);
 console.log("[CA Extension Content] Document ready state:", document.readyState);
@@ -108,14 +109,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (message.type !== API_PROXY_TYPE) return false;
   
-  const { endpoint, method = 'GET', body } = message;
+  const { endpoint, method = 'GET', body, requestId } = message;
   console.log(`[CA Extension Content] API proxy request: ${method} ${endpoint}`);
   
   // Make the fetch request (will include session cookie since we're on same origin)
   const fetchOptions = {
     method,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' }
+    headers: {
+      'Content-Type': 'application/json',
+      ...(requestId ? { [REQUEST_ID_HEADER]: String(requestId) } : {}),
+    }
   };
   
   if (body && method !== 'GET') {
@@ -134,6 +138,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ 
           ok: false, 
           status: res.status, 
+          requestId: requestId || res.headers.get(REQUEST_ID_HEADER) || null,
           error: res.status === 401 ? 'Not logged in' : errorText 
         });
         return;
@@ -145,6 +150,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           ok: true,
           data: streamed.result,
           status: res.status,
+          requestId: requestId || res.headers.get(REQUEST_ID_HEADER) || null,
           streamed: true,
           lastProgress: streamed.lastProgress,
         });
@@ -161,11 +167,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (data && typeof data === "object") {
         console.log(`[CA Extension Content] Request successful, data keys:`, Object.keys(data));
       }
-      sendResponse({ ok: true, data, status: res.status });
+      sendResponse({
+        ok: true,
+        data,
+        status: res.status,
+        requestId: requestId || res.headers.get(REQUEST_ID_HEADER) || null,
+      });
     })
     .catch((error) => {
       console.error('[CA Extension Content] Fetch error:', error);
-      sendResponse({ ok: false, error: error.message });
+      sendResponse({ ok: false, requestId: requestId || null, error: error.message });
     });
   
   return true; // Keep message channel open for async response

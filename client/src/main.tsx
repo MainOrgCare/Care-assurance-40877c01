@@ -4,31 +4,7 @@ import App from "./App";
 import "./index.css";
 import "leaflet/dist/leaflet.css";
 import { REQUEST_ID_HEADER, randomRequestId } from "@/lib/queryClient";
-
-const reportClientError = (payload: {
-	message: string;
-	stack?: string;
-	componentStack?: string;
-	url?: string;
-}): void => {
-	const body = {
-		message: payload.message,
-		stack: payload.stack,
-		componentStack: payload.componentStack,
-		url: payload.url || window.location.href,
-		timestamp: new Date().toISOString(),
-	};
-
-	fetch("/api/log-client-error", {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		credentials: "include",
-		keepalive: true,
-		body: JSON.stringify(body),
-	}).catch(() => {
-		/* never throw from reporter */
-	});
-};
+import { reportClientError } from "@/lib/clientErrorReporter";
 
 window.addEventListener("error", (event) => {
 	const message = event.error?.message || event.message || "Unknown client error";
@@ -36,6 +12,8 @@ window.addEventListener("error", (event) => {
 		message,
 		stack: event.error?.stack,
 		url: event.filename || window.location.href,
+		source: "window.error",
+		type: "error",
 	});
 });
 
@@ -48,6 +26,8 @@ window.addEventListener("unhandledrejection", (event) => {
 	reportClientError({
 		message,
 		stack: reason?.stack,
+		source: "unhandledrejection",
+		type: "promise",
 	});
 });
 

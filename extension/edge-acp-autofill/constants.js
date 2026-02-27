@@ -15,6 +15,7 @@
     lastError: "caAcpLastError",
     uploadedDocuments: "caAcpUploadedDocuments",
     verificationFields: "caAcpVerificationFields",
+    runtimeMetrics: "caAcpRuntimeMetrics",
   };
 
   const FORM_CONFIGS = {

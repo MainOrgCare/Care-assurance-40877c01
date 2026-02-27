@@ -358,6 +358,75 @@ html, body {
   color: hsl(195, 70%, 45%);
 }
 
+.runtime-diagnostics {
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-muted);
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+  display: grid;
+  gap: 6px;
+}
+
+.runtime-diagnostics.empty {
+  display: none;
+}
+
+.runtime-diagnostics-title {
+  color: var(--color-foreground);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.runtime-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.runtime-key {
+  color: var(--color-muted-foreground);
+  font-weight: 500;
+}
+
+.runtime-value {
+  color: var(--color-foreground);
+  font-weight: 500;
+  text-align: right;
+}
+
+.runtime-value.muted {
+  color: var(--color-muted-foreground);
+}
+
+.runtime-value.error {
+  color: var(--color-error);
+}
+
+.runtime-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-foreground);
+  background: var(--color-card);
+}
+
+.runtime-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.runtime-actions .btn {
+  flex: 1;
+}
+
 .doc-icon.indigo {
   background: hsl(240, 70%, 92%);
   color: hsl(240, 60%, 55%);

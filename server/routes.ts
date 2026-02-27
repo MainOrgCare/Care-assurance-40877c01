@@ -61,6 +61,14 @@ import { parseEMARGrid, type ParsedEMAR } from "./emarGridParser";
 import { extractFromRawCalls, getExpiryDate, type RawCallRecord } from "./services/serviceOrderBuilder";
 import { getPgPoolConfig } from "./utils/pgPoolConfig";
 import { validatePlanEnhancerResponse, autoCorrectPlanEnhancerResponse, generateValidationReport } from "./utils/planEnhancerValidator";
+import {
+  validatePassword,
+  getLoginAttemptKey,
+  pruneLoginAttempts,
+  getBlockedSeconds,
+  recordLoginFailure,
+  clearLoginFailures,
+} from "./utils/passwordPolicy";
 // Vision-based extraction for improved EMAR accuracy
 
 const execFileAsync = promisify(execFile);
@@ -120,179 +128,12 @@ const uploadImages = multer({
 
 const MAX_NON_ADMIN_SESSIONS = 2;
 const FORCE_LOGOUT_WARNING_SECONDS = 30;
-const MIN_PASSWORD_LENGTH = 12; // NIST recommends 12+ characters
-const MAX_PASSWORD_LENGTH = 128; // Prevent DoS via very long passwords
-// Strong password: at least one lowercase, one uppercase, one digit, one special character
-const PASSWORD_COMPLEXITY_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).+$/;
-const LOGIN_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
-const LOGIN_BLOCK_DURATION_MS = 15 * 60 * 1000;
-const MAX_LOGIN_ATTEMPTS = 5;
-
-// Common weak passwords to reject (top 20 most common)
-const COMMON_PASSWORDS = new Set([
-  'password123', 'password1', '12345678', 'qwerty123', 'admin123',
-  'letmein123', 'welcome123', 'monkey123', 'dragon123', 'master123',
-  'sunshine1', 'princess1', 'football1', 'iloveyou1', 'shadow123',
-  'baseball1', 'trustno1!', 'michael1', 'jennifer1', 'password!'
-]);
-
-type LoginAttempt = {
-  count: number;
-  firstAttemptAt: number;
-  lastAttemptAt: number;
-  blockedUntil?: number;
-  blockCount?: number; // Track how many times they've been blocked (for progressive lockout)
-};
-
-const loginAttempts = new Map<string, LoginAttempt>();
-const MAX_LOGIN_ATTEMPTS_MAP_SIZE = 10_000; // Cap to prevent memory exhaustion
-
-// Progressive lockout: block times increase with each block
-const PROGRESSIVE_BLOCK_MULTIPLIERS = [1, 2, 4, 8, 16]; // 15min, 30min, 1hr, 2hr, 4hr
-const AUTO_SUSPEND_AFTER_BLOCKS = 3; // Suspend user account after 3 blocks
-
-const validatePassword = (password: string, username?: string): string | null => {
-  if (!password || typeof password !== "string") {
-    return "Password is required.";
-  }
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
-  }
-  if (password.length > MAX_PASSWORD_LENGTH) {
-    return `Password must be no more than ${MAX_PASSWORD_LENGTH} characters.`;
-  }
-  if (!PASSWORD_COMPLEXITY_REGEX.test(password)) {
-    return "Password must include at least one lowercase letter, one uppercase letter, one number, and one special character (!@#$%^&*...).";
-  }
-  // Check for common passwords
-  if (COMMON_PASSWORDS.has(password.toLowerCase())) {
-    return "Password is too common. Please choose a stronger password.";
-  }
-  // Check if password contains username
-  if (username && password.toLowerCase().includes(username.toLowerCase())) {
-    return "Password cannot contain your username.";
-  }
-  // Check for sequential characters (e.g., 12345, abcde)
-  const sequential = /(?:012|123|234|345|456|567|678|789|abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)/i;
-  if (sequential.test(password)) {
-    return "Password cannot contain sequential characters (e.g., 123, abc).";
-  }
-  // Check for repeated characters (e.g., aaa, 111)
-  const repeated = /(.)\1{2,}/;
-  if (repeated.test(password)) {
-    return "Password cannot contain three or more repeated characters.";
-  }
-  return null;
-};
 
 const formatZodErrors = (errors: z.ZodIssue[]): Array<{ field: string; message: string }> =>
   errors.map((issue) => ({
     field: issue.path.length ? issue.path.join(".") : "root",
     message: issue.message,
   }));
-
-const getLoginAttemptKey = (ip: string | null, username?: string): string => {
-  if (ip && ip !== "unknown") return `ip:${ip}`;
-  if (username) return `user:${username.toLowerCase()}`;
-  return "unknown";
-};
-
-const pruneLoginAttempts = (): void => {
-  const now = Date.now();
-  for (const [key, attempt] of loginAttempts.entries()) {
-    const expired = now - attempt.lastAttemptAt > LOGIN_ATTEMPT_WINDOW_MS;
-    const blockExpired = !attempt.blockedUntil || attempt.blockedUntil <= now;
-    if (expired && blockExpired) {
-      loginAttempts.delete(key);
-    }
-  }
-  // Hard cap: if map still exceeds limit, evict oldest entries
-  if (loginAttempts.size > MAX_LOGIN_ATTEMPTS_MAP_SIZE) {
-    const excess = loginAttempts.size - MAX_LOGIN_ATTEMPTS_MAP_SIZE;
-    let removed = 0;
-    for (const key of loginAttempts.keys()) {
-      if (removed >= excess) break;
-      loginAttempts.delete(key);
-      removed++;
-    }
-  }
-};
-
-// Periodic login attempts cleanup (every 5 minutes) — prevents unbounded growth
-const _loginAttemptsCleanupInterval = setInterval(() => {
-  pruneLoginAttempts();
-}, 5 * 60 * 1000);
-if (typeof _loginAttemptsCleanupInterval.unref === "function") {
-  _loginAttemptsCleanupInterval.unref();
-}
-
-const getBlockedSeconds = (key: string): number => {
-  const attempt = loginAttempts.get(key);
-  if (!attempt || !attempt.blockedUntil) return 0;
-  const remainingMs = attempt.blockedUntil - Date.now();
-  if (remainingMs <= 0) {
-    loginAttempts.delete(key);
-    return 0;
-  }
-  return Math.ceil(remainingMs / 1000);
-};
-
-const recordLoginFailure = (key: string, username?: string): void => {
-  const now = Date.now();
-  const attempt = loginAttempts.get(key);
-  if (!attempt || now - attempt.firstAttemptAt > LOGIN_ATTEMPT_WINDOW_MS) {
-    loginAttempts.set(key, { count: 1, firstAttemptAt: now, lastAttemptAt: now, blockCount: 0 });
-    return;
-  }
-  attempt.count += 1;
-  attempt.lastAttemptAt = now;
-  if (attempt.count >= MAX_LOGIN_ATTEMPTS) {
-    // Progressive lockout - increase block time with each block
-    const blockCount = (attempt.blockCount || 0) + 1;
-    const multiplierIndex = Math.min(blockCount - 1, PROGRESSIVE_BLOCK_MULTIPLIERS.length - 1);
-    const blockDuration = LOGIN_BLOCK_DURATION_MS * PROGRESSIVE_BLOCK_MULTIPLIERS[multiplierIndex];
-    attempt.blockedUntil = now + blockDuration;
-    attempt.blockCount = blockCount;
-    
-    // Log the progressive lockout
-    logSecurityEvent({
-      eventType: 'LOGIN_BLOCKED',
-      endpoint: '/api/auth/login',
-      username: username,
-      details: {
-        reason: 'Progressive lockout',
-        blockCount,
-        blockDurationMinutes: Math.round(blockDuration / 60000),
-        willAutoSuspend: blockCount >= AUTO_SUSPEND_AFTER_BLOCKS,
-      },
-    });
-    
-    // Auto-suspend user account after repeated blocks
-    if (username && blockCount >= AUTO_SUSPEND_AFTER_BLOCKS) {
-      storage.getUserByUsername(username).then(async (user) => {
-        if (user && user.role !== 'admin') { // Never auto-suspend admins
-          const suspendUntil = new Date(now + 24 * 60 * 60 * 1000); // 24 hour suspension
-          await storage.suspendUser(user.id, suspendUntil);
-          logSecurityEvent({
-            eventType: 'ACCOUNT_SUSPENDED',
-            endpoint: '/api/auth/login',
-            userId: user.id,
-            username: user.username,
-            details: {
-              reason: 'Auto-suspended due to repeated failed login attempts',
-              blockCount,
-              suspendedUntil: suspendUntil.toISOString(),
-            },
-          });
-        }
-      }).catch(() => {}); // Silently fail if user lookup fails
-    }
-  }
-};
-
-const clearLoginFailures = (key: string): void => {
-  loginAttempts.delete(key);
-};
 
 const getStandardFontDataUrl = (): string => {
   const fontsPath = path.resolve(process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts");
@@ -14866,10 +14707,10 @@ Remember: Extract information ONLY from the service user documents above. Templa
           return cleaned;
         };
 
-        const evidenceHints = scrubbedEvidencePack
+        const evidenceHints: string[] = scrubbedEvidencePack
           ? scrubbedEvidencePack
               .split(/\n+/)
-              .map((line) => line.replace(/^[-•]\s*/, "").trim())
+              .map((line: string) => line.replace(/^[-•]\s*/, "").trim())
               .filter(Boolean)
               .slice(0, 8)
           : [];
@@ -14878,7 +14719,7 @@ Remember: Extract information ONLY from the service user documents above. Templa
         const improveField = (value: string, fallback: string) => {
           const trimmed = value?.trim() || "";
           if (trimmed.length >= 40 && hasSpecificDetail(trimmed)) return trimmed;
-          const hint = evidenceHints.find((line) => line.length > 12) || "";
+          const hint = evidenceHints.find((line: string) => line.length > 12) || "";
           if (hint) {
             return `${trimmed || fallback} ${toFirstPerson(hint)}`.trim();
           }
@@ -14887,7 +14728,7 @@ Remember: Extract information ONLY from the service user documents above. Templa
         const ensureDetailed = (value: string) => {
           const sentenceCount = value.split(/[.!?]+/).filter((s) => s.trim().length > 10).length;
           if (sentenceCount >= 2) return value;
-          const hint = evidenceHints.find((line) => line.length > 12) || "";
+          const hint = evidenceHints.find((line: string) => line.length > 12) || "";
           const extra = hint
             ? ` ${toFirstPerson(hint)}.`
             : " I prefer calm, clear support that follows my care plan and keeps me safe.";

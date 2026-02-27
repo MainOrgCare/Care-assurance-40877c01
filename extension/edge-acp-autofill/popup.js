@@ -23,6 +23,13 @@ const RETRYABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const createRequestId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
 const isRetryableProxyFailure = (response) => {
   if (!response || response.ok) return false;
   if (response.needsTab) return false;
@@ -45,6 +52,7 @@ async function apiProxy(endpoint, method = 'GET', body = null, options = {}) {
   const timeoutMs = typeof options.timeoutMs === "number" ? options.timeoutMs : 45000;
   const maxRetries = Number.isInteger(options.maxRetries) ? Math.max(0, options.maxRetries) : 2;
   const retryDelayMs = typeof options.retryDelayMs === "number" ? Math.max(100, options.retryDelayMs) : 700;
+  const requestId = options.requestId || createRequestId();
   console.log(`[CA Extension Popup] apiProxy: ${method} ${endpoint} via ${CARE_ASSURANCE_URL}`);
   let lastResponse = { ok: false, error: "Unknown proxy error" };
 
@@ -70,6 +78,7 @@ async function apiProxy(endpoint, method = 'GET', body = null, options = {}) {
         endpoint,
         method,
         body,
+        requestId,
         targetOrigin: CARE_ASSURANCE_URL
       }, (innerResponse) => {
         if (settled) return;
@@ -109,6 +118,8 @@ const FALLBACK_STORAGE_KEYS = {
   connectionState: "caAcpConnectionState",
   serviceUsers: "caAcpServiceUsers",
   selectedUserId: "caAcpSelectedUserId",
+  verificationFields: "caAcpVerificationFields",
+  runtimeMetrics: "caAcpRuntimeMetrics",
 };
 
 const FALLBACK_MESSAGE_TYPES = {
@@ -229,7 +240,9 @@ const uploadSignatureButton = document.getElementById("upload-signature");
 const signatureStatus = document.getElementById("signature-status");
 const signatureFilename = document.getElementById("signature-filename");
 const logStatus = document.getElementById("log-status");
+const runtimeDiagnostics = document.getElementById("runtime-diagnostics");
 const logList = document.getElementById("log-list");
+const copyDiagnosticsButton = document.getElementById("copy-diagnostics");
 const clearLogsButton = document.getElementById("clear-logs");
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -242,6 +255,75 @@ let selectedUser = null;
 let selectedFilesList = [];
 let uploadedDocuments = [];
 let currentAnalysisResults = null;
+
+const formatRuntimeTime = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleTimeString();
+};
+
+const formatRuntimeDuration = (startTime) => {
+  if (!startTime) return "-";
+  const start = new Date(startTime);
+  if (Number.isNaN(start.getTime())) return "-";
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - start.getTime()) / 1000));
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = elapsedSeconds % 60;
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const remMinutes = minutes % 60;
+    return `${hours}h ${remMinutes}m`;
+  }
+  return `${minutes}m ${seconds}s`;
+};
+
+function renderRuntimeDiagnostics(metrics) {
+  if (!runtimeDiagnostics) return;
+  if (!metrics || typeof metrics !== "object") {
+    runtimeDiagnostics.classList.add("empty");
+    runtimeDiagnostics.textContent = "";
+    return;
+  }
+
+  runtimeDiagnostics.classList.remove("empty");
+  const hasError = Boolean(metrics.lastError);
+  const proxySummary = `${metrics.proxySuccesses || 0}/${metrics.proxyRequests || 0} ok${(metrics.proxyFailures || 0) ? ` (${metrics.proxyFailures} failed)` : ""}`;
+  const lastStatus = metrics.lastProxyStatus ?? "-";
+  const lastErrorText = metrics.lastError || "None";
+  runtimeDiagnostics.innerHTML = [
+    `<div class="runtime-diagnostics-title">Runtime diagnostics</div>`,
+    `<div class="runtime-row"><span class="runtime-key">Proxy</span><span class="runtime-value runtime-badge">${proxySummary}</span></div>`,
+    `<div class="runtime-row"><span class="runtime-key">Last status</span><span class="runtime-value">${lastStatus}</span></div>`,
+    `<div class="runtime-row"><span class="runtime-key">Retries / Starts / Stops</span><span class="runtime-value">${metrics.proxyRetries || 0} / ${metrics.autofillStarts || 0} / ${metrics.autofillStops || 0}</span></div>`,
+    `<div class="runtime-row"><span class="runtime-key">Heartbeat</span><span class="runtime-value">${metrics.heartbeatCount || 0} • ${formatRuntimeTime(metrics.lastHeartbeatAt)}</span></div>`,
+    `<div class="runtime-row"><span class="runtime-key">Activity</span><span class="runtime-value">${metrics.lastActivityType || "-"} • ${formatRuntimeTime(metrics.lastActivityAt)}</span></div>`,
+    `<div class="runtime-row"><span class="runtime-key">Uptime</span><span class="runtime-value">${formatRuntimeDuration(metrics.workerStartedAt)}</span></div>`,
+    `<div class="runtime-row"><span class="runtime-key">Request ID</span><span class="runtime-value muted">${metrics.lastRequestId || "-"}</span></div>`,
+    `<div class="runtime-row"><span class="runtime-key">Target</span><span class="runtime-value muted">${metrics.lastTargetOrigin || "-"}</span></div>`,
+    `<div class="runtime-row"><span class="runtime-key">Updated</span><span class="runtime-value muted">${formatRuntimeTime(metrics.lastUpdatedAt)}</span></div>`,
+    `<div class="runtime-row"><span class="runtime-key">Error</span><span class="runtime-value ${hasError ? "error" : "muted"}">${lastErrorText}</span></div>`,
+  ].join("");
+}
+
+const writeToClipboard = async (value) => {
+  const text = typeof value === "string" ? value : String(value || "");
+  if (navigator?.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const helper = document.createElement("textarea");
+  helper.value = text;
+  helper.setAttribute("readonly", "readonly");
+  helper.style.position = "fixed";
+  helper.style.top = "-1000px";
+  helper.style.opacity = "0";
+  document.body.appendChild(helper);
+  helper.select();
+  document.execCommand("copy");
+  document.body.removeChild(helper);
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TAB NAVIGATION
@@ -685,7 +767,7 @@ async function refreshPayloadStatus() {
   const data = await loadStorage([
     STORAGE_KEYS.payload, STORAGE_KEYS.caseInfo, STORAGE_KEYS.autoSubmit,
     STORAGE_KEYS.dryRun, STORAGE_KEYS.interactionMode, STORAGE_KEYS.logs,
-    STORAGE_KEYS.verificationFields
+    STORAGE_KEYS.verificationFields, STORAGE_KEYS.runtimeMetrics
   ]);
   
   const payload = data.caAcpPayload;
@@ -752,6 +834,8 @@ async function refreshPayloadStatus() {
   if (logList && data.caAcpLogs) {
     logList.textContent = data.caAcpLogs.join("\n");
   }
+
+  renderRuntimeDiagnostics(data[STORAGE_KEYS.runtimeMetrics]);
 }
 
 /**
@@ -874,9 +958,50 @@ clearButton?.addEventListener("click", async () => {
 });
 
 clearLogsButton?.addEventListener("click", async () => {
-  await setStorage({ [STORAGE_KEYS.logs]: [] });
+  await setStorage({
+    [STORAGE_KEYS.logs]: [],
+    [STORAGE_KEYS.runtimeMetrics]: null,
+  });
   if (logList) logList.textContent = "";
   if (logStatus) logStatus.textContent = "No actions.";
+  renderRuntimeDiagnostics(null);
+});
+
+copyDiagnosticsButton?.addEventListener("click", async () => {
+  try {
+    const data = await loadStorage([
+      STORAGE_KEYS.runtimeMetrics,
+      STORAGE_KEYS.lastError,
+      STORAGE_KEYS.caseInfo,
+      STORAGE_KEYS.queueState,
+      STORAGE_KEYS.logs,
+      STORAGE_KEYS.payload,
+    ]);
+
+    const logs = Array.isArray(data[STORAGE_KEYS.logs]) ? data[STORAGE_KEYS.logs].slice(-20) : [];
+    const payloadType = data?.[STORAGE_KEYS.payload]?.formType || null;
+    const diagnostics = {
+      capturedAt: new Date().toISOString(),
+      requestId: createRequestId(),
+      targetOrigin: CARE_ASSURANCE_URL,
+      connected: isConnected,
+      payloadType,
+      caseInfo: data[STORAGE_KEYS.caseInfo] || null,
+      queueState: data[STORAGE_KEYS.queueState] || null,
+      lastError: data[STORAGE_KEYS.lastError] || null,
+      runtimeMetrics: data[STORAGE_KEYS.runtimeMetrics] || null,
+      recentLogTail: logs,
+    };
+
+    await writeToClipboard(JSON.stringify(diagnostics, null, 2));
+    if (logStatus) {
+      logStatus.textContent = `Diagnostics copied (${logs.length} logs)`;
+    }
+    showSuccess("Diagnostics copied to clipboard");
+  } catch (error) {
+    console.error("Failed to copy diagnostics:", error);
+    showError("Could not copy diagnostics. Try again.");
+  }
 });
 
 signatureInput?.addEventListener("change", async () => {

@@ -268,8 +268,12 @@
               <div id="signature-status" class="status-text"></div>
               <hr />
               <div id="log-status" class="status-text">No actions.</div>
+              <div id="runtime-diagnostics" class="runtime-diagnostics"></div>
               <div id="log-list" class="log-container"></div>
-              <button id="clear-logs" class="btn btn-ghost btn-sm btn-block">Clear Log</button>
+              <div class="runtime-actions">
+                <button id="copy-diagnostics" class="btn btn-secondary btn-sm">Copy Diagnostics</button>
+                <button id="clear-logs" class="btn btn-ghost btn-sm">Clear Log</button>
+              </div>
             </div>
           </details>
         </div>
@@ -277,7 +281,7 @@
       </div>
 
       <footer class="popup-footer">
-        <p class="footer-text">Care Assurance Extension v0.3.3</p>
+        <p class="footer-text">Care Assurance Extension v0.3.4</p>
       </footer>
     </main>
     <script src="constants.js"></script>

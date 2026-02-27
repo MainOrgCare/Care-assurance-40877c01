@@ -1061,39 +1061,55 @@ export class DatabaseStorage implements IStorage {
   }> {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const auditsResult = await this.db
-      .select({ count: sql<number>`count(*)` })
-      .from(audits)
-      .where(sql`${audits.createdAt} >= ${twentyFourHoursAgo}`);
-    
-    const alertsResult = await this.db
-      .select({ count: sql<number>`count(*)` })
-      .from(adminAlerts)
-      .where(and(
-        eq(adminAlerts.isRead, false),
-        sql`${adminAlerts.createdAt} >= ${twentyFourHoursAgo}`
-      ));
-    
-    const emarAuditsResult = await this.db
-      .select({ count: sql<number>`count(*)` })
-      .from(audits)
-      .where(and(
-        eq(audits.auditType, 'EMAR'),
-        sql`${audits.createdAt} >= ${twentyFourHoursAgo}`
-      ));
-    
-    const visitAuditsResult = await this.db
-      .select({ count: sql<number>`count(*)` })
-      .from(audits)
-      .where(and(
-        eq(audits.auditType, 'Visit'),
-        sql`${audits.createdAt} >= ${twentyFourHoursAgo}`
-      ));
-    
-    const riskAssessmentsResult = await this.db
-      .select({ count: sql<number>`count(*)` })
-      .from(riskAssessmentLogs)
-      .where(sql`${riskAssessmentLogs.createdAt} >= ${twentyFourHoursAgo}`);
+    // Run all five count queries in parallel — reduces latency from Σ(query times)
+    // to max(query times) by using a single round-trip to the connection pool.
+    const [
+      auditsResult,
+      alertsResult,
+      emarAuditsResult,
+      visitAuditsResult,
+      riskAssessmentsResult,
+    ] = await Promise.all([
+      this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(audits)
+        .where(sql`${audits.createdAt} >= ${twentyFourHoursAgo}`),
+
+      this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(adminAlerts)
+        .where(
+          and(
+            eq(adminAlerts.isRead, false),
+            sql`${adminAlerts.createdAt} >= ${twentyFourHoursAgo}`,
+          ),
+        ),
+
+      this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(audits)
+        .where(
+          and(
+            eq(audits.auditType, "EMAR"),
+            sql`${audits.createdAt} >= ${twentyFourHoursAgo}`,
+          ),
+        ),
+
+      this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(audits)
+        .where(
+          and(
+            eq(audits.auditType, "Visit"),
+            sql`${audits.createdAt} >= ${twentyFourHoursAgo}`,
+          ),
+        ),
+
+      this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(riskAssessmentLogs)
+        .where(sql`${riskAssessmentLogs.createdAt} >= ${twentyFourHoursAgo}`),
+    ]);
 
     return {
       auditsCompleted: Number(auditsResult[0].count),
@@ -1363,24 +1379,31 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getAiUsageStats(): Promise<{ totalCost: number; totalCalls: number; byFeature: Record<string, { calls: number; cost: number; tokens: number }> }> {
-    const logs = await this.db.select().from(aiUsageLogs);
-    
+    // Aggregate in the database — avoids loading every row into JS memory.
+    const rows = await this.db
+      .select({
+        featureName: aiUsageLogs.featureName,
+        calls: sql<string>`count(*)`,
+        totalCost: sql<string>`coalesce(sum(${aiUsageLogs.costMicroDollars}), 0)`,
+        totalTokens: sql<string>`coalesce(sum(${aiUsageLogs.totalTokens}), 0)`,
+      })
+      .from(aiUsageLogs)
+      .groupBy(aiUsageLogs.featureName);
+
     let totalCost = 0;
     let totalCalls = 0;
     const byFeature: Record<string, { calls: number; cost: number; tokens: number }> = {};
-    
-    for (const log of logs) {
-      totalCost += log.costMicroDollars;
-      totalCalls++;
-      
-      if (!byFeature[log.featureName]) {
-        byFeature[log.featureName] = { calls: 0, cost: 0, tokens: 0 };
-      }
-      byFeature[log.featureName].calls++;
-      byFeature[log.featureName].cost += log.costMicroDollars;
-      byFeature[log.featureName].tokens += log.totalTokens;
+
+    for (const row of rows) {
+      const calls = Number(row.calls);
+      const cost = Number(row.totalCost);
+      const tokens = Number(row.totalTokens);
+
+      totalCalls += calls;
+      totalCost += cost;
+      byFeature[row.featureName] = { calls, cost, tokens };
     }
-    
+
     return { totalCost, totalCalls, byFeature };
   }
 
