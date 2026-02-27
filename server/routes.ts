@@ -4268,16 +4268,37 @@ export async function registerRoutes(
       return res.status(403).json({ message: 'CSRF validation failed: missing origin' });
     }
     
-    // Validate origin matches host
-    const allowedOrigins = [
+    // Validate origin against explicit allow-list
+    const allowedOrigins = new Set<string>([
       `https://${process.env.CANONICAL_DOMAIN || 'careassurance.uk'}`,
       `https://www.${process.env.CANONICAL_DOMAIN || 'careassurance.uk'}`,
-    ];
+    ]);
+
+    // Allow configured CORS origins (supports comma-separated values)
+    const configuredCorsOrigins = (process.env.CORS_ORIGIN || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    for (const configuredOrigin of configuredCorsOrigins) {
+      allowedOrigins.add(configuredOrigin);
+    }
+
+    // Allow local dev origins outside production
+    if (process.env.NODE_ENV !== 'production') {
+      [
+        'http://localhost:3000',
+        'http://localhost:5000',
+        'http://localhost:5173',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5000',
+        'http://127.0.0.1:5173',
+      ].forEach((origin) => allowedOrigins.add(origin));
+    }
     
     // Allow the Render API hostname (set automatically by Render)
     const renderHost = process.env.RENDER_EXTERNAL_HOSTNAME;
     if (renderHost) {
-      allowedOrigins.push(`https://${renderHost}`);
+      allowedOrigins.add(`https://${renderHost}`);
     }
     
     // Allow browser extension origins
@@ -4286,7 +4307,7 @@ export async function registerRoutes(
     
     const originToCheck = origin || (referer ? new URL(referer).origin : null);
     
-    if (!isExtensionOrigin && originToCheck && !allowedOrigins.includes(originToCheck)) {
+    if (!isExtensionOrigin && originToCheck && !allowedOrigins.has(originToCheck)) {
       console.warn(`[CSRF] Request blocked - invalid origin: ${originToCheck} for ${req.method} ${req.path}`);
       logSecurityEvent({
         eventType: 'CSRF_BLOCKED',
