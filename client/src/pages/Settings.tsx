@@ -139,7 +139,7 @@ export default function Settings() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="h-9 w-9 rounded-lg bg-primary/10 border border-primary/12 flex items-center justify-center shrink-0 shadow-sm">
+        <div className="h-9 w-9 rounded-lg bg-primary/10 border border-primary/12 flex items-center justify-center shrink-0 shadow-[var(--shadow-xs)]">
           <SettingsIcon className="h-4 w-4 text-primary" />
         </div>
         <div>

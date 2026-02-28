@@ -364,7 +364,7 @@ export default function Homepage() {
       <header className={`home-header ${headerScrolled ? "is-scrolled" : ""}`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl home-brand-mark flex items-center justify-center shadow-sm">
+            <div className="h-10 w-10 rounded-xl home-brand-mark flex items-center justify-center shadow-[var(--shadow-xs)]">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div className="home-brand-copy">
@@ -398,7 +398,7 @@ export default function Homepage() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 overflow-hidden border border-border/70 bg-card p-0 shadow-lg" align="end">
+              <PopoverContent className="w-80 overflow-hidden border border-border/70 bg-card p-0 shadow-[var(--shadow-strong)]" align="end">
                 <div className="p-4 border-b border-border/70">
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center bg-primary">
@@ -935,7 +935,7 @@ export default function Homepage() {
       <footer className="relative z-10 border-t border-border/40">
         <div className="max-w-6xl mx-auto px-4 py-10 flex flex-col md:flex-row items-center justify-between gap-6 text-sm">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl text-white flex items-center justify-center bg-gradient-to-br from-primary to-secondary shadow-sm">
+            <div className="h-10 w-10 rounded-xl text-white flex items-center justify-center bg-gradient-to-br from-primary to-secondary shadow-[var(--shadow-xs)]">
               <ShieldCheck className="h-4.5 w-4.5" />
             </div>
             <div>

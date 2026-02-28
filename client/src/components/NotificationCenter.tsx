@@ -159,7 +159,7 @@ export default function NotificationCenter() {
         >
           <Bell className={cn("h-4 w-4", unreadCount > 0 ? "text-amber-600" : "text-muted-foreground")} />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm animate-in zoom-in-50">
+            <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center shadow-[var(--shadow-xs)] animate-in zoom-in-50">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}

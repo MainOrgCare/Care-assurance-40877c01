@@ -3966,36 +3966,36 @@ export default function SecretAdminPortal() {
           <Tabs defaultValue="overview" className="w-full">
             <div className="overflow-x-auto -mx-2 px-2 pb-1 scrollbar-hide">
               <TabsList className="inline-flex h-10 w-max gap-1 border p-1 rounded-xl mb-6 bg-muted/40 border-border/60">
-                <TabsTrigger value="overview" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                <TabsTrigger value="overview" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
                   <Activity className="h-3.5 w-3.5" />
                   Overview
                 </TabsTrigger>
-                <TabsTrigger value="command" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                <TabsTrigger value="command" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
                   <Power className="h-3.5 w-3.5" />
                   Command
                 </TabsTrigger>
-                <TabsTrigger value="users" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 relative data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                <TabsTrigger value="users" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 relative data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
                   <Shield className="h-3.5 w-3.5" />
                   Users
                   {pendingUsers.length > 0 && <span className="absolute -top-1 -right-1 h-2 w-2 bg-amber-500 rounded-full animate-pulse" />}
                 </TabsTrigger>
-                <TabsTrigger value="presence" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                <TabsTrigger value="presence" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
                   <Activity className="h-3.5 w-3.5" />
                   Presence
                 </TabsTrigger>
-                <TabsTrigger value="messages" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                <TabsTrigger value="messages" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
                   <Mail className="h-3.5 w-3.5" />
                   Messages
                 </TabsTrigger>
-                <TabsTrigger value="policies" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                <TabsTrigger value="policies" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
                   <FileText className="h-3.5 w-3.5" />
                   Policies
                 </TabsTrigger>
-                <TabsTrigger value="ai" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                <TabsTrigger value="ai" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
                   <Cpu className="h-3.5 w-3.5" />
                   AI
                 </TabsTrigger>
-                <TabsTrigger value="database" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground">
+                <TabsTrigger value="database" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
                   <Database className="h-3.5 w-3.5" />
                   Database
                 </TabsTrigger>

@@ -263,9 +263,9 @@ const darkModeCss = `
   --color-error: hsl(0, 72%, 51%);
   --color-error-light: hsl(0, 86%, 97%);
 
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 6px 12px -3px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --shadow-[var(--shadow-xs)]: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-[var(--shadow-medium)]: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  --shadow-[var(--shadow-strong)]: 0 6px 12px -3px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
 }
 
 /* Dark mode (when data-theme-dark is present) */
@@ -285,9 +285,9 @@ html[data-theme-dark] {
   --color-error: hsl(0, 72%, 61%);
   --color-error-light: hsl(0, 72%, 15%);
 
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 2px 4px -1px rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 6px 12px -3px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-[var(--shadow-xs)]: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-[var(--shadow-medium)]: 0 2px 4px -1px rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+  --shadow-[var(--shadow-strong)]: 0 6px 12px -3px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
 
   color-scheme: dark;
 }

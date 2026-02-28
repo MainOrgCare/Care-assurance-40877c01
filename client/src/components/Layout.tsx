@@ -202,7 +202,7 @@ const SidebarContent = memo(function SidebarContent({
             onClick={handleSecretClick}
             className={cn("flex items-center gap-3 cursor-pointer group", isCollapsed && "justify-center")}
           >
-            <div className="relative h-9 w-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-sidebar-primary/20 to-sidebar-primary/8 border border-sidebar-primary/20 shadow-sm">
+            <div className="relative h-9 w-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-sidebar-primary/20 to-sidebar-primary/8 border border-sidebar-primary/20 shadow-[var(--shadow-xs)]">
               <ShieldCheck className="h-4.5 w-4.5 text-sidebar-primary" />
             </div>
             {!isCollapsed && (
@@ -701,7 +701,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     isFullBleed ? "max-w-none" : "max-w-[var(--content-max-width)]"
   );
   const cardClass = cn(
-    "workspace-card corporate-content-card rounded-xl border border-border/50 bg-card p-4 sm:p-5 lg:p-6 flex flex-col w-full flex-1 min-h-0 shadow-[var(--shadow-card)] motion-safe:animate-[fade-in_120ms_ease-out]",
+    "workspace-card  rounded-xl border border-border/50 bg-card p-4 sm:p-5 lg:p-6 flex flex-col w-full flex-1 min-h-0 shadow-[var(--shadow-xs)] motion-safe:animate-[fade-in_120ms_ease-out]",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
@@ -822,7 +822,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Skip Navigation Link */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground focus:shadow-lg focus:outline-none"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground focus:shadow-[var(--shadow-strong)] focus:outline-none"
       >
         Skip to main content
       </a>
@@ -850,7 +850,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main id="main-content" tabIndex={-1} data-scroll-region className={mainClass} aria-label={pageMeta.title || "Main content"} style={{ outline: "none" }}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="workspace-header corporate-header-shell sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/35 bg-card/80 backdrop-blur-md px-4 md:px-6 shadow-[0_6px_18px_-14px_rgba(15,23,42,0.4)] transition-[background-color,border-color,box-shadow] duration-200" role="banner" aria-label="Page header">
+          <header className="workspace-header  sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/35 bg-card/80 backdrop-blur-md px-4 md:px-6 shadow-none transition-[background-color,border-color,box-shadow] duration-200" role="banner" aria-label="Page header">
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -913,7 +913,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="corporate-action-cluster flex items-center gap-1.5 rounded-xl border border-border/45 bg-background/75 backdrop-blur-sm px-2 py-1 shadow-[0_6px_16px_-14px_rgba(15,23,42,0.35)]">
+            <div className=" flex items-center gap-1.5 rounded-xl border border-border/45 bg-background/75 backdrop-blur-sm px-2 py-1 shadow-none">
               {/* Command Palette Trigger */}
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}
@@ -942,7 +942,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 >
                   <Inbox className={cn("h-4 w-4", unreadMessageCount > 0 ? "text-emerald-600" : "text-muted-foreground")} />
                   {unreadMessageCount > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1 rounded-full bg-emerald-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm animate-in zoom-in-50">
+                    <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1 rounded-full bg-emerald-500 text-white text-[9px] font-bold flex items-center justify-center shadow-[var(--shadow-xs)] animate-in zoom-in-50">
                       {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
                     </span>
                   )}
@@ -957,7 +957,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
               
-              <div className="group flex items-center gap-2.5 rounded-lg border border-border/35 bg-muted/20 py-1.5 pl-3 pr-1.5 transition-all duration-150 hover:border-primary/20 hover:bg-muted/35 hover:shadow-sm">
+              <div className="group flex items-center gap-2.5 rounded-lg border border-border/35 bg-muted/20 py-1.5 pl-3 pr-1.5 transition-all duration-150 hover:border-primary/20 hover:bg-muted/35 hover:shadow-[var(--shadow-xs)]">
                 <div className="text-right hidden sm:block">
                   <p className="text-[10.5px] font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
                     {displayName}
@@ -993,7 +993,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {/* Mobile Menu Trigger */}
             <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
               <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="md:hidden h-8 w-8 rounded-lg bg-background/95 shadow-sm">
+                <Button variant="outline" size="icon" className="md:hidden h-8 w-8 rounded-lg bg-background/95 shadow-[var(--shadow-xs)]">
                   <Menu className="h-4 w-4 text-foreground" />
                   <span className="sr-only">Toggle menu</span>
                 </Button>
@@ -1014,7 +1014,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Button
               variant="outline"
               size="icon"
-              className="hidden md:inline-flex h-8 w-8 rounded-lg bg-background/95 shadow-sm"
+              className="hidden md:inline-flex h-8 w-8 rounded-lg bg-background/95 shadow-[var(--shadow-xs)]"
               onClick={() => {
                 autoCollapseRef.current = false;
                 setIsSidebarCollapsed((prev) => !prev);
@@ -1027,9 +1027,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {/* Compli-ee access for full-bleed studio routes */}
             <ComplieeIdleButton
               onClick={openChatAssistant}
-              className="h-8 rounded-lg px-3 py-0 text-xs shadow-md shadow-emerald-500/30"
+              className="h-8 rounded-lg px-3 py-0 text-xs shadow-[var(--shadow-medium)] shadow-emerald-500/30"
             />
-            <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/90 px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-sm">
+            <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/90 px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-[var(--shadow-xs)]">
               <span>Open</span>
               <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] leading-none text-foreground">Ctrl + /</kbd>
             </div>

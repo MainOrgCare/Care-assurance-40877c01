@@ -15,9 +15,9 @@ export default function NotFound() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center px-6 py-12 bg-background">
       <div className="w-full max-w-md mx-auto text-center">
-        <Card className="bg-card/95 border-border/50 shadow-[var(--shadow-card)]">
+        <Card className="bg-card/95 border-border/50 shadow-[var(--shadow-xs)]">
           <CardContent className="pt-10 pb-8 px-8 space-y-6">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/8 text-destructive ring-1 ring-destructive/15 shadow-sm">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/8 text-destructive ring-1 ring-destructive/15 shadow-[var(--shadow-xs)]">
               <AlertCircle className="h-6 w-6" />
             </div>
             <div className="space-y-2.5">

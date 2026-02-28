@@ -91,9 +91,6 @@
   --shadow-medium: 0 4px 16px -4px rgba(15, 23, 42, 0.12), 0 2px 8px -2px rgba(15, 23, 42, 0.06);
   --shadow-strong: 0 12px 40px -12px rgba(2, 6, 23, 0.18), 0 4px 16px -4px rgba(15, 23, 42, 0.09);
   --shadow-glow: 0 0 0 rgba(0, 0, 0, 0);
-  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 0 1px rgba(15, 23, 42, 0.06);
-  --shadow-card-hover: 0 6px 16px -6px rgba(15, 23, 42, 0.10), 0 2px 6px -2px rgba(15, 23, 42, 0.05);
-  --shadow-elevated: 0 10px 32px -10px rgba(15, 23, 42, 0.14), 0 2px 8px -2px rgba(15, 23, 42, 0.06);
   --motion-fast: 120ms;
   --motion-standard: 180ms;
   --motion-slow: 280ms;
@@ -280,12 +277,12 @@
     border-radius: 0.75rem;
     border: 1px solid color-mix(in oklab, var(--color-border) 88%, white);
     background: var(--color-card);
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--shadow-xs);
     transition: border-color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
   }
   .app-surface:hover {
     border-color: color-mix(in oklab, var(--color-primary) 20%, var(--color-border));
-    box-shadow: var(--shadow-card-hover);
+    box-shadow: var(--shadow-sm);
   }
 
   /* Card shell */
@@ -294,13 +291,13 @@
     border-radius: 0.75rem;
     border: 1px solid color-mix(in oklab, var(--color-border) 90%, white);
     background: var(--color-card);
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--shadow-xs);
     transition: box-shadow var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
   }
   .glass-card:hover,
   .glass-card-interactive:hover {
     border-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-border));
-    box-shadow: var(--shadow-card-hover);
+    box-shadow: var(--shadow-sm);
   }
   .glass-card-interactive {
     cursor: pointer;
@@ -397,12 +394,12 @@
     border: 1px solid color-mix(in oklab, var(--color-border) 90%, white);
     background: var(--color-card);
     padding: 1.25rem;
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--shadow-xs);
     transition: box-shadow var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
   }
   .stat-card:hover {
     border-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-border));
-    box-shadow: var(--shadow-card-hover);
+    box-shadow: var(--shadow-sm);
     transform: translateY(-1px);
   }
   .stat-card-value {
@@ -480,19 +477,6 @@
     background-color: color-mix(in oklab, var(--color-card) 86%, transparent);
     backdrop-filter: blur(10px);
   }
-  .corporate-header-shell {
-    border-color: color-mix(in oklab, var(--color-border) 84%, transparent);
-    background:
-      linear-gradient(180deg, color-mix(in oklab, var(--color-card) 92%, transparent), color-mix(in oklab, var(--color-card) 82%, transparent));
-    box-shadow:
-      inset 0 -1px 0 color-mix(in oklab, var(--color-border) 42%, transparent),
-      0 12px 24px -18px rgba(15, 23, 42, 0.35);
-  }
-  .corporate-action-cluster {
-    border: 1px solid color-mix(in oklab, var(--color-border) 88%, transparent);
-    background: color-mix(in oklab, var(--color-card) 72%, transparent);
-    box-shadow: var(--surface-shell-shadow);
-  }
   .workspace-card {
     border-color: var(--color-border);
     background: var(--color-card);
@@ -500,19 +484,6 @@
   }
   .workspace-card > * + * {
     margin-top: 0;
-  }
-  .corporate-content-card {
-    border-color: color-mix(in oklab, var(--color-border) 90%, transparent);
-    background:
-      linear-gradient(180deg, color-mix(in oklab, var(--color-card) 100%, transparent), color-mix(in oklab, var(--color-card) 96%, transparent));
-    box-shadow:
-      0 1px 0 color-mix(in oklab, white 70%, transparent) inset,
-      var(--shadow-card-hover);
-  }
-  .corporate-content-card:hover {
-    box-shadow:
-      0 1px 0 color-mix(in oklab, white 70%, transparent) inset,
-      var(--shadow-elevated);
   }
   .workspace-footer {
     border-color: var(--color-border);
@@ -526,17 +497,6 @@
   :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .workspace-card {
     background: color-mix(in oklab, var(--color-card) 92%, transparent);
     border-color: color-mix(in oklab, var(--color-border) 80%, transparent);
-  }
-  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .corporate-header-shell {
-    background:
-      linear-gradient(180deg, color-mix(in oklab, var(--color-background) 88%, transparent), color-mix(in oklab, var(--color-background) 82%, transparent));
-  }
-  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .corporate-action-cluster {
-    background: color-mix(in oklab, var(--color-background) 74%, transparent);
-  }
-  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .corporate-content-card {
-    background:
-      linear-gradient(180deg, color-mix(in oklab, var(--color-card) 94%, transparent), color-mix(in oklab, var(--color-card) 88%, transparent));
   }
   :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .workspace-footer {
     background-color: color-mix(in oklab, var(--color-background) 92%, transparent);
@@ -1284,78 +1244,30 @@ html.theme-light {
   font-size: 1.5rem;
 }
 
-/* Custom scrollbar styling - theme aware */
-::-webkit-scrollbar {
+/* Custom Global Scrollbars */
+*::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-
-::-webkit-scrollbar-track {
+*::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+  border: 2px solid var(--color-background);
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted-foreground);
+}
+*::-webkit-scrollbar-corner {
   background: transparent;
 }
-
-::-webkit-scrollbar-thumb {
-  background: hsl(200 35% 30%);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(200 35% 40%);
-}
-
-/* Dark theme scrollbar */
-.theme-dark ::-webkit-scrollbar-thumb {
-  background: hsl(200 35% 30%);
-}
-
-html.theme-dark ::-webkit-scrollbar-thumb:hover {
-  background: hsl(200 35% 40%);
-}
-
-/* Midnight theme scrollbar */
-html.theme-midnight ::-webkit-scrollbar-thumb {
-  background: hsl(270 30% 25%);
-}
-
-html.theme-midnight ::-webkit-scrollbar-thumb:hover {
-  background: hsl(270 30% 35%);
-}
-
-/* Ocean theme scrollbar */
-html.theme-ocean ::-webkit-scrollbar-thumb {
-  background: hsl(168 76% 25%);
-}
-
-html.theme-ocean ::-webkit-scrollbar-thumb:hover {
-  background: hsl(168 76% 35%);
-}
-
-/* Light theme scrollbar */
-html.theme-light ::-webkit-scrollbar-thumb {
-  background: hsl(215 20% 70%);
-}
-
-html.theme-light ::-webkit-scrollbar-thumb:hover {
-  background: hsl(215 20% 60%);
-}
-
-/* Firefox scrollbar */
 * {
-  scrollbar-color: var(--scrollbar-thumb, hsl(200 35% 30%)) transparent;
+  scrollbar-color: var(--color-border) transparent;
   scrollbar-width: thin;
-}
-
-html.theme-light {
-  scrollbar-color: hsl(215 20% 70%) transparent;
-}
-
-html.theme-midnight {
-  scrollbar-color: hsl(270 30% 25%) transparent;
-}
-
-html.theme-ocean {
-  scrollbar-color: hsl(168 76% 25%) transparent;
 }
 
 /* ========================================

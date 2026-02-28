@@ -157,7 +157,7 @@ export const ComplieeAvatar = React.memo(function ComplieeAvatar({
     <div
       className={cn(
         sizeClasses[size],
-        "relative rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-md",
+        "relative rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-[var(--shadow-medium)]",
         animate && "animate-pulse"
       )}
       title="Compli-ee - Your Compliance Assistant"
@@ -529,7 +529,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
   return (
     <div
       className={cn(
-        "fixed z-50 transition-all duration-250 bg-background border-l border-border shadow-lg overflow-hidden flex flex-col",
+        "fixed z-50 transition-all duration-250 bg-background border-l border-border shadow-[var(--shadow-strong)] overflow-hidden flex flex-col",
         isOpen ? "translate-x-0" : "translate-x-full",
         isMinimized
           ? "bottom-4 right-4 w-[300px] h-14 rounded-xl"
@@ -688,7 +688,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
 
                 <div
                   className={cn(
-                    "max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm",
+                    "max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm shadow-[var(--shadow-xs)]",
                     message.role === "user"
                       ? "bg-emerald-500 text-white rounded-br-md border border-emerald-400/60 shadow-emerald-700/25"
                       : "bg-background/95 border border-border/70 rounded-bl-md shadow-[0_8px_20px_-14px_rgba(15,23,42,0.35)]"
@@ -752,7 +752,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                 <div className="flex-shrink-0 mt-0.5">
                   <ComplieeAvatar size="sm" animate />
                 </div>
-                <div className="bg-background border border-border/70 shadow-sm rounded-2xl rounded-bl-md px-3.5 py-3">
+                <div className="bg-background border border-border/70 shadow-[var(--shadow-xs)] rounded-2xl rounded-bl-md px-3.5 py-3">
                   <div className="flex gap-1.5">
                     <span
                       className="h-2 w-2 bg-emerald-400 rounded-full animate-bounce"

@@ -257,7 +257,7 @@ export default function ScheduleTemplateLibrary({
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredTemplates.map((template: ScheduleTemplate) => (
-                <Card key={template.id} className="hover:shadow-md transition-shadow">
+                <Card key={template.id} className="hover:shadow-[var(--shadow-medium)] transition-shadow">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="space-y-1">

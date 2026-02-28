@@ -94,7 +94,7 @@ export function SessionTimeoutWarning() {
   return (
     <div
       className={cn(
-        "fixed bottom-4 right-4 z-[100] max-w-sm rounded-xl border border-amber-500/30 bg-amber-50 dark:bg-amber-950/80 p-4 shadow-lg backdrop-blur-sm",
+        "fixed bottom-4 right-4 z-[100] max-w-sm rounded-xl border border-amber-500/30 bg-amber-50 dark:bg-amber-950/80 p-4 shadow-[var(--shadow-strong)] backdrop-blur-sm",
         "animate-in slide-in-from-bottom-4 fade-in duration-300"
       )}
       role="alert"

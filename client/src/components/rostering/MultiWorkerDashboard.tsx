@@ -26,7 +26,7 @@ export const MultiWorkerDashboard: React.FC<MultiWorkerDashboardProps> = ({
   const maxDuration = workers.reduce((acc, worker) => Math.max(acc, worker.totalDurationMinutes), 0) || 1;
 
   return (
-    <div className="rounded-2xl border bg-card/70 p-4 shadow-sm">
+    <div className="rounded-2xl border bg-card/70 p-4 shadow-[var(--shadow-xs)]">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm font-semibold">Multi-worker workload</p>

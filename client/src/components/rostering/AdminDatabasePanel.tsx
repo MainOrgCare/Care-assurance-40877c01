@@ -225,7 +225,7 @@ export const AdminDatabasePanel: React.FC = () => {
               key={item.label}
               className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft"
             >
-              <div className={`p-2 rounded-md ${item.color} shadow-sm`}>
+              <div className={`p-2 rounded-md ${item.color} shadow-[var(--shadow-xs)]`}>
                 <item.icon className="h-4 w-4 text-white" />
               </div>
               <div>

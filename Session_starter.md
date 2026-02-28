@@ -80,6 +80,7 @@
 
 ## 🚀 Recent Achievements
 | Date | Summary |
+| 2026-02-28 | Continue UI Polish: Global standardize of Shadow tokens, generic focus rings, layout wrappers, widget states, and webkit scrollbars. |
 |------|---------|
 | 2026-02-27 | ✅ Session context aligned to README as source-of-truth product documentation |
 | 2026-02-27 | ✅ Session continuity template replaced with app-specific architecture and operational context |
@@ -108,6 +109,8 @@
 | 2026-02-28 | ✅ Eliminated recurring workbook ingest `arrayParser.create` crashes by replacing destructive `scripts/postinstall.cjs` stub logic with a safe compatibility patch and adding explicit ingest error responses for DB parser/SSL misconfiguration cases in `server/routes.ts` |
 | 2026-02-28 | ✅ Hardened auth UX by mapping transient DB/SSL login failures to HTTP 503 in `server/routes.ts` and suppressing unauthenticated `/api/system-logs` POST noise in `client/src/context/AuthContext.tsx` |
 | 2026-02-28 | ✅ Enhanced EMAR compliance output in `server/routes.ts`: added repeated non-administration trend warnings (`R`, `SA`, `F`, `NH`), inferred unknown carer names from same date/time records, and exposed `allCareWorkers` in both standard and agent result payloads |
+| 2026-02-28 | ✅ Rebuilt `emar-lmstudio-preset.json` to LM Studio native `.preset.json` schema (`identifier`, `operation.fields`, `load.fields`) based on real exported preset structure to resolve import-context validation errors |
+| 2026-02-28 | ✅ Added LM Studio structured-output artifacts for eMAR testing: `EMAR Structured Output.schema.json` (strict JSON schema) and `EMAR Strict JSON Test.prompt.md` (ready-to-paste task prompt aligned with NH/MU/trend/inference rules) |
 
 ---
 

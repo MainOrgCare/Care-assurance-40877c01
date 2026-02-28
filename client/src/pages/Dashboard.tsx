@@ -80,7 +80,7 @@ function SortableWidgetItemBase({ widget, isActive, onToggle }: { widget: Widget
         isDragging ? "opacity-50 scale-95 z-50 bg-accent" : "bg-muted/30 hover:bg-muted/50"
       )}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         <button {...attributes} {...listeners} aria-label={`Drag to reorder ${widget.label}`} className="cursor-grab active:cursor-grabbing p-1.5 rounded-lg hover:bg-background/80 text-muted-foreground transition-colors">
           <GripVertical className="h-4 w-4" />
         </button>
@@ -406,10 +406,10 @@ export default function Dashboard() {
   return (
     <div className="page-shell page-shell-compact">
       {user?.isDemo && (
-        <Card className="app-surface bg-primary/5 border-primary/20 animate-fade-in" data-testid="demo-mode-banner">
+        <Card className=" bg-primary/5 border-primary/20 animate-fade-in" data-testid="demo-mode-banner">
           <CardContent className="p-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center">
                   <Play className="h-5 w-5 text-white" />
                 </div>
@@ -547,10 +547,10 @@ export default function Dashboard() {
 
       {/* Error Banner */}
       {isError && (
-        <Card className="app-surface bg-destructive/5 border-destructive/20 animate-fade-in">
+        <Card className=" bg-destructive/5 border-destructive/20 animate-fade-in">
           <CardContent className="p-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <div className="h-10 w-10 rounded-lg bg-destructive/15 flex items-center justify-center">
                   <AlertCircle className="h-5 w-5 text-destructive" />
                 </div>
@@ -573,7 +573,7 @@ export default function Dashboard() {
       {/* Quick Actions */}
       <div className="space-y-3.5 animate-slide-up stagger-2">
         <div className="flex items-center gap-2.5 px-0.5">
-          <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-amber-500/10 border border-amber-500/15 shadow-sm">
+          <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-amber-500/10 border border-amber-500/15 shadow-[var(--shadow-xs)]">
             <Zap className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
@@ -581,12 +581,12 @@ export default function Dashboard() {
             <p className="text-[10px] text-muted-foreground/60">Quick access to key workflows</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {QUICK_ACTIONS.map((action, index) => (
             <Link key={index} href={action.href}>
-              <Card className="app-surface group h-full cursor-pointer" data-testid={`card-quick-action-${index}`}>
-                <CardContent className={`p-4 relative border ${action.panelTone} rounded-xl transition-all duration-200 group-hover:shadow-md`}>
-                  <div className={`relative h-9 w-9 rounded-lg ${action.iconTone} flex items-center justify-center mb-3 shadow-sm`}>
+              <Card className=" group h-full cursor-pointer" data-testid={`card-quick-action-${index}`}>
+                <CardContent className={`p-4 relative border ${action.panelTone} rounded-xl transition-all duration-200 group-hover:shadow-[var(--shadow-medium)]`}>
+                  <div className={`relative h-9 w-9 rounded-lg ${action.iconTone} flex items-center justify-center mb-3 shadow-[var(--shadow-xs)]`}>
                     <action.icon className="h-4 w-4" />
                   </div>
                   
@@ -607,7 +607,7 @@ export default function Dashboard() {
       {isLoading && !stats ? (
         <>
           {/* Skeleton stat cards */}
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-3">
             {[1, 2, 3, 4].map(i => (
               <Card key={i}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
@@ -622,8 +622,8 @@ export default function Dashboard() {
             ))}
           </div>
           {/* Skeleton large panels */}
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-7 animate-slide-up stagger-4">
-            <Card className="app-surface lg:col-span-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 animate-slide-up stagger-4">
+            <Card className=" lg:col-span-4">
               <CardHeader className="border-b border-border/30 pb-3 mb-3">
                 <div className="flex items-center gap-2">
                   <Skeleton className="h-6 w-6 rounded-md" />
@@ -644,7 +644,7 @@ export default function Dashboard() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="app-surface lg:col-span-3">
+            <Card className=" lg:col-span-3">
               <CardHeader className="border-b border-border/30 pb-3 mb-3">
                 <div className="flex items-center gap-2">
                   <Skeleton className="h-6 w-6 rounded-md" />
@@ -654,7 +654,7 @@ export default function Dashboard() {
               <CardContent>
                 <div className="space-y-3">
                   {[1, 2, 3].map(i => (
-                    <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-border/30">
+                    <div key={i} className="flex items-start gap-4 p-3 rounded-lg border border-border/30">
                       <Skeleton className="h-8 w-8 rounded-md flex-shrink-0" />
                       <div className="flex-1 space-y-1.5">
                         <Skeleton className="h-3 w-40" />
@@ -670,15 +670,15 @@ export default function Dashboard() {
       ) : (
       <>
       {smallWidgets.length > 0 && (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-3">
           {smallWidgets.map(widgetId => renderSmallWidget(widgetId))}
         </div>
       )}
 
       {largeWidgets.length > 0 && (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-7 animate-slide-up stagger-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 animate-slide-up stagger-4">
           {largeWidgets.includes("compliance_data") && (
-            <Card className={cn("app-surface", largeWidgets.includes("recent_alerts") ? "lg:col-span-4" : "lg:col-span-7")} data-testid="widget-compliance-data">
+            <Card className={cn("", largeWidgets.includes("recent_alerts") ? "lg:col-span-4" : "lg:col-span-7")} data-testid="widget-compliance-data">
               <CardHeader className="border-b border-border/30 pb-3 mb-3">
                 <div className="flex items-center gap-2">
                   <div className="h-6 w-6 rounded-md bg-primary/8 flex items-center justify-center">
@@ -716,7 +716,7 @@ export default function Dashboard() {
           )}
 
           {largeWidgets.includes("recent_alerts") && (
-            <Card className={cn("app-surface", largeWidgets.includes("compliance_data") ? "lg:col-span-3" : "lg:col-span-7")} data-testid="widget-recent-alerts">
+            <Card className={cn("", largeWidgets.includes("compliance_data") ? "lg:col-span-3" : "lg:col-span-7")} data-testid="widget-recent-alerts">
               <CardHeader className="border-b border-border/30 pb-3 mb-2">
                 <div className="flex items-center gap-2">
                   <div className="h-6 w-6 rounded-md bg-destructive/8 flex items-center justify-center text-destructive">
@@ -736,7 +736,7 @@ export default function Dashboard() {
                 ) : recentAlerts.length > 0 ? (
                   <div className="space-y-2 overflow-y-auto max-h-[280px] pr-1">
                     {recentAlerts.map((alert) => (
-                      <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg border border-border/40 bg-muted/15 hover:bg-muted/25 transition-colors group">
+                      <div key={alert.id} className="flex items-start gap-4 p-3 rounded-lg border border-border/40 bg-muted/15 hover:bg-muted/25 transition-colors group">
                         <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50 shrink-0">
                           <Activity className="h-4 w-4 text-destructive" />
                         </div>
@@ -761,7 +761,7 @@ export default function Dashboard() {
           )}
 
           {largeWidgets.includes("activity_feed") && (
-            <Card className="app-surface lg:col-span-full" data-testid="widget-activity-feed">
+            <Card className=" lg:col-span-full" data-testid="widget-activity-feed">
               <CardHeader className="border-b border-border/30 pb-3 mb-2">
                 <div className="flex items-center gap-2">
                   <div className="h-6 w-6 rounded-md bg-violet-500/8 flex items-center justify-center text-violet-600">
@@ -782,7 +782,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                     {activityData.map((item: ActivityItem) => (
-                      <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg border border-border/40 bg-muted/15 hover:bg-muted/25 transition-colors">
+                      <div key={item.id} className="flex items-start gap-4 p-3 rounded-lg border border-border/40 bg-muted/15 hover:bg-muted/25 transition-colors">
                         <div className={cn(
                           "h-8 w-8 rounded-md flex items-center justify-center border border-border/50 shrink-0",
                           item.type === "alert" ? "bg-destructive/10" :
@@ -818,7 +818,7 @@ export default function Dashboard() {
       )}
 
       {activeWidgets.length === 0 && (
-        <Card className="app-surface">
+        <Card className="">
           <CardContent className="flex flex-col items-center justify-center py-14">
             <Settings className="h-10 w-10 text-muted-foreground/50 mb-4" />
             <p className="text-lg font-semibold text-foreground mb-1">Dashboard Empty</p>
@@ -834,11 +834,11 @@ export default function Dashboard() {
       )}
 
       {/* Operational Summary & Data Export */}
-      <Card className="app-surface overflow-hidden animate-slide-up stagger-5" data-testid="card-operational-summary">
+      <Card className=" overflow-hidden animate-slide-up stagger-5" data-testid="card-operational-summary">
         <CardHeader className="pb-3 border-b border-border/25">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-blue-500/10 border border-blue-500/12 shadow-sm">
+              <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-blue-500/10 border border-blue-500/12 shadow-[var(--shadow-xs)]">
                 <TrendingUp className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
@@ -866,7 +866,7 @@ export default function Dashboard() {
           </div>
         </CardHeader>
         <CardContent className="pt-5">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {(() => {
               const totalWork = (stats?.auditsCompleted ?? 0) + (stats?.carePlanReviews ?? 0) + (stats?.riskAssessments ?? 0) + (stats?.medicationAudits ?? 0);
               const summaryItems = [
@@ -876,9 +876,9 @@ export default function Dashboard() {
                 { label: "Risk Checks", value: stats?.riskAssessments ?? 0, icon: Shield, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/15" },
               ];
               return summaryItems.map((item) => (
-                <div key={item.label} className={cn("p-4 rounded-xl border transition-all duration-200 hover:shadow-md hover:-translate-y-px", item.border, "bg-background")}>
+                <div key={item.label} className={cn("p-4 rounded-xl border transition-all duration-200 hover:shadow-[var(--shadow-medium)] hover:-translate-y-px", item.border, "bg-background")}>
                   <div className="flex items-center gap-2 mb-2.5">
-                    <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shadow-sm", item.bg)}>
+                    <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shadow-[var(--shadow-xs)]", item.bg)}>
                       <item.icon className={cn("h-3.5 w-3.5", item.color)} />
                     </div>
                   </div>
@@ -890,7 +890,7 @@ export default function Dashboard() {
               ));
             })()}
           </div>
-          <div className="mt-5 pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/30">
+          <div className="mt-5 pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/30">
             <p className="text-[10px] text-muted-foreground/70">
               Last refreshed {data ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'} &middot; Auto-refresh every 2 min
             </p>

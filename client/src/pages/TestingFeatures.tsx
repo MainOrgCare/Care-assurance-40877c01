@@ -5998,7 +5998,7 @@ export default function TestingFeatures() {
                   <Card
                     className={
                       rosteringFullscreen
-                        ? "h-[calc(100vh-2rem)] border border-border/70 bg-background shadow-lg"
+                        ? "h-[calc(100vh-2rem)] border border-border/70 bg-background shadow-[var(--shadow-strong)]"
                         : "border-0 bg-transparent shadow-none"
                     }
                   >
@@ -6913,7 +6913,7 @@ export default function TestingFeatures() {
                                         return (
                                           <div
                                             key={`${entry.key}-${entry.callTypeLabel}-${entry.timeBandLabel}-${entry.requirementStartMinutes ?? "none"}-${index}`}
-                                            className={`flex flex-col gap-2 rounded-xl border border-border/60 bg-background/60 p-3 shadow-sm transition-shadow hover:shadow-md border-l-4 ${borderTone}`}
+                                            className={`flex flex-col gap-2 rounded-xl border border-border/60 bg-background/60 p-3 shadow-[var(--shadow-xs)] transition-shadow hover:shadow-[var(--shadow-medium)] border-l-4 ${borderTone}`}
                                           >
                                             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                                               <div>
@@ -7351,7 +7351,7 @@ export default function TestingFeatures() {
             <AccordionItem
               id="tf-stacks"
               value="service-user-call-stacks"
-              className="scroll-mt-24 mb-4 rounded-2xl border border-border/70 bg-card/60 px-5 shadow-sm border-b-0 overflow-hidden"
+              className="scroll-mt-24 mb-4 rounded-2xl border border-border/70 bg-card/60 px-5 shadow-[var(--shadow-xs)] border-b-0 overflow-hidden"
             >
               <AccordionTrigger className="py-5 text-base font-semibold hover:no-underline">Service User Call Stacks</AccordionTrigger>
               <AccordionContent className="pb-5">

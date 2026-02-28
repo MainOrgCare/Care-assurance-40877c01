@@ -486,7 +486,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
   return (
     <TooltipProvider delayDuration={300}>
       <div
-        className={`rounded-lg border border-border/60 bg-background/70 ${containerPadding} shadow-md backdrop-blur-sm ${fitHeight ? "flex h-full min-h-0 flex-col" : ""}`}
+        className={`rounded-lg border border-border/60 bg-background/70 ${containerPadding} shadow-[var(--shadow-medium)] backdrop-blur-sm ${fitHeight ? "flex h-full min-h-0 flex-col" : ""}`}
       >
       {showHeader && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
@@ -522,7 +522,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
         className={`rounded-lg border border-border/60 bg-background/80 overflow-hidden relative ${fitHeight ? "flex min-h-0 flex-1 flex-col" : ""}`}
       >
         {/* Timeline Header - Professional time ruler */}
-        <div className="flex items-stretch border-b bg-gradient-to-b from-muted/50 to-muted/20 flex-shrink-0 sticky top-0 z-30 backdrop-blur-sm shadow-sm">
+        <div className="flex items-stretch border-b bg-gradient-to-b from-muted/50 to-muted/20 flex-shrink-0 sticky top-0 z-30 backdrop-blur-sm shadow-[var(--shadow-xs)]">
           {/* Worker column header */}
           <div className="w-[100px] sm:w-[180px] px-2 sm:px-3 py-2 flex items-center border-r bg-muted/40 shrink-0">
             <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted-foreground">Worker</span>
@@ -620,7 +620,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
             <DragOverlay dropAnimation={null}>
               {activeEntry && (
                 <div
-                  className="rounded-lg px-3 text-left text-[11px] font-semibold text-primary-foreground shadow-lg bg-primary border-l-4 border-primary/80 pointer-events-none"
+                  className="rounded-lg px-3 text-left text-[11px] font-semibold text-primary-foreground shadow-[var(--shadow-strong)] bg-primary border-l-4 border-primary/80 pointer-events-none"
                   style={{ height: entryHeight }}
                 >
                   <div className="flex items-center gap-1.5 pt-1.5">
@@ -950,11 +950,11 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
           ref={setNodeRef}
           type="button"
           onClick={handleClick}
-          className={`absolute rounded-md px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-foreground shadow-sm touch-manipulation
+          className={`absolute rounded-md px-1.5 sm:px-2 text-left text-[10px] sm:text-[11px] font-semibold text-foreground shadow-[var(--shadow-xs)] touch-manipulation
               transition-shadow focus:outline-none focus:ring-1 focus:ring-primary/60 
               ${colors.bg} border ${colors.border}
-              ${isDragging ? "opacity-60 shadow-md z-20" : "hover:shadow-md"}
-              ${isSelected ? "ring-1 ring-primary shadow-md z-10" : ""}
+              ${isDragging ? "opacity-60 shadow-[var(--shadow-medium)] z-20" : "hover:shadow-[var(--shadow-medium)]"}
+              ${isSelected ? "ring-1 ring-primary shadow-[var(--shadow-medium)] z-10" : ""}
               ${isFocused ? "ring-1 ring-primary z-10" : ""}
               ${hasConflict ? "ring-1 ring-red-400" : ""}`}
           style={style}
@@ -963,13 +963,13 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
         >
           {/* Selection indicator */}
           {isSelected && (
-            <div className="absolute -top-1.5 -left-1.5 h-4 w-4 rounded-full bg-background shadow-sm flex items-center justify-center border border-border/60">
+            <div className="absolute -top-1.5 -left-1.5 h-4 w-4 rounded-full bg-background shadow-[var(--shadow-xs)] flex items-center justify-center border border-border/60">
               <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
             </div>
           )}
           {/* Double-up badge */}
           {entry.isDoubleUp && (
-            <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-blue-600 border border-background shadow-sm flex items-center justify-center">
+            <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-blue-600 border border-background shadow-[var(--shadow-xs)] flex items-center justify-center">
               <span className="text-[9px] font-semibold text-white">2</span>
             </div>
           )}

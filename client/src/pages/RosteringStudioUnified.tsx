@@ -1856,7 +1856,7 @@ export default function RosteringStudioUnified({
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Badge variant="secondary" className="text-[11px] font-semibold px-3 py-1 shadow-sm bg-primary/90 text-primary-foreground">
+            <Badge variant="secondary" className="text-[11px] font-semibold px-3 py-1 shadow-[var(--shadow-xs)] bg-primary/90 text-primary-foreground">
               {getTemplateWeekLabel(selectedTemplateWeek)} • {selectedTemplateDay}
             </Badge>
             <Button
@@ -2080,8 +2080,8 @@ export default function RosteringStudioUnified({
                               }}
                               className={`w-full h-10 px-2 py-1.5 text-left transition-all duration-200 rounded-md mx-1 ${
                                 isSelected 
-                                  ? "bg-gradient-to-r from-primary/20 to-primary/10 border border-primary/30 shadow-sm" 
-                                  : "hover:bg-muted/60 hover:shadow-sm"
+                                  ? "bg-gradient-to-r from-primary/20 to-primary/10 border border-primary/30 shadow-[var(--shadow-xs)]" 
+                                  : "hover:bg-muted/60 hover:shadow-[var(--shadow-xs)]"
                               }`}
                             >
                               <div className="flex items-center gap-1">
@@ -2695,7 +2695,7 @@ export default function RosteringStudioUnified({
                     <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
                       <div className="p-2 space-y-2.5">
                         {/* Selected Visit Details */}
-                        <div className="rounded-lg border bg-gradient-to-br from-primary/5 to-transparent p-2 shadow-sm">
+                        <div className="rounded-lg border bg-gradient-to-br from-primary/5 to-transparent p-2 shadow-[var(--shadow-xs)]">
                           <p className="text-[9px] uppercase tracking-wide text-primary/70 font-semibold mb-1.5 flex items-center gap-1">
                             <Clock4 className="h-3 w-3" />
                             Selected Visit

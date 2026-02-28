@@ -166,9 +166,13 @@ export const pageLayoutStyles = `
 
 /* ===== PAGE HEADER ===== */
 .page-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   padding: 1.5rem 1rem;
   /* Mobile: 1rem padding */
-  background-color: var(--color-card);
+  background-color: color-mix(in oklab, var(--color-card) 85%, transparent);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
@@ -375,39 +379,39 @@ export const pageLayoutStyles = `
 
 @media (min-width: 1024px) {
   .page-content {
-    padding: 2.5rem 2rem;
+    padding: 2rem 2.5rem;
   }
 }
 
 /* ===== DARK MODE ===== */
 .page-layout.dark {
-  background-color: hsl(222, 47%, 11%);
-  color: hsl(210, 40%, 98%);
+  background-color: var(--color-background);
+  color: var(--color-foreground);
 }
 
 .page-layout.dark .page-header {
-  background-color: hsl(222, 50%, 15%);
-  border-bottom-color: hsl(222, 50%, 25%);
+  background-color: color-mix(in oklab, var(--color-background) 80%, transparent);
+  border-bottom-color: var(--color-border);
 }
 
 .page-layout.dark .page-tabs {
-  background-color: hsl(222, 50%, 15%);
-  border-bottom-color: hsl(222, 50%, 25%);
+  background-color: var(--color-background);
+  border-bottom-color: var(--color-border);
 }
 
 .page-layout.dark .header-action-btn {
-  background: hsl(222, 50%, 20%);
-  border-color: hsl(222, 50%, 30%);
-  color: hsl(210, 40%, 98%);
+  background: var(--color-muted);
+  border-color: var(--color-border);
+  color: var(--color-foreground);
 }
 
 .page-layout.dark .header-action-btn:hover {
-  background: hsl(222, 50%, 25%);
-  border-color: hsl(222, 50%, 35%);
+  background: var(--color-accent);
+  border-color: var(--color-border);
 }
 
 .page-layout.dark .page-description {
-  color: hsl(220, 13%, 62%);
+  color: var(--color-muted-foreground);
 }
 
 /* ===== ACCESSIBILITY ===== */
