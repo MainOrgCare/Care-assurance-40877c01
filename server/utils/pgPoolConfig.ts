@@ -29,6 +29,35 @@ const getHostFromConnectionString = (connectionString?: string): string => {
   }
 };
 
+const isRenderHost = (host: string): boolean =>
+  host.startsWith("dpg-") || host.endsWith(".onrender.com");
+
+const normalizeConnectionStringForRuntime = (connectionString?: string): string | undefined => {
+  if (!connectionString) return connectionString;
+
+  try {
+    const url = new URL(connectionString);
+    const host = normalize(url.hostname);
+    const runningOnRenderHost = isRenderHost(host);
+    if (!runningOnRenderHost) return connectionString;
+
+    const mode = normalize(url.searchParams.get("sslmode"));
+
+    // Render internal Postgres commonly uses cert chains that fail strict verify-full validation.
+    // Force libpq-compatible require semantics unless SSL is explicitly disabled.
+    if (mode !== "disable") {
+      url.searchParams.set("sslmode", "require");
+      if (!url.searchParams.has("uselibpqcompat")) {
+        url.searchParams.set("uselibpqcompat", "true");
+      }
+    }
+
+    return url.toString();
+  } catch {
+    return connectionString;
+  }
+};
+
 const isLocalHost = (host: string): boolean =>
   host === "localhost" || host === "127.0.0.1" || host === "::1";
 
@@ -66,15 +95,19 @@ export const getPgPoolConfig = (connectionString?: string): {
   connectionString?: string;
   ssl?: { rejectUnauthorized: boolean };
 } => {
+  const normalizedConnectionString = normalizeConnectionStringForRuntime(connectionString);
+  const host = getHostFromConnectionString(normalizedConnectionString);
+  const renderHost = Boolean(host && isRenderHost(host));
+  const runningOnRender = Boolean(process.env.RENDER || process.env.RENDER_EXTERNAL_HOSTNAME || renderHost);
+
   const config: {
     connectionString?: string;
     ssl?: { rejectUnauthorized: boolean };
-  } = { connectionString };
+  } = { connectionString: normalizedConnectionString };
 
-  if (isSslRequired(connectionString)) {
+  if (isSslRequired(normalizedConnectionString)) {
     // Default to true (validate certificates) for security.
     // Set PGSSLREJECTUNAUTHORIZED=false explicitly to disable (e.g. for Render internal DB).
-    const runningOnRender = Boolean(process.env.RENDER || process.env.RENDER_EXTERNAL_HOSTNAME);
     const rejectUnauthorized = process.env.PGSSLREJECTUNAUTHORIZED == null
       ? !runningOnRender
       : !isFalseValue(process.env.PGSSLREJECTUNAUTHORIZED);
