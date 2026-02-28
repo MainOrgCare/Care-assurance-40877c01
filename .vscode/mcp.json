@@ -1,12 +1,4 @@
 {
-	"inputs": [
-		{
-			"id": "token",
-			"type": "promptString",
-			"description": "Render API key",
-			"password": true
-		}
-	],
 	"servers": {
 		"render-mcp": {
 			"type": "http",
@@ -15,5 +7,13 @@
 				"Authorization": "Bearer ${input:token}"
 			}
 		}
-	}
+	},
+	"inputs": [
+		{
+			"id": "token",
+			"type": "promptString",
+			"description": "Render API key",
+			"password": true
+		}
+	]
 }
