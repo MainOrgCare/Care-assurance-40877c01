@@ -81,6 +81,8 @@
 ## 🚀 Recent Achievements
 | Date | Summary |
 |------|---------|
+| 2026-02-28 | ✅ Switched eMAR compliance runtime to artifact-driven schema/prompt sourcing (from `EMAR Structured Output.schema.json` + `EMAR Strict JSON Test.preset.json`) with fallback guards; validated with `npm run test:server:emar`, `npm run test:server`, and `npm run build` (all passing). |
+| 2026-02-28 | ✅ Resume checkpoint: verified latest `Main` commit `c800900f` (`test(emar): add strict schema/prompt parity guardrails`) with clean `npm run test:server:emar` (3/3) and `npm run build`. |
 | 2026-02-28 | ✅ Added EMAR strict-contract guardrails: new parity test `server/__tests__/emarComplianceParity.test.ts` validates runtime schema parity with `EMAR Structured Output.schema.json`, checks prompt-rule coverage across runtime + preset + markdown prompt, and enforces semantic invariants (NH verification + summary reconciliation). |
 | 2026-02-28 | ✅ Added focused script `npm run test:server:emar` and aligned LM Studio preset prompts to runtime strict directives; validated with `test:server:emar`, full `test:server` (123/123), and `build`. |
 | 2026-02-28 | ✅ Tightened runtime strict-output schema in `server/services/emarComplianceAgent.ts` to match artifact constraints (`allCareWorkers.uniqueItems`, non-negative summary counters), then revalidated with `npm run check` + `npm run build`. |
