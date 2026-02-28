@@ -35,7 +35,7 @@
 ---
 
 ## 🎯 Current State
-**Build Status:** ✅ Last recorded build succeeded (`npm run build`, exit code 0 on 2026-02-27)  
+**Build Status:** ✅ Last recorded build succeeded (`npm run build`, exit code 0 on 2026-02-28)  
 **Runtime Shape:** Dev server runs API + Vite HMR; production build includes client + server + worker split deployment on Render.  
 **AI Enhancement:** Feature-toggled AI stack with cache/rules-first/lite-mode/provider/model controls.
 **Validation Status:** ✅ `npm run check`, `npm run test:server` (117/117), and `npm run test:client` (22/22) all passed on 2026-02-27.
@@ -80,8 +80,10 @@
 
 ## 🚀 Recent Achievements
 | Date | Summary |
-| 2026-02-28 | Continue UI Polish: Global standardize of Shadow tokens, generic focus rings, layout wrappers, widget states, and webkit scrollbars. |
 |------|---------|
+| 2026-02-28 | ✅ Completed global UI standardization pass across client surfaces (shadow token unification, focus-ring normalization, legacy `corporate-*` cleanup, and unified scrollbar styling). |
+| 2026-02-28 | ✅ Fixed malformed nested Tailwind shadow token classes in `slider.tsx` and `tooltip.tsx`; revalidated with clean `npm run build` (warning-free CSS optimization). |
+| 2026-02-28 | ✅ Published finalized work to `origin/Main` with three commits: `83b80a68`, `f5ba4aa3`, `00f3375f`. |
 | 2026-02-27 | ✅ Session context aligned to README as source-of-truth product documentation |
 | 2026-02-27 | ✅ Session continuity template replaced with app-specific architecture and operational context |
 | 2026-02-27 | ✅ Verified current build health from workspace terminal context (`npm run build` success) |
