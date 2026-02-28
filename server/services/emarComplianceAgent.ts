@@ -13,17 +13,15 @@ export const complianceSchema = {
 export const COMPLIANCE_SYSTEM_PROMPT = systemPrompt;
 
 export async function runComplianceAgent(documentText: string, aiUserContext: any = { userId: null, username: null }) {
-  console.log("Starting strictly-typed Compliance Agent run...");
+  console.log("Starting compliance agent run...");
   const response = await executeSecureTextCompletion({
     endpoint: "/api/admin/emar-audit/compliance",
-    feature: "emar_compliance_strict",
+    feature: "emar_compliance",
     model: getPreferredModel(),
     userContext: aiUserContext,
-    systemPrompt: COMPLIANCE_SYSTEM_PROMPT,
     inputText: `EMAR DOCUMENT TEXT:\n\n${documentText}`,
     temperature: 0,
     maxCompletionTokens: 8000,
-    responseFormat: { type: "json_schema", json_schema: complianceSchema },
     useCache: false
   });
 

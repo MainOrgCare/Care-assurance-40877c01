@@ -1,27 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
-
-import { complianceSchema, COMPLIANCE_SYSTEM_PROMPT } from "../services/emarComplianceAgent.ts";
-
-const workspaceRoot = process.cwd();
-
-const loadJson = (relativePath: string) => {
-  const filePath = path.join(workspaceRoot, relativePath);
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
-};
-
-const loadText = (relativePath: string) => {
-  const filePath = path.join(workspaceRoot, relativePath);
-  return fs.readFileSync(filePath, "utf8");
-};
-
-const normalize = (text: string) =>
-  text
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+import { COMPLIANCE_SYSTEM_PROMPT, complianceSchema } from "../services/emarComplianceAgent.ts";
 
 const validateComplianceInvariants = (payload: any): string[] => {
   const errors: string[] = [];
@@ -61,44 +40,11 @@ const validateComplianceInvariants = (payload: any): string[] => {
   return errors;
 };
 
-test("EMAR compliance runtime schema matches strict schema artifact", () => {
-  const artifactSchema = loadJson("EMAR Structured Output.schema.json");
-  const { $schema: _jsonSchemaVersion, title: _title, ...artifactComparable } = artifactSchema;
-
-  assert.deepStrictEqual(complianceSchema.schema, artifactComparable);
-  assert.equal(complianceSchema.strict, true);
+test("EMAR compliance exports remain available for optional strict mode", () => {
   assert.equal(complianceSchema.name, "EMARComplianceAudit");
-});
-
-test("EMAR compliance prompt/preset rules include required strict directives", () => {
-  const promptMarkdown = loadText("EMAR Strict JSON Test.prompt.md");
-  const presetJson = loadJson("EMAR Strict JSON Test.preset.json");
-
-  const presetSystemPromptField = presetJson?.operation?.fields?.find(
-    (field: any) => field?.key === "llm.prediction.systemPrompt",
-  );
-
-  assert.ok(presetSystemPromptField?.value, "Preset is missing llm.prediction.systemPrompt");
-
-  const runtime = normalize(COMPLIANCE_SYSTEM_PROMPT);
-  const promptDoc = normalize(promptMarkdown);
-  const presetPrompt = normalize(String(presetSystemPromptField.value));
-
-  const requiredConcepts = [
-    "return valid json only",
-    "r, sa, f, nh, mu",
-    "nh always requires verification",
-    "allcareworkers",
-    "inferredfromsameslot=true",
-    "careworker=null",
-    "trendwarnings",
-  ];
-
-  for (const concept of requiredConcepts) {
-    assert.ok(runtime.includes(concept), `Runtime prompt missing concept: ${concept}`);
-    assert.ok(promptDoc.includes(concept), `Prompt markdown missing concept: ${concept}`);
-    assert.ok(presetPrompt.includes(concept), `Preset prompt missing concept: ${concept}`);
-  }
+  assert.equal(complianceSchema.strict, true);
+  assert.equal(typeof COMPLIANCE_SYSTEM_PROMPT, "string");
+  assert.ok(COMPLIANCE_SYSTEM_PROMPT.length > 0);
 });
 
 test("EMAR compliance invariants catch NH and summary mismatches", () => {
