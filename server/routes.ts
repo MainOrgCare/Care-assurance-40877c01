@@ -6807,6 +6807,30 @@ export async function registerRoutes(
       if (!initials || initials.trim() === "") {
         return "N.N."; // No initials = call documentation not completed
       }
+
+      const splitNames = String(initials)
+        .split(/[;,/|]+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+      const unknownTokens = new Set(["unknown", "n.n.", "n.n", "nn", "n/a", "na", "not recorded"]);
+      const normalizeToken = (token: string) => token.trim().toLowerCase();
+
+      if (splitNames.length > 1) {
+        const resolved = await Promise.all(
+          splitNames.map(async (token) => {
+            if (!token || unknownTokens.has(normalizeToken(token))) return token || "N.N.";
+            if (!allowSensitiveView) return token;
+            try {
+              const worker = await storage.getCareWorkerByInitials(token);
+              return worker?.name || token;
+            } catch {
+              return token;
+            }
+          })
+        );
+        return Array.from(new Set(resolved.filter(Boolean))).join(", ") || "N.N.";
+      }
       
       if (!allowSensitiveView) {
         return initials; // Privacy mode - show only initials
@@ -6820,6 +6844,106 @@ export async function registerRoutes(
         return initials; // Fallback to initials on error
       }
     }
+
+    const UNKNOWN_CARE_WORKER_VALUES = new Set([
+      "",
+      "unknown",
+      "n.n.",
+      "n.n",
+      "nn",
+      "n/a",
+      "na",
+      "not recorded",
+      "not available",
+    ]);
+
+    const normalizeWorkerValue = (value: unknown): string => String(value || "").trim();
+
+    const isUnknownCareWorker = (value: unknown): boolean =>
+      UNKNOWN_CARE_WORKER_VALUES.has(normalizeWorkerValue(value).toLowerCase());
+
+    const splitWorkerNames = (value: unknown): string[] =>
+      normalizeWorkerValue(value)
+        .split(/[;,/|]+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+    const buildCareWorkerInferenceIndex = (
+      entries: any[],
+      pickName: (entry: any) => unknown
+    ): Map<string, Set<string>> => {
+      const index = new Map<string, Set<string>>();
+      (entries || []).forEach((entry) => {
+        const date = normalizeWorkerValue(entry?.date).toLowerCase();
+        const timeSlot = normalizeWorkerValue(entry?.timeSlot).toLowerCase();
+        if (!date || !timeSlot) return;
+
+        const key = `${date}|${timeSlot}`;
+        const known = splitWorkerNames(pickName(entry)).filter((name) => !isUnknownCareWorker(name));
+        if (!known.length) return;
+        const bucket = index.get(key) || new Set<string>();
+        known.forEach((name) => bucket.add(name));
+        index.set(key, bucket);
+      });
+      return index;
+    };
+
+    const inferCareWorkerName = (
+      currentName: unknown,
+      date: unknown,
+      timeSlot: unknown,
+      inferenceIndex: Map<string, Set<string>>
+    ): string => {
+      const normalizedCurrent = normalizeWorkerValue(currentName);
+      if (!isUnknownCareWorker(normalizedCurrent)) {
+        return normalizedCurrent || "N.N.";
+      }
+      const key = `${normalizeWorkerValue(date).toLowerCase()}|${normalizeWorkerValue(timeSlot).toLowerCase()}`;
+      const inferred = Array.from(inferenceIndex.get(key) || []).filter(Boolean);
+      if (!inferred.length) return normalizedCurrent || "N.N.";
+      return inferred.length === 1 ? inferred[0] : inferred.join(", ");
+    };
+
+    const applyCareWorkerInference = (
+      items: any[],
+      inferenceIndex: Map<string, Set<string>>
+    ): any[] => {
+      if (!Array.isArray(items) || items.length === 0) return items;
+      return items.map((item) => {
+        const date = item?.date || item?.dates?.[0]?.date || "";
+        const timeSlot = item?.timeSlot || item?.dates?.[0]?.timeSlot || "";
+        if (Object.prototype.hasOwnProperty.call(item || {}, "careWorkerName")) {
+          return {
+            ...item,
+            careWorkerName: inferCareWorkerName(item?.careWorkerName, date, timeSlot, inferenceIndex),
+          };
+        }
+        return item;
+      });
+    };
+
+    const collectAllCareWorkers = (entries: any[], pickName: (entry: any) => unknown): string[] => {
+      const workers = new Set<string>();
+      (entries || []).forEach((entry) => {
+        splitWorkerNames(pickName(entry))
+          .filter((name) => !isUnknownCareWorker(name))
+          .forEach((name) => workers.add(name));
+      });
+      return Array.from(workers).sort((a, b) => a.localeCompare(b));
+    };
+
+    const resolveCareWorkerList = async (workers: string[], allowSensitiveView: boolean): Promise<string[]> => {
+      const resolved = await Promise.all(
+        (workers || []).map((worker) => resolveCareWorkerName(worker, allowSensitiveView))
+      );
+      return Array.from(
+        new Set(
+          resolved
+            .flatMap((value) => splitWorkerNames(value))
+            .filter((name) => !isUnknownCareWorker(name))
+        )
+      ).sort((a, b) => a.localeCompare(b));
+    };
     
     try {
 
@@ -8054,6 +8178,35 @@ ${correctionExamples}
               });
             }
           });
+
+          const nonAdminTrendCounts = { R: 0, SA: 0, F: 0, NH: 0, MU: 0 };
+          agentEntries.forEach((entry: any) => {
+            const code = normalizeAgentCode(entry.code || "");
+            if (code === "R" || code === "PRN-R") nonAdminTrendCounts.R += 1;
+            else if (code === "SA") nonAdminTrendCounts.SA += 1;
+            else if (code === "F") nonAdminTrendCounts.F += 1;
+            else if (code === "NH") nonAdminTrendCounts.NH += 1;
+            else if (code === "MU") nonAdminTrendCounts.MU += 1;
+          });
+          const NON_ADMIN_TREND_THRESHOLD = 3;
+          Object.entries(nonAdminTrendCounts).forEach(([code, count]) => {
+            if (count >= NON_ADMIN_TREND_THRESHOLD) {
+              const labels: Record<string, string> = {
+                R: "Refused",
+                SA: "Self-administered",
+                F: "Family-administered",
+                NH: "Not home",
+                MU: "Medication unavailable",
+              };
+              agentWarnings.push({
+                type: "non_administration_trend",
+                severity: "medium",
+                medication: "Multiple medications",
+                description: `${labels[code] || code} (${code}) recorded ${count} times in this audit period`,
+                recommendedAction: "Review if there is an emerging trend in non-administration and document follow-up actions",
+              });
+            }
+          });
           
           // =====================================================================
           // GROUP REFUSALS BY CARE WORKER + MEDICATION
@@ -8179,6 +8332,15 @@ ${correctionExamples}
               code: String(e.code || '').toUpperCase()
             }));
           console.log(`Agent: Found ${supportCodeEntries.length} entries with support level codes (AS/AD/P)`);
+
+          const agentCareWorkerInferenceIndex = buildCareWorkerInferenceIndex(
+            agentEntries,
+            (entry: any) => entry.careWorkerInitials || entry.careWorker || ""
+          );
+          const agentAllCareWorkersRaw = collectAllCareWorkers(
+            agentEntries,
+            (entry: any) => entry.careWorkerInitials || entry.careWorker || ""
+          );
           
           const agentAnalysisResult = {
             serviceUserName: agentExtractedData.serviceUserInitials || 'N.N.',
@@ -8211,6 +8373,7 @@ ${correctionExamples}
             },
             officeClosedEntries: officeClosedEntries,
             supportCodeEntries: supportCodeEntries,
+            allCareWorkers: agentAllCareWorkersRaw,
             totalEntriesProcessed: agentEntries.length,
             totalMedications: agentMedications.length,
             datesAudited: agentDates,
@@ -8298,6 +8461,13 @@ ${correctionExamples}
           };
 
           // Resolve names in all arrays
+          agentAnalysisResult.discrepancies = applyCareWorkerInference(agentAnalysisResult.discrepancies, agentCareWorkerInferenceIndex);
+          agentAnalysisResult.userVerificationItems = applyCareWorkerInference(agentAnalysisResult.userVerificationItems, agentCareWorkerInferenceIndex);
+          agentAnalysisResult.groupedRefusals = applyCareWorkerInference(agentAnalysisResult.groupedRefusals, agentCareWorkerInferenceIndex);
+          agentAnalysisResult.groupedMainRefusals = applyCareWorkerInference(agentAnalysisResult.groupedMainRefusals, agentCareWorkerInferenceIndex);
+          agentAnalysisResult.groupedPrnRefusals = applyCareWorkerInference(agentAnalysisResult.groupedPrnRefusals, agentCareWorkerInferenceIndex);
+          agentAnalysisResult.supportCodeEntries = applyCareWorkerInference(agentAnalysisResult.supportCodeEntries, agentCareWorkerInferenceIndex);
+
           agentAnalysisResult.discrepancies = await resolveNamesInArray(agentAnalysisResult.discrepancies);
           agentAnalysisResult.userVerificationItems = await resolveNamesInArray(agentAnalysisResult.userVerificationItems);
           agentAnalysisResult.groupedRefusals = await resolveNamesInArray(agentAnalysisResult.groupedRefusals);
@@ -8305,6 +8475,7 @@ ${correctionExamples}
           agentAnalysisResult.groupedPrnRefusals = await resolveNamesInArray(agentAnalysisResult.groupedPrnRefusals);
           agentAnalysisResult.officeClosedEntries = await resolveNamesInArray(agentAnalysisResult.officeClosedEntries);
           agentAnalysisResult.supportCodeEntries = await resolveNamesInArray(agentAnalysisResult.supportCodeEntries);
+          agentAnalysisResult.allCareWorkers = await resolveCareWorkerList(agentAnalysisResult.allCareWorkers || [], allowSensitiveView);
           
           // Send final result
           sendProgress(100, 'Analysis complete!', 'complete');
@@ -11998,6 +12169,35 @@ If no equivalences found, return: {"equivalences": []}`
         }
       });
 
+      const nonAdminTrendCounts = { R: 0, SA: 0, F: 0, NH: 0, MU: 0 };
+      allEntries.forEach((entry: any) => {
+        const code = String(entry.code || "").toUpperCase();
+        if (code === "R" || code === "PRN-R") nonAdminTrendCounts.R += 1;
+        else if (code === "SA") nonAdminTrendCounts.SA += 1;
+        else if (code === "F") nonAdminTrendCounts.F += 1;
+        else if (code === "NH") nonAdminTrendCounts.NH += 1;
+        else if (code === "MU") nonAdminTrendCounts.MU += 1;
+      });
+      const NON_ADMIN_TREND_THRESHOLD = 3;
+      Object.entries(nonAdminTrendCounts).forEach(([code, count]) => {
+        if (count >= NON_ADMIN_TREND_THRESHOLD) {
+          const labels: Record<string, string> = {
+            R: "Refused",
+            SA: "Self-administered",
+            F: "Family-administered",
+            NH: "Not home",
+            MU: "Medication unavailable",
+          };
+          warnings.push({
+            type: "non_administration_trend",
+            severity: "medium",
+            medication: "Multiple medications",
+            description: `${labels[code] || code} (${code}) recorded ${count} times in this audit period`,
+            recommendedAction: "Review if there is an emerging trend in non-administration and document follow-up actions",
+          });
+        }
+      });
+
       // =====================================================================
       // TRIPLE-CHECK VALIDATION SYSTEM
       // Pass 2: Review each discrepancy for false positives
@@ -12387,6 +12587,15 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         }));
       console.log(`Standard path: Found ${supportCodeEntries.length} entries with support level codes (AS/AD/P)`);
 
+      const standardCareWorkerInferenceIndex = buildCareWorkerInferenceIndex(
+        allEntries,
+        (entry: any) => entry.careWorker || entry.careWorkerInitials || ""
+      );
+      const allCareWorkersRaw = collectAllCareWorkers(
+        allEntries,
+        (entry: any) => entry.careWorker || entry.careWorkerInitials || ""
+      );
+
       // =====================================================================
       // BUILD RESPONSE
       // =====================================================================
@@ -12434,6 +12643,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         },
         officeClosedEntries: officeClosedEntries,
         supportCodeEntries: supportCodeEntries,
+        allCareWorkers: allCareWorkersRaw,
         totalEntriesProcessed: allEntries.length,
         totalMedications: medications.length,
         datesAudited: allDates,
@@ -12522,6 +12732,13 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       };
 
       // Resolve names in all arrays that contain care worker names
+      result.discrepancies = applyCareWorkerInference(result.discrepancies, standardCareWorkerInferenceIndex);
+      result.userVerificationItems = applyCareWorkerInference(result.userVerificationItems, standardCareWorkerInferenceIndex);
+      result.groupedRefusals = applyCareWorkerInference(result.groupedRefusals, standardCareWorkerInferenceIndex);
+      result.groupedMainRefusals = applyCareWorkerInference(result.groupedMainRefusals, standardCareWorkerInferenceIndex);
+      result.groupedPrnRefusals = applyCareWorkerInference(result.groupedPrnRefusals, standardCareWorkerInferenceIndex);
+      result.supportCodeEntries = applyCareWorkerInference(result.supportCodeEntries, standardCareWorkerInferenceIndex);
+
       result.discrepancies = await resolveNamesInArray(result.discrepancies);
       result.userVerificationItems = await resolveNamesInArray(result.userVerificationItems);
       result.groupedRefusals = await resolveNamesInArray(result.groupedRefusals);
@@ -12529,6 +12746,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
       result.groupedPrnRefusals = await resolveNamesInArray(result.groupedPrnRefusals);
       result.officeClosedEntries = await resolveNamesInArray(result.officeClosedEntries);
       result.supportCodeEntries = await resolveNamesInArray(result.supportCodeEntries);
+      result.allCareWorkers = await resolveCareWorkerList(result.allCareWorkers || [], allowSensitiveView);
 
       // Send final result and 100% progress
       sendProgress(100, "Analysis complete!", "complete");

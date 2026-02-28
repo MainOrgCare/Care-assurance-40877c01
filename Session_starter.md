@@ -107,6 +107,7 @@
 | 2026-02-28 | ✅ Reduced login lockout friction by changing auth rate limiting and password-attempt blocking defaults from 15-minute windows to 2-minute windows (`server/index.ts`, `server/utils/passwordPolicy.ts`) |
 | 2026-02-28 | ✅ Eliminated recurring workbook ingest `arrayParser.create` crashes by replacing destructive `scripts/postinstall.cjs` stub logic with a safe compatibility patch and adding explicit ingest error responses for DB parser/SSL misconfiguration cases in `server/routes.ts` |
 | 2026-02-28 | ✅ Hardened auth UX by mapping transient DB/SSL login failures to HTTP 503 in `server/routes.ts` and suppressing unauthenticated `/api/system-logs` POST noise in `client/src/context/AuthContext.tsx` |
+| 2026-02-28 | ✅ Enhanced EMAR compliance output in `server/routes.ts`: added repeated non-administration trend warnings (`R`, `SA`, `F`, `NH`), inferred unknown carer names from same date/time records, and exposed `allCareWorkers` in both standard and agent result payloads |
 
 ---
 
