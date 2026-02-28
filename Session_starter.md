@@ -81,6 +81,7 @@
 ## 🚀 Recent Achievements
 | Date | Summary |
 |------|---------|
+| 2026-02-28 | ✅ Added explicit CI guardrail step in `.github/workflows/ci.yml` to run `npm run test:server:emar` before full test suite, ensuring EMAR schema/prompt drift fails fast in PRs and pushes. |
 | 2026-02-28 | ✅ Switched eMAR compliance runtime to artifact-driven schema/prompt sourcing (from `EMAR Structured Output.schema.json` + `EMAR Strict JSON Test.preset.json`) with fallback guards; validated with `npm run test:server:emar`, `npm run test:server`, and `npm run build` (all passing). |
 | 2026-02-28 | ✅ Resume checkpoint: verified latest `Main` commit `c800900f` (`test(emar): add strict schema/prompt parity guardrails`) with clean `npm run test:server:emar` (3/3) and `npm run build`. |
 | 2026-02-28 | ✅ Added EMAR strict-contract guardrails: new parity test `server/__tests__/emarComplianceParity.test.ts` validates runtime schema parity with `EMAR Structured Output.schema.json`, checks prompt-rule coverage across runtime + preset + markdown prompt, and enforces semantic invariants (NH verification + summary reconciliation). |
