@@ -54,6 +54,7 @@ import { analyzeBillingRows } from "./services/billingAnalyzer";
 import { extractSupportPlanDataFromText, compareSupportPlanToServiceOrders, type ServiceOrderComparisonInput } from "./services/supportPlanCompare";
 import { geocodeAddress } from "./services/geocoding";
 import rateLimit from "express-rate-limit";
+import { runComplianceAgent } from "./services/emarComplianceAgent";
 
 // Use legacy build for Node.js (no DOM APIs required)
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
@@ -6704,6 +6705,37 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("EMAR preflight error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Preflight failed") });
+    }
+  });
+
+  // STRICT structured output compliance checking endpoint
+  app.post("/api/ai/emar-compliance-check", requireAuth, upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const isPdf = req.file.mimetype === "application/pdf" || req.file.originalname.toLowerCase().endsWith(".pdf");
+      if (!isPdf) {
+        return res.status(400).json({ message: "Only PDF files are supported" });
+      }
+
+      const extracted = await extractPdfTextWithPdfjs(req.file.buffer);
+      const text = extracted.text || "";
+      if (!text || text.length < 10) {
+        return res.status(422).json({ message: "No readable text extracted from PDF. Is it a scanned image?" });
+      }
+
+      const aiUserContext = {
+        userId: req.user?.id || 1,
+        username: req.user?.username || "admin"
+      };
+
+      const result = await runComplianceAgent(text, aiUserContext);
+      res.json(result);
+    } catch (err: any) {
+      console.error("Strict Compliance Agent error:", err);
+      res.status(500).json({ message: err.message || "Failed to run strict compliance agent" });
     }
   });
 

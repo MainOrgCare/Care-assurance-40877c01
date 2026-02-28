@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EMARAuditResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "records",
+    "allCareWorkers",
+    "trendWarnings",
+    "summary"
+  ],
+  "properties": {
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "date",
+          "timeSlot",
+          "medicine",
+          "code",
+          "careWorker",
+          "requiresVerification",
+          "inferredFromSameSlot",
+          "notes"
+        ],
+        "properties": {
+          "date": {
+            "type": ["string", "null"],
+            "description": "ISO date YYYY-MM-DD when available"
+          },
+          "timeSlot": {
+            "type": ["string", "null"]
+          },
+          "medicine": {
+            "type": ["string", "null"]
+          },
+          "code": {
+            "type": ["string", "null"],
+            "enum": ["R", "SA", "F", "NH", "MU", null]
+          },
+          "careWorker": {
+            "type": ["string", "null"]
+          },
+          "requiresVerification": {
+            "type": "boolean",
+            "description": "Must be true for NH"
+          },
+          "inferredFromSameSlot": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    },
+    "allCareWorkers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "trendWarnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "totalRecords",
+        "byCode"
+      ],
+      "properties": {
+        "totalRecords": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "byCode": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["R", "SA", "F", "NH", "MU"],
+          "properties": {
+            "R": { "type": "integer", "minimum": 0 },
+            "SA": { "type": "integer", "minimum": 0 },
+            "F": { "type": "integer", "minimum": 0 },
+            "NH": { "type": "integer", "minimum": 0 },
+            "MU": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

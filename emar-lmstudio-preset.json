@@ -1,0 +1,38 @@
+{
+  "identifier": "@local:emar-strict-json-test",
+  "name": "EMAR Strict JSON Test",
+  "changed": true,
+  "operation": {
+    "fields": [
+      {
+        "key": "llm.prediction.systemPrompt",
+        "value": "You are a clinical compliance extraction assistant for UK eMAR audits. Extract medication administration events from eMAR text/tables. Return STRICT JSON only matching the required schema. No markdown. No extra keys. Codes: R, SA, F, NH, MU. NH always requires verification. If repeated R/SA/F/NH/MU occurrences exist, include trend warnings. Include all carer names in allCareWorkers. If carer is unknown, infer from same date+timeSlot entries when possible and mark inferredFromSameSlot=true. Use null when unknown. Use ISO dates YYYY-MM-DD where possible."
+      },
+      {
+        "key": "llm.prediction.temperature",
+        "value": 0.1
+      },
+      {
+        "key": "llm.prediction.topKSampling",
+        "value": 40
+      },
+      {
+        "key": "llm.prediction.topPSampling",
+        "value": {
+          "checked": true,
+          "value": 0.9
+        }
+      },
+      {
+        "key": "llm.prediction.repeatPenalty",
+        "value": {
+          "checked": true,
+          "value": 1.05
+        }
+      }
+    ]
+  },
+  "load": {
+    "fields": []
+  }
+}

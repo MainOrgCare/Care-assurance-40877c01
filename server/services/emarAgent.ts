@@ -630,23 +630,7 @@ const buildMetadataPrompt = (tableContext: string, correctionsContext: string) =
 ${tableContext}${correctionsContext}
 
 Extract metadata from the document text. The document may contain multiple pages.
-Return a JSON object with this structure:
-{
-  "serviceUserInitials": "F.O.",
-  "allergies": "No known allergies",
-  "medications": [
-    {
-      "name": "FULL MEDICATION NAME AND STRENGTH",
-      "genericName": "generic name",
-      "isPRN": true,
-      "instructions": "Full administration instructions including route",
-      "requiredGapHours": 4,
-      "scheduledTimeSlots": ["list of relevant slots"]
-    }
-  ],
-  "dates": ["list of all unique dates as columns in the record"],
-  "timeSlots": ["all unique time slot headers found"]
-}
+Return a structured JSON output reflecting the document's records exactly as required by the schema.
 
 CRITICAL RULES:
 1. serviceUserInitials: Convert "Freda O'Neill" -> "F.O.". Ensure initials are followed by dots.
@@ -673,13 +657,7 @@ GRID DIMENSIONS:
 DATES: ${dates.join(", ")}
 TIME SLOTS: ${timeSlots.join(", ")}
 
-Return JSON with this exact structure:
-{
-  "entries": [
-    {"medicationId": 1, "date": "Sat, 06 Dec", "timeSlot": "08:00-09:00", "code": "AD", "careWorkerInitials": "RK", "time": "08:30", "hasTime": true, "isOfficeClosed": false, "closedByStaff": "", "closedTime": ""},
-    {"medicationId": 1, "date": "Sun, 07 Dec", "timeSlot": "08:00-09:00", "code": "AS", "careWorkerInitials": "", "time": "", "hasTime": false, "isOfficeClosed": false, "closedByStaff": "", "closedTime": ""}
-  ]
-}
+Respond with STRICT JSON data adhering to the schema.
 
 EXTRACTION RULES:
 1. MAP TO GRID: Each entry must correspond to a specific (medication, date, timeSlot) intersection in the grid.
@@ -691,6 +669,79 @@ EXTRACTION RULES:
 7. AMBIGUITY: If you see a code like "AD" or a signature but the exact time slot is hard to determine, use the most likely slot and set timeSlot to "UNSPECIFIED" if truly impossible to map.
 8. CODE LEGEND: AD=Administered, AS=Assisted Self-Admin, R=Refused, MU=Medication Unavailable, NH=Not Home, SA=Self Admin, F=Family Admin, P=Prompt, PRN=PRN Administered, PRN-AD=PRN Administered, PRN-R=PRN Refused, MISSED=Scheduled dose not recorded.
 9. DATE FORMAT: Use dates EXACTLY as they appear in the DATES list above. Do not reformat or invent dates.`;
+
+const metadataSchema = {
+  name: "EMARMetadata",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["serviceUserInitials", "allergies", "medications", "dates", "timeSlots"],
+    properties: {
+      serviceUserInitials: { type: "string" },
+      allergies: { type: "string" },
+      medications: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["name", "genericName", "isPRN", "instructions", "requiredGapHours", "scheduledTimeSlots"],
+          properties: {
+            name: { type: "string" },
+            genericName: { type: "string" },
+            isPRN: { type: "boolean" },
+            instructions: { type: "string" },
+            requiredGapHours: { type: "number" },
+            scheduledTimeSlots: {
+              type: "array",
+              items: { type: "string" }
+            }
+          }
+        }
+      },
+      dates: {
+        type: "array",
+        items: { type: "string" }
+      },
+      timeSlots: {
+        type: "array",
+        items: { type: "string" }
+      }
+    }
+  }
+};
+
+const entriesSchema = {
+  name: "EMAREntries",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["entries"],
+    properties: {
+      entries: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["medicationId", "date", "timeSlot", "code", "careWorkerInitials", "time", "hasTime", "isOfficeClosed", "closedByStaff", "closedTime"],
+          properties: {
+            medicationId: { type: "number" },
+            date: { type: "string" },
+            timeSlot: { type: "string" },
+            code: { type: "string" },
+            careWorkerInitials: { type: "string" },
+            time: { type: "string" },
+            hasTime: { type: "boolean" },
+            isOfficeClosed: { type: "boolean" },
+            closedByStaff: { type: "string" },
+            closedTime: { type: "string" }
+          }
+        }
+      }
+    }
+  }
+};
 
 export const emarAgent = {
   async extract(
@@ -952,7 +1003,7 @@ export const emarAgent = {
         temperature: passIndex === 0 ? 0 : 0.1,
         maxCompletionTokens: 2000,
         seed: passIndex === 0 ? DETERMINISTIC_SEED : undefined,
-        responseFormat: { type: "json_object" },
+        responseFormat: { type: "json_schema", json_schema: metadataSchema },
         useCache: false,
       });
       const content = response.restoredText || "{}";
@@ -1098,7 +1149,7 @@ export const emarAgent = {
             temperature: passIndex === 0 ? 0 : 0.1,
             maxCompletionTokens: 8000,
             seed: passIndex === 0 ? DETERMINISTIC_SEED : undefined,
-            responseFormat: { type: "json_object" },
+            responseFormat: { type: "json_schema", json_schema: entriesSchema },
             useCache: false,
           });
 
