@@ -7,5 +7,9 @@
 			"password": true
 		}
 	],
-	"servers": {}
+	"servers": {
+		"render-mcp": {
+			"url": "https://mcp.render.com/mcp"
+		}
+	}
 }

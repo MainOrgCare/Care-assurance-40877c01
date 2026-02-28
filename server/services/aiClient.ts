@@ -30,16 +30,6 @@ const parseBoolean = (value: string | undefined | null, fallback: boolean): bool
   return fallback;
 };
 
-const IS_CODESPACES = parseBoolean(process.env.CODESPACES, false);
-const LOCAL_LLM_ENABLED = parseBoolean(process.env.LOCAL_LLM_ENABLED, !IS_CODESPACES);
-const LOCAL_LLM_DISABLED_MESSAGE = "Local LLM is disabled in this environment. Set LOCAL_LLM_ENABLED=true to re-enable.";
-
-function getFallbackProviderWhenLocalDisabled(): AiProvider {
-  if (process.env.PAT_AI_KEY) return "github";
-  if (process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY) return "openai";
-  return "github";
-}
-
 const AI_ENABLED_BY_ENV = parseBoolean(process.env.AI_ENABLED, false);
 const AI_ENV_LOCKED_DISABLED = !AI_ENABLED_BY_ENV;
 export const AI_DISABLED_BY_ENV_MESSAGE = "AI features are disabled by policy (AI_ENABLED is not true). Use rule-based workflows or ask an admin to enable AI in deployment settings.";
@@ -76,7 +66,7 @@ let aiLiteMode: boolean = false;  // Use minimal prompts where possible
 const rawLocalLLMUrl = process.env.LOCAL_LLM_URL || "http://local-llm:11434";
 const LOCAL_LLM_URL = rawLocalLLMUrl.startsWith("http") ? rawLocalLLMUrl : `http://${rawLocalLLMUrl}`;
 const LOCAL_LLM_MODEL = process.env.LOCAL_LLM_MODEL || "qwen2.5-64k";
-const LOCAL_LLM_API_KEY = process.env.LLM_KEY || process.env.LOCAL_LLM_KEY || process.env.LOCAL_LLM_API_KEY || "";
+const LOCAL_LLM_API_KEY = process.env.LLM_KEY || "";
 
 // Load settings from database (called once on first AI request)
 // Uses a promise-based mutex so concurrent callers share a single DB read.
@@ -95,13 +85,7 @@ async function ensureSettingsLoaded(): Promise<void> {
       const savedProvider = await storage.getAppSetting("ai_provider");
       if (savedProvider && (savedProvider === "openai" || savedProvider === "github" || savedProvider === "local")) {
         preferredProvider = savedProvider as AiProvider;
-        if (preferredProvider === "local" && !LOCAL_LLM_ENABLED) {
-          const fallbackProvider = getFallbackProviderWhenLocalDisabled();
-          preferredProvider = fallbackProvider;
-          console.log(`[AI Config] Local LLM disabled by environment; using ${fallbackProvider} provider`);
-        } else {
-          console.log(`[AI Config] Loaded provider from DB: ${preferredProvider}`);
-        }
+        console.log(`[AI Config] Loaded provider from DB: ${preferredProvider}`);
       }
 
       const savedAIEnabled = await storage.getAppSetting("ai_enabled");
@@ -193,9 +177,6 @@ export function setPreferredProvider(provider: AiProvider, persist: boolean = fa
   if (provider !== "openai" && provider !== "github" && provider !== "local") {
     throw new Error("Invalid provider. Must be 'openai', 'github', or 'local'.");
   }
-  if (provider === "local" && !LOCAL_LLM_ENABLED) {
-    throw new Error(LOCAL_LLM_DISABLED_MESSAGE);
-  }
   preferredProvider = provider;
   console.log(`[AI Config] Preferred provider set to: ${provider}${persist ? " (persisted)" : ""}`);
   
@@ -280,6 +261,23 @@ export interface AiCompletionResult {
 let openaiClient: OpenAI | null = null;
 let githubClient: OpenAI | null = null;
 
+type LocalChatV1Response = {
+  output?: unknown;
+  response?: unknown;
+  text?: unknown;
+  result?: unknown;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+  choices?: Array<{
+    message?: { content?: unknown };
+    text?: unknown;
+    finish_reason?: string | null;
+  }>;
+};
+
 // Track if OpenAI client is using PAT fallback (needs model mapping)
 let openaiUsingPATFallback = false;
 
@@ -332,8 +330,131 @@ function getGitHubClient(): OpenAI | null {
 // Local LLM client using Ollama's OpenAI-compatible API
 let localClient: OpenAI | null = null;
 
+function messageContentToString(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+
+  return content
+    .map((part) => {
+      if (part && typeof part === "object" && "type" in part && "text" in part) {
+        const typedPart = part as { type?: unknown; text?: unknown };
+        if (typedPart.type === "text" && typeof typedPart.text === "string") {
+          return typedPart.text;
+        }
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function shouldFallbackToLocalChatApi(error: any): boolean {
+  const status = error?.status || error?.response?.status;
+  if (status === 404 || status === 405 || status === 501) return true;
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("not found") || message.includes("unsupported") || message.includes("unknown endpoint");
+}
+
+function extractLocalChatV1Content(payload: LocalChatV1Response): string {
+  const directCandidates = [payload.output, payload.response, payload.text, payload.result];
+  for (const candidate of directCandidates) {
+    if (typeof candidate === "string" && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+
+  const choice = payload.choices?.[0];
+  const choiceMessageContent = choice?.message?.content;
+  if (typeof choiceMessageContent === "string" && choiceMessageContent.trim().length > 0) {
+    return choiceMessageContent.trim();
+  }
+  if (typeof choice?.text === "string" && choice.text.trim().length > 0) {
+    return choice.text.trim();
+  }
+
+  return "";
+}
+
+async function createLocalChatCompletionViaApiV1(
+  params: OpenAI.ChatCompletionCreateParamsNonStreaming,
+  model: string,
+): Promise<OpenAI.ChatCompletion> {
+  const baseUrl = LOCAL_LLM_URL.replace(/\/+$/, "");
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (LOCAL_LLM_API_KEY) {
+    headers.Authorization = `Bearer ${LOCAL_LLM_API_KEY}`;
+  }
+
+  const systemPrompt = (params.messages as Array<{ role?: string; content?: unknown }>)
+    .filter((msg) => msg.role === "system")
+    .map((msg) => messageContentToString(msg.content))
+    .filter(Boolean)
+    .join("\n\n");
+
+  const input = (params.messages as Array<{ role?: string; content?: unknown }>)
+    .filter((msg) => msg.role === "user")
+    .map((msg) => messageContentToString(msg.content))
+    .filter(Boolean)
+    .join("\n\n");
+
+  const response = await fetch(`${baseUrl}/api/v1/chat`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model,
+      system_prompt: systemPrompt,
+      input,
+    }),
+    signal: AbortSignal.timeout(AI_CALL_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    let responseBody = "";
+    try {
+      responseBody = await response.text();
+    } catch {
+      responseBody = "";
+    }
+    throw new Error(`Local /api/v1/chat request failed (${response.status}): ${responseBody || response.statusText}`);
+  }
+
+  const payload = (await response.json()) as LocalChatV1Response;
+  const content = extractLocalChatV1Content(payload);
+  if (!content) {
+    throw new Error("Local /api/v1/chat response did not include assistant content");
+  }
+
+  const promptTokens = payload.usage?.prompt_tokens ?? 0;
+  const completionTokens = payload.usage?.completion_tokens ?? 0;
+  const totalTokens = payload.usage?.total_tokens ?? (promptTokens + completionTokens);
+  const finishReason = payload.choices?.[0]?.finish_reason ?? "stop";
+
+  return {
+    id: `local-api-v1-${Date.now()}`,
+    object: "chat.completion",
+    created: Math.floor(Date.now() / 1000),
+    model,
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          content,
+        },
+        finish_reason: finishReason,
+      },
+    ],
+    usage: {
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: totalTokens,
+    },
+  } as OpenAI.ChatCompletion;
+}
+
 function getLocalClient(): OpenAI | null {
-  if (!LOCAL_LLM_ENABLED) return null;
   if (localClient) return localClient;
   
   // Local LLM API can be unauthenticated (Ollama/LAN) or Bearer-protected (LM Studio/proxied web endpoint)
@@ -347,7 +468,6 @@ function getLocalClient(): OpenAI | null {
 
 // Check if local LLM is available
 async function isLocalLLMAvailable(): Promise<boolean> {
-  if (!LOCAL_LLM_ENABLED) return false;
   const baseUrl = LOCAL_LLM_URL.replace(/\/+$/, "");
   const headers = LOCAL_LLM_API_KEY
     ? { Authorization: `Bearer ${LOCAL_LLM_API_KEY}` }
@@ -516,9 +636,6 @@ async function createChatCompletionWithProvider(
   let model = (params.model as string) || preferredModel;
   
   if (provider === "local") {
-    if (!LOCAL_LLM_ENABLED) {
-      throw new Error(LOCAL_LLM_DISABLED_MESSAGE);
-    }
     client = getLocalClient();
     if (!client) {
       throw new Error("Local LLM client could not be initialized.");
@@ -583,10 +700,25 @@ async function createChatCompletionWithProvider(
           `AI request timed out after ${AI_CALL_TIMEOUT_MS / 1000}s (model: ${model}, provider: ${provider})`
         )), AI_CALL_TIMEOUT_MS);
       });
-      const completion = await Promise.race([
-        client.chat.completions.create(finalParams),
-        timeoutPromise,
-      ]);
+      const completion = provider === "local"
+        ? await (async () => {
+            try {
+              return await Promise.race([
+                client.chat.completions.create(finalParams),
+                timeoutPromise,
+              ]);
+            } catch (error: any) {
+              if (shouldFallbackToLocalChatApi(error)) {
+                console.warn("[AI:Local] OpenAI-compatible endpoint unavailable; falling back to /api/v1/chat");
+                return createLocalChatCompletionViaApiV1(finalParams, model);
+              }
+              throw error;
+            }
+          })()
+        : await Promise.race([
+            client.chat.completions.create(finalParams),
+            timeoutPromise,
+          ]);
       return { completion, provider };
     } catch (error: any) {
       lastError = error;
