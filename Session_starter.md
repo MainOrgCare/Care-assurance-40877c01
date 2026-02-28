@@ -81,6 +81,7 @@
 ## 🚀 Recent Achievements
 | Date | Summary |
 |------|---------|
+| 2026-02-28 | ✅ Integrated local LM provider readiness for both LM Studio/OpenAI-compatible servers and Ollama by expanding local availability probes in `server/services/aiClient.ts` (`/v1/models`, `/api/tags`, `/health`); validated with `npm run check` and `npm run build`. |
 | 2026-02-28 | ✅ Added unit tests for EMAR artifact loader fallback behavior in `server/__tests__/emarComplianceArtifacts.test.ts` (missing artifacts, valid artifact load, invalid preset fallback), added `npm run test:server:emar:artifacts`, and revalidated `test:server` + `build`. |
 | 2026-02-28 | ✅ Added explicit CI guardrail step in `.github/workflows/ci.yml` to run `npm run test:server:emar` before full test suite, ensuring EMAR schema/prompt drift fails fast in PRs and pushes. |
 | 2026-02-28 | ✅ Switched eMAR compliance runtime to artifact-driven schema/prompt sourcing (from `EMAR Structured Output.schema.json` + `EMAR Strict JSON Test.preset.json`) with fallback guards; validated with `npm run test:server:emar`, `npm run test:server`, and `npm run build` (all passing). |

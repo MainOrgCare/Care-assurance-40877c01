@@ -347,12 +347,30 @@ function getLocalClient(): OpenAI | null {
 // Check if local LLM is available
 async function isLocalLLMAvailable(): Promise<boolean> {
   if (!LOCAL_LLM_ENABLED) return false;
+  const baseUrl = LOCAL_LLM_URL.replace(/\/+$/, "");
+  const probePaths = [
+    "/v1/models", // LM Studio / OpenAI-compatible local servers
+    "/api/tags",  // Ollama
+    "/health",    // Generic local health endpoint
+  ];
+
   try {
-    const response = await fetch(`${LOCAL_LLM_URL}/api/tags`, {
-      method: "GET",
-      signal: AbortSignal.timeout(5000),
-    });
-    return response.ok;
+    for (const probePath of probePaths) {
+      try {
+        const response = await fetch(`${baseUrl}${probePath}`, {
+          method: "GET",
+          signal: AbortSignal.timeout(5000),
+        });
+
+        if (response.ok) {
+          return true;
+        }
+      } catch {
+        // Try next probe path
+      }
+    }
+
+    return false;
   } catch {
     return false;
   }
