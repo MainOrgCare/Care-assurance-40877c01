@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const SCHEMA_ARTIFACT_PATH = path.resolve(process.cwd(), "EMAR Structured Output.schema.json");
-const PRESET_ARTIFACT_PATH = path.resolve(process.cwd(), "EMAR Strict JSON Test.preset.json");
+const getArtifactPaths = () => ({
+  schemaArtifactPath: path.resolve(process.cwd(), "EMAR Structured Output.schema.json"),
+  presetArtifactPath: path.resolve(process.cwd(), "EMAR Strict JSON Test.preset.json"),
+});
 
 const warn = (message: string, error?: unknown) => {
   if (error) {
@@ -86,35 +88,39 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 function loadSchemaArtifact(): Record<string, unknown> {
+  const { schemaArtifactPath } = getArtifactPaths();
+
   try {
-    const raw = fs.readFileSync(SCHEMA_ARTIFACT_PATH, "utf8");
+    const raw = fs.readFileSync(schemaArtifactPath, "utf8");
     const parsed: unknown = JSON.parse(raw);
 
     if (!isRecord(parsed)) {
-      warn(`Schema artifact is not a JSON object: ${SCHEMA_ARTIFACT_PATH}. Using fallback schema.`);
+      warn(`Schema artifact is not a JSON object: ${schemaArtifactPath}. Using fallback schema.`);
       return fallbackSchema;
     }
 
     const { $schema: _jsonSchemaVersion, title: _title, ...comparableSchema } = parsed;
     if (!isRecord(comparableSchema)) {
-      warn(`Schema artifact content is invalid: ${SCHEMA_ARTIFACT_PATH}. Using fallback schema.`);
+      warn(`Schema artifact content is invalid: ${schemaArtifactPath}. Using fallback schema.`);
       return fallbackSchema;
     }
 
     return comparableSchema;
   } catch (error) {
-    warn(`Failed to read or parse schema artifact at ${SCHEMA_ARTIFACT_PATH}. Using fallback schema.`, error);
+    warn(`Failed to read or parse schema artifact at ${schemaArtifactPath}. Using fallback schema.`, error);
     return fallbackSchema;
   }
 }
 
 function loadPromptFromPreset(): string {
+  const { presetArtifactPath } = getArtifactPaths();
+
   try {
-    const raw = fs.readFileSync(PRESET_ARTIFACT_PATH, "utf8");
+    const raw = fs.readFileSync(presetArtifactPath, "utf8");
     const parsed: unknown = JSON.parse(raw);
 
     if (!isRecord(parsed)) {
-      warn(`Preset artifact is not a JSON object: ${PRESET_ARTIFACT_PATH}. Using fallback prompt.`);
+      warn(`Preset artifact is not a JSON object: ${presetArtifactPath}. Using fallback prompt.`);
       return fallbackSystemPrompt;
     }
 
@@ -122,7 +128,7 @@ function loadPromptFromPreset(): string {
     const fields = isRecord(operation) ? operation.fields : undefined;
 
     if (!Array.isArray(fields)) {
-      warn(`Preset artifact is missing operation.fields: ${PRESET_ARTIFACT_PATH}. Using fallback prompt.`);
+      warn(`Preset artifact is missing operation.fields: ${presetArtifactPath}. Using fallback prompt.`);
       return fallbackSystemPrompt;
     }
 
@@ -131,13 +137,13 @@ function loadPromptFromPreset(): string {
     );
 
     if (!isRecord(promptField) || typeof promptField.value !== "string" || !promptField.value.trim()) {
-      warn(`Preset artifact is missing llm.prediction.systemPrompt: ${PRESET_ARTIFACT_PATH}. Using fallback prompt.`);
+      warn(`Preset artifact is missing llm.prediction.systemPrompt: ${presetArtifactPath}. Using fallback prompt.`);
       return fallbackSystemPrompt;
     }
 
     return promptField.value;
   } catch (error) {
-    warn(`Failed to read or parse preset artifact at ${PRESET_ARTIFACT_PATH}. Using fallback prompt.`, error);
+    warn(`Failed to read or parse preset artifact at ${presetArtifactPath}. Using fallback prompt.`, error);
     return fallbackSystemPrompt;
   }
 }
