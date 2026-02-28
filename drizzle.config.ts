@@ -26,7 +26,9 @@ if (normalize(parsedUrl.searchParams.get("sslmode")) === "require" && !parsedUrl
 }
 
 const dbUrl = parsedUrl.toString();
-const runningOnRender = Boolean(process.env.RENDER || process.env.RENDER_EXTERNAL_HOSTNAME);
+const host = normalize(parsedUrl.hostname);
+const looksLikeRenderPostgresHost = host.startsWith("dpg-") || host.endsWith(".onrender.com");
+const runningOnRender = Boolean(process.env.RENDER || process.env.RENDER_EXTERNAL_HOSTNAME || looksLikeRenderPostgresHost);
 const rejectUnauthorized = process.env.PGSSLREJECTUNAUTHORIZED == null
   ? !runningOnRender
   : !isFalseValue(process.env.PGSSLREJECTUNAUTHORIZED);
