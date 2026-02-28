@@ -29,7 +29,8 @@ const complianceSchema = {
       },
       allCareWorkers: {
         type: "array",
-        items: { type: "string" }
+        items: { type: "string" },
+        uniqueItems: true
       },
       trendWarnings: {
         type: "array",
@@ -40,17 +41,17 @@ const complianceSchema = {
         additionalProperties: false,
         required: ["totalRecords", "byCode"],
         properties: {
-          totalRecords: { type: "integer" },
+          totalRecords: { type: "integer", minimum: 0 },
           byCode: {
              type: "object",
              additionalProperties: false,
              required: ["R", "SA", "F", "NH", "MU"],
              properties: {
-               R: { type: "integer" },
-               SA: { type: "integer" },
-               F: { type: "integer" },
-               NH: { type: "integer" },
-               MU: { type: "integer" }
+               R: { type: "integer", minimum: 0 },
+               SA: { type: "integer", minimum: 0 },
+               F: { type: "integer", minimum: 0 },
+               NH: { type: "integer", minimum: 0 },
+               MU: { type: "integer", minimum: 0 }
              }
           }
         }

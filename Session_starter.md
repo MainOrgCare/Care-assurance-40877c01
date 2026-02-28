@@ -81,6 +81,7 @@
 ## 🚀 Recent Achievements
 | Date | Summary |
 |------|---------|
+| 2026-02-28 | ✅ Tightened runtime strict-output schema in `server/services/emarComplianceAgent.ts` to match artifact constraints (`allCareWorkers.uniqueItems`, non-negative summary counters), then revalidated with `npm run check` + `npm run build`. |
 | 2026-02-28 | ✅ Completed global UI standardization pass across client surfaces (shadow token unification, focus-ring normalization, legacy `corporate-*` cleanup, and unified scrollbar styling). |
 | 2026-02-28 | ✅ Fixed malformed nested Tailwind shadow token classes in `slider.tsx` and `tooltip.tsx`; revalidated with clean `npm run build` (warning-free CSS optimization). |
 | 2026-02-28 | ✅ Published finalized work to `origin/Main` with three commits: `83b80a68`, `f5ba4aa3`, `00f3375f`. |
