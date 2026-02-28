@@ -20,6 +20,7 @@
     "start": "npm run start:api",
     "test": "npm run test:server && npm run test:client",
     "test:server": "node --import tsx --test --test-force-exit server/__tests__/*.test.ts",
+    "test:server:emar": "node --import tsx --test --test-force-exit server/__tests__/emarComplianceParity.test.ts",
     "test:client": "npx vitest run client/src/lib/__tests__",
     "test:client:watch": "npx vitest client/src/lib/__tests__",
     "check": "tsc",

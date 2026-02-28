@@ -1,7 +1,7 @@
 import { executeSecureTextCompletion } from '../utils/secureAiPipeline';
 import { getPreferredModel } from './aiClient';
 
-const complianceSchema = {
+export const complianceSchema = {
   name: "EMARComplianceAudit",
   strict: true,
   schema: {
@@ -60,7 +60,7 @@ const complianceSchema = {
   }
 };
 
-const COMPLIANCE_SYSTEM_PROMPT = `TASK
+export const COMPLIANCE_SYSTEM_PROMPT = `TASK
 Extract medication administration events from the provided eMAR content.
 
 RULES

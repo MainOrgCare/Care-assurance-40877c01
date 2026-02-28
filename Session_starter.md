@@ -81,6 +81,8 @@
 ## 🚀 Recent Achievements
 | Date | Summary |
 |------|---------|
+| 2026-02-28 | ✅ Added EMAR strict-contract guardrails: new parity test `server/__tests__/emarComplianceParity.test.ts` validates runtime schema parity with `EMAR Structured Output.schema.json`, checks prompt-rule coverage across runtime + preset + markdown prompt, and enforces semantic invariants (NH verification + summary reconciliation). |
+| 2026-02-28 | ✅ Added focused script `npm run test:server:emar` and aligned LM Studio preset prompts to runtime strict directives; validated with `test:server:emar`, full `test:server` (123/123), and `build`. |
 | 2026-02-28 | ✅ Tightened runtime strict-output schema in `server/services/emarComplianceAgent.ts` to match artifact constraints (`allCareWorkers.uniqueItems`, non-negative summary counters), then revalidated with `npm run check` + `npm run build`. |
 | 2026-02-28 | ✅ Completed global UI standardization pass across client surfaces (shadow token unification, focus-ring normalization, legacy `corporate-*` cleanup, and unified scrollbar styling). |
 | 2026-02-28 | ✅ Fixed malformed nested Tailwind shadow token classes in `slider.tsx` and `tooltip.tsx`; revalidated with clean `npm run build` (warning-free CSS optimization). |

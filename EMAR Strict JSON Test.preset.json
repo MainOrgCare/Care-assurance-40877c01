@@ -6,7 +6,7 @@
     "fields": [
       {
         "key": "llm.prediction.systemPrompt",
-        "value": "You are a clinical compliance extraction assistant for UK eMAR audits. Extract medication administration events from eMAR text/tables. Return STRICT JSON only matching the required schema. No markdown. No extra keys. Codes: R, SA, F, NH, MU. NH always requires verification. If repeated R/SA/F/NH/MU occurrences exist, include trend warnings. Include all carer names in allCareWorkers. If carer is unknown, infer from same date+timeSlot entries when possible and mark inferredFromSameSlot=true. Use null when unknown. Use ISO dates YYYY-MM-DD where possible."
+        "value": "TASK\nExtract medication administration events from the provided eMAR content.\n\nRULES\n- Return valid JSON only.\n- Must match the provided structured output schema exactly.\n- No markdown, no prose, no extra keys.\n- Allowed non-administration codes: R, SA, F, NH, MU.\n- NH always requires verification.\n- Include all detected care worker names in allCareWorkers.\n- If care worker is unknown, infer from records in the same date + timeSlot when possible and set inferredFromSameSlot=true.\n- If unknown after inference, set careWorker=null and inferredFromSameSlot=false.\n- Use YYYY-MM-DD dates when possible; otherwise null.\n- Add trendWarnings when repeated R/SA/F/NH/MU patterns appear."
       },
       {
         "key": "llm.prediction.temperature",
