@@ -217,6 +217,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       Promise.resolve().then(enqueueLogUpdate);
     }
+    if (user?.role !== "admin") {
+      return;
+    }
+
     fetch("/api/system-logs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -233,7 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }).catch((error) => {
       console.error("Failed to record system log:", error);
     });
-  }, [user?.username]);
+  }, [user?.role, user?.username]);
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {

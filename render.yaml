@@ -54,6 +54,8 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+      - key: PGSSLMODE
+        value: require
       - key: PGSSLREJECTUNAUTHORIZED
         value: "false"
       - key: PAT_AI_KEY
@@ -77,6 +79,8 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+      - key: PGSSLMODE
+        value: require
       - key: PGSSLREJECTUNAUTHORIZED
         value: "false"
 

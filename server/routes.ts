@@ -4742,6 +4742,28 @@ export async function registerRoutes(
         forcingLogout,
       });
     } catch (error: any) {
+      const message = String(error?.message || error || "").toLowerCase();
+      const isTransientDbFailure =
+        message.includes("arrayparser.create is not a function") ||
+        message.includes("self-signed certificate") ||
+        message.includes("ssl off") ||
+        message.includes("connect econnrefused") ||
+        message.includes("enotfound") ||
+        message.includes("connection terminated") ||
+        message.includes("timeout") ||
+        message.includes("no pg_hba.conf entry") ||
+        message.includes("remaining connection slots are reserved");
+
+      if (isTransientDbFailure) {
+        return apiError(
+          res,
+          503,
+          "Login is temporarily unavailable due to a database connection issue. Please try again shortly.",
+          { code: "AUTH_DB_UNAVAILABLE" }
+        );
+      }
+
+      console.error("[Auth] Login failed:", error);
       return apiInternalError(res, safeErrorMessage(error, "Login failed"));
     }
   });
