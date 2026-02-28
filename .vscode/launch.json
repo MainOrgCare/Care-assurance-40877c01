@@ -3,7 +3,7 @@
     "configurations": [
         
         {
-            "name": "Launch via NPM",
+         "name": "Launch via NPM",
             "request": "launch",
             "runtimeArgs": [
                 "run-script",

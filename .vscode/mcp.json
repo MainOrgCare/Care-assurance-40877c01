@@ -3,13 +3,17 @@
 		{
 			"id": "token",
 			"type": "promptString",
-			"description": "",
+			"description": "Render API key",
 			"password": true
 		}
 	],
 	"servers": {
 		"render-mcp": {
-			"url": "https://mcp.render.com/mcp"
+			"type": "http",
+			"url": "https://mcp.render.com/mcp",
+			"headers": {
+				"Authorization": "Bearer ${input:token}"
+			}
 		}
 	}
 }

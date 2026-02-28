@@ -22,7 +22,7 @@
 - **Missing Files**: Offer to create session continuity files when missing
 
 **Context Enhancement:**
-- **Reference Strategy**: Use #file and #selection references, plus workspace symbols, for precise context
+- **Reference Strategy**: Use `#file:`, `#selection:`, and workspace symbols for precise context
 - **Scope Management**: Understand current file, selection, and workspace scope in responses
 - **Symbol Recognition**: Leverage IntelliSense and workspace indexing for accurate suggestions
 
