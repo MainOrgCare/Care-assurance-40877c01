@@ -81,6 +81,7 @@
 ## 🚀 Recent Achievements
 | Date | Summary |
 |------|---------|
+| 2026-02-28 | ✅ Prepared local web-exposed LLM auth readiness: added `LLM_KEY`/`LOCAL_LLM_KEY`/`LOCAL_LLM_API_KEY` support to local provider client + health probes in `server/services/aiClient.ts`, and restored generic-mode compatibility in `server/services/emarComplianceAgent.ts` via neutral required `systemPrompt` field (`""`) for secure pipeline typing. |
 | 2026-02-28 | ✅ Updated EMAR compliance API path to generic LM mode by removing hardcoded `systemPrompt` and strict `responseFormat` from `runComplianceAgent` request payload; aligned `server/__tests__/emarComplianceParity.test.ts` to optional-strict exports + invariant checks, and revalidated with `test:server:emar`, full `test:server`, and `build`. |
 | 2026-02-28 | ✅ Integrated local LM provider readiness for both LM Studio/OpenAI-compatible servers and Ollama by expanding local availability probes in `server/services/aiClient.ts` (`/v1/models`, `/api/tags`, `/health`); validated with `npm run check` and `npm run build`. |
 | 2026-02-28 | ✅ Added unit tests for EMAR artifact loader fallback behavior in `server/__tests__/emarComplianceArtifacts.test.ts` (missing artifacts, valid artifact load, invalid preset fallback), added `npm run test:server:emar:artifacts`, and revalidated `test:server` + `build`. |

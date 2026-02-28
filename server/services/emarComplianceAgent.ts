@@ -19,6 +19,7 @@ export async function runComplianceAgent(documentText: string, aiUserContext: an
     feature: "emar_compliance",
     model: getPreferredModel(),
     userContext: aiUserContext,
+    systemPrompt: "",
     inputText: `EMAR DOCUMENT TEXT:\n\n${documentText}`,
     temperature: 0,
     maxCompletionTokens: 8000,

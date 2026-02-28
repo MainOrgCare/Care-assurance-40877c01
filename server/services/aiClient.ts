@@ -76,6 +76,7 @@ let aiLiteMode: boolean = false;  // Use minimal prompts where possible
 const rawLocalLLMUrl = process.env.LOCAL_LLM_URL || "http://local-llm:11434";
 const LOCAL_LLM_URL = rawLocalLLMUrl.startsWith("http") ? rawLocalLLMUrl : `http://${rawLocalLLMUrl}`;
 const LOCAL_LLM_MODEL = process.env.LOCAL_LLM_MODEL || "qwen2.5-64k";
+const LOCAL_LLM_API_KEY = process.env.LLM_KEY || process.env.LOCAL_LLM_KEY || process.env.LOCAL_LLM_API_KEY || "";
 
 // Load settings from database (called once on first AI request)
 // Uses a promise-based mutex so concurrent callers share a single DB read.
@@ -335,9 +336,9 @@ function getLocalClient(): OpenAI | null {
   if (!LOCAL_LLM_ENABLED) return null;
   if (localClient) return localClient;
   
-  // Local LLM doesn't need an API key
+  // Local LLM API can be unauthenticated (Ollama/LAN) or Bearer-protected (LM Studio/proxied web endpoint)
   localClient = new OpenAI({
-    apiKey: "ollama", // Ollama accepts any key
+    apiKey: LOCAL_LLM_API_KEY || "ollama",
     baseURL: `${LOCAL_LLM_URL}/v1`,
   });
   
@@ -348,6 +349,9 @@ function getLocalClient(): OpenAI | null {
 async function isLocalLLMAvailable(): Promise<boolean> {
   if (!LOCAL_LLM_ENABLED) return false;
   const baseUrl = LOCAL_LLM_URL.replace(/\/+$/, "");
+  const headers = LOCAL_LLM_API_KEY
+    ? { Authorization: `Bearer ${LOCAL_LLM_API_KEY}` }
+    : undefined;
   const probePaths = [
     "/v1/models", // LM Studio / OpenAI-compatible local servers
     "/api/tags",  // Ollama
@@ -359,6 +363,7 @@ async function isLocalLLMAvailable(): Promise<boolean> {
       try {
         const response = await fetch(`${baseUrl}${probePath}`, {
           method: "GET",
+          headers,
           signal: AbortSignal.timeout(5000),
         });
 
