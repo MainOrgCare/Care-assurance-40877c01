@@ -103,6 +103,9 @@
 | 2026-02-27 | ✅ Completed fifth-wave UI harmonization in `RiskAssessment.tsx`, `Upload.tsx`, and `CallReconciliation.tsx` (compact shells + unified card surfaces) with clean `check`/`build` |
 | 2026-02-27 | ✅ Completed sixth-wave UI harmonization in `Messages.tsx`, `EmailAssistant.tsx`, and `Settings.tsx` (compact shells + `app-surface` cards) with clean `check`/`build` |
 | 2026-02-27 | ✅ Hardened Postgres runtime compatibility for Render ingest failures by pinning `postgres-array` to `2.0.0` in `package.json` overrides and revalidating dependency resolution/build |
+| 2026-02-27 | ✅ Fixed production DB TLS negotiation edge case in `server/utils/pgPoolConfig.ts` (`sslmode=prefer/allow` now keeps SSL enabled for non-local hosts, preventing Render `SSL off` ingest failures) |
+| 2026-02-28 | ✅ Reduced login lockout friction by changing auth rate limiting and password-attempt blocking defaults from 15-minute windows to 2-minute windows (`server/index.ts`, `server/utils/passwordPolicy.ts`) |
+| 2026-02-28 | ✅ Eliminated recurring workbook ingest `arrayParser.create` crashes by replacing destructive `scripts/postinstall.cjs` stub logic with a safe compatibility patch and adding explicit ingest error responses for DB parser/SSL misconfiguration cases in `server/routes.ts` |
 
 ---
 

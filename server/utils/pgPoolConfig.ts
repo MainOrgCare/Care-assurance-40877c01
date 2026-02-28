@@ -1,5 +1,6 @@
 const SSL_REQUIRED_MODES = new Set(["require", "verify-ca", "verify-full"]);
-const SSL_DISABLED_MODES = new Set(["disable", "allow", "prefer"]);
+const SSL_DISABLED_MODES = new Set(["disable"]);
+const SSL_PREFERRED_MODES = new Set(["allow", "prefer"]);
 const FALSE_VALUES = new Set(["0", "false", "no", "off"]);
 
 const normalize = (value: string | null | undefined): string =>
@@ -32,12 +33,18 @@ const isLocalHost = (host: string): boolean =>
   host === "localhost" || host === "127.0.0.1" || host === "::1";
 
 const isSslRequired = (connectionString?: string): boolean => {
+  const host = getHostFromConnectionString(connectionString);
+  const remoteHost = Boolean(host && !isLocalHost(host));
+
   const modeFromEnv = normalize(process.env.PGSSLMODE);
   if (modeFromEnv && SSL_REQUIRED_MODES.has(modeFromEnv)) {
     return true;
   }
   if (modeFromEnv && SSL_DISABLED_MODES.has(modeFromEnv)) {
     return false;
+  }
+  if (modeFromEnv && SSL_PREFERRED_MODES.has(modeFromEnv)) {
+    return remoteHost;
   }
 
   const modeFromUrl = getSslModeFromConnectionString(connectionString);
@@ -47,8 +54,10 @@ const isSslRequired = (connectionString?: string): boolean => {
   if (modeFromUrl && SSL_DISABLED_MODES.has(modeFromUrl)) {
     return false;
   }
+  if (modeFromUrl && SSL_PREFERRED_MODES.has(modeFromUrl)) {
+    return remoteHost;
+  }
 
-  const host = getHostFromConnectionString(connectionString);
   if (!host) return false;
   return !isLocalHost(host);
 };

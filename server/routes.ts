@@ -18080,6 +18080,30 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     try {
       const payload = workbookIngestSchema.parse(req.body);
 
+      try {
+        await Promise.race([
+          storage.getAppSetting("__ingest_preflight__"),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Database preflight timed out")), 3000)),
+        ]);
+      } catch (dbError: any) {
+        const dbMessage = String(dbError?.message || dbError || "");
+        if (dbMessage.includes("arrayParser.create is not a function")) {
+          return res.status(503).json({
+            message:
+              "Workbook ingest is temporarily unavailable due to a server database driver mismatch. Redeploy with fresh install cache or run npm install so pg-types parser compatibility is restored.",
+          });
+        }
+        if (dbMessage.includes("self-signed certificate") || dbMessage.includes("SSL off")) {
+          return res.status(503).json({
+            message:
+              "Workbook ingest is temporarily unavailable due to database SSL configuration. Set PGSSLMODE=require and (for Render internal Postgres) PGSSLREJECTUNAUTHORIZED=false, then redeploy.",
+          });
+        }
+        return res.status(503).json({
+          message: "Workbook ingest is temporarily unavailable because the database is not reachable.",
+        });
+      }
+
       const existing = await storage.getWorkbookUploadByHash(payload.sourceHash);
       if (existing) {
         return res.status(200).json({ upload: existing, deduped: true });
@@ -18271,6 +18295,19 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      const errorMessage = String(error?.message || error || "");
+      if (errorMessage.includes("arrayParser.create is not a function")) {
+        return res.status(503).json({
+          message:
+            "Workbook ingest is temporarily unavailable due to a server database driver mismatch. Redeploy with fresh install cache or run npm install so pg-types parser compatibility is restored.",
+        });
+      }
+      if (errorMessage.includes("self-signed certificate") || errorMessage.includes("SSL off")) {
+        return res.status(503).json({
+          message:
+            "Workbook ingest is temporarily unavailable due to database SSL configuration. Set PGSSLMODE=require and (for Render internal Postgres) PGSSLREJECTUNAUTHORIZED=false, then redeploy.",
+        });
       }
       console.error("[Rostering] Failed to ingest workbook analysis:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to upload workbook") });

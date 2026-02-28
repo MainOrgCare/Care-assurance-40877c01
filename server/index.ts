@@ -271,13 +271,13 @@ if (process.env.NODE_ENV === 'production') {
   log('API rate limiting enabled (1000 req/15min, polling endpoints exempt)');
 }
 
-// Stricter rate limiting for authentication endpoints (5 requests per 15 minutes)
+// Rate limiting for authentication endpoints (short window to reduce user friction)
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Very strict: 5 attempts per 15 minutes per IP
+  windowMs: 2 * 60 * 1000, // 2 minutes
+  max: 20, // Allow reasonable retries while still slowing brute-force attempts
   standardHeaders: true,
   legacyHeaders: false,
-  message: { message: 'Too many authentication attempts. Please try again in 15 minutes.' },
+  message: { message: 'Too many authentication attempts. Please try again in 2 minutes.' },
   skip: (req) => process.env.NODE_ENV !== 'production',
   keyGenerator: (req) => {
     // Prefer forwarded client IP if present (common behind proxies/load balancers).
@@ -298,7 +298,7 @@ app.use('/api/auth/register', authLimiter);
 app.use('/api/auth/forgot-password', authLimiter);
 app.use('/api/auth/reset-password', authLimiter);
 if (process.env.NODE_ENV === 'production') {
-  log('Auth rate limiting enabled (5 req/15min for auth endpoints)');
+  log('Auth rate limiting enabled (20 req/2min for auth endpoints)');
 }
 
 // Sensitive action rate limiting (10 requests per hour for admin actions)

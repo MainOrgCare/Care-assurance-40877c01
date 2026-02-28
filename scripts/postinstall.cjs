@@ -1,25 +1,55 @@
 #!/usr/bin/env node
-// Postinstall script to add missing pg-types arrayParser stub
-const fs = require('fs');
-const path = require('path');
+// Postinstall guard for pg-types arrayParser compatibility.
+// - Never overwrite a healthy upstream file.
+// - If create() is missing, patch in a minimal compatible implementation.
+const fs = require("fs");
+const path = require("path");
 
-const arrayParserPath = path.join(__dirname, '..', 'node_modules', 'pg-types', 'lib', 'arrayParser.js');
-const arrayParserDir = path.dirname(arrayParserPath);
+const arrayParserPath = path.join(
+  __dirname,
+  "..",
+  "node_modules",
+  "pg-types",
+  "lib",
+  "arrayParser.js"
+);
 
-// Check if directory exists
-if (fs.existsSync(arrayParserDir)) {
-  // Create the arrayParser stub
-  const content = `// Minimal arrayParser stub to satisfy pg-types imports
-// This is a workaround for missing pg-types arrayParser dependency
+const compatContent = `"use strict";
+// Compatibility shim for pg-types arrayParser API used by textParsers.js
+const postgresArray = require("postgres-array");
+
+function create(source, transform) {
+  return {
+    parse() {
+      return postgresArray.parse(source, transform);
+    }
+  };
+}
+
 module.exports = {
-  parse: function(source, transform) {
-    return [];
+  create,
+  parse(source, transform) {
+    return create(source, transform).parse();
   }
 };
 `;
 
-  fs.writeFileSync(arrayParserPath, content);
-  console.log('✓ Created pg-types arrayParser stub');
-} else {
-  console.log('⚠ pg-types not found, skipping arrayParser stub creation');
+if (!fs.existsSync(arrayParserPath)) {
+  fs.mkdirSync(path.dirname(arrayParserPath), { recursive: true });
+  fs.writeFileSync(arrayParserPath, compatContent, "utf8");
+  console.log("✓ Created pg-types arrayParser compatibility file");
+  process.exit(0);
+}
+
+try {
+  const existing = fs.readFileSync(arrayParserPath, "utf8");
+  if (/module\.exports\s*=\s*\{[\s\S]*\bcreate\s*:/.test(existing) || /exports\.create\s*=/.test(existing)) {
+    console.log("✓ pg-types arrayParser already provides create(); no patch needed");
+    process.exit(0);
+  }
+
+  fs.writeFileSync(arrayParserPath, compatContent, "utf8");
+  console.log("✓ Patched pg-types arrayParser to provide create() compatibility");
+} catch (error) {
+  console.warn("⚠ Unable to patch pg-types arrayParser:", error && error.message ? error.message : error);
 }

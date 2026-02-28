@@ -82,11 +82,11 @@ export function validatePassword(
 }
 
 // ── Login Attempt Tracking (Brute-Force Protection) ──────────────────────────
-const LOGIN_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
-const LOGIN_BLOCK_DURATION_MS = 15 * 60 * 1000;
-const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_ATTEMPT_WINDOW_MS = 2 * 60 * 1000;
+const LOGIN_BLOCK_DURATION_MS = 2 * 60 * 1000;
+const MAX_LOGIN_ATTEMPTS = 8;
 
-/** Progressive lockout multipliers: 15 min → 30 min → 1 hr → 2 hr → 4 hr. */
+/** Progressive lockout multipliers: 2 min → 4 min → 8 min → 16 min → 32 min. */
 const PROGRESSIVE_BLOCK_MULTIPLIERS = [1, 2, 4, 8, 16];
 /** Suspend user account after this many consecutive lockout blocks. */
 const AUTO_SUSPEND_AFTER_BLOCKS = 3;
