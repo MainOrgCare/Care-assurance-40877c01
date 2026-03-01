@@ -355,6 +355,77 @@ function shouldFallbackToLocalChatApi(error: any): boolean {
   return message.includes("not found") || message.includes("unsupported") || message.includes("unknown endpoint");
 }
 
+function shouldRetryWithStrictLocalCompat(error: any): boolean {
+  const status = error?.status || error?.response?.status;
+  if (status !== 400) return false;
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    message.includes("unsupported") ||
+    message.includes("invalid") ||
+    message.includes("unknown") ||
+    message.includes("must be") ||
+    message.includes("response_format") ||
+    message.includes("max_completion_tokens") ||
+    message.includes("tool") ||
+    message.includes("seed")
+  );
+}
+
+function normalizeLocalResponseFormat(responseFormat: unknown): unknown {
+  if (!responseFormat || typeof responseFormat !== "object") {
+    return responseFormat;
+  }
+
+  const typed = responseFormat as Record<string, unknown>;
+  if (typed.type === "json_object") {
+    return {
+      type: "json_schema",
+      json_schema: {
+        name: "structured_output",
+        schema: {
+          type: "object",
+          additionalProperties: true,
+        },
+      },
+    };
+  }
+
+  return responseFormat;
+}
+
+function buildLocalCompatibleParams(
+  params: OpenAI.ChatCompletionCreateParamsNonStreaming,
+  model: string,
+  mode: "standard" | "strict" = "standard",
+): OpenAI.ChatCompletionCreateParamsNonStreaming {
+  const normalized: any = {
+    ...params,
+    model,
+    temperature: 0,
+    response_format: normalizeLocalResponseFormat((params as any).response_format),
+  };
+
+  if (typeof normalized.max_tokens !== "number" && typeof normalized.max_completion_tokens === "number") {
+    normalized.max_tokens = normalized.max_completion_tokens;
+  }
+  delete normalized.max_completion_tokens;
+
+  if (mode === "strict") {
+    delete normalized.response_format;
+    delete normalized.tools;
+    delete normalized.tool_choice;
+    delete normalized.parallel_tool_calls;
+    delete normalized.function_call;
+    delete normalized.functions;
+    delete normalized.seed;
+    delete normalized.options;
+  } else {
+    normalized.options = { num_ctx: 65536 };
+  }
+
+  return normalized as OpenAI.ChatCompletionCreateParamsNonStreaming;
+}
+
 function extractLocalChatV1Content(payload: LocalChatV1Response): string {
   const directCandidates = [payload.output, payload.response, payload.text, payload.result];
   for (const candidate of directCandidates) {
@@ -678,41 +749,8 @@ async function createChatCompletionWithProvider(
       // For local LLM (qwen2.5-64k custom model), temperature 0 and 64K context are baked in
       // Also pass options as fallback for API-level override
       // For OpenAI provider, enforce gpt-4.1-mini with temperature 0 for deterministic results
-      const normalizedLocalResponseFormat = (() => {
-        if (provider !== "local") {
-          return (params as any).response_format;
-        }
-
-        const requestedResponseFormat = (params as any).response_format;
-        if (!requestedResponseFormat || typeof requestedResponseFormat !== "object") {
-          return requestedResponseFormat;
-        }
-
-        if (requestedResponseFormat.type === "json_object") {
-          return {
-            type: "json_schema",
-            json_schema: {
-              name: "structured_output",
-              schema: {
-                type: "object",
-                additionalProperties: true,
-              },
-            },
-          };
-        }
-
-        return requestedResponseFormat;
-      })();
-
       const finalParams = provider === "local" 
-        ? { 
-            ...params, 
-            model, 
-            temperature: 0,
-            response_format: normalizedLocalResponseFormat,
-            // Ollama-specific: ensure context window size via options
-            options: { num_ctx: 65536 }
-          }
+        ? buildLocalCompatibleParams(params, model, "standard")
         : provider === "openai" && !openaiUsingPATFallback
         ? { 
             ...params, 
@@ -735,6 +773,22 @@ async function createChatCompletionWithProvider(
                 timeoutPromise,
               ]);
             } catch (error: any) {
+              if (shouldRetryWithStrictLocalCompat(error)) {
+                console.warn("[AI:Local] Retrying with strict LM Studio-compatible payload");
+                const strictParams = buildLocalCompatibleParams(params, model, "strict");
+                try {
+                  return await Promise.race([
+                    client.chat.completions.create(strictParams),
+                    timeoutPromise,
+                  ]);
+                } catch (strictError: any) {
+                  if (shouldFallbackToLocalChatApi(strictError)) {
+                    console.warn("[AI:Local] Strict OpenAI-compatible request unavailable; falling back to /api/v1/chat");
+                    return createLocalChatCompletionViaApiV1(strictParams, model);
+                  }
+                  throw strictError;
+                }
+              }
               if (shouldFallbackToLocalChatApi(error)) {
                 console.warn("[AI:Local] OpenAI-compatible endpoint unavailable; falling back to /api/v1/chat");
                 return createLocalChatCompletionViaApiV1(finalParams, model);
