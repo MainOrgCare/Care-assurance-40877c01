@@ -8,8 +8,9 @@
   "scripts": {
     "postinstall": "node scripts/postinstall.cjs",
     "dev:client": "npx vite dev --port 5173",
-    "dev": "NODE_ENV=development AI_ENABLED=${AI_ENABLED:-true} tsx server/index.ts",
-    "dev:full": "set -a; [ -f .env ] && . ./.env; set +a; npm run dev",
+    "dev:server": "NODE_ENV=development AI_ENABLED=${AI_ENABLED:-true} tsx server/index.ts",
+    "dev": "npx concurrently -k -n client,server -c cyan,magenta \"npm:dev:client\" \"npm:dev:server\"",
+    "dev:full": "set -a; [ -f .env ] && . ./.env; set +a; npx concurrently -k -n client,server -c cyan,magenta \"npm:dev:client\" \"npm:dev:server\"",
     "dev:setup": "npm install && npm run build && npm run dev:full",
     "build:client": "npx vite build",
     "build:server": "npx esbuild server/index.ts --bundle --platform=node --packages=external --format=cjs --outfile=dist/index.cjs --external:./vite.config --external:./vite",
@@ -129,6 +130,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
+    "concurrently": "^9.1.2",
     "@ljharb/tsconfig": "^0.3.2",
     "@tailwindcss/vite": "^4.1.18",
     "@types/connect-pg-simple": "^7.0.3",

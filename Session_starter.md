@@ -81,6 +81,7 @@
 ## 🚀 Recent Achievements
 | Date | Summary |
 |------|---------|
+| 2026-03-01 | ✅ Merged local development startup flows in `package.json`: introduced `dev:server` and updated `dev` to run both `dev:client` and `dev:server` concurrently via `concurrently`, so one command starts both frontend and backend. |
 | 2026-03-01 | ✅ Fixed local LM Studio compatibility for chat completions in `server/services/aiClient.ts` by normalizing `response_format: { type: "json_object" }` to LM Studio-accepted `json_schema` when provider is `local`, resolving PRN protocol 400 errors (`'response_format.type' must be 'json_schema' or 'text'`). |
 | 2026-03-01 | ✅ Fixed `dev:setup`/Vite React Babel startup failure (`Cannot find module '../nodes.js'` from `@babel/generator`) by restoring missing `node_modules/@babel/generator/lib/nodes.js` and adding a persistent postinstall safeguard in `scripts/postinstall.cjs` to auto-create the compatibility file when package installs are incomplete. |
 | 2026-03-01 | ✅ Improved admin AI UX in `client/src/pages/SecretAdminPortal.tsx` by adding a `Test Local LLM` action that re-checks `/api/admin/ai-provider`, refreshes local-provider availability state live, and surfaces clear success/failure toasts with last-checked timestamp. |
