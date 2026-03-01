@@ -81,6 +81,7 @@
 ## 🚀 Recent Achievements
 | Date | Summary |
 |------|---------|
+| 2026-03-01 | ✅ Improved admin AI UX in `client/src/pages/SecretAdminPortal.tsx` by adding a `Test Local LLM` action that re-checks `/api/admin/ai-provider`, refreshes local-provider availability state live, and surfaces clear success/failure toasts with last-checked timestamp. |
 | 2026-02-28 | ✅ Simplified local LLM env contract in `server/services/aiClient.ts`: local provider no longer gated by `LOCAL_LLM_ENABLED`, and local auth now reads only `LLM_KEY` (removed `LOCAL_LLM_KEY`/`LOCAL_LLM_API_KEY` aliases and local-disabled fallback logic). |
 | 2026-02-28 | ✅ Prepared local web-exposed LLM auth readiness: added `LLM_KEY`/`LOCAL_LLM_KEY`/`LOCAL_LLM_API_KEY` support to local provider client + health probes in `server/services/aiClient.ts`, and restored generic-mode compatibility in `server/services/emarComplianceAgent.ts` via neutral required `systemPrompt` field (`""`) for secure pipeline typing. |
 | 2026-02-28 | ✅ Updated EMAR compliance API path to generic LM mode by removing hardcoded `systemPrompt` and strict `responseFormat` from `runComplianceAgent` request payload; aligned `server/__tests__/emarComplianceParity.test.ts` to optional-strict exports + invariant checks, and revalidated with `test:server:emar`, full `test:server`, and `build`. |

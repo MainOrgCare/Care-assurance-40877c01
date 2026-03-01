@@ -841,6 +841,8 @@ const AIProviderSection = memo(function AIProviderSection() {
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [hasPATKey, setHasPATKey] = useState(false);
   const [hasLocalLLM, setHasLocalLLM] = useState(false);
+  const [testingLocalLLM, setTestingLocalLLM] = useState(false);
+  const [lastLocalCheckAt, setLastLocalCheckAt] = useState<string | null>(null);
   const [localLLMUrl, setLocalLLMUrl] = useState("");
   const [selectedProvider, setSelectedProvider] = useState<"openai" | "github" | "local">("openai");
   const [selectedModel, setSelectedModel] = useState("gpt-4.1-mini");
@@ -944,6 +946,51 @@ const AIProviderSection = memo(function AIProviderSection() {
       toast({ title: "Error", description: "Failed to update EMAR agent preference", variant: "destructive" });
     } finally {
       setUpdatingEmar(false);
+    }
+  };
+
+  const handleRetestLocalLLM = async () => {
+    setTestingLocalLLM(true);
+    try {
+      const res = await fetch("/api/admin/ai-provider", { credentials: "include" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || "Failed to refresh provider status");
+      }
+
+      const data = await res.json();
+      const localAvailable = Boolean(data.hasLocalLLM);
+      const nextLocalUrl = data.localLLMUrl || localLLMUrl;
+
+      setHasOpenAIKey(Boolean(data.hasOpenAIKey));
+      setHasPATKey(Boolean(data.hasPATKey));
+      setHasLocalLLM(localAvailable);
+      setLocalLLMUrl(nextLocalUrl);
+      if (data.provider) setSelectedProvider(data.provider);
+      if (data.model) setSelectedModel(data.model);
+      setLastLocalCheckAt(new Date().toISOString());
+
+      if (localAvailable) {
+        toast({
+          title: "Local LLM Reachable",
+          description: `Connected at ${nextLocalUrl}.`,
+        });
+      } else {
+        toast({
+          title: "Local LLM Unreachable",
+          description: `No response from ${nextLocalUrl}. Check your LM Studio/Ollama server and endpoint URL.`,
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error("Failed to retest Local LLM:", error);
+      toast({
+        title: "Retest Failed",
+        description: error?.message || "Failed to retest Local LLM",
+        variant: "destructive",
+      });
+    } finally {
+      setTestingLocalLLM(false);
     }
   };
 
@@ -1098,6 +1145,35 @@ const AIProviderSection = memo(function AIProviderSection() {
               <span className="text-xs text-muted-foreground">Switching provider...</span>
             </div>
           )}
+
+          <div className="mt-3 flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleRetestLocalLLM}
+              disabled={testingLocalLLM || updating}
+              className="h-8"
+              data-testid="button-test-local-llm"
+            >
+              {testingLocalLLM ? (
+                <>
+                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  Testing Local LLM...
+                </>
+              ) : (
+                <>
+                  <RefreshCcw className="mr-2 h-3.5 w-3.5" />
+                  Test Local LLM
+                </>
+              )}
+            </Button>
+            {lastLocalCheckAt && (
+              <span className="text-xs text-muted-foreground">
+                Last checked {new Date(lastLocalCheckAt).toLocaleTimeString()}
+              </span>
+            )}
+          </div>
           
           {selectedProvider === "local" && (
             <div className="mt-3 p-3 bg-sky-500/10 rounded-lg border border-sky-500/20">
