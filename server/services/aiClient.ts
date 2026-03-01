@@ -678,11 +678,38 @@ async function createChatCompletionWithProvider(
       // For local LLM (qwen2.5-64k custom model), temperature 0 and 64K context are baked in
       // Also pass options as fallback for API-level override
       // For OpenAI provider, enforce gpt-4.1-mini with temperature 0 for deterministic results
+      const normalizedLocalResponseFormat = (() => {
+        if (provider !== "local") {
+          return (params as any).response_format;
+        }
+
+        const requestedResponseFormat = (params as any).response_format;
+        if (!requestedResponseFormat || typeof requestedResponseFormat !== "object") {
+          return requestedResponseFormat;
+        }
+
+        if (requestedResponseFormat.type === "json_object") {
+          return {
+            type: "json_schema",
+            json_schema: {
+              name: "structured_output",
+              schema: {
+                type: "object",
+                additionalProperties: true,
+              },
+            },
+          };
+        }
+
+        return requestedResponseFormat;
+      })();
+
       const finalParams = provider === "local" 
         ? { 
             ...params, 
             model, 
             temperature: 0,
+            response_format: normalizedLocalResponseFormat,
             // Ollama-specific: ensure context window size via options
             options: { num_ctx: 65536 }
           }
