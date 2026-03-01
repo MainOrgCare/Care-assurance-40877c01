@@ -14,6 +14,16 @@ const arrayParserPath = path.join(
   "arrayParser.js"
 );
 
+const babelGeneratorNodesPath = path.join(
+  __dirname,
+  "..",
+  "node_modules",
+  "@babel",
+  "generator",
+  "lib",
+  "nodes.js"
+);
+
 const compatContent = `"use strict";
 // Compatibility shim for pg-types arrayParser API used by textParsers.js
 const postgresArray = require("postgres-array");
@@ -33,6 +43,53 @@ module.exports = {
   }
 };
 `;
+
+const babelNodesCompatContent = `"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true,
+});
+exports.generatorInfosMap = void 0;
+
+var _generators = require("./generators/index.js");
+var _types = require("@babel/types");
+
+function resolvePrintMethod(type) {
+  const direct = _generators[type];
+  if (typeof direct === "function") return direct;
+
+  const aliases = (_types.ALIAS_KEYS && _types.ALIAS_KEYS[type]) || [];
+  for (const alias of aliases) {
+    const aliasMethod = _generators[alias];
+    if (typeof aliasMethod === "function") return aliasMethod;
+  }
+
+  return null;
+}
+
+const generatorInfosMap = new Map();
+
+for (const type of Object.keys(_types.VISITOR_KEYS || {})) {
+  const printMethod = resolvePrintMethod(type);
+  if (printMethod) {
+    generatorInfosMap.set(type, [printMethod, 0, null]);
+  }
+}
+
+for (const [type, printMethod] of Object.entries(_generators)) {
+  if (typeof printMethod === "function" && !generatorInfosMap.has(type)) {
+    generatorInfosMap.set(type, [printMethod, 0, null]);
+  }
+}
+
+exports.generatorInfosMap = generatorInfosMap;
+`;
+
+if (!fs.existsSync(babelGeneratorNodesPath)) {
+  fs.mkdirSync(path.dirname(babelGeneratorNodesPath), { recursive: true });
+  fs.writeFileSync(babelGeneratorNodesPath, babelNodesCompatContent, "utf8");
+  console.log("✓ Created @babel/generator lib/nodes.js compatibility file");
+}
 
 if (!fs.existsSync(arrayParserPath)) {
   fs.mkdirSync(path.dirname(arrayParserPath), { recursive: true });
