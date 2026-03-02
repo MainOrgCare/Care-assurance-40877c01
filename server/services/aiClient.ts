@@ -64,7 +64,11 @@ let aiLiteMode: boolean = false;  // Use minimal prompts where possible
 // Local LLM configuration
 // Render's fromService returns hostname:port, so we need to add http:// if missing
 const rawLocalLLMUrl = process.env.LOCAL_LLM_URL || "http://local-llm:11434";
-const LOCAL_LLM_URL = rawLocalLLMUrl.startsWith("http") ? rawLocalLLMUrl : `http://${rawLocalLLMUrl}`;
+const normalizeLocalLLMUrl = (url: string): string => {
+  const trimmed = url.trim();
+  return trimmed.startsWith("http") ? trimmed : `http://${trimmed}`;
+};
+let localLLMUrl = normalizeLocalLLMUrl(rawLocalLLMUrl);
 const LOCAL_LLM_MODEL = process.env.LOCAL_LLM_MODEL || "qwen2.5-64k";
 const LOCAL_LLM_API_KEY = process.env.LLM_KEY || "";
 
@@ -130,6 +134,13 @@ async function ensureSettingsLoaded(): Promise<void> {
         aiLiteMode = savedLite === "true";
         console.log(`[AI Config] Loaded lite mode from DB: ${aiLiteMode}`);
       }
+
+      const savedLocalLlmUrl = await storage.getAppSetting("local_llm_url");
+      if (savedLocalLlmUrl && savedLocalLlmUrl.trim().length > 0) {
+        localLLMUrl = normalizeLocalLLMUrl(savedLocalLlmUrl);
+        localClient = null;
+        console.log(`[AI Config] Loaded local LLM URL from DB: ${localLLMUrl}`);
+      }
       
       settingsLoaded = true;
     } catch (error) {
@@ -184,6 +195,19 @@ export function setPreferredProvider(provider: AiProvider, persist: boolean = fa
     void getStorage()
       .then(storage => storage.setAppSetting("ai_provider", provider))
       .catch(err => console.error("[AI Config] Failed to persist provider:", err.message));
+  }
+}
+
+export function setLocalLLMUrl(url: string, persist: boolean = false): void {
+  const normalized = normalizeLocalLLMUrl(url);
+  localLLMUrl = normalized;
+  localClient = null;
+  console.log(`[AI Config] Local LLM URL set to: ${normalized}${persist ? " (persisted)" : ""}`);
+
+  if (persist) {
+    void getStorage()
+      .then(storage => storage.setAppSetting("local_llm_url", normalized))
+      .catch(err => console.error("[AI Config] Failed to persist local LLM URL:", err.message));
   }
 }
 
@@ -450,7 +474,7 @@ async function createLocalChatCompletionViaApiV1(
   params: OpenAI.ChatCompletionCreateParamsNonStreaming,
   model: string,
 ): Promise<OpenAI.ChatCompletion> {
-  const baseUrl = LOCAL_LLM_URL.replace(/\/+$/, "");
+  const baseUrl = localLLMUrl.replace(/\/+$/, "");
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -531,7 +555,7 @@ function getLocalClient(): OpenAI | null {
   // Local LLM API can be unauthenticated (Ollama/LAN) or Bearer-protected (LM Studio/proxied web endpoint)
   localClient = new OpenAI({
     apiKey: LOCAL_LLM_API_KEY || "ollama",
-    baseURL: `${LOCAL_LLM_URL}/v1`,
+    baseURL: `${localLLMUrl}/v1`,
   });
   
   return localClient;
@@ -539,7 +563,7 @@ function getLocalClient(): OpenAI | null {
 
 // Check if local LLM is available
 async function isLocalLLMAvailable(): Promise<boolean> {
-  const baseUrl = LOCAL_LLM_URL.replace(/\/+$/, "");
+  const baseUrl = localLLMUrl.replace(/\/+$/, "");
   const headers = LOCAL_LLM_API_KEY
     ? { Authorization: `Bearer ${LOCAL_LLM_API_KEY}` }
     : undefined;
@@ -713,7 +737,7 @@ async function createChatCompletionWithProvider(
     }
     // Always use the local model - NO FALLBACK to other providers
     model = LOCAL_LLM_MODEL;
-    console.log(`[AI:Local] ✓ Using LOCAL Qwen 2.5 at ${LOCAL_LLM_URL} (model: ${model}, temp: 0) - NOT using OpenAI/GitHub`);
+    console.log(`[AI:Local] ✓ Using LOCAL Qwen 2.5 at ${localLLMUrl} (model: ${model}, temp: 0) - NOT using OpenAI/GitHub`);
   } else if (provider === "github") {
     client = getGitHubClient();
     if (!client) {
@@ -1169,7 +1193,7 @@ export { isLocalLLMAvailable };
 
 // Get local LLM URL for admin display
 export function getLocalLLMUrl(): string {
-  return LOCAL_LLM_URL;
+  return localLLMUrl;
 }
 
 // Export getter for OpenAI client (lazy — always reflects current AI state)

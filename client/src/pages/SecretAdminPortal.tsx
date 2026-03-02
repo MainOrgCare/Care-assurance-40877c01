@@ -842,8 +842,10 @@ const AIProviderSection = memo(function AIProviderSection() {
   const [hasPATKey, setHasPATKey] = useState(false);
   const [hasLocalLLM, setHasLocalLLM] = useState(false);
   const [testingLocalLLM, setTestingLocalLLM] = useState(false);
+  const [savingLocalLLMUrl, setSavingLocalLLMUrl] = useState(false);
   const [lastLocalCheckAt, setLastLocalCheckAt] = useState<string | null>(null);
   const [localLLMUrl, setLocalLLMUrl] = useState("");
+  const [localLLMUrlInput, setLocalLLMUrlInput] = useState("");
   const [selectedProvider, setSelectedProvider] = useState<"openai" | "github" | "local">("openai");
   const [selectedModel, setSelectedModel] = useState("gpt-4.1-mini");
   const [useEmarAgent, setUseEmarAgent] = useState(true);
@@ -866,6 +868,7 @@ const AIProviderSection = memo(function AIProviderSection() {
         setHasPATKey(Boolean(data.hasPATKey));
         setHasLocalLLM(Boolean(data.hasLocalLLM));
         setLocalLLMUrl(data.localLLMUrl || "");
+        setLocalLLMUrlInput(data.localLLMUrl || "");
         setSelectedProvider(data.provider || "openai");
         if (data.model) setSelectedModel(data.model);
       }
@@ -966,6 +969,7 @@ const AIProviderSection = memo(function AIProviderSection() {
       setHasPATKey(Boolean(data.hasPATKey));
       setHasLocalLLM(localAvailable);
       setLocalLLMUrl(nextLocalUrl);
+      setLocalLLMUrlInput(nextLocalUrl);
       if (data.provider) setSelectedProvider(data.provider);
       if (data.model) setSelectedModel(data.model);
       setLastLocalCheckAt(new Date().toISOString());
@@ -991,6 +995,54 @@ const AIProviderSection = memo(function AIProviderSection() {
       });
     } finally {
       setTestingLocalLLM(false);
+    }
+  };
+
+  const handleSaveLocalLLMUrl = async () => {
+    const nextUrl = localLLMUrlInput.trim();
+    if (!nextUrl) {
+      toast({ title: "URL Required", description: "Enter a Local LLM URL to save.", variant: "destructive" });
+      return;
+    }
+
+    setSavingLocalLLMUrl(true);
+    try {
+      const res = await fetch("/api/admin/local-llm-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ url: nextUrl }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || "Failed to save Local LLM URL");
+      }
+
+      const data = await res.json();
+      const savedUrl = data.localLLMUrl || nextUrl;
+      const localAvailable = Boolean(data.hasLocalLLM);
+      setLocalLLMUrl(savedUrl);
+      setLocalLLMUrlInput(savedUrl);
+      setHasLocalLLM(localAvailable);
+      setLastLocalCheckAt(new Date().toISOString());
+
+      toast({
+        title: "Local LLM URL Saved",
+        description: localAvailable
+          ? `Saved and reachable at ${savedUrl}.`
+          : `Saved, but currently unreachable at ${savedUrl}.`,
+        variant: localAvailable ? "default" : "destructive",
+      });
+    } catch (error: any) {
+      console.error("Failed to save Local LLM URL:", error);
+      toast({
+        title: "Save Failed",
+        description: error?.message || "Failed to save Local LLM URL",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingLocalLLMUrl(false);
     }
   };
 
@@ -1152,7 +1204,7 @@ const AIProviderSection = memo(function AIProviderSection() {
               variant="outline"
               size="sm"
               onClick={handleRetestLocalLLM}
-              disabled={testingLocalLLM || updating}
+              disabled={testingLocalLLM || savingLocalLLMUrl || updating}
               className="h-8"
               data-testid="button-test-local-llm"
             >
@@ -1173,6 +1225,35 @@ const AIProviderSection = memo(function AIProviderSection() {
                 Last checked {new Date(lastLocalCheckAt).toLocaleTimeString()}
               </span>
             )}
+          </div>
+
+          <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-center">
+            <Input
+              value={localLLMUrlInput}
+              onChange={(e) => setLocalLLMUrlInput(e.target.value)}
+              placeholder="https://your-cloudflare-tunnel.trycloudflare.com"
+              className="h-8 md:max-w-[560px]"
+              disabled={savingLocalLLMUrl || testingLocalLLM || updating}
+              data-testid="input-local-llm-url"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSaveLocalLLMUrl}
+              disabled={savingLocalLLMUrl || testingLocalLLM || updating}
+              className="h-8"
+              data-testid="button-save-local-llm-url"
+            >
+              {savingLocalLLMUrl ? (
+                <>
+                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save URL"
+              )}
+            </Button>
           </div>
           
           {selectedProvider === "local" && (

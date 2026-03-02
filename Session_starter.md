@@ -81,6 +81,7 @@
 ## 🚀 Recent Achievements
 | Date | Summary |
 |------|---------|
+| 2026-03-02 | ✅ Added admin-managed Local LLM URL configuration: backend now persists `local_llm_url` app setting (with runtime client refresh) in `server/services/aiClient.ts`, new admin endpoint `POST /api/admin/local-llm-url` in `server/routes.ts`, and new URL input + `Save URL` control in `client/src/pages/SecretAdminPortal.tsx` so Cloudflare/local endpoints can be changed without editing `.env`. |
 | 2026-03-01 | ✅ Hardened local LLM request compatibility in `server/services/aiClient.ts` for broad route coverage: added local param normalization (`max_completion_tokens`→`max_tokens`, `json_object`→`json_schema`) and automatic strict-compat retry on local 400 errors (drops unsupported fields like tools/seed/response_format/options) before fallback, improving reliability for PRN and other AI endpoints via LM Studio. |
 | 2026-03-01 | ✅ Merged local development startup flows in `package.json`: introduced `dev:server` and updated `dev` to run both `dev:client` and `dev:server` concurrently via `concurrently`, so one command starts both frontend and backend. |
 | 2026-03-01 | ✅ Fixed local LM Studio compatibility for chat completions in `server/services/aiClient.ts` by normalizing `response_format: { type: "json_object" }` to LM Studio-accepted `json_schema` when provider is `local`, resolving PRN protocol 400 errors (`'response_format.type' must be 'json_schema' or 'text'`). |

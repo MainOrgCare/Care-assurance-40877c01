@@ -41,7 +41,7 @@ import {
   registerAiUsageRoutes,
 } from "./routes/index";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertPolicyDocumentSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser } from "@shared/schema";
-import { getPreferredProvider, setPreferredProvider, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { getPreferredProvider, setPreferredProvider, setLocalLLMUrl, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { getCacheStats, clearCache } from "./services/aiCache";
 import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseAI, extractMedicationInfo, extractPersonalCareNeeds, extractContinenceInfo, extractNutritionInfo, extractEnvironmentInfo } from "./services/ruleBasedEngine";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
@@ -17658,6 +17658,42 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     } catch (error: any) {
       console.error("AI provider update error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to update AI provider") });
+    }
+  });
+
+  // Set Local LLM URL (admin-only)
+  app.post("/api/admin/local-llm-url", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const rawUrl = String(req.body?.url || "").trim();
+      if (!rawUrl) {
+        return res.status(400).json({ message: "Local LLM URL is required." });
+      }
+
+      const normalizedUrl = rawUrl.startsWith("http") ? rawUrl : `http://${rawUrl}`;
+      let parsed: URL;
+      try {
+        parsed = new URL(normalizedUrl);
+      } catch {
+        return res.status(400).json({ message: "Invalid URL format." });
+      }
+
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return res.status(400).json({ message: "URL must start with http:// or https://" });
+      }
+
+      setLocalLLMUrl(normalizedUrl, true);
+      const hasLocalLLM = await isLocalLLMAvailable();
+
+      console.log(`[Admin] Local LLM URL updated to ${normalizedUrl} by ${req.user?.username || 'unknown'}`);
+
+      return res.json({
+        success: true,
+        localLLMUrl: getLocalLLMUrl(),
+        hasLocalLLM,
+      });
+    } catch (error: any) {
+      console.error("Local LLM URL update error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update Local LLM URL") });
     }
   });
 
