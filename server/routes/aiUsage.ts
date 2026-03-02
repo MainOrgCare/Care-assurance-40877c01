@@ -44,6 +44,8 @@ export function registerAiUsageRoutes(
         username: log.username,
         endpoint: `/api/${log.featureName}`,
         featureName: log.featureName,
+        retryCount: typeof log.requestPayload?.retryCount === "number" ? log.requestPayload.retryCount : 0,
+        lastRetryReason: typeof log.requestPayload?.lastRetryReason === "string" ? log.requestPayload.lastRetryReason : null,
         requestBody: log.requestPayload || {
           note: "Request payload not available for this log entry",
           model: log.model,

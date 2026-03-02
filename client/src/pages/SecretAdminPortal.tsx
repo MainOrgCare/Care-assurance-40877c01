@@ -57,6 +57,8 @@ interface AIRequestLog {
   username: string | null;
   endpoint: string;
   featureName: string;
+  retryCount?: number;
+  lastRetryReason?: string | null;
   requestBody: any;
   inputTokens: number;
   outputTokens: number;
@@ -178,19 +180,76 @@ function formatBytes(bytes: number | null | undefined): string {
 }
 
 const PASSWORD_RULES_TEXT = `Password must be at least ${MIN_PASSWORD_LENGTH} characters and include an uppercase letter, lowercase letter, number, and special character.`;
+const AI_LOG_PROVIDER_SORT_KEY = "aiLogProviderSortMode";
+const AI_LOG_PROBLEMATIC_ONLY_KEY = "aiLogProblematicProvidersOnly";
+const AI_LOG_SEARCH_KEY = "aiLogSearchQuery";
+const AI_LOG_USER_FILTER_KEY = "aiLogUserFilter";
+const AI_LOG_ENDPOINT_FILTER_KEY = "aiLogEndpointFilter";
+const AI_LOG_RETRY_FILTER_KEY = "aiLogRetryFilter";
+type AiLogPreset = "high_retries" | "local_only" | "prn_focus" | "all" | "custom";
+
+const getStoredProviderSortMode = (): "volume" | "retry_rate" => {
+  if (typeof window === "undefined") return "retry_rate";
+  const stored = window.localStorage.getItem(AI_LOG_PROVIDER_SORT_KEY);
+  return stored === "volume" ? "volume" : "retry_rate";
+};
+
+const getStoredProblematicOnly = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(AI_LOG_PROBLEMATIC_ONLY_KEY) === "true";
+};
+
+const getStoredString = (key: string, fallback: string): string => {
+  if (typeof window === "undefined") return fallback;
+  const stored = window.localStorage.getItem(key);
+  return stored && stored.trim().length > 0 ? stored : fallback;
+};
 
 const AIAdminLog = memo(function AIAdminLog() {
   const [logs, setLogs] = useState<AIRequestLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [userFilter, setUserFilter] = useState("all");
-  const [endpointFilter, setEndpointFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState(() => getStoredString(AI_LOG_SEARCH_KEY, ""));
+  const [userFilter, setUserFilter] = useState(() => getStoredString(AI_LOG_USER_FILTER_KEY, "all"));
+  const [endpointFilter, setEndpointFilter] = useState(() => getStoredString(AI_LOG_ENDPOINT_FILTER_KEY, "all"));
+  const [retryFilter, setRetryFilter] = useState(() => getStoredString(AI_LOG_RETRY_FILTER_KEY, "all"));
+  const [providerSortMode, setProviderSortMode] = useState<"volume" | "retry_rate">(getStoredProviderSortMode);
+  const [showProblematicProvidersOnly, setShowProblematicProvidersOnly] = useState(getStoredProblematicOnly);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25;
 
   useEffect(() => {
     fetchAILogs();
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(AI_LOG_PROVIDER_SORT_KEY, providerSortMode);
+  }, [providerSortMode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(AI_LOG_PROBLEMATIC_ONLY_KEY, showProblematicProvidersOnly ? "true" : "false");
+  }, [showProblematicProvidersOnly]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(AI_LOG_SEARCH_KEY, searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(AI_LOG_USER_FILTER_KEY, userFilter);
+  }, [userFilter]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(AI_LOG_ENDPOINT_FILTER_KEY, endpointFilter);
+  }, [endpointFilter]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(AI_LOG_RETRY_FILTER_KEY, retryFilter);
+  }, [retryFilter]);
 
   const fetchAILogs = async () => {
     try {
@@ -230,19 +289,88 @@ const AIAdminLog = memo(function AIAdminLog() {
         log.featureName.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesUser = userFilter === "all" || log.username === userFilter;
       const matchesEndpoint = endpointFilter === "all" || log.endpoint === endpointFilter;
-      return matchesSearch && matchesUser && matchesEndpoint;
+      const retryCount = log.retryCount || 0;
+      const matchesRetry =
+        retryFilter === "all" ||
+        (retryFilter === "with_retries" && retryCount > 0) ||
+        (retryFilter === "no_retries" && retryCount === 0);
+      return matchesSearch && matchesUser && matchesEndpoint && matchesRetry;
     });
-  }, [logs, searchQuery, userFilter, endpointFilter]);
+  }, [logs, searchQuery, userFilter, endpointFilter, retryFilter]);
+
+  const retryReasonSummary = useMemo(() => {
+    return filteredLogs.reduce<Record<string, number>>((acc, log) => {
+      const retryCount = log.retryCount || 0;
+      if (retryCount <= 0) return acc;
+      const reason = log.lastRetryReason || "unspecified";
+      acc[reason] = (acc[reason] || 0) + retryCount;
+      return acc;
+    }, {});
+  }, [filteredLogs]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, userFilter, endpointFilter]);
+  }, [searchQuery, userFilter, endpointFilter, retryFilter]);
 
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const displayedLogs = filteredLogs.slice(startIndex, endIndex);
+  const retriedRequestCount = filteredLogs.filter((log) => (log.retryCount || 0) > 0).length;
+  const totalRetryAttempts = filteredLogs.reduce((sum, log) => sum + (log.retryCount || 0), 0);
+  const retryRatePercent = filteredLogs.length > 0 ? (retriedRequestCount / filteredLogs.length) * 100 : 0;
+  const providerRetryStats = useMemo(() => {
+    const stats = filteredLogs.reduce<Record<string, { requests: number; retried: number; retries: number }>>((acc, log) => {
+      const provider = (log.provider || "unknown").toLowerCase();
+      if (!acc[provider]) {
+        acc[provider] = { requests: 0, retried: 0, retries: 0 };
+      }
+      const retryCount = log.retryCount || 0;
+      acc[provider].requests += 1;
+      acc[provider].retries += retryCount;
+      if (retryCount > 0) {
+        acc[provider].retried += 1;
+      }
+      return acc;
+    }, {});
+
+    const entries = Object.entries(stats)
+      .map(([provider, value]) => ({
+        provider,
+        requests: value.requests,
+        retried: value.retried,
+        retries: value.retries,
+        retryRate: value.requests > 0 ? (value.retried / value.requests) * 100 : 0,
+      }));
+
+    const filtered = showProblematicProvidersOnly
+      ? entries.filter((item) => item.retryRate > 0 || item.retries > 0)
+      : entries;
+
+    return filtered.sort((a, b) => {
+      if (providerSortMode === "retry_rate") {
+        return b.retryRate - a.retryRate || b.retries - a.retries || b.requests - a.requests;
+      }
+      return b.requests - a.requests;
+    });
+  }, [filteredLogs, providerSortMode, showProblematicProvidersOnly]);
+
+  const formatProviderName = (provider: string): string => {
+    const normalized = (provider || "unknown").toLowerCase();
+    if (normalized === "openai") return "OpenAI";
+    if (normalized === "local") return "Local LLM";
+    if (normalized === "github") return "GitHub AI";
+    return normalized === "unknown" ? "Unknown" : provider;
+  };
+
+  const providerRetryBadgeClass = (provider: string): string => {
+    const normalized = (provider || "unknown").toLowerCase();
+    if (normalized === "openai") return "border-emerald-500/35 bg-emerald-500/10 text-emerald-700";
+    if (normalized === "local") return "border-sky-500/35 bg-sky-500/10 text-sky-700";
+    if (normalized === "github") return "border-violet-500/35 bg-violet-500/10 text-violet-700";
+    return "border-border/60 bg-muted/30 text-muted-foreground";
+  };
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -255,6 +383,119 @@ const AIAdminLog = memo(function AIAdminLog() {
       second: '2-digit'
     });
   };
+
+  const handleResetFilters = () => {
+    setSearchQuery("");
+    setUserFilter("all");
+    setEndpointFilter("all");
+    setRetryFilter("all");
+    setProviderSortMode("retry_rate");
+    setShowProblematicProvidersOnly(false);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(AI_LOG_SEARCH_KEY);
+      window.localStorage.removeItem(AI_LOG_USER_FILTER_KEY);
+      window.localStorage.removeItem(AI_LOG_ENDPOINT_FILTER_KEY);
+      window.localStorage.removeItem(AI_LOG_RETRY_FILTER_KEY);
+      window.localStorage.removeItem(AI_LOG_PROVIDER_SORT_KEY);
+      window.localStorage.removeItem(AI_LOG_PROBLEMATIC_ONLY_KEY);
+    }
+  };
+
+  const applyPreset = (preset: "high_retries" | "local_only" | "prn_focus" | "all") => {
+    if (preset === "all") {
+      handleResetFilters();
+      return;
+    }
+
+    setCurrentPage(1);
+
+    if (preset === "high_retries") {
+      setSearchQuery("");
+      setUserFilter("all");
+      setEndpointFilter("all");
+      setRetryFilter("with_retries");
+      setProviderSortMode("retry_rate");
+      setShowProblematicProvidersOnly(true);
+      return;
+    }
+
+    if (preset === "local_only") {
+      setSearchQuery("local");
+      setUserFilter("all");
+      setEndpointFilter("all");
+      setRetryFilter("all");
+      setProviderSortMode("retry_rate");
+      setShowProblematicProvidersOnly(false);
+      return;
+    }
+
+    if (preset === "prn_focus") {
+      setSearchQuery("prn");
+      setUserFilter("all");
+      setEndpointFilter("all");
+      setRetryFilter("all");
+      setProviderSortMode("retry_rate");
+      setShowProblematicProvidersOnly(false);
+    }
+  };
+
+  const activePreset = useMemo<AiLogPreset>(() => {
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+
+    const isAllView =
+      normalizedSearch.length === 0 &&
+      userFilter === "all" &&
+      endpointFilter === "all" &&
+      retryFilter === "all" &&
+      providerSortMode === "retry_rate" &&
+      !showProblematicProvidersOnly;
+
+    if (isAllView) return "all";
+
+    const isHighRetriesView =
+      normalizedSearch.length === 0 &&
+      userFilter === "all" &&
+      endpointFilter === "all" &&
+      retryFilter === "with_retries" &&
+      providerSortMode === "retry_rate" &&
+      showProblematicProvidersOnly;
+
+    if (isHighRetriesView) return "high_retries";
+
+    const isLocalOnlyView =
+      normalizedSearch === "local" &&
+      userFilter === "all" &&
+      endpointFilter === "all" &&
+      retryFilter === "all" &&
+      providerSortMode === "retry_rate" &&
+      !showProblematicProvidersOnly;
+
+    if (isLocalOnlyView) return "local_only";
+
+    const isPrnFocusView =
+      normalizedSearch === "prn" &&
+      userFilter === "all" &&
+      endpointFilter === "all" &&
+      retryFilter === "all" &&
+      providerSortMode === "retry_rate" &&
+      !showProblematicProvidersOnly;
+
+    if (isPrnFocusView) return "prn_focus";
+
+    return "custom";
+  }, [searchQuery, userFilter, endpointFilter, retryFilter, providerSortMode, showProblematicProvidersOnly]);
+
+  const activePresetLabel =
+    activePreset === "high_retries"
+      ? "High Retries"
+      : activePreset === "local_only"
+        ? "Local Only"
+        : activePreset === "prn_focus"
+          ? "PRN Focus"
+          : activePreset === "all"
+            ? "All Logs"
+            : "Custom";
 
   if (loading) {
     return (
@@ -313,7 +554,146 @@ const AIAdminLog = memo(function AIAdminLog() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={retryFilter} onValueChange={setRetryFilter}>
+            <SelectTrigger className="w-[190px]">
+              <SelectValue placeholder="Filter by retries" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Retry States</SelectItem>
+              <SelectItem value="with_retries">With Retries</SelectItem>
+              <SelectItem value="no_retries">No Retries</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleResetFilters}
+            className="h-9"
+          >
+            <RefreshCcw className="mr-2 h-3.5 w-3.5" />
+            Reset Filters
+          </Button>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Saved Views:</span>
+          <Badge variant="outline" className="text-[10px]">
+            Active: {activePresetLabel}
+          </Badge>
+          <Button
+            type="button"
+            variant={activePreset === "high_retries" ? "default" : "outline"}
+            size="sm"
+            className="h-7 text-xs"
+            aria-pressed={activePreset === "high_retries"}
+            disabled={activePreset === "high_retries"}
+            onClick={() => applyPreset("high_retries")}
+          >
+            High Retries
+          </Button>
+          <Button
+            type="button"
+            variant={activePreset === "local_only" ? "default" : "outline"}
+            size="sm"
+            className="h-7 text-xs"
+            aria-pressed={activePreset === "local_only"}
+            disabled={activePreset === "local_only"}
+            onClick={() => applyPreset("local_only")}
+          >
+            Local Only
+          </Button>
+          <Button
+            type="button"
+            variant={activePreset === "prn_focus" ? "default" : "outline"}
+            size="sm"
+            className="h-7 text-xs"
+            aria-pressed={activePreset === "prn_focus"}
+            disabled={activePreset === "prn_focus"}
+            onClick={() => applyPreset("prn_focus")}
+          >
+            PRN Focus
+          </Button>
+          <Button
+            type="button"
+            variant={activePreset === "all" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-7 text-xs"
+            aria-pressed={activePreset === "all"}
+            disabled={activePreset === "all"}
+            onClick={() => applyPreset("all")}
+          >
+            Clear View
+          </Button>
+        </div>
+
+        {Object.keys(retryReasonSummary).length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
+            <span className="text-xs font-medium text-muted-foreground">Retry Reasons:</span>
+            {Object.entries(retryReasonSummary)
+              .sort((a, b) => b[1] - a[1])
+              .map(([reason, count]) => (
+                <Badge key={reason} variant="outline" className="text-xs">
+                  {reason}: {count}
+                </Badge>
+              ))}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="rounded-lg border border-border/50 bg-muted/10 px-3 py-2">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Requests Retried</div>
+            <div className="text-sm font-semibold text-foreground">{retriedRequestCount.toLocaleString()}</div>
+          </div>
+          <div className="rounded-lg border border-border/50 bg-muted/10 px-3 py-2">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Total Retry Attempts</div>
+            <div className="text-sm font-semibold text-foreground">{totalRetryAttempts.toLocaleString()}</div>
+          </div>
+          <div className="rounded-lg border border-border/50 bg-muted/10 px-3 py-2">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Retry Rate</div>
+            <div className="text-sm font-semibold text-foreground">{retryRatePercent.toFixed(1)}%</div>
+          </div>
+        </div>
+
+        {providerRetryStats.length > 0 && (
+          <div className="rounded-lg border border-border/50 bg-muted/10 px-3 py-2">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Provider Retry Comparison</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={providerSortMode} onValueChange={(value: "volume" | "retry_rate") => setProviderSortMode(value)}>
+                  <SelectTrigger className="h-7 w-[160px] text-xs">
+                    <SelectValue placeholder="Sort providers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="retry_rate">Sort: Retry Rate</SelectItem>
+                    <SelectItem value="volume">Sort: Volume</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-1.5 rounded-md border border-border/60 bg-background/60 px-2 py-1">
+                  <Label htmlFor="problematic-providers-only" className="text-[11px] text-muted-foreground">
+                    Problematic only
+                  </Label>
+                  <Switch
+                    id="problematic-providers-only"
+                    checked={showProblematicProvidersOnly}
+                    onCheckedChange={setShowProblematicProvidersOnly}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {providerRetryStats.map((item) => (
+                <Badge
+                  key={item.provider}
+                  variant="outline"
+                  className={`text-xs ${providerRetryBadgeClass(item.provider)}`}
+                >
+                  {formatProviderName(item.provider)}: {item.retryRate.toFixed(1)}% ({item.retried}/{item.requests}) · retries {item.retries}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Results count */}
         <div className="flex items-center justify-between">
@@ -373,6 +753,11 @@ const AIAdminLog = memo(function AIAdminLog() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
+                      {(log.retryCount || 0) > 0 && (
+                        <Badge variant="secondary" className="text-xs bg-amber-500/15 text-amber-700 border-amber-500/30">
+                          {log.retryCount} retry{(log.retryCount || 0) > 1 ? "ies" : ""}
+                        </Badge>
+                      )}
                       <Badge variant="outline" className="text-xs">
                         {log.totalTokens.toLocaleString()} tokens
                       </Badge>
@@ -400,6 +785,14 @@ const AIAdminLog = memo(function AIAdminLog() {
                       <div>
                         <span className="font-semibold text-muted-foreground">Output Tokens:</span>
                         <span className="ml-2">{log.outputTokens.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-muted-foreground">Retries:</span>
+                        <span className="ml-2">{(log.retryCount || 0).toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-muted-foreground">Retry Reason:</span>
+                        <span className="ml-2">{log.lastRetryReason || "none"}</span>
                       </div>
                     </div>
                     
@@ -1071,8 +1464,8 @@ const AIProviderSection = memo(function AIProviderSection() {
       toast({
         title: "Local Web Policy Updated",
         description: enabled
-          ? "Local AI now requires live internet/BNF access for AI requests."
-          : "Local AI can run without live internet/BNF access.",
+          ? "Local medication/fetch AI tasks now require live internet/BNF access."
+          : "Local medication/fetch AI tasks can run without live internet/BNF enforcement.",
       });
     } catch (error: any) {
       console.error("Failed to update local web policy:", error);
@@ -1314,7 +1707,7 @@ const AIProviderSection = memo(function AIProviderSection() {
                 <div className="flex flex-col gap-0.5">
                   <span className="text-xs font-medium text-foreground">Require live web/BNF access</span>
                   <span className="text-[11px] text-muted-foreground">
-                    When enabled, all Local AI requests fail fast if internet access to BNF is unavailable.
+                    When enabled, Local medication/fetch tasks fail fast if internet access to BNF is unavailable.
                   </span>
                 </div>
                 <div className="flex items-center gap-2">

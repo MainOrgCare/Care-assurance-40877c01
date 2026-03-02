@@ -41,7 +41,7 @@ import {
   registerAiUsageRoutes,
 } from "./routes/index";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertPolicyDocumentSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser } from "@shared/schema";
-import { getPreferredProvider, setPreferredProvider, setLocalLLMUrl, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, getRequireLiveWebForLocal, setRequireLiveWebForLocal, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { getPreferredProvider, setPreferredProvider, setLocalLLMUrl, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, getRequireLiveWebForLocal, setRequireLiveWebForLocal, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, getAiErrorStatusCode, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { getCacheStats, clearCache } from "./services/aiCache";
 import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseAI, extractMedicationInfo, extractPersonalCareNeeds, extractContinenceInfo, extractNutritionInfo, extractEnvironmentInfo } from "./services/ruleBasedEngine";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
@@ -17430,7 +17430,7 @@ Return ONLY the email text, nothing else.`;
       return res.json({ rewrittenEmail: response.restoredText });
     } catch (error: any) {
       console.error("Email rewrite error:", error);
-      return res.status(500).json({ message: safeErrorMessage(error, "Failed to rewrite email") });
+      return res.status(getAiErrorStatusCode(error)).json({ message: safeErrorMessage(error, "Failed to rewrite email") });
     }
   });
 
@@ -17500,7 +17500,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
       return res.json({ protocol });
     } catch (error: any) {
       console.error("PRN protocol generation error:", error);
-      return res.status(500).json({ message: safeErrorMessage(error, "Failed to generate PRN protocol") });
+      return res.status(getAiErrorStatusCode(error)).json({ message: safeErrorMessage(error, "Failed to generate PRN protocol") });
     }
   });
 

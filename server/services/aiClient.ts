@@ -44,6 +44,17 @@ const createAIDisabledError = (): Error => {
   return error;
 };
 
+export function getAiErrorStatusCode(error: unknown): number {
+  const code = (error as { code?: string } | null)?.code;
+  if (code === "LOCAL_WEB_CONTEXT_UNAVAILABLE" || code === "AI_DISABLED") {
+    return 503;
+  }
+  if (code === "GITHUB_QUOTA_EXCEEDED") {
+    return 429;
+  }
+  return 500;
+}
+
 // Admin-configurable preferred AI provider (openai uses OPENAI_API_KEY)
 let preferredProvider: AiProvider = "openai";
 let settingsLoaded = false;
@@ -328,10 +339,20 @@ async function assertLocalWebAccessIfRequired(): Promise<void> {
   if (!requireLiveWebForLocal) return;
   const reachable = await isBnfReachable();
   if (!reachable) {
-    const error = new Error("Live internet access to bnf.nice.org.uk is required for Local AI mode but is currently unavailable.") as Error & { code?: string };
+    const error = new Error("Live internet access to bnf.nice.org.uk is required for this Local medication/web lookup task but is currently unavailable.") as Error & { code?: string };
     error.code = "LOCAL_WEB_CONTEXT_UNAVAILABLE";
     throw error;
   }
+}
+
+function requiresLiveWebForFeature(featureName: string): boolean {
+  const normalized = String(featureName || "").toLowerCase();
+  return (
+    normalized.includes("prn") ||
+    normalized.includes("interaction") ||
+    normalized.includes("medication") ||
+    normalized.includes("bnf")
+  );
 }
 
 // Export ensureSettingsLoaded for routes initialization
@@ -341,6 +362,8 @@ export { ensureSettingsLoaded };
 export interface AiCompletionResult {
   completion: OpenAI.ChatCompletion;
   provider: AiProvider;
+  retryCount: number;
+  lastRetryReason: string | null;
 }
 
 let openaiClient: OpenAI | null = null;
@@ -362,6 +385,12 @@ type LocalChatV1Response = {
     finish_reason?: string | null;
   }>;
 };
+
+function estimateTokenCount(text: string): number {
+  const normalized = String(text || "").trim();
+  if (!normalized) return 0;
+  return Math.max(1, Math.ceil(normalized.length / 4));
+}
 
 // Track if OpenAI client is using PAT fallback (needs model mapping)
 let openaiUsingPATFallback = false;
@@ -486,7 +515,7 @@ function buildLocalCompatibleParams(
   const normalized: any = {
     ...params,
     model,
-    temperature: 0,
+    temperature: params.temperature ?? 0,
     response_format: normalizeLocalResponseFormat((params as any).response_format),
   };
 
@@ -529,6 +558,65 @@ function extractLocalChatV1Content(payload: LocalChatV1Response): string {
   }
 
   return "";
+}
+
+function normalizeFinishReason(value: unknown): "stop" | "length" | "tool_calls" | "content_filter" | "function_call" {
+  if (value === "stop" || value === "length" || value === "tool_calls" || value === "content_filter" || value === "function_call") {
+    return value;
+  }
+  return "stop";
+}
+
+function normalizeLocalCompletion(
+  completion: OpenAI.ChatCompletion,
+  params: OpenAI.ChatCompletionCreateParamsNonStreaming,
+  model: string,
+): OpenAI.ChatCompletion {
+  const systemText = params.messages
+    .filter((message: any) => message?.role === "system")
+    .map((message: any) => messageContentToString(message?.content))
+    .join("\n\n");
+  const userText = params.messages
+    .filter((message: any) => message?.role === "user")
+    .map((message: any) => messageContentToString(message?.content))
+    .join("\n\n");
+
+  const normalizedChoices = (completion.choices || []).map((choice: any, index: number) => {
+    const messageContent = typeof choice?.message?.content === "string"
+      ? choice.message.content
+      : typeof choice?.text === "string"
+        ? choice.text
+        : "";
+
+    return {
+      ...choice,
+      index: typeof choice?.index === "number" ? choice.index : index,
+      message: {
+        role: "assistant",
+        content: messageContent,
+      },
+      finish_reason: normalizeFinishReason(choice?.finish_reason),
+    };
+  });
+
+  const assistantText = normalizedChoices
+    .map((choice: any) => (typeof choice?.message?.content === "string" ? choice.message.content : ""))
+    .join("\n\n");
+
+  const promptTokens = completion.usage?.prompt_tokens ?? estimateTokenCount(`${systemText}\n\n${userText}`);
+  const completionTokens = completion.usage?.completion_tokens ?? estimateTokenCount(assistantText);
+  const totalTokens = completion.usage?.total_tokens ?? (promptTokens + completionTokens);
+
+  return {
+    ...completion,
+    model: completion.model || model,
+    choices: normalizedChoices,
+    usage: {
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: totalTokens,
+    },
+  } as OpenAI.ChatCompletion;
 }
 
 async function createLocalChatCompletionViaApiV1(
@@ -582,8 +670,10 @@ async function createLocalChatCompletionViaApiV1(
     throw new Error("Local /api/v1/chat response did not include assistant content");
   }
 
-  const promptTokens = payload.usage?.prompt_tokens ?? 0;
-  const completionTokens = payload.usage?.completion_tokens ?? 0;
+  const estimatedPromptTokens = estimateTokenCount(`${systemPrompt}\n\n${input}`);
+  const estimatedCompletionTokens = estimateTokenCount(content);
+  const promptTokens = payload.usage?.prompt_tokens ?? estimatedPromptTokens;
+  const completionTokens = payload.usage?.completion_tokens ?? estimatedCompletionTokens;
   const totalTokens = payload.usage?.total_tokens ?? (promptTokens + completionTokens);
   const finishReason = payload.choices?.[0]?.finish_reason ?? "stop";
 
@@ -733,6 +823,52 @@ function isRateLimitError(error: any): boolean {
          error?.error?.code === 'rate_limit_exceeded';
 }
 
+function isRetryableTransientError(error: any): boolean {
+  const status = error?.status || error?.response?.status;
+  if (typeof status === "number") {
+    if (status === 408 || status === 409 || status === 429) return true;
+    if (status >= 500 && status <= 599) return true;
+  }
+
+  const code = String(error?.code || "").toLowerCase();
+  if (["etimedout", "econnreset", "econnrefused", "enotfound", "eai_again", "aborterror"].includes(code)) {
+    return true;
+  }
+
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("fetch failed") ||
+    message.includes("network") ||
+    message.includes("socket hang up")
+  );
+}
+
+function getRetryDelayMs(error: any, attempt: number): number {
+  const retryAfter = error?.headers?.get?.("retry-after") || error?.response?.headers?.["retry-after"];
+  if (retryAfter) {
+    const parsed = Number.parseInt(String(retryAfter), 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed * 1000;
+    }
+  }
+  return INITIAL_RETRY_DELAY_MS * Math.pow(2, Math.max(0, attempt));
+}
+
+function getRetryReason(error: any): string {
+  const status = error?.status || error?.response?.status;
+  if (typeof status === "number") return `http_${status}`;
+
+  const code = String(error?.code || "").trim();
+  if (code) return `code_${code.toLowerCase()}`;
+
+  const message = String(error?.message || "").toLowerCase();
+  if (message.includes("timeout") || message.includes("timed out")) return "timeout";
+  if (message.includes("network") || message.includes("fetch failed")) return "network";
+  return "transient_unknown";
+}
+
 // Format GitHub Models specific errors with helpful messages
 function formatGitHubModelsError(error: any, provider: AiProvider): Error {
   const isGitHub = provider === 'github' || (provider === 'openai' && openaiUsingPATFallback);
@@ -792,14 +928,13 @@ async function createChatCompletionWithProvider(
   let model = (params.model as string) || preferredModel;
   
   if (provider === "local") {
-    await assertLocalWebAccessIfRequired();
     client = getLocalClient();
     if (!client) {
       throw new Error("Local LLM client could not be initialized.");
     }
     // Always use the local model - NO FALLBACK to other providers
     model = LOCAL_LLM_MODEL;
-    console.log(`[AI:Local] ✓ Using LOCAL Qwen 2.5 at ${localLLMUrl} (model: ${model}, temp: 0) - NOT using OpenAI/GitHub`);
+    console.log(`[AI:Local] ✓ Using local provider at ${localLLMUrl} (model: ${model}, temp: ${(params as any).temperature ?? 0}) - NOT using OpenAI/GitHub`);
   } else if (provider === "github") {
     client = getGitHubClient();
     if (!client) {
@@ -823,6 +958,8 @@ async function createChatCompletionWithProvider(
 
   // Retry loop with exponential backoff for rate limit errors
   let lastError: any = null;
+  let retryCount = 0;
+  let lastRetryReason: string | null = null;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       if (attempt > 0) {
@@ -832,8 +969,7 @@ async function createChatCompletionWithProvider(
       }
       
       console.log(`[AI] Using ${provider} provider with model:`, model);
-      // For local LLM (qwen2.5-64k custom model), temperature 0 and 64K context are baked in
-      // Also pass options as fallback for API-level override
+      // For local LLM, keep payload OpenAI-compatible and pass local options fallback where supported
       // For OpenAI provider, enforce gpt-4.1-mini with temperature 0 for deterministic results
       const finalParams = provider === "local" 
         ? buildLocalCompatibleParams(params, model, "standard")
@@ -886,7 +1022,11 @@ async function createChatCompletionWithProvider(
             client.chat.completions.create(finalParams),
             timeoutPromise,
           ]);
-      return { completion, provider };
+      const normalizedCompletion = provider === "local"
+        ? normalizeLocalCompletion(completion as OpenAI.ChatCompletion, finalParams, model)
+        : (completion as OpenAI.ChatCompletion);
+
+      return { completion: normalizedCompletion, provider, retryCount, lastRetryReason };
     } catch (error: any) {
       lastError = error;
       
@@ -897,12 +1037,11 @@ async function createChatCompletionWithProvider(
         code: error?.code
       });
       
-      if (isRateLimitError(error) && attempt < MAX_RETRIES) {
-        // Extract retry-after header if available
-        const retryAfter = error?.headers?.get?.('retry-after') || 
-                          error?.response?.headers?.['retry-after'];
-        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
-        console.warn(`[AI:${provider}] Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${MAX_RETRIES}...`);
+      if (attempt < MAX_RETRIES && (isRateLimitError(error) || isRetryableTransientError(error))) {
+        const waitTime = getRetryDelayMs(error, attempt);
+        retryCount += 1;
+        lastRetryReason = getRetryReason(error);
+        console.warn(`[AI:${provider}] Transient failure. Waiting ${waitTime}ms before retry ${attempt + 1}/${MAX_RETRIES}...`);
         await sleep(waitTime);
         continue;
       }
@@ -993,6 +1132,10 @@ export async function createChatCompletionWithLogging(
     });
     throw new Error("PII detected in AI prompt. Scrub content with PIIVault before calling AI.");
   }
+
+  if (preferredProvider === "local" && requiresLiveWebForFeature(featureName)) {
+    await assertLocalWebAccessIfRequired();
+  }
   
   // Check cache if enabled
   const cacheKey = useAICache ? generateCacheKey(params.messages as any, actualModel, featureName) : null;
@@ -1041,14 +1184,29 @@ export async function createChatCompletionWithLogging(
   try {
     const result = await createChatCompletionWithProvider(params);
     provider = result.provider;
+    const retryCount = result.retryCount;
+    const lastRetryReason = result.lastRetryReason;
     const duration = Date.now() - startTime;
-    const inputTokens = result.completion.usage?.prompt_tokens || 0;
-    const outputTokens = result.completion.usage?.completion_tokens || 0;
-    const totalTokens = result.completion.usage?.total_tokens || 0;
+    const primaryUserContent = params.messages
+      .filter((message: any) => message?.role === "user")
+      .map((message: any) => messageContentToString(message?.content))
+      .join("\n\n");
+    const assistantContent = typeof result.completion.choices?.[0]?.message?.content === "string"
+      ? result.completion.choices?.[0]?.message?.content || ""
+      : "";
+    const estimatedInputTokens = estimateTokenCount(primaryUserContent);
+    const estimatedOutputTokens = estimateTokenCount(assistantContent);
+
+    const inputTokens = result.completion.usage?.prompt_tokens
+      ?? (provider === "local" ? estimatedInputTokens : 0);
+    const outputTokens = result.completion.usage?.completion_tokens
+      ?? (provider === "local" ? estimatedOutputTokens : 0);
+    const totalTokens = result.completion.usage?.total_tokens
+      ?? (provider === "local" ? inputTokens + outputTokens : 0);
     const costMicroDollars = calculateCostMicroDollars(actualModel, inputTokens, outputTokens);
     
     const providerLabel = provider === "local" ? "LOCAL (Qwen 2.5)" : provider === "github" ? "GitHub AI" : "OpenAI";
-    console.log(`[AI:${featureName}] ✓ Completed in ${duration}ms, ${totalTokens} tokens, $${(costMicroDollars / 1000000).toFixed(4)} via ${providerLabel}`);
+    console.log(`[AI:${featureName}] ✓ Completed in ${duration}ms, ${totalTokens} tokens, $${(costMicroDollars / 1000000).toFixed(4)} via ${providerLabel}${retryCount > 0 ? ` after ${retryCount} retry(ies)` : ""}`);
     
     // Cache the successful response if caching enabled
     if (cacheKey) {
@@ -1078,6 +1236,8 @@ export async function createChatCompletionWithLogging(
         response_format: params.response_format,
         provider: provider,
         featureName: featureName,
+        retryCount,
+        lastRetryReason,
       },
       }).catch(err => console.error("[AI] Failed to log usage:", err.message));
     }

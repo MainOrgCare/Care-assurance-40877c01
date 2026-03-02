@@ -13,6 +13,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import {
   createChatCompletionWithLogging,
+  getAiErrorStatusCode,
   getPreferredModel,
   getPreferredProvider,
   getRequireLiveWebForLocal,
@@ -367,7 +368,7 @@ Return ONLY the email text, nothing else.`;
       res.json({ rewrittenEmail, tone, model: getLowCostModel() });
     } catch (error: any) {
       console.error("[Copilot] Email rewrite error:", error);
-      res.status(500).json({ error: "Email rewrite failed", message: error.message });
+      res.status(getAiErrorStatusCode(error)).json({ error: "Email rewrite failed", message: error.message });
     }
   });
 
@@ -469,7 +470,7 @@ Use UK English spelling. Be specific and clinically accurate.`;
       res.json({ protocol, model: getAccurateModel(), bnfSources: bnfWebContext.sources });
     } catch (error: any) {
       console.error("[Copilot] PRN protocol error:", error);
-      res.status(500).json({ error: "PRN protocol generation failed", message: error.message });
+      res.status(getAiErrorStatusCode(error)).json({ error: "PRN protocol generation failed", message: error.message });
     }
   });
 
@@ -594,7 +595,7 @@ Respond ONLY with valid JSON:
       res.json({ analysis, model: getAccurateModel() });
     } catch (error: any) {
       console.error("[Copilot] Visit audit error:", error);
-      res.status(500).json({ error: "Visit audit failed", message: error.message });
+      res.status(getAiErrorStatusCode(error)).json({ error: "Visit audit failed", message: error.message });
     }
   });
 
@@ -715,7 +716,7 @@ Respond with valid JSON:
       res.json({ riskProfile, model: getAccurateModel() });
     } catch (error: any) {
       console.error("[Copilot] Risk analysis error:", error);
-      res.status(500).json({ error: "Risk analysis failed", message: error.message });
+      res.status(getAiErrorStatusCode(error)).json({ error: "Risk analysis failed", message: error.message });
     }
   });
 
@@ -842,7 +843,7 @@ Respond with valid JSON:
       res.json({ assessment, category, model: getAccurateModel() });
     } catch (error: any) {
       console.error("[Copilot] Risk assessment generation error:", error);
-      res.status(500).json({ error: "Risk assessment generation failed", message: error.message });
+      res.status(getAiErrorStatusCode(error)).json({ error: "Risk assessment generation failed", message: error.message });
     }
   });
 
@@ -991,7 +992,7 @@ Respond with valid JSON:
       res.json({ carePlan, callType: callTypeLabel, model: getAccurateModel() });
     } catch (error: any) {
       console.error("[Copilot] Care plan generation error:", error);
-      res.status(500).json({ error: "Care plan generation failed", message: error.message });
+      res.status(getAiErrorStatusCode(error)).json({ error: "Care plan generation failed", message: error.message });
     }
   });
 
@@ -1338,7 +1339,7 @@ Respond with valid JSON matching this comprehensive schema:
       res.json({ enhancedPlan, model: getAccurateModel() });
     } catch (error: any) {
       console.error("[Copilot] Plan enhancement error:", error);
-      res.status(500).json({ error: "Plan enhancement failed", message: error.message });
+      res.status(getAiErrorStatusCode(error)).json({ error: "Plan enhancement failed", message: error.message });
     }
   });
 
@@ -1535,7 +1536,7 @@ Return JSON:
       res.json({ ...result, model: getAccurateModel() });
     } catch (error: any) {
       console.error("[Copilot] Drug interaction check error:", error);
-      res.status(500).json({ error: "Drug interaction check failed", message: error.message });
+      res.status(getAiErrorStatusCode(error)).json({ error: "Drug interaction check failed", message: error.message });
     }
   });
 
@@ -1748,7 +1749,7 @@ RESPONSE FORMAT:
       res.json({ reply, model: getLowCostModel() });
     } catch (error: any) {
       console.error("[Copilot] Chat error:", error);
-      res.status(500).json({ error: "Chat failed", message: error.message });
+      res.status(getAiErrorStatusCode(error)).json({ error: "Chat failed", message: error.message });
     }
   });
 
