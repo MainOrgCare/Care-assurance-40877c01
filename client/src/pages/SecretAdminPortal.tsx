@@ -205,21 +205,49 @@ const getStoredString = (key: string, fallback: string): string => {
   return stored && stored.trim().length > 0 ? stored : fallback;
 };
 
+const getUrlParam = (key: string): string | undefined => {
+  if (typeof window === "undefined") return undefined;
+  const value = new URLSearchParams(window.location.search).get(key);
+  return value && value.trim().length > 0 ? value : undefined;
+};
+
+const getInitialAiLogString = (storageKey: string, urlKey: string, fallback: string): string => {
+  const fromUrl = getUrlParam(urlKey);
+  if (fromUrl) return fromUrl;
+  return getStoredString(storageKey, fallback);
+};
+
+const getInitialAiLogPage = (): number => {
+  const fromUrl = getUrlParam("aiPage");
+  if (!fromUrl) return 1;
+  const parsed = Number.parseInt(fromUrl, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+};
+
 const AIAdminLog = memo(function AIAdminLog() {
   const [logs, setLogs] = useState<AIRequestLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState(() => getStoredString(AI_LOG_SEARCH_KEY, ""));
-  const [userFilter, setUserFilter] = useState(() => getStoredString(AI_LOG_USER_FILTER_KEY, "all"));
-  const [endpointFilter, setEndpointFilter] = useState(() => getStoredString(AI_LOG_ENDPOINT_FILTER_KEY, "all"));
-  const [retryFilter, setRetryFilter] = useState(() => getStoredString(AI_LOG_RETRY_FILTER_KEY, "all"));
+  const [searchQuery, setSearchQuery] = useState(() => getInitialAiLogString(AI_LOG_SEARCH_KEY, "aiSearch", ""));
+  const [userFilter, setUserFilter] = useState(() => getInitialAiLogString(AI_LOG_USER_FILTER_KEY, "aiUser", "all"));
+  const [endpointFilter, setEndpointFilter] = useState(() => getInitialAiLogString(AI_LOG_ENDPOINT_FILTER_KEY, "aiEndpoint", "all"));
+  const [retryFilter, setRetryFilter] = useState(() => getInitialAiLogString(AI_LOG_RETRY_FILTER_KEY, "aiRetry", "all"));
   const [providerSortMode, setProviderSortMode] = useState<"volume" | "retry_rate">(getStoredProviderSortMode);
   const [showProblematicProvidersOnly, setShowProblematicProvidersOnly] = useState(getStoredProblematicOnly);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 25;
+  const [currentPage, setCurrentPage] = useState(getInitialAiLogPage);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalLogs, setTotalLogs] = useState(0);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [retryReasonSummary, setRetryReasonSummary] = useState<Record<string, number>>({});
+  const [analyticsTotals, setAnalyticsTotals] = useState({
+    retriedRequestCount: 0,
+    totalRetryAttempts: 0,
+    retryRatePercent: 0,
+  });
+  const [providerRetryStatsRaw, setProviderRetryStatsRaw] = useState<Array<{ provider: string; requests: number; retried: number; retries: number }>>([]);
 
   useEffect(() => {
     fetchAILogs();
-  }, []);
+  }, [searchQuery, userFilter, endpointFilter, retryFilter, currentPage]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -251,14 +279,66 @@ const AIAdminLog = memo(function AIAdminLog() {
     window.localStorage.setItem(AI_LOG_RETRY_FILTER_KEY, retryFilter);
   }, [retryFilter]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+
+    if (searchQuery.trim()) params.set("aiSearch", searchQuery.trim());
+    else params.delete("aiSearch");
+
+    if (userFilter !== "all") params.set("aiUser", userFilter);
+    else params.delete("aiUser");
+
+    if (endpointFilter !== "all") params.set("aiEndpoint", endpointFilter);
+    else params.delete("aiEndpoint");
+
+    if (retryFilter !== "all") params.set("aiRetry", retryFilter);
+    else params.delete("aiRetry");
+
+    if (currentPage > 1) params.set("aiPage", String(currentPage));
+    else params.delete("aiPage");
+
+    const queryString = params.toString();
+    const nextUrl = `${window.location.pathname}${queryString ? `?${queryString}` : ""}${window.location.hash}`;
+    window.history.replaceState(null, "", nextUrl);
+  }, [searchQuery, userFilter, endpointFilter, retryFilter, currentPage]);
+
   const fetchAILogs = async () => {
+    setLoading(true);
     try {
-      const response = await fetch("/api/admin/ai-logs", {
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(itemsPerPage),
+      });
+
+      if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (userFilter !== "all") params.set("user", userFilter);
+      if (endpointFilter !== "all") params.set("endpoint", endpointFilter);
+      if (retryFilter !== "all") params.set("retryState", retryFilter);
+
+      const response = await fetch(`/api/admin/ai-logs?${params.toString()}`, {
         credentials: "include",
       });
       if (response.ok) {
         const data = await response.json();
         setLogs(data.logs || []);
+        const pagination = data.pagination || {};
+        setTotalPages(Math.max(1, Number(pagination.totalPages || 1)));
+        setTotalLogs(Math.max(0, Number(pagination.total || 0)));
+        setItemsPerPage(Math.max(1, Number(pagination.limit || itemsPerPage)));
+
+        if (typeof pagination.page === "number" && pagination.page !== currentPage) {
+          setCurrentPage(Math.max(1, pagination.page));
+        }
+
+        const analytics = data.analytics || {};
+        setRetryReasonSummary(analytics.retryReasonSummary || {});
+        setProviderRetryStatsRaw(Array.isArray(analytics.providerRetryStats) ? analytics.providerRetryStats : []);
+        setAnalyticsTotals({
+          retriedRequestCount: Number(analytics.retriedRequestCount || 0),
+          totalRetryAttempts: Number(analytics.totalRetryAttempts || 0),
+          retryRatePercent: Number(analytics.retryRatePercent || 0),
+        });
       }
     } catch (error) {
       console.error("Failed to fetch AI logs:", error);
@@ -281,67 +361,25 @@ const AIAdminLog = memo(function AIAdminLog() {
     return Array.from(endpoints).sort();
   }, [logs]);
 
-  const filteredLogs = useMemo(() => {
-    return logs.filter(log => {
-      const matchesSearch = !searchQuery || 
-        log.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        log.endpoint.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        log.featureName.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesUser = userFilter === "all" || log.username === userFilter;
-      const matchesEndpoint = endpointFilter === "all" || log.endpoint === endpointFilter;
-      const retryCount = log.retryCount || 0;
-      const matchesRetry =
-        retryFilter === "all" ||
-        (retryFilter === "with_retries" && retryCount > 0) ||
-        (retryFilter === "no_retries" && retryCount === 0);
-      return matchesSearch && matchesUser && matchesEndpoint && matchesRetry;
-    });
-  }, [logs, searchQuery, userFilter, endpointFilter, retryFilter]);
-
-  const retryReasonSummary = useMemo(() => {
-    return filteredLogs.reduce<Record<string, number>>((acc, log) => {
-      const retryCount = log.retryCount || 0;
-      if (retryCount <= 0) return acc;
-      const reason = log.lastRetryReason || "unspecified";
-      acc[reason] = (acc[reason] || 0) + retryCount;
-      return acc;
-    }, {});
-  }, [filteredLogs]);
-
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, userFilter, endpointFilter, retryFilter]);
 
-  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const displayedLogs = filteredLogs.slice(startIndex, endIndex);
-  const retriedRequestCount = filteredLogs.filter((log) => (log.retryCount || 0) > 0).length;
-  const totalRetryAttempts = filteredLogs.reduce((sum, log) => sum + (log.retryCount || 0), 0);
-  const retryRatePercent = filteredLogs.length > 0 ? (retriedRequestCount / filteredLogs.length) * 100 : 0;
+  const startIndex = totalLogs === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const endIndex = totalLogs === 0 ? 0 : Math.min(totalLogs, (currentPage - 1) * itemsPerPage + logs.length);
+  const displayedLogs = logs;
+  const retriedRequestCount = analyticsTotals.retriedRequestCount;
+  const totalRetryAttempts = analyticsTotals.totalRetryAttempts;
+  const retryRatePercent = analyticsTotals.retryRatePercent;
   const providerRetryStats = useMemo(() => {
-    const stats = filteredLogs.reduce<Record<string, { requests: number; retried: number; retries: number }>>((acc, log) => {
-      const provider = (log.provider || "unknown").toLowerCase();
-      if (!acc[provider]) {
-        acc[provider] = { requests: 0, retried: 0, retries: 0 };
-      }
-      const retryCount = log.retryCount || 0;
-      acc[provider].requests += 1;
-      acc[provider].retries += retryCount;
-      if (retryCount > 0) {
-        acc[provider].retried += 1;
-      }
-      return acc;
-    }, {});
-
-    const entries = Object.entries(stats)
-      .map(([provider, value]) => ({
-        provider,
-        requests: value.requests,
-        retried: value.retried,
-        retries: value.retries,
-        retryRate: value.requests > 0 ? (value.retried / value.requests) * 100 : 0,
+    const entries = providerRetryStatsRaw
+      .map((item) => ({
+        provider: (item.provider || "unknown").toLowerCase(),
+        requests: Number(item.requests || 0),
+        retried: Number(item.retried || 0),
+        retries: Number(item.retries || 0),
+        retryRate: Number(item.requests || 0) > 0 ? (Number(item.retried || 0) / Number(item.requests || 0)) * 100 : 0,
       }));
 
     const filtered = showProblematicProvidersOnly
@@ -354,7 +392,7 @@ const AIAdminLog = memo(function AIAdminLog() {
       }
       return b.requests - a.requests;
     });
-  }, [filteredLogs, providerSortMode, showProblematicProvidersOnly]);
+  }, [providerRetryStatsRaw, providerSortMode, showProblematicProvidersOnly]);
 
   const formatProviderName = (provider: string): string => {
     const normalized = (provider || "unknown").toLowerCase();
@@ -389,6 +427,7 @@ const AIAdminLog = memo(function AIAdminLog() {
     setUserFilter("all");
     setEndpointFilter("all");
     setRetryFilter("all");
+    setCurrentPage(1);
     setProviderSortMode("retry_rate");
     setShowProblematicProvidersOnly(false);
 
@@ -698,7 +737,7 @@ const AIAdminLog = memo(function AIAdminLog() {
         {/* Results count */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {startIndex + 1}-{Math.min(endIndex, filteredLogs.length)} of {filteredLogs.length} requests
+            {totalLogs > 0 ? `Showing ${startIndex}-${endIndex} of ${totalLogs} requests` : "Showing 0-0 of 0 requests"}
           </div>
           {totalPages > 1 && (
             <div className="flex items-center gap-2">
@@ -726,7 +765,7 @@ const AIAdminLog = memo(function AIAdminLog() {
         </div>
 
         {/* Logs */}
-        {filteredLogs.length === 0 ? (
+        {displayedLogs.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <Terminal className="h-12 w-12 mx-auto mb-3 opacity-20" />
             <p>No AI requests logged yet</p>

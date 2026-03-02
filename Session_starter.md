@@ -81,6 +81,7 @@
 ## 🚀 Recent Achievements
 | Date | Summary |
 |------|---------|
+| 2026-03-02 | ✅ Started implementation of AI log scaling pipeline: added paginated/filterable AI usage storage methods and analytics aggregations in `server/storage.ts`, upgraded `GET /api/admin/ai-logs` in `server/routes/aiUsage.ts` to return `logs + pagination + analytics`, and updated `client/src/pages/SecretAdminPortal.tsx` AI Request Log to query server-side filters/page with URL + localStorage state sync (`aiSearch`, `aiUser`, `aiEndpoint`, `aiRetry`, `aiPage`). |
 | 2026-03-02 | ✅ Refined AI Request Log saved-view controls in `client/src/pages/SecretAdminPortal.tsx`: preset buttons now expose pressed state and are disabled when already active, reducing accidental re-application and making active investigation context clearer. |
 | 2026-03-02 | ✅ Improved AI Request Log preset ergonomics in `client/src/pages/SecretAdminPortal.tsx`: added computed active saved-view detection (`High Retries`, `Local Only`, `PRN Focus`, `All Logs`, `Custom`), an `Active:` badge, and button highlighting for the currently active preset to make investigation context immediately visible. |
 | 2026-03-02 | ✅ Added one-click triage presets to AI Request Log in `client/src/pages/SecretAdminPortal.tsx`: `High Retries`, `Local Only`, and `PRN Focus` now apply targeted filter/search states instantly, plus `Clear View` to reset; this reduces friction when switching between common reliability investigation modes. |

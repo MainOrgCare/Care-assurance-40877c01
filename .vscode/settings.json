@@ -1,7 +1,7 @@
 {
     "git.ignoreLimitWarning": true,
     "css.lint.unknownAtRules": "ignore",
-    "chat.agent.maxRequests": 1000,
+    "chat.agent.maxRequests": 10000,
   "chat.mcp.serverSampling": {
       "Care-assurance-40877c01/.vscode/mcp.json: io.github.github/github-mcp-server": {
           "allowedModels": [
@@ -63,5 +63,6 @@
   "[json]": {
     "editor.defaultFormatter": "vscode.json-language-features"
   },
-  "vscode-edge-devtools.headless": false
+  "vscode-edge-devtools.headless": false,
+  "github.copilot.chat.copilotMemory.enabled": true
 }

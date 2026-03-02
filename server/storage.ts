@@ -138,6 +138,34 @@ import {
 
 const SALT_ROUNDS = 10;
 
+export interface AiUsageLogQueryOptions {
+  limit?: number;
+  page?: number;
+  startDate?: Date;
+  endDate?: Date;
+  searchQuery?: string;
+  username?: string;
+  endpoint?: string;
+  retryState?: "all" | "with_retries" | "no_retries";
+  provider?: string;
+  featureName?: string;
+}
+
+export interface AiUsageLogQueryResult {
+  logs: AiUsageLog[];
+  total: number;
+  page: number;
+  totalPages: number;
+  limit: number;
+}
+
+export interface AiUsageProviderRetryStat {
+  provider: string;
+  requests: number;
+  retried: number;
+  retries: number;
+}
+
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
@@ -282,7 +310,10 @@ export interface IStorage {
   
   // AI Usage Log operations
   createAiUsageLog(log: InsertAiUsageLog): Promise<AiUsageLog>;
-  getAiUsageLogs(options?: { limit?: number; startDate?: Date; endDate?: Date }): Promise<AiUsageLog[]>;
+  getAiUsageLogs(options?: AiUsageLogQueryOptions): Promise<AiUsageLog[]>;
+  getAiUsageLogsPaginated(options?: AiUsageLogQueryOptions): Promise<AiUsageLogQueryResult>;
+  getAiUsageRetryReasonSummary(options?: AiUsageLogQueryOptions): Promise<Record<string, number>>;
+  getAiUsageProviderRetryStats(options?: AiUsageLogQueryOptions): Promise<AiUsageProviderRetryStat[]>;
   getAiUsageStats(): Promise<{ totalCost: number; totalCalls: number; byFeature: Record<string, { calls: number; cost: number; tokens: number }> }>;
 
   // Contact Message operations
@@ -1361,21 +1392,161 @@ export class DatabaseStorage implements IStorage {
     const result = await this.db.insert(aiUsageLogs).values(log).returning();
     return result[0];
   }
-  
-  async getAiUsageLogs(options?: { limit?: number; startDate?: Date; endDate?: Date }): Promise<AiUsageLog[]> {
-    const limit = options?.limit || 100;
-    let query = this.db.select().from(aiUsageLogs);
-    
-    if (options?.startDate && options?.endDate) {
-      query = query.where(
-        and(
-          sql`${aiUsageLogs.createdAt} >= ${options.startDate}`,
-          sql`${aiUsageLogs.createdAt} <= ${options.endDate}`
-        )
-      ) as any;
+
+  private buildAiUsageLogFilterConditions(options?: AiUsageLogQueryOptions) {
+    const conditions: any[] = [];
+
+    if (options?.startDate) {
+      conditions.push(sql`${aiUsageLogs.createdAt} >= ${options.startDate}`);
     }
-    
-    return await query.orderBy(desc(aiUsageLogs.createdAt)).limit(limit);
+
+    if (options?.endDate) {
+      conditions.push(sql`${aiUsageLogs.createdAt} <= ${options.endDate}`);
+    }
+
+    if (options?.searchQuery && options.searchQuery.trim()) {
+      const searchPattern = `%${options.searchQuery.trim().toLowerCase()}%`;
+      conditions.push(
+        or(
+          ilike(aiUsageLogs.username, searchPattern),
+          ilike(aiUsageLogs.featureName, searchPattern),
+          ilike(aiUsageLogs.provider, searchPattern),
+          ilike(aiUsageLogs.model, searchPattern)
+        )
+      );
+    }
+
+    if (options?.username && options.username !== "all") {
+      conditions.push(eq(aiUsageLogs.username, options.username));
+    }
+
+    if (options?.featureName && options.featureName !== "all") {
+      conditions.push(eq(aiUsageLogs.featureName, options.featureName));
+    }
+
+    if (options?.endpoint && options.endpoint !== "all") {
+      const normalizedEndpoint = options.endpoint.replace(/^\/api\//, "");
+      conditions.push(eq(aiUsageLogs.featureName, normalizedEndpoint));
+    }
+
+    if (options?.provider && options.provider !== "all") {
+      conditions.push(eq(aiUsageLogs.provider, options.provider));
+    }
+
+    if (options?.retryState === "with_retries") {
+      conditions.push(sql`coalesce((${aiUsageLogs.requestPayload}->>'retryCount')::int, 0) > 0`);
+    }
+
+    if (options?.retryState === "no_retries") {
+      conditions.push(sql`coalesce((${aiUsageLogs.requestPayload}->>'retryCount')::int, 0) = 0`);
+    }
+
+    return conditions;
+  }
+  
+  async getAiUsageLogs(options?: AiUsageLogQueryOptions): Promise<AiUsageLog[]> {
+    const limit = Math.max(1, Math.min(options?.limit || 100, 500));
+    const conditions = this.buildAiUsageLogFilterConditions(options);
+
+    const query = this.db
+      .select()
+      .from(aiUsageLogs)
+      .orderBy(desc(aiUsageLogs.createdAt))
+      .limit(limit);
+
+    if (conditions.length > 0) {
+      query.where(and(...conditions));
+    }
+
+    return await query;
+  }
+
+  async getAiUsageLogsPaginated(options?: AiUsageLogQueryOptions): Promise<AiUsageLogQueryResult> {
+    const limit = Math.max(1, Math.min(options?.limit || 25, 200));
+    const page = Math.max(1, options?.page || 1);
+    const offset = (page - 1) * limit;
+    const conditions = this.buildAiUsageLogFilterConditions(options);
+
+    const countQuery = this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(aiUsageLogs);
+
+    if (conditions.length > 0) {
+      countQuery.where(and(...conditions));
+    }
+
+    const [{ count: total }] = await countQuery;
+
+    const logsQuery = this.db
+      .select()
+      .from(aiUsageLogs)
+      .orderBy(desc(aiUsageLogs.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    if (conditions.length > 0) {
+      logsQuery.where(and(...conditions));
+    }
+
+    const logs = await logsQuery;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    return {
+      logs,
+      total,
+      page,
+      totalPages,
+      limit,
+    };
+  }
+
+  async getAiUsageRetryReasonSummary(options?: AiUsageLogQueryOptions): Promise<Record<string, number>> {
+    const conditions = this.buildAiUsageLogFilterConditions(options);
+    conditions.push(sql`coalesce((${aiUsageLogs.requestPayload}->>'retryCount')::int, 0) > 0`);
+
+    const query = this.db
+      .select({
+        reason: sql<string>`coalesce(${aiUsageLogs.requestPayload}->>'lastRetryReason', 'unspecified')`,
+        retries: sql<number>`coalesce(sum(coalesce((${aiUsageLogs.requestPayload}->>'retryCount')::int, 0)), 0)::int`,
+      })
+      .from(aiUsageLogs)
+      .groupBy(sql`coalesce(${aiUsageLogs.requestPayload}->>'lastRetryReason', 'unspecified')`);
+
+    if (conditions.length > 0) {
+      query.where(and(...conditions));
+    }
+
+    const rows = await query;
+    return rows.reduce<Record<string, number>>((acc, row) => {
+      acc[row.reason] = Number(row.retries || 0);
+      return acc;
+    }, {});
+  }
+
+  async getAiUsageProviderRetryStats(options?: AiUsageLogQueryOptions): Promise<AiUsageProviderRetryStat[]> {
+    const conditions = this.buildAiUsageLogFilterConditions(options);
+
+    const query = this.db
+      .select({
+        provider: aiUsageLogs.provider,
+        requests: sql<number>`count(*)::int`,
+        retried: sql<number>`sum(case when coalesce((${aiUsageLogs.requestPayload}->>'retryCount')::int, 0) > 0 then 1 else 0 end)::int`,
+        retries: sql<number>`coalesce(sum(coalesce((${aiUsageLogs.requestPayload}->>'retryCount')::int, 0)), 0)::int`,
+      })
+      .from(aiUsageLogs)
+      .groupBy(aiUsageLogs.provider);
+
+    if (conditions.length > 0) {
+      query.where(and(...conditions));
+    }
+
+    const rows = await query;
+    return rows.map((row) => ({
+      provider: row.provider || "unknown",
+      requests: Number(row.requests || 0),
+      retried: Number(row.retried || 0),
+      retries: Number(row.retries || 0),
+    }));
   }
   
   async getAiUsageStats(): Promise<{ totalCost: number; totalCalls: number; byFeature: Record<string, { calls: number; cost: number; tokens: number }> }> {
