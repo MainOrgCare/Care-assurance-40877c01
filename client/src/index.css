@@ -122,6 +122,7 @@
     color-scheme: light;
     font-synthesis-weight: none;
     text-rendering: optimizeLegibility;
+    text-size-adjust: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     scroll-behavior: auto;
@@ -475,6 +476,7 @@
   .workspace-header {
     border-color: var(--color-border);
     background-color: color-mix(in oklab, var(--color-card) 86%, transparent);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
   }
   .workspace-card {
@@ -594,6 +596,12 @@ html.theme-light body {
     letter-spacing: -0.022em;
     line-height: 1.15;
     text-wrap: balance;
+  }
+
+  @supports not (text-wrap: balance) {
+    .page-title {
+      text-wrap: unset;
+    }
   }
   .page-subtitle {
     font-size: clamp(0.875rem, 0.2vw + 0.82rem, 0.95rem);

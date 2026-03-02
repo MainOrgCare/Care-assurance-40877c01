@@ -41,7 +41,7 @@ import {
   registerAiUsageRoutes,
 } from "./routes/index";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertPolicyDocumentSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser } from "@shared/schema";
-import { getPreferredProvider, setPreferredProvider, setLocalLLMUrl, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { getPreferredProvider, setPreferredProvider, setLocalLLMUrl, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, getRequireLiveWebForLocal, setRequireLiveWebForLocal, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { getCacheStats, clearCache } from "./services/aiCache";
 import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseAI, extractMedicationInfo, extractPersonalCareNeeds, extractContinenceInfo, extractNutritionInfo, extractEnvironmentInfo } from "./services/ruleBasedEngine";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
@@ -2074,6 +2074,78 @@ const parseJsonFromContent = (content: string): any | null => {
       return null;
     }
   }
+};
+
+const coerceProtocolText = (value: unknown): string => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed;
+  }
+  if (Array.isArray(value)) {
+    const joined = value
+      .map((item) => coerceProtocolText(item))
+      .filter(Boolean)
+      .join("; ")
+      .trim();
+    return joined;
+  }
+  if (value && typeof value === "object") {
+    const objectValue = value as Record<string, unknown>;
+    const preferredKeys = ["text", "value", "description", "content", "label", "name"];
+    for (const key of preferredKeys) {
+      const extracted = coerceProtocolText(objectValue[key]);
+      if (extracted) return extracted;
+    }
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return "";
+};
+
+const normalizePrnProtocol = (rawProtocol: any, medicationName: string) => {
+  const source = rawProtocol && typeof rawProtocol === "object" ? rawProtocol : {};
+  const getAny = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = coerceProtocolText((source as Record<string, unknown>)[key]);
+      if (value) return value;
+    }
+    return "";
+  };
+
+  const normalized = {
+    medicationName:
+      getAny("medicationName", "medication", "name") || medicationName,
+    dose:
+      getAny("dose", "recommendedDose", "dosage") ||
+      "Follow MAR chart and prescriber instructions.",
+    route:
+      getAny("route", "administrationRoute") ||
+      "Follow MAR chart and prescriber instructions.",
+    frequency:
+      getAny("frequency", "administrationFrequency") ||
+      "Administer only when clinically indicated and as prescribed.",
+    maxDoseIn24Hours:
+      getAny("maxDoseIn24Hours", "maxDose24Hours", "maximumDoseIn24Hours") ||
+      "Do not exceed prescribed 24-hour maximum on the MAR chart.",
+    minimumTimeBetweenDoses:
+      getAny("minimumTimeBetweenDoses", "minimumInterval", "minimumTimeBetweenAdministrations") ||
+      "Observe the minimum interval stated on the MAR chart.",
+    specialInstructions:
+      getAny("specialInstructions", "instructions", "administrationInstructions") ||
+      "Check indication, allergies, recent administrations, and document rationale before/after administration.",
+    reasonsForAdministration:
+      getAny("reasonsForAdministration", "indications", "reasons", "whenToGive") ||
+      "Only administer for prescribed indications; verify symptoms and care plan guidance before giving.",
+    predictableSideEffects:
+      getAny("predictableSideEffects", "sideEffects", "commonSideEffects") ||
+      "Monitor for expected side effects per medication guidance and escalate concerns promptly.",
+    additionalComments:
+      getAny("additionalComments", "comments", "notes") ||
+      "If unsure, do not administer and seek senior/clinical advice. Record all decisions in care notes.",
+  };
+
+  return normalized;
 };
 
 const getLowCostModel = () => "gpt-4.1-mini";
@@ -17419,11 +17491,12 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         return res.status(500).json({ message: "Failed to generate PRN protocol" });
       }
 
-      const protocol = parseJsonFromContent(content);
-      if (!protocol) {
-        console.error("Failed to parse PRN protocol response");
-        return res.status(500).json({ message: "Failed to parse generated protocol" });
+      const parsedProtocol = parseJsonFromContent(content);
+      if (!parsedProtocol) {
+        console.warn("PRN protocol response was not valid JSON; returning normalized fallback protocol");
       }
+
+      const protocol = normalizePrnProtocol(parsedProtocol || { additionalComments: content }, medicationName);
       return res.json({ protocol });
     } catch (error: any) {
       console.error("PRN protocol generation error:", error);
@@ -17609,6 +17682,7 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
         provider: readiness.provider,
         model: getPreferredModel(),
         aiEnabled,
+        requireLiveWebForLocal: getRequireLiveWebForLocal(),
         hasOpenAIKey: readiness.hasOpenAIKey,
         hasPATKey: readiness.hasPATKey,
         hasLocalLLM: readiness.hasLocalLLM,
@@ -17694,6 +17768,27 @@ Use UK English spelling. Be specific and clinically accurate. If the medication 
     } catch (error: any) {
       console.error("Local LLM URL update error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to update Local LLM URL") });
+    }
+  });
+
+  // Set local-provider web requirement policy (admin-only)
+  app.post("/api/admin/local-web-policy", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { requireLiveWebForLocal } = req.body;
+      if (typeof requireLiveWebForLocal !== "boolean") {
+        return res.status(400).json({ message: "requireLiveWebForLocal must be a boolean value" });
+      }
+
+      setRequireLiveWebForLocal(requireLiveWebForLocal, true);
+      console.log(`[Admin] Local live web requirement ${requireLiveWebForLocal ? "enabled" : "disabled"} by ${req.user?.username || "unknown"}`);
+
+      return res.json({
+        success: true,
+        requireLiveWebForLocal: getRequireLiveWebForLocal(),
+      });
+    } catch (error: any) {
+      console.error("Local web policy update error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update local web policy") });
     }
   });
 

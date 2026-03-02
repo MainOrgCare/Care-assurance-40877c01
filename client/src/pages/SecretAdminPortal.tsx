@@ -843,9 +843,11 @@ const AIProviderSection = memo(function AIProviderSection() {
   const [hasLocalLLM, setHasLocalLLM] = useState(false);
   const [testingLocalLLM, setTestingLocalLLM] = useState(false);
   const [savingLocalLLMUrl, setSavingLocalLLMUrl] = useState(false);
+  const [updatingLocalWebPolicy, setUpdatingLocalWebPolicy] = useState(false);
   const [lastLocalCheckAt, setLastLocalCheckAt] = useState<string | null>(null);
   const [localLLMUrl, setLocalLLMUrl] = useState("");
   const [localLLMUrlInput, setLocalLLMUrlInput] = useState("");
+  const [requireLiveWebForLocal, setRequireLiveWebForLocal] = useState(true);
   const [selectedProvider, setSelectedProvider] = useState<"openai" | "github" | "local">("openai");
   const [selectedModel, setSelectedModel] = useState("gpt-4.1-mini");
   const [useEmarAgent, setUseEmarAgent] = useState(true);
@@ -869,6 +871,7 @@ const AIProviderSection = memo(function AIProviderSection() {
         setHasLocalLLM(Boolean(data.hasLocalLLM));
         setLocalLLMUrl(data.localLLMUrl || "");
         setLocalLLMUrlInput(data.localLLMUrl || "");
+        setRequireLiveWebForLocal(data.requireLiveWebForLocal !== false);
         setSelectedProvider(data.provider || "openai");
         if (data.model) setSelectedModel(data.model);
       }
@@ -1046,6 +1049,43 @@ const AIProviderSection = memo(function AIProviderSection() {
     }
   };
 
+  const handleLocalWebPolicyToggle = async () => {
+    const nextValue = !requireLiveWebForLocal;
+    setUpdatingLocalWebPolicy(true);
+    try {
+      const res = await fetch("/api/admin/local-web-policy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ requireLiveWebForLocal: nextValue }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || "Failed to update local web policy");
+      }
+
+      const data = await res.json();
+      const enabled = Boolean(data.requireLiveWebForLocal);
+      setRequireLiveWebForLocal(enabled);
+      toast({
+        title: "Local Web Policy Updated",
+        description: enabled
+          ? "Local AI now requires live internet/BNF access for AI requests."
+          : "Local AI can run without live internet/BNF access.",
+      });
+    } catch (error: any) {
+      console.error("Failed to update local web policy:", error);
+      toast({
+        title: "Update Failed",
+        description: error?.message || "Failed to update local web policy",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingLocalWebPolicy(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card className="border-border/60 bg-background/70 shadow-medium">
@@ -1176,18 +1216,26 @@ const AIProviderSection = memo(function AIProviderSection() {
                   </div>
                 </div>
               </div>
-              <Badge
-                variant="secondary"
-                className={`mt-2 ${
-                  selectedProvider === "local"
-                    ? "bg-sky-500/20 text-sky-600"
-                    : hasLocalLLM
-                      ? "bg-muted/50 text-muted-foreground"
-                      : "bg-yellow-100 text-yellow-600"
-                }`}
-              >
-                {!hasLocalLLM ? "Offline" : selectedProvider === "local" ? "Active" : "Available"}
-              </Badge>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <Badge
+                  variant="secondary"
+                  className={`${
+                    selectedProvider === "local"
+                      ? "bg-sky-500/20 text-sky-600"
+                      : hasLocalLLM
+                        ? "bg-muted/50 text-muted-foreground"
+                        : "bg-yellow-100 text-yellow-600"
+                  }`}
+                >
+                  {!hasLocalLLM ? "Offline" : selectedProvider === "local" ? "Active" : "Available"}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className={requireLiveWebForLocal ? "border-sky-500/35 bg-sky-500/10 text-sky-700" : "border-border/60 bg-muted/40 text-muted-foreground"}
+                >
+                  {requireLiveWebForLocal ? "Web Policy: Enforced" : "Web Policy: Permissive"}
+                </Badge>
+              </div>
             </button>
           </div>
           
@@ -1260,6 +1308,23 @@ const AIProviderSection = memo(function AIProviderSection() {
             <div className="mt-3 p-3 bg-sky-500/10 rounded-lg border border-sky-500/20">
               <div className="text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">Local LLM (Qwen 2.5 7B)</span> - All data stays on your servers. No external API calls. $0 cost. 128K context.
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-sky-500/30 bg-background/70 p-3">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-medium text-foreground">Require live web/BNF access</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    When enabled, all Local AI requests fail fast if internet access to BNF is unavailable.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {updatingLocalWebPolicy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                  <Switch
+                    checked={requireLiveWebForLocal}
+                    onCheckedChange={handleLocalWebPolicyToggle}
+                    disabled={updatingLocalWebPolicy || updating || testingLocalLLM || savingLocalLLMUrl}
+                  />
+                </div>
               </div>
             </div>
           )}

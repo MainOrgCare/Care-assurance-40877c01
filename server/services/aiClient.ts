@@ -60,6 +60,7 @@ let useEmarAgent: boolean = aiEnabled;
 let useAICache: boolean = true;  // Cache AI responses for identical inputs
 let useRulesFirst: boolean = true;  // Try rule-based engine before AI
 let aiLiteMode: boolean = false;  // Use minimal prompts where possible
+let requireLiveWebForLocal: boolean = true; // Require live internet/BNF reachability for local provider calls
 
 // Local LLM configuration
 // Render's fromService returns hostname:port, so we need to add http:// if missing
@@ -71,6 +72,9 @@ const normalizeLocalLLMUrl = (url: string): string => {
 let localLLMUrl = normalizeLocalLLMUrl(rawLocalLLMUrl);
 const LOCAL_LLM_MODEL = process.env.LOCAL_LLM_MODEL || "qwen2.5-64k";
 const LOCAL_LLM_API_KEY = process.env.LLM_KEY || "";
+const BNF_REACHABILITY_URL = "https://bnf.nice.org.uk/";
+const BNF_REACHABILITY_CACHE_MS = 60_000;
+let cachedBnfReachability: { ok: boolean; checkedAt: number } | null = null;
 
 // Load settings from database (called once on first AI request)
 // Uses a promise-based mutex so concurrent callers share a single DB read.
@@ -133,6 +137,12 @@ async function ensureSettingsLoaded(): Promise<void> {
       if (savedLite !== null) {
         aiLiteMode = savedLite === "true";
         console.log(`[AI Config] Loaded lite mode from DB: ${aiLiteMode}`);
+      }
+
+      const savedRequireLiveWebForLocal = await storage.getAppSetting("local_require_live_web");
+      if (savedRequireLiveWebForLocal !== null) {
+        requireLiveWebForLocal = savedRequireLiveWebForLocal === "true";
+        console.log(`[AI Config] Loaded local live web requirement from DB: ${requireLiveWebForLocal}`);
       }
 
       const savedLocalLlmUrl = await storage.getAppSetting("local_llm_url");
@@ -270,6 +280,57 @@ export function setAILiteMode(enabled: boolean, persist: boolean = false): void 
     void getStorage()
       .then(storage => storage.setAppSetting("ai_lite_mode", enabled ? "true" : "false"))
       .catch(err => console.error("[AI Config] Failed to persist lite mode setting:", err.message));
+  }
+}
+
+export function getRequireLiveWebForLocal(): boolean {
+  return requireLiveWebForLocal;
+}
+
+export function setRequireLiveWebForLocal(enabled: boolean, persist: boolean = false): void {
+  requireLiveWebForLocal = enabled;
+  if (!enabled) {
+    cachedBnfReachability = null;
+  }
+  console.log(`[AI Config] Local live web requirement ${enabled ? "enabled" : "disabled"}${persist ? " (persisted)" : ""}`);
+  if (persist) {
+    void getStorage()
+      .then(storage => storage.setAppSetting("local_require_live_web", enabled ? "true" : "false"))
+      .catch(err => console.error("[AI Config] Failed to persist local live web requirement:", err.message));
+  }
+}
+
+async function isBnfReachable(): Promise<boolean> {
+  const now = Date.now();
+  if (cachedBnfReachability && now - cachedBnfReachability.checkedAt < BNF_REACHABILITY_CACHE_MS) {
+    return cachedBnfReachability.ok;
+  }
+
+  try {
+    const response = await fetch(BNF_REACHABILITY_URL, {
+      method: "GET",
+      headers: {
+        "User-Agent": "CareAssurance/1.0 (+https://careassurance.uk)",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      signal: AbortSignal.timeout(6000),
+    });
+    const ok = response.ok;
+    cachedBnfReachability = { ok, checkedAt: now };
+    return ok;
+  } catch {
+    cachedBnfReachability = { ok: false, checkedAt: now };
+    return false;
+  }
+}
+
+async function assertLocalWebAccessIfRequired(): Promise<void> {
+  if (!requireLiveWebForLocal) return;
+  const reachable = await isBnfReachable();
+  if (!reachable) {
+    const error = new Error("Live internet access to bnf.nice.org.uk is required for Local AI mode but is currently unavailable.") as Error & { code?: string };
+    error.code = "LOCAL_WEB_CONTEXT_UNAVAILABLE";
+    throw error;
   }
 }
 
@@ -731,6 +792,7 @@ async function createChatCompletionWithProvider(
   let model = (params.model as string) || preferredModel;
   
   if (provider === "local") {
+    await assertLocalWebAccessIfRequired();
     client = getLocalClient();
     if (!client) {
       throw new Error("Local LLM client could not be initialized.");

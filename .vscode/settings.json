@@ -62,5 +62,6 @@
   },
   "[json]": {
     "editor.defaultFormatter": "vscode.json-language-features"
-  }
+  },
+  "vscode-edge-devtools.headless": false
 }

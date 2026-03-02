@@ -6,7 +6,12 @@ import { cn } from "@/lib/utils"
 const Slider = React.forwardRef<
   React.ElementRef<typeof SliderPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
->(({ className, ...props }, ref) => (
+>(({ className, ...props }, ref) => {
+    const rootAriaLabel = typeof props["aria-label"] === "string" ? props["aria-label"] : undefined
+    const rootAriaLabelledBy = typeof props["aria-labelledby"] === "string" ? props["aria-labelledby"] : undefined
+  const thumbLabel = rootAriaLabel || "Slider value"
+
+    return (
     <SliderPrimitive.Root
       ref={ref}
       className={cn(
@@ -18,9 +23,15 @@ const Slider = React.forwardRef<
     <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full border border-border/70 bg-muted/65 shadow-[inset_0_1px_1px_rgba(15,23,42,0.1)]">
       <SliderPrimitive.Range className="absolute h-full bg-primary" />
     </SliderPrimitive.Track>
-    <SliderPrimitive.Thumb className="block h-5 w-5 rounded-full border border-primary/55 bg-background shadow-[var(--shadow-xs)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15 focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50" />
+    <SliderPrimitive.Thumb
+      aria-label={thumbLabel}
+      aria-labelledby={rootAriaLabelledBy}
+      title={thumbLabel}
+      className="block h-5 w-5 rounded-full border border-primary/55 bg-background shadow-[var(--shadow-xs)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15 focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50"
+    />
   </SliderPrimitive.Root>
-))
+  )
+})
 Slider.displayName = SliderPrimitive.Root.displayName
 
 export { Slider }

@@ -172,6 +172,7 @@ export const pageLayoutStyles = `
   padding: 1.5rem 1rem;
   /* Mobile: 1rem padding */
   background-color: color-mix(in oklab, var(--color-card) 85%, transparent);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;

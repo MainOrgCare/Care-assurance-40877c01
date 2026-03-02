@@ -15,6 +15,7 @@ import {
   createChatCompletionWithLogging,
   getPreferredModel,
   getPreferredProvider,
+  getRequireLiveWebForLocal,
   isAIEnabled,
   getAIDisabledMessage,
   type AiUserContext,
@@ -152,6 +153,78 @@ function clampEnum<T extends string>(value: string | undefined, allowed: T[], fa
   if (!value) return fallback;
   const lower = value.toLowerCase().trim() as T;
   return allowed.includes(lower) ? lower : fallback;
+}
+
+const BNF_SEARCH_BASE_URL = "https://bnf.nice.org.uk/search/";
+
+function stripHtmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function fetchTextWithTimeout(url: string, timeoutMs = 7000): Promise<string | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "User-Agent": "CareAssurance/1.0 (+https://careassurance.uk)",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) return null;
+    return await response.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchBnfWebContext(medicationName: string): Promise<{ context: string; sources: string[] }> {
+  const searchUrl = `${BNF_SEARCH_BASE_URL}?q=${encodeURIComponent(medicationName)}`;
+  const searchHtml = await fetchTextWithTimeout(searchUrl);
+
+  if (!searchHtml) {
+    return { context: "", sources: [] };
+  }
+
+  const linkRegex = /href="(\/drugs\/[^"#?]+\/?(?:\?[^"#]*)?)"/gi;
+  const sourceSet = new Set<string>();
+  let match: RegExpExecArray | null;
+  while ((match = linkRegex.exec(searchHtml)) !== null && sourceSet.size < 2) {
+    sourceSet.add(`https://bnf.nice.org.uk${match[1]}`);
+  }
+
+  const sources = Array.from(sourceSet);
+  if (sources.length === 0) {
+    return { context: "", sources: [] };
+  }
+
+  const snippets: string[] = [];
+  for (const sourceUrl of sources) {
+    const pageHtml = await fetchTextWithTimeout(sourceUrl);
+    if (!pageHtml) continue;
+    const text = stripHtmlToText(pageHtml);
+    if (!text) continue;
+    snippets.push(`Source: ${sourceUrl}\nExcerpt: ${text.slice(0, 1400)}`);
+  }
+
+  return {
+    context: snippets.join("\n\n"),
+    sources,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -315,6 +388,20 @@ Return ONLY the email text, nothing else.`;
         return;
       }
 
+      const bnfWebContext = await fetchBnfWebContext(medicationName);
+      const enforceLiveWeb = getPreferredProvider() === "local" && getRequireLiveWebForLocal();
+      if (enforceLiveWeb && (!bnfWebContext.context || bnfWebContext.sources.length === 0)) {
+        res.status(503).json({
+          error: "BNF retrieval unavailable",
+          message: "Live BNF context is required for PRN protocol generation. Please retry when internet connectivity to bnf.nice.org.uk is available.",
+        });
+        return;
+      }
+
+      const bnfContextSection = bnfWebContext.context
+        ? `\n\n=== BNF WEB CONTEXT (retrieved live at generation time) ===\n${bnfWebContext.context}\n=== END BNF WEB CONTEXT ===\n`
+        : "";
+
       const systemPrompt = `You are an expert UK care facility medication protocol writer following BNF (British National Formulary) guidelines. Generate a comprehensive PRN (Pro Re Nata / "as needed") medication protocol for use in a care home setting.
 
 The protocol must follow UK care standards and regulations (CQC 2024, NICE guidelines).
@@ -325,6 +412,7 @@ SAFETY REQUIREMENTS:
 - Note common interactions with other medications frequently used in care settings
 - Flag if the medication requires monitoring (e.g. paracetamol hepatotoxicity risk, NSAID renal function)
 - Include what to do if the medication is ineffective after the specified timeframe
+- Use the supplied BNF web context as the primary source of dosing and safety guidance
 
 IMPORTANT: Return the response as a JSON object with this exact structure:
 {
@@ -350,8 +438,8 @@ IMPORTANT: Return the response as a JSON object with this exact structure:
 Use UK English spelling. Be specific and clinically accurate.`;
 
       const userPrompt = existingData
-        ? `Generate a complete PRN protocol for: ${medicationName}\n\nExisting information:\n${JSON.stringify(existingData, null, 2)}\n\nPlease enhance and complete this protocol.`
-        : `Generate a complete PRN protocol for: ${medicationName}`;
+  ? `Generate a complete PRN protocol for: ${medicationName}\n\nExisting information:\n${JSON.stringify(existingData, null, 2)}\n\nPlease enhance and complete this protocol.${bnfContextSection}`
+  : `Generate a complete PRN protocol for: ${medicationName}${bnfContextSection}`;
 
       const response = await createChatCompletionWithLogging({
         model: getAccurateModel(),
@@ -378,7 +466,7 @@ Use UK English spelling. Be specific and clinically accurate.`;
         protocol.disclaimer = "This protocol is AI-generated and must be reviewed and approved by the prescribing GP or pharmacist before use.";
       }
 
-      res.json({ protocol, model: getAccurateModel() });
+      res.json({ protocol, model: getAccurateModel(), bnfSources: bnfWebContext.sources });
     } catch (error: any) {
       console.error("[Copilot] PRN protocol error:", error);
       res.status(500).json({ error: "PRN protocol generation failed", message: error.message });

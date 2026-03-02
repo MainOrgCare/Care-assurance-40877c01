@@ -22,6 +22,7 @@
   background: color-mix(in oklab, var(--color-card) 85%, transparent);
   border-bottom: 1px solid color-mix(in oklab, var(--color-border) 50%, transparent);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.03);
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
 }
 
@@ -79,6 +80,7 @@
   border-radius: 14px;
   background: color-mix(in oklab, var(--color-card) 88%, transparent);
   box-shadow: var(--shadow-medium);
+  -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
 
