@@ -5,12 +5,14 @@
 ---
 
 ## 📘 Project Context
+
 **Project:** Care-assurance-40877c01  
 **Type:** Full-stack React + Express + PostgreSQL platform  
 **Purpose:** AI-powered healthcare compliance, auditing, and operations platform for UK domiciliary care providers, focused on CQC readiness and operational assurance.  
 **Status:** 🚧 Active development (production-oriented architecture already in place)
 
 **Core Technologies:**
+
 - Frontend: React 19, TypeScript, Vite, wouter, TanStack Query, Tailwind CSS + Radix/shadcn patterns
 - Backend: Node.js 20, Express, TypeScript, modular route registry + monolithic transition (`server/routes.ts` + `server/routes/*.ts`)
 - Data: PostgreSQL + Drizzle ORM (`shared/schema.ts`, `migrations/*`)
@@ -19,6 +21,7 @@
 - Extension: Edge extension for ACP/eMAR autofill + in-extension AI document analysis (`extension/edge-acp-autofill`)
 
 **Key Product Capabilities (from README):**
+
 - Medication: EMAR auditing to flag missed doses, refusals, and non-administration codes
 - Care Planning: AI-generated person-centred plans from uploaded assessments
 - Risk: Rule-based + AI-assisted risk assessment support
@@ -28,6 +31,7 @@
 - Compliance/Governance: CQC self-assessment, training tracking, GDPR workflows, audit trails
 
 **Available AI Capabilities (workspace tooling):**
+
 - 🔧 MCP classes available: DB tooling (`dbcode-*`), Git/GitLens/GitKraken integration, GitHub search/PR management, Mermaid rendering
 - 📚 Documentation: VS Code API docs tool + web fetch/search utilities
 - 🔍 Dev tools: terminal/task execution, code search, semantic search, diagnostics, notebook support
@@ -35,12 +39,14 @@
 ---
 
 ## 🎯 Current State
+
 **Build Status:** ✅ Last recorded build succeeded (`npm run build`, exit code 0 on 2026-02-28)  
 **Runtime Shape:** Dev server runs API + Vite HMR; production build includes client + server + worker split deployment on Render.  
 **AI Enhancement:** Feature-toggled AI stack with cache/rules-first/lite-mode/provider/model controls.
 **Validation Status:** ✅ `npm run check`, `npm run test:server` (117/117), and `npm run test:client` (22/22) all passed on 2026-02-27.
 
 **Architecture Highlights:**
+
 - Client routing guarded by auth/admin/terms controls in `client/src/App.tsx`
 - Major page domains: dashboard, compliance, CQC assessment, EMAR/visit audit, care planning/risk assessment/plan enhancer, billing/call reconciliation, rostering studio, policy acknowledgement, messaging, system logs
 - API hardening in `server/index.ts`: CSP/HSTS, per-scope rate limits, strict production CORS, anti-cache headers for `/api/*`, request ID propagation
@@ -53,6 +59,7 @@
 ## 🧠 Technical Memory
 
 **Critical Discoveries:**
+
 - README documents a mature multi-domain healthcare operations platform rather than an early MVP scaffold.
 - Route-level frontend code-splitting + idle preloading already implemented for common pages.
 - Security posture is explicitly engineered (canonical host controls, CSRF/origin checks via route stack, progressive lockout helpers, request logger middleware).
@@ -62,14 +69,16 @@
 - Route-level direct `createChatCompletionWithLogging` calls have been eliminated in favor of secure helper wrappers; service-level text extraction paths were also migrated.
 
 **Performance Insights:**
+
 - Recent completed optimizations recorded in `TODO.md`:
-	- O(1) Map-order cache eviction in `server/services/aiCache.ts`
-	- SQL `GROUP BY` aggregation for AI usage in `server/storage.ts`
-	- Parallelized dashboard stats fetches via `Promise.all`
-	- Session timer tab-visibility handling on client
+  - O(1) Map-order cache eviction in `server/services/aiCache.ts`
+  - SQL `GROUP BY` aggregation for AI usage in `server/storage.ts`
+  - Parallelized dashboard stats fetches via `Promise.all`
+  - Session timer tab-visibility handling on client
 - Client architecture uses lazy routes and selective idle preloading to reduce initial bundle pressure.
 
 **Known Constraints:**
+
 - Node/NPM floor: Node >=20, npm >=10 (`package.json` engines)
 - `DATABASE_URL` required for full feature set; some logging/scanning behavior degrades in dev without DB
 - AI features depend on provider credentials and `AI_ENABLED` controls
@@ -79,8 +88,9 @@
 ---
 
 ## 🚀 Recent Achievements
+
 | Date | Summary |
-|------|---------|
+| ---- | --------- |
 | 2026-03-02 | ✅ Started implementation of AI log scaling pipeline: added paginated/filterable AI usage storage methods and analytics aggregations in `server/storage.ts`, upgraded `GET /api/admin/ai-logs` in `server/routes/aiUsage.ts` to return `logs + pagination + analytics`, and updated `client/src/pages/SecretAdminPortal.tsx` AI Request Log to query server-side filters/page with URL + localStorage state sync (`aiSearch`, `aiUser`, `aiEndpoint`, `aiRetry`, `aiPage`). |
 | 2026-03-02 | ✅ Refined AI Request Log saved-view controls in `client/src/pages/SecretAdminPortal.tsx`: preset buttons now expose pressed state and are disabled when already active, reducing accidental re-application and making active investigation context clearer. |
 | 2026-03-02 | ✅ Improved AI Request Log preset ergonomics in `client/src/pages/SecretAdminPortal.tsx`: added computed active saved-view detection (`High Retries`, `Local Only`, `PRN Focus`, `All Logs`, `Custom`), an `Active:` badge, and button highlighting for the currently active preset to make investigation context immediately visible. |
@@ -158,6 +168,7 @@
 ---
 
 ## 📋 Active Priorities
+
 - [x] ✅ COMPLETED: Initial project setup and build pipeline are operational (`dev`, `build`, `start`, `quality` scripts present)
 - [x] ✅ COMPLETED: Test framework is configured (Node test runner for server + Vitest for client)
 - [x] ✅ COMPLETED: Core architecture baseline now documented in this file
@@ -173,7 +184,9 @@
 ---
 
 ## 🔧 Development Environment
+
 **Common Commands:**
+
 - `npm install`
 - `npm run dev`
 - `npm run dev:setup`
@@ -184,6 +197,7 @@
 - `npm run db:push`
 
 **Key Files:**
+
 - Product/ops overview: `README.md`, `render.yaml`
 - Session memory: `Session_starter.md`, `TODO.md`
 - Client entry/routing: `client/src/App.tsx`, `client/src/main.tsx`
@@ -193,12 +207,14 @@
 - Extension: `extension/edge-acp-autofill/README.md`, `extension/edge-acp-autofill/manifest.json`
 
 **Setup Requirements:**
+
 - Install Node 20+ and npm 10+
 - Configure `.env` with at least `DATABASE_URL` and `SESSION_SECRET`
 - Configure AI provider keys when AI features are enabled
 - Run `npm run db:push` for first local DB alignment
 
 **AI/MCP Tooling Notes:**
+
 - Use DB MCP tools for live schema/data checks when debugging backend behavior
 - Use GitHub/PR MCP tools for review workflows and issue-linked work
 - Use search + semantic tools first before broad file edits in large server modules

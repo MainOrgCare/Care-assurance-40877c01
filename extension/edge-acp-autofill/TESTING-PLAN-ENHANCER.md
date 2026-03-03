@@ -128,6 +128,7 @@ Both formats (with and without "EXACTLY ONE OF: " prefix) should work correctly.
 ### AI Not Following "EXACTLY ONE OF:" Instructions
 
 Check the system prompt in `server/copilotRoutes.ts`:
+
 - Ensure "EXACTLY ONE OF:" prefix is present in schema
 - Verify model is using `temperature: 0` for deterministic output
 - Check `response_format: { type: "json_object" }` is set
@@ -142,6 +143,7 @@ Check the system prompt in `server/copilotRoutes.ts`:
 ### Form Validation Failures
 
 Some form dropdowns require exact text matches:
+
 - "Yes" not "yes" or "YES"
 - "Good" not "good"
 - "Fit for Purpose" not "Fit for purpose"
