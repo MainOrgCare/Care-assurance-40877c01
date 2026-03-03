@@ -186,7 +186,11 @@ const AI_LOG_SEARCH_KEY = "aiLogSearchQuery";
 const AI_LOG_USER_FILTER_KEY = "aiLogUserFilter";
 const AI_LOG_ENDPOINT_FILTER_KEY = "aiLogEndpointFilter";
 const AI_LOG_RETRY_FILTER_KEY = "aiLogRetryFilter";
+const AI_LOG_PROVIDER_FILTER_KEY = "aiLogProviderFilter";
+const AI_LOG_START_DATE_KEY = "aiLogStartDate";
+const AI_LOG_END_DATE_KEY = "aiLogEndDate";
 type AiLogPreset = "high_retries" | "local_only" | "prn_focus" | "all" | "custom";
+type AiLogRetryFilter = "all" | "with_retries" | "no_retries";
 
 const getStoredProviderSortMode = (): "volume" | "retry_rate" => {
   if (typeof window === "undefined") return "retry_rate";
@@ -225,18 +229,29 @@ const getInitialAiLogPage = (): number => {
 };
 
 const AIAdminLog = memo(function AIAdminLog() {
+  const initialRetryFilter = getInitialAiLogString(AI_LOG_RETRY_FILTER_KEY, "aiRetry", "all");
   const [logs, setLogs] = useState<AIRequestLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(() => getInitialAiLogString(AI_LOG_SEARCH_KEY, "aiSearch", ""));
-  const [userFilter, setUserFilter] = useState(() => getInitialAiLogString(AI_LOG_USER_FILTER_KEY, "aiUser", "all"));
-  const [endpointFilter, setEndpointFilter] = useState(() => getInitialAiLogString(AI_LOG_ENDPOINT_FILTER_KEY, "aiEndpoint", "all"));
-  const [retryFilter, setRetryFilter] = useState(() => getInitialAiLogString(AI_LOG_RETRY_FILTER_KEY, "aiRetry", "all"));
+  const [userFilter, setUserFilter] = useState<string>(() => getInitialAiLogString(AI_LOG_USER_FILTER_KEY, "aiUser", "all"));
+  const [endpointFilter, setEndpointFilter] = useState<string>(() => getInitialAiLogString(AI_LOG_ENDPOINT_FILTER_KEY, "aiEndpoint", "all"));
+  const [retryFilter, setRetryFilter] = useState<AiLogRetryFilter>(
+    initialRetryFilter === "with_retries" || initialRetryFilter === "no_retries" ? initialRetryFilter : "all"
+  );
+  const [providerFilter, setProviderFilter] = useState<string>(() => getInitialAiLogString(AI_LOG_PROVIDER_FILTER_KEY, "aiProvider", "all"));
+  const [startDateFilter, setStartDateFilter] = useState<string>(() => getInitialAiLogString(AI_LOG_START_DATE_KEY, "aiStart", ""));
+  const [endDateFilter, setEndDateFilter] = useState<string>(() => getInitialAiLogString(AI_LOG_END_DATE_KEY, "aiEnd", ""));
   const [providerSortMode, setProviderSortMode] = useState<"volume" | "retry_rate">(getStoredProviderSortMode);
   const [showProblematicProvidersOnly, setShowProblematicProvidersOnly] = useState(getStoredProblematicOnly);
   const [currentPage, setCurrentPage] = useState(getInitialAiLogPage);
   const [totalPages, setTotalPages] = useState(1);
   const [totalLogs, setTotalLogs] = useState(0);
   const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [filterOptions, setFilterOptions] = useState<{ users: string[]; endpoints: string[]; providers: string[] }>({
+    users: [],
+    endpoints: [],
+    providers: [],
+  });
   const [retryReasonSummary, setRetryReasonSummary] = useState<Record<string, number>>({});
   const [analyticsTotals, setAnalyticsTotals] = useState({
     retriedRequestCount: 0,
@@ -247,7 +262,7 @@ const AIAdminLog = memo(function AIAdminLog() {
 
   useEffect(() => {
     fetchAILogs();
-  }, [searchQuery, userFilter, endpointFilter, retryFilter, currentPage]);
+  }, [searchQuery, userFilter, endpointFilter, retryFilter, providerFilter, startDateFilter, endDateFilter, currentPage]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -281,6 +296,21 @@ const AIAdminLog = memo(function AIAdminLog() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    window.localStorage.setItem(AI_LOG_PROVIDER_FILTER_KEY, providerFilter);
+  }, [providerFilter]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(AI_LOG_START_DATE_KEY, startDateFilter);
+  }, [startDateFilter]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(AI_LOG_END_DATE_KEY, endDateFilter);
+  }, [endDateFilter]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
 
     if (searchQuery.trim()) params.set("aiSearch", searchQuery.trim());
@@ -295,13 +325,22 @@ const AIAdminLog = memo(function AIAdminLog() {
     if (retryFilter !== "all") params.set("aiRetry", retryFilter);
     else params.delete("aiRetry");
 
+    if (providerFilter !== "all") params.set("aiProvider", providerFilter);
+    else params.delete("aiProvider");
+
+    if (startDateFilter) params.set("aiStart", startDateFilter);
+    else params.delete("aiStart");
+
+    if (endDateFilter) params.set("aiEnd", endDateFilter);
+    else params.delete("aiEnd");
+
     if (currentPage > 1) params.set("aiPage", String(currentPage));
     else params.delete("aiPage");
 
     const queryString = params.toString();
     const nextUrl = `${window.location.pathname}${queryString ? `?${queryString}` : ""}${window.location.hash}`;
     window.history.replaceState(null, "", nextUrl);
-  }, [searchQuery, userFilter, endpointFilter, retryFilter, currentPage]);
+  }, [searchQuery, userFilter, endpointFilter, retryFilter, providerFilter, startDateFilter, endDateFilter, currentPage]);
 
   const fetchAILogs = async () => {
     setLoading(true);
@@ -315,6 +354,9 @@ const AIAdminLog = memo(function AIAdminLog() {
       if (userFilter !== "all") params.set("user", userFilter);
       if (endpointFilter !== "all") params.set("endpoint", endpointFilter);
       if (retryFilter !== "all") params.set("retryState", retryFilter);
+      if (providerFilter !== "all") params.set("provider", providerFilter);
+      if (startDateFilter) params.set("startDate", `${startDateFilter}T00:00:00.000Z`);
+      if (endDateFilter) params.set("endDate", `${endDateFilter}T23:59:59.999Z`);
 
       const response = await fetch(`/api/admin/ai-logs?${params.toString()}`, {
         credentials: "include",
@@ -339,6 +381,13 @@ const AIAdminLog = memo(function AIAdminLog() {
           totalRetryAttempts: Number(analytics.totalRetryAttempts || 0),
           retryRatePercent: Number(analytics.retryRatePercent || 0),
         });
+
+        const nextFilterOptions = data.filterOptions || {};
+        setFilterOptions({
+          users: Array.isArray(nextFilterOptions.users) ? nextFilterOptions.users : [],
+          endpoints: Array.isArray(nextFilterOptions.endpoints) ? nextFilterOptions.endpoints : [],
+          providers: Array.isArray(nextFilterOptions.providers) ? nextFilterOptions.providers : [],
+        });
       }
     } catch (error) {
       console.error("Failed to fetch AI logs:", error);
@@ -348,23 +397,34 @@ const AIAdminLog = memo(function AIAdminLog() {
   };
 
   const uniqueUsers = useMemo(() => {
+    if (filterOptions.users.length > 0) return [...filterOptions.users].sort();
     const users = new Set<string>();
     logs.forEach(log => {
       if (log.username) users.add(log.username);
     });
     return Array.from(users).sort();
-  }, [logs]);
+  }, [filterOptions.users, logs]);
 
   const uniqueEndpoints = useMemo(() => {
+    if (filterOptions.endpoints.length > 0) return [...filterOptions.endpoints].sort();
     const endpoints = new Set<string>();
     logs.forEach(log => endpoints.add(log.endpoint));
     return Array.from(endpoints).sort();
-  }, [logs]);
+  }, [filterOptions.endpoints, logs]);
+
+  const uniqueProviders = useMemo(() => {
+    if (filterOptions.providers.length > 0) return [...filterOptions.providers].sort();
+    const providers = new Set<string>();
+    logs.forEach(log => {
+      if (log.provider) providers.add(log.provider);
+    });
+    return Array.from(providers).sort();
+  }, [filterOptions.providers, logs]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, userFilter, endpointFilter, retryFilter]);
+  }, [searchQuery, userFilter, endpointFilter, retryFilter, providerFilter, startDateFilter, endDateFilter]);
 
   const startIndex = totalLogs === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const endIndex = totalLogs === 0 ? 0 : Math.min(totalLogs, (currentPage - 1) * itemsPerPage + logs.length);
@@ -427,6 +487,9 @@ const AIAdminLog = memo(function AIAdminLog() {
     setUserFilter("all");
     setEndpointFilter("all");
     setRetryFilter("all");
+    setProviderFilter("all");
+    setStartDateFilter("");
+    setEndDateFilter("");
     setCurrentPage(1);
     setProviderSortMode("retry_rate");
     setShowProblematicProvidersOnly(false);
@@ -436,6 +499,9 @@ const AIAdminLog = memo(function AIAdminLog() {
       window.localStorage.removeItem(AI_LOG_USER_FILTER_KEY);
       window.localStorage.removeItem(AI_LOG_ENDPOINT_FILTER_KEY);
       window.localStorage.removeItem(AI_LOG_RETRY_FILTER_KEY);
+      window.localStorage.removeItem(AI_LOG_PROVIDER_FILTER_KEY);
+      window.localStorage.removeItem(AI_LOG_START_DATE_KEY);
+      window.localStorage.removeItem(AI_LOG_END_DATE_KEY);
       window.localStorage.removeItem(AI_LOG_PROVIDER_SORT_KEY);
       window.localStorage.removeItem(AI_LOG_PROBLEMATIC_ONLY_KEY);
     }
@@ -454,6 +520,9 @@ const AIAdminLog = memo(function AIAdminLog() {
       setUserFilter("all");
       setEndpointFilter("all");
       setRetryFilter("with_retries");
+      setProviderFilter("all");
+      setStartDateFilter("");
+      setEndDateFilter("");
       setProviderSortMode("retry_rate");
       setShowProblematicProvidersOnly(true);
       return;
@@ -464,6 +533,9 @@ const AIAdminLog = memo(function AIAdminLog() {
       setUserFilter("all");
       setEndpointFilter("all");
       setRetryFilter("all");
+      setProviderFilter("all");
+      setStartDateFilter("");
+      setEndDateFilter("");
       setProviderSortMode("retry_rate");
       setShowProblematicProvidersOnly(false);
       return;
@@ -474,6 +546,9 @@ const AIAdminLog = memo(function AIAdminLog() {
       setUserFilter("all");
       setEndpointFilter("all");
       setRetryFilter("all");
+      setProviderFilter("all");
+      setStartDateFilter("");
+      setEndDateFilter("");
       setProviderSortMode("retry_rate");
       setShowProblematicProvidersOnly(false);
     }
@@ -487,6 +562,9 @@ const AIAdminLog = memo(function AIAdminLog() {
       userFilter === "all" &&
       endpointFilter === "all" &&
       retryFilter === "all" &&
+      providerFilter === "all" &&
+      !startDateFilter &&
+      !endDateFilter &&
       providerSortMode === "retry_rate" &&
       !showProblematicProvidersOnly;
 
@@ -497,6 +575,9 @@ const AIAdminLog = memo(function AIAdminLog() {
       userFilter === "all" &&
       endpointFilter === "all" &&
       retryFilter === "with_retries" &&
+      providerFilter === "all" &&
+      !startDateFilter &&
+      !endDateFilter &&
       providerSortMode === "retry_rate" &&
       showProblematicProvidersOnly;
 
@@ -507,6 +588,9 @@ const AIAdminLog = memo(function AIAdminLog() {
       userFilter === "all" &&
       endpointFilter === "all" &&
       retryFilter === "all" &&
+      providerFilter === "all" &&
+      !startDateFilter &&
+      !endDateFilter &&
       providerSortMode === "retry_rate" &&
       !showProblematicProvidersOnly;
 
@@ -517,13 +601,16 @@ const AIAdminLog = memo(function AIAdminLog() {
       userFilter === "all" &&
       endpointFilter === "all" &&
       retryFilter === "all" &&
+      providerFilter === "all" &&
+      !startDateFilter &&
+      !endDateFilter &&
       providerSortMode === "retry_rate" &&
       !showProblematicProvidersOnly;
 
     if (isPrnFocusView) return "prn_focus";
 
     return "custom";
-  }, [searchQuery, userFilter, endpointFilter, retryFilter, providerSortMode, showProblematicProvidersOnly]);
+  }, [searchQuery, userFilter, endpointFilter, retryFilter, providerFilter, startDateFilter, endDateFilter, providerSortMode, showProblematicProvidersOnly]);
 
   const activePresetLabel =
     activePreset === "high_retries"
@@ -593,7 +680,10 @@ const AIAdminLog = memo(function AIAdminLog() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={retryFilter} onValueChange={setRetryFilter}>
+          <Select
+            value={retryFilter}
+            onValueChange={(value) => setRetryFilter(value === "with_retries" || value === "no_retries" ? value : "all")}
+          >
             <SelectTrigger className="w-[190px]">
               <SelectValue placeholder="Filter by retries" />
             </SelectTrigger>
@@ -603,6 +693,33 @@ const AIAdminLog = memo(function AIAdminLog() {
               <SelectItem value="no_retries">No Retries</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={providerFilter} onValueChange={setProviderFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by provider" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Providers</SelectItem>
+              {uniqueProviders.map(provider => (
+                <SelectItem key={provider} value={provider}>
+                  {formatProviderName(provider)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            type="date"
+            aria-label="Filter from date"
+            value={startDateFilter}
+            onChange={(e) => setStartDateFilter(e.target.value)}
+            className="w-[170px]"
+          />
+          <Input
+            type="date"
+            aria-label="Filter to date"
+            value={endDateFilter}
+            onChange={(e) => setEndDateFilter(e.target.value)}
+            className="w-[170px]"
+          />
           <Button
             type="button"
             variant="outline"

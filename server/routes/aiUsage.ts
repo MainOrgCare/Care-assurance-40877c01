@@ -6,7 +6,7 @@
  */
 
 import type { Express } from "express";
-import { storage } from "../storage";
+import { storage, type AiUsageLogQueryOptions } from "../storage";
 import { safeErrorMessage } from "../utils/safeError";
 
 interface AiUsageRouteDeps {
@@ -14,24 +14,64 @@ interface AiUsageRouteDeps {
   requireAdmin: any;
 }
 
+export const parseDateParam = (value: unknown): Date | undefined => {
+  if (typeof value !== "string" || value.trim().length === 0) return undefined;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+export const parsePositiveIntParam = (value: unknown, fallback: number): number => {
+  if (typeof value !== "string") return fallback;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return parsed;
+};
+
+const parseOptionalStringParam = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+export const buildAiUsageQueryOptionsFromQuery = (
+  query: Record<string, unknown>
+): AiUsageLogQueryOptions & { page: number; limit: number } => {
+  const page = parsePositiveIntParam(query.page, 1);
+  const limit = Math.min(parsePositiveIntParam(query.limit, 25), 200);
+  const retryState =
+    query.retryState === "with_retries" || query.retryState === "no_retries"
+      ? query.retryState
+      : "all";
+
+  let startDate = parseDateParam(query.startDate);
+  let endDate = parseDateParam(query.endDate);
+
+  if (startDate && endDate && startDate > endDate) {
+    // Keep query behavior predictable when date inputs are accidentally inverted.
+    const previousStart = startDate;
+    startDate = endDate;
+    endDate = previousStart;
+  }
+
+  return {
+    page,
+    limit,
+    searchQuery: parseOptionalStringParam(query.search),
+    username: parseOptionalStringParam(query.user),
+    endpoint: parseOptionalStringParam(query.endpoint),
+    provider: parseOptionalStringParam(query.provider),
+    featureName: parseOptionalStringParam(query.feature),
+    retryState,
+    startDate,
+    endDate,
+  };
+};
+
 export function registerAiUsageRoutes(
   app: Express,
   deps: AiUsageRouteDeps
 ): void {
   const { requireAuth, requireAdmin } = deps;
-
-  const parseDate = (value: unknown): Date | undefined => {
-    if (typeof value !== "string" || value.trim().length === 0) return undefined;
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-  };
-
-  const parsePositiveInt = (value: unknown, fallback: number): number => {
-    if (typeof value !== "string") return fallback;
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isFinite(parsed) || parsed < 1) return fallback;
-    return parsed;
-  };
 
   // Get AI usage logs and stats (admin-only)
   app.get("/api/ai-usage", requireAuth, requireAdmin, async (req, res) => {
@@ -49,30 +89,13 @@ export function registerAiUsageRoutes(
   // Get detailed AI request logs (admin-only)
   app.get("/api/admin/ai-logs", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const page = parsePositiveInt(req.query.page, 1);
-      const limit = Math.min(parsePositiveInt(req.query.limit, 25), 200);
-      const retryState =
-        req.query.retryState === "with_retries" || req.query.retryState === "no_retries"
-          ? req.query.retryState
-          : "all";
+      const queryOptions = buildAiUsageQueryOptionsFromQuery(req.query as Record<string, unknown>);
 
-      const queryOptions = {
-        page,
-        limit,
-        searchQuery: typeof req.query.search === "string" ? req.query.search : undefined,
-        username: typeof req.query.user === "string" ? req.query.user : undefined,
-        endpoint: typeof req.query.endpoint === "string" ? req.query.endpoint : undefined,
-        provider: typeof req.query.provider === "string" ? req.query.provider : undefined,
-        featureName: typeof req.query.feature === "string" ? req.query.feature : undefined,
-        retryState,
-        startDate: parseDate(req.query.startDate),
-        endDate: parseDate(req.query.endDate),
-      };
-
-      const [paginated, retryReasonSummary, providerRetryStats] = await Promise.all([
+      const [paginated, retryReasonSummary, providerRetryStats, filterOptions] = await Promise.all([
         storage.getAiUsageLogsPaginated(queryOptions),
         storage.getAiUsageRetryReasonSummary(queryOptions),
         storage.getAiUsageProviderRetryStats(queryOptions),
+        storage.getAiUsageFilterOptions(queryOptions),
       ]);
 
       const logs = paginated.logs;
@@ -127,6 +150,7 @@ export function registerAiUsageRoutes(
           totalRetryAttempts: providerTotals.retries,
           retryRatePercent,
         },
+        filterOptions,
       });
     } catch (error: any) {
       console.error("AI request logs fetch error:", error);

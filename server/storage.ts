@@ -166,6 +166,12 @@ export interface AiUsageProviderRetryStat {
   retries: number;
 }
 
+export interface AiUsageFilterOptions {
+  users: string[];
+  endpoints: string[];
+  providers: string[];
+}
+
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
@@ -314,6 +320,7 @@ export interface IStorage {
   getAiUsageLogsPaginated(options?: AiUsageLogQueryOptions): Promise<AiUsageLogQueryResult>;
   getAiUsageRetryReasonSummary(options?: AiUsageLogQueryOptions): Promise<Record<string, number>>;
   getAiUsageProviderRetryStats(options?: AiUsageLogQueryOptions): Promise<AiUsageProviderRetryStat[]>;
+  getAiUsageFilterOptions(options?: AiUsageLogQueryOptions): Promise<AiUsageFilterOptions>;
   getAiUsageStats(): Promise<{ totalCost: number; totalCalls: number; byFeature: Record<string, { calls: number; cost: number; tokens: number }> }>;
 
   // Contact Message operations
@@ -1547,6 +1554,57 @@ export class DatabaseStorage implements IStorage {
       retried: Number(row.retried || 0),
       retries: Number(row.retries || 0),
     }));
+  }
+
+  async getAiUsageFilterOptions(options?: AiUsageLogQueryOptions): Promise<AiUsageFilterOptions> {
+    const conditions = this.buildAiUsageLogFilterConditions({
+      ...options,
+      username: undefined,
+      endpoint: undefined,
+      provider: undefined,
+      featureName: undefined,
+    });
+
+    const userQuery = this.db
+      .select({ value: aiUsageLogs.username })
+      .from(aiUsageLogs)
+      .where(
+        conditions.length > 0
+          ? and(...conditions, sql`${aiUsageLogs.username} is not null`, sql`${aiUsageLogs.username} <> ''`)
+          : and(sql`${aiUsageLogs.username} is not null`, sql`${aiUsageLogs.username} <> ''`)
+      )
+      .groupBy(aiUsageLogs.username)
+      .orderBy(aiUsageLogs.username);
+
+    const endpointQuery = this.db
+      .select({ value: aiUsageLogs.featureName })
+      .from(aiUsageLogs)
+      .where(
+        conditions.length > 0
+          ? and(...conditions, sql`${aiUsageLogs.featureName} is not null`, sql`${aiUsageLogs.featureName} <> ''`)
+          : and(sql`${aiUsageLogs.featureName} is not null`, sql`${aiUsageLogs.featureName} <> ''`)
+      )
+      .groupBy(aiUsageLogs.featureName)
+      .orderBy(aiUsageLogs.featureName);
+
+    const providerQuery = this.db
+      .select({ value: aiUsageLogs.provider })
+      .from(aiUsageLogs)
+      .where(
+        conditions.length > 0
+          ? and(...conditions, sql`${aiUsageLogs.provider} is not null`, sql`${aiUsageLogs.provider} <> ''`)
+          : and(sql`${aiUsageLogs.provider} is not null`, sql`${aiUsageLogs.provider} <> ''`)
+      )
+      .groupBy(aiUsageLogs.provider)
+      .orderBy(aiUsageLogs.provider);
+
+    const [users, endpoints, providers] = await Promise.all([userQuery, endpointQuery, providerQuery]);
+
+    return {
+      users: users.map((row) => row.value as string),
+      endpoints: endpoints.map((row) => `/api/${row.value as string}`),
+      providers: providers.map((row) => row.value as string),
+    };
   }
   
   async getAiUsageStats(): Promise<{ totalCost: number; totalCalls: number; byFeature: Record<string, { calls: number; cost: number; tokens: number }> }> {
