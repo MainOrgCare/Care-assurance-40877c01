@@ -38,7 +38,7 @@ export const buildAiUsageQueryOptionsFromQuery = (
 ): AiUsageLogQueryOptions & { page: number; limit: number } => {
   const page = parsePositiveIntParam(query.page, 1);
   const limit = Math.min(parsePositiveIntParam(query.limit, 25), 200);
-  const retryState =
+  const retryState: AiUsageLogQueryOptions["retryState"] =
     query.retryState === "with_retries" || query.retryState === "no_retries"
       ? query.retryState
       : "all";
