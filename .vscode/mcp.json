@@ -18,8 +18,6 @@
 				"GITHUB_PERSONAL_ACCESS_TOKEN=${input:token}",
 				"ghcr.io/github/github-mcp-server:0.31.0"
 			],
-			"gallery": "https://api.mcp.github.com",
-			"version": "0.31.0"
 		}
 	},
 	"inputs": [
