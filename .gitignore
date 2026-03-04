@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
-
+.github/copilot/mcp.json
+tmp/
 # Build output
 dist/
 *.tsbuildinfo
@@ -9,6 +10,7 @@ dist/
 .env
 .env.local
 .env.*.local
+.env.example
 
 # Editor / IDE
 .idea/

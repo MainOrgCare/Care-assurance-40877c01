@@ -87,6 +87,10 @@ RULES
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+// Cached artifacts — loaded once on first call, then reused for all
+// subsequent calls. The sync read only blocks the event loop once at startup.
+let cachedResult: { schema: Record<string, unknown>; systemPrompt: string } | null = null;
+
 function loadSchemaArtifact(): Record<string, unknown> {
   const { schemaArtifactPath } = getArtifactPaths();
 
@@ -149,8 +153,15 @@ function loadPromptFromPreset(): string {
 }
 
 export function loadEmarComplianceArtifacts() {
-  return {
+  if (cachedResult) return cachedResult;
+  cachedResult = {
     schema: loadSchemaArtifact(),
     systemPrompt: loadPromptFromPreset(),
   };
+  return cachedResult;
+}
+
+/** Reset the cache (for testing only). */
+export function _resetCache() {
+  cachedResult = null;
 }

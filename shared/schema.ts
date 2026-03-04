@@ -184,7 +184,10 @@ export const adminAlerts = pgTable("admin_alerts", {
   discrepancyCount: integer("discrepancy_count").notNull(),
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  careWorkerIdx: index("admin_alerts_care_worker_idx").on(table.careWorkerId),
+  unreadIdx: index("admin_alerts_unread_idx").on(table.isRead, table.createdAt),
+}));
 
 export const insertAdminAlertSchema = createInsertSchema(adminAlerts).omit({
   id: true,
@@ -424,7 +427,10 @@ export const emarCorrections = pgTable("emar_corrections", {
   
   correctionNote: text("correction_note"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  adminIdx: index("emar_corrections_admin_idx").on(table.adminId),
+  auditIdx: index("emar_corrections_audit_idx").on(table.auditId),
+}));
 
 export const insertEmarCorrectionSchema = createInsertSchema(emarCorrections).omit({
   id: true,
@@ -773,6 +779,7 @@ export const callRecommendations = pgTable(
   (table) => ({
     serviceUserIdx: index("call_recommendations_service_user_idx").on(table.serviceUserKey),
     typeIdx: index("call_recommendations_type_idx").on(table.recommendationType),
+    appliedByIdx: index("call_recommendations_applied_by_idx").on(table.appliedBy),
     expiresIdx: index("call_recommendations_expires_idx").on(table.expiresAt),
   })
 );

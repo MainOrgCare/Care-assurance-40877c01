@@ -60,7 +60,7 @@ const ToastAction = React.forwardRef<
   <ToastPrimitives.Action
     ref={ref}
     className={cn(
-      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background/75 px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-muted/75 focus:outline-none focus:ring-2 focus:ring-primary/15 focus:ring-offset-1 focus:ring-offset-background disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-destructive/40 group-[.destructive]:hover:bg-destructive/20 group-[.destructive]:hover:text-destructive group-[.destructive]:focus:ring-destructive",
+      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background/75 px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-muted/75 focus:outline-none focus:ring-2 focus:ring-primary/25 focus:ring-offset-1 focus:ring-offset-background disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-destructive/40 group-[.destructive]:hover:bg-destructive/20 group-[.destructive]:hover:text-destructive group-[.destructive]:focus:ring-destructive",
       className
     )}
     {...props}
@@ -75,7 +75,7 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary/15 focus:ring-offset-2 focus:ring-offset-background group-hover:opacity-100 group-[.destructive]:text-destructive group-[.destructive]:hover:text-destructive-foreground",
+      "absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary/25 focus:ring-offset-2 focus:ring-offset-background group-hover:opacity-100 group-[.destructive]:text-destructive group-[.destructive]:hover:text-destructive-foreground",
       className
     )}
     toast-close=""

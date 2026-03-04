@@ -104,8 +104,6 @@ const loginAttempts = new Map<string, LoginAttempt>();
 
 /**
  * Cap to prevent unbounded memory growth.
- * NOTE: routes.ts currently has its own duplicate loginAttempts Map + helpers.
- * TODO: refactor routes.ts to import from here to single-source this logic.
  */
 const MAX_LOGIN_ATTEMPTS_MAP_SIZE = 10_000;
 

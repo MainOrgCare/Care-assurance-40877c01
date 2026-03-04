@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { loadEmarComplianceArtifacts } from "../utils/emarComplianceArtifacts.ts";
+import { loadEmarComplianceArtifacts, _resetCache } from "../utils/emarComplianceArtifacts.ts";
 
 const withTempWorkspace = async (fn: (workspaceDir: string) => void | Promise<void>) => {
   const previousCwd = process.cwd();
@@ -12,8 +12,10 @@ const withTempWorkspace = async (fn: (workspaceDir: string) => void | Promise<vo
 
   try {
     process.chdir(workspaceDir);
+    _resetCache();
     await fn(workspaceDir);
   } finally {
+    _resetCache();
     process.chdir(previousCwd);
     fs.rmSync(workspaceDir, { recursive: true, force: true });
   }

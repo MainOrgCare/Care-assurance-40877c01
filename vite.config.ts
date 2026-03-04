@@ -49,7 +49,11 @@ export default defineConfig({
           // Heavy libraries split separately
           'vendor-xlsx': ['xlsx'],
           'vendor-pdf': ['jspdf', 'html2canvas'],
+          'vendor-pdfjs': ['pdfjs-dist'],
           'vendor-charts': ['recharts'],
+          // Utility libraries
+          'vendor-date': ['date-fns'],
+          'vendor-icons': ['lucide-react'],
           // UI components
           'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-accordion', '@radix-ui/react-select'],
           // Framer motion separate chunk

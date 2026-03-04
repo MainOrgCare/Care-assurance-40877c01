@@ -1618,7 +1618,7 @@ Return JSON:
   // ─────────────────────────────────────────────────────────────────────
   app.get("/api/copilot/audits", async (req: Request, res: Response) => {
     try {
-      const limit = parseInt(req.query.limit as string) || 20;
+      const limit = parseInt(req.query.limit as string, 10) || 20;
       const audits = await storage.getAllAudits();
 
       const sorted = audits

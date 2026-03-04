@@ -845,12 +845,102 @@ html.theme-light body {
     max-width: 36ch;
     line-height: 1.5;
   }
+
+  /* Labeled divider — horizontal rule with centered text */
+  .divider-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--color-muted-foreground);
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+  .divider-label::before,
+  .divider-label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--color-border);
+  }
+
+  /* Elevation levels — for overriding component shadows contextually */
+  .elevation-0 { box-shadow: none; }
+  .elevation-1 { box-shadow: var(--shadow-xs); }
+  .elevation-2 { box-shadow: var(--shadow-sm); }
+  .elevation-3 { box-shadow: var(--shadow-soft); }
+  .elevation-4 { box-shadow: var(--shadow-medium); }
+
+  /* Inline stat — compact metric used inside cards/tables */
+  .inline-stat {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+  .inline-stat-value {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.125rem;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-foreground);
+  }
+  .inline-stat-label {
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    color: var(--color-muted-foreground);
+  }
+
+  /* Data table — tighter spacing for dense data views */
+  .data-table th {
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 650;
+    color: var(--color-muted-foreground);
+    padding: 0.5rem 0.75rem;
+    background: color-mix(in oklab, var(--color-muted) 35%, transparent);
+    border-bottom: 1px solid color-mix(in oklab, var(--color-border) 55%, transparent);
+  }
+  .data-table td {
+    font-size: 0.8125rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid color-mix(in oklab, var(--color-border) 25%, transparent);
+  }
+  .data-table tr:hover td {
+    background: color-mix(in oklab, var(--color-muted) 15%, transparent);
+  }
+  .data-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Toolbar — consistent toolbar above tables/lists */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .toolbar-spacer {
+    flex: 1;
+    min-width: 1rem;
+  }
+
+  /* Better selection for multi-line text */
+  .text-selectable {
+    user-select: text;
+    -webkit-user-select: text;
+  }
 }
 
-/* Scrollbars - Corporate refined */
+/* Scrollbars - Theme-aware */
 * {
   scrollbar-width: thin;
-  scrollbar-color: hsl(216 12% 72%) transparent;
+  scrollbar-color: color-mix(in oklab, var(--color-border) 70%, transparent) transparent;
 }
 *::-webkit-scrollbar {
   width: 7px;
@@ -861,13 +951,13 @@ html.theme-light body {
   margin: 4px;
 }
 *::-webkit-scrollbar-thumb {
-  background: hsl(216 12% 72%);
+  background: color-mix(in oklab, var(--color-border) 70%, transparent);
   border-radius: 999px;
   border: 1px solid transparent;
   background-clip: padding-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: hsl(216 12% 60%);
+  background: var(--color-muted-foreground);
 }
 *::-webkit-scrollbar-corner {
   background: transparent;
@@ -906,6 +996,33 @@ html.theme-light body {
   }
   .page-title { font-size: 1.5rem; }
   .page-subtitle { font-size: 0.85rem; }
+
+  /* Ensure adequate touch targets on mobile */
+  button,
+  [role="button"],
+  a {
+    min-height: 36px;
+    min-width: 36px;
+  }
+  /* Exclude inline/link buttons and icon-only from min-width */
+  a:not([role="button"]),
+  button[class*="link"],
+  button[class*="ghost"][class*="icon"] {
+    min-width: auto;
+    min-height: auto;
+  }
+
+  /* Card grid collapses to single column on small screens */
+  .card-grid,
+  .card-grid-sm,
+  .card-grid-lg {
+    grid-template-columns: 1fr;
+  }
+
+  /* Tables scroll horizontally rather than breaking layout */
+  .relative.w-full.overflow-auto {
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1250,32 +1367,6 @@ html.theme-light {
 
 .compact-mode .text-3xl {
   font-size: 1.5rem;
-}
-
-/* Custom Global Scrollbars */
-*::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-*::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 4px;
-}
-*::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 999px;
-  border: 2px solid var(--color-background);
-  background-clip: padding-box;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted-foreground);
-}
-*::-webkit-scrollbar-corner {
-  background: transparent;
-}
-* {
-  scrollbar-color: var(--color-border) transparent;
-  scrollbar-width: thin;
 }
 
 /* ========================================

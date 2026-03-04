@@ -387,7 +387,7 @@ const DEFAULT_ADMIN_USERNAME = "admin";
         } else {
           // In dev, use a password that satisfies the 12-char NIST policy.
           // Still logs a prominent warning so developers know to change it.
-          const devPassword = "Dev-Admin-12345!";
+          const devPassword = process.env.DEV_ADMIN_PASSWORD || "Dev-Admin-12345!";
           const password = bootstrapPassword || devPassword;
           await storage.createUser({
             username: bootstrapUsername,
