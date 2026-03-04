@@ -52,8 +52,6 @@
   "javascript.updateImportsOnFileMove.enabled": "always",
   "javascript.format.insertSpaceBeforeFunctionParenthesis": true,
   "material-icon-theme.hidesExplorerArrows": true,
-  "telemetry.telemetryLevel": "off",
-  "workbench.colorTheme": "Monokai Pro (Filter Spectrum)",
   "workbench.iconTheme": "material-icon-theme",
   "workbench.startupEditor": "readme",
 
@@ -65,6 +63,14 @@
   },
   "vscode-edge-devtools.headless": false,
   "github.copilot.chat.copilotMemory.enabled": true,
+  "markdown.togglelinting": {
+    "markdownlint.config": {
+      "default": true,
+      "MD013": false,
+      "MD060": false,
+      "MD024": false
+    }
+  },
   "github.copilot.enable": {
     "markdown": true
   },

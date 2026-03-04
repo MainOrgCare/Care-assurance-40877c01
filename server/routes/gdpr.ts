@@ -241,7 +241,7 @@ export function registerGdprRoutes(
     try {
       const requests = await storage.getAllDataRequests();
       return res.json(requests);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[GDPR Admin] Error getting requests:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to get data requests" });
     }
@@ -256,7 +256,7 @@ export function registerGdprRoutes(
       try {
         const requests = await storage.getPendingDataRequests();
         return res.json(requests);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("[GDPR Admin] Error getting pending requests:", safeErrorMessage(error));
         return res.status(500).json({ message: "Failed to get pending requests" });
       }
@@ -351,7 +351,7 @@ export function registerGdprRoutes(
         });
 
         return res.json({ success: true, status: "completed", dataSummary });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("[GDPR Admin] Error processing request:", safeErrorMessage(error));
         return res.status(500).json({ message: "Failed to process request" });
       }
@@ -372,7 +372,7 @@ export function registerGdprRoutes(
       });
 
       return res.json(logs);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[GDPR Admin] Error getting audit logs:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to get audit logs" });
     }
@@ -387,7 +387,7 @@ export function registerGdprRoutes(
       try {
         const policies = await storage.getRetentionPolicies();
         return res.json(policies);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("[GDPR Admin] Error getting policies:", safeErrorMessage(error));
         return res.status(500).json({ message: "Failed to get retention policies" });
       }
@@ -425,7 +425,7 @@ export function registerGdprRoutes(
         });
 
         return res.json(policy);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("[GDPR Admin] Error updating policy:", safeErrorMessage(error));
         return res.status(500).json({ message: "Failed to update retention policy" });
       }
@@ -457,7 +457,7 @@ export function registerGdprRoutes(
           deletedCount: deleted,
           message: `Purged ${deleted} expired records from ${dataCategory}`,
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("[GDPR Admin] Error purging data:", safeErrorMessage(error));
         return res.status(500).json({ message: "Failed to purge data" });
       }

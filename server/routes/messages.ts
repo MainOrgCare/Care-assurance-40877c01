@@ -26,7 +26,7 @@ export function registerMessageRoutes(
       const includeArchived = req.query.includeArchived === "true";
       const messages = await storage.getUserMessages(req.user.id, includeArchived);
       return res.json(messages);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[Messages] Failed to fetch messages:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to fetch messages" });
     }
@@ -37,7 +37,7 @@ export function registerMessageRoutes(
     try {
       const count = await storage.getUnreadUserMessageCount(req.user.id);
       return res.json({ count });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[Messages] Failed to get unread count:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to get unread count" });
     }
@@ -55,7 +55,7 @@ export function registerMessageRoutes(
         return res.status(403).json({ message: "Access denied" });
       }
       return res.json(message);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[Messages] Failed to fetch message:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to fetch message" });
     }
@@ -73,7 +73,7 @@ export function registerMessageRoutes(
       }
       const updated = await storage.markUserMessageRead(req.params.id);
       return res.json(updated);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[Messages] Failed to mark message as read:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to update message" });
     }
@@ -91,7 +91,7 @@ export function registerMessageRoutes(
       }
       const updated = await storage.archiveUserMessage(req.params.id);
       return res.json(updated);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[Messages] Failed to archive message:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to archive message" });
     }
@@ -109,7 +109,7 @@ export function registerMessageRoutes(
       }
       await storage.deleteUserMessage(req.params.id);
       return res.json({ success: true });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[Messages] Failed to delete message:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to delete message" });
     }
@@ -148,7 +148,7 @@ export function registerMessageRoutes(
         `[Messages] Message sent from ${req.user.username} to user ${recipientId}: "${subject}"`,
       );
       return res.json(newMessage);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[Messages] Failed to send message:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to send message" });
     }

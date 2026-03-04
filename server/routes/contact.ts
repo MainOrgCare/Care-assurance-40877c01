@@ -66,7 +66,7 @@ export function registerContactRoutes(
         success: true,
         message: "Thank you for your message. We'll respond within 1 business day.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[Contact] Failed to save message:", safeErrorMessage(error));
       return res
         .status(500)
@@ -84,7 +84,7 @@ export function registerContactRoutes(
         const includeArchived = req.query.includeArchived === "true";
         const messages = await storage.getContactMessages(includeArchived);
         return res.json(messages);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("[Contact] Failed to fetch messages:", safeErrorMessage(error));
         return res.status(500).json({ message: "Failed to fetch messages" });
       }
@@ -101,7 +101,7 @@ export function registerContactRoutes(
         const { id } = req.params;
         await storage.markContactMessageRead(id, req.user.username);
         return res.json({ success: true });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("[Contact] Failed to mark message as read:", safeErrorMessage(error));
         return res.status(500).json({ message: "Failed to update message" });
       }
@@ -118,7 +118,7 @@ export function registerContactRoutes(
         const { id } = req.params;
         await storage.archiveContactMessage(id);
         return res.json({ success: true });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("[Contact] Failed to archive message:", safeErrorMessage(error));
         return res.status(500).json({ message: "Failed to archive message" });
       }
@@ -135,7 +135,7 @@ export function registerContactRoutes(
         const { id } = req.params;
         await storage.deleteContactMessage(id);
         return res.json({ success: true });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("[Contact] Failed to delete message:", safeErrorMessage(error));
         return res.status(500).json({ message: "Failed to delete message" });
       }

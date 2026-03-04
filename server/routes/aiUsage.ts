@@ -80,7 +80,7 @@ export function registerAiUsageRoutes(
       const stats = await storage.getAiUsageStats();
 
       return res.json({ logs, stats });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("AI usage fetch error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to fetch AI usage") });
     }
@@ -152,7 +152,7 @@ export function registerAiUsageRoutes(
         },
         filterOptions,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("AI request logs fetch error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to fetch AI request logs") });
     }

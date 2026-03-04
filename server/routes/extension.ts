@@ -97,7 +97,7 @@ async function readExtensionManifestVersion(): Promise<string | null> {
     const manifestRaw = await fs.readFile(EXTENSION_MANIFEST_PATH, "utf8");
     const manifest = JSON.parse(manifestRaw) as Record<string, unknown>;
     return typeof manifest.version === "string" ? manifest.version : null;
-  } catch (error) {
+  } catch (error: unknown) {
     console.warn("Failed to read extension manifest version:", error);
     return null;
   }
@@ -127,7 +127,7 @@ async function getLatestSourceMtimeMs(rootDir: string): Promise<number> {
 
   try {
     await walk(rootDir);
-  } catch (error) {
+  } catch (error: unknown) {
     console.warn("Failed to inspect extension source timestamps:", error);
     return 0;
   }
@@ -142,7 +142,7 @@ async function isExtensionPackageStale(packagePath: string): Promise<boolean> {
     ]);
     if (!latestSourceMtimeMs) return false;
     return packageStat.mtimeMs < latestSourceMtimeMs;
-  } catch (error) {
+  } catch (error: unknown) {
     console.warn("Failed to compare extension package freshness:", error);
     return false;
   }
@@ -239,7 +239,7 @@ export function registerExtensionRoutes(
           emarAudit: true
         }
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to get extension status") });
     }
   });
@@ -269,7 +269,7 @@ export function registerExtensionRoutes(
           rebuilt: metadata.rebuilt,
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Extension package metadata error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to load extension package metadata") });
     }
@@ -297,7 +297,7 @@ export function registerExtensionRoutes(
         console.error("Extension package download error:", downloadError);
         res.status(500).json({ message: "Failed to download extension package" });
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Extension package lookup error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to prepare extension package") });
     }
@@ -325,7 +325,7 @@ export function registerExtensionRoutes(
       });
 
       return res.json({ users });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Extension service users error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to get service users") });
     }
@@ -354,7 +354,7 @@ export function registerExtensionRoutes(
         sourceDocuments: metadata.sourceDocuments,
         lastUpdated: serviceUser.updatedAt
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Extension service user error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to get service user") });
     }
@@ -387,7 +387,7 @@ export function registerExtensionRoutes(
       };
 
       return res.json(payload);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Extension risk assessment error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to get risk assessment") });
     }
@@ -442,7 +442,7 @@ export function registerExtensionRoutes(
       };
 
       return res.json(payload);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Extension care plan error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to get care plan") });
     }
@@ -481,7 +481,7 @@ export function registerExtensionRoutes(
         carePlans: recentPlans,
         riskAssessments: recentRisks
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Extension recent error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to get recent items") });
     }

@@ -26,7 +26,7 @@ export function registerPolicyAcknowledgementRoutes(
       try {
         const acks = await storage.getAllPolicyAcknowledgements();
         return res.json(acks);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(
           "[POLICY-ACK] Error fetching:",
           safeErrorMessage(error),
@@ -47,7 +47,7 @@ export function registerPolicyAcknowledgementRoutes(
           req.params.policyId,
         );
         return res.json(acks);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(
           "[POLICY-ACK] Error fetching:",
           safeErrorMessage(error),
@@ -68,7 +68,7 @@ export function registerPolicyAcknowledgementRoutes(
           req.params.userId,
         );
         return res.json(acks);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(
           "[POLICY-ACK] Error fetching:",
           safeErrorMessage(error),
@@ -100,7 +100,7 @@ export function registerPolicyAcknowledgementRoutes(
           signatureName,
         });
         return res.status(201).json(ack);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(
           "[POLICY-ACK] Error creating:",
           safeErrorMessage(error),

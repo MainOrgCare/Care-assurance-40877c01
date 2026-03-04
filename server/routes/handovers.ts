@@ -23,7 +23,7 @@ export function registerHandoverRoutes(
     try {
       const handovers = await storage.getAllShiftHandovers();
       return res.json(handovers);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("[HANDOVERS] Error fetching:", safeErrorMessage(error));
       return res.status(500).json({ message: "Failed to fetch shift handovers" });
     }
@@ -69,7 +69,7 @@ export function registerHandoverRoutes(
       });
 
       return res.status(201).json(handover);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("[HANDOVERS] Error creating:", safeErrorMessage(error));
       return res
         .status(500)
@@ -90,7 +90,7 @@ export function registerHandoverRoutes(
           return res.status(404).json({ message: "Handover not found" });
         }
         return res.json(handover);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(
           "[HANDOVERS] Error acknowledging:",
           safeErrorMessage(error),
@@ -109,7 +109,7 @@ export function registerHandoverRoutes(
       try {
         await storage.deleteShiftHandover(req.params.id);
         return res.json({ success: true });
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(
           "[HANDOVERS] Error deleting:",
           safeErrorMessage(error),

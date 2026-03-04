@@ -23,7 +23,7 @@ export function registerTrainingRoutes(
     try {
       const records = await storage.getAllStaffTraining();
       return res.json(records);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("[TRAINING] Error fetching:", safeErrorMessage(error));
       return res
         .status(500)
@@ -40,7 +40,7 @@ export function registerTrainingRoutes(
           req.params.userId,
         );
         return res.json(records);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(
           "[TRAINING] Error fetching user training:",
           safeErrorMessage(error),
@@ -87,7 +87,7 @@ export function registerTrainingRoutes(
       });
 
       return res.status(201).json(record);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("[TRAINING] Error creating:", safeErrorMessage(error));
       return res
         .status(500)
@@ -110,7 +110,7 @@ export function registerTrainingRoutes(
             .json({ message: "Training record not found" });
         }
         return res.json(record);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("[TRAINING] Error updating:", safeErrorMessage(error));
         return res
           .status(500)
@@ -126,7 +126,7 @@ export function registerTrainingRoutes(
       try {
         await storage.deleteStaffTraining(req.params.id);
         return res.json({ success: true });
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("[TRAINING] Error deleting:", safeErrorMessage(error));
         return res
           .status(500)
