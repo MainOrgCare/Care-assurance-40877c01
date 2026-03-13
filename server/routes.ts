@@ -47,7 +47,7 @@ import {
   registerEmailAssistantRoutes,
 } from "./routes/index";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertPolicyDocumentSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser } from "@shared/schema";
-import { getPreferredProvider, setPreferredProvider, setLocalLLMUrl, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, getRequireLiveWebForLocal, setRequireLiveWebForLocal, isLocalLLMAvailable, getLocalLLMUrl, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, getAiErrorStatusCode, type AiUserContext, type AiProvider } from "./services/aiClient";
+import { getPreferredProvider, setPreferredProvider, setLocalLLMUrl, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, getRequireLiveWebForLocal, setRequireLiveWebForLocal, isLocalLLMAvailable, getLocalLLMUrl, getLocalLLMModel, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, getAiErrorStatusCode, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { getCacheStats, clearCache } from "./services/aiCache";
 import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseAI, extractMedicationInfo, extractPersonalCareNeeds, extractContinenceInfo, extractNutritionInfo, extractEnvironmentInfo } from "./services/ruleBasedEngine";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
@@ -7383,6 +7383,17 @@ ${correctionExamples}
               existing.count += 1;
               if (cell.date) existing.dates.add(cell.date);
               missingByMed.set(key, existing);
+
+              // Individual verification item for each MISSED entry
+              const medName = medId > 0 ? agentMedicationNameById.get(medId) || cell.medication || "" : cell.medication || "";
+              agentVerificationItems.push({
+                careWorkerName: cell.careWorker || "N.N.",
+                date: cell.date,
+                medication: medName,
+                medicationId: medId || undefined,
+                code: "MISSED",
+                note: "Check why the medication was missed and ensure it is documented",
+              });
             });
 
             missingByMed.forEach(({ count, medication, medicationId, dates }) => {
@@ -7402,10 +7413,10 @@ ${correctionExamples}
           // =====================================================================
           // NON-ADMINISTRATION DETECTION (codes requiring reason review)
           // R=Refused, NH=Not Home, MU=Medication Unavailable, PRN-R=PRN Refused
-          // SA (Self Administered) is only flagged when it becomes a recurring trend.
+          // SA=Self Administered (every instance requires verification)
           // Family-administered (F) does not require verification.
           // =====================================================================
-          const reviewCodes = ['R', 'PRN-R', 'NH', 'MU'];
+          const reviewCodes = ['R', 'PRN-R', 'NH', 'MU', 'SA'];
           const SA_TREND_THRESHOLD = 3;
           const mainRefusalDiscrepancies: any[] = [];
           const prnRefusalDiscrepancies: any[] = [];
@@ -7524,21 +7535,6 @@ ${correctionExamples}
               }
             }
 
-            if (code === "SA") {
-              const medId = Number(entry.medicationId) || 0;
-              const key = medId > 0 ? `id:${medId}` : `name:${entry.medication || ""}`;
-              const saStats = saCountsByMedication.get(key);
-              if (saStats && saStats.count >= SA_TREND_THRESHOLD) {
-                agentVerificationItems.push({
-                  careWorkerName: entry.careWorkerInitials || 'Unknown',
-                  date: entry.date,
-                  medication: entry.medication,
-                  medicationId: medId || undefined,
-                  code: code,
-                  note: "Self-administration recorded repeatedly; confirm appropriateness and oversight",
-                });
-              }
-            }
           });
 
           // =====================================================================
@@ -17010,6 +17006,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.`,
       return res.json({
         provider: readiness.provider,
         model: getPreferredModel(),
+        localLLMModel: getLocalLLMModel(),
         aiEnabled,
         requireLiveWebForLocal: getRequireLiveWebForLocal(),
         hasOpenAIKey: readiness.hasOpenAIKey,

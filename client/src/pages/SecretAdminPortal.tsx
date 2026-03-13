@@ -1396,6 +1396,7 @@ const AIProviderSection = memo(function AIProviderSection() {
   const [lastLocalCheckAt, setLastLocalCheckAt] = useState<string | null>(null);
   const [localLLMUrl, setLocalLLMUrl] = useState("");
   const [localLLMUrlInput, setLocalLLMUrlInput] = useState("");
+  const [localLLMModel, setLocalLLMModel] = useState("qwen2.5-64k");
   const [requireLiveWebForLocal, setRequireLiveWebForLocal] = useState(true);
   const [selectedProvider, setSelectedProvider] = useState<"openai" | "github" | "local">("openai");
   const [selectedModel, setSelectedModel] = useState("gpt-4.1-mini");
@@ -1420,6 +1421,7 @@ const AIProviderSection = memo(function AIProviderSection() {
         setHasLocalLLM(Boolean(data.hasLocalLLM));
         setLocalLLMUrl(data.localLLMUrl || "");
         setLocalLLMUrlInput(data.localLLMUrl || "");
+        if (data.localLLMModel) setLocalLLMModel(data.localLLMModel);
         setRequireLiveWebForLocal(data.requireLiveWebForLocal !== false);
         setSelectedProvider(data.provider || "openai");
         if (data.model) setSelectedModel(data.model);
@@ -1759,7 +1761,7 @@ const AIProviderSection = memo(function AIProviderSection() {
                   <Server size={20} className={hasLocalLLM ? "text-sky-400" : "text-muted-foreground/60"} />
                 </div>
                 <div>
-                  <div className="font-medium text-foreground">Local (Qwen 2.5)</div>
+                  <div className="font-medium text-foreground">Local ({localLLMModel.split("/").pop() || localLLMModel})</div>
                   <div className="text-xs text-muted-foreground">
                     {hasLocalLLM ? "LLM running" : "Not available"}
                   </div>
@@ -1856,7 +1858,7 @@ const AIProviderSection = memo(function AIProviderSection() {
           {selectedProvider === "local" && (
             <div className="mt-3 p-3 bg-sky-500/10 rounded-lg border border-sky-500/20">
               <div className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">Local LLM (Qwen 2.5 7B)</span> - All data stays on your servers. No external API calls. $0 cost. 128K context.
+                <span className="font-medium text-foreground">Local LLM ({localLLMModel.split("/").pop() || localLLMModel})</span> - All data stays on your servers. No external API calls. $0 cost.
               </div>
 
               <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-sky-500/30 bg-background/70 p-3">
@@ -1948,7 +1950,7 @@ const AIProviderSection = memo(function AIProviderSection() {
         <div className="p-3 bg-muted/30 rounded-lg border border-border/40 text-xs text-muted-foreground">
           <strong className="text-foreground">Note:</strong> AI models are automatically selected based on task complexity. 
           Drug interaction checks are computed on each run to avoid reusing previous responses.
-          Currently using: <strong className="text-foreground">{selectedProvider === "openai" ? "OpenAI" : selectedProvider === "github" ? "GitHub AI" : "Local (Qwen 2.5)"}</strong> provider
+          Currently using: <strong className="text-foreground">{selectedProvider === "openai" ? "OpenAI" : selectedProvider === "github" ? "GitHub AI" : `Local (${localLLMModel.split("/").pop() || localLLMModel})`}</strong> provider
           {useEmarAgent ? " with advanced EMAR agent enabled" : " with standard EMAR extraction"}.
         </div>
       </CardContent>

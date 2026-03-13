@@ -1074,7 +1074,7 @@ export async function createChatCompletionWithLogging(
   // For GitHub AI or OpenAI with PAT fallback, map to compatible model
   let actualModel: string;
   if (preferredProvider === "local") {
-    actualModel = LOCAL_LLM_MODEL; // phi3:mini
+    actualModel = LOCAL_LLM_MODEL;
   } else {
     const needsMapping = preferredProvider === "github" || (preferredProvider === "openai" && openaiUsingPATFallback);
     actualModel = needsMapping ? mapModelForGitHub(model) : model;
@@ -1416,6 +1416,11 @@ export { isLocalLLMAvailable };
 // Get local LLM URL for admin display
 export function getLocalLLMUrl(): string {
   return localLLMUrl;
+}
+
+// Get local LLM model name for admin display
+export function getLocalLLMModel(): string {
+  return LOCAL_LLM_MODEL;
 }
 
 // Export getter for OpenAI client (lazy — always reflects current AI state)
