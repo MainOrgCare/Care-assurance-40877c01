@@ -4,12 +4,24 @@
  */
 
 /**
+ * Strip reasoning model `<think>...</think>` blocks from AI responses.
+ * DeepSeek R1 and similar chain-of-thought models wrap their internal
+ * reasoning in these tags. The reasoning text often contains `{` and `}`
+ * characters that break JSON extraction, so it must be removed first.
+ */
+export function stripReasoningTags(content: string): string {
+  return content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+}
+
+/**
  * Extract the first complete JSON object from a string.
  * Handles cases where AI wraps JSON in markdown code blocks or extra text.
  */
 export function extractJsonObject(content: string): string | null {
+  // Strip reasoning model <think> blocks before extracting JSON
+  let cleaned = stripReasoningTags(content);
   // Strip markdown code fences (```json ... ``` or ``` ... ```)
-  let cleaned = content.replace(/^```(?:json|JSON)?\s*\n?/m, "").replace(/\n?```\s*$/m, "");
+  cleaned = cleaned.replace(/^```(?:json|JSON)?\s*\n?/m, "").replace(/\n?```\s*$/m, "");
 
   const start = cleaned.indexOf("{");
   if (start === -1) return null;
@@ -105,7 +117,8 @@ export function parseJsonFromContent(content: string): any | null {
  * Useful when the AI returns a JSON array instead of an object.
  */
 export function extractJsonArray(content: string): any[] | null {
-  let cleaned = content.replace(/^```(?:json|JSON)?\s*\n?/m, "").replace(/\n?```\s*$/m, "");
+  let cleaned = stripReasoningTags(content);
+  cleaned = cleaned.replace(/^```(?:json|JSON)?\s*\n?/m, "").replace(/\n?```\s*$/m, "");
   const start = cleaned.indexOf("[");
   if (start === -1) return null;
 

@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { stripReasoningTags } from "../utils/jsonParser";
 let storageRef: typeof import("../storage").storage | null = null;
 
 const getStorage = async () => {
@@ -486,24 +487,9 @@ function shouldRetryWithStrictLocalCompat(error: any): boolean {
 }
 
 function normalizeLocalResponseFormat(responseFormat: unknown): unknown {
-  if (!responseFormat || typeof responseFormat !== "object") {
-    return responseFormat;
-  }
-
-  const typed = responseFormat as Record<string, unknown>;
-  if (typed.type === "json_object") {
-    return {
-      type: "json_schema",
-      json_schema: {
-        name: "structured_output",
-        schema: {
-          type: "object",
-          additionalProperties: true,
-        },
-      },
-    };
-  }
-
+  // Pass through as-is — LM Studio supports json_object and json_schema natively.
+  // If the local model doesn't support a format, the existing strict fallback chain
+  // (shouldRetryWithStrictLocalCompat) will handle it by stripping response_format.
   return responseFormat;
 }
 
@@ -524,6 +510,10 @@ function buildLocalCompatibleParams(
   }
   delete normalized.max_completion_tokens;
 
+  // Detect if JSON output is expected (via response_format)
+  const rfType = (normalized.response_format as any)?.type;
+  const expectsJson = rfType === "json_object" || rfType === "json_schema";
+
   if (mode === "strict") {
     delete normalized.response_format;
     delete normalized.tools;
@@ -534,7 +524,22 @@ function buildLocalCompatibleParams(
     delete normalized.seed;
     delete normalized.options;
   } else {
-    normalized.options = { num_ctx: 65536 };
+    normalized.options = { num_ctx: 131072 };
+  }
+
+  // When JSON is expected, inject an explicit instruction into the system prompt.
+  // This ensures the model outputs valid JSON even if response_format is stripped
+  // in strict mode or not supported by the local model (e.g. reasoning models).
+  if (expectsJson && Array.isArray(normalized.messages)) {
+    const JSON_PREAMBLE = "\n\nIMPORTANT: You MUST respond with a single valid JSON object only. No markdown code fences, no text outside the JSON, no explanations before or after the JSON.";
+    const systemIdx = normalized.messages.findIndex((m: any) => m?.role === "system");
+    if (systemIdx >= 0) {
+      normalized.messages = [...normalized.messages];
+      normalized.messages[systemIdx] = {
+        ...normalized.messages[systemIdx],
+        content: normalized.messages[systemIdx].content + JSON_PREAMBLE,
+      };
+    }
   }
 
   return normalized as OpenAI.ChatCompletionCreateParamsNonStreaming;
@@ -544,17 +549,17 @@ function extractLocalChatV1Content(payload: LocalChatV1Response): string {
   const directCandidates = [payload.output, payload.response, payload.text, payload.result];
   for (const candidate of directCandidates) {
     if (typeof candidate === "string" && candidate.trim().length > 0) {
-      return candidate.trim();
+      return stripReasoningTags(candidate.trim());
     }
   }
 
   const choice = payload.choices?.[0];
   const choiceMessageContent = choice?.message?.content;
   if (typeof choiceMessageContent === "string" && choiceMessageContent.trim().length > 0) {
-    return choiceMessageContent.trim();
+    return stripReasoningTags(choiceMessageContent.trim());
   }
   if (typeof choice?.text === "string" && choice.text.trim().length > 0) {
-    return choice.text.trim();
+    return stripReasoningTags(choice.text.trim());
   }
 
   return "";
@@ -582,11 +587,13 @@ function normalizeLocalCompletion(
     .join("\n\n");
 
   const normalizedChoices = (completion.choices || []).map((choice: any, index: number) => {
-    const messageContent = typeof choice?.message?.content === "string"
+    const rawContent = typeof choice?.message?.content === "string"
       ? choice.message.content
       : typeof choice?.text === "string"
         ? choice.text
         : "";
+    // Strip reasoning model <think> tags from local LLM responses
+    const messageContent = stripReasoningTags(rawContent);
 
     return {
       ...choice,
@@ -1205,7 +1212,7 @@ export async function createChatCompletionWithLogging(
       ?? (provider === "local" ? inputTokens + outputTokens : 0);
     const costMicroDollars = calculateCostMicroDollars(actualModel, inputTokens, outputTokens);
     
-    const providerLabel = provider === "local" ? "LOCAL (Qwen 2.5)" : provider === "github" ? "GitHub AI" : "OpenAI";
+    const providerLabel = provider === "local" ? `LOCAL (${LOCAL_LLM_MODEL})` : provider === "github" ? "GitHub AI" : "OpenAI";
     console.log(`[AI:${featureName}] ✓ Completed in ${duration}ms, ${totalTokens} tokens, $${(costMicroDollars / 1000000).toFixed(4)} via ${providerLabel}${retryCount > 0 ? ` after ${retryCount} retry(ies)` : ""}`);
     
     // Cache the successful response if caching enabled
