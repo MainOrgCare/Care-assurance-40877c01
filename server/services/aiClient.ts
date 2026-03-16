@@ -808,13 +808,15 @@ function mapModelForGitHub(model: string): string {
 }
 
 // Retry configuration for rate limit handling
-const MAX_RETRIES = 5;
-const INITIAL_RETRY_DELAY_MS = 5000; // Start with 5 seconds
+const MAX_RETRIES = 10;
+const INITIAL_RETRY_DELAY_MS = 10000; // Start with 10 seconds (doubled to handle rate limits better)
+const MAX_RETRY_DELAY_MS = 60000; // Cap exponential backoff at 60 seconds to prevent excessive waits
 
 // Per-request overall timeout (prevents indefinitely hanging calls)
 // Plan Enhancer sends ~5K-word system prompt + documents and requests up to 32K output tokens,
 // which regularly exceeds 2 minutes. 5 minutes covers large generations with retries.
-const AI_CALL_TIMEOUT_MS = 300_000; // 5 minutes
+// Extended to 8 minutes to accommodate more retry attempts when rate limited.
+const AI_CALL_TIMEOUT_MS = 480_000; // 8 minutes
 
 // Sleep utility for retry delays
 function sleep(ms: number): Promise<void> {
@@ -857,10 +859,11 @@ function getRetryDelayMs(error: any, attempt: number): number {
   if (retryAfter) {
     const parsed = Number.parseInt(String(retryAfter), 10);
     if (Number.isFinite(parsed) && parsed > 0) {
-      return parsed * 1000;
+      return Math.min(parsed * 1000, MAX_RETRY_DELAY_MS);
     }
   }
-  return INITIAL_RETRY_DELAY_MS * Math.pow(2, Math.max(0, attempt));
+  const exponentialDelay = INITIAL_RETRY_DELAY_MS * Math.pow(2, Math.max(0, attempt - 1));
+  return Math.min(exponentialDelay, MAX_RETRY_DELAY_MS);
 }
 
 function getRetryReason(error: any): string {
@@ -970,7 +973,10 @@ async function createChatCompletionWithProvider(
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       if (attempt > 0) {
-        const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+        const delay = Math.min(
+          INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt - 1),
+          MAX_RETRY_DELAY_MS
+        );
         console.log(`[AI] Retry attempt ${attempt}/${MAX_RETRIES} after ${delay}ms delay...`);
         await sleep(delay);
       }
