@@ -394,12 +394,14 @@ function estimateTokenCount(text: string): number {
 }
 
 // Track if OpenAI client is using PAT fallback (needs model mapping)
+// NOTE: Since OpenAI provider now strictly uses OPENAI_API_KEY (no GitHub fallback),
+// this is always false for "openai" provider. Kept for reference/documentation.
 let openaiUsingPATFallback = false;
 
 function getOpenAIClient(): OpenAI | null {
   if (openaiClient) return openaiClient;
-  
-  // Try OpenAI keys first
+
+  // Strict OpenAI-only: only use OpenAI API keys, NO fallback to GitHub
   const openaiKey = process.env.OPENAI_FALLBACK_API_KEY || process.env.OPENAI_API_KEY;
   if (openaiKey) {
     openaiUsingPATFallback = false;
@@ -409,19 +411,8 @@ function getOpenAIClient(): OpenAI | null {
     });
     return openaiClient;
   }
-  
-  // Fall back to PAT_AI_KEY via GitHub endpoint if no OpenAI key
-  const patKey = process.env.PAT_AI_KEY;
-  if (patKey) {
-    console.log("[AI] No OpenAI key found, using PAT_AI_KEY via GitHub endpoint as OpenAI fallback");
-    openaiUsingPATFallback = true;
-    openaiClient = new OpenAI({
-      apiKey: patKey,
-      baseURL: "https://models.inference.ai.azure.com",
-    });
-    return openaiClient;
-  }
-  
+
+  // OpenAI provider selected but no OpenAI API key available - return null (error will be thrown in createChatCompletionWithProvider)
   return null;
 }
 
@@ -881,8 +872,8 @@ function getRetryReason(error: any): string {
 
 // Format GitHub Models specific errors with helpful messages
 function formatGitHubModelsError(error: any, provider: AiProvider): Error {
-  const isGitHub = provider === 'github' || (provider === 'openai' && openaiUsingPATFallback);
-  if (!isGitHub) return error;
+  // Only GitHub provider gets special error formatting (not OpenAI, since it no longer uses GitHub fallback)
+  if (provider !== 'github') return error;
   
   const status = error?.status || error?.response?.status;
   const message = error?.message || '';
@@ -955,15 +946,9 @@ async function createChatCompletionWithProvider(
   } else {
     client = getOpenAIClient();
     if (!client) {
-      throw new Error("No AI configured. Set OPENAI_API_KEY, OPENAI_FALLBACK_API_KEY, or PAT_AI_KEY.");
+      throw new Error("OpenAI provider is selected but no OpenAI API key is configured. Set OPENAI_API_KEY or OPENAI_FALLBACK_API_KEY in your environment, or switch to GitHub or Local provider.");
     }
-    // If using PAT fallback, we're actually hitting GitHub endpoint - needs model mapping
-    if (openaiUsingPATFallback) {
-      model = mapModelForGitHub(model);
-      console.log(`[AI:OpenAI] Using PAT_AI_KEY fallback via GitHub endpoint`);
-    } else {
-      console.log(`[AI:OpenAI] ✓ Using OpenAI directly (model: ${model}, temp: ${(params as any).temperature ?? 0})`);
-    }
+    console.log(`[AI:OpenAI] ✓ Using OpenAI directly (model: ${model}, temp: ${(params as any).temperature ?? 0})`);
   }
 
   // Retry loop with exponential backoff for rate limit errors
@@ -984,11 +969,11 @@ async function createChatCompletionWithProvider(
       console.log(`[AI] Using ${provider} provider with model:`, model);
       // For local LLM, keep payload OpenAI-compatible and pass local options fallback where supported
       // For OpenAI provider, enforce gpt-4.1-mini with temperature 0 for deterministic results
-      const finalParams = provider === "local" 
+      const finalParams = provider === "local"
         ? buildLocalCompatibleParams(params, model, "standard")
-        : provider === "openai" && !openaiUsingPATFallback
-        ? { 
-            ...params, 
+        : provider === "openai"
+        ? {
+            ...params,
             model: model || "gpt-4.1-mini",
             temperature: params.temperature ?? 0,
           }
@@ -1084,13 +1069,15 @@ export async function createChatCompletionWithLogging(
   let model = (params.model as string) || preferredModel;
   
   // For local provider, always use the local model name
-  // For GitHub AI or OpenAI with PAT fallback, map to compatible model
+  // For GitHub AI or OpenAI, use standard model (no mapping needed for pure OpenAI)
   let actualModel: string;
   if (preferredProvider === "local") {
     actualModel = LOCAL_LLM_MODEL;
+  } else if (preferredProvider === "github") {
+    actualModel = mapModelForGitHub(model);
   } else {
-    const needsMapping = preferredProvider === "github" || (preferredProvider === "openai" && openaiUsingPATFallback);
-    actualModel = needsMapping ? mapModelForGitHub(model) : model;
+    // OpenAI provider - use model as-is (no model mapping)
+    actualModel = model;
   }
   
   const userId = userContext?.userId || null;
