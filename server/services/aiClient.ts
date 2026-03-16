@@ -1308,7 +1308,13 @@ export async function createHybridCompletion(
       reason: `${decision.reason}; AI disabled by security policy`,
     };
   }
-  
+
+  // Scrub PII before sending to AI
+  const { PIIVault } = await import("../utils/piiVault");
+  const vault = new PIIVault();
+  const scrubbedContent = vault.scrubString(content);
+  vault.logAudit("SCRUB", `hybrid:${featureName}`, userContext.userId, userContext.username);
+
   // If rules-first is disabled, go straight to AI
   if (!useRulesFirst) {
     console.log(`[Hybrid:${featureName}] Rules-first disabled, using AI directly`);
@@ -1318,21 +1324,87 @@ export async function createHybridCompletion(
     switch (taskType) {
       case "risk_assessment":
         systemPrompt = "You are a UK care risk assessment specialist. Write in first person as the service user, with person-centred detail and evidence-based clarity. Keep language practical for care workers.";
-        userPrompt = `Analyze this content for risk factors:\n\n${content}\n\nProvide:\n1. Overall risk level (Low/Medium/High)\n2. Detailed risks with impact on my daily life, triggers and early warning signs\n3. Practical mitigations and how I prefer support to be delivered\n4. Escalation cues and when to seek help`;
+        userPrompt = `Analyze this content for risk factors:\n\n${scrubbedContent}\n\nProvide:\n1. Overall risk level (Low/Medium/High)\n2. Detailed risks with impact on my daily life, triggers and early warning signs\n3. Practical mitigations and how I prefer support to be delivered\n4. Escalation cues and when to seek help`;
         break;
       case "care_plan":
         systemPrompt = "You are a UK care plan writer. Produce a person-centred, first-person narrative that is detailed, actionable and respectful. Avoid generic filler.";
-        userPrompt = `Based on this information, write a detailed first-person care plan narrative (I, my, me). Include routines, preferences, what matters to me, communication style, emotional support needs, equipment, risks and how good support should look:\n\n${content}`;
+        userPrompt = `Based on this information, write a detailed first-person care plan narrative (I, my, me). Include routines, preferences, what matters to me, communication style, emotional support needs, equipment, risks and how good support should look:\n\n${scrubbedContent}`;
         break;
       case "simple_extraction":
         systemPrompt = "Extract key information from the provided text and return as structured data.";
-        userPrompt = `Extract key fields from:\n\n${content}`;
+        userPrompt = `Extract key fields from:\n\n${scrubbedContent}`;
         break;
     }
     if (aiLiteMode) {
       systemPrompt = "Be concise. Respond with key facts only.";
     }
-    const directCompletion = await createChatCompletionWithLogging(
+    try {
+      const directCompletion = await createChatCompletionWithLogging(
+        {
+          model: model || preferredModel,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 1800
+        },
+        featureName,
+        userContext
+      );
+      const directContent = directCompletion.choices[0]?.message?.content || "";
+      const restoredContent = vault.restoreString(directContent);
+      vault.logAudit("RESTORE", `hybrid:${featureName}`, userContext.userId, userContext.username);
+      return {
+        result: { aiGenerated: true, content: restoredContent },
+        usedAI: true,
+        reason: "Rules-first disabled in settings"
+      };
+    } finally {
+      vault.clear();
+    }
+  }
+
+  // Try rule-based extraction first
+  if (!decision.useAI && decision.ruleBasedResult) {
+    vault.clear();
+    console.log(`[Hybrid:${featureName}] Using rule-based result (${decision.reason})`);
+    return {
+      result: decision.ruleBasedResult,
+      usedAI: false,
+      reason: decision.reason
+    };
+  }
+
+  // Rules insufficient, need AI
+  console.log(`[Hybrid:${featureName}] Rules insufficient (${decision.reason}), falling back to AI`);
+
+  // Build appropriate prompt based on task type
+  let systemPrompt = "";
+  let userPrompt = "";
+
+  switch (taskType) {
+    case "risk_assessment":
+      systemPrompt = "You are a UK care risk assessment specialist. Write in first person as the service user, with person-centred detail and evidence-based clarity. Keep language practical for care workers.";
+      userPrompt = `Analyze this content for risk factors:\n\n${scrubbedContent}\n\nProvide:\n1. Overall risk level (Low/Medium/High)\n2. Detailed risks with impact on my daily life, triggers and early warning signs\n3. Practical mitigations and how I prefer support to be delivered\n4. Escalation cues and when to seek help`;
+      break;
+    case "care_plan":
+      systemPrompt = "You are a UK care plan writer. Produce a person-centred, first-person narrative that is detailed, actionable and respectful. Avoid generic filler.";
+      userPrompt = `Based on this information, write a detailed first-person care plan narrative (I, my, me). Include routines, preferences, what matters to me, communication style, emotional support needs, equipment, risks and how good support should look:\n\n${scrubbedContent}`;
+      break;
+    case "simple_extraction":
+      systemPrompt = "Extract key information from the provided text and return as structured data.";
+      userPrompt = `Extract key fields from:\n\n${scrubbedContent}`;
+      break;
+  }
+
+  // If lite mode, use simplified prompts
+  if (aiLiteMode) {
+    systemPrompt = "Be concise. Respond with key facts only.";
+  }
+
+  try {
+    const completion = await createChatCompletionWithLogging(
       {
         model: model || preferredModel,
         messages: [
@@ -1345,76 +1417,23 @@ export async function createHybridCompletion(
       featureName,
       userContext
     );
-    const directContent = directCompletion.choices[0]?.message?.content || "";
+
+    const aiContent = completion.choices[0]?.message?.content || "";
+    const restoredAiContent = vault.restoreString(aiContent);
+    vault.logAudit("RESTORE", `hybrid:${featureName}`, userContext.userId, userContext.username);
+
     return {
-      result: { aiGenerated: true, content: directContent },
+      result: {
+        aiGenerated: true,
+        content: restoredAiContent,
+        ruleBasedPartial: decision.ruleBasedResult
+      },
       usedAI: true,
-      reason: "Rules-first disabled in settings"
+      reason: decision.reason
     };
+  } finally {
+    vault.clear();
   }
-  
-  // Try rule-based extraction first
-  if (!decision.useAI && decision.ruleBasedResult) {
-    console.log(`[Hybrid:${featureName}] Using rule-based result (${decision.reason})`);
-    return { 
-      result: decision.ruleBasedResult, 
-      usedAI: false, 
-      reason: decision.reason 
-    };
-  }
-  
-  // Rules insufficient, need AI
-  console.log(`[Hybrid:${featureName}] Rules insufficient (${decision.reason}), falling back to AI`);
-  
-  // Build appropriate prompt based on task type
-  let systemPrompt = "";
-  let userPrompt = "";
-  
-  switch (taskType) {
-    case "risk_assessment":
-      systemPrompt = "You are a UK care risk assessment specialist. Write in first person as the service user, with person-centred detail and evidence-based clarity. Keep language practical for care workers.";
-      userPrompt = `Analyze this content for risk factors:\n\n${content}\n\nProvide:\n1. Overall risk level (Low/Medium/High)\n2. Detailed risks with impact on my daily life, triggers and early warning signs\n3. Practical mitigations and how I prefer support to be delivered\n4. Escalation cues and when to seek help`;
-      break;
-    case "care_plan":
-      systemPrompt = "You are a UK care plan writer. Produce a person-centred, first-person narrative that is detailed, actionable and respectful. Avoid generic filler.";
-      userPrompt = `Based on this information, write a detailed first-person care plan narrative (I, my, me). Include routines, preferences, what matters to me, communication style, emotional support needs, equipment, risks and how good support should look:\n\n${content}`;
-      break;
-    case "simple_extraction":
-      systemPrompt = "Extract key information from the provided text and return as structured data.";
-      userPrompt = `Extract key fields from:\n\n${content}`;
-      break;
-  }
-  
-  // If lite mode, use simplified prompts
-  if (aiLiteMode) {
-    systemPrompt = "Be concise. Respond with key facts only.";
-  }
-  
-  const completion = await createChatCompletionWithLogging(
-    {
-      model: model || preferredModel,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      temperature: 0.3,
-      max_tokens: 1800
-    },
-    featureName,
-    userContext
-  );
-  
-  const aiContent = completion.choices[0]?.message?.content || "";
-  
-  return {
-    result: { 
-      aiGenerated: true, 
-      content: aiContent,
-      ruleBasedPartial: decision.ruleBasedResult 
-    },
-    usedAI: true,
-    reason: decision.reason
-  };
 }
 
 // Export function to check if local LLM is available
