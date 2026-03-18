@@ -103,6 +103,10 @@ export const PII_PATTERNS = {
   shortMonthDate:
     /\b(?:0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(?:19|20)\d{2}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(?:0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?,?\s*(?:19|20)\d{2}\b/gi,
 
+  // Slash or dash month formats: "19/Jul/46", "17-Oct-2022"
+  shortMonthNumericDate:
+    /\b(?:0?[1-9]|[12]\d|3[01])[\/.\-](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\/.\-](?:19|20)?\d{2}\b/gi,
+
   // IBAN (International Bank Account Number)
   iban: /\b[A-Z]{2}\d{2}\s?[A-Z0-9]{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{0,4}\b/gi,
 
@@ -120,6 +124,24 @@ export const PII_PATTERNS = {
   // House names with addresses
   houseName:
     /\b(?:The\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:House|Cottage|Lodge|Bungalow|Flat|Apartment|Villa|Manor)\b/gi,
+
+  // Partial address fragments: "5 michaelgate, byker"
+  partialAddress: /\b\d{1,5}\s+[A-Za-z][A-Za-z'`-]{2,}(?:,\s*[A-Za-z][A-Za-z'` -]{2,})\b/g,
+
+  // Case identifiers: "CASE-2-4150"
+  caseId: /\b(?:CASE|REF|CLIENT|PATIENT)[-_ ]?\d[\w-]{2,}\b/gi,
+
+  // Sensitive health profile terms often present in assessments
+  sensitiveHealthTerms:
+    /\b(?:dementia|type\s*1\s*diabetes|type\s*2\s*diabetes|insulin-?dependent|asthma|arthritis|vertigo|depression|incontinence)\b/gi,
+
+  // Sexual orientation and similar highly sensitive profile terms
+  sexualOrientation:
+    /\b(?:heterosexual|straight|gay|lesbian|bisexual|asexual|pansexual|queer)\b/gi,
+
+  // Biographical narrative fragments containing sensitive life-story details
+  sensitiveBiography:
+    /\b(?:married\s+twice|first\s+marriage\s+at\s+age\s+\d{1,3}|had\s+\d+\s+children|one\s+of\s+whom\s+died\s+at\s+age\s+\d{1,3}|divorce\s+referenced|former\s+occupation[^\n.,;]*)\b/gi,
 
   // MAC addresses (network device identifiers)
   macAddress: /\b(?:[0-9A-Fa-f]{2}[:\-]){5}[0-9A-Fa-f]{2}\b/g,
@@ -339,16 +361,22 @@ export class PIIVault {
     s = s.replace(PII_PATTERNS.ukDrivingLicense, (m) => this.store(m, "LICENSE"));
     s = s.replace(PII_PATTERNS.ukPassport, (m) => this.store(m, "PASSPORT"));
     s = s.replace(PII_PATTERNS.ukVehicleReg, (m) => this.store(m, "VEHICLE"));
+    s = s.replace(PII_PATTERNS.caseId, (m) => this.store(m, "FIELD"));
+    s = s.replace(PII_PATTERNS.sensitiveHealthTerms, (m) => this.store(m, "FIELD"));
+    s = s.replace(PII_PATTERNS.sexualOrientation, (m) => this.store(m, "FIELD"));
+    s = s.replace(PII_PATTERNS.sensitiveBiography, (m) => this.store(m, "FIELD"));
 
     // Street addresses & house names
     s = s.replace(PII_PATTERNS.streetAddress, (m) => this.store(m, "ADDRESS"));
     s = s.replace(PII_PATTERNS.houseName, (m) => this.store(m, "ADDRESS"));
+    s = s.replace(PII_PATTERNS.partialAddress, (m) => this.store(m, "ADDRESS"));
 
     // === PHASE 2: Date and age information ===
     s = s.replace(PII_PATTERNS.agePatterns, (m) => this.store(m, "AGE"));
     s = s.replace(PII_PATTERNS.yearOfBirth, (m) => this.store(m, "DOB"));
     s = s.replace(PII_PATTERNS.longFormDate, (m) => this.store(m, "DATE"));
     s = s.replace(PII_PATTERNS.shortMonthDate, (m) => this.store(m, "DATE"));
+    s = s.replace(PII_PATTERNS.shortMonthNumericDate, (m) => this.store(m, "DATE"));
     s = s.replace(PII_PATTERNS.isoDate, (m) => this.store(m, "DATE"));
     s = s.replace(PII_PATTERNS.dateFormats, (m) => this.store(m, "DATE"));
 
@@ -360,6 +388,9 @@ export class PIIVault {
       (_match, prefix, name) => `${prefix} ${this.store(name, "NAME")}`,
     );
 
+    // Initials like M.S. or J.D.
+    s = s.replace(/\b[A-Z]\.[A-Z]\.(?:[A-Z]\.)?\b/g, (m) => this.store(m, "NAME"));
+
     // === PHASE 4: Labelled PII fields ===
     s = s.replace(
       /\b(DOB|Date of Birth|D\.O\.B\.?)\s*:?\s*([^\n,;]{1,80})/gi,
@@ -369,6 +400,16 @@ export class PIIVault {
           return `${label}: ${trimmed}`;
         }
         return `${label}: ${this.store(trimmed, "DOB")}`;
+      },
+    );
+    s = s.replace(
+      /\b(Date of initial assessment|Date of service commencement|Service commencement date|Assessment date|Initial assessment date)\s*:?\s*([^\n,;]{1,80})/gi,
+      (_match, label, value) => {
+        const trimmed = value.trim();
+        if (trimmed.includes("{{PII_")) {
+          return `${label}: ${trimmed}`;
+        }
+        return `${label}: ${this.store(trimmed, "DATE")}`;
       },
     );
     s = s.replace(
@@ -393,6 +434,16 @@ export class PIIVault {
           return `${label}: ${trimmed}`;
         }
         return `${label}: ${this.store(trimmed, "ADDRESS")}`;
+      },
+    );
+    s = s.replace(
+      /\b(Signed by|SignedBy|Assessor|Care Coordinator|Completed by|Performed by)\s*:?\s*([^\n,;]{1,120})/gi,
+      (_match, label, value) => {
+        const trimmed = value.trim();
+        if (trimmed.includes("{{PII_")) {
+          return `${label}: ${trimmed}`;
+        }
+        return `${label}: ${this.store(trimmed, "STAFF")}`;
       },
     );
 
@@ -472,6 +523,33 @@ export class PIIVault {
       },
     );
 
+    // Single names in relationship or narrative context (e.g., "met kenny", "granddaughter kaylee").
+    s = s.replace(
+      /\b(met|with|named|name is|brought up|mentioned|daughter|son|granddaughter|grandson|wife|husband|partner|friend|carer|coordinator)\s+([A-Za-z][a-z]{2,}(?:\.[A-Za-z][a-z]{2,})?)(?:\s+and\s+([A-Za-z][a-z]{2,}(?:\.[A-Za-z][a-z]{2,})?))?\b/gi,
+      (match, ctx, rawName, rawName2) => {
+        const lowerName = String(rawName || "").toLowerCase();
+        if (!lowerName || COMMON_ENGLISH_WORDS.has(lowerName) || isClinicalOrMedicalTerm(lowerName)) {
+          return match;
+        }
+        const first = this.store(rawName, "NAME");
+        const lowerName2 = String(rawName2 || "").toLowerCase();
+        if (!rawName2 || !lowerName2 || COMMON_ENGLISH_WORDS.has(lowerName2) || isClinicalOrMedicalTerm(lowerName2)) {
+          return `${ctx} ${first}`;
+        }
+        return `${ctx} ${first} and ${this.store(rawName2, "NAME")}`;
+      },
+    );
+
+    // Explicit locality context in biography sections (e.g., "grew up in walker").
+    s = s.replace(
+      /\b(grew up in|well known in|lives in)\s+([A-Za-z][a-z]{2,}(?:\s+[A-Za-z][a-z]{2,}){0,2})\b/gi,
+      (match, ctx, place) => {
+        const lowerPlace = String(place || "").toLowerCase();
+        if (!lowerPlace || COMMON_ENGLISH_WORDS.has(lowerPlace)) return match;
+        return `${ctx} ${this.store(place, "ADDRESS")}`;
+      },
+    );
+
     return s;
   }
 
@@ -488,6 +566,9 @@ export class PIIVault {
             "name", "fullname", "firstname", "lastname", "surname",
             "email", "phone", "telephone", "mobile", "address",
             "postcode", "nhs", "ninumber", "dob", "dateofbirth",
+            "signedby", "assessor", "caseid", "sexualorientation",
+            "orientation", "medicalconditions", "diagnosis", "condition",
+            "biography", "lifestory", "location",
           ].includes(lowerKey)
         ) {
           scrubbed[key] = this.store(String(data[key]), "FIELD");

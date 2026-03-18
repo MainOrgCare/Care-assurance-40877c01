@@ -1095,12 +1095,17 @@ class PIIVault {
     scrubbed = scrubbed.replace(PII_PATTERNS.ukDrivingLicense, (match) => this.store(match, 'LICENSE'));
     scrubbed = scrubbed.replace(PII_PATTERNS.ukPassport, (match) => this.store(match, 'PASSPORT'));
     scrubbed = scrubbed.replace(PII_PATTERNS.ukVehicleReg, (match) => this.store(match, 'VEHICLE'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.caseId, (match) => this.store(match, 'FIELD'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.sensitiveHealthTerms, (match) => this.store(match, 'FIELD'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.sexualOrientation, (match) => this.store(match, 'FIELD'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.sensitiveBiography, (match) => this.store(match, 'FIELD'));
     
     // Street addresses
     scrubbed = scrubbed.replace(PII_PATTERNS.streetAddress, (match) => this.store(match, 'ADDRESS'));
     
     // House names
     scrubbed = scrubbed.replace(PII_PATTERNS.houseName, (match) => this.store(match, 'ADDRESS'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.partialAddress, (match) => this.store(match, 'ADDRESS'));
     
     // === PHASE 2: Date and age information ===
     
@@ -1113,6 +1118,7 @@ class PIIVault {
     // Long-form dates (before numeric to avoid partial matches)
     scrubbed = scrubbed.replace(PII_PATTERNS.longFormDate, (match) => this.store(match, 'DATE'));
     scrubbed = scrubbed.replace(PII_PATTERNS.shortMonthDate, (match) => this.store(match, 'DATE'));
+    scrubbed = scrubbed.replace(PII_PATTERNS.shortMonthNumericDate, (match) => this.store(match, 'DATE'));
     
     // ISO dates
     scrubbed = scrubbed.replace(PII_PATTERNS.isoDate, (match) => this.store(match, 'DATE'));
@@ -1127,6 +1133,9 @@ class PIIVault {
       /\b(my name is|i am called|i'm called|call me|known as|also known as|a\.k\.a\.)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
       (match, prefix, name) => `${prefix} ${this.store(name, 'NAME')}`
     );
+
+    // Initials like M.S. or J.D.
+    scrubbed = scrubbed.replace(/\b[A-Z]\.[A-Z]\.(?:[A-Z]\.)?\b/g, (match) => this.store(match, 'NAME'));
     
     // Possessive patterns not in whitelist
     scrubbed = scrubbed.replace(/\b([A-Z][a-z]+)['']s\b/g, (match, name) => {
@@ -1181,25 +1190,88 @@ class PIIVault {
         return match;
       }
     );
+
+    // Single names in relationship or narrative context (e.g., "met kenny", "granddaughter kaylee").
+    scrubbed = scrubbed.replace(
+      /\b(met|with|named|name is|brought up|mentioned|daughter|son|granddaughter|grandson|wife|husband|partner|friend|carer|coordinator)\s+([A-Za-z][a-z]{2,}(?:\.[A-Za-z][a-z]{2,})?)(?:\s+and\s+([A-Za-z][a-z]{2,}(?:\.[A-Za-z][a-z]{2,})?))?\b/gi,
+      (match, ctx, rawName, rawName2) => {
+        const lowerName = String(rawName || '').toLowerCase();
+        if (!lowerName || COMMON_ENGLISH_WORDS.has(lowerName) || isClinicalOrMedicalTerm(lowerName)) {
+          return match;
+        }
+        const first = this.store(rawName, 'NAME');
+        const lowerName2 = String(rawName2 || '').toLowerCase();
+        if (!rawName2 || !lowerName2 || COMMON_ENGLISH_WORDS.has(lowerName2) || isClinicalOrMedicalTerm(lowerName2)) {
+          return `${ctx} ${first}`;
+        }
+        return `${ctx} ${first} and ${this.store(rawName2, 'NAME')}`;
+      }
+    );
+
+    // Explicit locality context in biography sections (e.g., "grew up in walker").
+    scrubbed = scrubbed.replace(
+      /\b(grew up in|well known in|lives in)\s+([A-Za-z][a-z]{2,}(?:\s+[A-Za-z][a-z]{2,}){0,2})\b/gi,
+      (match, ctx, place) => {
+        const lowerPlace = String(place || '').toLowerCase();
+        if (!lowerPlace || COMMON_ENGLISH_WORDS.has(lowerPlace)) return match;
+        return `${ctx} ${this.store(place, 'ADDRESS')}`;
+      }
+    );
     
     // === PHASE 4: Labeled PII fields ===
     
     // DOB with date
     scrubbed = scrubbed.replace(
-      /\b(DOB|Date of Birth|D\.O\.B\.?)\s*:?\s*([^\n,;]{1,20})/gi,
-      (match, label, value) => `${label}: ${this.store(value.trim(), 'DOB')}`
+      /\b(DOB|Date of Birth|D\.O\.B\.?)\s*:?\s*([^\n,;]{1,80})/gi,
+      (_match, label, value) => {
+        const trimmed = value.trim();
+        if (trimmed.includes('{{PII_')) return `${label}: ${trimmed}`;
+        return `${label}: ${this.store(trimmed, 'DOB')}`;
+      }
+    );
+
+    // Additional date labels frequently used in risk and initial assessments.
+    scrubbed = scrubbed.replace(
+      /\b(Date of initial assessment|Date of service commencement|Service commencement date|Assessment date|Initial assessment date)\s*:?\s*([^\n,;]{1,80})/gi,
+      (_match, label, value) => {
+        const trimmed = value.trim();
+        if (trimmed.includes('{{PII_')) return `${label}: ${trimmed}`;
+        return `${label}: ${this.store(trimmed, 'DATE')}`;
+      }
     );
     
     // Contact information labels
     scrubbed = scrubbed.replace(
-      /\b(Emergency contact|Next of kin|Contact|Tel|Telephone|Phone|Mobile|Email)\s*:?\s*([^\n,;]{1,50})/gi,
-      (match, label, value) => `${label}: ${this.store(value.trim(), 'CONTACT')}`
+      /\b(Emergency contact|Next of kin|Contact|Tel|Telephone|Phone|Mobile|Email)\s*:?\s*([^\n,;]{1,120})/gi,
+      (_match, label, value) => {
+        const trimmed = value.trim();
+        if (trimmed.includes('{{PII_')) return `${label}: ${trimmed}`;
+        const hasEmail = new RegExp(PII_PATTERNS.email).test(trimmed);
+        const hasPhone = new RegExp(PII_PATTERNS.ukPhone).test(trimmed) || new RegExp(PII_PATTERNS.intlPhone).test(trimmed);
+        if (hasEmail) return `${label}: ${this.store(trimmed, 'EMAIL')}`;
+        if (hasPhone) return `${label}: ${this.store(trimmed, 'PHONE')}`;
+        return `${label}: ${this.store(trimmed, 'CONTACT')}`;
+      }
     );
     
     // Address labels
     scrubbed = scrubbed.replace(
-      /\b(Address|Home address|Residence)\s*:?\s*([^\n]{1,100})/gi,
-      (match, label, value) => `${label}: ${this.store(value.trim(), 'ADDRESS')}`
+      /\b(Address|Home address|Residence)\s*:?\s*([^\n]{1,160})/gi,
+      (_match, label, value) => {
+        const trimmed = value.trim();
+        if (trimmed.includes('{{PII_')) return `${label}: ${trimmed}`;
+        return `${label}: ${this.store(trimmed, 'ADDRESS')}`;
+      }
+    );
+
+    // Signature and assessor labels (captures dotted usernames like Lewis.Barron).
+    scrubbed = scrubbed.replace(
+      /\b(Signed by|SignedBy|Assessor|Care Coordinator|Completed by|Performed by)\s*:?\s*([^\n,;]{1,120})/gi,
+      (_match, label, value) => {
+        const trimmed = value.trim();
+        if (trimmed.includes('{{PII_')) return `${label}: ${trimmed}`;
+        return `${label}: ${this.store(trimmed, 'STAFF')}`;
+      }
     );
     
     // === PHASE 5: Titled names ===
@@ -1238,7 +1310,7 @@ class PIIVault {
       for (const key of Object.keys(data)) {
         // Check if key itself suggests PII
         const lowerKey = key.toLowerCase().replace(/[_\s]/g, "");
-        if (["name", "fullname", "firstname", "lastname", "surname", "email", "phone", "telephone", "mobile", "address", "postcode", "nhs", "ninumber", "dob", "dateofbirth"].includes(lowerKey)) {
+        if (["name", "fullname", "firstname", "lastname", "surname", "email", "phone", "telephone", "mobile", "address", "postcode", "nhs", "ninumber", "dob", "dateofbirth", "signedby", "assessor", "caseid", "sexualorientation", "orientation", "medicalconditions", "diagnosis", "condition", "biography", "lifestory", "location"].includes(lowerKey)) {
           scrubbed[key] = this.store(String(data[key]), 'FIELD');
         } else {
           scrubbed[key] = this.scrub(data[key]);
@@ -1561,6 +1633,9 @@ const PII_PATTERNS = {
   
   // Abbreviated long-form dates: "15 Jan 2025", "3rd Feb 2026"
   shortMonthDate: /\b(?:0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(?:19|20)\d{2}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(?:0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?,?\s*(?:19|20)\d{2}\b/gi,
+
+  // Slash or dash month formats: "19/Jul/46", "17-Oct-2022"
+  shortMonthNumericDate: /\b(?:0?[1-9]|[12]\d|3[01])[\/.\-](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\/.\-](?:19|20)?\d{2}\b/gi,
   
   // IBAN (International Bank Account Number)
   iban: /\b[A-Z]{2}\d{2}\s?[A-Z0-9]{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{0,4}\b/gi,
@@ -1576,6 +1651,21 @@ const PII_PATTERNS = {
   
   // House names with addresses
   houseName: /\b(?:The\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:House|Cottage|Lodge|Bungalow|Flat|Apartment|Villa|Manor)\b/gi,
+
+  // Partial address fragments: "5 michaelgate, byker"
+  partialAddress: /\b\d{1,5}\s+[A-Za-z][A-Za-z'`-]{2,}(?:,\s*[A-Za-z][A-Za-z'` -]{2,})\b/g,
+
+  // Case identifiers: "CASE-2-4150"
+  caseId: /\b(?:CASE|REF|CLIENT|PATIENT)[-_ ]?\d[\w-]{2,}\b/gi,
+
+  // Sensitive health profile terms often present in assessments
+  sensitiveHealthTerms: /\b(?:dementia|type\s*1\s*diabetes|type\s*2\s*diabetes|insulin-?dependent|asthma|arthritis|vertigo|depression|incontinence)\b/gi,
+
+  // Sexual orientation and similar highly sensitive profile terms
+  sexualOrientation: /\b(?:heterosexual|straight|gay|lesbian|bisexual|asexual|pansexual|queer)\b/gi,
+
+  // Biographical narrative fragments containing sensitive life-story details
+  sensitiveBiography: /\b(?:married\s+twice|first\s+marriage\s+at\s+age\s+\d{1,3}|had\s+\d+\s+children|one\s+of\s+whom\s+died\s+at\s+age\s+\d{1,3}|divorce\s+referenced|former\s+occupation[^\n.,;]*)\b/gi,
   
   // MAC addresses (network device identifiers)
   macAddress: /\b(?:[0-9A-Fa-f]{2}[:\-]){5}[0-9A-Fa-f]{2}\b/g,
@@ -1699,6 +1789,11 @@ function scrubPII(data: any, stats?: ScrubStats): any {
     
     // House names
     scrubbed = scrubbed.replace(PII_PATTERNS.houseName, () => { s.addresses++; return "[ADDRESS_REDACTED]"; });
+    scrubbed = scrubbed.replace(PII_PATTERNS.partialAddress, () => { s.addresses++; return "[ADDRESS_REDACTED]"; });
+    scrubbed = scrubbed.replace(PII_PATTERNS.caseId, () => { s.other++; return "[FIELD_REDACTED]"; });
+    scrubbed = scrubbed.replace(PII_PATTERNS.sensitiveHealthTerms, () => { s.other++; return "[FIELD_REDACTED]"; });
+    scrubbed = scrubbed.replace(PII_PATTERNS.sexualOrientation, () => { s.other++; return "[FIELD_REDACTED]"; });
+    scrubbed = scrubbed.replace(PII_PATTERNS.sensitiveBiography, () => { s.other++; return "[FIELD_REDACTED]"; });
 
     // === PHASE 2: Date and age information ===
     
@@ -1713,6 +1808,8 @@ function scrubPII(data: any, stats?: ScrubStats): any {
     
     // Standard date formats
     scrubbed = scrubbed.replace(PII_PATTERNS.dateFormats, () => { s.dates++; return "[DATE_REDACTED]"; });
+    scrubbed = scrubbed.replace(PII_PATTERNS.shortMonthDate, () => { s.dates++; return "[DATE_REDACTED]"; });
+    scrubbed = scrubbed.replace(PII_PATTERNS.shortMonthNumericDate, () => { s.dates++; return "[DATE_REDACTED]"; });
 
     // === PHASE 3: Name patterns ===
     
@@ -1721,6 +1818,9 @@ function scrubPII(data: any, stats?: ScrubStats): any {
       /\b(my name is|i am called|i'm called|call me|known as|also known as|a\.k\.a\.)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/gi,
       (match, prefix) => { s.names++; return `${prefix} [SERVICE_USER]`; }
     );
+
+    // Initials like M.S. or J.D.
+    scrubbed = scrubbed.replace(/\b[A-Z]\.[A-Z]\.(?:[A-Z]\.)?\b/g, () => { s.names++; return "[SERVICE_USER]"; });
     
     // Possessive patterns not in whitelist
     scrubbed = scrubbed.replace(/\b([A-Z][a-z]+)['']s\b/g, (match, name) => {
@@ -1785,6 +1885,28 @@ function scrubPII(data: any, stats?: ScrubStats): any {
       (match, role) => { s.names++; return `${role}: [STAFF_REDACTED]`; }
     );
 
+    // Single names in relationship or narrative context (e.g., "met kenny and natalie").
+    scrubbed = scrubbed.replace(
+      /\b(met|with|named|name is|brought up|mentioned|daughter|son|granddaughter|grandson|wife|husband|partner|friend|carer|coordinator)\s+([A-Za-z][a-z]{2,})(?:\s+and\s+([A-Za-z][a-z]{2,}))?\b/gi,
+      (_m, ctx, firstName, secondName) => {
+        s.names++;
+        if (secondName) {
+          s.names++;
+          return `${ctx} [SERVICE_USER] and [SERVICE_USER]`;
+        }
+        return `${ctx} [SERVICE_USER]`;
+      }
+    );
+
+    // Explicit locality context in biography sections (e.g., "grew up in walker").
+    scrubbed = scrubbed.replace(
+      /\b(grew up in|well known in|lives in)\s+[A-Za-z][a-z]{2,}(?:\s+[A-Za-z][a-z]{2,}){0,2}\b/gi,
+      (_m, ctx) => {
+        s.addresses++;
+        return `${ctx} [ADDRESS_REDACTED]`;
+      }
+    );
+
     return scrubbed;
   }
 
@@ -1799,7 +1921,7 @@ function scrubPII(data: any, stats?: ScrubStats): any {
     for (const key of Object.keys(data)) {
       // Also check if key itself suggests PII
       const lowerKey = key.toLowerCase();
-      if (["name", "fullname", "firstname", "lastname", "surname", "email", "phone", "telephone", "mobile", "address", "postcode", "nhs", "ni_number", "dob", "dateofbirth"].includes(lowerKey.replace(/[_\s]/g, ""))) {
+      if (["name", "fullname", "firstname", "lastname", "surname", "email", "phone", "telephone", "mobile", "address", "postcode", "nhs", "ni_number", "dob", "dateofbirth", "signedby", "assessor", "caseid", "sexualorientation", "orientation", "medicalconditions", "diagnosis", "condition", "biography", "lifestory", "location"].includes(lowerKey.replace(/[_\s]/g, ""))) {
         scrubbed[key] = "[FIELD_REDACTED]";
         if (stats) stats.other++;
       } else {
@@ -1954,6 +2076,9 @@ function normalizeInitials(name: string | undefined | null): string {
   if (!name) return 'N.N.';
   const trimmed = name.trim();
   if (!trimmed) return 'N.N.';
+  if (/^\{\{PII_[a-z0-9]+_[A-Z_]+_\d+\}\}$/i.test(trimmed)) {
+    return trimmed;
+  }
   const upper = trimmed.toUpperCase();
 
   // Check if already in initials format (X.X. or X.X)
@@ -14376,6 +14501,9 @@ Remember: Extract information ONLY from service user documents above. Templates 
         return res.status(400).json({ message: "Document content and assessment category required" });
       }
 
+      const safeServiceUserInitials = piiVault.scrubString(String(serviceUserInitials || "N.N."));
+      const safePerformedBy = piiVault.scrubString(String(performedBy || "Staff member"));
+
       // Set up SSE for progress streaming with production-safe settings
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -14428,8 +14556,8 @@ Remember: Extract information ONLY from service user documents above. Templates 
         const fallbackResult = buildRuleBasedRiskAssessmentPayload({
           documentContent: scrubbedDocumentContent,
           assessmentCategory,
-          serviceUserInitials,
-          performedBy,
+          serviceUserInitials: safeServiceUserInitials,
+          performedBy: safePerformedBy,
           performedByJobTitle,
         });
         const templateResult = piiVault.toPlaceholders(fallbackResult);
@@ -14568,7 +14696,7 @@ IMPORTANT RULES:
 12. Do not embellish or exaggerate - stick to the facts as documented.
 
 SERVICE USER DETAILS:
-- Service User Initials: ${serviceUserInitials || 'N.N.'}
+- Service User Initials: ${safeServiceUserInitials}
 
 EVIDENCE PACK - USE THIS FIRST:
 ${evidencePack ? `- ${evidencePack}` : "- No pre-extracted evidence pack provided. Use only the document content."}
@@ -14598,7 +14726,7 @@ For each risk identified in this category, provide detailed first-person content
 Respond ONLY with valid JSON in this exact format:
 {
   "category": "${assessmentCategory}",
-  "serviceUserInitials": "${serviceUserInitials || 'N.N.'}",
+  "serviceUserInitials": "${safeServiceUserInitials}",
   "assessmentDate": "Today's date in DD/Mon/YYYY format",
   "risks": [
     {
@@ -14619,7 +14747,7 @@ Respond ONLY with valid JSON in this exact format:
     }
     // ... include ALL relevant risks for this category - typically 3-8 risks total
   ],
-  "signedBy": "${performedBy || 'Staff member'}",
+  "signedBy": "${safePerformedBy}",
   "jobTitle": "${performedByJobTitle || 'Care Staff'}",
   "additionalNotes": "Any relevant first-person observations (leave empty string if nothing additional to add)"
 }`;
@@ -14644,8 +14772,8 @@ Respond ONLY with valid JSON in this exact format:
       console.log('═══════════════════════════════════════════════════════════════════');
       console.log(`Assessment Category: ${assessmentCategory}`);
       console.log(`Model: ${getRiskAssessmentGenerationModel()}`);
-      console.log(`Service User: ${serviceUserInitials}`);
-      console.log(`Performed By: ${performedBy} (${performedByJobTitle})`);
+      console.log(`Service User: ${safeServiceUserInitials}`);
+      console.log(`Performed By: ${safePerformedBy} (${performedByJobTitle})`);
       console.log('');
       
       const userContent = `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
@@ -14744,7 +14872,7 @@ Remember: Extract information ONLY from the service user documents above. Templa
         // Preserve fields that should NOT be scrubbed (they contain expected values)
         const preservedFields = {
           assessmentDate: formatRiskAssessmentDate(),
-          signedBy: normalizeSignedByName(result.signedBy || performedBy || 'Staff member'),
+          signedBy: normalizeSignedByName(result.signedBy || safePerformedBy || 'Staff member'),
           jobTitle: result.jobTitle || performedByJobTitle || 'Care Staff',
           category: result.category,
         };
@@ -14864,8 +14992,8 @@ Remember: Extract information ONLY from the service user documents above. Templa
           const fallbackResult = buildRuleBasedRiskAssessmentPayload({
             documentContent: scrubbedDocumentContent,
             assessmentCategory,
-            serviceUserInitials,
-            performedBy,
+            serviceUserInitials: safeServiceUserInitials,
+            performedBy: safePerformedBy,
             performedByJobTitle,
           });
           result = fallbackResult;
