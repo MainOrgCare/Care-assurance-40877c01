@@ -177,4 +177,131 @@ describe("PIIVault risk assessment scrubbing", () => {
 
     assert(typeof scrubbed === "string");
   });
+
+  it("catches initials without dots (MS, KB, etc.)", () => {
+    const vault = new PIIVault();
+    const input = "Service user initials: MS";
+    const scrubbed = vault.scrubString(input);
+
+    assert(!scrubbed.includes("MS"));
+    assert(/\{\{PII_.*_NAME_\d+\}\}/.test(scrubbed));
+  });
+
+  it("catches sexual orientation (heterosexual, straight, etc)", () => {
+    const vault = new PIIVault();
+    const input = "Gender: Heterosexual/straight";
+    const scrubbed = vault.scrubString(input);
+
+    assert(!scrubbed.toLowerCase().includes("heterosexual"));
+    assert(!scrubbed.toLowerCase().includes("straight"));
+    assert(/\{\{PII_.*_HEALTH_\d+\}\}/.test(scrubbed));
+  });
+
+  it("catches single location names after 'Born in' and 'Well known in'", () => {
+    const vault = new PIIVault();
+    const input =
+      "Born in: Walker\nWell known in North Shields\nLives in: 107 wall, South Shields";
+    const scrubbed = vault.scrubString(input);
+
+    assert(!scrubbed.toLowerCase().includes("born in: walker"));
+    assert(!scrubbed.toLowerCase().includes("well known in north shields"));
+    assert(!scrubbed.toLowerCase().includes("south shields"));
+    assert(/\{\{PII_.*_LOCATION_\d+\}\}/.test(scrubbed));
+  });
+
+  it("catches 'One of X siblings' quasi-identifier", () => {
+    const vault = new PIIVault();
+    const input = "One of 7 siblings";
+    const scrubbed = vault.scrubString(input);
+
+    assert(!scrubbed.includes("One of 7 siblings"));
+    assert(/\{\{PII_.*_BIOGRAPHICAL_\d+\}\}/.test(scrubbed));
+  });
+
+  it("catches 'Family member died at age X' pattern", () => {
+    const vault = new PIIVault();
+    const inputs = [
+      "Daughter died at age 27",
+      "Son passed away at age 15",
+      "Her granddaughter death occurred at age 3",
+    ];
+
+    inputs.forEach((input) => {
+      const vault2 = new PIIVault();
+      const scrubbed = vault2.scrubString(input);
+      assert(
+        !/\b(?:daughter|son|granddaughter)(?:\s+\w+)*\s+(?:died|passed away|death)/i.test(
+          scrubbed
+        ),
+        `Failed to scrub: ${input}`
+      );
+      assert(
+        /\{\{PII_.*_BIOGRAPHICAL_\d+\}\}/.test(scrubbed),
+        `No token found in: ${scrubbed}`
+      );
+    });
+  });
+
+  it("catches names after 'Raised' in narrative context", () => {
+    const vault = new PIIVault();
+    const input = "She raised Kaylee and Natalie together";
+    const scrubbed = vault.scrubString(input);
+
+    assert(!scrubbed.toLowerCase().includes("kaylee"));
+    assert(!scrubbed.toLowerCase().includes("natalie"));
+    assert(/\{\{PII_.*_NAME_\d+\}\}/.test(scrubbed));
+  });
+
+  it("catches combination of person context + location (well known in + place)", () => {
+    const vault = new PIIVault();
+    const input =
+      "Partner named Kenny, she is well known in North Shields for charity work";
+    const scrubbed = vault.scrubString(input);
+
+    assert(!scrubbed.toLowerCase().includes("kenny"));
+    assert(!scrubbed.toLowerCase().includes("north shields"));
+    assert(/\{\{PII_.*_NAME_\d+\}\}/.test(scrubbed));
+    assert(/\{\{PII_.*_LOCATION_\d+\}\}/.test(scrubbed));
+  });
+
+  it("comprehensive test with user-reported examples", () => {
+    const vault = new PIIVault({ profile: "strict" });
+    const input = [
+      "Initials: MS",
+      "Gender: Heterosexual/straight",
+      "Lives in: 107 wall, South Shields, Postcode tokenised",
+      "Born in: Walker",
+      "One of 7 siblings",
+      "Daughter died at age 27",
+      "Partner named Kenny",
+      "Raised Kaylee and Natalie",
+      "Well known in North Shields",
+    ].join("\n");
+
+    const scrubbed = vault.scrubString(input);
+
+    // Verify each PII element is not in plaintext
+    assert(!scrubbed.includes("MS"));
+    assert(!scrubbed.toLowerCase().includes("heterosexual"));
+    assert(!scrubbed.toLowerCase().includes("walker"));
+    assert(!scrubbed.includes("One of 7 siblings"));
+    assert(
+      !scrubbed.toLowerCase().includes("daughter died at age 27"),
+      "Daughter death should be redacted"
+    );
+    assert(!scrubbed.toLowerCase().includes("kenny"));
+    assert(!scrubbed.toLowerCase().includes("kaylee"));
+    assert(!scrubbed.toLowerCase().includes("natalie"));
+    assert(!scrubbed.toLowerCase().includes("north shields"));
+
+    // Verify tokens are present in output
+    const tokenCount = (scrubbed.match(/\{\{PII_/g) || []).length;
+    assert(tokenCount > 0, "Should contain at least one PII token");
+
+    const stats = vault.getStats();
+    assert(
+      stats.total > 0,
+      `Expected redactions but got 0. Scrubbed text: ${scrubbed}`
+    );
+  });
 });

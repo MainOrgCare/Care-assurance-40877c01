@@ -148,6 +148,21 @@ export const PII_PATTERNS = {
 
   // MAC addresses (network device identifiers)
   macAddress: /\b(?:[0-9A-Fa-f]{2}[:\-]){5}[0-9A-Fa-f]{2}\b/g,
+
+  // Initials without dots: MS, KB, JD, etc. (2-3 consecutive capital letters)
+  initialsNoDots: /\b[A-Z]{2,3}(?:\b|(?=\s|$)|(?=,|;))/g,
+
+  // Family relationship death patterns: "daughter died at age 27", "son died at 15", etc
+  familyMemberDeath: /\b(?:daughter|son|wife|husband|partner|granddaughter|grandson|sibling|brother|sister|child|children)\s+(?:died|passed away|death|deceased|age)\b[^\n.;]*/gi,
+
+  // Sibling count patterns: "One of 7 siblings", "eldest of 6 children"
+  siblingCount: /\b(?:one|eldest|youngest|middle|first|last|only|both|all)\s+of\s+(\d+)\s+(?:siblings?|children|kids|young(?:ster)?s|offspring)\b/gi,
+
+  // Relationship to location patterns: "well known in North Shields", "known locally in Walker"
+  personLocationContext: /\b(?:well\s+known\s+in|known\s+(?:well\s+)?(?:in|throughout|around|locally\s+in))\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/gi,
+
+  // Implicit age/generation markers in narrative
+  generationalMarkers: /\b(?:born|grew up|raised|brought up|from a young age|childhood|youngest|eldest|firstborn)\s+(?:in|during|as a|at age)\b[^\n.;]*/gi,
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -251,15 +266,15 @@ const GENERIC_LOCATION_WORDS = new Set([
   "north", "south", "east", "west", "centre", "center", "local",
 ]);
 
-const NARRATIVE_PERSON_CONTEXT = /\b(?:my|i|me|mine|our|family|granddaughter|grandson|daughter|son|wife|husband|partner|next of kin|gp|service user|resident|client|she|he|lives with me)\b/i;
+const NARRATIVE_PERSON_CONTEXT = /\b(?:my|i|me|mine|our|family|granddaughter|grandson|daughter|son|wife|husband|partner|next of kin|gp|service user|resident|client|she|he|lives with me|raised|brought up)\b/i;
 
-const NARRATIVE_NAME_LEAK = /\b(?:met|with|named|called|mentioned|name is|daughter|son|granddaughter|grandson|wife|husband|partner|friend|carer|next of kin|gp)\s+([A-Za-z][A-Za-z'`.-]{2,}(?:\s+[A-Za-z][A-Za-z'`.-]{2,}){0,2})\b/gi;
+const NARRATIVE_NAME_LEAK = /\b(?:met|with|named|called|mentioned|name is|daughter|son|granddaughter|grandson|wife|husband|partner|friend|carer|next of kin|gp|raised|brought up)\s+([A-Za-z][A-Za-z'`.-]{2,}(?:\s+[A-Za-z][A-Za-z'`.-]{2,}){0,2})\b/gi;
 
-const NARRATIVE_LOCATION_LEAK = /\b(?:born in|grew up in|raised in|lives in|lived in|well known in|known in the area|from|moved to|resides in|address(?: is)?|street(?: is)?)\s+([A-Za-z][A-Za-z'` -]{2,}(?:\s+[A-Za-z][A-Za-z'` -]{2,}){0,4})\b/gi;
+const NARRATIVE_LOCATION_LEAK = /\b(?:born in|grew up in|raised in|lives in|lived in|well known in|known in the area|from|moved to|resides in|address(?: is)?|street(?: is)?|known throughout|locally in)\s+([A-Za-z][A-Za-z'` -]{2,}(?:\s+[A-Za-z][A-Za-z'` -]{2,}){0,4})\b/gi;
 
-const NARRATIVE_BIOGRAPHICAL_CLAUSE = /\b(?:married(?:\s+twice|\s+once|\s+\d+\s+times)?|widowed|divorc(?:ed|e)|children|sons?|daughters?|bereavement|died|death|first marriage|relationship history|occupation|worked as|well known in the area|grew up in|born in|age\s+\d{1,3})\b[^\n.;]*/gi;
+const NARRATIVE_BIOGRAPHICAL_CLAUSE = /\b(?:married(?:\s+twice|\s+once|\s+\d+\s+times)?|widowed|divorc(?:ed|e)|children|sons?|daughters?|bereavement|died|death|first marriage|relationship history|occupation|worked as|well known in the area|grew up in|born in|age\s+\d{1,3}|one of\s+\d+\s+siblings|eldest|youngest|only child|raised|brought up)\b[^\n.;]*/gi;
 
-const NARRATIVE_HEALTH_CLAUSE = /\b(?:diagnos(?:is|ed)|capacity|lacks capacity|has capacity|dementia|diabetes|insulin(?:-dependent)?|continence|incontinence|pads?|falls?|memory impairment|requires assistance with|needs support with|care needs|catheter|stoma)\b[^\n.;]*/gi;
+const NARRATIVE_HEALTH_CLAUSE = /\b(?:diagnos(?:is|ed)|capacity|lacks capacity|has capacity|dementia|diabetes|insulin(?:-dependent)?|continence|incontinence|pads?|falls?|memory impairment|requires assistance with|needs support with|care needs|catheter|stoma|sexual orientation|heterosexual|straight|gay|lesbian|bisexual)\b[^\n.;]*/gi;
 
 const BIOGRAPHY_LINK_HINT = /\b(?:born|grew up|lived|lives|resides|known in the area|family|married|children|widowed|divorc(?:ed|e)|next of kin|service user|resident|client)\b/i;
 const PERSON_LINK_HINT = /\b(?:i|my|me|service user|resident|client|she|he|daughter|son|granddaughter|grandson|wife|husband|partner|next of kin)\b/i;
@@ -440,6 +455,16 @@ export class PIIVault {
     // Initials like M.S. or J.D.
     s = s.replace(/\b[A-Z]\.[A-Z]\.(?:[A-Z]\.)?\b/g, (m) => this.store(m, "NAME"));
 
+    // Initials without dots: MS, KB, JD, etc. (2-3 capital letters as standalone)
+    // Only if preceded by "initials:" or similar context
+    s = s.replace(
+      /\b(?:initials?|known as|called)\s*:?\s*([A-Z]{2,3})(?:\b|(?=\s|$)|(?=[,;.\n]))/gi,
+      (_match, initials) => {
+        if (initials.length < 2) return _match;
+        return this.store(initials, "NAME");
+      }
+    );
+
     // === PHASE 4: Labelled PII fields ===
     s = s.replace(
       /\b(DOB|Date of Birth|D\.O\.B\.?)\s*:?\s*([^\n,;]{1,80})/gi,
@@ -597,6 +622,31 @@ export class PIIVault {
         if (!lowerPlace || COMMON_ENGLISH_WORDS.has(lowerPlace)) return match;
         return `${ctx} ${this.store(place, "LOCATION")}`;
       },
+    );
+
+    // === PHASE 7: Biographical quasi-identifiers (detected generically) ===
+    // Sibling count patterns: "One of 7 siblings", "eldest of 6 children"
+    s = s.replace(
+      /\b(?:one|eldest|youngest|middle|first|last|only|both|all)\s+of\s+(\d+)\s+(?:siblings?|children|kids|young(?:ster)?s|offspring)\b/gi,
+      (m) => this.store(m, "BIOGRAPHICAL")
+    );
+
+    // Family member death patterns: "daughter died at age 27", "son passed away"
+    s = s.replace(
+      /\b(?:daughter|son|wife|husband|partner|granddaughter|grandson|sibling|brother|sister|child|children)\s+(?:died|passed away|death|deceased|age)\b[^\n.;]*/gi,
+      (m) => this.store(m, "BIOGRAPHICAL")
+    );
+
+    // Generational markers paired with locations or occupations
+    s = s.replace(
+      /\b(?:born|grew up|raised|brought up|from a young age|childhood|youngest|eldest|firstborn)\s+(?:in|during|as a|at age)\b[^\n.;]*/gi,
+      (m) => {
+        // Only store if it looks like biographical context (contains age, location, or other markers)
+        if (/\d{1,3}|[A-Z][a-z]+/.test(m)) {
+          return this.store(m, "BIOGRAPHICAL");
+        }
+        return m;
+      }
     );
 
     return this.narrativeRescuePass(s);
@@ -874,10 +924,12 @@ export class PIIVault {
 
       let score = 0;
       if (/\b(?:daughter|son|wife|husband|partner|family|children|next of kin|granddaughter|grandson)\b/i.test(sentence)) score += 1;
-      if (/\b(?:married|divorc(?:ed|e)|widowed|died|bereavement|relationship|first marriage)\b/i.test(sentence)) score += 1;
+      if (/\b(?:married|divorc(?:ed|e)|widowed|died|bereavement|relationship|first marriage|passed away)\b/i.test(sentence)) score += 1;
       if (/\b(?:age\s+\d{1,3}|born\s+(?:19|20)?\d{2}|\d{1,3}\s+years?\s+old)\b/i.test(sentence)) score += 1;
-      if (/\b(?:grew up in|born in|lives in|lived in|well known in|from\s+[a-z])\b/i.test(sentence)) score += 1;
+      if (/\b(?:grew up in|born in|lives in|lived in|well known in|from\s+[a-z]|known throughout)\b/i.test(sentence)) score += 2; // location context scores higher
       if (/\b(?:occupation|worked as|former occupation|well known in the area)\b/i.test(sentence)) score += 1;
+      if (/\b(?:one of\s+\d+\s+siblings?|eldest of|youngest of)\b/i.test(sentence)) score += 2; // sibling count is high quasi-identifier
+      if (/\b(?:raised|brought up|childhood|youngest|eldest|firstborn)\b/i.test(sentence)) score += 1;
 
       if (/\b(?:next of kin|daughter|son|wife|husband|partner)\b.{0,60}\b(?:gp|nurse|doctor|social worker|care coordinator)\b/i.test(sentence)) {
         spans.push({
