@@ -38,7 +38,10 @@ export type PIICategory =
   | "LICENSE"
   | "PASSPORT"
   | "VEHICLE"
-  | "NETWORK";
+  | "NETWORK"
+  | "LOCATION"
+  | "BIOGRAPHICAL"
+  | "HEALTH";
 
 // ─────────────────────────────────────────────────────────────────────────
 // REGEX PATTERNS FOR UK-SPECIFIC PII
@@ -241,6 +244,45 @@ export const COMMON_ENGLISH_WORDS = new Set([
   "check", "review", "assess", "plan", "record", "document", "report",
 ]);
 
+/** Generic geography words that are non-identifying unless tied to biography context. */
+const GENERIC_LOCATION_WORDS = new Set([
+  "street", "road", "lane", "avenue", "close", "way", "court", "drive",
+  "area", "region", "town", "city", "village", "county", "district",
+  "north", "south", "east", "west", "centre", "center", "local",
+]);
+
+const NARRATIVE_PERSON_CONTEXT = /\b(?:my|i|me|mine|our|family|granddaughter|grandson|daughter|son|wife|husband|partner|next of kin|gp|service user|resident|client|she|he|lives with me)\b/i;
+
+const NARRATIVE_NAME_LEAK = /\b(?:met|with|named|called|mentioned|name is|daughter|son|granddaughter|grandson|wife|husband|partner|friend|carer|next of kin|gp)\s+([A-Za-z][A-Za-z'`.-]{2,}(?:\s+[A-Za-z][A-Za-z'`.-]{2,}){0,2})\b/gi;
+
+const NARRATIVE_LOCATION_LEAK = /\b(?:born in|grew up in|raised in|lives in|lived in|well known in|known in the area|from|moved to|resides in|address(?: is)?|street(?: is)?)\s+([A-Za-z][A-Za-z'` -]{2,}(?:\s+[A-Za-z][A-Za-z'` -]{2,}){0,4})\b/gi;
+
+const NARRATIVE_BIOGRAPHICAL_CLAUSE = /\b(?:married(?:\s+twice|\s+once|\s+\d+\s+times)?|widowed|divorc(?:ed|e)|children|sons?|daughters?|bereavement|died|death|first marriage|relationship history|occupation|worked as|well known in the area|grew up in|born in|age\s+\d{1,3})\b[^\n.;]*/gi;
+
+const NARRATIVE_HEALTH_CLAUSE = /\b(?:diagnos(?:is|ed)|capacity|lacks capacity|has capacity|dementia|diabetes|insulin(?:-dependent)?|continence|incontinence|pads?|falls?|memory impairment|requires assistance with|needs support with|care needs|catheter|stoma)\b[^\n.;]*/gi;
+
+const BIOGRAPHY_LINK_HINT = /\b(?:born|grew up|lived|lives|resides|known in the area|family|married|children|widowed|divorc(?:ed|e)|next of kin|service user|resident|client)\b/i;
+const PERSON_LINK_HINT = /\b(?:i|my|me|service user|resident|client|she|he|daughter|son|granddaughter|grandson|wife|husband|partner|next of kin)\b/i;
+const GENERIC_HEALTH_GUIDANCE_HINT = /\b(?:monitor|review|guidance|policy|protocol|standard|procedure|best practice)\b/i;
+
+interface NarrativeSpan {
+  start: number;
+  end: number;
+  category: PIICategory;
+  confidence: number;
+  reason: string;
+}
+
+type ScrubProfile = "strict" | "balanced" | "conservative";
+
+interface PIIVaultOptions {
+  profile?: ScrubProfile;
+}
+
+interface NarrativeThresholds {
+  autoRedact: number;
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────
@@ -283,10 +325,19 @@ export class PIIVault {
   private counter = 0;
   private readonly prefix: string;
   private readonly createdAt: number;
+  private readonly thresholds: NarrativeThresholds;
 
-  constructor() {
+  private static readonly PROFILE_THRESHOLDS: Record<ScrubProfile, NarrativeThresholds> = {
+    strict: { autoRedact: 0.62 },
+    balanced: { autoRedact: 0.7 },
+    conservative: { autoRedact: 0.78 },
+  };
+
+  constructor(options: PIIVaultOptions = {}) {
     this.prefix = `PII_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
     this.createdAt = Date.now();
+    const profile = options.profile ?? "balanced";
+    this.thresholds = PIIVault.PROFILE_THRESHOLDS[profile];
   }
 
   // ── Token lifecycle ──────────────────────────────────────────────────
@@ -327,6 +378,7 @@ export class PIIVault {
       DATE: 0, DOB: 0, AGE: 0, ADDRESS: 0, NAME: 0, STAFF: 0,
       HEALTHCARE_PRO: 0, CONTACT: 0, FIELD: 0,
       BANK: 0, CARD: 0, LICENSE: 0, PASSPORT: 0, VEHICLE: 0, NETWORK: 0,
+      LOCATION: 0, BIOGRAPHICAL: 0, HEALTH: 0,
     };
     for (const entry of this.entries.values()) byCategory[entry.category]++;
     return { total: this.entries.size, byCategory };
@@ -362,9 +414,6 @@ export class PIIVault {
     s = s.replace(PII_PATTERNS.ukPassport, (m) => this.store(m, "PASSPORT"));
     s = s.replace(PII_PATTERNS.ukVehicleReg, (m) => this.store(m, "VEHICLE"));
     s = s.replace(PII_PATTERNS.caseId, (m) => this.store(m, "FIELD"));
-    s = s.replace(PII_PATTERNS.sensitiveHealthTerms, (m) => this.store(m, "FIELD"));
-    s = s.replace(PII_PATTERNS.sexualOrientation, (m) => this.store(m, "FIELD"));
-    s = s.replace(PII_PATTERNS.sensitiveBiography, (m) => this.store(m, "FIELD"));
 
     // Street addresses & house names
     s = s.replace(PII_PATTERNS.streetAddress, (m) => this.store(m, "ADDRESS"));
@@ -546,11 +595,11 @@ export class PIIVault {
       (match, ctx, place) => {
         const lowerPlace = String(place || "").toLowerCase();
         if (!lowerPlace || COMMON_ENGLISH_WORDS.has(lowerPlace)) return match;
-        return `${ctx} ${this.store(place, "ADDRESS")}`;
+        return `${ctx} ${this.store(place, "LOCATION")}`;
       },
     );
 
-    return s;
+    return this.narrativeRescuePass(s);
   }
 
   /** Scrub any data type (string, array, object). */
@@ -566,12 +615,16 @@ export class PIIVault {
             "name", "fullname", "firstname", "lastname", "surname",
             "email", "phone", "telephone", "mobile", "address",
             "postcode", "nhs", "ninumber", "dob", "dateofbirth",
-            "signedby", "assessor", "caseid", "sexualorientation",
-            "orientation", "medicalconditions", "diagnosis", "condition",
-            "biography", "lifestory", "location",
+            "signedby", "assessor", "caseid",
           ].includes(lowerKey)
         ) {
-          scrubbed[key] = this.store(String(data[key]), "FIELD");
+          scrubbed[key] = this.scrubStructuredValue(data[key], "FIELD");
+        } else if (["sexualorientation", "orientation", "medicalconditions", "diagnosis", "condition", "capacity"].includes(lowerKey)) {
+          scrubbed[key] = this.scrubStructuredValue(data[key], "HEALTH");
+        } else if (["biography", "lifestory", "familyhistory", "relationshiphistory"].includes(lowerKey)) {
+          scrubbed[key] = this.scrubStructuredValue(data[key], "BIOGRAPHICAL");
+        } else if (["location", "placeofbirth", "socialhistorylocation"].includes(lowerKey)) {
+          scrubbed[key] = this.scrubStructuredValue(data[key], "LOCATION");
         } else {
           scrubbed[key] = this.scrub(data[key]);
         }
@@ -630,6 +683,9 @@ export class PIIVault {
     PASSPORT: "[Passport Number]",
     VEHICLE: "[Vehicle Registration]",
     NETWORK: "[Network ID]",
+    LOCATION: "[Location]",
+    BIOGRAPHICAL: "[Biographical Detail]",
+    HEALTH: "[Health Detail]",
     IP: "[IP Address]",
     MAC: "[MAC Address]",
   };
@@ -727,6 +783,245 @@ export class PIIVault {
   }
 
   // ── Internal ─────────────────────────────────────────────────────────
+
+  private narrativeRescuePass(text: string): string {
+    const merged = this.mergeSpans(this.collectNarrativeSpans(text).filter((span) => span.confidence >= this.thresholds.autoRedact));
+    return this.applyNarrativeSpans(text, merged);
+  }
+
+  private collectNarrativeSpans(text: string): NarrativeSpan[] {
+    const spans: NarrativeSpan[] = [];
+    const paragraphs = text.split(/\n{2,}/);
+    let cursor = 0;
+
+    for (const paragraph of paragraphs) {
+      const offset = cursor;
+      cursor += paragraph.length + 2;
+
+      if (!this.shouldInspectNarrativeParagraph(paragraph)) {
+        continue;
+      }
+
+      this.collectRegexSpans(paragraph, offset, NARRATIVE_NAME_LEAK, "NAME", 0.73, spans, "name_context", 1);
+      this.collectRegexSpans(paragraph, offset, NARRATIVE_LOCATION_LEAK, "LOCATION", 0.8, spans, "location_context", 1);
+      this.collectRegexSpans(paragraph, offset, NARRATIVE_BIOGRAPHICAL_CLAUSE, "BIOGRAPHICAL", 0.82, spans, "biographical_clause");
+      this.collectRegexSpans(paragraph, offset, NARRATIVE_HEALTH_CLAUSE, "HEALTH", 0.85, spans, "health_clause");
+
+      if (this.isNearUniqueParagraph(paragraph)) {
+        this.collectRegexSpans(paragraph, offset, /\b(?:married|children|died|occupation|well known|born|grew up|lives with me|granddaughter|next of kin)\b[^\n.;]*/gi, "BIOGRAPHICAL", 0.7, spans, "near_unique_context");
+      }
+
+      this.collectQuasiIdentifierSentenceSpans(paragraph, offset, spans);
+    }
+
+    return spans;
+  }
+
+  private shouldInspectNarrativeParagraph(paragraph: string): boolean {
+    const trimmed = paragraph.trim();
+    if (!trimmed) return false;
+    if (trimmed.includes("{{PII_")) return true;
+    if (/^\s*[\[{]/.test(trimmed) || /^\s*(system|assistant|instruction|json|yaml)\b/i.test(trimmed)) {
+      return false;
+    }
+    return NARRATIVE_PERSON_CONTEXT.test(trimmed);
+  }
+
+  private collectRegexSpans(
+    paragraph: string,
+    paragraphOffset: number,
+    regex: RegExp,
+    category: PIICategory,
+    confidence: number,
+    spans: NarrativeSpan[],
+    reason: string,
+    captureGroup = 0,
+  ): void {
+    regex.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(paragraph)) !== null) {
+      const raw = captureGroup > 0 ? match[captureGroup] : match[0];
+      const localStart = captureGroup > 0
+        ? match.index + match[0].indexOf(raw)
+        : match.index;
+      const localEnd = localStart + raw.length;
+      if (localStart < 0 || localEnd <= localStart) {
+        continue;
+      }
+      const candidate = paragraph.slice(localStart, localEnd).trim();
+      const sentence = this.extractSentenceContext(paragraph, localStart, localEnd);
+      if (this.shouldSkipNarrativeCandidate(candidate, category, sentence)) {
+        continue;
+      }
+      spans.push({
+        start: paragraphOffset + localStart,
+        end: paragraphOffset + localEnd,
+        category,
+        confidence,
+        reason,
+      });
+    }
+  }
+
+  private collectQuasiIdentifierSentenceSpans(paragraph: string, paragraphOffset: number, spans: NarrativeSpan[]): void {
+    const sentenceRegex = /[^.!?\n]+[.!?\n]?/g;
+    let sentenceMatch: RegExpExecArray | null;
+    while ((sentenceMatch = sentenceRegex.exec(paragraph)) !== null) {
+      const sentence = sentenceMatch[0].trim();
+      if (!sentence) continue;
+      if (!PERSON_LINK_HINT.test(sentence)) continue;
+      if (sentence.includes("{{PII_")) continue;
+
+      let score = 0;
+      if (/\b(?:daughter|son|wife|husband|partner|family|children|next of kin|granddaughter|grandson)\b/i.test(sentence)) score += 1;
+      if (/\b(?:married|divorc(?:ed|e)|widowed|died|bereavement|relationship|first marriage)\b/i.test(sentence)) score += 1;
+      if (/\b(?:age\s+\d{1,3}|born\s+(?:19|20)?\d{2}|\d{1,3}\s+years?\s+old)\b/i.test(sentence)) score += 1;
+      if (/\b(?:grew up in|born in|lives in|lived in|well known in|from\s+[a-z])\b/i.test(sentence)) score += 1;
+      if (/\b(?:occupation|worked as|former occupation|well known in the area)\b/i.test(sentence)) score += 1;
+
+      if (/\b(?:next of kin|daughter|son|wife|husband|partner)\b.{0,60}\b(?:gp|nurse|doctor|social worker|care coordinator)\b/i.test(sentence)) {
+        spans.push({
+          start: paragraphOffset + sentenceMatch.index,
+          end: paragraphOffset + sentenceMatch.index + sentence.length,
+          category: "BIOGRAPHICAL",
+          confidence: 0.76,
+          reason: "contact_role_combination",
+        });
+        continue;
+      }
+
+      if (score >= 3) {
+        spans.push({
+          start: paragraphOffset + sentenceMatch.index,
+          end: paragraphOffset + sentenceMatch.index + sentence.length,
+          category: "BIOGRAPHICAL",
+          confidence: 0.66,
+          reason: "quasi_identifier_combination",
+        });
+      }
+    }
+  }
+
+  private shouldSkipNarrativeCandidate(candidate: string, category: PIICategory, sentenceContext: string): boolean {
+    if (!candidate || candidate.length < 3) return true;
+    if (candidate.includes("{{PII_")) return true;
+    const normalized = candidate.toLowerCase().trim();
+    const normalizedSentence = sentenceContext.toLowerCase();
+
+    if (category === "HEALTH") {
+      const hasPersonLink = PERSON_LINK_HINT.test(normalizedSentence) || normalizedSentence.includes("{{pii_");
+      if (!hasPersonLink) {
+        return true;
+      }
+      if (GENERIC_HEALTH_GUIDANCE_HINT.test(normalizedSentence) && !PERSON_LINK_HINT.test(normalizedSentence)) {
+        return true;
+      }
+    }
+
+    if (category === "LOCATION") {
+      if (GENERIC_LOCATION_WORDS.has(normalized)) return true;
+      if (!BIOGRAPHY_LINK_HINT.test(normalizedSentence) && !PERSON_LINK_HINT.test(normalizedSentence)) {
+        return true;
+      }
+    }
+
+    if (category === "NAME") {
+      if (COMMON_ENGLISH_WORDS.has(normalized)) return true;
+      if (isClinicalOrMedicalTerm(normalized)) return true;
+      if (MEDICATION_WHITELIST.has(normalized)) return true;
+    }
+
+    if (category === "BIOGRAPHICAL" && normalized.length < 8) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private extractSentenceContext(paragraph: string, start: number, end: number): string {
+    const leftBoundary = Math.max(
+      paragraph.lastIndexOf(".", start - 1),
+      paragraph.lastIndexOf("!", start - 1),
+      paragraph.lastIndexOf("?", start - 1),
+      paragraph.lastIndexOf("\n", start - 1),
+    );
+    const rightCandidates = [
+      paragraph.indexOf(".", end),
+      paragraph.indexOf("!", end),
+      paragraph.indexOf("?", end),
+      paragraph.indexOf("\n", end),
+    ].filter((idx) => idx >= 0);
+    const rightBoundary = rightCandidates.length > 0 ? Math.min(...rightCandidates) : paragraph.length;
+    return paragraph.slice(leftBoundary >= 0 ? leftBoundary + 1 : 0, rightBoundary).trim();
+  }
+
+  private scrubStructuredValue(value: unknown, category: PIICategory): unknown {
+    if (value === null || value === undefined) return value;
+    if (typeof value === "string") return this.store(value, category);
+    if (Array.isArray(value)) return value.map((item) => this.scrubStructuredValue(item, category));
+    if (typeof value === "object") {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        out[k] = this.scrubStructuredValue(v, category);
+      }
+      return out;
+    }
+    return this.store(String(value), category);
+  }
+
+  private applyNarrativeSpans(text: string, spans: NarrativeSpan[]): string {
+    if (spans.length === 0) {
+      return text;
+    }
+    let result = "";
+    let index = 0;
+    for (const span of spans) {
+      if (span.start < index) {
+        continue;
+      }
+      result += text.slice(index, span.start);
+      const original = text.slice(span.start, span.end).trim();
+      if (!original || original.includes("{{PII_")) {
+        result += text.slice(span.start, span.end);
+      } else {
+        result += this.store(original, span.category);
+      }
+      index = span.end;
+    }
+    result += text.slice(index);
+    return result;
+  }
+
+  private mergeSpans(spans: NarrativeSpan[]): NarrativeSpan[] {
+    if (spans.length === 0) return [];
+    const sorted = [...spans].sort((a, b) => a.start - b.start || b.end - a.end);
+    const merged: NarrativeSpan[] = [sorted[0]];
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = merged[merged.length - 1];
+      const next = sorted[i];
+      if (next.start <= prev.end + 1) {
+        prev.end = Math.max(prev.end, next.end);
+        if (next.confidence > prev.confidence) {
+          prev.category = next.category;
+          prev.confidence = next.confidence;
+          prev.reason = next.reason;
+        }
+        continue;
+      }
+      merged.push(next);
+    }
+    return merged;
+  }
+
+  private isNearUniqueParagraph(paragraph: string): boolean {
+    let score = 0;
+    if (/\b(?:children|sons?|daughters?|granddaughter|grandson)\b/i.test(paragraph)) score += 1;
+    if (/\b(?:married|divorc(?:ed|e)|widowed|relationship)\b/i.test(paragraph)) score += 1;
+    if (/\b(?:died|death|bereavement)\b/i.test(paragraph)) score += 1;
+    if (/\b(?:age\s+\d{1,3}|born\s+(?:19|20)\d{2})\b/i.test(paragraph)) score += 1;
+    if (/\b(?:known in the area|occupation|worked as|grew up in|born in)\b/i.test(paragraph)) score += 1;
+    return score >= 2;
+  }
 
   private escapeRegex(str: string): string {
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
