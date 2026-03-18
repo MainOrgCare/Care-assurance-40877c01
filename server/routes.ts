@@ -1334,6 +1334,19 @@ class PIIVault {
         return m;
       }
     );
+
+    // === PHASE 8: Always scrub standalone personal names ===
+    scrubbed = scrubbed.replace(
+      /\b([A-Z][a-z]{2,}|[A-Z]{2,3})(?:\s+and\s+([A-Z][a-z]{2,}|[A-Z]{2,3}))?\b/g,
+      (match, firstName, secondName) => {
+        if (!this.shouldAlwaysScrubNameCandidate(firstName)) return match;
+        const firstToken = this.store(firstName, 'NAME');
+        if (!secondName || !this.shouldAlwaysScrubNameCandidate(secondName)) {
+          return firstToken;
+        }
+        return `${firstToken} and ${this.store(secondName, 'NAME')}`;
+      }
+    );
     
     return this.narrativeRescuePass(scrubbed);
   }
@@ -1594,6 +1607,24 @@ class PIIVault {
       return out;
     }
     return this.store(String(value), category);
+  }
+
+  private shouldAlwaysScrubNameCandidate(candidate: string): boolean {
+    if (!candidate) return false;
+    if (candidate.includes('{{PII_')) return false;
+    const normalized = candidate.toLowerCase();
+
+    if (COMMON_ENGLISH_WORDS.has(normalized)) return false;
+    if (NON_NAME_CAPITALIZED_WORDS.has(normalized)) return false;
+    if (isClinicalOrMedicalTerm(normalized)) return false;
+    if (MEDICATION_WHITELIST.has(normalized)) return false;
+    if (candidate.length <= 3 && NON_NAME_ABBREVIATIONS.has(candidate.toUpperCase())) return false;
+
+    if (/^[A-Z]{2,3}$/.test(candidate)) {
+      return !NON_NAME_ABBREVIATIONS.has(candidate);
+    }
+
+    return /^[A-Z][a-z]{2,}$/.test(candidate);
   }
 
   private applyNarrativeSpans(text: string, spans: NarrativeSpan[]): string {
@@ -2048,6 +2079,18 @@ const COMMON_ENGLISH_WORDS = new Set([
   "want", "because", "these", "give", "most", "care", "health", "support",
   "need", "needs", "help", "ensure", "provide", "assist", "monitor",
   "check", "review", "assess", "plan", "record", "document", "report",
+]);
+
+const NON_NAME_ABBREVIATIONS = new Set([
+  "DOB", "NHS", "NI", "GP", "API", "JSON", "YAML", "PDF", "EMAR", "CQC", "UK", "ID", "IDs",
+]);
+
+const NON_NAME_CAPITALIZED_WORDS = new Set([
+  "service", "user", "client", "resident", "patient", "care", "worker", "nurse", "doctor", "support",
+  "key", "social", "general", "policy", "guidance", "assessment", "plan", "risk", "date", "address",
+  "contact", "phone", "email", "mobile", "dob", "born", "lives", "well", "known", "gender", "initials",
+  "case", "id", "notes", "summary", "medication", "history", "family", "partner", "daughter", "son",
+  "raised", "street", "road", "lane", "avenue", "town", "city", "county", "north", "south", "east", "west",
 ]);
 
 const GENERIC_LOCATION_WORDS = new Set([

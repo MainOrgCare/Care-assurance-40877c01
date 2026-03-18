@@ -304,4 +304,24 @@ describe("PIIVault risk assessment scrubbing", () => {
       `Expected redactions but got 0. Scrubbed text: ${scrubbed}`
     );
   });
+
+  it("always scrubs standalone names even without relationship context", () => {
+    const vault = new PIIVault();
+    const input = "Kenny attended today. Natalie reviewed records with Sarah.";
+    const scrubbed = vault.scrubString(input);
+
+    assert(!scrubbed.includes("Kenny"));
+    assert(!scrubbed.includes("Natalie"));
+    assert(!scrubbed.includes("Sarah"));
+    assert(/\{\{PII_.*_NAME_\d+\}\}/.test(scrubbed));
+  });
+
+  it("restores all scrubbed standalone names back from tokens", () => {
+    const vault = new PIIVault();
+    const input = "Kenny and Natalie visited Sarah at noon.";
+    const scrubbed = vault.scrubString(input);
+    const restored = vault.restoreString(scrubbed);
+
+    assert.equal(restored, input);
+  });
 });
