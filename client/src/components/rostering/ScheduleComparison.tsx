@@ -81,23 +81,23 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
   });
 
   const getScoreColor = (score: number) => {
-    if (score >= 40) return "text-green-600 dark:text-green-400";
-    if (score >= 10) return "text-blue-600 dark:text-blue-400";
+    if (score >= 40) return "text-success dark:text-green-400";
+    if (score >= 10) return "text-info dark:text-blue-400";
     if (score >= -9) return "text-muted-foreground";
-    if (score >= -39) return "text-orange-600 dark:text-orange-400";
-    return "text-red-600 dark:text-red-400";
+    if (score >= -39) return "text-warning dark:text-orange-400";
+    return "text-destructive dark:text-red-400";
   };
 
   const getScoreIcon = (score: number) => {
-    if (score >= 10) return <TrendingUp className="h-5 w-5 text-green-600" />;
+    if (score >= 10) return <TrendingUp className="h-5 w-5 text-success" />;
     if (score >= -9) return <Minus className="h-5 w-5 text-muted-foreground" />;
-    return <TrendingDown className="h-5 w-5 text-red-600" />;
+    return <TrendingDown className="h-5 w-5 text-destructive" />;
   };
 
   const getDeltaDisplay = (delta: number, suffix: string = "") => {
     if (delta === 0) return <span className="text-muted-foreground">—</span>;
     const sign = delta > 0 ? "+" : "";
-    const color = delta > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400";
+    const color = delta > 0 ? "text-destructive dark:text-red-400" : "text-success dark:text-green-400";
     return <span className={`font-semibold ${color}`}>{sign}{delta}{suffix}</span>;
   };
 
@@ -117,7 +117,7 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <GitCompare className="h-5 w-5 text-blue-600" />
+                <GitCompare className="h-5 w-5 text-info" />
                 Schedule Comparison
               </CardTitle>
               <CardDescription>

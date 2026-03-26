@@ -107,11 +107,11 @@ const CQC_DOMAINS = [
 ];
 
 const RATING_OPTIONS = [
-  { value: "outstanding", label: "Outstanding", color: "bg-green-600 text-white" },
-  { value: "good", label: "Good", color: "bg-green-500 text-white" },
-  { value: "requires_improvement", label: "Requires Improvement", color: "bg-amber-500 text-white" },
-  { value: "inadequate", label: "Inadequate", color: "bg-red-500 text-white" },
-  { value: "not_assessed", label: "Not Assessed", color: "bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-300" },
+  { value: "outstanding", label: "Outstanding", color: "bg-emerald-600 text-white" },
+  { value: "good", label: "Good", color: "bg-success text-success-foreground" },
+  { value: "requires_improvement", label: "Requires Improvement", color: "bg-warning text-warning-foreground" },
+  { value: "inadequate", label: "Inadequate", color: "bg-destructive text-destructive-foreground" },
+  { value: "not_assessed", label: "Not Assessed", color: "bg-muted text-muted-foreground" },
 ];
 
 type Assessment = {

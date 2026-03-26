@@ -176,7 +176,7 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
                     value={`favorite ${route.label}`}
                     onSelect={() => navigate(path)}
                   >
-                    <Star className="mr-2 h-4 w-4 text-amber-400 fill-amber-400" />
+                    <Star className="mr-2 h-4 w-4 text-primary fill-primary" />
                     <span>{route.label}</span>
                   </CommandItem>
                 );
@@ -285,7 +285,7 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
             >
               <Star className={cn(
                 "mr-2 h-4 w-4",
-                currentPageIsFav ? "text-amber-400 fill-amber-400" : "text-muted-foreground"
+                currentPageIsFav ? "text-primary fill-primary" : "text-muted-foreground"
               )} />
               <span>{currentPageIsFav ? `Remove ${currentPageName} from Favorites` : `Add ${currentPageName} to Favorites`}</span>
             </CommandItem>

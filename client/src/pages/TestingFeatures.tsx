@@ -5989,7 +5989,7 @@ export default function TestingFeatures() {
               <AccordionContent className="relative pb-5">
                 {rosteringFullscreen && (
                   <div
-                    className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+                    className="fixed inset-0 z-40 bg-foreground/40 backdrop-blur-sm"
                     onClick={() => setRosteringFullscreen(false)}
                     aria-hidden="true"
                   />

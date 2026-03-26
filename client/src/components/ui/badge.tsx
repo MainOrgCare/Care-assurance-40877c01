@@ -9,21 +9,21 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          "border-primary/16 bg-primary/8 text-primary",
+          "border-primary/20 bg-primary/8 text-primary",
         secondary:
-          "border-secondary/16 bg-secondary/8 text-secondary",
+          "border-secondary/20 bg-secondary/8 text-secondary",
         destructive:
-          "border-destructive/16 bg-destructive/8 text-destructive dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400",
+          "border-destructive/20 bg-destructive/8 text-destructive dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400",
         success:
-          "border-emerald-600/16 bg-emerald-600/8 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400",
+          "border-emerald-600/20 bg-emerald-600/8 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-400",
         warning:
-          "border-amber-500/18 bg-amber-500/8 text-amber-700 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-400",
+          "border-amber-500/22 bg-amber-500/8 text-amber-700 dark:border-amber-400/25 dark:bg-amber-500/10 dark:text-amber-400",
         outline:
-          "text-foreground/70 border-border/55 bg-transparent",
+          "text-foreground/80 border-border bg-transparent",
         muted:
-          "text-muted-foreground border-border/45 bg-muted/45",
+          "text-muted-foreground border-border bg-muted/50",
         premium:
-          "border-primary/16 bg-primary/8 text-primary",
+          "border-primary/20 bg-primary/8 text-primary",
       },
     },
     defaultVariants: {

@@ -181,7 +181,7 @@ export default function Performance() {
 
   const getComplianceBarColor = (pct: number) => {
     if (pct >= 90) return "bg-success";
-    if (pct >= 70) return "bg-amber-500";
+    if (pct >= 70) return "bg-warning";
     return "bg-destructive";
   };
 
@@ -284,19 +284,19 @@ export default function Performance() {
                 {stats.total > 0 && (
                   <>
                     <div
-                      className="h-full bg-success transition-all duration-700 flex items-center justify-center text-white text-[10px] font-bold"
+                      className="h-full bg-success transition-all duration-700 flex items-center justify-center text-success-foreground text-[10px] font-bold"
                       style={{ width: `${(stats.compliant / stats.total) * 100}%`, minWidth: stats.compliant > 0 ? '2rem' : '0' }}
                     >
                       {stats.compliant > 0 && stats.compliant}
                     </div>
                     <div
-                      className="h-full bg-amber-500 transition-all duration-700 flex items-center justify-center text-white text-[10px] font-bold"
+                      className="h-full bg-warning transition-all duration-700 flex items-center justify-center text-warning-foreground text-[10px] font-bold"
                       style={{ width: `${(stats.atRisk / stats.total) * 100}%`, minWidth: stats.atRisk > 0 ? '2rem' : '0' }}
                     >
                       {stats.atRisk > 0 && stats.atRisk}
                     </div>
                     <div
-                      className="h-full bg-destructive transition-all duration-700 flex items-center justify-center text-white text-[10px] font-bold"
+                      className="h-full bg-destructive transition-all duration-700 flex items-center justify-center text-destructive-foreground text-[10px] font-bold"
                       style={{ width: `${(stats.critical / stats.total) * 100}%`, minWidth: stats.critical > 0 ? '2rem' : '0' }}
                     >
                       {stats.critical > 0 && stats.critical}
@@ -310,7 +310,7 @@ export default function Performance() {
                   <span className="text-xs text-muted-foreground">Compliant</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                  <div className="h-2.5 w-2.5 rounded-full bg-warning" />
                   <span className="text-xs text-muted-foreground">At Risk (1-2 issues)</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -403,7 +403,7 @@ export default function Performance() {
                           <div className={cn(
                             "h-8 w-8 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0",
                             risk === "compliant" ? "bg-success/10 text-success" :
-                            risk === "at-risk" ? "bg-amber-500/10 text-amber-600" :
+                            risk === "at-risk" ? "bg-warning/20 text-warning" :
                             "bg-destructive/10 text-destructive"
                           )}>
                             {worker.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
@@ -458,7 +458,7 @@ export default function Performance() {
             <Card className="overflow-hidden">
               <CardHeader className="border-b border-border/30 pb-4">
                 <CardTitle className="flex items-center gap-3">
-                  <div className="h-7 w-7 rounded-md flex items-center justify-center bg-amber-500/8">
+                  <div className="h-7 w-7 rounded-md flex items-center justify-center bg-warning/15">
                     <Trophy className="h-3.5 w-3.5 text-amber-500" />
                   </div>
                   Top Performers
@@ -555,7 +555,7 @@ export default function Performance() {
                   <div className={cn(
                     "h-10 w-10 rounded-xl flex items-center justify-center text-sm font-bold",
                     getRiskLevel(selectedWorker) === "compliant" ? "bg-success/10 text-success" :
-                    getRiskLevel(selectedWorker) === "at-risk" ? "bg-amber-500/10 text-amber-600" :
+                    getRiskLevel(selectedWorker) === "at-risk" ? "bg-warning/20 text-warning" :
                     "bg-destructive/10 text-destructive"
                   )}>
                     {selectedWorker.name.split(" ").map(n => n[0]).join("").slice(0, 2)}

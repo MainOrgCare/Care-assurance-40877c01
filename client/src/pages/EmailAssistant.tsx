@@ -328,9 +328,9 @@ export default function EmailAssistant() {
 
             {/* Subject Line */}
             {subjectLine && (
-              <div className="px-6 pt-4 pb-3 border-b border-border/20 bg-muted/5">
+              <div className="px-6 pt-4 pb-3 border-b border-border/50 bg-muted/10">
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <Heading className="h-3 w-3 text-muted-foreground/50" />
+                  <Heading className="h-3 w-3 text-muted-foreground/70" />
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Subject</span>
                 </div>
                 <Input
@@ -406,7 +406,7 @@ export default function EmailAssistant() {
                     >
                       <div className="flex items-center justify-between mb-0.5">
                         <h5 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">{template.label}</h5>
-                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-primary/60 group-hover:translate-x-0.5 transition-all" />
+                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:text-primary/70 group-hover:translate-x-0.5 transition-all" />
                       </div>
                       <p className="text-xs text-muted-foreground/70 leading-relaxed line-clamp-2">{template.inputText}</p>
                     </button>
@@ -432,7 +432,7 @@ export default function EmailAssistant() {
             {history.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
                 <div className="h-12 w-12 rounded-xl bg-muted/40 flex items-center justify-center mx-auto mb-3">
-                  <Clock className="h-5 w-5 text-muted-foreground/40" />
+                  <Clock className="h-5 w-5 text-muted-foreground/60" />
                 </div>
                 <p className="text-[0.8125rem] font-medium">No history yet</p>
                 <p className="text-[11px] mt-1 text-muted-foreground/70">Rewritten emails will appear here.</p>

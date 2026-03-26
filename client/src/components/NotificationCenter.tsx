@@ -151,7 +151,7 @@ export default function NotificationCenter() {
           className={cn(
             "relative flex items-center justify-center h-8 w-8 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
             unreadCount > 0
-              ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/18"
+              ? "bg-amber-500/20 text-amber-600 hover:bg-amber-500/18"
               : "bg-muted/40 hover:bg-muted/60"
           )}
           title={unreadCount > 0 ? `${unreadCount} unread alert${unreadCount !== 1 ? "s" : ""}` : "Notifications"}
@@ -173,7 +173,7 @@ export default function NotificationCenter() {
             <Bell className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-semibold">Notifications</span>
             {unreadCount > 0 && (
-              <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+              <span className="rounded-full bg-amber-500/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
                 {unreadCount}
               </span>
             )}
@@ -227,7 +227,7 @@ export default function NotificationCenter() {
                     <span className={cn(
                       "inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium",
                       alert.discrepancyType.toLowerCase().includes("emar")
-                        ? "bg-amber-500/10 text-amber-600"
+                        ? "bg-amber-500/20 text-amber-600"
                         : "bg-blue-500/10 text-blue-600"
                     )}>
                       {alert.discrepancyType}

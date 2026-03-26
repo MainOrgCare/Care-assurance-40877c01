@@ -973,9 +973,9 @@ export default function RiskAssessment() {
 
   const getRatingColor = (rating: string) => {
     switch (rating.toLowerCase()) {
-      case "high": return "text-red-500 bg-red-500/10 border-red-500/30";
-      case "medium": return "text-orange-500 bg-orange-500/10 border-orange-500/30";
-      case "low": return "text-green-500 bg-green-500/10 border-green-500/30";
+      case "high": return "text-destructive bg-destructive/10 border-destructive/20";
+      case "medium": return "text-warning bg-warning/10 border-warning/20";
+      case "low": return "text-success bg-success/10 border-success/20";
       default: return "text-muted-foreground bg-muted/50 border-border";
     }
   };
@@ -1525,7 +1525,7 @@ export default function RiskAssessment() {
                 </Button>
               )}
             </div>
-            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-300">
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/20 px-3 py-2 text-xs text-amber-600 dark:text-amber-300">
               Assessments without supporting evidence are not auto-listed. Add them manually below if needed.
             </div>
           </CardHeader>

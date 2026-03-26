@@ -2569,7 +2569,7 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSuspendingUser(null)} className="border-border text-foreground">Cancel</Button>
-            <Button onClick={() => suspendingUser && handleSuspend(suspendingUser)} className="bg-amber-600 hover:bg-amber-500 text-white">Suspend User</Button>
+            <Button onClick={() => suspendingUser && handleSuspend(suspendingUser)} className="bg-warning hover:bg-warning/90 text-warning-foreground">Suspend User</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2599,7 +2599,7 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setBlockingIp(null); setBlockReason(""); }} className="border-border text-foreground">Cancel</Button>
-            <Button onClick={handleBlockIp} className="bg-destructive hover:bg-destructive/90 text-white">Block IP</Button>
+            <Button onClick={handleBlockIp} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Block IP</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3913,7 +3913,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
               <Button
                 onClick={handleSaveMaintenanceWindow}
                 disabled={saving}
-                className="bg-sky-600 hover:bg-sky-500 text-white"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
                 data-testid="button-save-maintenance-window"
               >
                 {saving ? <Loader2 size={14} className="mr-2 animate-spin" /> : <CalendarClock size={14} className="mr-2" />}
@@ -4001,7 +4001,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
                 <Button
                   onClick={handleSaveMessaging}
                   disabled={saving}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
                   data-testid="button-save-platform-messaging"
                 >
                   {saving ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Save size={14} className="mr-2" />}
@@ -4703,7 +4703,7 @@ export default function SecretAdminPortal() {
           <div className="grid md:grid-cols-2 gap-4">
             <Link href="/call-reconciliation">
               <div className="group relative overflow-hidden rounded-xl border border-border/60 bg-background/70 p-6 shadow-soft transition-all hover-elevate cursor-pointer">
-                <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+                <div className="absolute top-0 right-0 p-3 opacity-30 group-hover:opacity-50 transition-opacity">
                   <ArrowRightLeft size={80} className="text-muted-foreground" />
                 </div>
                 <div className="relative z-10">
@@ -4722,7 +4722,7 @@ export default function SecretAdminPortal() {
               data-testid="button-system-log"
               variant="ghost"
             >
-              <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+              <div className="absolute top-0 right-0 p-3 opacity-30 group-hover:opacity-50 transition-opacity">
                 <Terminal size={80} className="text-muted-foreground" />
               </div>
               <div className="relative z-10 w-full">
@@ -5093,7 +5093,7 @@ export default function SecretAdminPortal() {
                             <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10" onClick={() => rejectUser(u.id)} data-testid={`button-reject-${u.id}`} aria-label="Reject user">
                               <X size={14} />
                             </Button>
-                            <Button size="sm" className="h-8 w-8 p-0 bg-success hover:bg-success/80 text-white" onClick={() => approveUser(u.id)} data-testid={`button-approve-${u.id}`} aria-label="Approve user">
+                            <Button size="sm" className="h-8 w-8 p-0 bg-success hover:bg-success/80 text-success-foreground" onClick={() => approveUser(u.id)} data-testid={`button-approve-${u.id}`} aria-label="Approve user">
                               <Check size={14} />
                             </Button>
                           </div>
@@ -5452,7 +5452,7 @@ export default function SecretAdminPortal() {
             <Button variant="outline" onClick={() => setEditingUser(null)} className="border-border text-foreground">
               Cancel
             </Button>
-            <Button onClick={handleUpdateUser} disabled={userActionLoading} className="bg-indigo-600 hover:bg-indigo-500 text-white" data-testid="button-save-user">
+            <Button onClick={handleUpdateUser} disabled={userActionLoading} className="bg-primary hover:bg-primary/90 text-primary-foreground" data-testid="button-save-user">
               {userActionLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Save size={16} className="mr-2" />} Save Changes
             </Button>
           </DialogFooter>
@@ -5537,7 +5537,7 @@ export default function SecretAdminPortal() {
               <Button
                 type="submit"
                 disabled={userActionLoading}
-                className="bg-amber-600 hover:bg-amber-500 text-white"
+                className="bg-warning hover:bg-warning/90 text-warning-foreground"
                 data-testid="button-confirm-reset-password"
               >
                 {userActionLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <FileKey size={16} className="mr-2" />} Reset Password

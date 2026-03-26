@@ -111,6 +111,17 @@
     linear-gradient(180deg, hsl(220 16% 92% / 0.6) 1px, transparent 1px);
   --surface-grid-size: 120px 120px;
   --content-max-width: 1280px;
+
+  /* Z-index scale */
+  --z-base: 1;
+  --z-dropdown: 50;
+  --z-sticky: 100;
+  --z-sidebar: 200;
+  --z-header: 300;
+  --z-modal-backdrop: 400;
+  --z-modal: 500;
+  --z-tooltip: 600;
+  --z-toast: 700;
 }
 
 @layer base {
@@ -149,27 +160,6 @@
     font-size: 0.95rem;
     line-height: 1.62;
     letter-spacing: -0.008em;
-  }
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    background-image: var(--surface-grid);
-    background-size: var(--surface-grid-size);
-    opacity: 0.35;
-    mask-image: radial-gradient(1200px 800px at 20% 0%, black, transparent 70%);
-    z-index: 0;
-  }
-  body::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.12'/%3E%3C/svg%3E");
-    opacity: var(--surface-noise-opacity);
-    mix-blend-mode: multiply;
-    z-index: 0;
   }
   #root {
     min-height: 100vh;
@@ -276,7 +266,7 @@
   .app-surface {
     width: 100%;
     border-radius: 0.75rem;
-    border: 1px solid color-mix(in oklab, var(--color-border) 88%, white);
+    border: 1px solid var(--color-border);
     background: var(--color-card);
     box-shadow: var(--shadow-xs);
     transition: border-color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
@@ -290,7 +280,7 @@
   .glass-card,
   .glass-card-interactive {
     border-radius: 0.75rem;
-    border: 1px solid color-mix(in oklab, var(--color-border) 90%, white);
+    border: 1px solid var(--color-border);
     background: var(--color-card);
     box-shadow: var(--shadow-xs);
     transition: box-shadow var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
@@ -392,7 +382,7 @@
   /* Corporate stat card */
   .stat-card {
     border-radius: 0.75rem;
-    border: 1px solid color-mix(in oklab, var(--color-border) 90%, white);
+    border: 1px solid var(--color-border);
     background: var(--color-card);
     padding: 1.25rem;
     box-shadow: var(--shadow-xs);
@@ -468,10 +458,9 @@
     z-index: 1;
   }
   .workspace-sidebar {
-    background:
-      linear-gradient(180deg, color-mix(in oklab, var(--color-sidebar) 96%, hsl(214 52% 16%)), var(--color-sidebar) 60%);
+    background: var(--color-sidebar);
     border-color: var(--color-sidebar-border);
-    box-shadow: inset -1px 0 0 var(--color-sidebar-border), 10px 0 24px -14px rgba(2, 6, 23, 0.45);
+    box-shadow: 1px 0 0 var(--color-sidebar-border);
   }
   .workspace-header {
     border-color: var(--color-border);
@@ -1371,15 +1360,13 @@ html.theme-light {
 
 /* ========================================
    THEME-AWARE COLOR OVERRIDES
-   These handle hardcoded colors throughout the app
+   Minimal overrides for hardcoded colors.
+   Prefer fixing colors at source over adding rules here.
    ======================================== */
 
-/* Hardcoded slate backgrounds → theme-aware */
+/* Hardcoded dark backgrounds → theme-aware in light mode */
 html.theme-light .bg-slate-900,
-html.theme-light .bg-slate-900\/50,
-html.theme-light .bg-slate-900\/40,
-html.theme-light .bg-slate-800,
-html.theme-light .bg-slate-800\/50 {
+html.theme-light .bg-slate-800 {
   background-color: var(--color-card) !important;
 }
 
@@ -1388,11 +1375,7 @@ html.theme-light .bg-black\/10 {
   background-color: var(--color-muted) !important;
 }
 
-/* Hardcoded slate text → theme-aware */
-html.theme-light .text-white {
-  color: var(--color-foreground) !important;
-}
-
+/* Hardcoded light-on-dark text → theme-aware in light mode */
 html.theme-light .text-slate-100,
 html.theme-light .text-slate-200 {
   color: var(--color-foreground) !important;
@@ -1403,49 +1386,15 @@ html.theme-light .text-slate-400 {
   color: var(--color-muted-foreground) !important;
 }
 
-/* Hardcoded borders → theme-aware */
+/* Hardcoded dark borders → theme-aware */
 html.theme-light .border-slate-700,
-html.theme-light .border-slate-700\/50,
 html.theme-light .border-slate-600,
 html.theme-light .border-white\/10,
 html.theme-light .border-white\/5 {
   border-color: var(--color-border) !important;
 }
 
-/* Button/badge text should stay white on colored backgrounds */
-html.theme-light button.bg-gradient-to-r .text-white,
-html.theme-light .bg-gradient-to-r.text-white,
-html.theme-light [class*="bg-blue-"] .text-white,
-html.theme-light [class*="bg-blue-"].text-white,
-html.theme-light [class*="bg-teal-"] .text-white,
-html.theme-light [class*="bg-teal-"].text-white,
-html.theme-light [class*="bg-green-"] .text-white,
-html.theme-light [class*="bg-green-"].text-white,
-html.theme-light [class*="bg-emerald-"] .text-white,
-html.theme-light [class*="bg-emerald-"].text-white,
-html.theme-light [class*="bg-red-"] .text-white,
-html.theme-light [class*="bg-red-"].text-white,
-html.theme-light [class*="bg-amber-"] .text-white,
-html.theme-light [class*="bg-amber-"].text-white,
-html.theme-light [class*="bg-indigo-"] .text-white,
-html.theme-light [class*="bg-indigo-"].text-white,
-html.theme-light [class*="bg-purple-"] .text-white,
-html.theme-light [class*="bg-purple-"].text-white {
-  color: white !important;
-}
-
-/* Gradient button backgrounds - keep them vibrant */
-html.theme-light .from-blue-600,
-html.theme-light .from-blue-500 {
-  --tw-gradient-from: hsl(206 88% 43%);
-}
-
-html.theme-light .to-teal-500,
-html.theme-light .to-teal-400 {
-  --tw-gradient-to: hsl(172 71% 37%);
-}
-
-/* Accent blur circles in login - make them subtle for light mode */
+/* Login accent circles */
 html.theme-light .bg-blue-600\/10 {
   background-color: hsl(206 88% 43% / 0.06) !important;
 }
@@ -1454,114 +1403,39 @@ html.theme-light .bg-violet-500\/10 {
   background-color: hsl(172 71% 37% / 0.06) !important;
 }
 
-/* Light theme glass card */
-html.theme-light .glass-card {
-  background-color: var(--color-card);
-  border-color: var(--color-border);
-  box-shadow: var(--shadow-xs);
-}
-
-html.theme-light .glass-card:hover {
-  border-color: color-mix(in oklab, var(--color-primary) 14%, var(--color-border));
-  box-shadow: var(--shadow-sm);
-}
-
-/* Light theme app surface */
-html.theme-light .app-surface {
-  background-color: var(--color-card);
-  border-color: var(--color-border);
-  box-shadow: var(--shadow-xs);
-}
-
-/* Light theme sidebar styling */
+/* Light theme workspace shell overrides */
 html.theme-light .workspace-sidebar {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 251, 255, 0.9)) !important;
-  border-color: rgba(148, 163, 184, 0.3) !important;
-  box-shadow: inset -1px 0 0 rgba(148, 163, 184, 0.18), 16px 0 32px -30px rgba(15, 23, 42, 0.24) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: var(--color-sidebar-border) !important;
+  box-shadow: 1px 0 0 var(--color-sidebar-border) !important;
 }
 
-/* Light theme header */
 html.theme-light .workspace-header {
   background-color: rgba(255, 255, 255, 0.96) !important;
-  border-color: rgba(148, 163, 184, 0.3) !important;
+  border-color: var(--color-border) !important;
 }
 
-/* Light theme footer */
 html.theme-light .workspace-footer {
-  background-color: rgba(255, 255, 255, 0.94) !important;
-  border-color: rgba(148, 163, 184, 0.3) !important;
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  border-color: var(--color-border) !important;
 }
 
-/* Light theme pill badges */
-html.theme-light .pill-primary {
-  background-color: hsl(206 88% 43% / 0.11);
-  border-color: hsl(206 88% 43% / 0.24);
-  color: hsl(206 88% 36%);
-}
-
-html.theme-light .pill-secondary {
-  background-color: hsl(172 71% 37% / 0.12);
-  border-color: hsl(172 71% 37% / 0.24);
-  color: hsl(172 71% 29%);
-}
-
-html.theme-light .pill-success {
-  background-color: rgba(52, 211, 153, 0.1);
-  border-color: rgba(52, 211, 153, 0.2);
-  color: hsl(152 68% 35%);
-}
-
-html.theme-light .pill-muted {
-  background-color: hsl(220 15% 93%);
-  border-color: hsl(220 15% 85%);
-  color: hsl(220 10% 45%);
-}
-
-/* Light theme stat card */
-html.theme-light .stat-card {
-  background-color: var(--color-card);
-  border-color: var(--color-border);
-  box-shadow: var(--shadow-xs);
-}
-
-html.theme-light .stat-card-value {
-  color: var(--color-primary);
-}
-
-/* Light theme gradient text */
-html.theme-light .gradient-text {
-  color: var(--color-primary);
-}
-
-/* Midnight theme hardcoded color overrides */
+/* Midnight/Ocean hardcoded bg overrides */
 html.theme-midnight .bg-slate-900,
-html.theme-midnight .bg-slate-900\/50,
-html.theme-midnight .bg-slate-900\/40,
 html.theme-midnight .bg-slate-800,
-html.theme-midnight .bg-slate-800\/50 {
+html.theme-ocean .bg-slate-900,
+html.theme-ocean .bg-slate-800 {
   background-color: var(--color-card) !important;
 }
 
 html.theme-midnight .border-white\/10,
-html.theme-midnight .border-white\/5 {
-  border-color: var(--glass-border) !important;
-}
-
-/* Ocean theme hardcoded color overrides */
-html.theme-ocean .bg-slate-900,
-html.theme-ocean .bg-slate-900\/50,
-html.theme-ocean .bg-slate-900\/40,
-html.theme-ocean .bg-slate-800,
-html.theme-ocean .bg-slate-800\/50 {
-  background-color: var(--color-card) !important;
-}
-
+html.theme-midnight .border-white\/5,
 html.theme-ocean .border-white\/10,
 html.theme-ocean .border-white\/5 {
   border-color: var(--glass-border) !important;
 }
 
-/* Theme-specific accent blurs for login page */
+/* Login accent circles - themed */
 html.theme-midnight .bg-blue-600\/10 {
   background-color: hsl(262 83% 58% / 0.15) !important;
 }

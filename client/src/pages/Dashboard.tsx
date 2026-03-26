@@ -77,8 +77,8 @@ function SortableWidgetItemBase({ widget, isActive, onToggle }: { widget: Widget
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center justify-between p-3 rounded-xl border border-border/50 transition-all",
-        isDragging ? "opacity-50 scale-95 z-50 bg-accent" : "bg-muted/30 hover:bg-muted/50"
+        "flex items-center justify-between p-3 rounded-xl border border-border transition-all",
+        isDragging ? "opacity-50 scale-95 z-50 bg-accent" : "bg-muted/50 hover:bg-muted"
       )}
     >
       <div className="flex items-center gap-4">
@@ -123,8 +123,8 @@ const QUICK_ACTIONS: { icon: LucideIcon; label: string; description: string; hre
     label: "Risk Assessment",
     description: "Create comprehensive risk assessments",
     href: "/service-users/risk-assessment",
-    panelTone: "bg-slate-500/[0.03] border-slate-500/20",
-    iconTone: "bg-slate-600/12 text-slate-700 dark:text-slate-200",
+    panelTone: "bg-muted/50 border-border",
+    iconTone: "bg-muted text-muted-foreground",
   },
   {
     icon: Brain,
@@ -354,7 +354,7 @@ export default function Dashboard() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
               <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Medication Audits</CardTitle>
               <div className="h-8 w-8 rounded-md flex items-center justify-center bg-blue-500/8">
-                <Pill className="h-3.5 w-3.5 text-blue-600" />
+                <Pill className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
               </div>
             </CardHeader>
             <CardContent className="pt-0.5">
@@ -388,7 +388,7 @@ export default function Dashboard() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
               <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Risk Assessments</CardTitle>
               <div className="h-8 w-8 rounded-md flex items-center justify-center bg-amber-500/8">
-                <Shield className="h-3.5 w-3.5 text-amber-600" />
+                <Shield className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
               </div>
             </CardHeader>
             <CardContent className="pt-0.5">
@@ -412,7 +412,7 @@ export default function Dashboard() {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center">
-                  <Play className="h-5 w-5 text-white" />
+                  <Play className="h-5 w-5 text-primary" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -579,7 +579,7 @@ export default function Dashboard() {
           </div>
           <div>
             <h2 className="text-[0.8125rem] font-semibold tracking-[-0.01em] text-foreground">Launch Center</h2>
-            <p className="text-[10px] text-muted-foreground/60">Quick access to key workflows</p>
+            <p className="text-[10px] text-muted-foreground/75">Quick access to key workflows</p>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -738,7 +738,7 @@ export default function Dashboard() {
                   <div className="space-y-2 overflow-y-auto max-h-[280px] pr-1">
                     {recentAlerts.map((alert) => (
                       <div key={alert.id} className="flex items-start gap-4 p-3 rounded-lg border border-border/40 bg-muted/15 hover:bg-muted/25 transition-colors group">
-                        <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border/50 shrink-0">
+                        <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border border-border shrink-0">
                           <Activity className="h-4 w-4 text-destructive" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -785,7 +785,7 @@ export default function Dashboard() {
                     {activityData.map((item: ActivityItem) => (
                       <div key={item.id} className="flex items-start gap-4 p-3 rounded-lg border border-border/40 bg-muted/15 hover:bg-muted/25 transition-colors">
                         <div className={cn(
-                          "h-8 w-8 rounded-md flex items-center justify-center border border-border/50 shrink-0",
+                          "h-8 w-8 rounded-md flex items-center justify-center border border-border shrink-0",
                           item.type === "alert" ? "bg-destructive/10" :
                           item.type === "audit" ? "bg-primary/10" :
                           "bg-muted"
@@ -836,7 +836,7 @@ export default function Dashboard() {
 
       {/* Operational Summary & Data Export */}
       <Card className=" overflow-hidden animate-slide-up stagger-5" data-testid="card-operational-summary">
-        <CardHeader className="pb-3 border-b border-border/25">
+        <CardHeader className="pb-3 border-b border-border/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-blue-500/10 border border-blue-500/12 shadow-[var(--shadow-xs)]">
@@ -886,7 +886,7 @@ export default function Dashboard() {
                   <p className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">
                     {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : item.value}
                   </p>
-                  <p className="text-[10px] font-semibold text-muted-foreground/70 mt-0.5 tracking-wide">{item.label}</p>
+                  <p className="text-[10px] font-semibold text-muted-foreground/80 mt-0.5 tracking-wide">{item.label}</p>
                 </div>
               ));
             })()}

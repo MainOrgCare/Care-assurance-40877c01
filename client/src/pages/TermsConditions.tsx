@@ -280,7 +280,7 @@ export default function TermsConditions() {
                   <Shield className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" />
                   <div>
                     <p className="font-medium mb-2 text-blue-700">ORIGINAL WORK AND PROPRIETARY RIGHTS</p>
-                    <p className="text-sm text-slate-700 dark:text-slate-300">
+                    <p className="text-sm text-muted-foreground">
                       The name "CareAssurance," the CareAssurance logo, all related names, logos, product and service names, designs, user interface designs, visual elements, and all associated branding elements are the original creative works of Lewis Barron. These elements were independently conceived, created, and developed by Lewis Barron without reference to or copying of any third-party works. All rights in and to these elements are exclusively reserved.
                     </p>
                   </div>
@@ -296,7 +296,7 @@ export default function TermsConditions() {
               </ul>
               <div className="rounded-lg p-4 mt-4 mb-4 bg-blue-500/[0.08] border border-blue-500/20">
                 <p className="font-medium mb-2 text-blue-700">BRANDING AND DESIGN</p>
-                <p className="text-sm text-slate-700 dark:text-slate-300">
+                <p className="text-sm text-muted-foreground">
                   The CareAssurance name, logo, and visual design belong to Lewis Barron. Using the platform does not grant rights to reuse or adapt these elements. If you have questions or concerns about branding or design, please contact the Owner to discuss.
                 </p>
               </div>
@@ -375,9 +375,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">15. Consequences of Violation</h3>
-              <div className="rounded-lg p-4 mb-4 bg-slate-50/90 dark:bg-slate-800/90 border border-border">
+              <div className="rounded-lg p-4 mb-4 bg-muted/50 border border-border">
                 <p className="font-medium mb-2 text-foreground">If these Terms are breached</p>
-                <p className="text-sm text-slate-700 dark:text-slate-300">
+                <p className="text-sm text-muted-foreground">
                   Serious breaches (for example, misuse of data, unauthorised copying, or security risks) may result in suspension and, where needed, appropriate legal remedies. Our aim is to resolve issues proportionately while protecting service users, data subjects, and the platform.
                 </p>
               </div>

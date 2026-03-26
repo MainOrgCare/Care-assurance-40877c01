@@ -229,7 +229,7 @@ function WorkerRow({
   }, 0);
 
   return (
-    <div className="grid grid-cols-8 gap-1 py-1 border-b border-border/30 last:border-b-0">
+    <div className="grid grid-cols-8 gap-1 py-1 border-b border-border/50 last:border-b-0">
       {/* Worker name column - sticky */}
       <div className="sticky left-0 z-10 bg-background flex items-center gap-2 px-2 min-w-[140px]">
         <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">

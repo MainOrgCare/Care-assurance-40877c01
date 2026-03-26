@@ -1326,7 +1326,7 @@ export default function PlanEnhancer() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-muted-foreground">Data Quality:</span>
                     <div className="flex items-center gap-2">
-                      <div className="w-24 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
                         <div 
                           className={`h-full transition-all ${preAnalysis.qualityScore >= 70 ? "bg-emerald-500" : preAnalysis.qualityScore >= 50 ? "bg-amber-500" : "bg-red-500"}`}
                           style={{ width: `${preAnalysis.qualityScore}%` }}

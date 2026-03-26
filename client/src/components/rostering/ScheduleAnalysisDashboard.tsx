@@ -97,11 +97,11 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
   });
 
   const getScoreColor = (score: number) => {
-    if (score >= 90) return "text-green-600";
-    if (score >= 75) return "text-blue-600";
+    if (score >= 90) return "text-success";
+    if (score >= 75) return "text-info";
     if (score >= 60) return "text-yellow-600";
-    if (score >= 40) return "text-orange-600";
-    return "text-red-600";
+    if (score >= 40) return "text-warning";
+    return "text-destructive";
   };
 
   const getScoreLabel = (score: number) => {
@@ -115,11 +115,11 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
   const getInsightIcon = (type: string) => {
     switch (type) {
       case "positive":
-        return <CheckCircle2 className="h-5 w-5 text-green-600" />;
+        return <CheckCircle2 className="h-5 w-5 text-success" />;
       case "warning":
         return <AlertTriangle className="h-5 w-5 text-yellow-600" />;
       case "critical":
-        return <AlertTriangle className="h-5 w-5 text-red-600" />;
+        return <AlertTriangle className="h-5 w-5 text-destructive" />;
       default:
         return null;
     }
@@ -202,7 +202,7 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
                     <CardContent>
                       <div className="space-y-1">
                         <div className="flex justify-between text-sm">
-                          <span className="text-green-600">✓ Positive:</span>
+                          <span className="text-success">✓ Positive:</span>
                           <span className="font-semibold">
                             {analysis.insights.filter(i => i.type === "positive").length}
                           </span>
@@ -214,7 +214,7 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-red-600">✕ Critical:</span>
+                          <span className="text-destructive">✕ Critical:</span>
                           <span className="font-semibold">
                             {analysis.insights.filter(i => i.type === "critical").length}
                           </span>

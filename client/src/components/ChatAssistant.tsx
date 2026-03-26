@@ -184,7 +184,7 @@ export const ChatTriggerButton = React.memo(function ChatTriggerButton({ onClick
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium transition-colors"
       aria-label="Get help"
     >
       <HelpCircle className="h-4 w-4" />

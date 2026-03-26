@@ -26,12 +26,15 @@ function applyThemeToDom(theme: AppTheme): void {
 
   root.classList.remove(...THEME_CLASSES, "dark");
   root.classList.add(themeClass);
+  if (isDarkTheme) root.classList.add("dark");
   root.setAttribute("data-theme", theme);
+  root.removeAttribute("data-theme-dark");
   root.style.colorScheme = isDarkTheme ? "dark" : "light";
 
   if (body) {
     body.classList.remove(...THEME_CLASSES, "dark");
     body.classList.add(themeClass);
+    if (isDarkTheme) body.classList.add("dark");
     body.setAttribute("data-theme", theme);
     body.style.colorScheme = isDarkTheme ? "dark" : "light";
   }

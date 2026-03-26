@@ -271,31 +271,31 @@ export default function ComplieeIntro({ onComplete, onAskHelp }: ComplieeIntroPr
         {showBubble && (
           <div 
             className={cn(
-              "bg-white rounded-2xl shadow-xl border border-gray-200 p-4 max-w-[260px]",
+              "bg-card rounded-2xl shadow-xl border border-border p-4 max-w-[260px]",
               "animate-bubble-pop origin-bottom-right"
             )}
           >
-            <p className="text-sm text-gray-700 mb-3 font-medium">
-              👋 Hi there! I'm <span className="text-indigo-600 font-semibold">Compli-ee</span>!
+            <p className="text-sm text-foreground mb-3 font-medium">
+              👋 Hi there! I'm <span className="text-primary font-semibold">Compli-ee</span>!
               <br />
-              <span className="text-gray-600">Would you like a quick tour of the platform?</span>
+              <span className="text-muted-foreground">Would you like a quick tour of the platform?</span>
             </p>
             <div className="flex gap-2">
               <button
                 onClick={handleYes}
-                className="flex-1 px-3 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
+                className="flex-1 px-3 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors"
               >
                 Yes please! 🎉
               </button>
               <button
                 onClick={handleNo}
-                className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 transition-colors"
+                className="flex-1 px-3 py-2 bg-muted text-foreground text-sm font-semibold rounded-lg hover:bg-muted/80 transition-colors"
               >
                 Maybe later
               </button>
             </div>
             {/* Speech bubble tail */}
-            <div className="absolute -right-2 bottom-6 w-4 h-4 bg-white border-r border-b border-gray-200 transform rotate-[-45deg]" />
+            <div className="absolute -right-2 bottom-6 w-4 h-4 bg-card border-r border-b border-border transform rotate-[-45deg]" />
           </div>
         )}
 
@@ -335,7 +335,7 @@ export function ComplieeIdleButton({
       onClick={onClick}
       className={cn(
         "group relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all duration-200",
-        "bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-semibold shadow-[var(--shadow-xs)] shadow-emerald-500/30",
+        "bg-gradient-to-r from-primary to-primary/80 text-white text-sm font-semibold shadow-[var(--shadow-xs)] shadow-emerald-500/30",
         "hover:from-emerald-600 hover:to-teal-600 hover:shadow-[var(--shadow-medium)] hover:shadow-emerald-500/40",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className

@@ -397,7 +397,7 @@ export default function PrivacyPolicy() {
                   <Lock className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" />
                   <div>
                     <p className="font-medium mb-2 text-blue-500">ORIGINAL WORK AND WAIVER OF CLAIMS</p>
-                    <p className="text-sm text-slate-700 dark:text-slate-300">
+                    <p className="text-sm text-muted-foreground">
                       The name "CareAssurance," the CareAssurance logo, all related names, logos, designs, user interface designs, visual elements, and all associated branding elements are the original creative works of Lewis Barron, independently conceived and created. All rights in and to these elements are exclusively reserved.
                     </p>
                   </div>

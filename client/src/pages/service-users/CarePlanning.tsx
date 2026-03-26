@@ -534,9 +534,9 @@ export default function CarePlanning() {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "high": return "text-red-400 bg-red-950/30 border-red-900/50";
-      case "medium": return "text-amber-400 bg-amber-950/30 border-amber-900/50";
-      case "low": return "text-emerald-400 bg-emerald-950/30 border-emerald-900/50";
+      case "high": return "text-destructive bg-destructive/10 border-destructive/20";
+      case "medium": return "text-warning bg-warning/10 border-warning/20";
+      case "low": return "text-success bg-success/10 border-success/20";
       default: return "text-muted-foreground bg-muted/50 border-border";
     }
   };
@@ -1039,7 +1039,7 @@ export default function CarePlanning() {
                         <div className={cn(
                           "h-10 w-10 rounded-xl flex items-center justify-center border transition-all duration-500",
                           section.priority === 'high' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
-                          section.priority === 'medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
+                          section.priority === 'medium' ? 'bg-amber-500/20 border-amber-500/40 text-amber-500' :
                           'bg-success/10 border-success/20 text-success'
                         )}>
                           {section.title.toLowerCase().includes('warning') || section.priority === 'high' ? (
@@ -1129,16 +1129,16 @@ export default function CarePlanning() {
                           </div>
                         )}
                         {Array.isArray(section.equipment) && section.equipment.length > 0 && (
-                          <div className="bg-blue-500/5 rounded-2xl p-5 border border-blue-500/10">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-3 flex items-center gap-2">
+                          <div className="bg-primary/5 rounded-2xl p-5 border border-primary/20">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
                               <Zap size={14} />
                               Logistics Needed
                             </h4>
                             <ul className="space-y-2.5">
                               {section.equipment.map((item, eqIndex) => (
                                 <li key={eqIndex} className="flex items-start gap-3">
-                                  <div className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
-                                  <p className="text-xs font-semibold text-blue-500/80 leading-relaxed">{item}</p>
+                                  <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0 shadow-none" />
+                                  <p className="text-xs font-semibold text-primary/80 leading-relaxed">{item}</p>
                                 </li>
                               ))}
                             </ul>

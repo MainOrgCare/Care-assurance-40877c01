@@ -130,7 +130,7 @@ export default function Compliance() {
         <Card data-testid="stat-discrepancies">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
             <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Discrepancies Found</CardTitle>
-            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-amber-500/10 shadow-[var(--shadow-xs)]">
+            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-amber-500/20 shadow-[var(--shadow-xs)]">
               <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             </div>
           </CardHeader>
@@ -156,7 +156,7 @@ export default function Compliance() {
         <Card data-testid="stat-compliance-rate">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
             <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Compliance Rate</CardTitle>
-            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-emerald-500/10 shadow-[var(--shadow-xs)]">
+            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-emerald-500/20 shadow-[var(--shadow-xs)]">
               <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
             </div>
           </CardHeader>

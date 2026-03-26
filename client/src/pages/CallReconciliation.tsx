@@ -86,7 +86,7 @@ export default function CallReconciliation() {
       {step === "upload" && (
         <div className="space-y-8">
            {error && (
-             <Card className="app-surface border-red-500/30 bg-red-500/10 max-w-2xl mx-auto">
+             <Card className="app-surface border-red-500/30 bg-red-500/20 max-w-2xl mx-auto">
                <CardContent className="p-4 flex gap-3">
                  <AlertCircle className="text-red-400 shrink-0 mt-0.5" size={18} />
                  <p className="text-sm text-red-300">{error}</p>
